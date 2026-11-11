@@ -322,6 +322,8 @@ journalctl refuse le curseur, reprise à la fin du journal.
 importée, assignée ; la machine de test est passée seule de 0.2.9 à 0.2.10
 (signature vérifiée, redémarrage propre, essai de 10 min, « mise à jour
 confirmée »).
+Deuxième (12/11) : 0.2.10 → 0.2.11 de la même façon ; plus d'erreur
+journalctl après le redémarrage (bug de reprise du journal corrigé).
 
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
