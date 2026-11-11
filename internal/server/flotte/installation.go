@@ -49,8 +49,18 @@ const (
 // d'enrôlement valable (pas expiré, token pas encore remis) ?
 func (f *Flotte) jetonInstallation(ctx context.Context, r *http.Request, maintenant time.Time) bool {
 	jeton, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || len(jeton) < 20 || len(jeton) > 256 || !strings.HasPrefix(jeton, PrefixeJeton) {
+	if !ok || len(jeton) < 20 || len(jeton) > 256 {
 		return false
+	}
+	if !strings.HasPrefix(jeton, PrefixeJeton) {
+		// Machine déjà enrôlée qui relance le script (réinstallation, clé de
+		// signature, --auto-update) : son token suffit (11/11). Mêmes règles
+		// que l'ingestion : token valable, non révoqué, adresse autorisée.
+		if f.opt.Ingestion == nil {
+			return false
+		}
+		_, err := f.opt.Ingestion.Auth().Verifier(ctx, jeton, web.AdresseClient(r), maintenant)
+		return err == nil
 	}
 	e := ingestion.Empreinte(jeton)
 	var n int
@@ -72,7 +82,7 @@ func (f *Flotte) accueillirInstallation(w http.ResponseWriter, r *http.Request) 
 	if !f.jetonInstallation(r.Context(), r, maintenant) {
 		f.echecs.Prendre(cle, 1, maintenant)
 		f.opt.Journal.Warn("téléchargement de l'installation refusé", "ip", ip)
-		erreur(w, http.StatusUnauthorized, "jeton d'enrôlement absent, expiré ou déjà utilisé")
+		erreur(w, http.StatusUnauthorized, "jeton d'enrôlement (ou token de la machine) absent, expiré ou déjà utilisé")
 		return false
 	}
 	return true

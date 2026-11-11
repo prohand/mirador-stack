@@ -301,6 +301,15 @@ remplacée par le heartbeat) + 8 règles mirador = 77 règles, 76 actives.
 lieu d'une erreur YAML). Comparaison avec vmalert active, vmalert joint,
 aucun écart au premier passage. Mesure de 24 h en cours sur l'agent.
 
+**Mises à jour signées (11/11, SPEC § 18.25 et § 18.26)** : clé publique
+posée à l'installation (fichier root) ; versions signées par la CI de GitHub
+(environnement `signature` limité aux tags) et importées depuis
+l'interface. `v0.2.9` : agent signé publié, importé (« signature vérifiée :
+amd64, arm64 ») ; dhcp-dns02 passé à la main en 0.2.9 avec la clé posée et
+`--auto-update`. Prochaine étape : `v0.2.10` (script relançable sans jeton
+avec le token de la machine) assignée à dhcp-dns02 → première mise à jour
+automatique.
+
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
 corrigés dans la documentation : connexion à ghcr.io (token classic
