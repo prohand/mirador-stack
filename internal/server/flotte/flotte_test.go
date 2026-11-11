@@ -506,3 +506,70 @@ func TestClesPubliques(t *testing.T) {
 		t.Error("version signée par une autre clé acceptée")
 	}
 }
+
+// Import d'une version signée depuis les Releases GitHub (faux GitHub local).
+func TestImporterGitHub(t *testing.T) {
+	b := nouveauBanc(t)
+	ancienne := majagent.ClesPubliques
+	majagent.ClesPubliques = ""
+	defer func() { majagent.ClesPubliques = ancienne }()
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	_, autre, _ := ed25519.GenerateKey(rand.Reader)
+	binaire := []byte("agent amd64 signé")
+	fichiers := map[string][]byte{}
+	ajouter := func(depot, version, arch string, cle ed25519.PrivateKey) {
+		m := signer(t, cle, version, arch, binaire)
+		brut, _ := json.Marshal(m)
+		base := "/" + depot + "/releases/download/v" + version + "/mirador-agent-" + version + "-linux-" + arch
+		fichiers[base+".manifeste.json"] = brut
+		fichiers[base] = binaire
+	}
+	ajouter("moi/mirador", "1.3.0", "amd64", priv)  // arm64 absent : sauté
+	ajouter("moi/mirador", "1.4.0", "amd64", autre) // signée par une autre clé
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c, ok := fichiers[r.URL.Path]; ok {
+			_, _ = w.Write(c)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	src := SourceGitHub{Base: srv.URL, Client: srv.Client()}
+	dossier := t.TempDir()
+
+	if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", "v1.3.0", "admin", t0); err == nil {
+		t.Fatal("import sans clé publique réglée accepté")
+	}
+	if err := DefinirClesPubliques(ctx, b.db, base64.StdEncoding.EncodeToString(pub), "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	archs, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", "v1.3.0", "admin", t0)
+	if err != nil || len(archs) != 1 || archs[0] != "amd64" {
+		t.Fatalf("import : %v %v", archs, err)
+	}
+	vs, _ := ListerVersions(ctx, b.db)
+	if len(vs) != 1 || vs[0].Version != "1.3.0" {
+		t.Fatalf("versions : %+v", vs)
+	}
+	if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", "v1.4.0", "admin", t0); err == nil {
+		t.Error("version signée par une autre clé importée")
+	}
+	if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", "v9.9.9", "admin", t0); err == nil || !strings.Contains(err.Error(), "aucune version") {
+		t.Errorf("version absente : %v", err)
+	}
+	for _, mauvais := range []string{"1.3", "v1.3.0; rm", "../x"} {
+		if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", mauvais, "admin", t0); err == nil {
+			t.Errorf("tag %q accepté", mauvais)
+		}
+	}
+	// Réglage du dépôt : adresse complète acceptée, format vérifié.
+	if err := DefinirDepot(ctx, b.db, "https://github.com/lui/fork/", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := LireDepot(ctx, b.db); d != "lui/fork" {
+		t.Errorf("dépôt : %q", d)
+	}
+	if err := DefinirDepot(ctx, b.db, "pas un dépôt", "admin", t0); err == nil {
+		t.Error("dépôt invalide accepté")
+	}
+}

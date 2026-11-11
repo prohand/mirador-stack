@@ -89,6 +89,9 @@ type Console struct {
 	verrousLevesLe        atomic.Int64                      // dernière levée des verrous vue (commande de secours)
 	nomsAnciens           atomic.Pointer[map[string]string] // ancien nom → nom actuel (historique des machines renommées)
 
+	importMaj    etatImport          // import d'une version depuis GitHub (en arrière-plan)
+	sourceGitHub flotte.SourceGitHub // adresse de GitHub (remplaçable dans les tests)
+
 	muEtincelles     sync.Mutex
 	etincellesCache  map[string]string
 	etincellesExpire time.Time

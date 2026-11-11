@@ -2747,3 +2747,29 @@ Menaces :
 | Serveur piraté qui veut pousser un faux agent | la clé des machines installées ne vient plus du serveur ; signature exigée |
 | Agent compromis qui remplace la clé | fichier root non modifiable par l'agent ; droits vérifiés à chaque lecture |
 | Serveur piraté au moment d'une **nouvelle** installation | même risque qu'avant (le binaire vient aussi du serveur) ; empreinte affichée par le script, à comparer avec `mirador-release` |
+
+### 18.26 Versions de l'agent signées par la CI de GitHub **[Décidé, réponse du 11/11]**
+
+Demande : « se passer de l'étape du PC et tout faire via l'interface web ».
+La clé privée ne peut pas aller sur le serveur (un serveur piraté signerait
+un faux agent pour tout le parc). Choix (option 3) : **signature par la CI
+de GitHub à chaque tag**, import depuis l'interface. Change la décision du
+brief « mirador-release signe sur mon poste » (gardée en secours).
+
+| Élément | Choix | Raison / coût |
+|---|---|---|
+| Où est la clé privée | secrets de l'environnement GitHub `signature` (`MIRADOR_CLE_SIGNATURE` = fichier chiffré de mirador-release, `MIRADOR_PHRASE`), environnement limité aux tags `v*` | une branche modifiée (y compris par une session Claude) ne peut pas lire les secrets ; les forks et PR externes non plus |
+| Signature | tâche `versions-agent` de la CI, après contrôles et tests : `make agent VERSION=X.Y.Z`, `mirador-release signer` (phrase lue dans `MIRADOR_PHRASE`), fichiers ajoutés à la Release du tag | même outil et même format que la signature sur le PC |
+| Import | interface (admin, code 2FA) : version `vX.Y.Z` → le serveur télécharge `releases/download/vX.Y.Z/mirador-agent-X.Y.Z-linux-{amd64,arm64}[.manifeste.json]`, vérifie la **signature avant** de télécharger le binaire, puis `Publier` (empreinte, taille) ; en arrière-plan (~20 Mo) | HTTPS seulement ; redirections suivies seulement vers `github.com` / `*.githubusercontent.com` ; manifeste ≤ 64 Kio, binaire ≤ 64 Mio |
+| Dépôt source | réglage `maj.depot_versions` (défaut `prohand/mirador-stack`) | un fork règle le sien ; changer de dépôt sans changer de clé ne fait rien accepter de plus |
+| Sans secrets | binaires ajoutés à la Release sans signature (avertissement) | un fork sans clé reste utilisable (installation, mise à jour à la main) |
+| Confiance | presque la même qu'avant : les binaires signés sur le PC venaient déjà de la CI de GitHub ; le serveur n'a toujours pas la clé | compte GitHub à protéger (2FA, seul à écrire) |
+
+Menaces :
+
+| Menace | Parade |
+|---|---|
+| Serveur piraté | pas de clé privée sur le serveur ; les agents n'acceptent que des versions signées |
+| Workflow modifié sur une branche pour lire la clé | secrets d'environnement limités aux tags `v*` ; `main` protégée (PR obligatoire) |
+| Compte GitHub piraté | peut signer : protéger le compte (2FA, clés de sécurité) ; c'était déjà le cas (le code venait de GitHub) |
+| GitHub ou réseau qui sert un autre fichier | signature vérifiée avec la clé réglée ; empreinte et taille vérifiées |

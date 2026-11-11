@@ -44,62 +44,84 @@ sa configuration toutes les 5 min et redémarre proprement pour l'appliquer.
 
 ## Mises à jour signées de l'agent
 
-Une seule fois, sur le PC Windows :
+Les versions sont **signées par la CI de GitHub** à chaque tag `vX.Y.Z`
+(SPEC § 18.26) et importées depuis l'interface. Le serveur n'a jamais la
+clé privée : il vérifie seulement la signature.
 
-1. `mirador-release-windows-amd64.exe cle` : crée `cle-mirador.json`
-   (chiffré par une phrase de passe) et affiche la clé **publique**.
-2. Garder une copie de `cle-mirador.json` hors du PC, et la phrase de passe à
-   part. Une clé perdue ne se retrouve pas.
-3. Coller la clé publique dans l'interface : **Mises à jour des agents ›
-   Clé publique de signature** (code 2FA). Vérifier que l'empreinte affichée
-   est celle donnée par `mirador-release`.
+### Une seule fois : la clé
 
-Le script d'installation récupère ensuite la clé auprès du serveur et
-l'écrit sur chaque **nouvelle** machine, dans un fichier root
-(`/etc/mirador-agent/cles-publiques.txt`, 0644) : l'agent le lit mais ne
-peut pas le modifier, et le serveur ne peut pas le changer à distance.
+1. Sur le PC Windows (ou tout poste de confiance) :
+   `mirador-release-windows-amd64.exe cle` → crée `cle-mirador.json`
+   (chiffré par une phrase de passe) et affiche la clé **publique** et son
+   empreinte. Garder une copie de `cle-mirador.json` et de la phrase hors du
+   PC : une clé perdue ne se retrouve pas.
+2. GitHub, dépôt › **Settings › Environments › New environment** :
+   `signature`.
+   - **Deployment branches and tags** → *Selected branches and tags* →
+     **Add deployment branch or tag rule** → *Tag* → `v*`.
+   - **Environment secrets** :
+     - `MIRADOR_CLE_SIGNATURE` = tout le contenu de `cle-mirador.json` ;
+     - `MIRADOR_PHRASE` = la phrase de passe.
+3. Interface : **Mises à jour des agents › Clé publique de signature** :
+   coller la clé publique (code 2FA) ; vérifier l'empreinte.
 
-Machines installées **avant** d'avoir réglé la clé : elles n'en ont pas et
-refusent toute mise à jour. Relancer le script d'installation une fois sur
-chacune (il reprend tout le reste) :
+Les machines installées ensuite reçoivent la clé (fichier root
+`/etc/mirador-agent/cles-publiques.txt`). Celles installées **avant** :
+relancer le script une fois (il reprend tout le reste) :
 
 ```bash
 sudo bash mirador-agent-install.sh --serveur https://VOTRE-VHOST-INGESTION --mirador \
   --cle-publique CLE_PUBLIQUE --auto-update
 ```
 
-Changer de clé (rotation) : régler les **deux** clés dans l'interface
-(l'actuelle et la nouvelle), relancer le script avec
-`--cle-publique ANCIENNE,NOUVELLE` sur chaque machine, signer avec la
-nouvelle, puis retirer l'ancienne. Une clé posée sur une machine ne change
-jamais sans cette option : même un serveur piraté ne peut pas y mettre la
-sienne.
+### À chaque version
 
-À chaque version :
+1. Poser le tag `vX.Y.Z` sur `main` (GitHub › Releases › Draft a new release).
+   La CI publie l'image du serveur **et** ajoute à la Release l'agent signé
+   (`mirador-agent-X.Y.Z-linux-amd64/arm64` et leurs `.manifeste.json`).
+2. Interface : **Mises à jour des agents › Importer une version signée
+   depuis GitHub** : saisir `vX.Y.Z`, code 2FA, **Importer**. Le serveur
+   télécharge, vérifie la signature et l'empreinte, puis publie.
+3. Assigner la version, d'abord à une machine pour essayer, puis à toutes
+   (voir ci-dessous).
 
-1. Télécharger `mirador-agent-linux-amd64` (et `arm64`) depuis la CI.
-2. Sur le PC Windows :
+Fork : régler son propre dépôt (« Changer de dépôt ») et sa propre clé ;
+sans les secrets, sa CI publie l'agent sans signature.
+
+### Sans GitHub (à la main)
+
+1. Signer sur le PC :
 
    ```bash
    mirador-release-windows-amd64.exe signer -cle cle-mirador.json -version 1.2.0 -arch amd64 mirador-agent-linux-amd64
    ```
 
-3. Copier le binaire et son manifeste sur le VPS, puis publier (le binaire
-   passe par l'entrée standard : rien à copier dans le conteneur) :
+2. Publier le binaire et son manifeste dans l'interface (Publier une version
+   à la main), ou sur le VPS :
 
    ```bash
    docker exec -i mirador-server /mirador-server -config /etc/mirador/server.conf \
      publier "$(cat mirador-agent-linux-amd64.manifeste.json)" - < mirador-agent-linux-amd64
    ```
 
-   Le serveur vérifie la signature et l'empreinte avant d'accepter.
+### Changer de clé
 
-4. Assigner la version, d'abord à une machine pour essayer, puis à toutes :
+Régler les **deux** clés dans l'interface (l'actuelle et la nouvelle),
+relancer le script avec `--cle-publique ANCIENNE,NOUVELLE` sur chaque
+machine, remplacer les secrets GitHub par la nouvelle clé, puis retirer
+l'ancienne. Une clé posée sur une machine ne change jamais sans cette
+option : même un serveur piraté ne peut pas y mettre la sienne.
 
-   ```bash
-   MS cible -machine srv-test-mirador 1.2.0
-   MS cible 1.2.0
-   ```
+### Assigner une version
+
+D'abord à une machine pour essayer (fiche de la machine › Version de
+l'agent), puis à toutes (Mises à jour des agents › Version de toutes les
+machines). En ligne de commande :
+
+```bash
+MS cible -machine srv-test-mirador 1.2.0
+MS cible 1.2.0
+```
 
 Seuls les agents installés avec `--auto-update` se mettent à jour. Chacun
 vérifie la signature, l'empreinte, et refuse une version plus ancienne (sauf

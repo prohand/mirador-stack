@@ -16,6 +16,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -446,9 +447,68 @@ type donneesMaj struct {
 	Fenetre  flotte.Fenetre
 	Machines []flotte.InfoMachine
 	Cles     []cleVue // clés publiques de signature (posées sur les machines à l'installation)
+	Depot    string   // dépôt GitHub des versions signées
+	Import   vueImport
 }
 
 type cleVue struct{ Valeur, Empreinte string }
+
+// vueImport : dernier import depuis GitHub (affiché dans la page).
+type vueImport struct {
+	EnCours  bool
+	Tag      string
+	Resultat string
+	Erreur   bool
+	Le       time.Time
+}
+
+// etatImport : vueImport protégée (un seul import à la fois).
+type etatImport struct {
+	mu sync.Mutex
+	v  vueImport
+}
+
+func (e *etatImport) lire() vueImport {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.v
+}
+
+// lancerImport : import en arrière-plan (téléchargement de ~20 Mo depuis
+// GitHub : trop long pour une requête derrière nginx). Faux si un import est
+// déjà en cours.
+func (c *Console) lancerImport(depot, tag, qui string) bool {
+	c.importMaj.mu.Lock()
+	if c.importMaj.v.EnCours {
+		c.importMaj.mu.Unlock()
+		return false
+	}
+	c.importMaj.v = vueImport{EnCours: true, Tag: tag, Le: c.maintenant()}
+	c.importMaj.mu.Unlock()
+	go func() {
+		ctx, fin := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer fin()
+		archs, err := flotte.ImporterGitHub(ctx, c.db, filepath.Join(c.opt.Donnees, "versions"), c.sourceGitHub,
+			depot, tag, qui+" (GitHub "+depot+")", c.maintenant())
+		res := ""
+		if len(archs) > 0 {
+			res = "importée et signature vérifiée : " + strings.Join(archs, ", ")
+		}
+		if err != nil {
+			if res != "" {
+				res += " ; "
+			}
+			res += err.Error()
+			c.journal.Warn("import d'une version depuis GitHub", "depot", depot, "version", tag, "erreur", err)
+		} else {
+			c.journal.Info("version importée depuis GitHub", "depot", depot, "version", tag, "architectures", archs)
+		}
+		c.importMaj.mu.Lock()
+		c.importMaj.v = vueImport{Tag: tag, Resultat: res, Erreur: err != nil, Le: c.maintenant()}
+		c.importMaj.mu.Unlock()
+	}()
+	return true
+}
 
 func (c *Console) pageMisesAJour(q *req) {
 	ctx := q.r.Context()
@@ -458,11 +518,14 @@ func (c *Console) pageMisesAJour(q *req) {
 	d.Cible, e2 = flotte.CibleGlobale(ctx, c.db)
 	d.Fenetre, e3 = flotte.LireFenetre(ctx, c.db)
 	d.Machines, e4 = flotte.ListerMachines(ctx, c.db)
+	d.Import = c.importMaj.lire()
+	var e6 error
+	d.Depot, e6 = flotte.LireDepot(ctx, c.db)
 	cles, e5 := flotte.LireClesPubliques(ctx, c.db)
 	for _, k := range cles {
 		d.Cles = append(d.Cles, cleVue{k, majagent.EmpreinteCle(k)})
 	}
-	if err := errors.Join(e1, e2, e3, e4, e5); err != nil {
+	if err := errors.Join(e1, e2, e3, e4, e5, e6); err != nil {
 		c.flash(q, "", err.Error())
 	}
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
@@ -477,6 +540,17 @@ func (c *Console) postMisesAJour(q *req) {
 		case "cible":
 			err = flotte.DefinirCible(ctx, c.db, 0, q.r.PostFormValue("version"), q.qui(), q.t)
 			ok = "version assignée à toutes les machines sans version propre"
+		case "depot":
+			err = flotte.DefinirDepot(ctx, c.db, q.r.PostFormValue("depot"), q.qui(), q.t)
+			ok = "dépôt des versions enregistré"
+		case "importer":
+			var depot string
+			if depot, err = flotte.LireDepot(ctx, c.db); err == nil {
+				if !c.lancerImport(depot, strings.TrimSpace(q.r.PostFormValue("tag")), q.qui()) {
+					err = errors.New("un import est déjà en cours")
+				}
+				ok = "import lancé : recharger la page dans quelques secondes"
+			}
 		case "cles":
 			err = flotte.DefinirClesPubliques(ctx, c.db, q.r.PostFormValue("cles"), q.qui(), q.t)
 			ok = "clé publique enregistrée : elle sera posée sur les machines installées à partir de maintenant"

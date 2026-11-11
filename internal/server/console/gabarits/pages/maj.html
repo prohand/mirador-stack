@@ -1,7 +1,7 @@
 {{define "contenu"}}
 <h1>Mises à jour des agents</h1>
 <p class="onglets"><a href="/machines">Machines</a><a class="actif" href="/mises-a-jour">Mises à jour des agents</a><a href="/reglages/agents">Configuration des agents</a></p>
-<p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée sur ton poste</strong> (mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
+<p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée par la CI de GitHub</strong> à chaque tag (ou à la main avec mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
 
 <section class="carte" id="cle"><h2>Clé publique de signature</h2>
 {{if .D.Cles}}<p>{{range .D.Cles}}<code>{{.Valeur}}</code> — empreinte <strong><code>{{.Empreinte}}</code></strong><br>{{end}}</p>
@@ -11,6 +11,19 @@
 <label>Clé(s) publique(s), une par ligne <textarea name="cles" rows="2" maxlength="200" spellcheck="false">{{range $i, $k := .D.Cles}}{{if $i}}
 {{end}}{{$k.Valeur}}{{end}}</textarea></label>
 {{template "code2fa"}}<button data-confirmer="Changer la clé publique de signature ?">Enregistrer</button></form>{{end}}
+</section>
+
+<section class="carte" id="github"><h2>Importer une version signée depuis GitHub</h2>
+<p>Dépôt : <a href="https://github.com/{{.D.Depot}}/releases" rel="noopener noreferrer" target="_blank"><code>{{.D.Depot}}</code></a> — à chaque tag <code>vX.Y.Z</code>, sa CI compile et signe l'agent (amd64, arm64) et l'ajoute à la Release.</p>
+{{with .D.Import}}{{if .EnCours}}<p class="message">Import de {{.Tag}} en cours… (recharger la page)</p>{{else if .Resultat}}<p class="message {{if .Erreur}}erreur{{end}}">Import de {{.Tag}} ({{date .Le}}) : {{.Resultat}}</p>{{end}}{{end}}
+{{if .Admin}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
+<label>Version <input name="tag" required maxlength="20" size="10" placeholder="v0.2.9" pattern="v?[0-9]+\.[0-9]+\.[0-9]+"></label>
+{{template "code2fa"}}<button>Importer</button></form>
+<details><summary><small>Changer de dépôt (fork)</small></summary>
+<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="depot">
+<label>Dépôt GitHub <input name="depot" value="{{.D.Depot}}" required maxlength="140" size="28" placeholder="propriétaire/nom"></label>
+{{template "code2fa"}}<button>Enregistrer</button></form>
+<p><small>Une version n'est acceptée que si elle est signée par une des clés publiques réglées ci-dessus : changer de dépôt sans changer de clé ne fait rien accepter de plus.</small></p></details>{{end}}
 </section>
 
 <div class="grille">
@@ -36,7 +49,7 @@
 </tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
 <p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
 {{if .Admin}}<form method="post" action="/mises-a-jour/publier" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
-<h3>Publier une version</h3>
+<h3>Publier une version à la main (signée sur ton poste)</h3>
 <label>Manifeste signé (.json, fait par mirador-release) <input type="file" name="manifeste" accept=".json,application/json" required></label>
 <label>Binaire (mirador-agent-…-linux-amd64, 30 Mo au plus) <input type="file" name="binaire" required></label>
 {{template "code2fa"}}<button>Publier</button></form>{{end}}

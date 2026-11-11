@@ -34,7 +34,24 @@ import (
 )
 
 func main() {
-	os.Exit(lancer(os.Args[1:], os.Stdout, os.Stderr, lirePhraseClavier))
+	phrase := lirePhraseClavier
+	// Signature automatique par la CI (tag de version, SPEC § 18.26) : la
+	// phrase de passe vient d'un secret GitHub, pas du clavier.
+	if os.Getenv("MIRADOR_PHRASE") != "" {
+		phrase = lirePhraseEnv
+	}
+	os.Exit(lancer(os.Args[1:], os.Stdout, os.Stderr, phrase))
+}
+
+// lirePhraseEnv : phrase dans MIRADOR_PHRASE (CI seulement), retirée de
+// l'environnement aussitôt lue.
+func lirePhraseEnv(string) ([]byte, error) {
+	p := os.Getenv("MIRADOR_PHRASE")
+	_ = os.Unsetenv("MIRADOR_PHRASE")
+	if p == "" {
+		return nil, errors.New("MIRADOR_PHRASE vide")
+	}
+	return []byte(p), nil
 }
 
 // lirePhrase : remplaçable dans les tests.
