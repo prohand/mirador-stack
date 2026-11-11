@@ -2790,8 +2790,8 @@ Propositions de sécurité (non faites, à valider) :
 
 | Gravité | Constat | Proposition |
 |---|---|---|
-| Moyenne | Mot de passe volé : rien ne prévient l'admin. Les codes 2FA faux après un bon mot de passe ne font qu'une ligne de journal | notification (canal existant) sur « code 2FA faux après un bon mot de passe », « compte verrouillé » et « connexion depuis une nouvelle adresse » |
-| Faible | Le nom saisi est écrit tel quel dans le journal : un mot de passe tapé par erreur dans le champ « Nom » s'y retrouve (et part vers CrowdSec) | écrire le nom seulement s'il a la forme d'un nom valide, sinon « (invalide) » |
+| Moyenne (**fait**, § 18.28) | Mot de passe volé : rien ne prévient l'admin. Les codes 2FA faux après un bon mot de passe ne font qu'une ligne de journal | notification (canal existant) sur « code 2FA faux après un bon mot de passe », « compte verrouillé » et « connexion depuis une nouvelle adresse » |
+| Faible (**fait**, § 18.28) | Le nom saisi est écrit tel quel dans le journal : un mot de passe tapé par erreur dans le champ « Nom » s'y retrouve (et part vers CrowdSec) | écrire le nom seulement s'il a la forme d'un nom valide, sinon « (invalide) » |
 | Faible | Durée du verrou fixe (15 min) : un attaquant patient recommence sans fin | durée doublée à chaque nouveau verrou du même compte (plafond 24 h) |
 | Faible | Sessions partielles sans limite par compte (avec le bon mot de passe) | 3 sessions partielles au plus par compte, la plus ancienne est fermée |
 | Faible | Redémarrage = verrous oubliés | acceptable (CrowdSec garde ses bannissements) ; à noter |
@@ -2815,3 +2815,38 @@ Propositions d'architecture (non faites, à valider) :
 | Démarrage | `Demarrer` ferme à la main à chaque erreur (`errors.Join(…Close())` répété 8 fois) | une liste de « fermetures » dépilée en cas d'erreur | aucun |
 | Réglages | relus en base toutes les 5 s par la console (5 requêtes SQLite par tour) | un numéro de version des réglages, relu seul ; le reste seulement s'il change | moins d'I/O |
 | Sessions | en mémoire : un redémarrage (mise à jour) déconnecte tout le monde | garder (plus sûr, zéro écriture disque) | — |
+
+### 18.28 Messages de sécurité et nom dans le journal **[Fait, validé le 11/11]**
+
+Deux propositions du § 18.27 retenues (« oui » du 11/11).
+
+Messages envoyés à l'administrateur par les canaux de notification :
+
+| Événement | Texte | Pourquoi |
+|---|---|---|
+| Code 2FA faux après un mot de passe juste | compte, adresse | le mot de passe est sans doute connu de quelqu'un d'autre |
+| Compte verrouillé | compte, dernière adresse | attaque en cours sur ce compte |
+| Connexion réussie depuis une nouvelle adresse | compte, adresse | session ouverte ailleurs que d'habitude |
+
+- Chemin des alertes critiques : canal principal, secours si panne, file
+  d'attente si tout est en panne. **Mode ombre** : seulement noté dans
+  l'historique des envois (type `securite`).
+- Envoi à part : la page de connexion n'attend pas le canal.
+- **Un message par heure et par sujet** au plus (table bornée à 1 000) : un
+  attaquant ne peut pas noyer l'administrateur.
+- Compte verrouillé : message seulement si le compte existe.
+- Adresses connues gardées en mémoire (30 jours) : la première connexion
+  après un redémarrage du serveur prévient aussi.
+- Jamais de mot de passe ni de code dans le texte (testé).
+- Coût : rien au repos ; un envoi par événement.
+
+Nom dans le journal : un texte saisi dans le champ « Nom » qui n'a pas la
+forme d'un nom de compte est écrit `(invalide)`. Un mot de passe tapé au
+mauvais endroit ne va plus dans le journal ni vers CrowdSec. La forme de la
+ligne ne change pas (`deploy/crowdsec/` inchangé).
+
+| Menace | Parade |
+|---|---|
+| Inconnu qui déclenche des messages en rafale | 1 message / heure / sujet ; rien pour un compte inconnu |
+| Durée de réponse qui trahit l'envoi | envoi hors de la requête |
+| Secret dans un message ou dans le journal | texte fixe + nom du compte + adresse seulement ; nom filtré |

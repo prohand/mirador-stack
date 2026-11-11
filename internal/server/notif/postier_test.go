@@ -452,3 +452,39 @@ func TestAcquittementTelegram(t *testing.T) {
 		t.Error("acquitter avec @nom accepté")
 	}
 }
+
+// Message de sécurité de la console : envoyé en mode actif, seulement noté
+// dans l'historique en mode ombre.
+func TestPrevenir(t *testing.T) {
+	ctx := context.Background()
+	for _, mode := range []string{Actif, Ombre} {
+		db := baseTest(t)
+		r := ReglagesDefaut()
+		r.Mode = mode
+		r.Canaux.Telegram = &Telegram{Actif: true, Jeton: jetonTest, Chat: "-1001234"}
+		if err := EcrireReglages(ctx, db, r, cleTest, "test", time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		tg := &canalSimule{nom: NomTelegram}
+		p, err := NouveauPostier(ctx, OptionsPostier{DB: db, Cle: cleTest, DerniereEvaluationOK: time.Now,
+			Fabrique: func(*Canaux, []byte) (map[string]Canal, error) {
+				return map[string]Canal{NomTelegram: tg}, nil
+			}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Prevenir(ctx, "securite=2fa|admin", "code 2FA faux pour admin")
+		recus := tg.vider()
+		var notes int
+		_ = db.QueryRow(`SELECT COUNT(*) FROM envois WHERE type = 'securite'`).Scan(&notes)
+		if mode == Actif && (len(recus) != 1 || !contient(recus, "code 2FA faux")) {
+			t.Errorf("mode actif : %d message(s) %v", len(recus), recus)
+		}
+		if mode == Ombre && len(recus) != 0 {
+			t.Errorf("mode ombre : message parti %v", recus)
+		}
+		if notes != 1 {
+			t.Errorf("mode %s : %d ligne(s) dans l'historique, 1 attendue", mode, notes)
+		}
+	}
+}

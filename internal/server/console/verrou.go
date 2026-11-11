@@ -140,6 +140,15 @@ func (v *verrous) echecCompte(nom string, seuil int, duree time.Duration, t time
 	return v.comptes.echec(nom, seuil, duree, t)
 }
 
+// adresseConnue : ce compte s'est-il déjà connecté depuis cette adresse
+// (30 jours, depuis le démarrage du serveur) ?
+func (v *verrous) adresseConnue(nom, ip string, t time.Time) bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	le, ok := v.confiance[nom+"|"+cleAdresse(ip)]
+	return ok && t.Sub(le) < dureeConfiance
+}
+
 // reussite : connexion complète réussie. Le compteur du COMPTE est effacé et
 // l'adresse devient « de confiance » pour ce compte. Celui de l'ADRESSE est
 // gardé : se connecter à son propre compte ne remet pas à zéro les essais

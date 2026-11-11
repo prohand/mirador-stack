@@ -522,7 +522,15 @@ Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la 
   `go test -race ./...` verts.
 - Coût : une table en mémoire limitée aux requêtes en cours (quelques
   octets) ; pas de CPU ni d'I/O en plus.
-- **À valider** : 7 propositions de sécurité et 7 d'architecture (SPEC § 18.27).
+- **Fait après validation** (SPEC § 18.28) : messages de sécurité à
+  l'administrateur (code 2FA faux après un bon mot de passe, compte
+  verrouillé, connexion depuis une nouvelle adresse ; 1 par heure et par
+  sujet) ; nom filtré dans le journal. Tests : `prevenir_test.go`,
+  `TestPrevenir`.
+- **À essayer sur le VPS** : se connecter depuis une autre adresse, taper un
+  code 2FA faux ; le message doit arriver sur le canal principal.
+- **Reste à valider** : 5 propositions de sécurité et 7 d'architecture
+  (SPEC § 18.27).
 
 ## Prochaine étape
 

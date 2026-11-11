@@ -104,6 +104,18 @@ Chaque échec est écrit dans le journal du serveur, sous une forme fixe :
 {"level":"WARN","msg":"console : échec de connexion","ip":"203.0.113.9","utilisateur":"admin","raison":"mot de passe faux"}
 ```
 
+Un texte saisi dans le champ « Nom » qui n'a pas la forme d'un nom de compte
+est écrit `"utilisateur":"(invalide)"` (un mot de passe tapé au mauvais
+endroit ne va pas dans le journal).
+
+Messages de sécurité (canal de notification principal, 1 par heure et par
+sujet au plus) :
+
+- code 2FA faux après un mot de passe juste ;
+- compte verrouillé ;
+- connexion réussie depuis une nouvelle adresse (aussi à la première
+  connexion après un redémarrage du serveur).
+
 Fichiers prêts (à relire et adapter) : `deploy/crowdsec/mirador-logs.yaml`
 (parseur) et `deploy/crowdsec/mirador-bf.yaml` (scénario). Acquisition :
 

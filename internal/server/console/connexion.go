@@ -57,15 +57,26 @@ func (c *Console) premierAFaire() bool {
 	return true
 }
 
+// nomJournal : nom écrit dans le journal. Un texte qui n'a pas la forme
+// d'un nom de compte n'est jamais écrit : c'est souvent un mot de passe
+// tapé par erreur dans le champ « Nom » (le journal est lu par CrowdSec).
+func nomJournal(nom string) string {
+	if nom == "" || VerifierNom(nom) == nil {
+		return nom
+	}
+	return "(invalide)"
+}
+
 // echecConnexion : compteurs de verrouillage + ligne de journal (CrowdSec).
 func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
 	sec := c.securite.Load()
-	c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nom, "raison", raison)
+	c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", raison)
 	if c.verrous.echecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t) {
 		c.journal.Warn("console : adresse verrouillée", "ip", ip, "duree", time.Duration(sec.Verrou).String())
 	}
 	if nom != "" && c.verrous.echecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t) {
-		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nom, "duree", time.Duration(sec.Verrou).String())
+		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nomJournal(nom), "duree", time.Duration(sec.Verrou).String())
+		c.prevenirVerrou(nom, ip, t)
 	}
 }
 
@@ -85,13 +96,13 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.verrous.bloqueAdresse(ip, t) {
 		d.Erreur = "trop d'essais depuis cette adresse : réessayer plus tard"
-		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nom, "raison", "adresse verrouillée")
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "adresse verrouillée")
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
 		return
 	}
 	if c.verrous.bloqueCompte(nom, ip, t) {
 		d.Erreur = "trop d'essais sur ce compte : réessayer plus tard"
-		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nom, "raison", "compte verrouillé")
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "compte verrouillé")
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
 		return
 	}
@@ -100,7 +111,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	finir, ok := c.verrous.debuter(nom, ip, c.securite.Load().Echecs, t)
 	if !ok {
 		d.Erreur = messageSimultanes
-		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nom, "raison", "trop d'essais en même temps")
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "trop d'essais en même temps")
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
 		return
 	}
@@ -224,6 +235,10 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		c.echecConnexion(ip, u.Nom, "code 2FA faux", t)
+		// Le mot de passe était bon : s'il ne s'agit pas d'une faute de
+		// frappe, quelqu'un d'autre le connaît.
+		c.prevenirSecurite("2fa|"+u.Nom, "⚠️ mirador : code 2FA faux pour « "+u.Nom+" » après un mot de passe juste.\nAdresse : "+ip+
+			"\nSi ce n'est pas vous : changer le mot de passe de ce compte.", t)
 		essais := 0
 		c.sessions.modifier(s.empreinte, func(x *Session) { x.EssaisCode++; essais = x.EssaisCode })
 		if essais >= essaisCodeMax {
@@ -240,6 +255,7 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 
 // reussir : connexion complète, nouvel identifiant de session.
 func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *Session, nom, ip string, t time.Time) {
+	nouvelle := !c.verrous.adresseConnue(nom, ip, t)
 	c.verrous.reussite(nom, ip, t)
 	c.oublierComptes()
 	u, err := LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
@@ -255,6 +271,12 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *Session, no
 		return
 	}
 	c.journal.Info("console : connexion", "ip", ip, "utilisateur", nom)
+	if nouvelle {
+		// Adresses connues gardées en mémoire : la première connexion après
+		// un redémarrage du serveur prévient aussi.
+		c.prevenirSecurite("adresse|"+nom+"|"+cleAdresse(ip), "🔑 mirador : connexion de « "+nom+" » depuis une nouvelle adresse : "+ip+
+			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
+	}
 	poserCookie(w, id)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

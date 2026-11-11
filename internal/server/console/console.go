@@ -73,6 +73,11 @@ type Console struct {
 	mux      *http.ServeMux
 	pages    *gabarits
 
+	// prevenir : envoi d'un message de sécurité par les canaux de
+	// notification (nil sans canaux ; remplaçable dans les tests).
+	prevenir func(ctx context.Context, groupe, texte string)
+	messages antiRafale
+
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
 
@@ -116,6 +121,9 @@ func Nouvelle(ctx context.Context, opt Options) (*Console, error) {
 	c := &Console{opt: opt, db: opt.DB, journal: opt.Journal, sessions: nouveauMagasin(), verrous: nouveauxVerrous(),
 		comptes: map[int64]compteCache{}, cache: cacheRequetes{tout: map[string]entreeRequete{}},
 		recherches: make(chan struct{}, 2)}
+	if opt.Postier != nil {
+		c.prevenir = opt.Postier.Prevenir
+	}
 	if opt.Metriques != nil {
 		// La base brute ou agrégée est choisie selon la période demandée.
 		// Historique des machines renommées rattaché au nouveau nom (lecture).
