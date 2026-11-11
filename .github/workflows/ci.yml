@@ -209,6 +209,66 @@ jobs:
           docker exec essai /mirador-server -config /etc/mirador/server.conf sauvegardes
           docker stop essai
 
+  # Tag de version : agent compilé (amd64, arm64), SIGNÉ avec la clé gardée
+  # dans les secrets GitHub, puis ajouté à la Release du tag (SPEC § 18.26).
+  # L'interface du serveur importe ces fichiers et vérifie la signature avec
+  # la clé publique réglée ; le serveur n'a jamais la clé privée.
+  # Secrets dans l'environnement « signature », limité aux tags v* (une
+  # branche modifiée ne peut pas les lire) :
+  #   MIRADOR_CLE_SIGNATURE : contenu de cle-mirador.json (chiffré)
+  #   MIRADOR_PHRASE        : sa phrase de passe
+  # Sans ces secrets (ex. un fork) : binaires publiés sans signature.
+  versions-agent:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [controles, tests]
+    runs-on: ubuntu-latest
+    environment: signature
+    permissions:
+      contents: write   # ajouter les fichiers à la Release du tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Compilation de l'agent (version du tag, sans « v »)
+        run: |
+          set -eu
+          v="${GITHUB_REF_NAME#v}"
+          make agent VERSION="$v"
+          for a in amd64 arm64; do
+            mv "dist/mirador-agent-linux-$a" "dist/mirador-agent-$v-linux-$a"
+          done
+      - name: Signature
+        env:
+          MIRADOR_CLE_SIGNATURE: ${{ secrets.MIRADOR_CLE_SIGNATURE }}
+          MIRADOR_PHRASE: ${{ secrets.MIRADOR_PHRASE }}
+        run: |
+          set -eu
+          if [ -z "${MIRADOR_CLE_SIGNATURE:-}" ] || [ -z "${MIRADOR_PHRASE:-}" ]; then
+            echo "::warning::secrets MIRADOR_CLE_SIGNATURE / MIRADOR_PHRASE absents : agent publié SANS signature (pas de mise à jour automatique possible)"
+            exit 0
+          fi
+          v="${GITHUB_REF_NAME#v}"
+          umask 077
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          printf '%s' "$MIRADOR_CLE_SIGNATURE" > "$d/cle.json"
+          go build -o "$d/mirador-release" ./cmd/mirador-release
+          for a in amd64 arm64; do
+            "$d/mirador-release" signer -cle "$d/cle.json" -version "$v" -arch "$a" "dist/mirador-agent-$v-linux-$a"
+          done
+      - name: Ajout à la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes "Version $GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" dist/mirador-agent-* --clobber
+
   # Tag de version : l'image n'est publiée QUE si les contrôles et les tests
   # sont bons.
   publication:

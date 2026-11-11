@@ -353,7 +353,13 @@ func formater(v float64, unite string, decimales *int) string {
 		return nombre(v, dec(0)) + " dBm"
 	case "watt":
 		return nombre(v, dec(0)) + " W"
-	case "dateTimeAsIso", "dateTimeFromNow":
+	case "dateTimeAsIso", "dateTimeAsLocal", "dateTimeAsUS", "dateTimeAsSystem", "dateTimeFromNow":
+		// Grafana attend des millisecondes (« … * 1000 ») ; une valeur en
+		// secondes reste acceptée : au-delà de 1e11, ce sont des ms (1e11 s =
+		// an 5138, 1e11 ms = 1973).
+		if math.Abs(v) >= 1e11 {
+			v /= 1000
+		}
 		return time.Unix(int64(v), 0).In(fuseau.Load()).Format("02/01/2006 15:04")
 	default: // short, none, ''
 		if v == math.Trunc(v) && decimales == nil && math.Abs(v) < 1e15 {

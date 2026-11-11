@@ -498,3 +498,33 @@ func TestComparaisonVmalert(t *testing.T) {
 		t.Error("actif sans url accepté")
 	}
 }
+
+// Fichier de vmalert-logs (LogsQL, « type: vlogs ») : pas d'erreur, chaque
+// règle est classée « impossible » avec la raison.
+func TestImportVlogs(t *testing.T) {
+	fichier := `groups:
+  - name: syslog
+    type: vlogs
+    interval: 15m
+    rules:
+      - record: syslog_lignes_24h
+        expr: '_time:24h | stats by (env, src_ip) count() lignes'
+      - alert: TropDErreurs
+        expr: '_time:5m level:err | stats count() n | filter n:>100'
+`
+	rap, err := Importer(strings.NewReader(fichier), "syslog.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rap.Regles) != 0 || len(rap.Lignes) != 2 || rap.Compter()[Impossible] != 2 {
+		t.Fatalf("rapport : %+v", rap)
+	}
+	for _, l := range rap.Lignes {
+		if !strings.Contains(l.Note, "LogsQL") || l.Nom == "" {
+			t.Errorf("ligne : %+v", l)
+		}
+	}
+	if !strings.Contains(rap.Lignes[0].Note+rap.Lignes[1].Note, "étape 6") {
+		t.Error("raison de syslog_lignes_24h absente")
+	}
+}

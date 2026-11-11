@@ -56,7 +56,7 @@ type FichierCle struct {
 	Sel        string `json:"sel"`
 	Nonce      string `json:"nonce"`
 	Chiffre    string `json:"chiffre"`
-	Publique   string `json:"publique"` // base64, à mettre dans cles/publiques.txt
+	Publique   string `json:"publique"` // base64, à coller dans l'interface (Mises à jour des agents)
 }
 
 // ErrPhrase : phrase de passe fausse ou fichier modifié (impossible de
@@ -212,4 +212,16 @@ func Verifier(m *protocole.Manifeste, binaire []byte, publique string) error {
 		return errors.New("le binaire ne correspond pas au manifeste")
 	}
 	return nil
+}
+
+// EmpreintePublique : 16 premiers caractères hexadécimaux du SHA-256 de la
+// clé publique (octets bruts) ; même calcul que l'interface et le script
+// d'installation, pour comparer d'un coup d'œil.
+func EmpreintePublique(b64 string) string {
+	k, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "?"
+	}
+	h := sha256.Sum256(k)
+	return hex.EncodeToString(h[:])[:16]
 }

@@ -46,6 +46,9 @@ type Agent struct {
 	// FichierToken : chemin du fichier qui contient le token (droits 0600 ou 0640).
 	// Le token lui-même n'est jamais écrit dans ce fichier de configuration.
 	FichierToken string `json:"-"`
+	// FichierCles : clés publiques de signature des versions, posées à
+	// l'installation (root, 0644 : l'agent les lit sans pouvoir les changer).
+	FichierCles string `json:"-"`
 
 	// Serveur : adresse de mirador-server (https://…). Renseignée, elle active
 	// le protocole v1 : enrôlement, configuration distante, battement, et les
@@ -162,6 +165,7 @@ func Defaut() Agent {
 		FichierCurseur:        "/var/lib/mirador-agent/journal.cursor",
 		LogsDocker:            true,
 		FichierToken:          "/etc/mirador-agent/token", // #nosec G101 -- chemin du fichier, pas un secret
+		FichierCles:           "/etc/mirador-agent/cles-publiques.txt",
 		FichierJeton:          "/var/lib/mirador-agent/jeton",
 		FichierConfigDistante: "/var/lib/mirador-agent/config-distante.json",
 	}
@@ -217,6 +221,9 @@ func (a *Agent) Valider() error {
 	}
 	if !strings.HasPrefix(a.FichierToken, "/") {
 		ajoute("MIRADOR_FICHIER_TOKEN doit être un chemin absolu")
+	}
+	if !strings.HasPrefix(a.FichierCles, "/") {
+		ajoute("MIRADOR_FICHIER_CLES doit être un chemin absolu")
 	}
 	if a.Intervalle < intervalleMin || a.Intervalle > intervalleMax {
 		ajoute("MIRADOR_INTERVALLE %s hors bornes (%s à %s)", a.Intervalle, intervalleMin, intervalleMax)
@@ -441,6 +448,8 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.URLLogs = valeur
 	case "MIRADOR_FICHIER_TOKEN":
 		a.FichierToken = valeur
+	case "MIRADOR_FICHIER_CLES":
+		a.FichierCles = valeur
 	case "MIRADOR_SERVEUR":
 		a.Serveur = strings.TrimRight(valeur, "/")
 	case "MIRADOR_FICHIER_JETON":

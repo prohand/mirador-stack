@@ -5,9 +5,18 @@ package console
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"mime/multipart"
+	"mirador-stack/internal/agent/majagent"
+	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/flotte"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
@@ -312,5 +321,67 @@ func TestRaccourcisPages(t *testing.T) {
 	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"retirer-page"}, "nom": {"logs"}})
 	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
 		t.Fatal("raccourci Logs non retiré")
+	}
+}
+
+// Clé publique de signature : réglée dans Mises à jour (code 2FA), affichée
+// avec son empreinte (SPEC § 18.25).
+func TestClePubliqueInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/mises-a-jour")
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "Aucune clé") {
+		t.Fatal("absence de clé non signalée")
+	}
+	cle := strings.Repeat("B", 43) + "="
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle}, "code": {b.code(secret)}})
+	_, corps, _ := b.get(c, "/mises-a-jour")
+	if !strings.Contains(corps, cle) || !strings.Contains(corps, majagent.EmpreinteCle(cle)) {
+		t.Fatal("clé ou empreinte absente de la page")
+	}
+	// Sans code 2FA : refusé.
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {""}})
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, cle) {
+		t.Error("clé effacée sans code 2FA")
+	}
+}
+
+// Import d'une version depuis GitHub par l'interface (faux GitHub local,
+// en arrière-plan).
+func TestImportGitHubInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/mises-a-jour")
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	bin := []byte("agent signé par la CI")
+	h := sha256.Sum256(bin)
+	m := protocole.Manifeste{Version: "1.3.0", Architecture: "amd64", SHA256: hex.EncodeToString(h[:]), Taille: int64(len(bin))}
+	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
+	brut, _ := json.Marshal(m)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/prohand/mirador-stack/releases/download/v1.3.0/mirador-agent-1.3.0-linux-amd64.manifeste.json":
+			_, _ = w.Write(brut)
+		case "/prohand/mirador-stack/releases/download/v1.3.0/mirador-agent-1.3.0-linux-amd64":
+			_, _ = w.Write(bin)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	b.c.sourceGitHub = flotte.SourceGitHub{Base: srv.URL, Client: srv.Client()}
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {base64.StdEncoding.EncodeToString(pub)}, "code": {b.code(secret)}})
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"importer"}, "tag": {"v1.3.0"}, "code": {b.code(secret)}})
+	for i := 0; i < 200 && b.c.importMaj.lire().EnCours; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if e := b.c.importMaj.lire(); e.EnCours || e.Erreur || !strings.Contains(e.Resultat, "amd64") {
+		t.Fatalf("import : %+v", e)
+	}
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "<td>1.3.0</td>") {
+		t.Error("version importée absente de la liste")
 	}
 }

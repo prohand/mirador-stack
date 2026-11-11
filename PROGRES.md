@@ -289,6 +289,18 @@ continue en parallèle (comparaison). Reste : mesure de 24 h (RAM / CPU /
 disque de l'agent et du serveur), import des règles et comparaison avec
 vmalert, notifications en mode ombre, puis validation de l'étape 5.
 
+**Dépôt public (11/11)** : nouveau dépôt public `prohand/mirador-stack`,
+un seul premier commit (détails de l'infrastructure retirés) ; l'ancien
+dépôt reste privé (`mirador-stack-archive`, historique et `reference/`).
+`v0.2.8` publiée depuis le nouveau dépôt et installée sur le VPS.
+
+**Règles et comparaison (11/11)** : 69 règles importées de vmalert (68
+exactes, `SyslogMuet` désactivée en attendant l'étape 6 ; `Watchdog`
+remplacée par le heartbeat) + 8 règles mirador = 77 règles, 76 actives.
+`syslog.yml` (LogsQL) : rien à importer (import corrigé pour le dire au
+lieu d'une erreur YAML). Comparaison avec vmalert active, vmalert joint,
+aucun écart au premier passage. Mesure de 24 h en cours sur l'agent.
+
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
 corrigés dans la documentation : connexion à ghcr.io (token classic

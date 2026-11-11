@@ -31,13 +31,21 @@ const cleCible = "version_agent_cible"
 func nomBinaire(version, arch string) string { return "mirador-agent-" + version + "-linux-" + arch }
 
 // Publier enregistre une version signée de l'agent. La signature est vérifiée
-// ici aussi avec les clés publiques intégrées au serveur (mêmes clés que
-// l'agent) : une erreur est vue tout de suite, pas sur 25 machines.
+// ici aussi avec les clés publiques réglées dans l'interface (celles que
+// reçoivent les agents à l'installation) : une erreur est vue tout de suite,
+// pas sur 25 machines.
 func Publier(ctx context.Context, db *sql.DB, dossier string, m *protocole.Manifeste, binaire []byte, qui string, maintenant time.Time) error {
 	if !formatVersionPubliee.MatchString(m.Version) || !architectures[m.Architecture] {
 		return fmt.Errorf("version %q ou architecture %q invalide", m.Version, m.Architecture)
 	}
-	if err := majagent.VerifierSignature(m, majagent.ClesPubliques); err != nil {
+	cles, err := clesVerification(ctx, db)
+	if err != nil {
+		return err
+	}
+	if cles == "" {
+		return errors.New("aucune clé publique réglée : la saisir d'abord (Mises à jour des agents › Clé publique)")
+	}
+	if err := majagent.VerifierSignature(m, cles); err != nil {
 		return fmt.Errorf("manifeste : %w", err)
 	}
 	if err := majagent.VerifierBinaire(m, binaire); err != nil {

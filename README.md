@@ -23,8 +23,9 @@ machines (mirador-agent) ──HTTPS, push──▶ nginx ──▶ mirador-serv
   (format compact maison), règles d'alerte en PromQL, notifications
   (Telegram, Olvid, ntfy, e-mail, webhook…), interface web, sauvegardes
   chiffrées.
-- **mirador-release** : signe les versions de l'agent (Ed25519) sur le poste
-  de l'administrateur ; la clé privée ne va jamais sur le serveur.
+- **Versions de l'agent signées** (Ed25519) par la CI de GitHub à chaque tag,
+  importées depuis l'interface ; la clé privée ne va jamais sur le serveur
+  (`mirador-release` permet aussi de signer sur son poste).
 - **mirador-collector** (à venir) : collecteur sur le réseau local pour ce qui
   ne sait pas pousser seul (SNMP, syslog…).
 
