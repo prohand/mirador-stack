@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Scénario CrowdSec : 5 échecs de connexion en 10 min depuis la même
+# adresse → décision (bannissement par le bouncer nginx). mirador verrouille
+# déjà l'adresse lui-même ; CrowdSec la bloque en amont, pour tous les vhosts.
+# À copier dans /etc/crowdsec/scenarios/.
+type: leaky
+name: mirador/mirador-bf
+description: "Force brute sur l'interface de mirador-server"
+filter: "evt.Meta.log_type == 'mirador_echec_connexion'"
+groupby: evt.Meta.source_ip
+capacity: 4
+leakspeed: 2m
+blackhole: 10m
+labels:
+  service: mirador
+  type: bruteforce
+  remediation: true

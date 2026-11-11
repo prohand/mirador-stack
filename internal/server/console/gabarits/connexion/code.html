@@ -1,0 +1,15 @@
+{{define "contenu"}}
+<p>Bonjour {{.D.Nom}}. Saisir le code de l'application 2FA.</p>
+<form method="post" action="/connexion/code" class="pile">
+  {{template "csrf" .D.Jeton}}
+  {{/* Gestionnaires de mots de passe (Vaultwarden / Bitwarden, navigateurs) :
+       le compte (champ « username ») rattache la page à la bonne entrée, et
+       le champ du code porte les indices TOTP qu'ils cherchent (id « totp »,
+       autocomplete « one-time-code »). */}}
+  <input type="text" name="username" value="{{.D.Nom}}" autocomplete="username" readonly hidden>
+  <label for="totp">Code 2FA (TOTP)</label>
+  <input id="totp" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus placeholder="123456" aria-label="Code 2FA à usage unique (TOTP)">
+  <button>Se connecter</button>
+</form>
+<p><a href="/connexion">Recommencer</a></p>
+{{end}}

@@ -1,0 +1,997 @@
+{
+  "version": 1,
+  "nom": "synology",
+  "titre": "Synology",
+  "periode": "6h",
+  "variables": [
+    {
+      "nom": "nas",
+      "titre": "NAS",
+      "requete": "label_values(up{job=\"snmp\"}, instance)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Etat",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Joignable",
+          "description": "Le collecteur obtient-il une reponse SNMP ? « Non » : NAS eteint, SNMP desactive, mot de passe ou adresse incorrects.",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Oui",
+              "couleur": "ok"
+            },
+            {
+              "valeur": "0",
+              "texte": "Non",
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(up{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Systeme",
+          "description": "Etat general signale par DSM (pire valeur de tous les NAS affiches).",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Normal",
+              "couleur": "ok"
+            },
+            {
+              "valeur": "2",
+              "texte": "En panne",
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(systemStatus{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Alimentation",
+          "description": "Etat de l'alimentation.",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Normal",
+              "couleur": "ok"
+            },
+            {
+              "valeur": "2",
+              "texte": "En panne",
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(powerStatus{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Ventilateurs",
+          "description": "Ventilateurs systeme et processeur.",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Normal",
+              "couleur": "ok"
+            },
+            {
+              "valeur": "2",
+              "texte": "En panne",
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max({__name__=~\"systemFanStatus|cpuFanStatus\", job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Volumes",
+          "description": "Etat des groupes de stockage (RAID). « Degrade » : un disque manque ou est en panne, la redondance est perdue. « Operation en cours » : reconstruction, extension, verification...",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Normal",
+              "couleur": "ok"
+            },
+            {
+              "de": 2,
+              "a": 10,
+              "texte": "Operation en cours",
+              "couleur": "attention"
+            },
+            {
+              "valeur": "11",
+              "texte": "Degrade",
+              "couleur": "erreur"
+            },
+            {
+              "valeur": "12",
+              "texte": "En panne",
+              "couleur": "erreur"
+            },
+            {
+              "de": 13,
+              "a": 20,
+              "texte": "Operation en cours",
+              "couleur": "attention"
+            },
+            {
+              "valeur": "21",
+              "texte": "Inconnu",
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(raidStatus{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Sante des disques",
+          "description": "Pire etat de sante parmi tous les disques (analyse SMART de DSM).",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Normal",
+              "couleur": "ok"
+            },
+            {
+              "valeur": "2",
+              "texte": "Avertissement",
+              "couleur": "attention"
+            },
+            {
+              "valeur": "3",
+              "texte": "Critique",
+              "couleur": "erreur"
+            },
+            {
+              "valeur": "4",
+              "texte": "Defaillant",
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(diskHealthStatus{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Temperature",
+          "description": "Temperature du NAS la plus elevee.",
+          "unite": "celsius",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 55,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 65,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(temperature{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Mise a jour DSM",
+          "description": "Une nouvelle version de DSM est-elle disponible ?",
+          "unite": "none",
+          "decimales": 0,
+          "correspondances": [
+            {
+              "valeur": "1",
+              "texte": "Disponible",
+              "couleur": "attention"
+            },
+            {
+              "valeur": "2",
+              "texte": "A jour",
+              "couleur": "ok"
+            },
+            {
+              "de": 3,
+              "a": 5,
+              "texte": "Inconnu"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(upgradeAvailable{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "NAS",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "NAS",
+          "description": "Un NAS par ligne. « En service depuis » compte depuis le dernier demarrage du service SNMP du NAS.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, modelName) (modelName{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "B",
+              "expr": "max by (instance, version) (version{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (instance) (sysUpTime{job=\"snmp\", instance=~\"$nas\"}) / 100"
+            },
+            {
+              "id": "D",
+              "expr": "max by (instance) (cpuUtilization{job=\"snmp\", instance=~\"$nas\"}) or max by (instance) (100 - ssCpuIdle{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "E",
+              "expr": "max by (instance) (memUtilization{job=\"snmp\", instance=~\"$nas\"}) or max by (instance) (100 * (1 - (memAvailReal{job=\"snmp\", instance=~\"$nas\"} + memBuffer{job=\"snmp\", instance=~\"$nas\"} + memCached{job=\"snmp\", instance=~\"$nas\"}) / (memTotalReal{job=\"snmp\", instance=~\"$nas\"} > 0)))"
+            },
+            {
+              "id": "F",
+              "expr": "max by (instance) (temperature{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "G",
+              "expr": "max by (instance) (systemStatus{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "H",
+              "expr": "min by (instance) (upgradeAvailable{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "instance",
+              "titre": "NAS"
+            },
+            {
+              "champ": "modelName",
+              "titre": "Modele"
+            },
+            {
+              "champ": "version",
+              "titre": "DSM"
+            },
+            {
+              "champ": "C",
+              "titre": "En service depuis",
+              "unite": "dtdurations"
+            },
+            {
+              "champ": "D",
+              "titre": "CPU",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 70,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 90,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "E",
+              "titre": "Memoire",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 70,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 90,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "F",
+              "titre": "Temperature",
+              "unite": "celsius",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 55,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 65,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "G",
+              "titre": "Systeme",
+              "correspondances": [
+                {
+                  "valeur": "1",
+                  "texte": "Normal",
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": "2",
+                  "texte": "En panne",
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "H",
+              "titre": "Mise a jour DSM",
+              "correspondances": [
+                {
+                  "valeur": "1",
+                  "texte": "Disponible",
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": "2",
+                  "texte": "A jour",
+                  "couleur": "ok"
+                },
+                {
+                  "de": 3,
+                  "a": 5,
+                  "texte": "Inconnu"
+                }
+              ]
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            },
+            {
+              "champ": "B",
+              "titre": "B"
+            }
+          ],
+          "masquer": [
+            "A",
+            "B",
+            "Time",
+            "__name__"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Processeur",
+          "description": "Utilisation du processeur.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance) (cpuUtilization{job=\"snmp\", instance=~\"$nas\"}) or max by (instance) (100 - ssCpuIdle{job=\"snmp\", instance=~\"$nas\"})",
+              "legende": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire",
+          "description": "Memoire utilisee.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance) (memUtilization{job=\"snmp\", instance=~\"$nas\"}) or max by (instance) (100 * (1 - (memAvailReal{job=\"snmp\", instance=~\"$nas\"} + memBuffer{job=\"snmp\", instance=~\"$nas\"} + memCached{job=\"snmp\", instance=~\"$nas\"}) / (memTotalReal{job=\"snmp\", instance=~\"$nas\"} > 0)))",
+              "legende": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Temperature du NAS",
+          "description": "Temperature interne de chaque NAS.",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance) (temperature{job=\"snmp\", instance=~\"$nas\"})",
+              "legende": "{{instance}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Stockage",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Volumes",
+          "description": "Groupes de stockage et volumes. La ligne « Storage Pool » correspond au groupe RAID, « Volume » a l'espace de fichiers.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, raidName) (raidStatus{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "B",
+              "expr": "max by (instance, raidName) (raidTotalSize{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (instance, raidName) (raidFreeSize{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "D",
+              "expr": "max by (instance, raidName) (1 - raidFreeSize{job=\"snmp\", instance=~\"$nas\"} / (raidTotalSize{job=\"snmp\", instance=~\"$nas\"} > 0))"
+            },
+            {
+              "id": "E",
+              "expr": "max by (instance, raidName) (raidHotspareCnt{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "instance",
+              "titre": "NAS"
+            },
+            {
+              "champ": "raidName",
+              "titre": "Volume"
+            },
+            {
+              "champ": "A",
+              "titre": "Etat",
+              "correspondances": [
+                {
+                  "valeur": "1",
+                  "texte": "Normal",
+                  "couleur": "ok"
+                },
+                {
+                  "de": 2,
+                  "a": 10,
+                  "texte": "Operation en cours",
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": "11",
+                  "texte": "Degrade",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "12",
+                  "texte": "En panne",
+                  "couleur": "erreur"
+                },
+                {
+                  "de": 13,
+                  "a": 20,
+                  "texte": "Operation en cours",
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": "21",
+                  "texte": "Inconnu",
+                  "couleur": "attention"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Taille",
+              "unite": "bytes",
+              "decimales": 1
+            },
+            {
+              "champ": "C",
+              "titre": "Libre",
+              "unite": "bytes",
+              "decimales": 1
+            },
+            {
+              "champ": "D",
+              "titre": "Occupation",
+              "unite": "percentunit",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 0.8,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 0.9,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "E",
+              "titre": "Disques de secours",
+              "unite": "short",
+              "decimales": 0
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Occupation des volumes",
+          "description": "Evolution du remplissage. Une pente reguliere annonce la date de saturation.",
+          "unite": "percentunit",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, raidName) (1 - raidFreeSize{job=\"snmp\", instance=~\"$nas\"} / (raidTotalSize{job=\"snmp\", instance=~\"$nas\"} > 0))",
+              "legende": "{{instance}} {{raidName}}"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Disques",
+          "description": "Etat de chaque disque. Des secteurs defectueux qui augmentent annoncent une panne : prevoir le remplacement. La duree de vie restante n'existe que pour les SSD.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, diskID, diskModel) (diskModel{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "B",
+              "expr": "max by (instance, diskID) (diskStatus{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (instance, diskID) (diskHealthStatus{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "D",
+              "expr": "max by (instance, diskID) (diskTemperature{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "E",
+              "expr": "max by (instance, diskID) (diskBadSector{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "F",
+              "expr": "max by (instance, diskID) (diskRetry{job=\"snmp\", instance=~\"$nas\"})"
+            },
+            {
+              "id": "G",
+              "expr": "max by (instance, diskID) (diskRemainLife{job=\"snmp\", instance=~\"$nas\"} >= 0)"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "instance",
+              "titre": "NAS"
+            },
+            {
+              "champ": "diskID",
+              "titre": "Disque"
+            },
+            {
+              "champ": "diskModel",
+              "titre": "Modele"
+            },
+            {
+              "champ": "B",
+              "titre": "Etat",
+              "correspondances": [
+                {
+                  "valeur": "1",
+                  "texte": "Normal",
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": "2",
+                  "texte": "Initialise",
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": "3",
+                  "texte": "Non initialise",
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": "4",
+                  "texte": "Partition systeme en panne",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "5",
+                  "texte": "En panne",
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "C",
+              "titre": "Sante",
+              "correspondances": [
+                {
+                  "valeur": "1",
+                  "texte": "Normal",
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": "2",
+                  "texte": "Avertissement",
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": "3",
+                  "texte": "Critique",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "4",
+                  "texte": "Defaillant",
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "D",
+              "titre": "Temperature",
+              "unite": "celsius",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 45,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 55,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "E",
+              "titre": "Secteurs defectueux",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "F",
+              "titre": "Reconnexions",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                }
+              ]
+            },
+            {
+              "champ": "G",
+              "titre": "Duree de vie restante",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": 10,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 30,
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Temperature des disques",
+          "description": "Au-dela de 50 degres de facon durable, la duree de vie des disques baisse.",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, diskID) (diskTemperature{job=\"snmp\", instance=~\"$nas\"})",
+              "legende": "{{instance}} {{diskID}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Lectures et ecritures par disque",
+          "description": "Debit par disque physique (au-dessus : lecture, en dessous : ecriture).",
+          "unite": "Bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance, storageIODevice) (rate(storageIONReadX{job=\"snmp\", instance=~\"$nas\"}[$__rate_interval]))",
+              "legende": "{{instance}} {{storageIODevice}} lecture"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (instance, storageIODevice) (rate(storageIONWrittenX{job=\"snmp\", instance=~\"$nas\"}[$__rate_interval]))",
+              "legende": "{{instance}} {{storageIODevice}} ecriture"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Charge des disques",
+          "description": "Pourcentage du temps ou chaque disque est occupe. Proche de 100 % en continu : le disque limite les performances.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, storageIODevice) (storageIOLA{job=\"snmp\", instance=~\"$nas\"})",
+              "legende": "{{instance}} {{storageIODevice}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Reseau et services",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Trafic reseau",
+          "description": "Debit par interface reseau du NAS (au-dessus : entrant, en dessous : sortant).",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance, ifName) (rate(ifHCInOctets{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval])) * 8",
+              "legende": "{{instance}} {{ifName}} entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (instance, ifName) (rate(ifHCOutOctets{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval])) * 8",
+              "legende": "{{instance}} {{ifName}} sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Erreurs reseau",
+          "description": "Seules les interfaces en erreur apparaissent.",
+          "unite": "pps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance, ifName) (rate(ifInErrors{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval]) + rate(ifOutErrors{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval]) + rate(ifInDiscards{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval]) + rate(ifOutDiscards{job=\"snmp\", instance=~\"$nas\", ifName!~\"lo|docker.*|veth.*|sit.*|tun.*\"}[$__rate_interval])) > 0",
+              "legende": "{{instance}} {{ifName}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Utilisateurs connectes",
+          "description": "Sessions ouvertes par service (partages SMB, NFS, AFP, FTP...).",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (serviceName) (serviceUsers{job=\"snmp\", instance=~\"$nas\"}) > 0",
+              "legende": "{{serviceName}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Onduleur branche sur le NAS (vide s'il n'y en a pas)",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Etat de l'onduleur",
+          "description": "OL = sur secteur, OB = sur batterie, LB = batterie faible, CHRG = en charge.",
+          "unite": "none",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (upsInfoStatus) (upsInfoStatus{job=\"snmp\", instance=~\"$nas\"})",
+              "legende": "{{upsInfoStatus}}"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Charge de la batterie",
+          "description": "Niveau de la batterie.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 50,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(upsBatteryChargeValue{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Autonomie",
+          "description": "Autonomie estimee sur batterie avec la charge actuelle.",
+          "unite": "s",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 300,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 900,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(upsBatteryRuntimeValue{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Charge de l'onduleur",
+          "description": "Puissance demandee par rapport a la capacite de l'onduleur.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 60,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 80,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(upsInfoLoadValue{job=\"snmp\", instance=~\"$nas\"})"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ignores": [
+    "Lignes recues : requête LogsQL : voir la page Logs",
+    "Erreurs : requête LogsQL : voir la page Logs",
+    "Avertissements : requête LogsQL : voir la page Logs",
+    "Volume par programme : requête LogsQL : voir la page Logs",
+    "Erreurs et avertissements : panneau de logs : voir la page Logs",
+    "Tous les logs : panneau de logs : voir la page Logs"
+  ],
+  "icone": "stockage",
+  "teinte": "violet"
+}

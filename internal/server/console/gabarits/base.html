@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr"{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Titre}} — mirador</title>
+<link rel="preload" href="/statique/polices/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{statique "mirador.css"}}">
+<link rel="stylesheet" href="{{statique "uplot/uPlot.min.css"}}">
+<link rel="icon" href="{{statique "icone.svg"}}" type="image/svg+xml">
+<script src="{{statique "mirador.js"}}" defer></script>
+<script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
+<script src="{{statique "graphes.js"}}" defer></script>
+</head>
+<body data-csrf="{{.CSRF}}">
+{{template "icones"}}
+<div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
+  <aside class="barre">
+    <div class="barre-tete">
+      <a class="logo" href="/" title="mirador"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#2F5BEA"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span class="txt">mirador</span></a>
+      <button type="button" class="replier" data-replier aria-label="Replier ou déplier le menu" title="Replier ou déplier le menu"><svg class="icone"><use href="#i-chevron"></use></svg></button>
+    </div>
+    <nav aria-label="Menu principal">
+      <div class="groupe">Supervision</div>
+      {{template "lien-menu" (menu "/" "ensemble" "Vue d'ensemble" .Menu "accueil" 0)}}
+      {{template "lien-menu" (menu "/machines" "machines" "Machines" .Menu "machines" 0)}}
+      {{template "lien-menu" (menu "/alertes" "alertes" "Alertes" .Menu "alertes" .NbAlertes)}}
+      {{template "lien-menu" (menu "/logs" "logs" "Logs" .Menu "logs" 0)}}
+      {{template "lien-menu" (menu "/tableaux" "tableaux" "Tableaux" .Menu "tableaux" 0)}}
+      <div class="groupe">Configuration</div>
+      {{template "lien-menu" (menu "/regles" "regles" "Règles" .Menu "regles" 0)}}
+      {{template "lien-menu" (menu "/reglages" "reglages" "Réglages" .Menu "reglages" 0)}}
+      {{if .Admin}}{{template "lien-menu" (menu "/utilisateurs" "utilisateurs" "Utilisateurs" .Menu "utilisateurs" 0)}}
+      {{template "lien-menu" (menu "/securite" "securite" "Sécurité" .Menu "securite" 0)}}{{end}}
+      {{template "lien-menu" (menu "/audit" "audit" "Audit" .Menu "audit" 0)}}
+    </nav>
+    <div class="barre-pied">
+      <a class="moi" href="/compte" title="Mon compte"><span class="avatar">{{initiale .Utilisateur}}</span><span class="txt">{{.Utilisateur}}<small>{{if .Admin}}Administrateur{{else}}Lecture seule{{end}}</small></span></a>
+      <form method="post" action="/deconnexion" class="sortir">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit" aria-label="Se déconnecter" title="Se déconnecter"><svg class="icone"><use href="#i-sortir"></use></svg></button>
+      </form>
+    </div>
+  </aside>
+  <div class="contenu">
+    {{if .ModeOmbre}}<div class="bandeau ombre">Mode <strong>ombre</strong> : les alertes sont calculées mais <strong>aucune notification ne part</strong>. <a href="/reglages/notifications">Changer</a></div>{{end}}
+    {{range .AConfirmer}}<div class="bandeau aconfirmer">
+      <span>Changement « {{.Quoi}} » fait par {{.Par}} : <strong>à confirmer avant {{dateS .ExpireLe}}</strong>, sinon l'ancienne valeur revient.</span>
+      <form method="post" action="/confirmer" class="enligne"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Confirmer</button></form>
+    </div>{{end}}
+    <main>
+      {{if .Flash}}<p class="message ok" role="status">{{.Flash}}</p>{{end}}
+      {{if .Alerte}}<p class="message erreur" role="alert">{{.Alerte}}</p>{{end}}
+      {{template "contenu" .}}
+    </main>
+    <footer class="pied">mirador-stack {{.Version}} — GPL-3.0-or-later</footer>
+  </div>
+</div>
+</body>
+</html>

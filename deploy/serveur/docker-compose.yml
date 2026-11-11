@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# mirador-server sur le VPS, à côté de la stack actuelle (SPEC.md § 16.2).
+# Même principe que la stack « obs » : aucun port publié, nginx (sur l'hôte)
+# joint le conteneur par son IP fixe sur le réseau Docker « obs ».
+#
+# Avant le premier lancement (dans le dossier de ce fichier) :
+#   mkdir -p config secrets
+#   openssl rand -base64 32 > secrets/mirador_cle && chmod 0400 secrets/mirador_cle
+#   chown 65532:65532 secrets/mirador_cle
+#   cp server.conf.exemple config/server.conf
+#   chown 65532:65532 config/server.conf && chmod 0400 config/server.conf
+#
+# Olvid (facultatif, SPEC § 18.13) : daemon officiel du bot, lancé seulement
+# avec le profil « olvid ». Clé admin dans .env (0600), puis assistant dans
+# l'interface (Réglages › Notifications › Olvid › assistant) :
+#   echo "OLVID_ADMIN_CLIENT_KEY_CLI=$(openssl rand -hex 32)" >> .env && chmod 600 .env
+#   docker compose --profile olvid up -d
+
+name: mirador
+
+services:
+  mirador-server:
+    image: ghcr.io/prohand/mirador-server:0.2.0   # version figée (pas « latest »)
+    container_name: mirador-server
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 300m
+    cpus: 1.0
+    pids_limit: 200
+    environment:
+      TZ: Europe/Paris
+      # Plafond souple du ramasse-miettes Go (SPEC § 16.1), sous mem_limit.
+      GOMEMLIMIT: 200MiB
+      # Ramasse-miettes plus fréquent : −10 Mo mesurés sous charge, CPU
+      # inchangé (SPEC § 17.9, réponse du 10/11).
+      GOGC: "50"
+    volumes:
+      - mirador-donnees:/var/lib/mirador
+      - ./config/server.conf:/etc/mirador/server.conf:ro
+    secrets: [mirador_cle]
+    networks:
+      obs:
+        ipv4_address: 172.30.0.20   # exemple : une adresse libre de VOTRE réseau
+
+  # Daemon Olvid : aucun port publié ; mirador le joint par son nom
+  # (mirador-olvid:50051) sur le réseau obs. ~170 Mio mesurés (SPEC § 17.10).
+  mirador-olvid:
+    image: olvid/bot-daemon:2.0.1   # version figée
+    container_name: mirador-olvid
+    profiles: [olvid]
+    restart: unless-stopped
+    environment:
+      OLVID_ADMIN_CLIENT_KEY_CLI: ${OLVID_ADMIN_CLIENT_KEY_CLI:-}
+      JAVA_TOOL_OPTIONS: "-Xmx128m"
+    volumes:
+      - olvid-donnees:/daemon/data        # identité du bot : à sauvegarder
+      - olvid-sauvegardes:/daemon/backups
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 300
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+    networks: [obs]
+
+volumes:
+  mirador-donnees:
+  olvid-donnees:
+  olvid-sauvegardes:
+
+secrets:
+  mirador_cle:
+    file: ./secrets/mirador_cle
+
+networks:
+  obs:
+    external: true   # réseau Docker existant (exemple : 172.30.0.0/24, à adapter)

@@ -1,0 +1,12 @@
+{{define "contenu"}}
+<p>Aucun compte n'existe encore. Créer le premier administrateur avec le <strong>jeton à usage unique</strong> écrit dans le journal du serveur :</p>
+<pre>docker logs mirador-server 2>&amp;1 | grep premier</pre>
+<form method="post" action="/premier-admin" class="pile">
+  <label>Jeton <input name="jeton" required autocomplete="off" maxlength="128"></label>
+  <label>Nom <input name="nom" value="{{.D.Nom}}" required autocomplete="username" pattern="[a-z0-9][a-z0-9._\-]{1,31}" maxlength="32"></label>
+  <label>Mot de passe (12 caractères au moins) <input type="password" name="mot_de_passe" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  <label>Mot de passe (encore) <input type="password" name="mot_de_passe2" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  <button>Créer le compte</button>
+</form>
+<p>La 2FA sera créée juste après, à la première connexion.</p>
+{{end}}

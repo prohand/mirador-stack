@@ -1,0 +1,30 @@
+{{define "contenu"}}
+<h1>Mon compte</h1>
+<p>Compte <strong>{{.D.U.Nom}}</strong>, rôle <strong>{{.D.U.Role}}</strong>. Dernière connexion : {{dateS .D.U.ConnecteLe}}.</p>
+
+<section class="carte">
+<h2>Changer de mot de passe</h2>
+<form method="post" action="/compte/mot-de-passe" class="pile">
+  {{template "csrf" .CSRF}}
+  <label>Mot de passe actuel <input type="password" name="actuel" required autocomplete="current-password" maxlength="512"></label>
+  <label>Nouveau (12 caractères au moins) <input type="password" name="nouveau" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  <label>Nouveau (encore) <input type="password" name="nouveau2" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  {{template "code2fa"}}
+  <button>Changer</button>
+</form>
+</section>
+
+<section class="carte">
+<h2>Double authentification</h2>
+{{if .D.Secret}}
+<p>Scanner ce nouveau QR code, puis saisir un code de la <strong>nouvelle</strong> 2FA. Tant que ce n'est pas fait, l'ancienne reste valable.</p>
+<p class="centre"><img src="{{.D.QR}}" alt="QR code de la nouvelle 2FA" width="240" height="240"></p>
+<p>Clé : <code class="secret">{{.D.Secret}}</code></p>
+<form method="post" action="/compte/2fa-confirmer" class="pile">{{template "csrf" .CSRF}}{{template "code2fa"}}<button>Enregistrer la nouvelle 2FA</button></form>
+<form method="post" action="/compte/2fa-abandonner">{{template "csrf" .CSRF}}<button class="secondaire">Abandonner</button></form>
+{{else}}
+<p>Changer de téléphone ou d'application : une nouvelle 2FA est préparée, puis confirmée par un de ses codes.</p>
+<form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}<button>Préparer une nouvelle 2FA</button></form>
+{{end}}
+</section>
+{{end}}

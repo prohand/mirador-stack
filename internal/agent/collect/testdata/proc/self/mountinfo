@@ -1,0 +1,8 @@
+22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw,errors=remount-ro
+23 22 0:21 / /proc rw,nosuid,nodev,noexec,relatime shared:12 - proc proc rw
+24 22 0:22 / /sys rw,nosuid,nodev,noexec,relatime shared:2 - sysfs sysfs rw
+25 22 0:5 / /dev rw,nosuid,relatime shared:3 - devtmpfs udev rw,size=1990000k
+26 22 0:23 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=402832k,mode=755
+27 22 8:2 / /mnt/mon\040disque rw,relatime shared:30 - ext4 /dev/sdb1 rw
+28 22 0:45 / /var/lib/docker/overlay2/abc/merged rw,relatime - overlay overlay rw
+29 22 0:50 / /mnt/nas rw,relatime shared:40 - nfs4 nas:/volume1 rw

@@ -1,0 +1,18 @@
+{{define "contenu"}}
+<h1>Comparaison avec vmalert</h1>
+{{template "onglets-alertes" "comparaison"}}
+{{if not .D.Reglee}}<p class="message erreur">Comparaison non réglée : renseigner l'adresse de vmalert dans <a href="/reglages/notifications">Réglages › Notifications</a>.</p>{{end}}
+{{if .D.Erreur}}<p class="message erreur">vmalert injoignable : {{.D.Erreur}}</p>{{end}}
+<section class="carte"><h2>Maintenant</h2>
+<p><strong>{{.D.Communes}}</strong> alerte(s) présente(s) des deux côtés.</p>
+{{if .D.Ecarts}}<table><thead><tr><th>Écart</th><th>Machine</th><th>Règle</th><th>vmalert</th><th>mirador</th></tr></thead><tbody>
+{{range .D.Ecarts}}<tr><td><span class="pastille {{if egal .Type "manquante"}}erreur{{else}}attention{{end}}">{{if egal .Type "manquante"}}Manquante chez mirador{{else}}En trop chez mirador{{end}}</span></td><td>{{.Machine}}</td><td>{{.Regle}}</td><td class="nombre">{{.Vmalert}}</td><td class="nombre">{{.Mirador}}</td></tr>{{end}}
+</tbody></table>{{else}}<p class="vide">Aucun écart.</p>{{end}}
+</section>
+<section class="carte"><h2>Écarts des 7 derniers jours ({{len .D.Episodes}})</h2>
+<p><a href="/comparaison.csv">Exporter 30 jours en CSV</a> — un écart de moins de 10 min vient souvent d'un simple décalage d'évaluation.</p>
+{{if .D.Episodes}}<div class="defile"><table><thead><tr><th>Écart</th><th>Machine</th><th>Règle</th><th>Début</th><th>Fin</th></tr></thead><tbody>
+{{range .D.Episodes}}<tr><td>{{.Type}}</td><td>{{.Machine}}</td><td>{{.Regle}}</td><td>{{date .Debut}}</td><td>{{if .Fin.IsZero}}en cours{{else}}{{date .Fin}}{{end}}</td></tr>{{end}}
+</tbody></table></div>{{end}}
+</section>
+{{end}}

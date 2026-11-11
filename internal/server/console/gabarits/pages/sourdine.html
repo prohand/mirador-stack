@@ -1,0 +1,52 @@
+{{define "contenu"}}
+<h1>Silences et maintenances</h1>
+{{template "onglets-alertes" "sourdine"}}
+<section class="carte"><h2>Silences en cours ou à venir</h2>
+{{if .D.Silences}}<div class="defile"><table><thead><tr><th>Sélecteur</th><th>Début</th><th>Fin</th><th>Auteur</th><th>Commentaire</th><th></th></tr></thead><tbody>
+{{range .D.Silences}}<tr><td><code>{{.Selecteur}}</code></td><td>{{date .Debut}}</td><td>{{date .Fin}}</td><td>{{.Auteur}}</td><td>{{.Commentaire}}</td>
+<td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="silence_annuler"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Annuler</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucun silence."}}{{end}}
+{{if .Admin}}<details><summary>Nouveau silence</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence">
+<label>Sélecteur d'étiquettes <input name="selecteur" required maxlength="1024" placeholder='{instance="pve1"} ou {alertname="CpuEleve",instance=~"vm-.*"}'></label>
+<label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
+<label>Durée <input name="duree" value="2h" required maxlength="10"></label>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Poser</button></form></details>{{end}}
+</section>
+
+<section class="carte"><h2>Fenêtres de maintenance</h2>
+{{if .D.Maintenances}}<div class="defile"><table><thead><tr><th>Cible</th><th>Quand</th><th>Auteur</th><th>Commentaire</th><th></th></tr></thead><tbody>
+{{range .D.Maintenances}}<tr><td><code>{{.Cible}}</code></td><td>{{if .Recurrence}}chaque {{range .Recurrence.Jours}}{{.}} {{end}}à {{.Recurrence.Heure}} pendant {{.Recurrence.Duree}}{{else}}{{date .Debut}} → {{date .Fin}}{{end}}</td><td>{{.Auteur}}</td><td>{{.Commentaire}}</td>
+<td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="maintenances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune maintenance."}}{{end}}
+{{if .Admin}}<details><summary>Nouvelle maintenance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenance">
+<label>Cible <input name="cible" required maxlength="1024" list="machines" placeholder="machine:pve1, groupe:proxmox ou {site=&quot;bureau&quot;}"></label>
+<datalist id="machines">{{range .D.Machines}}<option value="machine:{{.}}">{{end}}</datalist>
+<label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
+<label>Durée <input name="duree" value="2h" required maxlength="10"></label>
+<fieldset><legend>Récurrente (facultatif) : jours et heure</legend><div class="ligne">{{range .D.Jours}}<label class="case"><input type="checkbox" name="jours" value="{{.}}"> {{.}}</label>{{end}}</div>
+<label>Heure <input type="time" name="heure"></label></fieldset>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Enregistrer</button></form></details>{{end}}
+</section>
+
+<div class="grille">
+<section class="carte"><h2>Inhibitions</h2>
+<p><small>Une alerte « source » active tue les alertes « cible » qui ont les mêmes valeurs pour les étiquettes égales.</small></p>
+<table>{{range .D.Inhibitions}}<tr><td><code>{{.Source}}</code> tue <code>{{.Cible}}</code> si égales : {{range .Egales}}{{.}} {{end}}<br><small>{{.Commentaire}}</small></td>
+<td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="inhibitions"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}</table>
+{{if .Admin}}<details><summary>Nouvelle inhibition</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="inhibition">
+<label>Source <input name="source" required maxlength="1024" placeholder='{alertname="AgentMuet"}'></label>
+<label>Cible <input name="cible" required maxlength="1024" placeholder='{severity=~"warning|info"}'></label>
+<label>Étiquettes égales <input name="egales" value="instance" maxlength="200"></label>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Ajouter</button></form></details>{{end}}
+</section>
+<section class="carte"><h2>Dépendances</h2>
+<p><small>Quand le parent est en panne, les alertes de l'enfant sont mises en sourdine.</small></p>
+<table>{{range .D.Dependances}}<tr><td><code>{{.Enfant}}</code> dépend de <code>{{.Parent}}</code><br><small>{{.Commentaire}}</small></td>
+<td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="dependances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}</table>
+{{if .Admin}}<details><summary>Nouvelle dépendance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="dependance">
+<label>Enfant <input name="enfant" required maxlength="1024" list="machines" placeholder="machine:vm1, groupe:vms-pve1 ou sélecteur"></label>
+<label>Parent (machine) <input name="parent" required maxlength="128" placeholder="pve1"></label>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Ajouter</button></form></details>{{end}}
+</section>
+</div>
+{{end}}

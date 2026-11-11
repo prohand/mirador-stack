@@ -1,0 +1,21 @@
+# Binaires compilés
+/dist/
+
+# Clés et secrets : ne jamais les versionner (SPEC.md § 11.3)
+*.key
+*.pem
+*.p12
+*.pfx
+token
+*.token
+.env
+
+# Fichiers de test et de profilage
+*.test
+*.prof
+*.out
+/internal/**/testdata/fuzz/
+
+# Fichiers de l'infrastructure de l'utilisateur (règles, tableaux Grafana,
+# notes) : gardés en local, jamais publiés.
+/reference/

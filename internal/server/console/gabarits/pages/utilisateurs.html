@@ -1,0 +1,43 @@
+{{define "contenu"}}
+<h1>Utilisateurs</h1>
+<p>Rôles : <strong>admin</strong> (tout) ou <strong>lecture</strong> (consultation seule). Chaque action demande votre code 2FA.</p>
+<div class="defile"><table>
+<thead><tr><th>Nom</th><th>Rôle</th><th>2FA</th><th>État</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
+<tbody>
+{{range .D}}<tr>
+  <td>{{.Nom}}</td><td>{{.Role}}</td>
+  <td>{{if .TOTP}}Oui{{else}}<span class="pastille attention">À créer</span>{{end}}</td>
+  <td>{{if .Desactive}}<span class="pastille erreur">Désactivé</span>{{else}}Actif{{end}}</td>
+  <td>{{dateS .ConnecteLe}}</td>
+  <td>
+    <details><summary>Modifier</summary>
+    <form method="post" action="/utilisateurs" class="pile">
+      {{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.Nom}}">
+      <label>Action <select name="action">
+        <option value="role">Changer le rôle</option>
+        <option value="mot_de_passe">Nouveau mot de passe</option>
+        <option value="reinitialiser_2fa">Effacer la 2FA</option>
+        {{if .Desactive}}<option value="activer">Réactiver</option>{{else}}<option value="desactiver">Désactiver</option>{{end}}
+        <option value="supprimer">Supprimer</option>
+      </select></label>
+      <label>Rôle <select name="role"><option value="lecture" {{if egal .Role "lecture"}}selected{{end}}>Lecture</option><option value="admin" {{if egal .Role "admin"}}selected{{end}}>Admin</option></select></label>
+      <label>Mot de passe (si « nouveau mot de passe ») <input type="password" name="mot_de_passe" maxlength="128" autocomplete="new-password"></label>
+      {{template "code2fa"}}
+      <button data-confirmer="Appliquer cette action au compte {{.Nom}} ?">Appliquer</button>
+    </form></details>
+  </td>
+</tr>{{end}}
+</tbody></table></div>
+
+<section class="carte">
+<h2>Nouveau compte</h2>
+<form method="post" action="/utilisateurs" class="pile">
+  {{template "csrf" .CSRF}}<input type="hidden" name="action" value="creer">
+  <label>Nom <input name="nom" required pattern="[a-z0-9][a-z0-9._\-]{1,31}" maxlength="32"></label>
+  <label>Rôle <select name="role"><option value="lecture">Lecture</option><option value="admin">Admin</option></select></label>
+  <label>Mot de passe provisoire (12 caractères au moins) <input type="password" name="mot_de_passe" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  {{template "code2fa"}}
+  <button>Créer</button>
+</form>
+</section>
+{{end}}

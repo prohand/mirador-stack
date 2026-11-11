@@ -1,0 +1,21 @@
+{{define "contenu"}}
+<h1>Flux entrants bloqués</h1>
+<form method="get" class="ligne filtres"><label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label><button>Afficher</button></form>
+<div class="chiffres"><div class="chiffre"><b>{{.D.Total}}</b><span>Flux bloqués</span></div><div class="chiffre"><b>{{.D.IPs}}</b><span>Adresses sources</span></div>{{if .D.GeoIP}}<div class="chiffre"><b>{{.D.Pays}}</b><span>Pays</span></div>{{end}}</div>
+{{if .D.Carte}}<section class="carte"><h2>Carte des pays d'origine</h2>{{if .D.CarteVide}}<p class="vide">Aucun pays : {{.D.CarteVide}}.</p>{{end}}
+<svg class="carte-monde" viewBox="0 0 1000 500" role="img" aria-label="Carte du monde des flux bloqués par pays">{{range .D.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}"><title>{{.Nom}} ({{.Code}}) : {{if .N}}{{.N}} flux bloqué(s){{else}}aucun flux{{end}}</title></path>{{end}}</svg>
+<p class="legende-carte"><span class="niveau-0"></span>Aucun <span class="niveau-1"></span>Peu <span class="niveau-3"></span> <span class="niveau-5"></span>Beaucoup <small>(échelle logarithmique ; survoler un pays pour le nombre)</small></p>
+</section>{{end}}
+{{if .D.Tronque}}<p class="message erreur">Résultat partiel (10 000 lignes lues au plus) : choisir une période plus courte.</p>{{end}}
+<div class="grille">
+<section class="carte"><h2>Adresses sources</h2><table>{{range .D.ParIP}}<tr><td><code>{{.Nom}}</code></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+{{if .D.ParPays}}<section class="carte"><h2>Pays</h2><table>{{range .D.ParPays}}<tr><td>{{drapeau .Nom}} {{nomPays .Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>{{end}}
+<section class="carte"><h2>Ports visés</h2><table>{{range .D.ParPort}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+<section class="carte"><h2>Par règle</h2><table>{{range .D.ParRegle}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+<section class="carte"><h2>Par machine</h2><table>{{range .D.ParMachine}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+</div>
+<section class="carte"><h2>Derniers flux</h2>{{if .D.Derniers}}<div class="defile"><table><thead><tr><th>Heure</th><th>Machine</th><th>Règle</th><th>Interface</th><th>Source</th><th>Pays</th><th>Port</th></tr></thead><tbody>
+{{range .D.Derniers}}<tr><td class="mono">{{dateMs .T}}</td><td>{{.Machine}}</td><td>{{.Regle}}</td><td>{{.Interface}}</td><td><code>{{.IP}}</code></td><td>{{drapeau .Pays}} {{.Pays}}</td><td>{{.Proto}}/{{.Port}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucun flux bloqué sur la période."}}{{end}}</section>
+<p><small>{{if not .D.GeoIP}}Pays : base GéoIP pas encore téléchargée (Réglages › Interface). {{end}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).</small></p>
+{{end}}

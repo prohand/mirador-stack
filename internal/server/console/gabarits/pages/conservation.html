@@ -1,0 +1,44 @@
+{{define "contenu"}}
+<h1>Conservation des données</h1>
+{{template "onglets-reglages" (onglet $ "conservation")}}
+{{with .D.Attente}}<section class="carte"><h2 class="erreur">Réduction programmée</h2>
+<p>Les nouveaux réglages (brut {{.Valeur.Brut}}, agrégé {{.Valeur.Agrege}}, logs {{.Valeur.Logs}}, audit {{.Valeur.Audit}}, historique {{.Valeur.Historique}}) seront appliqués le <strong>{{dateS .Le}}</strong> (demandé par {{.Par}}). Des données seront alors supprimées.</p>
+{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<button name="action" value="annuler">Annuler la réduction</button></form>{{end}}</section>{{end}}
+{{$e := .D.Etat}}
+<div class="chiffres">
+<div class="chiffre"><b>{{taille $e.Brut}}</b><span>Métriques brutes{{if not $e.PlusAncienBrut.IsZero}} depuis {{date $e.PlusAncienBrut}}{{end}}</span></div>
+<div class="chiffre"><b>{{taille $e.Agrege}}</b><span>Agrégats 5 min{{if not $e.PlusAncienAgrege.IsZero}} depuis {{date $e.PlusAncienAgrege}}{{end}}</span></div>
+<div class="chiffre"><b>{{taille $e.Logs}}</b><span>Logs{{if not $e.PlusAncienLogs.IsZero}} depuis {{date $e.PlusAncienLogs}}{{end}}</span></div>
+<div class="chiffre"><b>{{$e.Series}}</b><span>Séries actives</span></div>
+<div class="chiffre"><b>{{taille (entier $e.LogsParJour)}}</b><span>Logs par jour (mesuré)</span></div>
+<div class="chiffre"><b>{{$e.AuditLignes}}</b><span>Lignes d'audit (~{{taille $e.AuditOctets}}){{if not $e.PlusAncienAudit.IsZero}} depuis {{date $e.PlusAncienAudit}}{{end}}</span></div>
+<div class="chiffre"><b>{{$e.HistoriqueLignes}}</b><span>Alertes résolues et envois gardés</span></div>
+<div class="chiffre"><b>{{taille $e.DisqueLibre}}</b><span>Libres sur {{taille $e.DisqueTotal}}</span></div>
+</div>
+<p>Avec les réglages actuels, le stockage utilisera environ <strong>{{taille .D.EstimM}}</strong> pour les métriques et <strong>{{taille .D.EstimL}}</strong> pour les logs (d'après le volume réellement mesuré).</p>
+{{with .D.Proposee}}<p class="message ok">Avec les réglages proposés : environ <strong>{{taille $.D.EstimPM}}</strong> (métriques) et <strong>{{taille $.D.EstimPL}}</strong> (logs).</p>{{end}}
+<section class="carte"><h2>Réglages</h2>
+{{$c := .D.C}}{{with .D.Proposee}}{{$c = .}}{{end}}
+<form method="post" class="pile">{{template "csrf" .CSRF}}
+<div class="defile"><table class="formulaire">
+<thead><tr><th>Données</th><th>Durée</th><th>Plafond (Mio, 0 = aucun)</th><th>Limites</th></tr></thead><tbody>
+<tr><td>Métriques brutes (30 s)</td><td><input name="brut" value="{{$c.Brut}}" size="7" maxlength="10" aria-label="Durée des métriques brutes"></td>
+<td><input type="number" name="max_brut" value="{{mio $c.MaxBrut}}" min="0" aria-label="Plafond des métriques brutes"></td><td><small>1 à 90 j, défaut {{.D.Defaut.Brut}}</small></td></tr>
+<tr><td>Métriques agrégées (5 min)</td><td><input name="agrege" value="{{$c.Agrege}}" size="7" maxlength="10" aria-label="Durée des métriques agrégées"></td>
+<td><input type="number" name="max_agrege" value="{{mio $c.MaxAgrege}}" min="0" aria-label="Plafond des métriques agrégées"></td><td><small>7 à 730 j, défaut {{.D.Defaut.Agrege}}</small></td></tr>
+<tr><td>Logs</td><td><input name="logs" value="{{$c.Logs}}" size="7" maxlength="10" aria-label="Durée des logs"></td>
+<td><input type="number" name="max_logs" value="{{mio $c.MaxLogs}}" min="0" aria-label="Plafond des logs"></td><td><small>1 à 365 j, défaut {{.D.Defaut.Logs}}</small></td></tr>
+<tr><td>Journal d'audit</td><td><input name="audit" value="{{$c.Audit}}" size="7" maxlength="10" aria-label="Durée du journal d'audit"></td>
+<td><small>—</small></td><td><small>90 j à 10 ans, défaut {{.D.Defaut.Audit}}</small></td></tr>
+<tr><td>Alertes résolues et envois</td><td><input name="historique" value="{{$c.Historique}}" size="7" maxlength="10" aria-label="Durée de l'historique des alertes"></td>
+<td><small>—</small></td><td><small>30 à 730 j, défaut {{.D.Defaut.Historique}}</small></td></tr>
+</tbody></table></div>
+<small>Journal d'audit et historique : dans la base, purgés une fois par jour (pas de plafond de taille, quelques Mio par an). Quand un plafond est atteint, les données les plus anciennes partent en premier (blocs ou fichiers entiers, tâche de fond). Durées : 7d, 30d, 720h…</small>
+<label class="case"><input type="checkbox" name="confirmer" value="1"> Je confirme : une réduction supprimera des données (appliquée dans 5 min, annulable)</label>
+{{template "code2fa"}}
+{{if .Admin}}<div class="ligne"><button name="action" value="estimer" class="secondaire">Estimer sans enregistrer</button><button name="action" value="enregistrer">Enregistrer</button>
+<button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut ?">Rétablir les valeurs par défaut</button></div>{{end}}
+</form>
+<p><small>Une durée par groupe, par machine ou par type de log n'est pas possible avec les moteurs actuels (une rétention par base) : voir SPEC § 18.6.</small></p>
+</section>
+{{end}}

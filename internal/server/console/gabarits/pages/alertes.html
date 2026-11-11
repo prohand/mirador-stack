@@ -1,0 +1,20 @@
+{{define "contenu"}}
+<h1>Alertes</h1>
+{{template "onglets-alertes" "alertes"}}
+<section class="carte"><h2>En cours ({{len .D.EnCours}})</h2>{{template "liste-alertes" .D.EnCours}}</section>
+<section class="carte"><h2>Historique</h2>
+<form method="get" class="ligne filtres">
+  <label>Règle <input name="regle" value="{{.D.Filtre.Regle}}" maxlength="64"></label>
+  <label>Machine <input name="machine" value="{{.D.Filtre.Machine}}" maxlength="128"></label>
+  <label>Gravité <select name="gravite"><option value="">Toutes</option>{{$g := .D.Filtre.Gravite}}{{range $x := (liste "critical" "warning" "info")}}<option {{if egal $x $g}}selected{{end}}>{{$x}}</option>{{end}}</select></label>
+  <button>Filtrer</button>
+</form>
+{{if .D.Historique}}<div class="defile"><table><thead><tr><th>N°</th><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Début</th><th>Fin</th><th>Durée</th><th>Valeur max</th><th>Acquittée par</th></tr></thead><tbody>
+{{range .D.Historique}}<tr><td><a href="/alertes/{{.ID}}">{{.ID}}</a></td><td>{{template "gravite" .Gravite}}</td><td>{{.Regle}}</td><td>{{.Machine}}</td>
+<td>{{date .Debut}}</td><td>{{if egal .Etat "resolue"}}{{date .Fin}}{{else}}<span class="pastille attention">{{.Etat}}</span>{{end}}</td>
+<td>{{if egal .Etat "resolue"}}{{duree (ecart .Debut .Fin)}}{{end}}</td><td class="nombre">{{printf "%.4g" .ValeurMax}}</td><td>{{.AcquitteePar}}</td></tr>{{end}}
+</tbody></table></div>
+{{if .D.Suivant}}<p><a href="/alertes?avant={{.D.Suivant}}&amp;{{.D.Requete}}">Plus anciennes →</a></p>{{end}}
+{{else}}{{template "vide" "Aucune alerte."}}{{end}}
+</section>
+{{end}}

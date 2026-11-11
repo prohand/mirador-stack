@@ -1,0 +1,64 @@
+{{define "contenu"}}
+{{$t := .D.T}}{{$p := .D.P}}
+<div class="titre-page"><div><h1>{{if .D.Nouveau}}Nouveau panneau{{else}}Panneau « {{$p.Titre}} »{{end}}</h1><p>Tableau « {{$t.Titre}} »</p></div>
+<div class="actions"><a class="bouton secondaire" href="/tableaux/{{$t.Nom}}/modifier">Retour à la disposition</a></div></div>
+{{if .D.Erreur}}<p class="message erreur">{{majuscule .D.Erreur}}</p>{{end}}
+{{with .D.Apercu}}<section class="apercu"><h2>Aperçu (toutes les machines, période {{$t.Periode}}) — pas encore enregistré</h2>
+<div class="panneaux douze">{{template "panneau" .}}</div></section>{{end}}
+<section class="carte"><h2>Panneau</h2>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="empreinte" value="{{.D.Empreinte}}"><input type="hidden" name="position" value="{{.D.Position}}">
+<div class="ligne">
+<label>Type <select name="type">{{range $x := (liste "courbe" "chiffre" "barres" "tableau")}}<option value="{{$x}}" {{if egal $x $p.Type}}selected{{end}}>{{if egal $x "courbe"}}Courbe{{else if egal $x "chiffre"}}Chiffre{{else if egal $x "barres"}}Barres{{else}}Tableau{{end}}</option>{{end}}</select></label>
+<label>Titre <input name="titre" value="{{$p.Titre}}" required maxlength="80" size="30"></label>
+<label>Largeur <select name="largeur">{{range .D.Largeurs}}<option value="{{.Valeur}}" {{if egal .Valeur $p.Largeur}}selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+</div>
+{{template "choix-icone" (choixIcone $p.Icone $p.Teinte .D.Icones .D.Teintes)}}
+<label>Description <input name="description" value="{{$p.Description}}" maxlength="300"></label>
+<div class="ligne">
+<label>Unité <select name="unite">{{$u := $p.Unite}}{{$connue := false}}{{range .D.Unites}}<option value="{{.Code}}" {{if egal .Code $u}}selected{{$connue = true}}{{end}}>{{.Nom}}</option>{{end}}{{if not $connue}}<option value="{{$u}}" selected>{{$u}}</option>{{end}}</select></label>
+<label>Décimales <input name="decimales" value="{{.D.Decimales}}" size="3" maxlength="1" inputmode="numeric" placeholder="auto"></label>
+</div>
+<h3>Requêtes (PromQL)</h3>
+<div class="aide-requetes">
+<div class="ligne"><label>Requête toute faite <select name="modele"><option value="">— choisir —</option>
+{{range .D.Modeles}}<optgroup label="{{.Categorie}}">{{range .Modeles}}<option value="{{.ID}}">{{.Titre}}</option>{{end}}</optgroup>{{end}}</select></label>
+<label class="case"><input type="checkbox" name="remplacer" value="1" {{if .D.Nouveau}}checked{{end}}> Remplacer tout le panneau (titre, type, unité, couleurs)</label>
+<button name="action" value="modele" class="secondaire" formnovalidate>Insérer</button></div>
+<small>Sinon la requête va dans la première ligne vide. Les filtres du tableau{{if .D.FiltresTab}} ({{range $i, $f := .D.FiltresTab}}{{if $i}}, {{end}}<code>{{$f}}</code>{{end}}){{end}} sont ajoutés tout seuls.</small>
+<details class="assistant" data-assistant data-tableau="{{$t.Nom}}"><summary>Construire une requête sans écrire de PromQL</summary>
+<div class="ligne">
+<label>1. Métrique <select data-a="metrique"><option value="">— choisir —</option>{{range .D.Metriques}}<option value="{{.Nom}}" data-compteur="{{if .Compteur}}1{{end}}">{{if .Description}}{{majuscule .Description}} — {{end}}{{.Nom}}</option>{{end}}</select></label>
+<label>2. Calcul <select data-a="calcul">{{range .D.Calculs}}<option value="{{.Code}}">{{.Nom}}</option>{{end}}</select></label>
+<label>3. Combiner <select data-a="combiner">{{range .D.Combinaisons}}<option value="{{.Code}}">{{.Nom}}</option>{{end}}</select></label>
+<label>par <select data-a="par"><option value="">(rien : une seule valeur)</option></select></label>
+</div>
+<div class="ligne">
+<label>4. Filtre en plus <select data-a="filtre_etiquette"><option value="">(aucun)</option></select></label>
+<label>= <select data-a="filtre_valeur"><option value="">—</option></select></label>
+<label class="case"><input type="checkbox" data-a="filtres_tableau" checked> Appliquer les filtres du tableau</label>
+<button type="button" data-a="generer">Générer dans la première ligne vide</button>
+</div>
+<p class="message erreur" data-a="erreur" hidden></p>
+{{if not .D.Metriques}}<p class="vide">Aucune métrique reçue pour l'instant.</p>{{end}}
+</details>
+</div>
+<div class="defile"><table class="formulaire requetes"><thead><tr><th>Id</th><th>Expression</th><th>Légende</th></tr></thead><tbody>
+{{range $i, $r := .D.Requetes}}<tr><td><input type="hidden" name="id{{$i}}" value="{{$r.ID}}"><code>{{if $r.ID}}{{$r.ID}}{{else}}—{{end}}</code></td>
+<td><textarea name="expr{{$i}}" rows="3" maxlength="4096" aria-label="Expression {{$i}}" data-verifier="/tableaux/{{$t.Nom}}/verifier" data-ligne="{{$i}}">{{$r.Expr}}</textarea>
+<div class="aide-ligne" data-aide="{{$i}}" aria-live="polite"></div></td>
+<td><input name="legende{{$i}}" value="{{$r.Legende}}" maxlength="200" placeholder="{{"{{instance}}"}}" aria-label="Légende {{$i}}"></td></tr>{{end}}
+</tbody></table></div>
+<small>Une ligne vide est ignorée ; enregistrer ajoute deux lignes libres (12 requêtes au plus). Variables : <code>$__rate_interval</code>, et les filtres du tableau (<code>instance=~"$instance"</code>). Légende : <code>{{"{{instance}}"}}</code>, <code>{{"{{device}}"}}</code>…</small>
+<div class="grille">
+<label>Seuils de couleur (un par ligne) <textarea name="seuils" rows="4" maxlength="2000" placeholder="ok&#10;80 attention&#10;90 erreur">{{.D.Seuils}}</textarea>
+<small>« couleur » = à partir de tout en bas ; « valeur couleur » = à partir de cette valeur. Couleurs : ok, attention, erreur, info.</small></label>
+<label>Textes à la place des valeurs (un par ligne) <textarea name="correspondances" rows="4" maxlength="2000" placeholder="1 = En marche ok&#10;0 = Arrêté erreur&#10;10..20 = Moyen attention">{{.D.Correspondances}}</textarea>
+<small>« valeur = texte [couleur] » ou « de..à = texte [couleur] ».</small></label>
+</div>
+<label>Colonnes (type Tableau, une par ligne : champ | titre | unité) <textarea name="colonnes" rows="3" maxlength="2000" placeholder="instance | Machine&#10;A | CPU | percent">{{.D.Colonnes}}</textarea>
+<small>Champ = une étiquette (instance, device…) ou l'id d'une requête (A, B…). Vide = toutes les étiquettes puis les requêtes.</small></label>
+<label>Étiquettes à masquer (type Tableau, virgules) <input name="masquer" value="{{.D.Masquer}}" maxlength="500"></label>
+<div class="ligne"><button name="action" value="apercu" class="secondaire">Aperçu</button><button name="action" value="enregistrer">Enregistrer le panneau</button>
+<a class="bouton secondaire" href="/tableaux/{{$t.Nom}}/modifier">Annuler</a></div>
+</form></section>
+{{end}}

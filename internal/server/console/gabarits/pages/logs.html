@@ -1,0 +1,28 @@
+{{define "contenu"}}
+<h1>Logs</h1>
+<form method="get" class="ligne filtres">
+  {{range .D.Champs}}<label>{{.Titre}} <input name="{{.Nom}}" value="{{.Valeur}}" maxlength="200" size="12" {{if egal .Nom "host"}}list="machines-logs"{{end}}></label>{{end}}
+  <datalist id="machines-logs">{{range .D.Machines}}<option value="{{.}}">{{end}}</datalist>
+  <label>Mots entiers (tous) <input name="mots" value="{{.D.Mots}}" maxlength="200" placeholder="error timeout"></label>
+  <label>Texte contenu <input name="contient" value="{{.D.Contient}}" maxlength="200" placeholder="plus lent"></label>
+  <label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>Lignes <select name="limite">{{$l := .D.Limite}}{{range $x := (liste "100" "300" "1000" "2000")}}<option {{if egal $x $l}}selected{{end}}>{{$x}}</option>{{end}}</select></label>
+  <label class="case"><input type="checkbox" name="replier" value="non" {{if not .D.Replier}}checked{{end}}> Ne pas replier les répétitions</label>
+  <button>Chercher</button>
+</form>
+<p class="onglets"><a href="/logs?level=err&amp;periode=24h">Erreurs système (24 h)</a><a href="/logs?job=docker&amp;mots=error&amp;periode=24h">« error » dans Docker (24 h)</a><a href="/logs?mots=out%20of%20memory&amp;periode=7d">Manque de mémoire (7 j)</a><a href="/flux-bloques">Flux bloqués</a></p>
+<details class="carte" open><summary><strong>Volume des logs par machine</strong> (lignes reçues par minute, {{.D.Periode}})</summary>
+<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}"></div></details>
+<p><small>« Mots entiers » est rapide (index) ; « texte contenu » relit tous les blocs de la période (plus lent).</small></p>
+{{if .D.Cherche}}
+<p>{{.D.NbLignes}} ligne(s) en {{duree .D.Duree}} ({{.D.BlocsLus}} blocs lus){{if .D.Tronque}} — <strong>résultat partiel</strong> : affiner les filtres ou la période{{end}}.</p>
+{{if .D.Lignes}}
+<details class="carte"><summary>Palmarès des lignes trouvées</summary><div class="grille">
+{{range $k, $cs := .D.Palmares}}{{if $cs}}<div><h3>{{$k}}</h3><table>{{range $cs}}<tr><td><a href="{{lienLogs $k .Nom $.D.Periode}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></div>{{end}}{{end}}
+</div></details>
+<div class="defile"><table class="logs"><thead><tr><th>Heure</th><th>Machine</th><th>Source</th><th>Niveau</th><th>Unité / conteneur</th><th>Message</th></tr></thead><tbody>
+{{range .D.Lignes}}<tr><td class="mono">{{dateMs .T}}</td><td>{{.Host}}</td><td>{{.Job}}</td><td>{{if .Niveau}}<span class="pastille {{if or (egal .Niveau "err") (egal .Niveau "crit") (egal .Niveau "error")}}erreur{{else if egal .Niveau "warning"}}attention{{end}}">{{.Niveau}}</span>{{end}}</td><td>{{.Origine}}</td>
+<td class="message-log">{{.Msg}}{{if gt .Repetitions 1}} <span class="pastille">× {{.Repetitions}}</span>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune ligne."}}{{end}}
+{{end}}
+{{end}}

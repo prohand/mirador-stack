@@ -1,0 +1,12 @@
+{{define "contenu"}}
+<h1>{{if .D.Nouvelle}}Nouvelle règle{{else}}Règle {{.D.R.Nom}}{{end}}</h1>
+{{template "onglets-regles" ""}}
+{{with .D.Test}}<section class="carte"><h2>Test sur les dernières 24 h</h2>
+{{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>{{else}}
+<p>{{.Series}} série(s) ont rempli la condition au moins une fois (un point toutes les {{duree .Pas}}). {{if .Declenchements}}<strong>{{len .Declenchements}}</strong> auraient déclenché une alerte :{{else}}<strong>Aucune alerte</strong> n'aurait été envoyée.{{end}}</p>
+{{if .Declenchements}}<div class="defile"><table><thead><tr><th>Série</th><th>Fois</th><th>Durée totale</th><th>Première</th><th>Dernière</th><th>Valeur max</th></tr></thead><tbody>
+{{range .Declenchements}}<tr><td>{{.Serie}}</td><td class="nombre">{{.Fois}}</td><td>{{duree .Total}}</td><td>{{date .Premier}}</td><td>{{date .Dernier}}</td><td class="nombre">{{printf "%.4g" .ValeurMax}}</td></tr>{{end}}
+</tbody></table></div>{{end}}{{end}}</section>{{end}}
+{{template "form-regle" .}}
+{{if and .Admin (not .D.Nouvelle)}}<section class="carte"><h2>Supprimer</h2><form method="post" action="/regles/action" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{.D.R.Nom}}">{{template "code2fa"}}<button name="action" value="supprimer" class="danger" data-confirmer="Supprimer la règle {{.D.R.Nom}} ?">Supprimer</button></form></section>{{end}}
+{{end}}

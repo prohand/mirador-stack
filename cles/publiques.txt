@@ -1,0 +1,9 @@
+# Clés PUBLIQUES Ed25519 de signature des versions de mirador-agent (base64),
+# une par ligne : la clé actuelle, et éventuellement la suivante (rotation).
+# Elles sont intégrées aux binaires (agent et serveur) par go:embed.
+#
+# Vide pour l'instant : la clé sera créée par l'utilisateur, sur son poste,
+# avec mirador-release (étape 3). Tant que ce fichier est vide, l'agent refuse
+# toute mise à jour.
+#
+# NE JAMAIS mettre de clé PRIVÉE ici, ni ailleurs dans le dépôt.

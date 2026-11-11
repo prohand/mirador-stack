@@ -1,0 +1,5 @@
+nr_free_pages 53120
+pswpin 12
+pswpout 34
+oom_kill 2
+pgfault 123456

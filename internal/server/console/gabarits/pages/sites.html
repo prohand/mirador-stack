@@ -1,0 +1,18 @@
+{{define "contenu"}}
+<h1>Sites, types et groupes</h1>
+{{template "onglets-reglages" (onglet $ "sites")}}
+<p>Valeurs proposées en liste déroulante quand on ajoute une machine (jeton), à son approbation et dans sa fiche. Le serveur les applique à toutes les données de la machine (étiquettes <code>site</code>, <code>env</code> et <code>groupe</code>), utilisables comme filtres dans les tableaux, les logs et les règles. Le <strong>groupe de configuration</strong> sert en plus à donner les mêmes réglages d'agent à plusieurs machines (<a href="/reglages/agents">Configuration des agents</a>).</p>
+<div class="grille">
+{{range $l := (liste "sites" "types" "groupes")}}{{$titre := "Sites"}}{{$vals := $.D.Sites}}{{if egal $l "types"}}{{$titre = "Types de machine"}}{{$vals = $.D.Types}}{{else if egal $l "groupes"}}{{$titre = "Groupes de configuration"}}{{$vals = $.D.Groupes}}{{end}}
+<section class="carte"><h2>{{$titre}}</h2>
+{{if $vals}}<table><thead><tr><th>Valeur</th><th class="nombre">Machines</th>{{if $.Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range $vals}}<tr><td><code>{{.Valeur}}</code></td><td class="nombre">{{.Machines}}</td>
+{{if $.Admin}}<td>{{if not .Machines}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l}}"><input type="hidden" name="valeur" value="{{.Valeur}}"><button name="action" value="supprimer" class="secondaire petit" data-confirmer="Supprimer « {{.Valeur}} » de la liste ?">Supprimer</button></form>{{else}}<small>Utilisé</small>{{end}}</td>{{end}}</tr>{{end}}
+</tbody></table>{{else}}<p class="vide">Aucune valeur.</p>{{end}}
+{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l}}">
+<label>Nouveau {{if egal $l "sites"}}site{{else if egal $l "groupes"}}groupe{{else}}type{{end}} <input name="valeur" required maxlength="63" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="{{if egal $l "sites"}}maison{{else if egal $l "groupes"}}dns{{else}}vm{{end}}"></label>
+<button name="action" value="ajouter">Ajouter</button></form>{{end}}
+</section>{{end}}
+</div>
+<p><small>Lettres, chiffres, point, tiret, souligné ; sans espace (ce sont des étiquettes). Une valeur utilisée par une machine ne peut pas être supprimée.</small></p>
+{{end}}

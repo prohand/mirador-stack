@@ -1,0 +1,12 @@
+{{define "contenu"}}
+<div class="titre-page"><div>{{if .D.T.Icone}}<div class="titre-icone grand"><span class="puce {{if .D.T.Teinte}}{{.D.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.D.T.Icone}}"></use></svg></span><h1>{{.D.T.Titre}}</h1></div>{{else}}<h1>{{.D.T.Titre}}</h1>{{end}}{{if .D.T.Description}}<p>{{.D.T.Description}}</p>{{end}}</div>
+{{if .Admin}}<div class="actions">{{if .D.Installe}}<a class="bouton secondaire" href="/tableaux/{{.D.T.Nom}}/modifier">Modifier ce tableau</a>{{else}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{.D.T.Nom}}"><button name="action" value="installer">Installer ce tableau</button></form>{{end}}</div>{{end}}</div>
+{{if not .D.Installe}}<p class="message ok">Aperçu d'un tableau proposé par mirador : il n'est pas encore dans vos tableaux.</p>{{end}}
+<form method="get" class="ligne filtres">
+  {{range .D.Variables}}<label>{{.Titre}} <select name="{{.Nom}}"><option value="">(tous)</option>{{$v := .Valeur}}{{range .Choix}}<option {{if egal . $v}}selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
+  <label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <button>Afficher</button>
+</form>
+{{template "rangees" .D.Rangees}}
+{{if .D.T.Ignores}}<details class="carte"><summary>Panneaux Grafana non repris ({{len .D.T.Ignores}})</summary><ul>{{range .D.T.Ignores}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+{{end}}

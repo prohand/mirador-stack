@@ -1,0 +1,20 @@
+{{define "contenu"}}
+<h1>Nouvelle règle</h1>
+{{template "onglets-regles" "nouvelle"}}
+<div class="grille">
+{{range .D.Modeles}}<section class="carte"><h2>{{.Titre}}</h2><p><small>{{.Aide}}</small></p>
+{{if $.Admin}}<form method="post" action="/regles/nouvelle" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{.Cle}}">
+<label>Nom <input name="nom" required pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64" placeholder="ex. {{.Cle}}Eleve"></label>
+<label>Machines <input name="cible" value="toutes" list="cibles" maxlength="80"></label>
+{{if .Unite}}<label>Seuil ({{.Unite}}) <input name="seuil" value="{{.Seuil}}" inputmode="decimal" required maxlength="20"></label>{{end}}
+{{if .Parametre}}<label>{{.Parametre}} <input name="parametre" value="{{.ParamDefaut}}" maxlength="200"></label>{{end}}
+<label>Pendant au moins <input name="pour" value="{{.Pour}}" maxlength="10"></label>
+<label>Gravité <select name="gravite">{{$gv := .Gravite}}<option value="critical" {{if egal $gv "critical"}}selected{{end}}>Critique</option><option value="warning" {{if egal $gv "warning"}}selected{{end}}>Avertissement</option><option value="info">Info</option></select></label>
+<button>Préparer et tester sur 24 h</button></form>{{end}}</section>{{end}}
+<section class="carte"><h2>Personnalisée</h2><p><small>Expression PromQL libre (langage restreint).</small></p>
+<p><a href="#perso">Formulaire complet ↓</a></p></section>
+</div>
+<datalist id="cibles"><option value="toutes">{{range .D.Machines}}<option value="machine:{{.Nom}}">{{if .Site}}<option value="site:{{.Site}}">{{end}}{{if .Groupe}}<option value="groupe:{{.Groupe}}">{{end}}{{end}}</datalist>
+<p><small>Les canaux sont choisis selon la gravité (Réglages › Notifications). Un groupe est remplacé par la liste de ses machines à l'enregistrement.</small></p>
+<div id="perso">{{template "form-regle" .}}</div>
+{{end}}

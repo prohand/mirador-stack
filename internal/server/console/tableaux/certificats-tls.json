@@ -1,0 +1,325 @@
+{
+  "version": 1,
+  "nom": "certificats-tls",
+  "titre": "Certificats TLS",
+  "periode": "30d",
+  "variables": [
+    {
+      "nom": "instance",
+      "titre": "Machine",
+      "requete": "label_values(ssl_cert_not_after_timestamp_seconds, instance)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Vue d'ensemble",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Certificats suivis",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Expires",
+          "description": "Certificats dont la date de fin est deja passee.",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\"} - time()) < 0) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Moins de 7 jours",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\"} - time()) > 0 <= 7*86400) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Moins de 21 jours",
+          "description": "Seuil de l'alerte CertificatExpireBientot. Un renouvellement Let's Encrypt automatique intervient normalement bien avant.",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\"} - time()) > 0 <= 21*86400) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Echeance la plus proche",
+          "unite": "d",
+          "decimales": 1,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 0,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 7,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 21,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 30,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\"} - time()) / 86400)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Detail par certificat",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Inventaire",
+          "description": "Trie par echeance croissante. Le chemin permet de retrouver le fichier sur la machine.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job!=\"certs\"} or on (instance, path) (ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"} * on (instance, path) group_left (cn, issuer) (topk by (instance, path) (1, timestamp(label_replace(label_replace(max by (instance, path, subject, issuer) (probe_ssl_last_chain_info{job=\"certs\", instance=~\"$instance\"}), \"cn\", \"$1\", \"subject\", \"(?:^|.*,)CN=([^,]+).*\"), \"issuer\", \"$1\", \"issuer\", \"(?:^|.*,)CN=([^,]+).*\"))) > bool 0)) or on (instance, path) ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"}) - time()) / 86400"
+            },
+            {
+              "id": "B",
+              "expr": "(ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job!=\"certs\"} or on (instance, path) (ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"} * on (instance, path) group_left (cn, issuer) (topk by (instance, path) (1, timestamp(label_replace(label_replace(max by (instance, path, subject, issuer) (probe_ssl_last_chain_info{job=\"certs\", instance=~\"$instance\"}), \"cn\", \"$1\", \"subject\", \"(?:^|.*,)CN=([^,]+).*\"), \"issuer\", \"$1\", \"issuer\", \"(?:^|.*,)CN=([^,]+).*\"))) > bool 0)) or on (instance, path) ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"}) * 1000"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "cn",
+              "titre": "Nom commun"
+            },
+            {
+              "champ": "A",
+              "titre": "Jours restants",
+              "unite": "short",
+              "decimales": 1,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": 0,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": 7,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 21,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 30,
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Expiration",
+              "unite": "dateTimeAsLocal"
+            },
+            {
+              "champ": "issuer",
+              "titre": "Emetteur"
+            },
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "path",
+              "titre": "Chemin"
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "barres",
+          "titre": "Jours restants",
+          "unite": "d",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 7,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 21,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 30,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job!=\"certs\"} or on (instance, path) (ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"} * on (instance, path) group_left (cn, issuer) (topk by (instance, path) (1, timestamp(label_replace(label_replace(max by (instance, path, subject, issuer) (probe_ssl_last_chain_info{job=\"certs\", instance=~\"$instance\"}), \"cn\", \"$1\", \"subject\", \"(?:^|.*,)CN=([^,]+).*\"), \"issuer\", \"$1\", \"issuer\", \"(?:^|.*,)CN=([^,]+).*\"))) > bool 0)) or on (instance, path) ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"}) - time()) / 86400",
+              "legende": "{{cn}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Historique",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Evolution des echeances",
+          "description": "Chaque renouvellement produit une remontee brutale. Une courbe qui descend sans jamais remonter signale un renouvellement automatique qui ne fonctionne plus.",
+          "unite": "d",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": ""
+            },
+            {
+              "valeur": 21,
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "((ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job!=\"certs\"} or on (instance, path) (ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"} * on (instance, path) group_left (cn, issuer) (topk by (instance, path) (1, timestamp(label_replace(label_replace(max by (instance, path, subject, issuer) (probe_ssl_last_chain_info{job=\"certs\", instance=~\"$instance\"}), \"cn\", \"$1\", \"subject\", \"(?:^|.*,)CN=([^,]+).*\"), \"issuer\", \"$1\", \"issuer\", \"(?:^|.*,)CN=([^,]+).*\"))) > bool 0)) or on (instance, path) ssl_cert_not_after_timestamp_seconds{instance=~\"$instance\", job=\"certs\"}) - time()) / 86400",
+              "legende": "{{cn}} ({{instance}})"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Etat de la collecte par machine",
+          "description": "Machines remontant des metriques node. 'Certificats' a 0 signale un script qui tourne sans rien trouver ; une machine absente de la liste n'execute pas obs-certs.sh.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance) (ssl_certs_found_total{instance=~\"$instance\"})"
+            },
+            {
+              "id": "B",
+              "expr": "sum by (instance) (ssl_certs_read_errors_total{instance=~\"$instance\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "A",
+              "titre": "Certificats",
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Fichiers illisibles",
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        }
+      ]
+    }
+  ],
+  "icone": "cadenas",
+  "teinte": "vert"
+}

@@ -1,0 +1,26 @@
+{{define "contenu"}}
+<h1>Interface</h1>
+{{template "onglets-reglages" (onglet $ "interface")}}
+<section class="carte"><h2>Affichage</h2><form method="post" class="pile">{{template "csrf" .CSRF}}
+<label>Fuseau horaire <input name="fuseau" value="{{.D.Fuseau}}" required maxlength="64"> <small>Défaut Europe/Paris</small></label>
+<label class="case"><input type="checkbox" name="geoip" value="1" {{if .D.GeoIP}}checked{{end}}> Base GéoIP téléchargée chaque mois (pays des flux bloqués)</label>
+<label>Thème <select name="theme">{{$t := .D.Theme}}<option value="auto" {{if egal "auto" $t}}selected{{end}}>Automatique (comme l'appareil)</option><option value="clair" {{if egal "clair" $t}}selected{{end}}>Clair</option><option value="sombre" {{if egal "sombre" $t}}selected{{end}}>Sombre</option></select></label>
+<label>Position du menu <select name="menu">{{$m := .D.Menu}}<option value="gauche" {{if egal "gauche" $m}}selected{{end}}>À gauche (repliable)</option><option value="haut" {{if egal "haut" $m}}selected{{end}}>En haut</option></select> <small>Sur téléphone, le menu est toujours en haut, replié.</small></label>
+<label class="case"><input type="checkbox" name="menu_replie" value="1" {{if .D.MenuReplie}}checked{{end}}> Menu replié par défaut (icônes seules)</label>
+{{if .Admin}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire">Rétablir les valeurs par défaut</button></div>{{end}}</form></section>
+<section class="carte" id="adresse"><h2>Adresse du serveur pour les agents (ingestion)</h2>
+<p>Adresse publique du <strong>vhost d'ingestion</strong> (celui des agents, ex. <code>https://mirador-ingest.exemple.fr</code>), <strong>pas</strong> celle de cette interface. Les machines s'y enrôlent, y téléchargent l'agent et y envoient leurs données. Elle sert à afficher la commande d'installation complète dans <a href="/machines#ajouter">Machines</a>.</p>
+<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="adresse">
+<label>Adresse d'ingestion <input name="ingestion" value="{{.D.Ingestion}}" placeholder="https://mirador-ingest.exemple.fr" maxlength="200" size="40" {{if not .Admin}}readonly{{end}}></label>
+{{if .Admin}}<button>Enregistrer</button>{{end}}</form></section>
+<section class="carte"><h2>Base GéoIP (DB-IP)</h2>
+<p>{{if .D.GeoFichier.IsZero}}Pas encore téléchargée.{{else}}Base du {{date .D.GeoFichier}}{{if .D.GeoEnMemoire}}, chargée en mémoire (libérée après 10 min sans usage){{end}}.{{end}}
+{{if .D.GeoDemande}}<br>Téléchargement demandé : fait dans la minute (recharger la page).{{else if not .D.GeoEssai.IsZero}}<br>Dernier essai : {{date .D.GeoEssai}}.{{end}}
+{{if .D.GeoErreur}}<br><span class="erreur">Dernière erreur : {{.D.GeoErreur}}</span> <small>(nouvel essai dans 30 min)</small>{{end}}</p>
+{{if not .D.GeoIP}}<p><small>Case « Base GéoIP » décochée : la base est effacée et les pays ne sont plus affichés.</small></p>{{else if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<button name="action" value="geoip" class="secondaire">Télécharger maintenant</button></form>{{end}}
+<p><small>Téléchargée depuis download.db-ip.com (adresse figée dans le code). IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).</small></p></section>
+<section class="carte"><h2>Mode debug temporaire</h2>
+<p>Journal du serveur : {{if gt .D.DebugJusqua 0}}debug jusqu'au {{dateS .D.DebugJusqua}} (puis retour automatique à « info »){{else}}normal (info){{end}}.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="debug">
+<label>Pendant (minutes, 0 = arrêter) <input type="number" name="minutes" value="30" min="0" max="240"></label><button>Appliquer</button></form>{{end}}</section>
+{{end}}

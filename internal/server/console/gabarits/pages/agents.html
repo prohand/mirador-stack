@@ -1,0 +1,24 @@
+{{define "contenu"}}
+<h1>Configuration des agents</h1>
+{{template "onglets-reglages" (onglet $ "agents")}}
+<p>Trois niveaux : <strong>défaut</strong> → <strong>groupe</strong> → <strong>machine</strong>. Un champ vide hérite du niveau au-dessus. Valeurs typées et vérifiées avec le code de l'agent : jamais de commande ni de chemin d'exécutable.</p>
+<form method="get" class="ligne filtres"><label>Portée <input name="portee" value="{{.D.Portee}}" list="portees" maxlength="80"></label>
+<datalist id="portees"><option value="defaut">{{range .D.Groupes}}<option value="groupe:{{.Nom}}">{{end}}{{range .D.Machines}}<option value="machine:{{.ID}}">{{.Nom}}</option>{{end}}</datalist><button>Afficher</button>
+{{if .D.Groupes}}<small>Groupes de configuration : {{range .D.Groupes}}<a href="/reglages/agents?portee=groupe:{{.Nom}}">{{.Nom}}</a> ({{if .Machines}}{{range $i, $m := .Machines}}{{if $i}}, {{end}}{{$m}}{{end}}{{else}}aucune machine{{end}}) {{end}}— <a href="/reglages/sites">gérer la liste</a></small><br>{{end}}
+{{if .D.Portees}}<small>Portées réglées : {{range .D.Portees}}<a href="/reglages/agents?portee={{.}}">{{.}}</a> {{end}}</small>{{end}}</form>
+<section class="carte"><h2>{{.D.Portee}}</h2>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="portee" value="{{.D.Portee}}">
+{{range .D.Champs}}<label>{{.Titre}}{{if .Aide}} <small>{{.Aide}}</small>{{end}}
+{{if egal .Genre "bool"}}<select name="{{.Nom}}"><option value="">(hérité)</option><option value="oui" {{if egal .Valeur "true"}}selected{{end}}>Oui</option><option value="non" {{if egal .Valeur "false"}}selected{{end}}>Non</option></select>
+{{else if egal .Nom "masquage_perso"}}<textarea name="{{.Nom}}" rows="3" maxlength="3000">{{.Valeur}}</textarea>
+{{else}}<input name="{{.Nom}}" value="{{.Valeur}}" maxlength="1000">{{end}}</label>{{end}}
+{{if .Admin}}{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button><button name="action" value="retirer" class="secondaire" data-confirmer="Retirer tous les réglages de cette portée (retour à l'héritage) ?">Tout hériter (rétablir)</button></div>{{end}}
+</form></section>
+<section class="carte"><h2>Tester le masquage</h2>
+<form method="post" action="/reglages/agents/masquage" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="portee" value="{{.D.Portee}}">
+<label>Ligne de log <textarea name="ligne" rows="2" maxlength="4096">{{.D.Ligne}}</textarea></label>
+<fieldset><legend>Modèles</legend><div class="ligne">{{range .D.Modeles}}<label class="case"><input type="checkbox" name="modeles" value="{{.}}" checked> {{.}}</label>{{end}}</div></fieldset>
+<label>Expressions personnalisées (une par ligne) <textarea name="perso" rows="2" maxlength="3000"></textarea></label>
+<button>Tester</button></form>
+{{if .D.Ligne}}<p>Résultat :</p><pre>{{.D.Masq}}</pre>{{end}}</section>
+{{end}}

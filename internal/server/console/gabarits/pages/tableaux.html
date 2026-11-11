@@ -1,0 +1,46 @@
+{{define "contenu"}}
+<h1>Tableaux</h1>
+{{if and (not .D.Lignes) (not .D.Pages)}}<p class="vide">Aucun tableau installé.{{if .Admin}} Installer un tableau proposé (plus bas) ou en créer un.{{end}}</p>{{end}}
+<div class="grille">
+{{range .D.Lignes}}<a class="carte lien-carte" href="/tableaux/{{.T.Nom}}">{{template "titre-icone" (titreIcone .T.Titre .T.Icone .T.Teinte)}}<small>{{len .T.Rangees}} rangée(s), {{.Nb}} panneau(x){{if egal .Origine "modifie"}} · modifié{{else if egal .Origine "perso"}} · créé ici{{end}}</small></a>{{end}}
+{{range .D.Pages}}<a class="carte lien-carte" href="{{.Lien}}">{{template "titre-icone" (titreIcone .Titre .Icone .Teinte)}}<small>{{.Description}}</small></a>{{end}}
+</div>
+{{if .Admin}}
+{{if or .D.Lignes .D.Pages}}<section class="carte"><h2>Gérer les tableaux</h2>
+<div class="defile"><table><thead><tr><th>Tableau</th><th>Origine</th><th>Panneaux</th><th></th></tr></thead><tbody>
+{{range .D.Lignes}}<tr><td><a href="/tableaux/{{.T.Nom}}">{{.T.Titre}}</a></td>
+<td>{{if egal .Origine "fourni"}}Fourni avec mirador{{else if egal .Origine "modifie"}}<span class="pastille attention">Fourni, modifié</span>{{else}}Créé ici{{end}}</td>
+<td class="nombre">{{.Nb}}</td>
+<td><div class="ligne">
+<a class="bouton secondaire" href="/tableaux/{{.T.Nom}}/modifier">Modifier</a>
+<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="dupliquer" class="secondaire">Dupliquer</button></form>
+<a class="bouton secondaire" href="/tableaux/{{.T.Nom}}/export.json">Exporter</a>
+{{if egal .Origine "modifie"}}<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="retablir" class="secondaire" data-confirmer="Remettre « {{.T.Titre}} » tel que fourni ? Vos modifications seront perdues.">Rétablir l'original</button></form>{{end}}
+<a class="bouton danger" href="/tableaux/{{.T.Nom}}/supprimer">Supprimer</a>
+</div></td></tr>{{end}}
+{{range .D.Pages}}<tr><td><a href="{{.Lien}}">{{.Titre}}</a></td><td>Page de mirador</td><td class="nombre">—</td>
+<td><form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.Nom}}"><button name="action" value="retirer-page" class="secondaire">Retirer</button></form></td></tr>{{end}}
+</tbody></table></div></section>{{end}}
+<div class="grille">
+<section class="carte"><h2>Nouveau tableau</h2>
+<form method="post" action="/tableaux" class="pile">{{template "csrf" .CSRF}}
+<label>Titre <input name="titre" required maxlength="80" placeholder="Ex. Serveurs web"></label>
+<div><button name="action" value="creer">Créer</button></div></form></section>
+<section class="carte"><h2>Importer</h2>
+<form method="post" action="/tableaux" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
+<label>Fichier JSON <input type="file" name="fichier" accept=".json,application/json" required></label>
+<small>Export Grafana (« Share › Export ») ou tableau exporté de mirador. Toujours ajouté comme nouveau tableau ; les panneaux de logs sont remplacés par la page Logs.</small>
+<div><button>Importer</button></div></form></section>
+</div>
+{{if or .D.Catalogue .D.PagesProposees}}<section class="carte"><h2>Tableaux proposés par mirador</h2>
+<p><small>Prêts à l'emploi, pas encore installés. « Aperçu » les montre avec vos données ; « Installer » les ajoute à vos tableaux (ensuite modifiables).</small></p>
+<div class="defile"><table><thead><tr><th>Tableau</th><th>Panneaux</th><th></th></tr></thead><tbody>
+{{range .D.Catalogue}}<tr><td>{{.T.Titre}}{{if .T.Description}}<br><small>{{.T.Description}}</small>{{end}}</td><td class="nombre">{{.Nb}}</td>
+<td><div class="ligne"><a class="bouton secondaire" href="/tableaux/{{.T.Nom}}">Aperçu</a>
+<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="installer">Installer</button></form></div></td></tr>{{end}}
+{{range .D.PagesProposees}}<tr><td>{{.Titre}}<br><small>{{.Description}} (page de mirador, aussi dans le menu Logs)</small></td><td class="nombre">—</td>
+<td><div class="ligne"><a class="bouton secondaire" href="{{.Lien}}">Aperçu</a>
+<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.Nom}}"><button name="action" value="installer-page">Installer</button></form></div></td></tr>{{end}}
+</tbody></table></div></section>{{end}}
+{{end}}
+{{end}}

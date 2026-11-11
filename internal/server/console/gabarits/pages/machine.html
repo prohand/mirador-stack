@@ -1,0 +1,60 @@
+{{define "contenu"}}
+{{$m := .D.M}}
+<h1>{{$m.Nom}} {{if $m.Muette}}<span class="pastille erreur">Muette</span>{{end}} {{if not (egal $m.Statut "approuvee")}}<span class="pastille attention">{{$m.Statut}}</span>{{end}}</h1>
+<div class="grille">
+<section class="carte"><h2>Identité</h2><table>
+<tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>
+<tr><th>Site / type / groupe</th><td>{{$m.Site}} / {{$m.Env}} / {{$m.Groupe}}</td></tr>
+<tr><th>Dernière donnée</th><td>{{depuisS $m.VuLe}} ({{dateS $m.VuLe}})</td></tr>
+<tr><th>Dernier battement</th><td>{{depuisS $m.BattementLe}}</td></tr>
+<tr><th>Version de l'agent</th><td>{{$m.Version}} {{$m.Architecture}}{{if $m.VersionCible}} → cible {{$m.VersionCible}}{{end}}</td></tr>
+{{if $m.MajEssai}}<tr><th>Mise à jour en cours</th><td>{{$m.MajEssai}}</td></tr>{{end}}
+{{if $m.MajEchec}}<tr><th>Mise à jour en échec</th><td class="erreur">{{$m.MajEchec}}</td></tr>{{end}}
+<tr><th>Tokens actifs</th><td>{{$m.TokensActifs}}</td></tr>
+<tr><th>Adresses autorisées</th><td><code>{{if $m.IPsAutorisees}}{{$m.IPsAutorisees}}{{else}}Toutes{{end}}</code></td></tr>
+<tr><th>Dernière adresse vue</th><td><code>{{$m.DerniereIP}}</code></td></tr>
+<tr><th>Enrôlée le</th><td>{{dateS $m.CreeLe}}</td></tr>
+</table></section>
+<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>
+</div>
+
+{{if .Admin}}<details class="carte"><summary><strong>Modifier la machine</strong></summary>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="etiquettes">
+  <h3>Site, type, groupe</h3>
+  <label>Site {{template "choix-liste" (choix "site" $m.Site .D.Listes.Sites)}}</label>
+  <label>Type {{template "choix-liste" (choix "env" $m.Env .D.Listes.Types)}} <small><a href="/reglages/sites">Gérer les listes</a></small></label>
+  <label>Groupe de configuration {{template "choix-liste" (choix "groupe" $m.Groupe .D.Listes.Groupes)}}</label>
+  <small>Réglages d'agent communs aux machines du groupe (<a href="/reglages/agents">Configuration des agents</a>) ; aussi l'étiquette <code>groupe</code> des données.</small>
+  <button>Enregistrer</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="renommer">
+  <h3>Renommer</h3><label>Nouveau nom <input name="nouveau" required maxlength="63"></label>
+  <small>Les données arrivent ensuite sous le nouveau nom. L'historique de l'ancien nom reste rattaché à la machine : graphiques, tableaux et logs l'affichent sous le nouveau nom.{{if .D.NomsAnciens}} Anciens noms : {{range $i, $n := .D.NomsAnciens}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}.{{end}}</small>
+  <button data-confirmer="Renommer {{$m.Nom}} ?">Renommer</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ips">
+  <h3>Adresses autorisées pour le token</h3>
+  <label>Adresses ou préfixes, séparés par des virgules (vide = toutes) <input name="ips" value="{{$m.IPsAutorisees}}" maxlength="2000"></label>
+  {{if $m.DerniereIP}}<small>Dernière adresse vue : <code>{{$m.DerniereIP}}</code></small>{{end}}
+  {{template "code2fa"}}<button>Enregistrer</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
+  <h3>Version de l'agent</h3>
+  <label>Version assignée à cette machine <select name="version"><option value="">Celle de toutes les machines</option><option value="bloquer">Bloquer sur la version actuelle</option>{{range .D.Versions}}<option {{if egal . $m.VersionCible}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  {{template "code2fa"}}<button>Assigner</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}
+  <h3>Token</h3>
+  {{template "code2fa"}}
+  <div class="ligne"><button name="action" value="token" data-confirmer="Créer un nouveau token ? L'ancien sera révoqué.">Nouveau token</button>
+  <button name="action" value="revoquer" class="danger" data-confirmer="Révoquer les tokens de {{$m.Nom}} ? Elle ne pourra plus envoyer.">Révoquer</button></div></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="supprimer">
+  <h3>Supprimer</h3>
+  <label class="case"><input type="checkbox" name="historique" value="1"> Effacer aussi l'historique des métriques</label>
+  {{template "code2fa"}}<button class="danger" data-confirmer="Supprimer {{$m.Nom}} ? C'est définitif.">Supprimer la machine</button></form>
+</details>{{end}}
+
+{{if .D.Rangees}}
+<form method="get" class="ligne filtres"><label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label><button>Afficher</button>
+<a href="/logs?host={{$m.Nom}}">Logs de la machine</a></form>
+{{template "rangees" .D.Rangees}}{{end}}
+<section class="carte"><h2>Volume des logs (lignes reçues par minute, {{.D.Periode}})</h2>
+<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}&amp;instance={{.D.M.Nom}}"></div>
+<p><small><a href="/logs?host={{.D.M.Nom}}&amp;periode={{.D.Periode}}">Voir les logs de {{.D.M.Nom}}</a></small></p></section>
+{{end}}

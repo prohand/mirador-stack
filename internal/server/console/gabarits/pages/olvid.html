@@ -1,0 +1,33 @@
+{{define "contenu"}}
+<h1>Olvid</h1>
+{{template "onglets-reglages" (onglet $ "olvid")}}
+<p>Le bot envoie les alertes en tête-à-tête ou dans un groupe. Pour être joint, une personne doit d'abord devenir son <strong>contact</strong> : invitation, puis échange de codes à 4 chiffres des deux côtés.</p>
+{{if .D.Erreur}}<p class="message erreur">{{majuscule .D.Erreur}}</p>{{end}}
+<div class="grille">
+<section class="carte"><h2>1. Inviter le bot depuis votre téléphone</h2>
+{{if .D.QR}}<p>Dans l'application Olvid : <em>ajouter un contact</em>, puis scanner ce QR code.</p>
+<p class="centre"><img src="{{.D.QR}}" alt="QR code d'invitation du bot" width="240" height="240"></p>
+<p><small>Lien : <code class="secret">{{.D.Lien}}</code></small></p>{{else}}<p class="vide">Lien indisponible.</p>{{end}}</section>
+<section class="carte"><h2>… ou inviter quelqu'un avec son lien</h2>
+{{if .Admin}}<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="inviter">
+<label>Lien Olvid de la personne <input name="lien" placeholder="https://invitation.olvid.io/#…" maxlength="1100" required></label><button>Inviter</button></form>{{end}}</section>
+</div>
+<section class="carte"><h2>2. Invitations en cours</h2>
+{{if .D.Invitations}}<div class="defile"><table><thead><tr><th>Personne</th><th>État</th><th>Code à lui donner</th><th></th></tr></thead><tbody>
+{{range .D.Invitations}}<tr><td>{{.Nom}}</td><td>{{.Etat}}</td><td>{{if .SAS}}<strong class="mono">{{.SAS}}</strong>{{end}}</td><td>
+{{if $.Admin}}<div class="ligne">
+{{if .Accepter}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="accepter">Accepter</button></form>{{end}}
+{{if .SaisirSAS}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="sas">
+<label>Code affiché sur son téléphone <input name="sas" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" size="5" required></label><button>Valider</button></form>{{end}}
+<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="{{if .Accepter}}refuser{{else}}supprimer{{end}}" class="secondaire" data-confirmer="Abandonner l'invitation de {{.Nom}} ?">{{if .Accepter}}Refuser{{else}}Supprimer{{end}}</button></form>
+</div>{{end}}</td></tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune invitation en cours.</p>{{end}}
+<p><small>Acceptation automatique des invitations : désactivée (SPEC § 10).</small></p></section>
+<div class="grille">
+<section class="carte"><h2>Contacts</h2>{{if .D.Contacts}}<table>{{range .D.Contacts}}<tr><td>{{.Nom}}</td><td>{{if .TeteATete}}tête-à-tête{{end}}</td><td><small>{{.Appareils}} appareil(s)</small></td></tr>{{end}}</table>{{else}}<p class="vide">Aucun contact.</p>{{end}}</section>
+<section class="carte"><h2>3. Discussion qui reçoit les alertes</h2>{{if .D.Discussions}}
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="discussion">
+{{range .D.Discussions}}<label class="case"><input type="radio" name="id" value="{{.ID}}" {{if egal .ID $.D.DiscussionAct}}checked{{end}}> {{.Titre}} <small>(n° {{.ID}})</small></label>{{end}}
+{{if .Admin}}{{template "code2fa"}}<button>Choisir</button>{{end}}</form>{{else}}<p class="vide">Aucune discussion.</p>{{end}}
+<p><small>Ensuite : « Tester Olvid » dans Réglages › Notifications.</small></p></section>
+</div>
+{{end}}

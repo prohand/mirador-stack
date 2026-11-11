@@ -1,0 +1,10 @@
+{{define "contenu"}}
+<p>La double authentification est <strong>obligatoire</strong>. Scanner ce QR code avec une application 2FA (Aegis, FreeOTP, Google Authenticator…), puis saisir le code affiché.</p>
+<p class="centre"><img src="{{.D.QR}}" alt="QR code de la 2FA" width="240" height="240"></p>
+<p>Ou saisir la clé à la main : <code class="secret">{{.D.Secret}}</code></p>
+<form method="post" action="/connexion/2fa-creer" class="pile">
+  {{template "csrf" .D.Jeton}}
+  {{template "code2fa"}}
+  <button>Enregistrer la 2FA</button>
+</form>
+{{end}}

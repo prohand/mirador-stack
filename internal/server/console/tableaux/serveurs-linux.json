@@ -1,0 +1,879 @@
+{
+  "version": 1,
+  "nom": "serveurs-linux",
+  "titre": "Serveurs Linux",
+  "periode": "6h",
+  "variables": [
+    {
+      "nom": "site",
+      "titre": "Site",
+      "requete": "label_values(node_uname_info{site!=\"proxmox\", env!=\"hyperviseur\"}, site)"
+    },
+    {
+      "nom": "env",
+      "titre": "Role",
+      "requete": "label_values(node_uname_info{site=~\"$site\", site!=\"proxmox\", env!=\"hyperviseur\"}, env)"
+    },
+    {
+      "nom": "instance",
+      "titre": "Machine",
+      "requete": "label_values(node_uname_info{site=~\"$site\", env=~\"$env\", site!=\"proxmox\", env!=\"hyperviseur\"}, instance)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Vue d'ensemble",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Machines",
+          "unite": "short",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(min by (instance) (lag(node_uname_info{instance=~\"$instance\"}[1d])))"
+            }
+          ],
+          "icone": "machines",
+          "teinte": "bleu"
+        },
+        {
+          "type": "chiffre",
+          "titre": "Muettes",
+          "description": "Machines sans metrique depuis plus de 5 minutes, sur les dernieres 24 heures. Au-dela, une machine arretee disparait du compteur.",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(min by (instance) (lag(node_uname_info{instance=~\"$instance\"}[1d])) > 300) or vector(0)"
+            }
+          ],
+          "icone": "attention",
+          "teinte": "orange"
+        },
+        {
+          "type": "chiffre",
+          "titre": "Services en echec",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(node_systemd_unit_state{instance=~\"$instance\", state=\"failed\", name!=\"fwupd-refresh.service\"}) or vector(0)"
+            }
+          ],
+          "icone": "alertes",
+          "teinte": "rouge"
+        },
+        {
+          "type": "chiffre",
+          "titre": "Services auto arretes",
+          "description": "Services actives au demarrage qui ne tournent pas (obs-systemd.sh).",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(node_systemd_enabled_units_down{instance=~\"$instance\"}) or vector(0)"
+            }
+          ],
+          "icone": "eclair",
+          "teinte": "gris"
+        },
+        {
+          "type": "chiffre",
+          "titre": "Conteneurs arretes",
+          "description": "Conteneurs en always ou unless-stopped qui ne tournent pas.",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(node_docker_container_running{instance=~\"$instance\", restart_policy=~\"always|unless-stopped\"} == 0) or vector(0)"
+            }
+          ],
+          "icone": "conteneur",
+          "teinte": "orange"
+        },
+        {
+          "type": "chiffre",
+          "titre": "INPUT pas en DROP",
+          "description": "Machines surveillees dont la politique INPUT n'est pas DROP.",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(node_firewall_input_policy_drop{instance=~\"$instance\"} == 0) or vector(0)"
+            }
+          ],
+          "icone": "bouclier",
+          "teinte": "rouge"
+        },
+        {
+          "type": "chiffre",
+          "titre": "Disques > 85 %",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(max by (instance, mountpoint) (100 * (1 - node_filesystem_avail_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"} / node_filesystem_size_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"})) > 85) or vector(0)"
+            }
+          ],
+          "icone": "disque",
+          "teinte": "violet"
+        },
+        {
+          "type": "tableau",
+          "titre": "Etat du parc",
+          "description": "Une ligne par machine. Pare-feu et Docker sont vides quand ils ne sont pas surveilles sur la machine.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min by (instance) (lag(node_uname_info{instance=~\"$instance\"}[1d]))"
+            },
+            {
+              "id": "B",
+              "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[5m])))"
+            },
+            {
+              "id": "C",
+              "expr": "100 * (1 - max by (instance) (node_memory_MemAvailable_bytes{instance=~\"$instance\"}) / max by (instance) (node_memory_MemTotal_bytes{instance=~\"$instance\"}))"
+            },
+            {
+              "id": "D",
+              "expr": "max by (instance) (100 * (1 - node_filesystem_avail_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"} / node_filesystem_size_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"}))"
+            },
+            {
+              "id": "E",
+              "expr": "max by (instance) (node_load5{instance=~\"$instance\"}) / count by (instance) (node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"})"
+            },
+            {
+              "id": "F",
+              "expr": "max by (instance) (node_time_seconds{instance=~\"$instance\"} - node_boot_time_seconds{instance=~\"$instance\"})"
+            },
+            {
+              "id": "G",
+              "expr": "sum by (instance) (node_systemd_unit_state{instance=~\"$instance\", state=\"failed\", name!=\"fwupd-refresh.service\"})"
+            },
+            {
+              "id": "H",
+              "expr": "sum by (instance) (node_systemd_enabled_units_down{instance=~\"$instance\"})"
+            },
+            {
+              "id": "J",
+              "expr": "max by (instance) (node_firewall_input_policy_drop{instance=~\"$instance\"})"
+            },
+            {
+              "id": "K",
+              "expr": "max by (instance) (node_docker_up{instance=~\"$instance\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "A",
+              "titre": "Derniere donnee",
+              "unite": "s",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 120,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 300,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "CPU",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 75,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 90,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "C",
+              "titre": "RAM",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 80,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 92,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "D",
+              "titre": "Disque max",
+              "unite": "percent",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 80,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 90,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "E",
+              "titre": "Charge / coeur",
+              "unite": "none",
+              "decimales": 2,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 2,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "F",
+              "titre": "Uptime",
+              "unite": "dtdurations",
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 3600,
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "G",
+              "titre": "Svc echec",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "H",
+              "titre": "Svc arretes",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                }
+              ]
+            },
+            {
+              "champ": "J",
+              "titre": "Pare-feu",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "Pas en DROP",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "DROP",
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "K",
+              "titre": "Docker",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "KO",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "OK",
+                  "couleur": "ok"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Ressources",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "CPU",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
+              "legende": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Charge par coeur (load 5 min)",
+          "description": "Au-dela de 1, des processus attendent le processeur.",
+          "unite": "none",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance) (node_load5{instance=~\"$instance\"}) / count by (instance) (node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"})",
+              "legende": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire utilisee",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})",
+              "legende": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Swap utilise",
+          "unite": "bytes",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_memory_SwapTotal_bytes{instance=~\"$instance\"} - node_memory_SwapFree_bytes{instance=~\"$instance\"} > 0",
+              "legende": "{{instance}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Disques",
+      "panneaux": [
+        {
+          "type": "barres",
+          "titre": "Occupation des systemes de fichiers",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 80,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * (1 - node_filesystem_avail_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"} / node_filesystem_size_bytes{instance=~\"$instance\", fstype!~\"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs\"})",
+              "legende": "{{instance}} {{mountpoint}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Saturation des disques",
+          "description": "Part du temps ou le disque est occupe. Durablement au-dessus de 90 %, il sature.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * rate(node_disk_io_time_seconds_total{instance=~\"$instance\"}[$__rate_interval])",
+              "legende": "{{instance}} {{device}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Debit disque",
+          "description": "Lectures au-dessus de zero, ecritures en dessous.",
+          "unite": "Bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance) (rate(node_disk_read_bytes_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "legende": "{{instance}} lecture"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (instance) (rate(node_disk_written_bytes_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "legende": "{{instance}} ecriture"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Reseau",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Trafic",
+          "description": "Entrant au-dessus de zero, sortant en dessous.",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance) (rate(node_network_receive_bytes_total{instance=~\"$instance\", device!~\"lo|veth.*|docker.*|br-.*|virbr.*|tap.*|fw.*\"}[$__rate_interval])) * 8",
+              "legende": "{{instance}} entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\"$instance\", device!~\"lo|veth.*|docker.*|br-.*|virbr.*|tap.*|fw.*\"}[$__rate_interval])) * 8",
+              "legende": "{{instance}} sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Erreurs et pertes",
+          "unite": "pps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (instance) (rate(node_network_receive_errs_total{instance=~\"$instance\"}[$__rate_interval]) + rate(node_network_transmit_errs_total{instance=~\"$instance\"}[$__rate_interval])) > 0",
+              "legende": "{{instance}} erreurs"
+            },
+            {
+              "id": "B",
+              "expr": "sum by (instance) (rate(node_network_receive_drop_total{instance=~\"$instance\"}[$__rate_interval]) + rate(node_network_transmit_drop_total{instance=~\"$instance\"}[$__rate_interval])) > 0",
+              "legende": "{{instance}} pertes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Services et securite",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Unites en echec",
+          "description": "Liste vide = tout va bien.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_systemd_unit_state{instance=~\"$instance\", state=\"failed\", name!=\"fwupd-refresh.service\"} == 1"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Unite"
+            },
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site",
+            "state",
+            "type"
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Actives au demarrage, arretes",
+          "description": "Liste vide = tout va bien. Faux positif : ajouter le service dans /etc/obs-systemd-ignore sur la machine.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_systemd_unit_enabled_active{instance=~\"$instance\"} == 0"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Service"
+            },
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Pare-feu : INPUT en DROP",
+          "description": "Machines ou le controle du pare-feu est actif : toujours sur les VPS, sur les VM seulement si INPUT etait deja en DROP a l'installation.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance) (node_firewall_input_policy_drop{instance=~\"$instance\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "A",
+              "titre": "INPUT",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "Pas en DROP",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "DROP",
+                  "couleur": "ok"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time"
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Docker",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Etat des conteneurs",
+          "description": "Un conteneur arrete n'est anormal qu'avec une politique always ou unless-stopped.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, name, state, restart_policy) (node_docker_container_running{instance=~\"$instance\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Conteneur"
+            },
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "state",
+              "titre": "Etat"
+            },
+            {
+              "champ": "restart_policy",
+              "titre": "Redemarrage"
+            },
+            {
+              "champ": "A",
+              "titre": "Tourne",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "Non",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "Oui",
+                  "couleur": "ok"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Consommation des conteneurs",
+          "description": "CPU exprime en pourcentage d'un coeur : peut depasser 100 %. Sante vide = pas de healthcheck.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * max by (instance, name) (rate(node_docker_container_cpu_seconds_total{instance=~\"$instance\"}[5m]))"
+            },
+            {
+              "id": "B",
+              "expr": "max by (instance, name) (node_docker_container_memory_bytes{instance=~\"$instance\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (instance, name) (node_docker_container_restart_count{instance=~\"$instance\"})"
+            },
+            {
+              "id": "D",
+              "expr": "max by (instance, name) (node_docker_container_healthy{instance=~\"$instance\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Conteneur"
+            },
+            {
+              "champ": "instance",
+              "titre": "Machine"
+            },
+            {
+              "champ": "A",
+              "titre": "CPU",
+              "unite": "percent",
+              "decimales": 1,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 80,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 150,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Memoire",
+              "unite": "bytes",
+              "decimales": 0
+            },
+            {
+              "champ": "C",
+              "titre": "Redemarrages",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 5,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "D",
+              "titre": "Sante",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "Non sain",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "Sain",
+                  "couleur": "ok"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "CPU par conteneur (top 10)",
+          "description": "Pourcentage d'un coeur. Resolution d'une minute.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, 100 * rate(node_docker_container_cpu_seconds_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "legende": "{{instance}} / {{name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire par conteneur (top 10)",
+          "unite": "bytes",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, node_docker_container_memory_bytes{instance=~\"$instance\"})",
+              "legende": "{{instance}} / {{name}}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "icone": "terminal",
+  "teinte": "bleu"
+}

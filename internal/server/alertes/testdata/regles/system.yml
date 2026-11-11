@@ -1,0 +1,247 @@
+# Exemple de fichier de règles vmalert (métriques) : system.yml, sert aux tests d'import.
+# Les regles Synology sont dans equipements.yml.
+
+groups:
+
+  # Veilleur : alerte toujours active, envoyee chaque minute par Alertmanager
+  # au moniteur Heartbeat de HetrixTools (jamais a Telegram). Si les envois
+  # s'arretent (vmalert, Alertmanager, VictoriaMetrics ou sortie Internet en
+  # panne), HetrixTools previent par ses propres moyens.
+  - name: veilleur
+    interval: 1m
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels: { severity: none }
+        annotations:
+          summary: "Chaine d'alerte vivante (envoye a HetrixTools, jamais a Telegram)"
+
+  - name: hote
+    interval: 30s
+    rules:
+
+      - alert: AgentMuet
+        # Agents collectes toutes les 30 s : plus de 60 s sans donnee = deux
+        # releves manques. Message en 1 a 2 minutes apres l'arret de la machine.
+        expr: min by (instance) (lag(node_uname_info[1d])) > 60
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.instance }} ne remonte plus de métriques"
+          description: "Aucune donnée depuis plus d'une minute (agent arrêté, machine down ou lien coupé)."
+
+      - alert: CpuEleve
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 90
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "CPU > 90% sur {{ $labels.instance }}"
+
+      - alert: LoadAverageEleve
+        expr: node_load5 / on(instance) count by (instance) (node_cpu_seconds_total{mode="idle"}) > 2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Load average à {{ $value | humanize }}× le nombre de cœurs sur {{ $labels.instance }}"
+
+      - alert: MemoireFaible
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Moins de 10% de RAM disponible sur {{ $labels.instance }}"
+
+      - alert: SwapIntensif
+        expr: rate(node_vmstat_pswpin[10m]) + rate(node_vmstat_pswpout[10m]) > 100
+        for: 15m
+        labels: { severity: warning }
+
+      - alert: DisqueFaible
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes * 100 < 15
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.mountpoint }} à {{ $value | humanize }}% libre sur {{ $labels.instance }}"
+
+      - alert: DisqueSaturationPrevue
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[12h], 4*24*3600) < 0
+          and node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.30
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.mountpoint }} sera plein sous 4 jours sur {{ $labels.instance }}"
+
+      - alert: InodesFaibles
+        expr: node_filesystem_files_free{fstype!~"tmpfs|overlay"} / node_filesystem_files * 100 < 10
+        for: 15m
+        labels: { severity: warning }
+
+      # fwupd-refresh (mise a jour des metadonnees de firmware) echoue par vagues
+      # quand le site LVFS est lent ou injoignable, sans aucune consequence
+      # sur les machines : exclu pour eviter le bruit.
+      - alert: ServiceSystemdEnEchec
+        expr: node_systemd_unit_state{state="failed", name!="fwupd-refresh.service"} == 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Service {{ $labels.name }} en échec sur {{ $labels.instance }}"
+
+      - alert: ServiceAutomatiqueArrete
+        expr: node_systemd_unit_enabled_active == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.name }} est activé au démarrage mais ne tourne pas sur {{ $labels.instance }}"
+          description: "Le service devrait démarrer automatiquement. Il a été arrêté, ou son démarrage a échoué sans passer en état failed."
+
+      - alert: ServiceRedemarreEnBoucle
+        expr: increase(node_systemd_service_restart_total[1h]) > 5
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.name }} a redémarré {{ $value | humanize }} fois en une heure sur {{ $labels.instance }}"
+
+      - alert: IoDisqueSature
+        expr: rate(node_disk_io_time_seconds_total[5m]) > 0.9
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disque {{ $labels.device }} saturé en I/O sur {{ $labels.instance }}"
+
+      - alert: TraficAnormal
+        expr: rate(node_network_receive_bytes_total{device!~"lo|veth.*|docker.*|br-.*"}[5m]) * 8 > 800e6
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Trafic entrant > 800 Mbit/s sur {{ $labels.device }} ({{ $labels.instance }})"
+
+      - alert: ErreursReseau
+        expr: rate(node_network_receive_errs_total[10m]) + rate(node_network_transmit_errs_total[10m]) > 1
+        for: 15m
+        labels: { severity: warning }
+
+      - alert: TemperatureElevee
+        expr: node_hwmon_temp_celsius > 80
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.chip }}/{{ $labels.sensor }} à {{ $value }}°C sur {{ $labels.instance }}"
+
+      - alert: RedemarrageInattendu
+        expr: node_time_seconds - node_boot_time_seconds < 300
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $labels.instance }} vient de redémarrer"
+
+  - name: securite
+    interval: 1m
+    rules:
+
+      - alert: PareFeuNonRestrictif
+        expr: node_firewall_input_policy_drop == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "La politique INPUT n'est pas en DROP sur {{ $labels.instance }}"
+
+      - alert: CertificatExpireBientot
+        expr: (ssl_cert_not_after_timestamp_seconds - time()) / 86400 < 21
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Certificat {{ $labels.cn }} expire dans {{ $value | humanize }} jours ({{ $labels.instance }})"
+
+      - alert: CertificatExpireTresBientot
+        expr: (ssl_cert_not_after_timestamp_seconds - time()) / 86400 < 7
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "Certificat {{ $labels.cn }} expire dans moins de 7 jours ({{ $labels.instance }})"
+
+      # Une machine sans certificat est normale (la plupart des VM).
+      # On n'alerte que si la machine AVAIT des certificats sur les 7 derniers
+      # jours et n'en a plus aucun.
+      - alert: CollecteCertificatsMuette
+        expr: ssl_certs_found_total == 0 and max_over_time(ssl_certs_found_total[7d]) > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "obs-certs.sh ne trouve plus aucun certificat sur {{ $labels.instance }}"
+          description: "La machine avait des certificats ces 7 derniers jours et n'en a plus : fichier supprime, chemin change, ou droits insuffisants."
+
+      - alert: CertificatsIllisibles
+        expr: ssl_certs_read_errors_total > 0
+        for: 1h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $value }} fichier(s) non exploitable(s) par obs-certs.sh sur {{ $labels.instance }}"
+          description: "Clé privée ou fichier non reconnu dans un répertoire scanné. Sans gravité, mais à nettoyer."
+
+  - name: materiel
+    interval: 1m
+    rules:
+
+      - alert: SmartEnEchec
+        expr: smartctl_device_smart_status == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "SMART en échec : {{ $labels.device }} sur {{ $labels.instance }}"
+
+      - alert: SecteursRealloues
+        expr: increase(smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct", attribute_value_type="raw"}[24h]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Nouveaux secteurs réalloués sur {{ $labels.device }} ({{ $labels.instance }})"
+
+      - alert: DisqueChaud
+        expr: smartctl_device_temperature{temperature_type="current"} > 55
+        for: 20m
+        labels: { severity: warning }
+
+      # Les regles Synology sont dans rules/equipements.yml (fichier a part).
+
+  - name: docker
+    interval: 1m
+    rules:
+
+      - alert: DockerInjoignable
+        expr: node_docker_up == 0
+        for: 3m
+        labels: { severity: critical }
+        annotations:
+          summary: "Le démon Docker ne répond plus sur {{ $labels.instance }}"
+
+      - alert: ConteneurArrete
+        expr: node_docker_container_running{restart_policy=~"always|unless-stopped"} == 0
+        for: 3m
+        labels: { severity: critical }
+        annotations:
+          summary: "Conteneur {{ $labels.name }} arrêté sur {{ $labels.instance }}"
+          description: "Sa politique de redémarrage ({{ $labels.restart_policy }}) indique qu'il devrait tourner."
+
+      - alert: ConteneurRedemarreEnBoucle
+        expr: increase(node_docker_container_restart_count[30m]) > 3
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.name }} a redémarré {{ $value | humanize }} fois en 30 min sur {{ $labels.instance }}"
+
+      - alert: ConteneurNonSain
+        expr: node_docker_container_healthy == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Healthcheck en échec pour {{ $labels.name }} sur {{ $labels.instance }}"
+
+      - alert: ConteneurTueParOOM
+        expr: node_docker_container_oom_killed == 1
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.name }} a été arrêté par manque de mémoire sur {{ $labels.instance }}"
+
+      - alert: ConteneurMemoireSaturee
+        expr: node_docker_container_memory_bytes / node_docker_container_memory_limit_bytes > 0.9
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.name }} utilise {{ $value | humanizePercentage }} de sa limite mémoire sur {{ $labels.instance }}"

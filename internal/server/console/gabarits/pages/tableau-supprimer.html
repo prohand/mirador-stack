@@ -1,0 +1,11 @@
+{{define "contenu"}}
+<h1>Supprimer « {{.D.T.Titre}} »</h1>
+<section class="carte">
+<p>{{if egal .D.Origine "perso"}}Ce tableau a été créé ici : il sera <strong>effacé</strong> (pensez à l'exporter avant si besoin).{{else if egal .D.Origine "modifie"}}Tableau fourni avec mirador, <strong>modifié</strong> : vos modifications seront perdues ; il redeviendra un tableau proposé, réinstallable.{{else}}Tableau fourni avec mirador : il redeviendra un tableau proposé, réinstallable à tout moment.{{end}}</p>
+<form method="post" action="/tableaux" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{.D.T.Nom}}">
+{{template "code2fa"}}
+<button name="action" value="supprimer" class="danger">Supprimer le tableau</button>
+<a class="bouton secondaire" href="/tableaux">Annuler</a>
+<a class="bouton secondaire" href="/tableaux/{{.D.T.Nom}}/export.json">Exporter d'abord</a></form>
+</section>
+{{end}}

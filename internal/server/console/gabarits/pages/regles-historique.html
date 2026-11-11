@@ -1,0 +1,7 @@
+{{define "contenu"}}
+<h1>Modifications des règles</h1>
+{{template "onglets-regles" "historique"}}
+{{if .D}}<div class="defile"><table><thead><tr><th>Quand</th><th>Qui</th><th>Action</th><th>Règle</th><th>Avant → après</th></tr></thead><tbody>
+{{range .D}}<tr><td>{{dateS .Le}}</td><td>{{.Qui}}</td><td>{{.Action}}</td><td>{{.Objet}}</td><td><details><summary>Voir</summary><p><small>Avant</small></p><pre>{{.Avant}}</pre><p><small>Après</small></p><pre>{{.Apres}}</pre></details></td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune modification."}}{{end}}
+{{end}}

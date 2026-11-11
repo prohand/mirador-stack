@@ -1,0 +1,9 @@
+{{define "contenu"}}
+<h1>Rapport d'import</h1>
+{{template "onglets-regles" ""}}
+<p>Format {{.D.Rapport.Format}} : {{len .D.Rapport.Lignes}} règle(s) — {{index .D.Compteur "exact"}} exacte(s), {{index .D.Compteur "approché"}} approchée(s), {{index .D.Compteur "impossible"}} impossible(s).</p>
+<div class="defile"><table><thead><tr><th>Règle</th><th>Groupe</th><th>Classement</th><th>Importée</th><th>Note</th></tr></thead><tbody>
+{{range .D.Rapport.Lignes}}<tr><td>{{.Nom}}</td><td>{{.Groupe}}</td><td>{{.Classement}}</td><td>{{if .Importee}}{{if .Active}}Oui{{else}}Désactivée{{end}}{{else}}Non{{end}}</td><td>{{.Note}}</td></tr>{{end}}
+</tbody></table></div>
+<p><a href="/regles">Retour aux règles</a></p>
+{{end}}

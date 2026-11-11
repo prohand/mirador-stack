@@ -1,0 +1,27 @@
+{{define "contenu"}}
+<h1>Sécurité de l'interface</h1>
+<section class="carte">
+<h2>Réglages</h2>
+<form method="post" action="/securite" class="pile">
+  {{template "csrf" .CSRF}}
+  <label>Session fermée après une inactivité de <input name="inactivite" value="{{.D.S.Inactivite}}" required maxlength="10"> <small>5 min à 8 h, défaut {{.D.Defaut.Inactivite}}</small></label>
+  <label>Durée maximale d'une session <input name="duree_max" value="{{.D.S.DureeMax}}" required maxlength="10"> <small>1 h à 7 j, défaut {{.D.Defaut.DureeMax}}</small></label>
+  <label>Échecs avant verrouillage (par adresse) <input type="number" name="echecs" min="3" max="50" value="{{.D.S.Echecs}}" required> <small>3 à 50, défaut {{.D.Defaut.Echecs}} ; le compte est verrouillé au triple</small></label>
+  <label>Durée du verrouillage <input name="verrou" value="{{.D.S.Verrou}}" required maxlength="10"> <small>1 min à 24 h, défaut {{.D.Defaut.Verrou}}</small></label>
+  <label>Adresses autorisées (vide = toutes ; virgules ; préfixes acceptés) <textarea name="ips" rows="3" maxlength="4096">{{.D.S.IPs}}</textarea>
+    <small>Votre adresse : <code>{{.D.MonIP}}</code>. Un changement de cette liste doit être <strong>confirmé dans les 2 minutes</strong>, sinon l'ancienne revient.</small></label>
+  {{template "code2fa"}}
+  <div class="ligne"><button>Enregistrer</button> <button name="defaut" value="1" class="secondaire" data-confirmer="Rétablir toutes les valeurs par défaut ?">Rétablir les valeurs par défaut</button></div>
+</form>
+</section>
+
+<section class="carte">
+<h2>Sessions ouvertes</h2>
+<div class="defile"><table>
+<thead><tr><th>Compte</th><th>Adresse</th><th>Ouverte</th><th>Dernière requête</th><th></th></tr></thead>
+<tbody>{{range .D.Sessions}}<tr><td>{{.Nom}}</td><td>{{.Adresse}}</td><td>{{date .Creee}}</td><td>{{date .Vue}}</td>
+<td><form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire">Fermer</button></form></td></tr>{{end}}</tbody>
+</table></div>
+<p><small>Sessions gardées en mémoire : un redémarrage du serveur les ferme toutes.</small></p>
+</section>
+{{end}}

@@ -1,0 +1,38 @@
+{{define "contenu"}}
+<h1>Mises à jour des agents</h1>
+<p class="onglets"><a href="/machines">Machines</a><a class="actif" href="/mises-a-jour">Mises à jour des agents</a><a href="/reglages/agents">Configuration des agents</a></p>
+<p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée sur ton poste</strong> (mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
+
+<div class="grille">
+<section class="carte"><h2>Version de toutes les machines</h2>
+<p>Actuelle : <strong>{{if .D.Cible}}{{.D.Cible}}{{else}}aucune (pas de mise à jour){{end}}</strong></p>
+{{if .Admin}}<form method="post" action="/mises-a-jour" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
+<label>Nouvelle version <select name="version"><option value="">Aucune</option>{{range .D.Versions}}<option>{{.Version}}</option>{{end}}</select></label>
+{{template "code2fa"}}<button data-confirmer="Assigner cette version à toutes les machines sans version propre ?">Assigner</button></form>{{end}}
+</section>
+<section class="carte"><h2>Fenêtre horaire</h2>
+<p>{{if .D.Fenetre.Active}}Mises à jour seulement de {{.D.Fenetre.Debut}} à {{.D.Fenetre.Fin}} ({{.D.Fenetre.Fuseau}}).{{else}}Désactivée : à toute heure.{{end}}</p>
+{{if .Admin}}<form method="post" action="/mises-a-jour" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="fenetre">
+<label class="case"><input type="checkbox" name="active" value="1" {{if .D.Fenetre.Active}}checked{{end}}> Activer</label>
+<div class="ligne"><label>De <input type="time" name="debut" value="{{.D.Fenetre.Debut}}" required></label><label>À <input type="time" name="fin" value="{{.D.Fenetre.Fin}}" required></label></div>
+<label>Fuseau <input name="fuseau" value="{{.D.Fenetre.Fuseau}}" required maxlength="64"></label>
+{{template "code2fa"}}<button>Enregistrer</button></form>{{end}}
+</section>
+</div>
+
+<section class="carte"><h2>Versions publiées</h2>
+{{if .D.Versions}}<div class="defile"><table><thead><tr><th>Version</th><th>Arch.</th><th>Taille</th><th>SHA-256</th><th>Retour arrière signé</th><th>Publiée</th></tr></thead><tbody>
+{{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
+<p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
+{{if .Admin}}<form method="post" action="/mises-a-jour/publier" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
+<h3>Publier une version</h3>
+<label>Manifeste signé (.json, fait par mirador-release) <input type="file" name="manifeste" accept=".json,application/json" required></label>
+<label>Binaire (mirador-agent-…-linux-amd64, 30 Mo au plus) <input type="file" name="binaire" required></label>
+{{template "code2fa"}}<button>Publier</button></form>{{end}}
+</section>
+
+<section class="carte"><h2>Versions sur les machines</h2><div class="defile"><table><thead><tr><th>Machine</th><th>Version</th><th>Cible propre</th><th>Essai</th><th>Échec</th><th>Battement</th></tr></thead><tbody>
+{{range .D.Machines}}{{if egal .Statut "approuvee"}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td>{{.Version}}</td><td>{{.VersionCible}}</td><td>{{.MajEssai}}</td><td class="erreur">{{.MajEchec}}</td><td>{{depuisS .BattementLe}}</td></tr>{{end}}{{end}}
+</tbody></table></div></section>
+{{end}}

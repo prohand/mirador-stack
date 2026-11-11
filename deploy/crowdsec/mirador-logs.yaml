@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Parseur CrowdSec pour le journal de mirador-server (JSON, une ligne par
+# événement). Lit les échecs de connexion à l'interface web.
+# À copier dans /etc/crowdsec/parsers/s01-parse/ (à adapter, rien n'est
+# appliqué automatiquement). Source : docs/interface-web.md § 4.
+onsuccess: next_stage
+name: mirador/mirador-logs
+description: "Échecs de connexion à l'interface de mirador-server"
+filter: "evt.Line.Labels.type == 'mirador'"
+nodes:
+  - filter: "JsonExtract(evt.Line.Raw, 'msg') == 'console : échec de connexion'"
+    statics:
+      - meta: log_type
+        value: mirador_echec_connexion
+      - meta: source_ip
+        expression: "JsonExtract(evt.Line.Raw, 'ip')"
+      - meta: utilisateur
+        expression: "JsonExtract(evt.Line.Raw, 'utilisateur')"
+      - meta: raison
+        expression: "JsonExtract(evt.Line.Raw, 'raison')"

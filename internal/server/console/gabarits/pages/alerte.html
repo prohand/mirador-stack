@@ -1,0 +1,31 @@
+{{define "contenu"}}
+{{$a := .D.A}}
+<h1>{{template "gravite" $a.Gravite}} {{$a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
+{{template "onglets-alertes" ""}}
+<div class="grille">
+<section class="carte"><h2>État</h2><table>
+<tr><th>Numéro</th><td>{{$a.ID}}</td></tr>
+<tr><th>État</th><td>{{$a.Etat}}{{if .D.Sourdine}} <span class="pastille info">Sourdine : {{.D.Sourdine}}</span>{{end}}</td></tr>
+<tr><th>Condition vraie depuis</th><td>{{date $a.Debut}}</td></tr>
+<tr><th>Passée en alerte</th><td>{{date $a.ActiveLe}}</td></tr>
+<tr><th>Fin</th><td>{{date $a.Fin}}</td></tr>
+<tr><th>Valeur au début / max / dernière</th><td>{{printf "%.4g" $a.ValeurDebut}} / {{printf "%.4g" $a.ValeurMax}} / {{printf "%.4g" $a.Valeur}}</td></tr>
+<tr><th>Résumé</th><td>{{$a.Resume}}</td></tr>
+<tr><th>Description</th><td>{{$a.Description}}</td></tr>
+<tr><th>Acquittée</th><td>{{if $a.AcquitteePar}}{{date $a.AcquitteeLe}} par {{$a.AcquitteePar}} — {{$a.Commentaire}}{{else}}Non{{end}}</td></tr>
+</table></section>
+<section class="carte"><h2>Étiquettes</h2><table>{{range .D.Etiquettes}}<tr><th>{{.Nom}}</th><td><code>{{.Valeur}}</code></td></tr>{{end}}</table>
+<p><a href="/regles/modifier/{{$a.Regle}}">Voir la règle</a> · <a href="/alertes?regle={{$a.Regle}}">Historique de cette règle</a></p></section>
+</div>
+{{if and .Admin .D.EnCours}}<div class="grille">
+<section class="carte"><h2>Accusé de réception</h2>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter">
+<label>Commentaire <input name="commentaire" maxlength="1000" placeholder="je m'en occupe"></label><button>Acquitter</button>
+<small>Arrête les rappels ; la fin de l'alerte sera quand même annoncée.</small></form></section>
+<section class="carte"><h2>Silence en un clic</h2>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence">
+<p>Sélecteur : <code>{{.D.Selecteur}}</code></p>
+<label>Pendant <select name="duree"><option>1h</option><option selected>4h</option><option>24h</option><option>168h</option></select></label>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Poser le silence</button></form></section>
+</div>{{end}}
+{{end}}

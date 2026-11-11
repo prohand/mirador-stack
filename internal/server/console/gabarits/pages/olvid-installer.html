@@ -1,0 +1,27 @@
+{{define "contenu"}}
+<h1>Installer Olvid</h1>
+{{template "onglets-reglages" (onglet $ "olvid")}}
+<p>Le bot Olvid tourne dans son propre conteneur (le daemon officiel). mirador ne pilote jamais Docker (ce serait lui donner les droits root sur le serveur) : vous lancez le conteneur, l'assistant fait le reste.</p>
+{{if .D.Actif}}<p class="message ok">Olvid est déjà activé. Refaire l'assistant crée une nouvelle clé client (l'identité du bot est reprise si elle porte le même nom).</p>{{end}}
+<section class="carte"><h2>1. Lancer le daemon Olvid</h2>
+<p>Sur le serveur, dans le dossier du <code>docker-compose.yml</code> de mirador, en root :</p>
+<pre>grep -q OLVID_ADMIN_CLIENT_KEY_CLI .env 2&gt;/dev/null || echo "OLVID_ADMIN_CLIENT_KEY_CLI=$(openssl rand -hex 32)" &gt;&gt; .env
+chmod 600 .env
+docker compose --profile olvid up -d
+grep OLVID_ADMIN_CLIENT_KEY_CLI .env</pre>
+<p><small>La dernière ligne affiche la clé admin du daemon, à coller à l'étape 2. Un daemon déjà installé ailleurs convient aussi : donner son adresse et sa clé admin.</small></p>
+</section>
+<section class="carte"><h2>2. Connecter mirador au daemon</h2>
+<form method="post" class="pile">{{template "csrf" .CSRF}}
+<div class="ligne"><label>Adresse du daemon <input name="adresse" value="{{.D.Adresse}}" required maxlength="100" size="30"></label>
+<button name="action" value="ping" class="secondaire" formnovalidate>Vérifier que le daemon répond</button></div>
+<label>Clé admin du daemon <input type="password" name="cle_admin" autocomplete="off" maxlength="200" required></label>
+<label>Nom du bot (affiché dans Olvid) <input name="nom" value="{{.D.Nom}}" required maxlength="40"></label>
+<small>La clé admin sert une seule fois : créer l'identité du bot et une clé client pour mirador. Elle n'est ni gardée ni journalisée ; seule la clé client est enregistrée (chiffrée).</small>
+{{template "code2fa"}}
+<div class="ligne"><button>Créer le bot et activer Olvid</button></div>
+</form></section>
+<section class="carte"><h2>3. Ensuite</h2>
+<p>La page <strong>Olvid</strong> s'ouvre : inviter le bot depuis votre téléphone (QR code), échanger les codes à 4 chiffres, puis choisir la discussion qui reçoit les alertes. Enfin, dans <a href="/reglages/notifications">Notifications</a>, choisir Olvid comme canal principal ou de secours.</p>
+</section>
+{{end}}

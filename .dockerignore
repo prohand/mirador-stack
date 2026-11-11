@@ -1,0 +1,13 @@
+# Construction de l'image du serveur : seulement le code nécessaire
+# (rien de docs/, reference/, bancs/, .git…).
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!cles/
+!LICENSE
+!THIRD-PARTY.md
+# Script d'installation de l'agent (embarqué dans le serveur, § 18.19).
+!deploy/agent/script.go
+!deploy/agent/mirador-agent-install.sh

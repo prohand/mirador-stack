@@ -1,0 +1,7 @@
+{{define "contenu"}}
+<form method="post" action="/connexion" class="pile">
+  <label>Nom <input name="nom" value="{{.D.Nom}}" autocomplete="username" required autofocus maxlength="64"></label>
+  <label>Mot de passe <input type="password" name="mot_de_passe" autocomplete="current-password" required maxlength="512"></label>
+  <button>Continuer</button>
+</form>
+{{end}}

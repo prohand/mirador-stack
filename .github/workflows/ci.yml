@@ -1,0 +1,252 @@
+# CI de mirador-stack (SPEC.md § 11.1)
+#
+# À chaque push (une seule fois par commit) : formatage, go vet, tests (avec détection des
+# accès concurrents), fuzzing, gosec, govulncheck, licences, compilation
+# amd64 / arm64, image Docker. Pour un tag de version : les mêmes contrôles
+# sauf le fuzzing (déjà fait sur la branche), puis la publication de l'image.
+# Les outils sont figés à une version précise.
+#
+# Économie de minutes (11/11 : 90 % du forfait mensuel utilisé) :
+#   - un push qui ne touche que la documentation ne lance rien ;
+#   - 4 tâches au lieu de 8 (GitHub arrondit CHAQUE tâche à la minute) ;
+#   - test de sauvegarde / restauration plus lancé deux fois ;
+#   - benchmarks seulement à la demande (Actions › ci › Run workflow).
+# Durée totale inchangée (~7 min : celle des tests).
+
+name: ci
+
+# Un seul passage par commit : « push » suffit (le résultat s'affiche aussi
+# dans la pull request) ; avant, push + pull_request lançaient tout deux fois.
+on:
+  push:
+    # Documentation seule : rien à vérifier (ne s'applique pas aux tags).
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'reference/**'
+  # Lancement à la main (avec les benchmarks si demandé).
+  workflow_dispatch:
+    inputs:
+      benchmarks:
+        description: "Lancer aussi les benchmarks"
+        type: boolean
+        default: false
+
+# Un nouveau push sur une branche annule le passage encore en cours sur
+# cette branche (inutile de finir l'ancien). Jamais pour un tag.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: go1.27.4
+  GOSEC_VERSION: v2.30.0
+  GOVULNCHECK_VERSION: v1.9.0
+
+jobs:
+  # Les tâches tournent EN PARALLÈLE : la durée totale est celle de la plus
+  # longue (les tests), pas leur somme.
+
+  controles:
+    name: formatage, licences, gosec, govulncheck, compilation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Formatage, go vet, licences
+        run: make verif
+      - name: gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION} -quiet -exclude-generated ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+      - name: Compilation (agent et serveur linux, mirador-release Windows)
+        run: make agent serveur release
+      # Binaires et scripts à télécharger depuis la page de l'exécution
+      # (onglet « Artifacts ») pour les essais sur une machine.
+      - name: Publication des binaires (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirador-agent-${{ github.sha }}
+          path: |
+            dist/
+            deploy/agent/
+          retention-days: 30
+
+  tests:
+    name: tests (accès concurrents compris)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Comprend la sauvegarde / restauration de bout en bout
+      # (TestSauvegardeRestauration, internal/server).
+      - name: Tests
+        run: go test -race ./...
+
+  # Fuzzing : à chaque envoi sur une branche (pas pour un tag : le commit
+  # étiqueté est déjà passé par ici). 14 cibles × 15 s dans UNE tâche, en
+  # parallèle des tests (plus courte qu'eux : durée totale inchangée).
+  # Chaque ligne : paquet:Cible.
+  fuzzing:
+    name: fuzzing court
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Fuzzing court (15 s par cible)
+        env:
+          CIBLES: >-
+            ./internal/agent/config:FuzzLire
+            ./internal/agent/collect:FuzzLecturesProc
+            ./internal/agent/racine:FuzzAnalyses
+            ./internal/agent/journal:FuzzAnalyser
+            ./internal/agent/logs:FuzzMasquerEtJSON
+            ./internal/agent/dockerlogs:FuzzMultiplexe
+            ./internal/agent/distant:FuzzDecoder
+            ./internal/server/ingestion:FuzzDecoderRemoteWrite
+            ./internal/server/ingestion:FuzzDecoderJsonline
+            ./internal/server/stockage/journaux:FuzzLireEntete
+            ./internal/server/sauvegarde:FuzzLecture
+            ./internal/server/alertes:FuzzImporter
+            ./internal/server/alertes:FuzzExpr
+            ./internal/server/notif:FuzzCible
+        run: |
+          set -eu
+          for c in $CIBLES; do
+            echo "::group::${c}"
+            go test "${c%%:*}" -run XXX -fuzz "^${c##*:}\$" -fuzztime 15s
+            echo "::endgroup::"
+          done
+
+  # Benchmarks (pour information) : seulement à la demande.
+  benchmarks:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Benchmarks
+        run: go test -run XXX -bench . -benchmem -benchtime 500x ./...
+
+  # Image Docker du serveur : construite à chaque envoi (le Dockerfile est
+  # vérifié), publiée sur ghcr.io SEULEMENT pour un tag de version « v* »
+  # posé volontairement (ex. v0.1.0 → ghcr.io/prohand/mirador-server:0.1.0).
+  # L'image n'est publiée qu'après les contrôles et les tests (jamais une
+  # version qui ne passe pas).
+  # Image Docker sur une branche : construite et essayée EN MÊME TEMPS que
+  # les tests (rien n'est publié), la CI dure ~3 min 30 au lieu de ~6 min.
+  image:
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construction
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/serveur/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: mirador-server:essai
+          # Cache des couches (modules Go téléchargés) entre deux exécutions.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=dev-${{ github.sha }}
+            COMMIT=${{ github.sha }}
+
+      - name: Essai de l'image construite (démarrage, santé, arrêt)
+        run: |
+          set -euo pipefail
+          mkdir -p essai && cd essai
+          # Clé lisible seulement par l'utilisateur du conteneur (le serveur
+          # refuse une clé lisible par tous).
+          openssl rand -base64 32 > cle && sudo chown 65532:65532 cle && sudo chmod 0400 cle
+          printf 'MIRADOR_ECOUTE_AGENTS=0.0.0.0:9440\nMIRADOR_ECOUTE_INTERFACE=0.0.0.0:9441\n' > server.conf
+          docker run -d --name essai --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            -v "$PWD/server.conf:/etc/mirador/server.conf:ro" -v "$PWD/cle:/run/secrets/mirador_cle:ro" \
+            mirador-server:essai
+          for i in $(seq 1 30); do
+            etat=$(docker inspect -f '{{.State.Health.Status}}' essai)
+            [ "$etat" = healthy ] && break
+            sleep 2
+          done
+          docker logs essai
+          [ "$(docker inspect -f '{{.State.Health.Status}}' essai)" = healthy ]
+          docker exec essai /mirador-server -config /etc/mirador/server.conf sauvegarder
+          docker exec essai /mirador-server -config /etc/mirador/server.conf sauvegardes
+          docker stop essai
+
+  # Tag de version : l'image n'est publiée QUE si les contrôles et les tests
+  # sont bons.
+  publication:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [controles, tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Version (tag v0.2.1 → image 0.2.1)
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construction et publication
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/serveur/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/prohand/mirador-server:${{ steps.version.outputs.version }}
+          # Pas de cache pour une version publiée : le cache est aussi écrit
+          # par les branches (revue de sécurité du 11/11).
+          no-cache: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            COMMIT=${{ github.sha }}

@@ -1,0 +1,497 @@
+{
+  "version": 1,
+  "nom": "opnsense",
+  "titre": "OPNsense",
+  "periode": "6h",
+  "variables": [
+    {
+      "nom": "host",
+      "titre": "OPNsense",
+      "requete": "label_values(cpu_usage_idle{cpu=\"cpu-total\"}, host)"
+    },
+    {
+      "nom": "iface",
+      "titre": "Interfaces",
+      "requete": "label_values(net_bytes_recv{host=~\"$host\", interface!=\"all\"}, interface)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Etat",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Derniere remontee",
+          "description": "Anciennete de la derniere metrique recue de Telegraf. Au-dela de 5 minutes, OPNsense n'envoie plus rien (Telegraf arrete, lien coupe, token refuse).",
+          "unite": "s",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 120,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 300,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "time() - max(timestamp(cpu_usage_idle{host=~\"$host\", cpu=\"cpu-total\"}))"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "En service depuis",
+          "description": "Temps ecoule depuis le dernier demarrage d'OPNsense.",
+          "unite": "dtdurations",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(system_uptime{host=~\"$host\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "CPU",
+          "description": "Utilisation du processeur, tous coeurs confondus.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 70,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 - avg(cpu_usage_idle{host=~\"$host\", cpu=\"cpu-total\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Memoire",
+          "description": "Memoire utilisee.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 70,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(mem_used_percent{host=~\"$host\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Charge / coeurs",
+          "description": "Charge moyenne sur 5 minutes rapportee au nombre de coeurs. 100 % = coeurs tous occupes.",
+          "unite": "percentunit",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 0.8,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 1.5,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(system_load5{host=~\"$host\"}) / max(system_n_cpus{host=~\"$host\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Disque /",
+          "description": "Occupation de la partition racine.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 70,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(disk_used_percent{host=~\"$host\", path=\"/\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Swap",
+          "description": "Swap utilise. Un pare-feu ne devrait presque jamais swapper.",
+          "unite": "percent",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 10,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 50,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(swap_used_percent{host=~\"$host\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Etats pf",
+          "description": "Nombre de connexions suivies par le pare-feu (table d'etats pf).",
+          "unite": "short",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(pf_entries{host=~\"$host\"})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Systeme",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Processeur",
+          "description": "Repartition du temps processeur. Les interruptions montent avec le trafic reseau.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "avg(cpu_usage_user{host=~\"$host\", cpu=\"cpu-total\"})",
+              "legende": "utilisateur"
+            },
+            {
+              "id": "B",
+              "expr": "avg(cpu_usage_system{host=~\"$host\", cpu=\"cpu-total\"})",
+              "legende": "systeme"
+            },
+            {
+              "id": "C",
+              "expr": "avg(cpu_usage_irq{host=~\"$host\", cpu=\"cpu-total\"})",
+              "legende": "interruptions"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire et swap",
+          "description": "Memoire et swap utilises.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(mem_used_percent{host=~\"$host\"})",
+              "legende": "memoire"
+            },
+            {
+              "id": "B",
+              "expr": "max(swap_used_percent{host=~\"$host\"})",
+              "legende": "swap"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Charge",
+          "description": "Charge moyenne. La serie « coeurs » sert de repere.",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(system_load1{host=~\"$host\"})",
+              "legende": "1 min"
+            },
+            {
+              "id": "B",
+              "expr": "max(system_load5{host=~\"$host\"})",
+              "legende": "5 min"
+            },
+            {
+              "id": "C",
+              "expr": "max(system_load15{host=~\"$host\"})",
+              "legende": "15 min"
+            },
+            {
+              "id": "D",
+              "expr": "max(system_n_cpus{host=~\"$host\"})",
+              "legende": "coeurs"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Occupation des disques",
+          "description": "Occupation par point de montage.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (path) (disk_used_percent{host=~\"$host\"})",
+              "legende": "{{path}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Processus",
+          "description": "Nombre de processus (input « processes » de Telegraf).",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(processes_total{host=~\"$host\"})",
+              "legende": "total"
+            },
+            {
+              "id": "B",
+              "expr": "max(processes_running{host=~\"$host\"})",
+              "legende": "actifs"
+            },
+            {
+              "id": "C",
+              "expr": "max(processes_zombies{host=~\"$host\"})",
+              "legende": "zombies"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Reseau",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Trafic par interface",
+          "description": "Debit par interface physique ou virtuelle (au-dessus : entrant, en dessous : sortant). Les noms sont ceux de FreeBSD (igb0, vtnet0...), visibles dans Interfaces > Affectations.",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (interface) (rate(net_bytes_recv{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval])) * 8",
+              "legende": "{{interface}} entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (interface) (rate(net_bytes_sent{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval])) * 8",
+              "legende": "{{interface}} sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Paquets par seconde",
+          "description": "Paquets par seconde et par interface.",
+          "unite": "pps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (interface) (rate(net_packets_recv{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]))",
+              "legende": "{{interface}} entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (interface) (rate(net_packets_sent{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]))",
+              "legende": "{{interface}} sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Erreurs et pertes",
+          "description": "Erreurs et paquets perdus par interface. Doit rester a zero ; une valeur durable signale un cable, une negociation de vitesse ou une saturation.",
+          "unite": "pps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (interface) (rate(net_err_in{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]) + rate(net_err_out{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]))",
+              "legende": "{{interface}} erreurs"
+            },
+            {
+              "id": "B",
+              "expr": "sum by (interface) (rate(net_drop_in{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]) + rate(net_drop_out{host=~\"$host\", interface=~\"$iface\", interface!=\"all\"}[$__rate_interval]))",
+              "legende": "{{interface}} pertes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Pare-feu (pf)",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Table d'etats",
+          "description": "Connexions suivies par pf. Une hausse brutale peut signaler un scan ou une attaque.",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max(pf_entries{host=~\"$host\"})",
+              "legende": "etats"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Creations et suppressions d'etats",
+          "description": "Nouvelles connexions par seconde (au-dessus) et connexions terminees (en dessous).",
+          "unite": "ops",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(rate(pf_inserts{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "creations"
+            },
+            {
+              "id": "B",
+              "expr": "-sum(rate(pf_removals{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "suppressions"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Regles et recherches",
+          "description": "Activite du moteur de filtrage, par seconde.",
+          "unite": "ops",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(rate(pf_match{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "paquets ayant declenche une regle"
+            },
+            {
+              "id": "B",
+              "expr": "sum(rate(pf_searches{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "recherches dans la table d'etats"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Latence et DNS",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Latence vers les cibles de ping",
+          "description": "Temps de reponse moyen vers les adresses declarees dans Telegraf > Input > Ping. Vide si ce test n'est pas active.",
+          "unite": "ms",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (url) (ping_average_response_ms{host=~\"$host\"})",
+              "legende": "{{url}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Perte de paquets",
+          "description": "Pourcentage de pings sans reponse. Vide si le test n'est pas active.",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (url) (ping_percent_packet_loss{host=~\"$host\"})",
+              "legende": "{{url}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Unbound : requetes DNS",
+          "description": "Requetes DNS recues par Unbound et part servie par le cache. Vide si l'input Unbound n'est pas active dans Telegraf.",
+          "unite": "reqps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(rate(unbound_total_num_queries{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "requetes"
+            },
+            {
+              "id": "B",
+              "expr": "sum(rate(unbound_total_num_cachehits{host=~\"$host\"}[$__rate_interval]))",
+              "legende": "servies par le cache"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ignores": [
+    "Lignes recues : requête LogsQL : voir la page Logs",
+    "Erreurs : requête LogsQL : voir la page Logs",
+    "Avertissements : requête LogsQL : voir la page Logs",
+    "Applications : requête LogsQL : voir la page Logs",
+    "Volume par application : requête LogsQL : voir la page Logs",
+    "Programmes en erreur : requête LogsQL : voir la page Logs",
+    "Erreurs et avertissements : panneau de logs : voir la page Logs",
+    "Tous les logs : panneau de logs : voir la page Logs"
+  ],
+  "icone": "mur",
+  "teinte": "rouge"
+}

@@ -1,0 +1,9 @@
+{{define "contenu"}}
+<h1>Journal d'audit</h1>
+<form method="get" class="ligne filtres"><label>Qui <input name="qui" value="{{.D.Qui}}" maxlength="100" placeholder="web:admin"></label><label>Action (début) <input name="action" value="{{.D.Action}}" maxlength="60"></label><button>Filtrer</button></form>
+{{if .D.Lignes}}<div class="defile"><table><thead><tr><th>Quand</th><th>Qui</th><th>Adresse</th><th>Action</th><th>Objet</th><th>Avant / après</th></tr></thead><tbody>
+{{range .D.Lignes}}<tr><td>{{dateS .Le}}</td><td>{{.Qui}}</td><td>{{.Adresse}}</td><td>{{.Action}}</td><td>{{.Objet}}</td><td>{{if or .Avant .Apres}}<details><summary>Voir</summary>{{if .Avant}}<p><small>Avant</small></p><pre>{{.Avant}}</pre>{{end}}<p><small>Après</small></p><pre>{{.Apres}}</pre></details>{{end}}</td></tr>{{end}}
+</tbody></table></div>
+{{if .D.Suivant}}<p><a href="/audit?avant={{.D.Suivant}}&amp;qui={{.D.Qui}}&amp;action={{.D.Action}}">Plus anciennes →</a></p>{{end}}
+{{else}}{{template "vide" "Aucune ligne."}}{{end}}
+{{end}}

@@ -1,0 +1,9 @@
+{{define "contenu"}}
+<h1>Historique des envois</h1>
+{{template "onglets-alertes" "envois"}}
+{{if .D}}<div class="defile"><table><thead><tr><th>Quand</th><th>Canal</th><th>Type</th><th>Gravité</th><th>Alertes</th><th>Statut</th><th>Durée</th><th>Message</th></tr></thead><tbody>
+{{range .D}}<tr><td>{{date .Le}}</td><td>{{.Canal}}{{if .Secours}} <span class="pastille attention">Secours</span>{{end}}</td><td>{{.Type}}</td><td>{{template "gravite" .Gravite}}</td><td class="nombre">{{.Nb}}</td>
+<td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{else}}info{{end}}">{{majuscule .Statut}}</span>{{if .Erreur}}<br><small>{{.Erreur}}</small>{{end}}</td>
+<td>{{duree .Duree}}</td><td><details><summary>Voir</summary><pre>{{.Texte}}</pre></details></td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucun envoi."}}{{end}}
+{{end}}

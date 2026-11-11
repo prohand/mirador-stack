@@ -1,0 +1,32 @@
+{{define "contenu"}}
+{{$r := .D.R}}
+<h1>Sauvegardes</h1>
+{{template "onglets-reglages" (onglet $ "sauvegardes")}}
+{{if .Admin}}<section class="carte"><h2>Sauvegarder maintenant</h2><form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant">
+<label class="case"><input type="checkbox" name="metriques" value="1"> Métriques</label><label class="case"><input type="checkbox" name="logs" value="1"> Logs</label><button>Sauvegarder</button></form>
+<small>La configuration et la base sont toujours sauvegardées ; métriques et logs en option (volumineux).</small></section>{{end}}
+<section class="carte"><h2>Historique</h2>{{if .D.Historique}}<div class="defile"><table><thead><tr><th>N°</th><th>Demandée</th><th>Origine</th><th>Statut</th><th>Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
+{{range .D.Historique}}<tr><td>{{.ID}}</td><td>{{dateS .DemandeeLe}}</td><td>{{.Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{majuscule .Statut}}</span></td><td>{{taille .Taille}}</td><td>{{.Destinations}}</td><td>{{.Erreur}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune sauvegarde."}}{{end}}
+{{if .D.Archives}}<p>{{len .D.Archives}} archive(s) dans le dossier local.</p>{{end}}</section>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}
+<section class="carte"><h2>Planification</h2>
+<label class="case"><input type="checkbox" name="actif" value="1" {{if $r.Actif}}checked{{end}}> Chaque jour</label>
+<label>Heure (UTC) <input type="time" name="heure" value="{{$r.Heure}}" required> <small>Défaut {{.D.Defaut.Heure}}</small></label>
+<label>Archives gardées dans le dossier local <input type="number" name="conserver" value="{{$r.Conserver}}" min="1" max="365"> <small>Défaut {{.D.Defaut.Conserver}}</small></label>
+<label class="case"><input type="checkbox" name="metriques" value="1" {{if $r.Metriques}}checked{{end}}> Inclure les métriques</label>
+<label class="case"><input type="checkbox" name="logs" value="1" {{if $r.Logs}}checked{{end}}> Inclure les logs</label></section>
+<section class="carte"><h2>SFTP</h2>
+<div class="ligne"><label>Hôte:port <input name="sftp_hote" value="{{$r.SFTP.Hote}}" maxlength="200"></label><label>Utilisateur <input name="sftp_utilisateur" value="{{$r.SFTP.Utilisateur}}" maxlength="100"></label></div>
+<label>Dossier distant <input name="sftp_dossier" value="{{$r.SFTP.Dossier}}" maxlength="300"></label>
+<label>Empreinte de l'hôte (SHA256:…, obligatoire) <input name="sftp_empreinte" value="{{$r.SFTP.EmpreinteHote}}" maxlength="60"></label>
+<label>Clé privée SSH {{if $r.SFTP.CleSSH}}<small>(enregistrée)</small>{{end}} <textarea name="sftp_cle" rows="3" placeholder="(inchangée)" maxlength="10000"></textarea></label></section>
+<section class="carte"><h2>S3</h2>
+<div class="ligne"><label>Adresse <input name="s3_adresse" value="{{$r.S3.Adresse}}" placeholder="https://s3.fr-par.scw.cloud" maxlength="200"></label><label>Région <input name="s3_region" value="{{$r.S3.Region}}" maxlength="40"></label></div>
+<div class="ligne"><label>Compartiment <input name="s3_seau" value="{{$r.S3.Seau}}" maxlength="100"></label><label>Préfixe <input name="s3_prefixe" value="{{$r.S3.Prefixe}}" maxlength="100"></label></div>
+<div class="ligne"><label>Clé d'accès <input name="s3_cle_acces" value="{{$r.S3.CleAcces}}" maxlength="200"></label><label>Secret {{template "secret" "s3_secret"}}</label></div>
+<label class="case"><input type="checkbox" name="s3_style_hote" value="1" {{if $r.S3.StyleHote}}checked{{end}}> Adresse de type https://compartiment.adresse/</label>
+<small>Conseil : clé S3 en écriture seule + règle de cycle de vie (un serveur compromis ne peut pas effacer les sauvegardes).</small></section>
+{{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut (destinations retirées) ?">Rétablir les valeurs par défaut</button></div></section>{{end}}
+</form>
+{{end}}

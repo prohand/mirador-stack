@@ -1,0 +1,346 @@
+# Exemple de fichier de règles vmalert (métriques) : equipements.yml, sert aux tests d'import.
+#
+# Equipements sans agent, lus par le collecteur LAN : Synology (SNMP v3),
+# OPNsense (Telegraf), UniFi (unpoller), certificats lus a distance, syslog.
+# Proxmox : seule l'arrivee des metriques natives est surveillee ici
+# (ProxmoxMuet). Noeuds, invites et stockages (tous de type dossier ou PBS)
+# sont couverts par system.yml via Alloy.
+#
+# Les regles portant le label « via: collecteur » sont mises en sourdine par
+# Alertmanager quand le collecteur lui-meme est muet (une seule alerte au lieu
+# de dix).
+#
+# Remplace les quatre anciennes regles Synology de system.yml
+# (SynologySystemeDegrade, SynologyVentilateurHS, SynologyRaidDegrade,
+# SynologyDisqueSmartKo), dont les noms de metriques etaient faux.
+
+groups:
+
+  ###########################################################################
+  # Synology — valeurs d'etat de la MIB Synology :
+  #   systemStatus, powerStatus, *FanStatus : 1 normal, 2 en panne
+  #   raidStatus       : 1 normal, 2 reparation, 3 a 10 et 13 a 20 operations
+  #                      (migration, extension, verification...), 11 degrade,
+  #                      12 en panne, 21 inconnu
+  #   diskHealthStatus : 1 normal, 2 avertissement, 3 critique, 4 defaillant
+  #   diskStatus       : 1 normal, 2 initialise, 3 non initialise,
+  #                      4 partition systeme en panne, 5 en panne
+  ###########################################################################
+  - name: synology
+    interval: 1m
+    rules:
+
+      - alert: SynologyInjoignable
+        expr: up{job="snmp"} == 0
+        for: 10m
+        labels: { severity: critical, via: collecteur }
+        annotations:
+          summary: "NAS {{ $labels.instance }} injoignable en SNMP"
+          description: "NAS eteint, service SNMP arrete, mot de passe SNMP ou adresse incorrects."
+
+      - alert: SynologySystemeEnPanne
+        expr: systemStatus{job="snmp"} != 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "DSM signale un etat systeme en panne sur {{ $labels.instance }}"
+
+      - alert: SynologyAlimentationEnPanne
+        expr: powerStatus{job="snmp"} != 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Alimentation en panne sur {{ $labels.instance }}"
+
+      - alert: SynologyVentilateurHS
+        expr: max by (instance) ({__name__=~"systemFanStatus|cpuFanStatus", job="snmp"}) != 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Ventilateur en panne sur {{ $labels.instance }}"
+
+      - alert: SynologyVolumeDegrade
+        expr: raidStatus{job="snmp"} == 11 or raidStatus{job="snmp"} == 12
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.raidName }} degrade ou en panne sur {{ $labels.instance }}"
+          description: "Redondance perdue : un disque manque ou est en panne. Remplacer le disque au plus vite."
+
+      - alert: SynologyVolumeEnReparation
+        expr: raidStatus{job="snmp"} == 2
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.raidName }} en reconstruction sur {{ $labels.instance }}"
+          description: "Reconstruction du RAID en cours : performances reduites, ne pas toucher aux autres disques."
+
+      - alert: SynologyDisqueAvertissement
+        expr: diskHealthStatus{job="snmp"} == 2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.diskID }} en avertissement sur {{ $labels.instance }}"
+          description: "DSM juge la sante du disque degradee (analyse SMART). Prevoir son remplacement."
+
+      - alert: SynologyDisqueCritique
+        expr: diskHealthStatus{job="snmp"} >= 3 or diskStatus{job="snmp"} >= 4
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.diskID }} critique ou en panne sur {{ $labels.instance }}"
+
+      - alert: SynologyNouveauxSecteursDefectueux
+        expr: increase(diskBadSector{job="snmp"}[1d]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.diskID }} : {{ $value | humanize }} nouveaux secteurs defectueux en 24 h sur {{ $labels.instance }}"
+
+      - alert: SynologyVolumePresquePlein
+        expr: 1 - raidFreeSize{job="snmp"} / (raidTotalSize{job="snmp"} > 0) > 0.90
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.raidName }} rempli a {{ $value | humanizePercentage }} sur {{ $labels.instance }}"
+
+      - alert: SynologyVolumePlein
+        expr: 1 - raidFreeSize{job="snmp"} / (raidTotalSize{job="snmp"} > 0) > 0.97
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.raidName }} plein a {{ $value | humanizePercentage }} sur {{ $labels.instance }}"
+
+      - alert: SynologyTemperatureElevee
+        expr: temperature{job="snmp"} > 60
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "NAS {{ $labels.instance }} a {{ $value }} degres"
+
+      - alert: SynologyDisqueChaud
+        expr: diskTemperature{job="snmp"} > 55
+        for: 20m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.diskID }} a {{ $value }} degres sur {{ $labels.instance }}"
+
+      - alert: SynologyOnduleurSurBatterie
+        expr: upsInfoStatus{job="snmp", upsInfoStatus=~"OB.*"} == 1
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Coupure de courant : l'onduleur du NAS {{ $labels.instance }} est sur batterie"
+
+      - alert: SynologyMiseAJourDSM
+        expr: upgradeAvailable{job="snmp"} == 1
+        for: 1d
+        labels: { severity: info }
+        annotations:
+          summary: "Mise a jour DSM disponible sur {{ $labels.instance }}"
+
+  ###########################################################################
+  # Sources muettes (equipements sans agent)
+  ###########################################################################
+  - name: sources-muettes
+    interval: 1m
+    rules:
+
+      # OPNsense pousse ses metriques par Telegraf, sans passer par le collecteur
+      - alert: OpnsenseMuet
+        expr: min by (host) (lag(cpu_usage_idle{cpu="cpu-total"}[1d])) > 300
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "OPNsense ({{ $labels.host }}) n'envoie plus de metriques"
+          description: "Rien depuis {{ $value | humanizeDuration }} : Telegraf arrete, Internet coupe, ou token refuse par nginx."
+
+      # Proxmox pousse par son serveur de metriques natif (independant d'Alloy)
+      - alert: ProxmoxMuet
+        expr: min by (host) (lag(cpustat_cpu{object="nodes"}[1d])) > 300
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Proxmox {{ $labels.host }} n'envoie plus ses metriques natives"
+          description: "Rien depuis {{ $value | humanizeDuration }} : serveur de metriques desactive dans Datacenter > Metric Server, token refuse par nginx, ou noeud arrete."
+
+      - alert: UnifiMuet
+        expr: min(lag(unpoller_device_info[1d])) > 300
+        for: 2m
+        labels: { severity: critical, via: collecteur }
+        annotations:
+          summary: "Plus aucune donnee UniFi"
+          description: "Rien depuis {{ $value | humanizeDuration }} : unpoller arrete, controleur UniFi injoignable ou compte refuse (journalctl -u unpoller sur le collecteur)."
+
+      - alert: CertificatIllisible
+        expr: probe_success{job="certs"} == 0
+        for: 30m
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "Certificat de {{ $labels.instance }} illisible ({{ $labels.path }})"
+          description: "Le collecteur n'arrive plus a joindre l'interface HTTPS : son echeance n'est plus surveillee."
+
+      # Alimentee par la regle d'enregistrement syslog_lignes_24h (vmalert-logs)
+      - alert: SyslogMuet
+        expr: max by (env, src_ip) (lag(syslog_lignes_24h[2d])) > 3600
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "Aucun syslog recu de {{ $labels.src_ip }} ({{ $labels.env }}) depuis plus de 24 h"
+          description: "Destination syslog supprimee sur l'equipement, certificat refuse, ou adresse retiree de --syslog-allow."
+
+  ###########################################################################
+  # OPNsense — Telegraf (label host). Pas d'agent Alloy : CPU, memoire et
+  # disque sont surveilles ici.
+  ###########################################################################
+  - name: opnsense
+    interval: 1m
+    rules:
+
+      - alert: OpnsenseCpuEleve
+        expr: 100 - cpu_usage_idle{cpu="cpu-total"} > 90
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "CPU d'OPNsense ({{ $labels.host }}) a {{ $value | humanize }} %"
+
+      - alert: OpnsenseMemoireFaible
+        expr: mem_used_percent > 90
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Memoire d'OPNsense ({{ $labels.host }}) utilisee a {{ $value | humanize }} %"
+
+      - alert: OpnsenseSwapUtilise
+        expr: swap_used_percent > 50
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "OPNsense ({{ $labels.host }}) utilise {{ $value | humanize }} % de son swap"
+
+      - alert: OpnsenseDisquePresquePlein
+        expr: disk_used_percent > 85
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disque {{ $labels.path }} d'OPNsense rempli a {{ $value | humanize }} %"
+
+      - alert: OpnsenseDisquePlein
+        expr: disk_used_percent > 95
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Disque {{ $labels.path }} d'OPNsense plein a {{ $value | humanize }} %"
+          description: "Logs, rapports et mises a jour vont echouer. Nettoyer /var/log ou les rapports Insight."
+
+      - alert: OpnsenseRedemarre
+        # system_uptime existe aussi cote Proxmox (label object) : on l'exclut
+        expr: system_uptime{object=""} < 600
+        labels: { severity: warning }
+        annotations:
+          summary: "OPNsense ({{ $labels.host }}) a redemarre il y a {{ $value | humanizeDuration }}"
+
+      # Limite de la table d'etats : 605600 (valeur par defaut calculee par
+      # OPNsense, Firewall > Settings > Advanced). A mettre a jour si elle change.
+      - alert: OpnsenseTableEtatsPresquePleine
+        expr: pf_entries / 605600 > 0.80
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Table d'etats d'OPNsense pleine a {{ $value | humanizePercentage }}"
+          description: "Au-dela de la limite, les nouvelles connexions sont refusees. Pic de trafic, scan, attaque ou limite trop basse."
+
+      - alert: OpnsenseTableEtatsPleine
+        expr: pf_entries / 605600 > 0.95
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Table d'etats d'OPNsense pleine a {{ $value | humanizePercentage }}"
+          description: "Les nouvelles connexions vont etre refusees. Verifier les plus gros emetteurs dans Firewall > Diagnostics > States."
+
+      # Pic anormal : 5 fois la moyenne de la semaine et au moins 20 000 etats
+      # (le plancher evite les fausses alertes quand le trafic habituel est faible)
+      - alert: OpnsenseEtatsAnormaux
+        expr: pf_entries > 5 * avg_over_time(pf_entries[7d]) and pf_entries > 20000
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} etats sur OPNsense, bien au-dessus de la normale"
+          description: "Possible scan, attaque ou machine qui ouvre des milliers de connexions. Voir Firewall > Diagnostics > States."
+
+      # Cibles du plugin ping de Telegraf (label url)
+      - alert: OpnsensePertesPaquets
+        expr: ping_percent_packet_loss > 10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value | humanize }} % de pertes vers {{ $labels.url }} depuis OPNsense"
+
+      - alert: OpnsenseLatenceElevee
+        expr: ping_average_response_ms > 100
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Latence de {{ $value | humanize }} ms vers {{ $labels.url }} depuis OPNsense"
+
+      - alert: OpnsenseErreursInterface
+        expr: rate(net_err_in[5m]) > 1 or rate(net_err_out[5m]) > 1
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Erreurs sur l'interface {{ $labels.interface }} d'OPNsense ({{ $value | humanize }}/s)"
+          description: "Cable, port de switch ou negociation de vitesse a verifier."
+
+  ###########################################################################
+  # UniFi — unpoller (via le collecteur LAN)
+  ###########################################################################
+  - name: unifi
+    interval: 1m
+    rules:
+
+      - alert: UnifiEquipementDeconnecte
+        expr: max by (site_name, subsystem) (unpoller_site_disconnected) > 0
+        for: 5m
+        labels: { severity: critical, via: collecteur }
+        annotations:
+          summary: "{{ $value }} equipement(s) UniFi deconnecte(s) ({{ $labels.subsystem }}, site {{ $labels.site_name }})"
+          description: "Borne ou switch eteint, cable debranche ou equipement bloque. Voir le controleur UniFi."
+
+      - alert: UnifiEquipementRedemarre
+        expr: resets(unpoller_device_uptime_seconds[10m]) > 0
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "{{ $labels.name }} a redemarre"
+
+      - alert: UnifiCpuEleve
+        expr: unpoller_device_cpu_utilization_ratio > 0.90
+        for: 15m
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "CPU de {{ $labels.name }} a {{ $value | humanizePercentage }}"
+
+      - alert: UnifiMemoireSaturee
+        expr: unpoller_device_memory_utilization_ratio > 0.90
+        for: 15m
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "Memoire de {{ $labels.name }} a {{ $value | humanizePercentage }}"
+
+      - alert: UnifiTemperatureElevee
+        expr: unpoller_device_temperature_celsius > 75
+        for: 15m
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "{{ $labels.name }} ({{ $labels.temp_area }}) a {{ $value }} degres"
+
+      - alert: UnifiErreursPort
+        expr: rate(unpoller_device_port_receive_errors_total[5m]) > 1
+        for: 15m
+        labels: { severity: warning, via: collecteur }
+        annotations:
+          summary: "Erreurs sur le port {{ $labels.port_num }} ({{ $labels.port_name }}) de {{ $labels.name }}"
+          description: "Cable abime ou mauvaise negociation de vitesse."
+
+      - alert: UnifiMiseAJourDisponible
+        expr: max by (name) ({__name__=~"unpoller_device_upgrad(e)?able"}) == 1
+        for: 1d
+        labels: { severity: info, via: collecteur }
+        annotations:
+          summary: "Mise a jour du firmware disponible pour {{ $labels.name }}"

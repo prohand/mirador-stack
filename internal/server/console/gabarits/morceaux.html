@@ -1,0 +1,149 @@
+{{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
+{{define "code2fa"}}<label class="code">Code 2FA <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
+{{define "vide"}}<p class="vide">{{.}}</p>{{end}}
+{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}">
+{{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
+{{if .P.Description}}<p><small>{{.P.Description}}</small></p>{{end}}
+{{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>
+{{else if .Courbe}}<div class="graphe" data-courbe="{{.Courbe}}"{{if .CourbeJSON}} data-json="{{.CourbeJSON}}"{{end}}></div>
+{{else if egal .P.Type "chiffre"}}{{if .Chiffres}}<div class="chiffres-panneau">{{range .Chiffres}}<div class="chiffre {{.Couleur}}"><b>{{.Texte}}</b>{{if .Legende}}<span>{{.Legende}}</span>{{end}}</div>{{end}}</div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
+{{else if egal .P.Type "barres"}}{{if .Barres}}<table class="barres">{{range .Barres}}<tr><td>{{.Nom}}</td><td class="nombre {{.Couleur}}">{{.Texte}}</td><td><meter min="0" max="{{.Max}}" value="{{.Valeur}}"></meter></td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée</p>{{end}}
+{{else if egal .P.Type "tableau"}}{{if .Lignes}}<div class="defile"><table><thead><tr>{{range .Entetes}}<th>{{.}}</th>{{end}}</tr></thead>
+<tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
+{{end}}
+</section>{{end}}
+{{define "rangees"}}{{range .}}<details class="rangee" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
+<div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
+{{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
+{{define "liste-alertes"}}{{if .}}<div class="defile"><table>
+<thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Résumé</th><th>Depuis</th><th>État</th></tr></thead>
+<tbody>{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
+<td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{.Resume}}</td><td>{{depuisMs .Depuis}}</td>
+<td>{{if egal .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td></tr>{{end}}</tbody>
+</table></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
+{{define "corps-accueil"}}
+<div class="titre-page">
+  <div><h1>Vue d'ensemble</h1>
+  <p>{{sub .D.Machines .D.Muettes}} machine(s) sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} alerte(s) à regarder{{else}} · aucune alerte active{{end}}</p></div>
+  {{if egal .D.Mode "ombre"}}<span class="pastille attention">Mode ombre</span>{{end}}
+  <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
+</div>
+<div class="kpis">
+  <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
+    <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
+    <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} muette(s) depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
+  <a class="kpi" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
+    <div class="kpi-valeur">{{.D.Actives}}</div>
+    <div class="kpi-bas">{{.D.Critiques}} critique(s) · {{.D.Avertissements}} avertissement(s)</div></a>
+  <a class="kpi" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
+    {{if .D.Principal.Nom}}<div class="kpi-valeur moyen">{{majuscule .D.Principal.Nom}}</div>
+    <div class="kpi-bas {{if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}">Principal {{if .D.Principal.EnPanne}}en panne{{else}}OK{{end}}{{if .D.Secours.Nom}} · secours {{majuscule .D.Secours.Nom}} {{if .D.Secours.EnPanne}}en panne{{else}}OK{{end}}{{end}}</div>
+    {{else}}<div class="kpi-valeur moyen">Aucun canal</div><div class="kpi-bas rouge">À configurer</div>{{end}}</a>
+  <a class="kpi" href="/reglages/conservation"><div class="kpi-tete"><span class="puce violet"><svg class="icone"><use href="#i-stockage"></use></svg></span>Stockage</div>
+    <div class="kpi-valeur">{{enGo (somme .D.Metriques .D.Logs)}}<span> Go{{if .D.Plafond}} / {{enGoEntier .D.Plafond}}{{end}}</span></div>
+    {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
+</div>
+{{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+<section class="carte">
+  <div class="entete-carte"><h2>Machines</h2>{{if .D.LienLinux}}<a href="/tableaux/serveurs-linux">Tableau « Serveurs Linux » →</a>{{end}}</div>
+  {{if .D.Parc}}<div class="defile"><table>
+  <thead><tr><th>Machine</th><th>État</th><th class="masque-tel">CPU · 6 h</th><th class="nombre">CPU</th><th class="nombre masque-tel">Mémoire</th><th class="nombre">Disque</th><th class="masque-tel">Vu</th></tr></thead>
+  <tbody>{{range .D.Parc}}<tr>
+    <td class="nom-machine"><a href="/machines/{{.Nom}}"><b>{{.Nom}}</b></a><span class="sous">{{.Site}}{{if .Env}} · {{.Env}}{{end}}</span></td>
+    <td><span class="pastille {{.ClasseEtat}}">{{.Etat}}</span></td>
+    <td class="masque-tel">{{if .Etincelle}}<svg class="etincelle" viewBox="0 0 90 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{.Etincelle}}"></polyline></svg>{{end}}</td>
+    <td class="nombre">{{.CPU}}</td><td class="nombre masque-tel">{{.Memoire}}</td><td class="nombre {{if .DisquePlein}}erreur{{end}}">{{.Disque}}</td>
+    <td class="masque-tel">{{depuisS .VuLe}}</td></tr>{{end}}</tbody>
+  </table></div>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
+</section>
+<div class="grille">
+  <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>
+  <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
+</div>
+{{end}}
+{{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
+{{define "onglets-regles"}}<p class="onglets"><a {{if egal . "regles"}}class="actif"{{end}} href="/regles">Règles</a><a {{if egal . "nouvelle"}}class="actif"{{end}} href="/regles/nouvelle">Nouvelle règle</a><a {{if egal . "historique"}}class="actif"{{end}} href="/regles/historique">Modifications</a><a href="/regles/export.yaml">Exporter en YAML</a></p>{{end}}
+{{define "form-regle"}}<section class="carte"><h2>Définition</h2>
+<form method="post" action="/regles/enregistrer" class="pile large">{{template "csrf" .CSRF}}{{if .D.Nouvelle}}<input type="hidden" name="nouvelle" value="1">{{end}}
+<label>Nom <input name="nom" value="{{.D.R.Nom}}" required pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64" {{if not .D.Nouvelle}}readonly{{end}}></label>
+<label>Groupe <input name="groupe" value="{{.D.R.Groupe}}" required pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64"></label>
+<label>Expression (PromQL) <textarea name="expr" rows="4" required maxlength="4096">{{.D.R.Expr}}</textarea></label>
+<div class="ligne"><label>Évaluée toutes les <input name="intervalle" value="{{.D.R.Intervalle}}" maxlength="10" size="6"></label>
+<label>Pendant au moins <input name="pour" value="{{.D.R.Pour}}" maxlength="10" size="6"></label>
+<label>Garder active encore <input name="garder" value="{{.D.R.Garder}}" maxlength="10" size="6"></label>
+<label>Gravité <select name="gravite">{{$g := .D.R.Gravite}}<option value="critical" {{if egal $g "critical"}}selected{{end}}>Critique</option><option value="warning" {{if egal $g "warning"}}selected{{end}}>Avertissement</option><option value="info" {{if egal $g "info"}}selected{{end}}>Info</option></select></label></div>
+<label>Résumé (modèle : {{"{{ $labels.instance }}"}}, {{"{{ $value | humanize }}"}}) <input name="resume" value="{{.D.R.Resume}}" maxlength="1024"></label>
+<label>Description <textarea name="description" rows="2" maxlength="1024">{{.D.R.Description}}</textarea></label>
+<label>Étiquettes ajoutées (nom=valeur, une par ligne) <textarea name="etiquettes" rows="2" maxlength="2000">{{.D.Etiq}}</textarea></label>
+<label>Note <input name="note" value="{{.D.R.Note}}" maxlength="1024"></label>
+<input type="hidden" name="origine" value="{{.D.R.Origine}}">
+<label class="case"><input type="checkbox" name="active" value="1" {{if .D.R.Active}}checked{{end}}> Active</label>
+{{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer">Enregistrer</button></div>{{end}}
+</form></section>{{end}}
+{{define "onglets-reglages"}}<p class="onglets">{{$m := .Actif}}{{$o := .Olvid}}{{range $x := (liste "notifications" "olvid" "conservation" "sauvegardes" "sites" "agents" "interface")}}{{if or $o (ne $x "olvid")}}<a {{if egal $x $m}}class="actif"{{end}} href="/reglages/{{$x}}">{{if egal $x "notifications"}}Notifications{{else if egal $x "olvid"}}Olvid{{else if egal $x "conservation"}}Conservation des données{{else if egal $x "sauvegardes"}}Sauvegardes{{else if egal $x "sites"}}Sites, types, groupes{{else if egal $x "agents"}}Agents{{else}}Interface{{end}}</a>{{end}}{{end}}<a href="/securite">Sécurité</a><a href="/reglages">Export / import</a></p>{{end}}
+{{define "titre-icone"}}{{if .Icone}}<div class="titre-icone"><span class="puce {{if .Teinte}}{{.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><h2>{{.Titre}}</h2></div>{{else}}<h2>{{.Titre}}</h2>{{end}}{{end}}
+{{define "choix-icone"}}<fieldset class="icones"><legend>Icône (facultative)</legend>{{$i := .Icone}}{{$te := .Teinte}}
+<label class="choix-icone" title="Aucune"><input type="radio" name="icone" value="" {{if not $i}}checked{{end}}><span>Aucune</span></label>
+{{range .Icones}}<label class="choix-icone" title="{{.}}"><input type="radio" name="icone" value="{{.}}" {{if egal . $i}}checked{{end}}><span class="puce {{if $te}}{{$te}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.}}"></use></svg></span></label>{{end}}
+</fieldset>
+<label>Couleur de l'icône <select name="teinte">{{range .Teintes}}<option value="{{.}}" {{if or (egal . $te) (and (egal . "bleu") (not $te))}}selected{{end}}>{{majuscule .}}</option>{{end}}</select></label>{{end}}
+{{define "choix-liste"}}<select name="{{.Nom}}">{{$a := .Actuel}}<option value="">(aucun)</option>{{range .Valeurs}}<option {{if egal . $a}}selected{{end}}>{{.}}</option>{{end}}{{if and $a (not (dansListe $a .Valeurs))}}<option selected>{{$a}}</option>{{end}}</select>{{end}}
+{{define "secret"}}<input type="password" name="{{.}}" autocomplete="new-password" placeholder="(inchangé)" maxlength="4096">{{end}}
+{{define "lien-menu"}}<a href="{{.Href}}" title="{{.Libelle}}"{{if .Actif}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-{{.Icone}}"></use></svg><span class="txt">{{.Libelle}}</span>{{if .Compteur}}<span class="compteur">{{.Compteur}}</span>{{end}}</a>{{end}}
+{{define "icones"}}<svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+<symbol id="i-ensemble" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+<symbol id="i-machines" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></symbol>
+<symbol id="i-alertes" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></symbol>
+<symbol id="i-logs" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
+<symbol id="i-tableaux" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M6 16v-5M11 16V7M16 16v-8M21 16v-3"/></symbol>
+<symbol id="i-regles" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+<symbol id="i-reglages" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+<symbol id="i-utilisateurs" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4a4 4 0 0 1 0 8M22 21c0-3-1.5-5-4-5.6"/></symbol>
+<symbol id="i-securite" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="i-audit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-sortir" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+<symbol id="i-envoi" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol>
+<symbol id="i-stockage" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+<symbol id="i-memoire" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="1.5"/><path d="M6 11v2M10 11v2M14 11v2M18 11v2M5 17v3M19 17v3"/></symbol>
+<symbol id="i-disque" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="11" r="3.5"/><path d="M7 17h.01M12 11h.01"/></symbol>
+<symbol id="i-reseau" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-3h14v3"/></symbol>
+<symbol id="i-temperature" viewBox="0 0 24 24"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/></symbol>
+<symbol id="i-horloge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-conteneur" viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></symbol>
+<symbol id="i-cadenas" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><path d="M12 19h.01"/></symbol>
+<symbol id="i-eclair" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+<symbol id="i-activite" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+<symbol id="i-bouclier" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></symbol>
+<symbol id="i-sauvegarde" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></symbol>
+<symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="i-attention" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+<symbol id="i-mur" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 9.7h18M3 14.3h18M9 5v4.7M15 5v4.7M6 9.7v4.6M12 9.7v4.6M18 9.7v4.6M9 14.3V19M15 14.3V19"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></symbol>
+<symbol id="i-nuage" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 18z"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+<symbol id="i-routeur" viewBox="0 0 24 24"><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 16.5h.01M11 16.5h.01M8 9a5 5 0 0 1 8 0M5.5 6.5a9 9 0 0 1 13 0"/></symbol>
+<symbol id="i-maison" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10M10 20v-6h4v6"/></symbol>
+<symbol id="i-batterie" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4M10 10v4"/></symbol>
+<symbol id="i-ventilateur" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-7 4-7 2 0 2 3 0 5M14 12c4 0 7 1 7 4 0 2-3 2-5 0M12 14c0 4-1 7-4 7-2 0-2-3 0-5M10 12c-4 0-7-1-7-4 0-2 3-2 5 0"/></symbol>
+<symbol id="i-courrier" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+<symbol id="i-telephone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+<symbol id="i-cle" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></symbol>
+<symbol id="i-utilisateur" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="i-graphique" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></symbol>
+<symbol id="i-fichier" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></symbol>
+<symbol id="i-dossier" viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></symbol>
+<symbol id="i-calendrier" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+<symbol id="i-jauge" viewBox="0 0 24 24"><path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/></symbol>
+<symbol id="i-telechargement" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+<symbol id="i-etoile" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></symbol>
+<symbol id="i-ampoule" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><rect x="2" y="7" width="15" height="11" rx="2"/><path d="m17 11 5-3v9l-5-3"/></symbol>
+<symbol id="i-imprimante" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3"/><rect x="7" y="14" width="10" height="7"/></symbol>
+<symbol id="i-carte-mere" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="6" height="6"/><path d="M16 7h2M16 11h2M7 16h11"/></symbol>
+<symbol id="i-base" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+<symbol id="i-vitesse" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8"/><path d="M15 9h6M16 13h5M17 17h4"/></symbol>
+<symbol id="i-puce-sim" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><rect x="10" y="11" width="6" height="6" rx="1"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+</svg>{{end}}

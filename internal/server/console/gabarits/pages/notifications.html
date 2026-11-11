@@ -1,0 +1,90 @@
+{{define "contenu"}}
+{{$r := .D.R}}{{$c := $r.Canaux}}
+<h1>Notifications</h1>
+{{template "onglets-reglages" (onglet $ "notifications")}}
+<section class="carte"><h2>État des canaux</h2>
+{{if .D.Etat}}<table><thead><tr><th>Canal</th><th>Rôle</th><th>État</th><th>Vérifié</th><th>Erreur</th></tr></thead><tbody>
+{{range .D.Etat}}<tr><td>{{majuscule .Nom}}</td><td>{{.Role}}</td><td><span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}">{{if .EnPanne}}En panne depuis {{date .Depuis}}{{else}}OK{{end}}</span></td><td>{{date .Verifie}}</td><td>{{.Erreur}}</td></tr>{{end}}
+</tbody></table>{{else}}<p class="vide">Aucun canal actif.</p>{{end}}
+<p>{{with .D.R.Canaux.Heartbeat}}{{if and (not .Actif) (not .URL)}}Heartbeat : non configuré{{else}}Heartbeat {{.NomService}} : {{if not .Actif}}désactivé{{else if $.D.HbErr}}<span class="erreur">{{$.D.HbErr}}</span>{{else if $.D.HbOK.IsZero}}pas encore envoyé{{else}}dernier envoi réussi {{date $.D.HbOK}}{{end}}{{end}}{{else}}Heartbeat : non configuré{{end}} · File d'attente (tous canaux en panne) : {{.D.File}} message(s)</p>
+{{if .Admin}}{{if .D.Testables}}<form method="post" class="ligne">{{template "csrf" .CSRF}}{{range .D.Testables}}<button name="action" value="tester:{{.}}" class="secondaire">Tester {{majuscule .}}</button>{{end}}</form>{{else}}<p><small>Les boutons « Tester » apparaissent pour les canaux configurés et actifs (plus bas).</small></p>{{end}}{{end}}
+{{if .D.Tests}}<h3>Derniers tests</h3><div class="defile"><table><thead><tr><th>Canal</th><th>Demandé</th><th>Résultat</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>{{range .D.Tests}}<tr><td>{{majuscule .Canal}}</td><td>{{dateMs .Demande}}</td><td>{{if .Fait}}<span class="pastille {{if egal .Statut "ok"}}ok{{else}}erreur{{end}}">{{majuscule .Statut}}</span> {{.Erreur}}{{else}}En attente{{end}}</td>
+{{if $.Admin}}<td><form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="test-effacer" class="secondaire petit" title="Effacer cette ligne">Effacer</button></form></td>{{end}}</tr>{{end}}</tbody></table></div>
+{{if .Admin}}<form method="post">{{template "csrf" .CSRF}}<button name="action" value="tests-effacer" class="secondaire petit" data-confirmer="Effacer tous les tests terminés ?">Effacer tous les tests terminés</button></form>{{end}}{{end}}
+</section>
+
+<form method="post" class="pile large">{{template "csrf" .CSRF}}
+<section class="carte"><h2>Général</h2>
+<label>Mode <select name="mode"><option value="ombre" {{if egal $r.Mode "ombre"}}selected{{end}}>Ombre : tout est calculé, rien n'est envoyé</option><option value="actif" {{if egal $r.Mode "actif"}}selected{{end}}>Actif : les notifications partent</option></select></label>
+<label>Adresse de l'interface (lien direct dans les messages) <input name="lien" value="{{$r.Lien}}" placeholder="https://console.example.org" maxlength="200"></label>
+<label>Fuseau des heures dans les messages <input name="fuseau" value="{{$r.Fuseau}}" maxlength="64" required></label>
+<label>Regrouper par (étiquettes) <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small>Défaut : alertname, instance</small></label>
+<label>Règles qui veulent dire « machine en panne » (dépendances) <input name="regles_panne" value="{{range $i, $e := $r.ReglesPanne}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
+</section>
+<section class="carte"><h2>Routage par gravité</h2><div class="defile"><table><thead><tr><th>Gravité</th><th>Attente avant le 1er message</th><th>Écart entre deux messages</th><th>Rappel (0 = jamais)</th><th>Son</th></tr></thead><tbody>
+{{range $g := (liste "critical" "warning" "info")}}{{$ro := index $r.Routes $g}}<tr><td>{{template "gravite" $g}}</td>
+<td><input name="attente_{{$g}}" value="{{$ro.Attente}}" size="6" maxlength="10"></td><td><input name="intervalle_{{$g}}" value="{{$ro.Intervalle}}" size="6" maxlength="10"></td>
+<td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
+</tbody></table></div><small>Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h.</small></section>
+<section class="carte"><h2>Principal, secours, bascule</h2>
+<p>Les alertes partent sur <strong>un seul canal</strong> : le principal. S'il tombe en panne, elles partent sur le secours (avec un message « canal principal en panne »), puis reviennent sur le principal quand il remarche.</p>
+<div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option {{if egal . $c.Principal}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Canal de secours <select name="secours"><option value="">Aucun</option>{{range $.D.Canaux}}<option {{if egal . $c.Secours}}selected{{end}}>{{.}}</option>{{end}}</select></label></div>
+<div class="ligne"><label>Panne après (échecs de suite) <input type="number" name="echecs" value="{{$c.Echecs}}" min="1" max="20"></label>
+<label>Retour après (réussites de suite) <input type="number" name="retours" value="{{$c.Retours}}" min="1" max="20"></label>
+<label>Vérification Telegram <input name="verif_telegram" value="{{$c.VerifTelegram}}" size="6" maxlength="10"></label>
+<label>Vérification des autres <input name="verif_autres" value="{{$c.VerifAutres}}" size="6" maxlength="10"></label></div>
+<label class="case"><input type="checkbox" name="reseau_prive" value="1" {{if $c.ReseauPrive}}checked{{end}}> Autoriser ntfy / SMTP / heartbeat sur une adresse privée (sinon refusé : protection SSRF)</label>
+</section>
+<section class="carte"><h2>Telegram</h2>
+<label class="case"><input type="checkbox" name="tg_actif" value="1" {{if $c.Telegram.Actif}}checked{{end}}> Actif</label>
+<label>Jeton du bot {{if $c.Telegram.Jeton}}<small>(enregistré)</small>{{end}} {{template "secret" "tg_jeton"}}</label>
+<label>Groupe (identifiant numérique -100… ou @nom) <input name="tg_chat" value="{{$c.Telegram.Chat}}" maxlength="40"></label>
+<label class="case"><input type="checkbox" name="tg_acquitter" value="1" {{if $c.Telegram.Acquitter}}checked{{end}}> Bouton « Acquitter » sous les alertes</label>
+<label>Personnes autorisées à acquitter (identifiants Telegram, vide = tout le groupe) <input name="tg_acquitteurs" value="{{range $i, $e := $c.Telegram.Acquitteurs}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
+</section>
+<section class="carte"><h2>Olvid</h2>
+<label class="case"><input type="checkbox" name="olvid_actif" value="1" {{if $c.Olvid.Actif}}checked{{end}}> Actif</label>
+<label>Adresse du daemon (réseau Docker interne) <input name="olvid_adresse" value="{{$c.Olvid.Adresse}}" placeholder="172.30.0.21:50051" maxlength="100"></label>
+<label>Clé client du bot {{if $c.Olvid.Cle}}<small>(enregistrée)</small>{{end}} {{template "secret" "olvid_cle"}}</label>
+<label>Numéro de discussion <input name="olvid_discussion" value="{{$c.Olvid.Discussion}}" inputmode="numeric" maxlength="20"></label>
+<label>Attente de la confirmation d'envoi <input name="olvid_confirmation" value="{{$c.Olvid.Confirmation}}" size="6" maxlength="10"></label>
+<small>Première installation : <a href="/reglages/olvid/installer">assistant d'installation Olvid</a>. Invitations, contacts et choix de la discussion : page Olvid (une fois activé).</small>
+</section>
+<section class="carte"><h2>ntfy</h2>
+<label class="case"><input type="checkbox" name="ntfy_actif" value="1" {{if $c.Ntfy.Actif}}checked{{end}}> Actif</label>
+<label>Adresse du sujet <input name="ntfy_url" value="{{$c.Ntfy.URL}}" placeholder="https://ntfy.sh/mon-sujet" maxlength="300"></label>
+<label>Jeton (facultatif) {{template "secret" "ntfy_jeton"}}</label>
+</section>
+<section class="carte"><h2>E-mail</h2>
+<label class="case"><input type="checkbox" name="mail_actif" value="1" {{if $c.Email.Actif}}checked{{end}}> Actif</label>
+<div class="ligne"><label>Serveur SMTP (hôte:port) <input name="mail_serveur" value="{{$c.Email.Serveur}}" maxlength="200"></label>
+<label>Sécurité <select name="mail_securite"><option {{if egal $c.Email.Securite "starttls"}}selected{{end}}>starttls</option><option {{if egal $c.Email.Securite "tls"}}selected{{end}}>tls</option></select></label></div>
+<div class="ligne"><label>Utilisateur <input name="mail_utilisateur" value="{{$c.Email.Utilisateur}}" maxlength="200"></label><label>Mot de passe {{template "secret" "mail_mdp"}}</label></div>
+<label>De <input name="mail_de" value="{{$c.Email.De}}" maxlength="200"></label>
+<label>À (virgules) <input name="mail_a" value="{{range $i, $e := $c.Email.A}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
+</section>
+<section class="carte"><h2>Heartbeat (surveillance externe)</h2>
+<label class="case"><input type="checkbox" name="hb_actif" value="1" {{if $c.Heartbeat.Actif}}checked{{end}}> Actif</label>
+<label>Service <select name="hb_service">{{$s := $c.Heartbeat.Service}}{{range .D.ServicesHB}}<option value="{{.Code}}" {{if or (egal .Code $s) (and (egal .Code "autre") (egal $s ""))}}selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse (secrète) {{if $c.Heartbeat.URL}}<small>(enregistrée)</small>{{end}} {{template "secret" "hb_url"}}</label>
+<label>Intervalle <input name="hb_intervalle" value="{{$c.Heartbeat.Intervalle}}" size="6" maxlength="10"></label>
+<details><summary>Forme de l'adresse selon le service</summary><ul>{{range .D.ServicesHB}}<li><strong>{{.Nom}}</strong> : <code>{{.Exemple}}</code></li>{{end}}</ul></details>
+<small>Un simple GET à chaque intervalle. Indépendant des canaux : s'arrête si le serveur ne peut plus évaluer ses règles (le service externe vous prévient alors). Service sur votre réseau local (Uptime Kuma…) : cocher « Autoriser … une adresse privée » plus haut.</small>
+{{if and .Admin $c.Heartbeat.URL}}<div><button name="action" value="tester-heartbeat" class="secondaire" formnovalidate>Tester le heartbeat</button></div>{{end}}
+</section>
+{{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button>
+<button name="action" value="inverser" class="secondaire" data-confirmer="Inverser le canal principal et le canal de secours ?">Inverser principal et secours</button>
+<button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut (les canaux décrits sont gardés) ?">Rétablir les valeurs par défaut</button></div></section>{{end}}
+</form>
+
+<section class="carte"><h2>Comparaison avec vmalert (mode ombre)</h2>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="vmalert">
+<label class="case"><input type="checkbox" name="actif" value="1" {{if .D.Vmalert.Actif}}checked{{end}}> Comparer toutes les 5 min</label>
+<label>Adresse de vmalert <input name="url" value="{{.D.Vmalert.URL}}" placeholder="http://172.30.0.12:8880" maxlength="200"></label>
+<label>Suffixe retiré des noms mirador <input name="suffixe" value="{{.D.Vmalert.Suffixe}}" maxlength="64"></label>
+<label>Correspondances (nom-mirador=nom-vmalert, une par ligne) <textarea name="correspondances" rows="3" maxlength="10000">{{range $k, $v := .D.Vmalert.Correspondances}}{{$k}}={{$v}}
+{{end}}</textarea></label>
+<label>Règles ignorées <input name="ignorer" value="{{range $i, $e := .D.Vmalert.Ignorer}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="2000"></label>
+{{if .Admin}}<button>Enregistrer</button>{{end}}</form></section>
+{{end}}

@@ -1,0 +1,19 @@
+{{define "contenu"}}
+<h1>Règles d'alerte</h1>
+{{template "onglets-regles" "regles"}}
+<p>{{.D.Total}} règles, {{.D.Actives}} actives{{if .D.Erreurs}}, <span class="erreur">{{.D.Erreurs}} en erreur</span>{{end}}. Langage : PromQL restreint (comme vmalert).</p>
+{{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{$g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>
+<div class="defile"><table><thead><tr><th>Nom</th><th>Gravité</th><th>Pendant</th><th>Active</th><th>Dernière évaluation</th><th>En alerte</th><th></th></tr></thead><tbody>
+{{range index $.D.Groupes $g}}<tr><td><a href="/regles/modifier/{{.R.Nom}}">{{.R.Nom}}</a>{{if .Sante.Erreur}}<br><small class="erreur">{{.Sante.Erreur}}</small>{{end}}</td>
+<td>{{template "gravite" .R.Gravite}}</td><td>{{.R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
+<td>{{if not .Sante.Derniere.IsZero}}{{date .Sante.Derniere}} ({{duree .Sante.Duree}}){{end}}</td><td class="nombre">{{.Sante.EnAlerte}}</td>
+<td>{{if $.Admin}}<form method="post" action="/regles/action" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.R.Nom}}">
+{{if .R.Active}}<button name="action" value="desactiver" class="secondaire">Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}
+</tbody></table></div></details>{{end}}
+{{if .Admin}}<section class="carte"><h2>Importer</h2>
+<form method="post" action="/regles/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
+<label>Fichier YAML (export mirador, ou fichier de règles vmalert) <input type="file" name="fichier" accept=".yml,.yaml" required></label>
+<label class="case"><input type="checkbox" name="essai" value="1" checked> Essai seulement (rapport, rien d'enregistré)</label>
+<label class="case"><input type="checkbox" name="desactivees" value="1"> Importer désactivées</label>
+<button>Importer</button></form></section>{{end}}
+{{end}}

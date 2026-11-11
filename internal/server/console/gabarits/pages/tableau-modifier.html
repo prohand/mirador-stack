@@ -1,0 +1,51 @@
+{{define "contenu"}}
+{{$t := .D.T}}{{$e := .D.Empreinte}}
+<div class="titre-page"><div><h1>Modifier « {{$t.Titre}} »</h1>
+<p>{{if egal .D.Origine "fourni"}}Tableau fourni avec mirador : une modification le remplace, « Rétablir l'original » le remet.{{else if egal .D.Origine "modifie"}}Tableau fourni, modifié.{{else}}Tableau créé ici.{{end}}</p></div>
+<div class="actions"><a class="bouton" href="/tableaux/{{$t.Nom}}">Voir le tableau</a><a class="bouton secondaire" href="/tableaux/{{$t.Nom}}/export.json">Exporter</a>
+{{if egal .D.Origine "modifie"}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{$t.Nom}}"><button name="action" value="retablir" class="secondaire" data-confirmer="Remettre ce tableau tel que fourni ? Vos modifications seront perdues.">Rétablir l'original</button></form>{{end}}</div></div>
+
+<section class="carte"><h2>Disposition</h2>
+<p><small>Glisser-déposer les panneaux (d'une rangée à l'autre aussi) et les rangées par leur poignée ⠿ : la disposition s'enregistre au lâcher. La largeur se choisit sur chaque panneau.</small></p>
+<form method="post" id="form-ordre">{{template "csrf" .CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="action" value="ordre"><input type="hidden" name="ordre" value=""></form>
+<div class="editeur" data-editeur>
+{{range .D.Rangees}}{{$ri := .Index}}<div class="ed-rangee" data-rangee="{{$ri}}">
+  <div class="ed-tete">
+    <span class="poignee" draggable="true" data-glisser="rangee" title="Glisser pour déplacer la rangée">⠿</span>
+    <form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="rangee" value="{{$ri}}">
+      <input name="titre" value="{{.R.Titre}}" maxlength="80" aria-label="Titre de la rangée">
+      <label class="case"><input type="checkbox" name="enroulee" value="1" {{if .R.Enroulee}}checked{{end}}> Repliée</label>
+      <button name="action" value="rangee-modifier" class="secondaire">Enregistrer</button></form>
+    <a class="bouton" href="/tableaux/{{$t.Nom}}/panneau?rangee={{$ri}}">+ Panneau</a>
+    <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="rangee" value="{{$ri}}">
+      <button name="action" value="rangee-supprimer" class="danger" data-confirmer="Supprimer la rangée « {{.R.Titre}} » et ses {{len .R.Panneaux}} panneau(x) ?">Supprimer</button></form>
+  </div>
+  <div class="ed-panneaux" data-zone>
+  {{range .Panneaux}}<div class="ed-panneau l{{.Largeur}}" draggable="true" data-glisser="panneau" data-id="{{.ID}}" title="Glisser pour déplacer">
+    <div class="ed-titre">{{if .P.Icone}}<span class="puce petite {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span>{{end}}<span class="pastille info">{{if egal .P.Type "courbe"}}Courbe{{else if egal .P.Type "chiffre"}}Chiffre{{else if egal .P.Type "barres"}}Barres{{else}}Tableau{{end}}</span> <b>{{.P.Titre}}</b></div>
+    <div class="ed-actions">
+      <form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="panneau" value="{{.ID}}"><input type="hidden" name="action" value="largeur">
+        <select name="largeur" data-envoyer aria-label="Largeur" class="petit">{{$l := .P.Largeur}}<option value="0" {{if egal $l 0}}selected{{end}}>Auto</option><option value="3" {{if egal $l 3}}selected{{end}}>¼</option><option value="4" {{if egal $l 4}}selected{{end}}>⅓</option><option value="6" {{if egal $l 6}}selected{{end}}>½</option><option value="8" {{if egal $l 8}}selected{{end}}>⅔</option><option value="9" {{if egal $l 9}}selected{{end}}>¾</option><option value="12" {{if egal $l 12}}selected{{end}}>Pleine</option></select>
+        <noscript><button class="secondaire petit">OK</button></noscript></form>
+      <a class="bouton secondaire petit" href="/tableaux/{{$t.Nom}}/panneau?id={{.ID}}">Modifier</a>
+      <form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="panneau" value="{{.ID}}"><button name="action" value="panneau-dupliquer" class="secondaire petit" title="Dupliquer">Dupliquer</button></form>
+      <form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="panneau" value="{{.ID}}"><button name="action" value="panneau-supprimer" class="danger petit" data-confirmer="Supprimer le panneau « {{.P.Titre}} » ?" title="Supprimer">✕</button></form>
+    </div>
+  </div>{{else}}<p class="vide">Rangée vide : déposer un panneau ici, ou « + Panneau ».</p>{{end}}
+  </div>
+</div>{{end}}
+</div>
+<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="empreinte" value="{{$e}}">
+<label>Nouvelle rangée <input name="titre" maxlength="80" placeholder="Titre"></label><button name="action" value="rangee-ajouter" class="secondaire">Ajouter la rangée</button></form>
+</section>
+
+<section class="carte"><h2>Propriétés</h2>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="empreinte" value="{{$e}}">
+<label>Titre <input name="titre" value="{{$t.Titre}}" required maxlength="80"></label>
+<label>Description <input name="description" value="{{$t.Description}}" maxlength="300"></label>
+{{template "choix-icone" (choixIcone $t.Icone $t.Teinte .D.Icones .D.Teintes)}}
+<label>Période par défaut <select name="periode">{{$p := $t.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}{{if not (dansListe $p .D.Periodes)}}<option selected>{{$p}}</option>{{end}}</select></label>
+<label>Filtres (un par ligne : nom | titre | label_values(SÉLECTEUR, ÉTIQUETTE)) <textarea name="variables" rows="4" maxlength="4000">{{.D.Variables}}</textarea></label>
+<small>Ex. <code>instance | Machine | label_values(node_uname_info, instance)</code>. Dans les requêtes : <code>instance=~"$instance"</code> (vide = toutes).</small>
+<div><button name="action" value="proprietes">Enregistrer</button></div></form></section>
+{{end}}

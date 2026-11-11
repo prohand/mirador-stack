@@ -1,0 +1,772 @@
+{
+  "version": 1,
+  "nom": "proxmox",
+  "titre": "Proxmox VE — VictoriaMetrics",
+  "periode": "6h",
+  "variables": [
+    {
+      "nom": "node",
+      "titre": "Noeud",
+      "requete": "label_values(cpustat_cpu{object=\"nodes\"}, host)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Vue d'ensemble",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Noeuds actifs",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 1,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(count by (host) (cpustat_cpu{object=\"nodes\", host=~\"$node\"}))"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "VM en marche",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(system_uptime{object=\"qemu\", nodename=~\"$node\"} > 0) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Conteneurs LXC en marche",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(system_uptime{object=\"lxc\", nodename=~\"$node\"} > 0) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Uptime le plus court",
+          "unite": "s",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 3600,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(system_uptime{object=\"nodes\", host=~\"$node\"})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Noeuds",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "CPU",
+          "unite": "percent",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 75,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 90,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "cpustat_cpu{object=\"nodes\", host=~\"$node\"} * 100",
+              "legende": "{{host}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Load average",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "cpustat_avg1{object=\"nodes\", host=~\"$node\"}",
+              "legende": "{{host}} — 1 min"
+            },
+            {
+              "id": "B",
+              "expr": "cpustat_avg5{object=\"nodes\", host=~\"$node\"}",
+              "legende": "{{host}} — 5 min"
+            },
+            {
+              "id": "C",
+              "expr": "cpustat_avg15{object=\"nodes\", host=~\"$node\"}",
+              "legende": "{{host}} — 15 min"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire utilisee",
+          "unite": "percent",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 80,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 92,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "memory_memused{object=\"nodes\", host=~\"$node\"} / memory_memtotal{object=\"nodes\", host=~\"$node\"} * 100",
+              "legende": "{{host}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "I/O wait et swap",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "cpustat_iowait{object=\"nodes\", host=~\"$node\"} * 100",
+              "legende": "{{host}} — iowait %"
+            },
+            {
+              "id": "B",
+              "expr": "memory_swapused{object=\"nodes\", host=~\"$node\"} / (memory_swaptotal{object=\"nodes\", host=~\"$node\"} > 0) * 100",
+              "legende": "{{host}} — swap %"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Trafic reseau",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "rate(nics_receive{object=\"nodes\", host=~\"$node\"}[5m]) * 8",
+              "legende": "{{host}} / {{instance}} — entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-rate(nics_transmit{object=\"nodes\", host=~\"$node\"}[5m]) * 8",
+              "legende": "{{host}} / {{instance}} — sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Disque noeud — debit (agent Alloy)",
+          "description": "Necessite Grafana Alloy sur l'hote Proxmox (section 6.2).",
+          "unite": "Bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "rate(node_disk_read_bytes_total{instance=~\"$node\", device!~\"dm-.*|loop.*\"}[5m])",
+              "legende": "{{instance}} / {{device}} — lecture"
+            },
+            {
+              "id": "B",
+              "expr": "-rate(node_disk_written_bytes_total{instance=~\"$node\", device!~\"dm-.*|loop.*\"}[5m])",
+              "legende": "{{instance}} / {{device}} — ecriture"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Pression ressources PSI (agent Alloy)",
+          "description": "Necessite Grafana Alloy sur l'hote Proxmox (section 6.2).",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "rate(node_pressure_cpu_waiting_seconds_total{instance=~\"$node\"}[5m]) * 100",
+              "legende": "{{instance}} — CPU"
+            },
+            {
+              "id": "B",
+              "expr": "rate(node_pressure_io_stalled_seconds_total{instance=~\"$node\"}[5m]) * 100",
+              "legende": "{{instance}} — I/O bloque"
+            },
+            {
+              "id": "C",
+              "expr": "rate(node_pressure_memory_stalled_seconds_total{instance=~\"$node\"}[5m]) * 100",
+              "legende": "{{instance}} — RAM bloquee"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "ARC ZFS",
+          "unite": "bytes",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "memory_arcsize{object=\"nodes\", host=~\"$node\"}",
+              "legende": "{{host}} — taille ARC"
+            },
+            {
+              "id": "B",
+              "expr": "memory_arcmax{object=\"nodes\", host=~\"$node\"}",
+              "legende": "{{host}} — plafond"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Machines virtuelles et conteneurs",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Inventaire",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "system_cpu{object=~\"qemu|lxc\", nodename=~\"$node\"} * 100"
+            },
+            {
+              "id": "B",
+              "expr": "system_mem{object=~\"qemu|lxc\", nodename=~\"$node\"} / system_maxmem{object=~\"qemu|lxc\", nodename=~\"$node\"} * 100"
+            },
+            {
+              "id": "C",
+              "expr": "system_uptime{object=~\"qemu|lxc\", nodename=~\"$node\"}"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "A",
+              "titre": "CPU %",
+              "unite": "percent",
+              "decimales": 1
+            },
+            {
+              "champ": "B",
+              "titre": "RAM %",
+              "unite": "percent",
+              "decimales": 1
+            },
+            {
+              "champ": "C",
+              "titre": "Uptime",
+              "unite": "s"
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "job"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "CPU par machine",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(15, system_cpu{object=~\"qemu|lxc\", nodename=~\"$node\"} * 100)",
+              "legende": "{{host}} ({{vmid}})"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire par machine",
+          "unite": "percent",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(15, system_mem{object=~\"qemu|lxc\", nodename=~\"$node\"} / system_maxmem{object=~\"qemu|lxc\", nodename=~\"$node\"} * 100)",
+              "legende": "{{host}} ({{vmid}})"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Disque par machine",
+          "unite": "Bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, rate(system_diskread{object=~\"qemu|lxc\", nodename=~\"$node\"}[5m]))",
+              "legende": "{{host}} — lecture"
+            },
+            {
+              "id": "B",
+              "expr": "-topk(10, rate(system_diskwrite{object=~\"qemu|lxc\", nodename=~\"$node\"}[5m]))",
+              "legende": "{{host}} — ecriture"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Reseau par machine",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, rate(system_netin{object=~\"qemu|lxc\", nodename=~\"$node\"}[5m]) * 8)",
+              "legende": "{{host}} — entrant"
+            },
+            {
+              "id": "B",
+              "expr": "-topk(10, rate(system_netout{object=~\"qemu|lxc\", nodename=~\"$node\"}[5m]) * 8)",
+              "legende": "{{host}} — sortant"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "I/O par disque virtuel",
+          "description": "blockstat n'existe que pour object=qemu. Le label 'instance' porte le disque (ide2, scsi0...).",
+          "unite": "Bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, rate(blockstat_rd_bytes{object=\"qemu\", nodename=~\"$node\"}[5m]))",
+              "legende": "{{host}} / {{instance}} — lecture"
+            },
+            {
+              "id": "B",
+              "expr": "-topk(10, rate(blockstat_wr_bytes{object=\"qemu\", nodename=~\"$node\"}[5m]))",
+              "legende": "{{host}} / {{instance}} — ecriture"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Pression ressources par machine",
+          "description": "PSI par invite (cgroup). Identifie la VM ou le conteneur en attente de CPU ou d'I/O.",
+          "unite": "percent",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 10,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 30,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(8, system_pressurecpusome{object=~\"qemu|lxc\", nodename=~\"$node\"})",
+              "legende": "{{host}} — CPU"
+            },
+            {
+              "id": "B",
+              "expr": "topk(8, system_pressureiofull{object=~\"qemu|lxc\", nodename=~\"$node\"})",
+              "legende": "{{host}} — I/O bloque"
+            },
+            {
+              "id": "C",
+              "expr": "topk(8, system_pressurememoryfull{object=~\"qemu|lxc\", nodename=~\"$node\"})",
+              "legende": "{{host}} — RAM bloquee"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Stockages",
+      "panneaux": [
+        {
+          "type": "barres",
+          "titre": "Occupation des stockages",
+          "unite": "percent",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 75,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 88,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "system_used{object=\"storages\", nodename=~\"$node\"} / (system_total{object=\"storages\", nodename=~\"$node\"} > 0) * 100",
+              "legende": "{{host}} ({{type}})"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Espace libre — evolution",
+          "unite": "bytes",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "system_avail{object=\"storages\", nodename=~\"$node\"}",
+              "legende": "{{host}} ({{type}})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Materiel — temperatures et SMART (agent Alloy + smartctl_exporter)",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Temperatures systeme",
+          "description": "Necessite lm-sensors et le collecteur hwmon d'Alloy (section 6.2).",
+          "unite": "celsius",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 70,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 85,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_hwmon_temp_celsius{instance=~\"$node\"}",
+              "legende": "{{instance}} / {{chip}} — {{sensor}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Temperature des disques",
+          "description": "Necessite smartctl_exporter (section 6.3).",
+          "unite": "celsius",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 50,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 58,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "smartctl_device_temperature{instance=~\"$node\", temperature_type=\"current\"}",
+              "legende": "{{device}} ({{model_name}})"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Etat SMART des disques",
+          "description": "SMART : 1 = sain, 0 = en echec. Une ligne par disque physique.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (instance, device) (smartctl_device_smart_status{instance=~\"$node\"})"
+            },
+            {
+              "id": "B",
+              "expr": "max by (instance, device) (smartctl_device_power_on_seconds{instance=~\"$node\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (instance, device) (smartctl_device_temperature{instance=~\"$node\", temperature_type=\"current\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "device",
+              "titre": "Disque"
+            },
+            {
+              "champ": "A",
+              "titre": "SMART",
+              "correspondances": [
+                {
+                  "valeur": "0",
+                  "texte": "EN ECHEC",
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": "1",
+                  "texte": "Sain",
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Heures",
+              "unite": "s"
+            },
+            {
+              "champ": "C",
+              "titre": "Temperature",
+              "unite": "celsius",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 50,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 58,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "instance",
+              "titre": "Hote"
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Secteurs realloues et erreurs",
+          "description": "Toute hausse est un signal de fin de vie. Necessite smartctl_exporter (section 6.3).",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "smartctl_device_attribute{instance=~\"$node\", attribute_name=\"Reallocated_Sector_Ct\", attribute_value_type=\"raw\"}",
+              "legende": "{{device}} — secteurs realloues"
+            },
+            {
+              "id": "B",
+              "expr": "smartctl_device_attribute{instance=~\"$node\", attribute_name=\"Current_Pending_Sector\", attribute_value_type=\"raw\"}",
+              "legende": "{{device}} — secteurs en attente"
+            },
+            {
+              "id": "C",
+              "expr": "smartctl_device_available_spare{instance=~\"$node\"}",
+              "legende": "{{device}} — reserve NVMe %"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Services systemd (agent Alloy)",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Services en echec",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(node_systemd_unit_state{instance=~\"$node\", state=\"failed\"} == 1) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Actives au demarrage, arretes",
+          "description": "Services actives au boot qui ne tournent pas. Necessite obs-systemd.sh (section 5.3).",
+          "unite": "short",
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(node_systemd_enabled_units_down{instance=~\"$node\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Services actives au demarrage",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(node_systemd_enabled_units_total{instance=~\"$node\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Redemarrages sur 24 h",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 3,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 10,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(increase(node_systemd_service_restart_total{instance=~\"$node\"}[24h])) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Services actives au demarrage mais arretes",
+          "description": "Liste vide = tout va bien. Necessite obs-systemd.sh (section 5.3).",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_systemd_unit_enabled_active{instance=~\"$node\"} == 0"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Service"
+            },
+            {
+              "champ": "instance",
+              "titre": "Hote"
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site"
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Unites en echec",
+          "description": "Unites systemd dans l'etat failed, quel que soit leur mode de demarrage.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_systemd_unit_state{instance=~\"$node\", state=\"failed\"} == 1"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Unite"
+            },
+            {
+              "champ": "instance",
+              "titre": "Hote"
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__",
+            "env",
+            "job",
+            "site",
+            "state",
+            "type"
+          ]
+        }
+      ]
+    }
+  ],
+  "icone": "machines",
+  "teinte": "orange"
+}

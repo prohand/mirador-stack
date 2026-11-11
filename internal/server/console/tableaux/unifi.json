@@ -1,0 +1,624 @@
+{
+  "version": 1,
+  "nom": "unifi",
+  "titre": "UniFi",
+  "periode": "6h",
+  "variables": [
+    {
+      "nom": "device",
+      "titre": "Equipement",
+      "requete": "label_values(unpoller_device_info, name)"
+    },
+    {
+      "nom": "essid",
+      "titre": "Reseau Wi-Fi",
+      "requete": "label_values(unpoller_client_uptime_seconds{wired=\"false\"}, essid)"
+    }
+  ],
+  "rangees": [
+    {
+      "titre": "Etat",
+      "panneaux": [
+        {
+          "type": "chiffre",
+          "titre": "Derniere collecte",
+          "description": "Anciennete des dernieres donnees lues sur le controleur par unpoller (toutes les 60 s). Au-dela de 5 minutes : unpoller arrete, controleur injoignable ou compte refuse.",
+          "unite": "s",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 180,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 300,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "time() - max(timestamp(unpoller_device_info))"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Equipements",
+          "description": "Bornes, switchs et passerelles adoptes par le controleur.",
+          "unite": "short",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(unpoller_device_info{name=~\"$device\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Deconnectes",
+          "description": "Equipements adoptes que le controleur ne joint plus.",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "erreur"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(unpoller_site_disconnected) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Clients Wi-Fi",
+          "description": "Appareils connectes en Wi-Fi.",
+          "unite": "short",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(unpoller_client_uptime_seconds{wired=\"false\", essid=~\"$essid\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Clients filaires",
+          "description": "Appareils connectes par cable a un switch UniFi.",
+          "unite": "short",
+          "decimales": 0,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count(unpoller_client_uptime_seconds{wired=\"true\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Mises a jour",
+          "description": "Equipements pour lesquels un nouveau firmware est disponible.",
+          "unite": "short",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "ok"
+            },
+            {
+              "valeur": 1,
+              "couleur": "attention"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum({__name__=~\"unpoller_device_upgrad(e)?able\", name=~\"$device\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Satisfaction Wi-Fi",
+          "description": "Note de qualite moyenne calculee par UniFi pour les clients Wi-Fi (signal, debit, pertes).",
+          "unite": "percentunit",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": 0.6,
+              "couleur": "attention"
+            },
+            {
+              "valeur": 0.8,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "avg(unpoller_client_satisfaction_ratio{essid=~\"$essid\"})"
+            }
+          ]
+        },
+        {
+          "type": "chiffre",
+          "titre": "Signal le plus faible",
+          "description": "Client Wi-Fi le plus mal capte. Sous -80 dBm, la connexion devient instable.",
+          "unite": "dBm",
+          "decimales": 0,
+          "seuils": [
+            {
+              "valeur": null,
+              "couleur": "erreur"
+            },
+            {
+              "valeur": -80,
+              "couleur": "attention"
+            },
+            {
+              "valeur": -70,
+              "couleur": "ok"
+            }
+          ],
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "min(unpoller_client_radio_signal_db{wired=\"false\", essid=~\"$essid\"})"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Equipements",
+      "panneaux": [
+        {
+          "type": "tableau",
+          "titre": "Equipements",
+          "description": "Etat de chaque equipement UniFi. « Mise a jour » = 1 si un firmware plus recent est disponible.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name, type, model, version, ip) (unpoller_device_info{name=~\"$device\"})"
+            },
+            {
+              "id": "B",
+              "expr": "max by (name) (unpoller_device_uptime_seconds{name=~\"$device\"})"
+            },
+            {
+              "id": "C",
+              "expr": "max by (name) (unpoller_device_cpu_utilization_ratio{name=~\"$device\"})"
+            },
+            {
+              "id": "D",
+              "expr": "max by (name) (unpoller_device_memory_utilization_ratio{name=~\"$device\"})"
+            },
+            {
+              "id": "E",
+              "expr": "sum by (name) (unpoller_device_stations{name=~\"$device\"})"
+            },
+            {
+              "id": "F",
+              "expr": "max by (name) ({__name__=~\"unpoller_device_upgrad(e)?able\", name=~\"$device\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Equipement"
+            },
+            {
+              "champ": "type",
+              "titre": "Type"
+            },
+            {
+              "champ": "model",
+              "titre": "Modele"
+            },
+            {
+              "champ": "ip",
+              "titre": "Adresse"
+            },
+            {
+              "champ": "version",
+              "titre": "Firmware"
+            },
+            {
+              "champ": "B",
+              "titre": "En service depuis",
+              "unite": "dtdurations"
+            },
+            {
+              "champ": "C",
+              "titre": "CPU",
+              "unite": "percentunit",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 0.7,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 0.9,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "D",
+              "titre": "Memoire",
+              "unite": "percentunit",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 0.7,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 0.9,
+                  "couleur": "erreur"
+                }
+              ]
+            },
+            {
+              "champ": "E",
+              "titre": "Clients",
+              "unite": "short",
+              "decimales": 0
+            },
+            {
+              "champ": "F",
+              "titre": "Mise a jour",
+              "unite": "short",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "ok"
+                },
+                {
+                  "valeur": 1,
+                  "couleur": "attention"
+                }
+              ]
+            },
+            {
+              "champ": "A",
+              "titre": "A"
+            }
+          ],
+          "masquer": [
+            "A",
+            "Time",
+            "__name__"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Processeur",
+          "description": "Utilisation du processeur par equipement.",
+          "unite": "percentunit",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name) (unpoller_device_cpu_utilization_ratio{name=~\"$device\"})",
+              "legende": "{{name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Memoire",
+          "description": "Memoire utilisee par equipement.",
+          "unite": "percentunit",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name) (unpoller_device_memory_utilization_ratio{name=~\"$device\"})",
+              "legende": "{{name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Temperature",
+          "description": "Sondes de temperature, pour les modeles qui en ont (souvent les switchs).",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name, temp_area) (unpoller_device_temperature_celsius{name=~\"$device\"})",
+              "legende": "{{name}} {{temp_area}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Wi-Fi",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Clients par borne",
+          "description": "Appareils connectes a chaque borne.",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (name) (unpoller_device_stations{type=\"uap\", name=~\"$device\"})",
+              "legende": "{{name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Clients par reseau",
+          "description": "Appareils connectes par nom de reseau Wi-Fi (SSID).",
+          "unite": "short",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "count by (essid) (unpoller_client_uptime_seconds{wired=\"false\", essid=~\"$essid\"})",
+              "legende": "{{essid}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Occupation des canaux",
+          "description": "Part du temps ou le canal est occupe (par la borne, ses clients et les reseaux voisins). Au-dela de 50 %, les debits baissent ; un changement de canal peut aider. ng = 2,4 GHz, na = 5 GHz, 6e = 6 GHz.",
+          "unite": "percentunit",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name, radio) (unpoller_device_radio_channel_utilization_total_ratio{name=~\"$device\"})",
+              "legende": "{{name}} {{radio}}"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Clients Wi-Fi au signal le plus faible",
+          "description": "Les 15 clients les plus mal captes. Un appareil fixe mal capte gagnerait a etre rapproche d'une borne, ou relie par cable.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "bottomk(15, max by (name, ap_name, essid, radio) (unpoller_client_radio_signal_db{wired=\"false\", essid=~\"$essid\"}))"
+            },
+            {
+              "id": "B",
+              "expr": "max by (name, ap_name, essid, radio) (unpoller_client_satisfaction_ratio{essid=~\"$essid\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Client"
+            },
+            {
+              "champ": "ap_name",
+              "titre": "Borne"
+            },
+            {
+              "champ": "essid",
+              "titre": "Reseau"
+            },
+            {
+              "champ": "radio",
+              "titre": "Bande"
+            },
+            {
+              "champ": "A",
+              "titre": "Signal",
+              "unite": "dBm",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": -80,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": -70,
+                  "couleur": "ok"
+                }
+              ]
+            },
+            {
+              "champ": "B",
+              "titre": "Satisfaction",
+              "unite": "percentunit",
+              "decimales": 0
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__"
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Satisfaction par borne",
+          "description": "Note de qualite moyenne des clients de chaque borne.",
+          "unite": "percentunit",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "avg by (ap_name) (unpoller_client_satisfaction_ratio{essid=~\"$essid\"})",
+              "legende": "{{ap_name}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Trafic",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Trafic par equipement",
+          "description": "Debit traite par chaque equipement (au-dessus : recu, en dessous : envoye).",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (name) (rate(unpoller_device_receive_bytes_total{name=~\"$device\"}[$__rate_interval])) * 8",
+              "legende": "{{name}} recu"
+            },
+            {
+              "id": "B",
+              "expr": "-sum by (name) (rate(unpoller_device_transmit_bytes_total{name=~\"$device\"}[$__rate_interval])) * 8",
+              "legende": "{{name}} envoye"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Clients les plus gourmands",
+          "description": "Les 10 appareils qui echangent le plus de donnees, tous sens confondus.",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, sum by (name) (rate(unpoller_client_receive_bytes_total[$__rate_interval]) + rate(unpoller_client_transmit_bytes_total[$__rate_interval])) * 8)",
+              "legende": "{{name}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Ports des switchs",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Trafic par port (les 10 plus charges)",
+          "description": "Ports actifs les plus charges, entrees et sorties additionnees.",
+          "unite": "bps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "topk(10, sum by (name, port_num, port_name) (rate(unpoller_device_port_receive_bytes_total{name=~\"$device\"}[$__rate_interval]) + rate(unpoller_device_port_transmit_bytes_total{name=~\"$device\"}[$__rate_interval])) * 8)",
+              "legende": "{{name}} port {{port_num}} {{port_name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "PoE par port",
+          "description": "Puissance fournie par chaque port PoE (bornes, cameras...).",
+          "unite": "watt",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name, port_num, port_name) (unpoller_device_port_poe_watts{name=~\"$device\"}) > 0",
+              "legende": "{{name}} port {{port_num}} {{port_name}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Erreurs et pertes par port",
+          "description": "Seuls les ports en erreur apparaissent. Une valeur durable signale un cable abime ou une negociation de vitesse ratee.",
+          "unite": "pps",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum by (name, port_num, port_name) (rate(unpoller_device_port_receive_errors_total{name=~\"$device\"}[$__rate_interval]) + rate(unpoller_device_port_transmit_errors_total{name=~\"$device\"}[$__rate_interval]) + rate(unpoller_device_port_receive_dropped_total{name=~\"$device\"}[$__rate_interval]) + rate(unpoller_device_port_transmit_dropped_total{name=~\"$device\"}[$__rate_interval])) > 0",
+              "legende": "{{name}} port {{port_num}} {{port_name}}"
+            }
+          ]
+        },
+        {
+          "type": "tableau",
+          "titre": "Vitesse negociee des ports actifs",
+          "description": "Un port a 100 Mb/s ou 10 Mb/s au lieu de 1 Gb/s trahit souvent un cable defectueux.",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "max by (name, port_num, port_name) (unpoller_device_port_port_speed_bps{name=~\"$device\"})"
+            }
+          ],
+          "colonnes": [
+            {
+              "champ": "name",
+              "titre": "Switch"
+            },
+            {
+              "champ": "port_num",
+              "titre": "Port"
+            },
+            {
+              "champ": "port_name",
+              "titre": "Nom"
+            },
+            {
+              "champ": "A",
+              "titre": "Vitesse",
+              "unite": "bps",
+              "decimales": 0,
+              "seuils": [
+                {
+                  "valeur": null,
+                  "couleur": "erreur"
+                },
+                {
+                  "valeur": 100000001,
+                  "couleur": "attention"
+                },
+                {
+                  "valeur": 1000000000,
+                  "couleur": "ok"
+                }
+              ]
+            }
+          ],
+          "masquer": [
+            "Time",
+            "__name__"
+          ]
+        }
+      ]
+    }
+  ],
+  "ignores": [
+    "Evenements : requête LogsQL : voir la page Logs",
+    "Alarmes : requête LogsQL : voir la page Logs",
+    "Detections IDS/IPS : requête LogsQL : voir la page Logs",
+    "Anomalies : requête LogsQL : voir la page Logs",
+    "Volume par type : requête LogsQL : voir la page Logs",
+    "Evenements les plus frequents : requête LogsQL : voir la page Logs",
+    "Evenements : panneau de logs : voir la page Logs"
+  ],
+  "icone": "wifi",
+  "teinte": "bleu"
+}
