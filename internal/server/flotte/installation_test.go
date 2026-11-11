@@ -73,4 +73,16 @@ func TestInstallationParTelechargement(t *testing.T) {
 	if w := b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64", jeton, nil, ""); w.Code != http.StatusUnauthorized {
 		t.Fatalf("jeton déjà utilisé accepté : %d", w.Code)
 	}
+	// Machine déjà enrôlée qui relance le script : son token suffit ; un
+	// token inconnu est refusé.
+	token, err := TokenManuel(ctx, b.db, "deja-enrolee", "admin", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64", token, nil, ""); w.Code != http.StatusOK {
+		t.Fatalf("token de machine refusé : %d %s", w.Code, w.Body)
+	}
+	if w := b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64", "mirador_faux_token_faux_token_faux", nil, "198.51.100.31"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("token inconnu accepté : %d", w.Code)
+	}
 }

@@ -500,44 +500,65 @@ if [ "$MODE" = afficher ]; then
 fi
 
 # ---------------------------------------------------------------- binaire
-# Sans --binaire, avec un jeton : téléchargé en HTTPS depuis mirador-server
-# (jeton dans l'en-tête Authorization, empreinte SHA-256 vérifiée).
+# Sans --binaire : téléchargé en HTTPS depuis mirador-server, avec le jeton
+# d'enrôlement, ou, pour une machine déjà enrôlée qui relance le script, son
+# token (en-tête Authorization, empreinte SHA-256 vérifiée).
 # Le jeton passe par un fichier de configuration de curl / wget (dans un
 # dossier temporaire root 0700), jamais par la ligne de commande : il serait
 # lisible par tout utilisateur local avec « ps » (revue du 11/11).
+nouveau_tele() { # dossier temporaire root 0700, effacé à la sortie
+  if [ -z "${TELE:-}" ]; then
+    umask 077
+    TELE=$(mktemp -d)
+    trap 'rm -rf -- "$TELE"' EXIT
+    umask 022
+  fi
+}
 telecharger() { # URL FICHIER ENTETES
   if command -v curl >/dev/null 2>&1; then
-    printf 'header = "Authorization: Bearer %s"\n' "$JETON" > "$TELE/curl.conf"
+    printf 'header = "Authorization: Bearer %s"\n' "$AUTH" > "$TELE/curl.conf"
     curl -fsS --proto =https --tlsv1.2 --retry 3 -K "$TELE/curl.conf" -D "$3" -o "$2" "$1"
   elif command -v wget >/dev/null 2>&1; then
-    printf 'header = Authorization: Bearer %s\n' "$JETON" > "$TELE/wgetrc"
+    printf 'header = Authorization: Bearer %s\n' "$AUTH" > "$TELE/wgetrc"
     WGETRC="$TELE/wgetrc" wget -q --https-only -S -O "$2" "$1" 2>"$3"
   else
     die "curl ou wget est nécessaire pour télécharger l'agent (ou utiliser --binaire)"
   fi
 }
-if [ -z "$BINAIRE" ] && [ -n "$JETON" ]; then
+# Jeton d'enrôlement, sinon token de la machine (--token, ou celui déjà en place).
+AUTH="$JETON"
+[ -n "$AUTH" ] || AUTH="$TOKEN"
+if [ -z "$AUTH" ] && [ "$MIRADOR" = oui ] && [ -s "$VARLIB/token" ]; then
+  AUTH=$(tr -d '[:space:]' < "$VARLIB/token")
+fi
+if [ -z "$BINAIRE" ] && [ -n "$AUTH" ]; then
   case "$(uname -m)" in
     x86_64|amd64)  ARCH=amd64 ;;
     aarch64|arm64) ARCH=arm64 ;;
     *) die "architecture $(uname -m) non prise en charge (amd64 ou arm64)" ;;
   esac
-  umask 077
-  TELE=$(mktemp -d)
-  trap 'rm -rf -- "$TELE"' EXIT
-  umask 022
+  nouveau_tele
   info "Téléchargement de mirador-agent ($ARCH) depuis $SERVEUR"
   telecharger "$SERVEUR/api/agent/v1/install/binary?arch=$ARCH" "$TELE/mirador-agent" "$TELE/entetes" \
-    || die "téléchargement impossible : jeton expiré ou déjà utilisé, ou adresse de cette machine pas autorisée dans nginx"
+    || die "téléchargement impossible : jeton expiré ou déjà utilisé (ou token révoqué), ou adresse de cette machine pas autorisée dans nginx"
   ATTENDU=$(tr -d '\r' < "$TELE/entetes" | sed 's/^ *//' | awk -F': ' 'tolower($1)=="x-mirador-sha256"{print $2}' | tail -1)
   OBTENU=$(sha256sum "$TELE/mirador-agent" | awk '{print $1}')
   [ -n "$ATTENDU" ] && [ "$ATTENDU" = "$OBTENU" ] || die "empreinte du binaire téléchargé fausse (attendu ${ATTENDU:-?}, obtenu $OBTENU)"
   chmod 0755 "$TELE/mirador-agent"
   BINAIRE="$TELE/mirador-agent"
 fi
-[ -n "$BINAIRE" ] || die "--binaire est obligatoire (sauf avec --jeton : téléchargé depuis le serveur)"
+[ -n "$BINAIRE" ] || die "--binaire est obligatoire (sauf avec --jeton ou une machine déjà enrôlée : téléchargé depuis le serveur)"
 [ -f "$BINAIRE" ] || die "binaire introuvable : $BINAIRE"
-VERSION=$("$BINAIRE" -version 2>/dev/null | awk '{print $2}') || die "le binaire ne se lance pas (mauvaise architecture ?)"
+# Fichier téléchargé à la main (curl -O) : pas exécutable. Copie privée
+# rendue exécutable, l'original n'est pas touché.
+if [ ! -x "$BINAIRE" ]; then
+  nouveau_tele
+  cp -- "$BINAIRE" "$TELE/mirador-agent-binaire"
+  chmod 0755 "$TELE/mirador-agent-binaire"
+  BINAIRE="$TELE/mirador-agent-binaire"
+fi
+VERSION=$("$BINAIRE" -version 2>/dev/null | awk '{print $2}') || true
+[ -n "$VERSION" ] || die "le binaire ne se lance pas : fichier abîmé, ou mauvaise architecture (cette machine : $(uname -m))"
 echo "$VERSION" | grep -Eq '^[A-Za-z0-9._-]{1,40}$' || die "version illisible : $VERSION"
 
 afficher_detection

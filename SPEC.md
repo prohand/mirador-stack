@@ -2738,6 +2738,7 @@ compiler ses binaires avec sa clé. Choix : **clé posée à l'installation**.
 | Serveur | vérifie chaque version publiée avec les clés réglées ; refus tant qu'aucune clé n'est réglée | erreur vue tout de suite, pas sur 25 machines |
 | Empreinte | 16 premiers caractères hexadécimaux du SHA-256 de la clé, affichée par `mirador-release`, l'interface et le script | comparer d'un coup d'œil |
 | `cles/publiques.txt` | gardé, facultatif (pour qui compile lui-même) ; s'ajoute au fichier | — |
+| Relancer le script sur une machine enrôlée (ajout du 11/11) | sans jeton ni `--binaire` : le binaire est téléchargé avec le **token de la machine** (mêmes règles que l'ingestion : valable, non révoqué, adresse autorisée) ; `--binaire` téléchargé à la main (non exécutable) : copie privée rendue exécutable | vu à l'enrôlement de dhcp-dns02 : deux erreurs évitables |
 | Coût | une lecture d'un fichier de 200 octets par version proposée | négligeable |
 
 Menaces :
