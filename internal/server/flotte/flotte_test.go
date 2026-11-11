@@ -460,3 +460,49 @@ func TestSiteTypeProposes(t *testing.T) {
 		}
 	}
 }
+
+// Clé publique réglée dans l'interface : servie au script d'installation et
+// utilisée pour vérifier les versions publiées (SPEC § 18.25).
+func TestClesPubliques(t *testing.T) {
+	b := nouveauBanc(t)
+	ancienne := majagent.ClesPubliques
+	majagent.ClesPubliques = ""
+	defer func() { majagent.ClesPubliques = ancienne }()
+
+	// Aucune clé : 404, et publication refusée.
+	if w := b.requete(http.MethodGet, protocole.CheminCles, "", nil, ""); w.Code != http.StatusNotFound {
+		t.Fatalf("sans clé : %d", w.Code)
+	}
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	binaire := []byte("binaire de test")
+	m := signer(t, priv, "1.1.0", "amd64", binaire)
+	if err := Publier(ctx, b.db, t.TempDir(), m, binaire, "admin", t0); err == nil || !strings.Contains(err.Error(), "aucune clé") {
+		t.Fatalf("publication sans clé : %v", err)
+	}
+	// Clé invalide refusée ; clé valide enregistrée (avec audit).
+	if err := DefinirClesPubliques(ctx, b.db, "pas une clé", "admin", t0); err == nil {
+		t.Error("clé invalide acceptée")
+	}
+	cle := base64.StdEncoding.EncodeToString(pub)
+	if err := DefinirClesPubliques(ctx, b.db, cle+"\n", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit WHERE action = 'cles_publiques'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("audit : %d ligne(s)", n)
+	}
+	// Servie en clair, une par ligne.
+	w := b.requete(http.MethodGet, protocole.CheminCles, "", nil, "")
+	if w.Code != http.StatusOK || strings.TrimSpace(w.Body.String()) != cle {
+		t.Fatalf("clé servie : %d %q", w.Code, w.Body.String())
+	}
+	// Publication acceptée avec cette clé, refusée avec une autre.
+	if err := Publier(ctx, b.db, t.TempDir(), m, binaire, "admin", t0); err != nil {
+		t.Fatalf("publication : %v", err)
+	}
+	_, autre, _ := ed25519.GenerateKey(rand.Reader)
+	if err := Publier(ctx, b.db, t.TempDir(), signer(t, autre, "1.2.0", "amd64", binaire), binaire, "admin", t0); err == nil {
+		t.Error("version signée par une autre clé acceptée")
+	}
+}

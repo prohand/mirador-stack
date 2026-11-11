@@ -20,6 +20,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 
+	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
@@ -444,7 +445,10 @@ type donneesMaj struct {
 	Cible    string
 	Fenetre  flotte.Fenetre
 	Machines []flotte.InfoMachine
+	Cles     []cleVue // clés publiques de signature (posées sur les machines à l'installation)
 }
+
+type cleVue struct{ Valeur, Empreinte string }
 
 func (c *Console) pageMisesAJour(q *req) {
 	ctx := q.r.Context()
@@ -454,7 +458,11 @@ func (c *Console) pageMisesAJour(q *req) {
 	d.Cible, e2 = flotte.CibleGlobale(ctx, c.db)
 	d.Fenetre, e3 = flotte.LireFenetre(ctx, c.db)
 	d.Machines, e4 = flotte.ListerMachines(ctx, c.db)
-	if err := errors.Join(e1, e2, e3, e4); err != nil {
+	cles, e5 := flotte.LireClesPubliques(ctx, c.db)
+	for _, k := range cles {
+		d.Cles = append(d.Cles, cleVue{k, majagent.EmpreinteCle(k)})
+	}
+	if err := errors.Join(e1, e2, e3, e4, e5); err != nil {
 		c.flash(q, "", err.Error())
 	}
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
@@ -469,6 +477,9 @@ func (c *Console) postMisesAJour(q *req) {
 		case "cible":
 			err = flotte.DefinirCible(ctx, c.db, 0, q.r.PostFormValue("version"), q.qui(), q.t)
 			ok = "version assignée à toutes les machines sans version propre"
+		case "cles":
+			err = flotte.DefinirClesPubliques(ctx, c.db, q.r.PostFormValue("cles"), q.qui(), q.t)
+			ok = "clé publique enregistrée : elle sera posée sur les machines installées à partir de maintenant"
 		case "fenetre":
 			fe := flotte.Fenetre{Active: q.r.PostFormValue("active") != "", Debut: q.r.PostFormValue("debut"),
 				Fin: q.r.PostFormValue("fin"), Fuseau: q.r.PostFormValue("fuseau")}

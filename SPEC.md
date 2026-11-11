@@ -1199,7 +1199,7 @@ Code écrit et testé, **non branché** sur la boucle de l'agent tant que
 | Configuration distante (`internal/agent/distant`) | document JSON de réglages **facultatifs** (intervalles, tampons, exclusions, collecteurs, filtres et masquage des logs, niveau de log, rythme de récupération 5 min à 1 h) ; requête conditionnelle **ETag** (304 = rien transféré) | tout champ inconnu fait refuser le document entier (commande, script, adresse du serveur, chemin de fichier : **absents du schéma**) ; mêmes bornes que le fichier local ; en cas d'erreur, la configuration actuelle est gardée ; fuzzing |
 | Enrôlement | jeton à usage unique → « en attente » → nouvelle demande toutes les 30 s → token définitif écrit en `0600` (atomique) | refus explicite géré ; identifiant aléatoire par installation |
 | Mise à jour signée (`internal/agent/majagent`) | vérification du manifeste **avant** téléchargement, puis du binaire ; installation dans `/var/lib/mirador-agent/bin/`, `-self-test` du nouveau binaire, lien `current` remplacé de façon atomique, marqueur d'essai, `Confirmer()`, `RetourArriere()` (option `-retour-arriere`) ; seules la version actuelle et la précédente sont gardées | signature Ed25519 sur un message qui inclut version, architecture, SHA-256, taille et autorisation de retour arrière (tout champ modifié casse la signature) ; 2 clés publiques possibles (rotation) ; **aucune clé intégrée = aucune mise à jour** ; version plus ancienne refusée sauf instruction signée ; binaire qui rate son self-test supprimé, lien inchangé |
-| Clés publiques | `cles/publiques.txt`, intégrées par `make agent` (`-ldflags -X`) | vide aujourd'hui (la clé sera créée avec `mirador-release` à l'étape 3) ; jamais de clé privée dans le dépôt |
+| Clés publiques | `cles/publiques.txt`, intégrées par `make agent` (`-ldflags -X`) | vide aujourd'hui (la clé sera créée avec `mirador-release` à l'étape 3) ; jamais de clé privée dans le dépôt | **Remplacé le 11/11 : clé posée à l'installation (§ 18.25).**
 
 Orchestration prévue (partie 7) : après la bascule, l'ancien agent s'arrête,
 systemd lance le nouveau ; s'il ne démarre pas, `OnFailure=` lance l'unité
@@ -1543,7 +1543,7 @@ avec des valeurs typées. Jamais de commande, de script ni de chemin.
 | Publication d'une version | manifeste signé sur le PC Windows (`mirador-release`) ; le serveur **revérifie la signature** avec les mêmes clés publiques que l'agent (aucune clé privée sur le serveur) ; binaire et manifeste passés par l'entrée standard de `docker exec` | une erreur se voit tout de suite, pas sur 25 machines |
 | Distribution | version assignée globalement ou par machine ; une machine ne peut télécharger **que** la version qui lui est assignée, pour son architecture | — |
 | Mise à jour chez l'agent | seulement avec `MIRADOR_MAJ_AUTO=oui` dans le fichier **local** (jamais réglable à distance) ; manifeste vérifié **avant** téléchargement ; binaire vérifié ; `-self-test` ; bascule atomique ; redémarrage ; **retour arrière** si pas de battement réussi en 10 min ; une version en échec n'est **pas retentée** (signalée au serveur) | § 6.8 |
-| Clés publiques | `cles/publiques.txt` intégré par `go:embed` dans l'agent **et** le serveur (même résultat avec `make` et l'image Docker) | une seule source |
+| Clés publiques | `cles/publiques.txt` intégré par `go:embed` dans l'agent **et** le serveur (même résultat avec `make` et l'image Docker) | une seule source | **Remplacé le 11/11 : clé posée à l'installation (§ 18.25).**
 | `mirador-release` (Windows) | Ed25519 ; clé privée chiffrée : **Argon2id** (3 passes, 256 Mio, 4 fils) + **AES-256-GCM**, clé publique et paramètres liés au chiffré ; fichier jamais écrasé ; phrase de passe ≥ 12 caractères, toujours tapée au clavier ; refuse de signer un fichier qui n'est pas un exécutable Linux de l'architecture annoncée | réponse du 09/11 ; binaire de 3,9 Mo |
 | Commandes du serveur | `machines`, `jeton`, `approuver`, `refuser`, `revoquer`, `token`, `ips`, `etiquettes`, `config`, `voir-config`, `publier`, `cible` (`docs/administration-serveur.md`) ; base ouverte directement (SQLite accepte un second processus), jamais migrée par une commande ; audit sans secret | en attendant l'interface ; une révocation prend effet en 60 s au plus |
 
@@ -2721,3 +2721,29 @@ tests) :
 
 Côté méthode : commits regroupés, push moins souvent (un push par lot de
 changements, pas par petite correction).
+
+### 18.25 Clé publique de signature posée à l'installation **[Décidé, réponse du 11/11]**
+
+Question de l'utilisateur : « Pourquoi intégrer la clé publique au code ? Le
+code est public. » Une clé publique n'est pas un secret (elle vérifie, elle
+ne signe pas) ; mais intégrée au code, chaque utilisateur du projet devrait
+compiler ses binaires avec sa clé. Choix : **clé posée à l'installation**.
+
+| Élément | Choix | Raison / coût |
+|---|---|---|
+| Où l'agent lit la clé | `/etc/mirador-agent/cles-publiques.txt` (`MIRADOR_FICHIER_CLES`), **root:root 0644**, relu à chaque mise à jour proposée | l'agent (utilisateur sans droits) lit, ne peut pas modifier ; refus si le fichier est un lien, n'appartient pas à root ou est modifiable par le groupe / les autres |
+| D'où vient la clé | interface : Mises à jour des agents › Clé publique (admin, code 2FA, audit) ; servie en clair sur `GET /api/agent/v1/cles` ; le script la demande à la **première** installation, ou la prend de `--cle-publique` | même confiance qu'à l'installation (le binaire vient déjà du serveur) |
+| Changement | jamais à distance : seulement en relançant le script avec `--cle-publique` | un serveur piraté ne peut pas remplacer la clé des machines déjà installées, donc ne peut pas leur faire accepter un faux agent |
+| Rotation | deux clés au plus (l'actuelle et la suivante) | changer de clé sans coupure |
+| Serveur | vérifie chaque version publiée avec les clés réglées ; refus tant qu'aucune clé n'est réglée | erreur vue tout de suite, pas sur 25 machines |
+| Empreinte | 16 premiers caractères hexadécimaux du SHA-256 de la clé, affichée par `mirador-release`, l'interface et le script | comparer d'un coup d'œil |
+| `cles/publiques.txt` | gardé, facultatif (pour qui compile lui-même) ; s'ajoute au fichier | — |
+| Coût | une lecture d'un fichier de 200 octets par version proposée | négligeable |
+
+Menaces :
+
+| Menace | Parade |
+|---|---|
+| Serveur piraté qui veut pousser un faux agent | la clé des machines installées ne vient plus du serveur ; signature exigée |
+| Agent compromis qui remplace la clé | fichier root non modifiable par l'agent ; droits vérifiés à chaque lecture |
+| Serveur piraté au moment d'une **nouvelle** installation | même risque qu'avant (le binaire vient aussi du serveur) ; empreinte affichée par le script, à comparer avec `mirador-release` |

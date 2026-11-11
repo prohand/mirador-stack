@@ -50,13 +50,30 @@ Une seule fois, sur le PC Windows :
    (chiffré par une phrase de passe) et affiche la clé **publique**.
 2. Garder une copie de `cle-mirador.json` hors du PC, et la phrase de passe à
    part. Une clé perdue ne se retrouve pas.
-3. Envoyer la clé publique pour qu'elle soit ajoutée à `cles/publiques.txt`
-   (par une pull request). Les binaires construits ensuite l'intègrent, agent
-   comme serveur.
+3. Coller la clé publique dans l'interface : **Mises à jour des agents ›
+   Clé publique de signature** (code 2FA). Vérifier que l'empreinte affichée
+   est celle donnée par `mirador-release`.
 
-Les agents installés **avant** cet ajout ne connaissent aucune clé : ils
-refusent toute mise à jour. Il faut les mettre à jour une fois à la main
-(script d'installation), puis ils suivront seuls.
+Le script d'installation récupère ensuite la clé auprès du serveur et
+l'écrit sur chaque **nouvelle** machine, dans un fichier root
+(`/etc/mirador-agent/cles-publiques.txt`, 0644) : l'agent le lit mais ne
+peut pas le modifier, et le serveur ne peut pas le changer à distance.
+
+Machines installées **avant** d'avoir réglé la clé : elles n'en ont pas et
+refusent toute mise à jour. Relancer le script d'installation une fois sur
+chacune (il reprend tout le reste) :
+
+```bash
+sudo bash mirador-agent-install.sh --serveur https://VOTRE-VHOST-INGESTION --mirador \
+  --cle-publique CLE_PUBLIQUE --auto-update
+```
+
+Changer de clé (rotation) : régler les **deux** clés dans l'interface
+(l'actuelle et la nouvelle), relancer le script avec
+`--cle-publique ANCIENNE,NOUVELLE` sur chaque machine, signer avec la
+nouvelle, puis retirer l'ancienne. Une clé posée sur une machine ne change
+jamais sans cette option : même un serveur piraté ne peut pas y mettre la
+sienne.
 
 À chaque version :
 

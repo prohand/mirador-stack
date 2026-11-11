@@ -7,8 +7,9 @@
 //
 // Règles de sécurité :
 //   - aucun binaire n'est installé sans signature Ed25519 valide d'une des
-//     clés publiques INTÉGRÉES au binaire actuel (la clé privée reste chez
-//     l'utilisateur, jamais sur le serveur ni dans le dépôt) ;
+//     clés publiques posées à l'installation (fichier root) ou intégrées au
+//     binaire (la clé privée reste chez l'utilisateur, jamais sur le serveur
+//     ni dans le dépôt) ;
 //   - empreinte SHA-256 et taille vérifiées ;
 //   - jamais de version plus ancienne, sauf instruction signée explicite ;
 //   - le nouveau binaire passe son -self-test avant d'être activé ;
@@ -32,10 +33,10 @@ import (
 )
 
 // ClesPubliques : clés publiques Ed25519 (base64, séparées par des virgules)
-// intégrées à la compilation depuis cles/publiques.txt (go:embed).
-//
-// Deux clés possibles : l'actuelle et la suivante (rotation). Vide = aucune
-// mise à jour possible. Modifiable seulement dans les tests.
+// intégrées à la compilation depuis cles/publiques.txt (go:embed),
+// FACULTATIVES : les clés sont normalement posées à l'installation dans un
+// fichier root (voir ClesInstallees, SPEC § 18.25). Modifiable seulement
+// dans les tests.
 var ClesPubliques = clesdepot.Publiques()
 
 // TailleMax d'un binaire accepté (protection disque et mémoire).

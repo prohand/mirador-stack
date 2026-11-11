@@ -87,6 +87,9 @@ func TestFormater(t *testing.T) {
 		{3700, "s", "1 h 01", nil},
 		{12, "short", "12", nil},
 		{1.23456, "short", "1,23", &deux},
+		// Dates : millisecondes (Grafana, « * 1000 ») ou secondes.
+		{1_781_000_000_000, "dateTimeAsLocal", time.Unix(1_781_000_000, 0).In(fuseau.Load()).Format("02/01/2006 15:04"), nil},
+		{1_781_000_000, "dateTimeAsIso", time.Unix(1_781_000_000, 0).In(fuseau.Load()).Format("02/01/2006 15:04"), nil},
 	} {
 		if g := formater(c.v, c.u, c.decimale); g != c.att {
 			t.Errorf("%v %s : %q, attendu %q", c.v, c.u, g, c.att)

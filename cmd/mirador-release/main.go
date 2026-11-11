@@ -7,7 +7,7 @@
 //
 //	mirador-release cle [-sortie cle-mirador.json]
 //	    crée la clé de signature, chiffrée par une phrase de passe ;
-//	    affiche la clé PUBLIQUE à mettre dans cles/publiques.txt
+//	    affiche la clé PUBLIQUE à coller dans l'interface (Mises à jour des agents)
 //	mirador-release signer -cle cle-mirador.json -version 1.2.3 -arch amd64 [-retour-autorise] BINAIRE
 //	    écrit BINAIRE.manifeste.json (à publier avec le binaire sur le serveur)
 //	mirador-release verifier -publique CLE_PUBLIQUE MANIFESTE BINAIRE
@@ -139,7 +139,8 @@ func creerCle(chemin string, sortie io.Writer, phrase lirePhrase) error {
 		return err
 	}
 	fmt.Fprintf(sortie, "Clé créée : %s (chiffrée ; gardez-en une copie hors de ce PC, avec la phrase de passe à part).\n", chemin)
-	fmt.Fprintf(sortie, "Clé PUBLIQUE, à ajouter dans cles/publiques.txt du dépôt :\n%s\n", f.Publique)
+	fmt.Fprintf(sortie, "Clé PUBLIQUE (pas un secret), à coller dans l'interface : Mises à jour des agents › Clé publique :\n%s\n", f.Publique)
+	fmt.Fprintf(sortie, "Empreinte : %s (la même s'affiche dans l'interface et à l'installation de l'agent)\n", release.EmpreintePublique(f.Publique))
 	return nil
 }
 

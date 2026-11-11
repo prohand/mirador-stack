@@ -82,6 +82,7 @@ func (f *Flotte) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET "+protocole.CheminBinaire, f.binaire)
 	m.HandleFunc("GET "+protocole.CheminInstallation, f.scriptInstallation)
 	m.HandleFunc("GET "+protocole.CheminInstallationBinaire, f.binaireAInstaller)
+	m.HandleFunc("GET "+protocole.CheminCles, f.cles)
 }
 
 // Boucle : écrit les battements en base une fois par minute, et à l'arrêt.

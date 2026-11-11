@@ -3,6 +3,16 @@
 <p class="onglets"><a href="/machines">Machines</a><a class="actif" href="/mises-a-jour">Mises à jour des agents</a><a href="/reglages/agents">Configuration des agents</a></p>
 <p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée sur ton poste</strong> (mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
 
+<section class="carte" id="cle"><h2>Clé publique de signature</h2>
+{{if .D.Cles}}<p>{{range .D.Cles}}<code>{{.Valeur}}</code> — empreinte <strong><code>{{.Empreinte}}</code></strong><br>{{end}}</p>
+{{else}}<p class="message erreur">Aucune clé : les agents installés n'accepteront aucune mise à jour, et aucune version ne peut être publiée.</p>{{end}}
+<p><small>Clé <strong>publique</strong> affichée par <code>mirador-release cle</code> sur ton poste (la clé privée n'en sort jamais). Le script d'installation la récupère ici et l'écrit sur la machine dans un fichier root (<code>/etc/mirador-agent/cles-publiques.txt</code>) que l'agent ne peut pas modifier. La changer ici ne touche <strong>pas</strong> les machines déjà installées : pour elles, relancer le script avec <code>--cle-publique</code>. Deux clés au plus (l'actuelle et la suivante, pour changer de clé).</small></p>
+{{if .Admin}}<form method="post" action="/mises-a-jour#cle" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cles">
+<label>Clé(s) publique(s), une par ligne <textarea name="cles" rows="2" maxlength="200" spellcheck="false">{{range $i, $k := .D.Cles}}{{if $i}}
+{{end}}{{$k.Valeur}}{{end}}</textarea></label>
+{{template "code2fa"}}<button data-confirmer="Changer la clé publique de signature ?">Enregistrer</button></form>{{end}}
+</section>
+
 <div class="grille">
 <section class="carte"><h2>Version de toutes les machines</h2>
 <p>Actuelle : <strong>{{if .D.Cible}}{{.D.Cible}}{{else}}aucune (pas de mise à jour){{end}}</strong></p>

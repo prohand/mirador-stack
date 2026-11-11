@@ -32,6 +32,7 @@ const (
 	// Installation (jeton d'enrôlement dans « Authorization: Bearer ») :
 	CheminInstallation        = "/api/agent/v1/install"        // GET : script d'installation
 	CheminInstallationBinaire = "/api/agent/v1/install/binary" // GET : binaire (?arch=amd64|arm64)
+	CheminCles                = "/api/agent/v1/cles"           // GET : clés publiques de signature (texte)
 )
 
 // En-têtes envoyés par l'agent.

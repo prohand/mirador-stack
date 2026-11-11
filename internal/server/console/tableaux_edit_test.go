@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"mime/multipart"
+	"mirador-stack/internal/agent/majagent"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -312,5 +313,28 @@ func TestRaccourcisPages(t *testing.T) {
 	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"retirer-page"}, "nom": {"logs"}})
 	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
 		t.Fatal("raccourci Logs non retiré")
+	}
+}
+
+// Clé publique de signature : réglée dans Mises à jour (code 2FA), affichée
+// avec son empreinte (SPEC § 18.25).
+func TestClePubliqueInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/mises-a-jour")
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "Aucune clé") {
+		t.Fatal("absence de clé non signalée")
+	}
+	cle := strings.Repeat("B", 43) + "="
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle}, "code": {b.code(secret)}})
+	_, corps, _ := b.get(c, "/mises-a-jour")
+	if !strings.Contains(corps, cle) || !strings.Contains(corps, majagent.EmpreinteCle(cle)) {
+		t.Fatal("clé ou empreinte absente de la page")
+	}
+	// Sans code 2FA : refusé.
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {""}})
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, cle) {
+		t.Error("clé effacée sans code 2FA")
 	}
 }

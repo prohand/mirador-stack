@@ -52,6 +52,10 @@
 #                        seulement. Réglable ensuite dans l'interface (Configuration
 #                        des agents : « Métriques de la machine », « Logs du journal »)
 #   --auto-update        mises à jour signées automatiques (mode --mirador seulement)
+#   --cle-publique CLE   clé PUBLIQUE de signature des versions (base64 ; deux au
+#                        plus, séparées par une virgule). Sans cette option, en mode
+#                        mirador, elle est demandée au serveur à la première
+#                        installation, puis jamais changée (sauf avec cette option)
 #   --detection          affiche la détection et s'arrête
 #   --afficher-config    affiche la configuration et les unités, et s'arrête
 #   --desinstaller       arrête et supprime mirador-agent (garde Alloy intact)
@@ -75,7 +79,7 @@ PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
 PROXY_NOM=mirador-docker-proxy
 PROXY_PORT=12375
 
-BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""
+BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""; CLE_PUBLIQUE=""
 DOCKER_MODE=auto; DOCKER_PROXY=""; PAREFEU_MODE=auto; SMART_MODE=auto
 LOGS=oui; METRIQUES=oui; MODE=installer; MIRADOR=non; JETON=""; MAJ_AUTO=non
 
@@ -89,6 +93,7 @@ while [ $# -gt 0 ]; do
     --site)            SITE="${2:-}"; shift 2 ;;
     --env)             ENV_="${2:-}"; shift 2 ;;
     --nom)             NOM="${2:-}"; shift 2 ;;
+    --cle-publique)    CLE_PUBLIQUE="${2:-}"; shift 2 ;;
     --token)           TOKEN="${2:-}"; shift 2 ;;
     --mirador)         MIRADOR=oui; shift ;;
     --jeton)           JETON="${2:-}"; MIRADOR=oui; shift 2 ;;
@@ -126,7 +131,7 @@ if [ "$MODE" = desinstaller ]; then
   if command -v docker >/dev/null 2>&1 && docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     docker rm -f "$PROXY_NOM" >/dev/null
   fi
-  rm -f "$ETC/agent.conf" "$ETC/token"
+  rm -f "$ETC/agent.conf" "$ETC/token" "$ETC/cles-publiques.txt"
   rmdir "$ETC" 2>/dev/null || true
   rm -f "$ROOT_DIR/mirador-agent"
   rmdir "$ROOT_DIR" 2>/dev/null || true
@@ -590,6 +595,58 @@ printf '%s\n' "$TOKEN" > "$ETC/token.tmp"
 chown root:"$UTILISATEUR" "$ETC/token.tmp"; chmod 0640 "$ETC/token.tmp"
 mv -f "$ETC/token.tmp" "$ETC/token"
 
+fi
+
+# ---------------------------------------------------------------- clés de signature
+# Clés PUBLIQUES qui vérifient les mises à jour (SPEC § 18.25) : fichier root
+# 0644, lisible par l'agent, jamais modifiable par lui ni par le serveur.
+# Posées une fois ; changées seulement avec --cle-publique (rotation voulue
+# par l'administrateur). Une clé publique n'est pas un secret.
+FICHIER_CLES="$ETC/cles-publiques.txt"
+cle_valide() { # CLE : base64 de 32 octets
+  echo "$1" | grep -Eq '^[A-Za-z0-9+/]{43}=$' && [ "$(printf '%s' "$1" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]
+}
+empreinte_cle() { printf '%s' "$1" | base64 -d | sha256sum | cut -c1-16; }
+recuperer_cles() { # adresse publique, sans jeton ; 1 Kio au plus
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS --proto =https --tlsv1.2 --retry 3 "$SERVEUR/api/agent/v1/cles" 2>/dev/null | head -c 1024
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --https-only -O - "$SERVEUR/api/agent/v1/cles" 2>/dev/null | head -c 1024
+  fi
+}
+if [ "$MIRADOR" = oui ]; then
+  CLES=""
+  if [ -n "$CLE_PUBLIQUE" ]; then
+    CLES=$(echo "$CLE_PUBLIQUE" | tr ', ' '\n\n' | sed '/^$/d')
+    ORIGINE="option --cle-publique"
+  elif [ -s "$FICHIER_CLES" ]; then
+    ORIGINE=""
+    info "Clé de signature déjà posée : inchangée (--cle-publique pour la changer)"
+  else
+    CLES=$(recuperer_cles | tr -d '\r' | sed '/^$/d' || true)
+    ORIGINE="serveur $SERVEUR"
+  fi
+  if [ -n "$ORIGINE" ]; then
+    if [ -z "$CLES" ]; then
+      echo "ATTENTION : aucune clé publique de signature (à régler dans l'interface :"
+      echo "  Mises à jour des agents › Clé publique, puis relancer ce script)."
+      echo "  Sans clé, l'agent refuse toute mise à jour (le reste fonctionne)."
+    else
+      [ "$(echo "$CLES" | wc -l)" -le 2 ] || die "deux clés publiques au plus"
+      for k in $CLES; do cle_valide "$k" || die "clé publique invalide : $k"; done
+      { echo "# Clés PUBLIQUES de signature des versions de mirador-agent ($ORIGINE)"
+        echo "# Fichier root : l'agent le lit, ne peut pas le modifier."
+        echo "$CLES"; } > "$FICHIER_CLES.tmp"
+      chown root:root "$FICHIER_CLES.tmp"; chmod 0644 "$FICHIER_CLES.tmp"
+      mv -f "$FICHIER_CLES.tmp" "$FICHIER_CLES"
+      info "Clé de signature posée ($ORIGINE)"
+    fi
+  fi
+  if [ -s "$FICHIER_CLES" ]; then
+    for k in $(grep -v '^#' "$FICHIER_CLES"); do
+      echo "    empreinte $(empreinte_cle "$k") : à comparer avec l'interface (Mises à jour des agents)"
+    done
+  fi
 fi
 
 # ---------------------------------------------------------------- configuration

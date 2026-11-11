@@ -510,7 +510,7 @@ var unitesProposees = []uniteProposee{
 	{"", "Nombre"}, {"short", "Nombre (k, M, G)"}, {"none", "Nombre brut"}, {"percent", "Pourcentage (0 à 100)"}, {"percentunit", "Pourcentage (0 à 1)"},
 	{"bytes", "Octets"}, {"Bps", "Octets par seconde"}, {"bps", "Bits par seconde"}, {"pps", "Paquets par seconde"},
 	{"ops", "Opérations par seconde"}, {"s", "Durée (secondes)"}, {"ms", "Millisecondes"}, {"d", "Jours"},
-	{"celsius", "Degrés Celsius"}, {"lignes/min", "Lignes par minute"}, {"watt", "Watts"}, {"dBm", "dBm"}, {"dateTimeAsIso", "Date (secondes Unix)"},
+	{"celsius", "Degrés Celsius"}, {"lignes/min", "Lignes par minute"}, {"watt", "Watts"}, {"dBm", "dBm"}, {"dateTimeAsIso", "Date (secondes ou millisecondes Unix)"},
 }
 
 type largeurProposee struct {

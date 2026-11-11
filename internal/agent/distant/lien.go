@@ -363,8 +363,14 @@ func (l *Lien) mettreAJour(ctx context.Context) error {
 	if v, _ := l.Installateur.DernierEchec(); v == m.Version {
 		return nil // déjà essayée sans succès : attendre une autre version
 	}
-	// Signature, cohérence et anti-retour arrière vérifiés AVANT de télécharger.
-	if err := majagent.VerifierManifeste(m, version.Version, majagent.ClesPubliques); err != nil {
+	// Signature, cohérence et anti-retour arrière vérifiés AVANT de télécharger,
+	// avec les clés posées à l'installation (fichier root, relu à chaque fois :
+	// une rotation faite par l'administrateur est vue sans redémarrage).
+	cles, err := majagent.ClesInstallees(l.Locale.FichierCles)
+	if err != nil {
+		return fmt.Errorf("version %s refusée : clés de signature : %w", m.Version, err)
+	}
+	if err := majagent.VerifierManifeste(m, version.Version, cles); err != nil {
 		return fmt.Errorf("version %s refusée : %w", m.Version, err)
 	}
 	q := url.Values{protocole.ParametreVersion: {m.Version}, protocole.ParametreArchitecture: {m.Architecture}}
