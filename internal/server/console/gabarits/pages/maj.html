@@ -30,7 +30,7 @@
 <section class="carte"><h2>Version de toutes les machines</h2>
 <p>Actuelle : <strong>{{if .D.Cible}}{{.D.Cible}}{{else}}aucune (pas de mise à jour){{end}}</strong></p>
 {{if .Admin}}<form method="post" action="/mises-a-jour" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
-<label>Nouvelle version <select name="version"><option value="">Aucune</option>{{range .D.Versions}}<option>{{.Version}}</option>{{end}}</select></label>
+<label>Nouvelle version <select name="version"><option value="">Aucune (pas de mise à jour)</option>{{range .D.Choix}}<option {{if egal . $.D.Cible}}selected{{end}}>{{.}}</option>{{end}}</select></label>
 {{template "code2fa"}}<button data-confirmer="Assigner cette version à toutes les machines sans version propre ?">Assigner</button></form>{{end}}
 </section>
 <section class="carte"><h2>Fenêtre horaire</h2>

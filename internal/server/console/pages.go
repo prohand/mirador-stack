@@ -448,6 +448,7 @@ type donneesMaj struct {
 	Machines []flotte.InfoMachine
 	Cles     []cleVue // clés publiques de signature (posées sur les machines à l'installation)
 	Depot    string   // dépôt GitHub des versions signées
+	Choix    []string // versions publiées, sans doublon (une ligne par architecture dans Versions)
 	Import   vueImport
 }
 
@@ -518,6 +519,13 @@ func (c *Console) pageMisesAJour(q *req) {
 	d.Cible, e2 = flotte.CibleGlobale(ctx, c.db)
 	d.Fenetre, e3 = flotte.LireFenetre(ctx, c.db)
 	d.Machines, e4 = flotte.ListerMachines(ctx, c.db)
+	vu := map[string]bool{}
+	for _, v := range d.Versions {
+		if !vu[v.Version] {
+			vu[v.Version] = true
+			d.Choix = append(d.Choix, v.Version)
+		}
+	}
 	d.Import = c.importMaj.lire()
 	var e6 error
 	d.Depot, e6 = flotte.LireDepot(ctx, c.db)

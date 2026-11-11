@@ -310,6 +310,14 @@ amd64, arm64 ») ; dhcp-dns02 passé à la main en 0.2.9 avec la clé posée et
 avec le token de la machine) assignée à dhcp-dns02 → première mise à jour
 automatique.
 
+**Bug trouvé (11/11, dhcp-dns02, Debian 13)** : après un redémarrage de
+l'agent, la reprise du journal système échouait (« Please specify only one
+of --since=, --cursor=, and --after-cursor= ») : `--after-cursor` et
+`--since` refusés ensemble par les systemd récents ; logs système plus
+envoyés depuis la réinstallation (métriques intactes). Corrigé en 0.2.11 :
+`--after-cursor` seul, lignes de plus de 12 h ignorées par l'agent ; si
+journalctl refuse le curseur, reprise à la fin du journal.
+
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
 corrigés dans la documentation : connexion à ghcr.io (token classic

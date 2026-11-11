@@ -68,6 +68,7 @@ func TestLecteurEtCurseur(t *testing.T) {
 		FichierCurseur: curseur,
 		Commande:       fauxJournalctl(t, dir),
 		Journal:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AgeMax:         20 * 365 * 24 * time.Hour, // lignes d'exemple de 2025
 	})
 	var mu sync.Mutex
 	var recues []string
@@ -111,11 +112,68 @@ func TestLecteurEtCurseur(t *testing.T) {
 		}
 	}
 
-	// Redémarrage : le lecteur reprend après le curseur, au plus 12 h en arrière.
+	// Redémarrage : le lecteur reprend après le curseur, SANS --since (refusé
+	// avec --after-cursor par les systemd récents ; limite faite par l'agent).
 	l2 := NewLecteur(Options{FichierCurseur: curseur, Commande: "inutilisé"})
 	a := strings.Join(l2.arguments(), " ")
-	if !strings.Contains(a, "--after-cursor=s=abc;i=3;b=def;m=3;t=602;x=3") || !strings.Contains(a, "--since=-12h") {
+	if !strings.Contains(a, "--after-cursor=s=abc;i=3;b=def;m=3;t=602;x=3") || strings.Contains(a, "--since") {
 		t.Errorf("reprise incorrecte : %s", a)
+	}
+}
+
+// Reprise après une longue coupure : lignes plus vieilles que AgeMax
+// ignorées, mais le curseur avance quand même.
+func TestLignesTropAnciennes(t *testing.T) {
+	dir := t.TempDir()
+	curseur := filepath.Join(dir, "journal.cursor")
+	l := NewLecteur(Options{FichierCurseur: curseur, Commande: fauxJournalctl(t, dir), AgeMax: time.Hour,
+		Journal: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	ctx, annuler := context.WithCancel(context.Background())
+	fini := make(chan struct{})
+	var recues int
+	go func() { l.Tourner(ctx, func(*Entree) { recues++ }); close(fini) }()
+	for fin := time.Now().Add(5 * time.Second); l.Anciennes.Load() < 3 && time.Now().Before(fin); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	annuler()
+	<-fini
+	if l.Anciennes.Load() != 3 || recues != 0 {
+		t.Fatalf("anciennes %d, transmises %d", l.Anciennes.Load(), recues)
+	}
+	if b, _ := os.ReadFile(curseur); !strings.Contains(string(b), "i=3") {
+		t.Errorf("curseur pas avancé : %q", b)
+	}
+}
+
+// journalctl qui refuse la reprise au curseur (ex. options incompatibles,
+// journal effacé) : l'agent abandonne le curseur et repart de la fin.
+func TestCurseurRefuseAbandonne(t *testing.T) {
+	dir := t.TempDir()
+	curseur := filepath.Join(dir, "journal.cursor")
+	_ = os.WriteFile(curseur, []byte("s=abc;i=9;b=def;m=9;t=609;x=9\n"), 0o600)
+	script := filepath.Join(dir, "journalctl")
+	contenu := "#!/bin/sh\necho \"$@\" >> " + filepath.Join(dir, "args") +
+		"\ncase \"$*\" in *after-cursor*) echo 'curseur refusé' >&2; exit 1;; esac\nsleep 30\n"
+	if err := os.WriteFile(script, []byte(contenu), 0o700); err != nil { // #nosec G306 -- script de test exécutable
+		t.Fatal(err)
+	}
+	l := NewLecteur(Options{FichierCurseur: curseur, Commande: script,
+		Journal: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	ctx, annuler := context.WithCancel(context.Background())
+	fini := make(chan struct{})
+	go func() { l.Tourner(ctx, func(*Entree) {}); close(fini) }()
+	var args string
+	for fin := time.Now().Add(5 * time.Second); time.Now().Before(fin); time.Sleep(20 * time.Millisecond) {
+		b, _ := os.ReadFile(filepath.Join(dir, "args"))
+		if args = string(b); strings.Count(args, "\n") >= 2 {
+			break
+		}
+	}
+	annuler()
+	<-fini
+	lignes := strings.Split(strings.TrimSpace(args), "\n")
+	if len(lignes) < 2 || !strings.Contains(lignes[0], "after-cursor") || !strings.Contains(lignes[1], "-n 0") {
+		t.Fatalf("pas de reprise à la fin après refus : %q", args)
 	}
 }
 

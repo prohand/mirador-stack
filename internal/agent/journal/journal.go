@@ -77,6 +77,7 @@ type Lecteur struct {
 	Lignes     atomic.Uint64
 	Illisibles atomic.Uint64
 	Relances   atomic.Uint64
+	Anciennes  atomic.Uint64 // lignes de plus de AgeMax à la reprise : ignorées
 }
 
 // NewLecteur prépare le lecteur et relit le curseur enregistré.
@@ -108,7 +109,9 @@ func curseurValide(c string) bool { return reCurseur.MatchString(c) }
 //   - -o json : une entrée JSON par ligne ;
 //   - --output-fields : seulement les champs utiles (moins de travail) ;
 //   - -p 0..6 : le niveau debug est jeté par journalctl lui-même (filtrage à la source) ;
-//   - --after-cursor : reprise après la dernière ligne envoyée ;
+//   - --after-cursor : reprise après la dernière ligne envoyée. SEUL : les
+//     systemd récents refusent --after-cursor avec --since (vu le 11/11 sur
+//     Debian 13) ; la limite de AgeMax est appliquée par l'agent (lancer) ;
 //   - sans curseur : on part de la fin (-n 0), pas de relecture du passé.
 func (l *Lecteur) arguments() []string {
 	args := []string{"--follow", "--no-pager", "--quiet", "-o", "json",
@@ -118,8 +121,7 @@ func (l *Lecteur) arguments() []string {
 	c := l.curseur
 	l.mu.Unlock()
 	if c != "" {
-		args = append(args, "--after-cursor="+c,
-			"--since=-"+strconv.Itoa(int(l.opt.AgeMax.Hours()))+"h")
+		args = append(args, "--after-cursor="+c)
 	} else {
 		args = append(args, "-n", "0")
 	}
@@ -137,6 +139,19 @@ func (l *Lecteur) Tourner(ctx context.Context, traiter func(*Entree)) {
 			break
 		}
 		l.Relances.Add(1)
+		// Échec immédiat avec un curseur (curseur refusé, journal effacé…) :
+		// on l'abandonne et on repart de la fin, plutôt que d'échouer sans fin.
+		l.mu.Lock()
+		abandon := err != nil && l.curseur != "" && time.Since(debut) < 10*time.Second
+		if abandon {
+			l.curseur = ""
+		}
+		l.mu.Unlock()
+		if abandon {
+			l.opt.Journal.Warn("journalctl refuse la reprise au curseur : reprise à la fin du journal", "erreur", err)
+			attente = time.Second
+			continue
+		}
 		if time.Since(debut) > time.Minute {
 			attente = time.Second // il a tourné normalement : on repart du début
 		}
@@ -177,7 +192,11 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 		if len(ligne) > 0 {
 			l.Lignes.Add(1)
 			if analyser(ligne, &e) {
-				traiter(&e)
+				if time.Since(e.Temps) > l.opt.AgeMax {
+					l.Anciennes.Add(1) // reprise après une longue coupure : pas au-delà de AgeMax
+				} else {
+					traiter(&e)
+				}
 				l.mu.Lock()
 				l.curseur = e.Curseur
 				l.mu.Unlock()
