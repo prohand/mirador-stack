@@ -25,6 +25,10 @@ import (
 //     oublie d'abord les compteurs périmés, puis les plus anciens compteurs
 //     NON verrouillés : un verrou actif n'est jamais effacé par une
 //     avalanche de noms ou d'adresses ;
+//   - verrou progressif : chaque nouveau verrou de la même adresse ou du
+//     même compte dure deux fois plus longtemps que le précédent (15 min,
+//     30 min, 1 h… 24 h au plus). La série repart de zéro après 24 h sans
+//     verrou, ou après une connexion réussie pour le compte ;
 //   - essais en cours : un essai est « réservé » avant la vérification du
 //     mot de passe ou du code (debuter). Sans cela, des requêtes envoyées
 //     toutes en même temps passaient le contrôle avant que le premier échec
@@ -35,6 +39,8 @@ import (
 
 const (
 	fenetreEchecs  = 15 * time.Minute
+	verrouMax      = 24 * time.Hour // plafond du verrou progressif
+	oubliSerie     = 24 * time.Hour // sans verrou pendant ce temps : la série repart de zéro
 	entreesMax     = 10000
 	confianceMax   = 5000
 	dureeConfiance = 30 * 24 * time.Hour
@@ -44,6 +50,7 @@ type compteur struct {
 	echecs    int
 	premier   time.Time
 	bloqueAvt time.Time
+	serie     int // verrous de suite (verrou progressif)
 }
 
 type table map[string]*compteur
@@ -127,14 +134,15 @@ func (v *verrous) bloqueCompte(nom, ip string, t time.Time) bool {
 	return v.comptes.bloque(nom, t)
 }
 
-// echecAdresse, echecCompte : un échec ; vrai si la clé vient d'être verrouillée.
-func (v *verrous) echecAdresse(ip string, seuil int, duree time.Duration, t time.Time) bool {
+// echecAdresse, echecCompte : un échec. Si la clé vient d'être verrouillée,
+// renvoie la durée du verrou (0 sinon).
+func (v *verrous) echecAdresse(ip string, seuil int, duree time.Duration, t time.Time) time.Duration {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.adresses.echec(cleAdresse(ip), seuil, duree, t)
 }
 
-func (v *verrous) echecCompte(nom string, seuil int, duree time.Duration, t time.Time) bool {
+func (v *verrous) echecCompte(nom string, seuil int, duree time.Duration, t time.Time) time.Duration {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.comptes.echec(nom, seuil, duree, t)
@@ -191,7 +199,7 @@ func (tb table) recents(cle string, t time.Time) int {
 	return c.echecs
 }
 
-func (tb table) echec(cle string, seuil int, duree time.Duration, t time.Time) bool {
+func (tb table) echec(cle string, seuil int, duree time.Duration, t time.Time) time.Duration {
 	c := tb[cle]
 	if c == nil {
 		if len(tb) >= entreesMax {
@@ -205,11 +213,20 @@ func (tb table) echec(cle string, seuil int, duree time.Duration, t time.Time) b
 	}
 	c.echecs++
 	if c.echecs >= seuil {
+		// Verrou progressif : durée doublée à chaque verrou de la série.
+		if t.Sub(c.bloqueAvt) > oubliSerie {
+			c.serie = 0
+		}
+		for i := 0; i < c.serie && duree < verrouMax; i++ {
+			duree *= 2
+		}
+		duree = min(duree, verrouMax)
+		c.serie++
 		c.bloqueAvt = t.Add(duree)
 		c.echecs, c.premier = 0, t
-		return true
+		return duree
 	}
-	return false
+	return 0
 }
 
 // faireDeLaPlace : compteurs périmés d'abord, puis le plus ancien compteur
@@ -217,7 +234,8 @@ func (tb table) echec(cle string, seuil int, duree time.Duration, t time.Time) b
 // verrou qui finit le plus tôt.
 func (tb table) faireDeLaPlace(t time.Time) {
 	for k, c := range tb {
-		if t.Sub(c.premier) > fenetreEchecs && !t.Before(c.bloqueAvt) {
+		// Périmé : plus d'échec récent, plus de verrou, et série oubliée.
+		if t.Sub(c.premier) > fenetreEchecs && !t.Before(c.bloqueAvt) && (c.serie == 0 || t.Sub(c.bloqueAvt) > oubliSerie) {
 			delete(tb, k)
 		}
 	}

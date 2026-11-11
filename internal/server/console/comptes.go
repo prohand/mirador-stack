@@ -120,7 +120,7 @@ func NombreUtilisateurs(ctx context.Context, db *sql.DB) (int, error) {
 // CreerUtilisateur ajoute un compte. Sa 2FA sera créée à sa première
 // connexion (obligatoire avant tout accès).
 func CreerUtilisateur(ctx context.Context, db *sql.DB, nom, role, mdp, qui, adresse string, t time.Time) error {
-	if err := errors.Join(VerifierNom(nom), verifierRole(role)); err != nil {
+	if err := errors.Join(VerifierNom(nom), verifierRole(role), VerifierSimple(mdp, nom)); err != nil {
 		return err
 	}
 	e, err := Empreinte(mdp)
@@ -196,6 +196,9 @@ func verifierUnAdmin(ctx context.Context, tx *sql.Tx) error {
 
 // DefinirMotDePasse change le mot de passe et ferme les sessions du compte.
 func DefinirMotDePasse(ctx context.Context, db *sql.DB, nom, mdp, qui, adresse string, t time.Time) error {
+	if err := VerifierSimple(mdp, nom); err != nil {
+		return err
+	}
 	e, err := Empreinte(mdp)
 	if err != nil {
 		return err

@@ -61,13 +61,13 @@ func (c *Console) prevenirSecurite(sujet, texte string, t time.Time) {
 
 // prevenirVerrou : compte verrouillé. Seulement si le compte existe : un
 // inconnu qui essaie des noms au hasard ne déclenche aucun message.
-func (c *Console) prevenirVerrou(nom, ip string, t time.Time) {
+func (c *Console) prevenirVerrou(nom, ip string, duree time.Duration, t time.Time) {
 	if c.prevenir == nil || VerifierNom(nom) != nil {
 		return
 	}
 	if _, err := LireUtilisateur(context.Background(), c.db, nom); err != nil {
 		return
 	}
-	c.prevenirSecurite("verrou|"+nom, "🔒 mirador : compte « "+nom+" » verrouillé après trop d'échecs de connexion.\nDernière adresse : "+ip+
+	c.prevenirSecurite("verrou|"+nom, "🔒 mirador : compte « "+nom+" » verrouillé pour "+duree.String()+" après trop d'échecs de connexion.\nDernière adresse : "+ip+
 		"\nSi ce n'est pas vous : vérifier le journal et la page Sécurité.", t)
 }

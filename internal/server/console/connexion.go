@@ -71,12 +71,15 @@ func nomJournal(nom string) string {
 func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
 	sec := c.securite.Load()
 	c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", raison)
-	if c.verrous.echecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t) {
-		c.journal.Warn("console : adresse verrouillée", "ip", ip, "duree", time.Duration(sec.Verrou).String())
+	if d := c.verrous.echecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
+		c.journal.Warn("console : adresse verrouillée", "ip", ip, "duree", d.String())
 	}
-	if nom != "" && c.verrous.echecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t) {
-		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nomJournal(nom), "duree", time.Duration(sec.Verrou).String())
-		c.prevenirVerrou(nom, ip, t)
+	if nom == "" {
+		return
+	}
+	if d := c.verrous.echecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
+		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nomJournal(nom), "duree", d.String())
+		c.prevenirVerrou(nom, ip, d, t)
 	}
 }
 

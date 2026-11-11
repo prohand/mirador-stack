@@ -36,6 +36,7 @@ const NomCookie = "__Host-mirador"
 // Bornes.
 const (
 	sessionsMax      = 1000
+	partiellesMax    = 3               // sessions « avant le code » par compte
 	dureeAvantCode   = 5 * time.Minute // entre le mot de passe et le code
 	essaisCodeMax    = 5               // codes faux avant de tout reprendre
 	tailleIdentifant = 32
@@ -91,11 +92,38 @@ func (m *magasin) creer(s *Session, t time.Time) string {
 	s.Creee, s.Vue = t, t
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if s.Etape != etapeComplet {
+		m.limiterPartielles(s.UtilisateurID)
+	}
 	if len(m.tout) >= sessionsMax {
 		m.evincer()
 	}
 	m.tout[s.empreinte] = s
 	return id
+}
+
+// limiterPartielles : au plus partiellesMax sessions « avant le code » par
+// compte (appelé sous verrou, avant d'en ajouter une). La plus ancienne est
+// fermée : quelqu'un qui connaît le mot de passe ne peut pas en ouvrir des
+// centaines pour essayer des codes sur chacune.
+func (m *magasin) limiterPartielles(utilisateur int64) {
+	for {
+		var vieille *Session
+		n := 0
+		for _, s := range m.tout {
+			if s.UtilisateurID != utilisateur || s.Etape == etapeComplet {
+				continue
+			}
+			n++
+			if vieille == nil || s.Creee.Before(vieille.Creee) {
+				vieille = s
+			}
+		}
+		if n < partiellesMax {
+			return
+		}
+		delete(m.tout, vieille.empreinte)
+	}
 }
 
 // evincer retire la session la moins récemment vue (appelé sous verrou).
