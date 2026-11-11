@@ -24,7 +24,11 @@ import (
 //   - les tables sont bornées (10 000 entrées) ; quand l'une est pleine, on
 //     oublie d'abord les compteurs périmés, puis les plus anciens compteurs
 //     NON verrouillés : un verrou actif n'est jamais effacé par une
-//     avalanche de noms ou d'adresses.
+//     avalanche de noms ou d'adresses ;
+//   - essais en cours : un essai est « réservé » avant la vérification du
+//     mot de passe ou du code (debuter). Sans cela, des requêtes envoyées
+//     toutes en même temps passaient le contrôle avant que le premier échec
+//     soit compté (40 mots de passe essayés au lieu de 5, mesuré le 11/11).
 // Rien n'est écrit sur disque : chaque échec est écrit dans le journal du
 // serveur, qu'un outil comme CrowdSec ou fail2ban peut lire pour bannir l'adresse. La commande
 // « utilisateur-secours » lève tous les verrous (Tour).
@@ -49,10 +53,45 @@ type verrous struct {
 	adresses  table
 	comptes   table
 	confiance map[string]time.Time // « compte|adresse » → dernière connexion réussie
+	enCours   map[string]int       // essais en cours de vérification (« a|adresse », « c|compte »)
 }
 
 func nouveauxVerrous() *verrous {
-	return &verrous{adresses: table{}, comptes: table{}, confiance: map[string]time.Time{}}
+	return &verrous{adresses: table{}, comptes: table{}, confiance: map[string]time.Time{}, enCours: map[string]int{}}
+}
+
+// debuter réserve un essai (mot de passe ou code) pour cette adresse et ce
+// compte, AVANT la vérification. Refusé (faux) si les échecs récents plus
+// les essais déjà en cours atteignent le seuil : une rafale de requêtes
+// simultanées ne permet donc pas plus d'essais que des requêtes à la suite.
+// Si l'essai est accepté, appeler finir quand la vérification est terminée
+// (et comptée). La table des essais en cours ne contient que les requêtes
+// en cours de traitement : elle se vide toute seule.
+func (v *verrous) debuter(nom, ip string, seuil int, t time.Time) (finir func(), ok bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	adr := cleAdresse(ip)
+	ka, kc := "a|"+adr, "c|"+nom
+	if v.adresses.recents(adr, t)+v.enCours[ka] >= seuil {
+		return nil, false
+	}
+	// Compte : seuil 3 fois plus haut, et jamais pour une adresse de
+	// confiance (mêmes règles que bloqueCompte et echecCompte).
+	le, connue := v.confiance[nom+"|"+adr]
+	if !(connue && t.Sub(le) < dureeConfiance) && v.comptes.recents(nom, t)+v.enCours[kc] >= 3*seuil {
+		return nil, false
+	}
+	v.enCours[ka]++
+	v.enCours[kc]++
+	return func() {
+		v.mu.Lock()
+		defer v.mu.Unlock()
+		for _, k := range []string{ka, kc} {
+			if v.enCours[k]--; v.enCours[k] <= 0 {
+				delete(v.enCours, k)
+			}
+		}
+	}, true
 }
 
 // cleAdresse : l'adresse (IPv4) ou son /64 (IPv6).
@@ -132,6 +171,15 @@ func (v *verrous) lever() {
 func (tb table) bloque(cle string, t time.Time) bool {
 	c := tb[cle]
 	return c != nil && t.Before(c.bloqueAvt)
+}
+
+// recents : échecs comptés dans la fenêtre en cours.
+func (tb table) recents(cle string, t time.Time) int {
+	c := tb[cle]
+	if c == nil || t.Sub(c.premier) > fenetreEchecs {
+		return 0
+	}
+	return c.echecs
 }
 
 func (tb table) echec(cle string, seuil int, duree time.Duration, t time.Time) bool {

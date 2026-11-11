@@ -41,12 +41,20 @@ func (c *Console) postMotDePasse(q *req) {
 		if c.sensibleBloque(q) {
 			return errTropEssais
 		}
-		if !Comparer(q.u.MotDePasse, q.r.PostFormValue("actuel")) {
-			if err := c.echecSensible(q, "mot de passe faux (changement)"); err != nil {
+		finir, libre := c.debuterSensible(q)
+		if !libre {
+			return errTropEssais
+		}
+		bon := Comparer(q.u.MotDePasse, q.r.PostFormValue("actuel"))
+		if !bon {
+			err := c.echecSensible(q, "mot de passe faux (changement)")
+			finir()
+			if err != nil {
 				return err
 			}
 			return errors.New("mot de passe actuel ou code 2FA faux")
 		}
+		finir() // avant verifierCode, qui réserve son propre essai
 		if err := c.verifierCode(q); err != nil {
 			if errors.Is(err, errTropEssais) || errors.Is(err, errSessionFermee) {
 				return err

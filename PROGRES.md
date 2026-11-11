@@ -512,6 +512,18 @@ docker volume ls
 Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la SPEC
 à jour si tu en trouves.
 
+## Deuxième revue de sécurité et d'architecture (11/11)
+
+- Branche `claude/architecture-security-login-sont9e` ; détail : SPEC § 18.27.
+- **Corrigé** : verrou de connexion contournable par une rafale de requêtes
+  simultanées (40 mots de passe essayés au lieu de 5, mesuré). Un essai est
+  maintenant réservé avant chaque vérification (mot de passe, code 2FA,
+  actions sensibles). Tests : `rafale_test.go` ; `go vet` et
+  `go test -race ./...` verts.
+- Coût : une table en mémoire limitée aux requêtes en cours (quelques
+  octets) ; pas de CPU ni d'I/O en plus.
+- **À valider** : 7 propositions de sécurité et 7 d'architecture (SPEC § 18.27).
+
 ## Prochaine étape
 
 - Étape 3 **validée le 10/11/2026** (pull request #4).

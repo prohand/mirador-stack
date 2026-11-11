@@ -410,6 +410,12 @@ func (c *Console) sensibleBloque(q *req) bool {
 	return c.verrous.bloqueAdresse(q.ip.String(), q.t) || c.verrous.bloqueCompte(q.u.Nom, q.ip.String(), q.t)
 }
 
+// debuterSensible : essai réservé avant la vérification d'un code ou d'un
+// mot de passe (rafale de requêtes simultanées : voir verrou.go).
+func (c *Console) debuterSensible(q *req) (finir func(), ok bool) {
+	return c.verrous.debuter(q.u.Nom, q.ip.String(), c.securite.Load().Echecs, q.t)
+}
+
 // echecSensible : compté par adresse ET par compte, et dans la session ;
 // au 5e, la session est fermée.
 func (c *Console) echecSensible(q *req, raison string) error {
@@ -431,6 +437,11 @@ func (c *Console) verifierCode(q *req) error {
 	if c.sensibleBloque(q) {
 		return errTropEssais
 	}
+	finir, libre := c.debuterSensible(q)
+	if !libre {
+		return errTropEssais
+	}
+	defer finir()
 	secret, err := c.dechiffrerTOTP(q.u.TOTP)
 	if err != nil {
 		return err

@@ -69,7 +69,10 @@ func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
 	}
 }
 
-const messageEchec = "Nom ou mot de passe faux"
+const (
+	messageEchec      = "Nom ou mot de passe faux"
+	messageSimultanes = "trop d'essais en même temps : réessayer dans un instant"
+)
 
 func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	t := c.maintenant()
@@ -92,6 +95,16 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
 		return
 	}
+	// Essai réservé avant le calcul : une rafale de requêtes simultanées
+	// ne donne pas plus d'essais que le seuil (voir verrou.go).
+	finir, ok := c.verrous.debuter(nom, ip, c.securite.Load().Echecs, t)
+	if !ok {
+		d.Erreur = messageSimultanes
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nom, "raison", "trop d'essais en même temps")
+		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
+		return
+	}
+	defer finir()
 	u, err := LireUtilisateur(r.Context(), c.db, nom)
 	if err != nil && !errors.Is(err, ErrUtilisateurInconnu) {
 		http.Error(w, "base indisponible", http.StatusServiceUnavailable)
@@ -180,6 +193,16 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return
 	}
+	// Essai réservé avant la vérification (rafale de codes, même répartie
+	// sur plusieurs sessions partielles : voir verrou.go).
+	finir, ok := c.verrous.debuter(s.Nom, ip, c.securite.Load().Echecs, t)
+	if !ok {
+		d.Erreur = messageSimultanes
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", s.Nom, "raison", "trop d'essais en même temps")
+		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "code", "Code 2FA", d)
+		return
+	}
+	defer finir()
 	u, err := LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
 	if err != nil || u.Desactive || u.TOTP == "" || u.Generation != s.Generation {
 		c.sessions.supprimer(s.empreinte)

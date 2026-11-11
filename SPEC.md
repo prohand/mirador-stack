@@ -2774,3 +2774,44 @@ Menaces :
 | Workflow modifié sur une branche pour lire la clé | secrets d'environnement limités aux tags `v*` ; `main` protégée (PR obligatoire) |
 | Compte GitHub piraté | peut signer : protéger le compte (2FA, clés de sécurité) ; c'était déjà le cas (le code venait de GitHub) |
 | GitHub ou réseau qui sert un autre fichier | signature vérifiée avec la clé réglée ; empreinte et taille vérifiées |
+
+### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions à valider]**
+
+Revue en lecture du code de connexion (mot de passe, 2FA, sessions,
+verrous), du déploiement et de l'organisation du code.
+
+Corrigé (gravité moyenne) :
+
+| Constat | Correction |
+|---|---|
+| Verrou contournable par une rafale : le verrou était lu avant le calcul, l'échec compté après. Des requêtes envoyées en même temps passaient toutes le contrôle. Mesuré : 40 mots de passe essayés au lieu de 5 depuis une adresse (`TestRafaleMotsDePasse`). Même principe pour les codes 2FA (mesuré : 6 au lieu de 5 ; en théorie plus avec beaucoup de sessions partielles) | un essai est **réservé avant** la vérification (`verrous.debuter`) : échecs récents + essais en cours ≥ seuil → refus (429, non compté, écrit dans le journal). Appliqué au mot de passe, au code 2FA, aux actions sensibles et au changement de mot de passe. Coût : une table en mémoire qui ne contient que les requêtes en cours |
+
+Propositions de sécurité (non faites, à valider) :
+
+| Gravité | Constat | Proposition |
+|---|---|---|
+| Moyenne | Mot de passe volé : rien ne prévient l'admin. Les codes 2FA faux après un bon mot de passe ne font qu'une ligne de journal | notification (canal existant) sur « code 2FA faux après un bon mot de passe », « compte verrouillé » et « connexion depuis une nouvelle adresse » |
+| Faible | Le nom saisi est écrit tel quel dans le journal : un mot de passe tapé par erreur dans le champ « Nom » s'y retrouve (et part vers CrowdSec) | écrire le nom seulement s'il a la forme d'un nom valide, sinon « (invalide) » |
+| Faible | Durée du verrou fixe (15 min) : un attaquant patient recommence sans fin | durée doublée à chaque nouveau verrou du même compte (plafond 24 h) |
+| Faible | Sessions partielles sans limite par compte (avec le bon mot de passe) | 3 sessions partielles au plus par compte, la plus ancienne est fermée |
+| Faible | Redémarrage = verrous oubliés | acceptable (CrowdSec garde ses bannissements) ; à noter |
+| Info | Pas de liste de mots de passe trop courants | petite liste embarquée (~10 Ko) ou rien : 12 caractères + 2FA suffisent |
+| Info | `Sec-Fetch-Site: none` accepté pour une écriture | garder (jeton CSRF + `SameSite=Strict` couvrent) |
+
+Vérifié, rien à redire : cookie `__Host-`, nouvel identifiant à chaque
+étape, empreinte SHA-256 de l'identifiant, Argon2id + leurre, anti-rejeu
+TOTP, CSRF, CSP sans script en ligne, corps limité à 1 Mio, adresse du
+client prise seulement derrière le proxy déclaré, nom d'utilisateur sensible
+à la casse (pas de contournement du verrou par « Admin »).
+
+Propositions d'architecture (non faites, à valider) :
+
+| Sujet | Constat | Proposition | Coût |
+|---|---|---|---|
+| Paquet `console` | 10 500 lignes, 30 % du code : pages, comptes, sessions, verrous, tableaux mélangés | sortir l'authentification dans `internal/server/auth` (comptes, mot de passe, TOTP, sessions, verrous) : plus facile à relire et à tester seul | aucun à l'exécution |
+| Réseau Docker `obs` | partagé avec l'ancienne stack : un autre conteneur joint mirador sans nginx | réseau dédié `mirador` (nginx de l'hôte + Olvid seulement) à la bascule (étape 7) | aucun |
+| Écoutes | `0.0.0.0` dans le conteneur, protection = pas de port publié | garder, mais refuser au démarrage une écoute hors boucle locale sans `MIRADOR_PROXY` ni TLS | aucun |
+| Dépendances | AWS SDK, SFTP, Prometheus, gRPC dans un seul binaire : grosse surface | `govulncheck` déjà en CI ; ajouter Dependabot (ou Renovate) et figer les actions par empreinte | aucun |
+| Démarrage | `Demarrer` ferme à la main à chaque erreur (`errors.Join(…Close())` répété 8 fois) | une liste de « fermetures » dépilée en cas d'erreur | aucun |
+| Réglages | relus en base toutes les 5 s par la console (5 requêtes SQLite par tour) | un numéro de version des réglages, relu seul ; le reste seulement s'il change | moins d'I/O |
+| Sessions | en mémoire : un redémarrage (mise à jour) déconnecte tout le monde | garder (plus sûr, zéro écriture disque) | — |
