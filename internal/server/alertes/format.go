@@ -144,6 +144,7 @@ func importerMirador(brut []byte) (*Rapport, error) {
 type fichierVmalert struct {
 	Groups []struct {
 		Name     string         `yaml:"name"`
+		Type     string         `yaml:"type"` // '' ou prometheus ; vlogs = LogsQL (VictoriaLogs)
 		Interval string         `yaml:"interval"`
 		Rules    []regleVmalert `yaml:"rules"`
 	} `yaml:"groups"`
@@ -188,6 +189,20 @@ func importerVmalert(brut []byte, nomFichier string) (*Rapport, error) {
 			iv = d
 		}
 		for _, v := range g.Rules {
+			if g.Type != "" && g.Type != "prometheus" {
+				// Règles sur les logs (vmalert-logs, LogsQL) : langage non géré
+				// par mirador ; le rapport le dit, rien n'est importé.
+				ligne := LigneRapport{Nom: v.Alert, Groupe: groupe, Classement: Impossible,
+					Note: "règle « " + g.Type + " » (LogsQL, sur les logs) : langage non géré par mirador"}
+				if v.Record != "" {
+					ligne.Nom = v.Record
+				}
+				if pourquoi, ok := metriquesEnregistrees[ligne.Nom]; ok {
+					ligne.Note += " ; " + pourquoi
+				}
+				rap.Lignes = append(rap.Lignes, ligne)
+				continue
+			}
 			ligne, regle := convertir(v, groupe, iv, nomFichier)
 			if regle != nil {
 				if vus[regle.Nom] {
