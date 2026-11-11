@@ -126,6 +126,7 @@ func TestLecteurEtCurseur(t *testing.T) {
 func TestLignesTropAnciennes(t *testing.T) {
 	dir := t.TempDir()
 	curseur := filepath.Join(dir, "journal.cursor")
+	_ = os.WriteFile(curseur, []byte("s=abc;i=0;b=def;m=0;t=599;x=0\n"), 0o600) // reprise
 	l := NewLecteur(Options{FichierCurseur: curseur, Commande: fauxJournalctl(t, dir), AgeMax: time.Hour,
 		Journal: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	ctx, annuler := context.WithCancel(context.Background())

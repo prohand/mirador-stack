@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -169,7 +170,10 @@ func (l *Lecteur) Tourner(ctx context.Context, traiter func(*Entree)) {
 const tailleMaxLigne = 256 << 10
 
 func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
-	cmd := exec.CommandContext(ctx, l.opt.Commande, l.arguments()...) // #nosec G204 -- programme et options figés
+	args := l.arguments()
+	// Reprise après un curseur : pas plus de AgeMax en arrière (voir arguments).
+	reprise := strings.HasPrefix(args[len(args)-1], "--after-cursor=")
+	cmd := exec.CommandContext(ctx, l.opt.Commande, args...) // #nosec G204 -- programme et options figés
 	cmd.Env = []string{"LANG=C.UTF-8", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "SYSTEMD_COLORS=0"}
 	// À l'arrêt : SIGTERM, puis on n'attend pas plus de 2 s la fermeture des
 	// sorties (un processus bloqué ne doit pas bloquer l'arrêt de l'agent).
@@ -192,7 +196,7 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 		if len(ligne) > 0 {
 			l.Lignes.Add(1)
 			if analyser(ligne, &e) {
-				if time.Since(e.Temps) > l.opt.AgeMax {
+				if reprise && time.Since(e.Temps) > l.opt.AgeMax {
 					l.Anciennes.Add(1) // reprise après une longue coupure : pas au-delà de AgeMax
 				} else {
 					traiter(&e)
