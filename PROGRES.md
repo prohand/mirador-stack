@@ -305,18 +305,23 @@ aucun écart au premier passage. Mesure de 24 h en cours sur l'agent.
 posée à l'installation (fichier root) ; versions signées par la CI de GitHub
 (environnement `signature` limité aux tags) et importées depuis
 l'interface. `v0.2.9` : agent signé publié, importé (« signature vérifiée :
-amd64, arm64 ») ; dhcp-dns02 passé à la main en 0.2.9 avec la clé posée et
+amd64, arm64 ») ; la machine de test passée à la main en 0.2.9 avec la clé posée et
 `--auto-update`. Prochaine étape : `v0.2.10` (script relançable sans jeton
-avec le token de la machine) assignée à dhcp-dns02 → première mise à jour
+avec le token de la machine) assignée à la machine de test → première mise à jour
 automatique.
 
-**Bug trouvé (11/11, dhcp-dns02, Debian 13)** : après un redémarrage de
+**Bug trouvé (11/11, machine de test, Debian récente)** : après un redémarrage de
 l'agent, la reprise du journal système échouait (« Please specify only one
 of --since=, --cursor=, and --after-cursor= ») : `--after-cursor` et
 `--since` refusés ensemble par les systemd récents ; logs système plus
 envoyés depuis la réinstallation (métriques intactes). Corrigé en 0.2.11 :
 `--after-cursor` seul, lignes de plus de 12 h ignorées par l'agent ; si
 journalctl refuse le curseur, reprise à la fin du journal.
+
+**Première mise à jour automatique (11/11)** : `v0.2.10` signée par la CI,
+importée, assignée ; la machine de test est passée seule de 0.2.9 à 0.2.10
+(signature vérifiée, redémarrage propre, essai de 10 min, « mise à jour
+confirmée »).
 
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
