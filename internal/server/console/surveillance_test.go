@@ -223,6 +223,12 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 		cfg.IgnorerMontages == nil {
 		t.Fatalf("après rétablissement : %+v", cfg)
 	}
+	// Certificat retiré puis supprimé de la machine : « Oublier » le retire
+	// de la liste des retraits.
+	poster("pve1", url.Values{"c./etc/ssl/local/vieux.pem": {"oublier"}, "code": {b.code(secret)}})
+	if cfg, _ = flotte.ConfigEffective(ctx, b.db, 1); cfg.CertificatsIgnorer != nil {
+		t.Fatalf("certificat oublié encore retiré : %v", *cfg.CertificatsIgnorer)
+	}
 	// Chemin de certificat dangereux : refusé avec un message clair.
 	if _, page := poster("pve1", url.Values{"certificats_nouveaux": {"/etc/shadow"}, "code": {b.code(secret)}}); !strings.Contains(page, "chemin de certificat refusé") {
 		t.Error("/etc/shadow accepté")

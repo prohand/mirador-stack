@@ -42,7 +42,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{if not $s.Elements}}<p class="message">L'agent de cette machine est trop ancien pour retirer un élément précis : <a href="/mises-a-jour">le mettre à jour</a>.</p>{{end}}
 <div class="defile"><table><thead><tr><th>Type</th><th>Nom</th><th>Détail</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
 {{range $s.Composants}}<tr><td>{{majuscule .Genre}}</td><td><code>{{.Nom}}</code></td><td>{{if .Retire}}<span class="pastille">Retiré</span>{{else}}{{.Detail}}{{end}}</td>
-{{if $.Admin}}<td><select class="petit" name="e.{{.Genre}}.{{.Nom}}" aria-label="{{.Nom}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
+{{if $.Admin}}<td><select class="petit" name="e.{{.Genre}}.{{.Nom}}" aria-label="{{.Nom}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option><option value="oublier">Oublier (supprimé de la machine)</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
 </tbody></table></div>
 <p><small>Processeur et mémoire sont toujours envoyés avec « Système ». Les disques virtuels (loop, ram, dm-…), les interfaces internes (docker, veth, lo…) et les montages système ne sont jamais listés : réglage dans <a href="/reglages/agents">Configuration des agents</a>.</small></p>
 </details>{{end}}
@@ -51,7 +51,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{if $s.Certs}}<div class="defile"><table><thead><tr><th>Fichier</th><th>Nom</th><th>Émetteur</th><th>Expire</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
 {{range $s.Certs}}<tr><td><code>{{.Chemin}}</code></td><td>{{.CN}}</td><td>{{.Emetteur}}</td>
 <td>{{if .Retire}}<span class="pastille">Retiré</span>{{else}}<span class="pastille {{if lt .Jours 7}}erreur{{else if lt .Jours 21}}attention{{else}}ok{{end}}">{{.Jours}} j</span> <small>{{dateS .FinS}}</small>{{end}}</td>
-{{if $.Admin}}<td><select class="petit" name="c.{{.Chemin}}" aria-label="{{.Chemin}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
+{{if $.Admin}}<td><select class="petit" name="c.{{.Chemin}}" aria-label="{{.Chemin}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option><option value="oublier">Oublier (fichier supprimé)</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{else}}<p><small>Aucun certificat trouvé pour l'instant.</small></p>{{end}}
 <h4>Où chercher</h4>
 <p><small>Toujours cherchés (fichier local de la machine) : <code>/etc/letsencrypt/live/*/cert.pem</code>, <code>/etc/ssl/local/*.crt</code>, <code>/etc/ssl/local/*.pem</code>, <code>/etc/pve/local/pveproxy-ssl.pem</code>, <code>/etc/proxmox-backup/proxy.pem</code>.</small></p>

@@ -946,7 +946,10 @@ func choixElements(q *req, cfg *distant.ConfigDistante) (map[string]any, error) 
 				delete(listes[cle], nom)
 			case valeurs[0] == "retirer":
 				listes[cle][nom] = true
-			case valeurs[0] == "retablir" && cle != "certificats_ajout":
+			case (valeurs[0] == "retablir" || valeurs[0] == "oublier") && cle != "certificats_ajout":
+				// « Oublier » (fichier ou élément supprimé de la machine) : comme
+				// « Rétablir », il quitte la liste des retraits ; s'il existe
+				// encore, il est de nouveau envoyé.
 				delete(listes[cle], nom)
 			default:
 				return nil, errors.New("choix inconnu")
