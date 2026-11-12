@@ -418,3 +418,10 @@ form.surv h3 { font-size: 13px; margin: 18px 0 8px; }
 .surv-ignores { display: flex; flex-wrap: wrap; gap: 8px; }
 .surv-ignores .pastille { white-space: normal; padding: 5px 10px; font-weight: 500; }
 .surv-pied { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--bord-doux); }
+
+/* --- Codes de secours et passkeys (SPEC § 20) ---------------------------------------- */
+.codes-secours { list-style: none; padding: 0; margin: 0 0 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.codes-secours code { display: block; padding: 8px 10px; border: 1px solid var(--bord); border-radius: 10px; background: var(--entete-table); font-size: 15px; letter-spacing: .04em; text-align: center; user-select: all; }
+details.secours { margin: 14px 0; }
+details.secours form { margin-top: 10px; }
+form[data-passkey-form] { margin-top: 12px; }

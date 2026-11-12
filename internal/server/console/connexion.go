@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"mirador-stack/internal/server/auth"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +34,9 @@ type donneesConnexion struct {
 	Nom, Erreur, Secret, Jeton string
 	QR                         template.URL
 	Premier                    bool
+	// Passkeys du compte utilisables sous ce domaine (étape du code) : défi,
+	// domaine et identifiants (séparés par des virgules), pour passkey.js.
+	PKDefi, PKDomaine, PKIds string
 }
 
 func (c *Console) pageConnexion(w http.ResponseWriter, r *http.Request) {
@@ -192,36 +196,112 @@ func (c *Console) pageCode(w http.ResponseWriter, r *http.Request) {
 	if s == nil {
 		return
 	}
-	c.pages.rendreSeule(w, "code", "Code 2FA", donneesConnexion{Nom: s.Nom, Jeton: s.CSRF})
+	c.rendreEtapeCode(w, r, http.StatusOK, s, "")
 }
 
-func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
-	s := c.sessionEtape(w, r, auth.EtapeCode)
+// rendreEtapeCode affiche la page de l'étape 2FA : code TOTP, passkey (si le
+// compte en a pour ce domaine : un nouveau défi est préparé) ou code de
+// secours.
+func (c *Console) rendreEtapeCode(w http.ResponseWriter, r *http.Request, code int, s *auth.Session, erreur string) {
+	d := donneesConnexion{Nom: s.Nom, Jeton: s.CSRF, Erreur: erreur}
+	if domaine, _, err := auth.DomaineEtOrigine(r.Host); err == nil && auth.PasskeyPossible(domaine) {
+		var ids []string
+		if liste, err := auth.ListerPasskeys(r.Context(), c.db, s.UtilisateurID); err == nil {
+			for _, p := range liste {
+				if p.Domaine == domaine {
+					ids = append(ids, p.IdentifiantB64())
+				}
+			}
+		}
+		if len(ids) > 0 {
+			if defi, err := auth.NouveauDefiPasskey(); err == nil {
+				t := c.maintenant()
+				c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.DefiPasskey, x.DefiPasskeyLe = defi, t })
+				d.PKDefi, d.PKDomaine, d.PKIds = defi, domaine, strings.Join(ids, ",")
+			}
+		}
+	}
+	c.pages.rendreSeuleCode(w, code, "code", "Code 2FA", d)
+}
+
+// debutEtapeCode : contrôles communs aux trois façons de passer l'étape 2FA
+// (code TOTP, code de secours, passkey) : session partielle, verrous, essai
+// réservé, compte relu. ok = false : la réponse est déjà envoyée.
+func (c *Console) debutEtapeCode(w http.ResponseWriter, r *http.Request) (s *auth.Session, u auth.Utilisateur, finir func(), ok bool) {
+	s = c.sessionEtape(w, r, auth.EtapeCode)
 	if s == nil {
-		return
+		return nil, u, nil, false
 	}
 	t := c.maintenant()
 	ip := web.AdresseClient(r).String()
-	d := donneesConnexion{Nom: s.Nom, Jeton: s.CSRF}
 	if c.verrous.BloqueAdresse(ip, t) || c.verrous.BloqueCompte(s.Nom, ip, t) {
 		c.sessions.Supprimer(s.Empreinte)
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
-		return
+		return nil, u, nil, false
 	}
 	// Essai réservé avant la vérification (rafale de codes, même répartie
 	// sur plusieurs sessions partielles : voir verrou.go).
-	finir, ok := c.verrous.Debuter(s.Nom, ip, c.securite.Load().Echecs, t)
-	if !ok {
-		d.Erreur = messageSimultanes
+	finir, libre := c.verrous.Debuter(s.Nom, ip, c.securite.Load().Echecs, t)
+	if !libre {
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", s.Nom, "raison", "trop d'essais en même temps")
-		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "code", "Code 2FA", d)
+		c.rendreEtapeCode(w, r, http.StatusTooManyRequests, s, messageSimultanes)
+		return nil, u, nil, false
+	}
+	u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
+	if err != nil || u.Desactive || u.TOTP == "" || u.Generation != s.Generation {
+		finir()
+		c.sessions.Supprimer(s.Empreinte)
+		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+		return nil, u, nil, false
+	}
+	return s, u, finir, true
+}
+
+// echecEtapeCode : essai manqué à l'étape 2FA (compteurs, message à
+// l'administrateur, retour au début après 5 essais).
+func (c *Console) echecEtapeCode(w http.ResponseWriter, r *http.Request, s *auth.Session, u auth.Utilisateur, raison, message string) {
+	t := c.maintenant()
+	ip := web.AdresseClient(r).String()
+	c.echecConnexion(ip, u.Nom, raison, t)
+	// Le mot de passe était bon : s'il ne s'agit pas d'une faute de
+	// frappe, quelqu'un d'autre le connaît.
+	c.prevenirSecurite("2fa|"+u.Nom, "⚠️ mirador : "+raison+" pour « "+u.Nom+" » après un mot de passe juste.\nAdresse : "+ip+
+		"\nSi ce n'est pas vous : changer le mot de passe de ce compte.", t)
+	essais := 0
+	c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.EssaisCode++; essais = x.EssaisCode })
+	if essais >= auth.EssaisCodeMax {
+		c.sessions.Supprimer(s.Empreinte)
+		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+		return
+	}
+	c.rendreEtapeCode(w, r, http.StatusUnauthorized, s, message)
+}
+
+// postCode : code TOTP, ou code de secours (champ « secours ») si le
+// téléphone est perdu.
+func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
+	s, u, finir, ok := c.debutEtapeCode(w, r)
+	if !ok {
 		return
 	}
 	defer finir()
-	u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
-	if err != nil || u.Desactive || u.TOTP == "" || u.Generation != s.Generation {
-		c.sessions.Supprimer(s.Empreinte)
-		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+	t := c.maintenant()
+	ip := web.AdresseClient(r).String()
+	if secours := r.PostFormValue("secours"); secours != "" {
+		bon, err := auth.UtiliserCodeSecours(r.Context(), c.db, u, secours, ip, t)
+		if err != nil {
+			http.Error(w, "base indisponible", http.StatusServiceUnavailable)
+			return
+		}
+		if !bon {
+			c.echecEtapeCode(w, r, s, u, "code de secours faux", "code de secours faux ou déjà utilisé")
+			return
+		}
+		restants, _ := auth.CodesSecoursRestants(r.Context(), c.db, u.ID)
+		c.journal.Warn("console : connexion avec un code de secours", "ip", ip, "utilisateur", u.Nom, "restants", restants)
+		c.prevenirSecurite("secours|"+u.Nom, "🛟 mirador : « "+u.Nom+" » s'est connecté avec un code de secours.\nAdresse : "+ip+
+			"\nCodes restants : "+strconv.Itoa(restants)+".\nSi ce n'est pas vous : changer le mot de passe et recréer la 2FA.", t)
+		c.reussir(w, r, s, u.Nom, ip, t)
 		return
 	}
 	secret, err := c.dechiffrerTOTP(u.TOTP)
@@ -230,28 +310,61 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "2FA illisible : voir le journal du serveur", http.StatusInternalServerError)
 		return
 	}
-	pas, ok := auth.VerifierTOTP(secret, r.PostFormValue("code"), t, u.TOTPDernier)
-	if ok {
-		if ok, err = auth.NoterPasTOTP(r.Context(), c.db, u.ID, pas, t); err != nil {
+	pas, bon := auth.VerifierTOTP(secret, r.PostFormValue("code"), t, u.TOTPDernier)
+	if bon {
+		if bon, err = auth.NoterPasTOTP(r.Context(), c.db, u.ID, pas, t); err != nil {
 			http.Error(w, "base indisponible", http.StatusServiceUnavailable)
 			return
 		}
 	}
+	if !bon {
+		c.echecEtapeCode(w, r, s, u, "code 2FA faux", "code faux ou déjà utilisé")
+		return
+	}
+	c.reussir(w, r, s, u.Nom, ip, t)
+}
+
+// postPasskey : la passkey remplace le code 2FA (SPEC § 20). Le défi vient
+// de la session partielle et ne sert qu'une fois.
+func (c *Console) postPasskey(w http.ResponseWriter, r *http.Request) {
+	s, u, finir, ok := c.debutEtapeCode(w, r)
 	if !ok {
-		c.echecConnexion(ip, u.Nom, "code 2FA faux", t)
-		// Le mot de passe était bon : s'il ne s'agit pas d'une faute de
-		// frappe, quelqu'un d'autre le connaît.
-		c.prevenirSecurite("2fa|"+u.Nom, "⚠️ mirador : code 2FA faux pour « "+u.Nom+" » après un mot de passe juste.\nAdresse : "+ip+
-			"\nSi ce n'est pas vous : changer le mot de passe de ce compte.", t)
-		essais := 0
-		c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.EssaisCode++; essais = x.EssaisCode })
-		if essais >= auth.EssaisCodeMax {
-			c.sessions.Supprimer(s.Empreinte)
-			http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+		return
+	}
+	defer finir()
+	t := c.maintenant()
+	ip := web.AdresseClient(r).String()
+	defi, _ := c.sessions.PrendreDefiPasskey(s.Empreinte, t)
+	err := func() error {
+		domaine, origine, err := auth.DomaineEtOrigine(r.Host)
+		if err != nil || defi == "" {
+			return auth.ErrPasskey
+		}
+		liste, err := auth.ListerPasskeys(r.Context(), c.db, u.ID)
+		if err != nil {
+			return err
+		}
+		for i := range liste {
+			p := &liste[i]
+			if p.IdentifiantB64() != r.PostFormValue("identifiant") {
+				continue
+			}
+			compteur, err := auth.VerifierConnexion(p, r.PostFormValue("client"), r.PostFormValue("authentificateur"),
+				r.PostFormValue("signature"), defi, domaine, origine)
+			if err != nil {
+				return err
+			}
+			return auth.NoterPasskeyUtilisee(r.Context(), c.db, p.ID, compteur, t)
+		}
+		return auth.ErrPasskey // clé inconnue pour ce compte
+	}()
+	if err != nil {
+		if !errors.Is(err, auth.ErrPasskey) {
+			http.Error(w, "base indisponible", http.StatusServiceUnavailable)
 			return
 		}
-		d.Erreur = "code faux ou déjà utilisé"
-		c.pages.rendreSeuleCode(w, http.StatusUnauthorized, "code", "Code 2FA", d)
+		c.journal.Warn("console : passkey refusée", "ip", ip, "utilisateur", u.Nom, "detail", err.Error())
+		c.echecEtapeCode(w, r, s, u, "passkey refusée", "passkey refusée : réessayer, ou utiliser le code 2FA")
 		return
 	}
 	c.reussir(w, r, s, u.Nom, ip, t)
@@ -269,6 +382,7 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	}
 	id := c.sessions.Renouveler(s.Empreinte, t, func(x *auth.Session) {
 		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = auth.EtapeComplet, t, "", 0, u.Generation
+		x.DefiPasskey, x.NomPasskey = "", ""
 	})
 	if id == "" {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)

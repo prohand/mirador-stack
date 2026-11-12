@@ -3032,3 +3032,96 @@ test de charge.
 | Nom de service ou de pool piégé (XSS) | échappé par `html/template` ; formats vérifiés à l'entrée |
 | En-tête de capacité falsifié | il ne donne aucun droit : il change seulement les clés que l'agent reçoit pour lui-même |
 | Ancien agent cassé par une clé inconnue | clés nouvelles retirées pour lui (§ 19.4), testé |
+
+---
+
+## 20. Codes de secours de la 2FA et passkeys **[Fait, à valider — demande du 12/11]**
+
+Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
+
+### 20.1 Codes de secours
+
+- **10 codes** par compte, forme `XXXX-XXXX-XXXX` (12 signes sans 0, O, 1,
+  I : 60 bits d'aléa). Créés dans « Mon compte » avec le code 2FA, **affichés
+  une seule fois**. En créer de nouveaux annule les anciens.
+- En base : seulement l'empreinte SHA-256 (un code a assez d'aléa pour se
+  passer d'Argon2id : pas de calcul lourd à la connexion).
+- Un code **remplace le code 2FA une seule fois** :
+  - à la connexion (lien « Téléphone perdu ? ») ;
+  - pour préparer une nouvelle 2FA dans « Mon compte » (sinon un téléphone
+    perdu enfermerait dehors).
+- Il ne sert **pas** aux autres actions sensibles : elles gardent le code de
+  l'application.
+- Un code faux compte comme un code 2FA faux (verrous, CrowdSec, 5 essais).
+- Chaque usage : ligne d'audit, ligne de journal, et message à
+  l'administrateur avec le nombre de codes restants.
+- La remise à zéro de la 2FA par un administrateur, ou la commande
+  `utilisateur-secours`, efface aussi les codes de secours et les passkeys
+  (compte repris en main).
+
+### 20.2 Passkeys (WebAuthn)
+
+- **Rôle choisi** : la passkey **remplace le code 2FA** à la connexion,
+  après le mot de passe. La 2FA par application reste obligatoire et reste
+  demandée pour les actions sensibles. Pas de connexion sans mot de passe.
+  → **À confirmer** : c'est le choix le plus prudent ; une connexion par
+  passkey seule (sans mot de passe) est possible plus tard sur la même base.
+- Création dans « Mon compte » : nom + code 2FA, puis le navigateur crée la
+  clé. 10 passkeys au plus par compte. Suppression avec le code 2FA.
+- **Aucune dépendance ajoutée** : vérification écrite ici (~450 lignes avec
+  le lecteur CBOR), avec la bibliothèque standard de Go. Une bibliothèque
+  WebAuthn aurait amené une dizaine de modules pour des fonctions dont on ne
+  se sert pas (attestation des fabricants, TPM).
+- Algorithmes acceptés : ES256 (P-256), Ed25519, RS256 (Windows Hello).
+- Ce qui est vérifié : défi aléatoire à usage unique (5 min, dans la
+  session), type d'opération, **origine** (anti-hameçonnage), domaine,
+  présence de l'utilisateur, signature, compteur de signatures s'il est
+  utilisé. Attestation du fabricant non demandée (« none »).
+- Le serveur ne garde que la clé publique, le domaine et un compteur.
+- **Domaine** : celui sous lequel l'interface est ouverte (en-tête `Host`,
+  transmis par nginx). Une passkey ne marche que sous le domaine où elle a
+  été créée. Sous une adresse IP, les passkeys sont refusées (les
+  navigateurs l'imposent) et la page le dit. HTTPS obligatoire, sauf
+  `localhost`.
+- Script : `passkey.js` (3,9 Ko, sans dépendance, CSP inchangée).
+
+### 20.3 Coût
+
+| Mesure | Résultat |
+|---|---|
+| Connexion par passkey (vérification ES256) | 0,09 ms, 1,7 Ko alloués (machine de développement) |
+| Code de secours | une empreinte SHA-256 + une écriture |
+| RAM | un défi de 43 caractères par session en cours ; rien d'autre |
+| Disque | 2 tables (migration 0012) ; une écriture par usage |
+| Binaire | pas de dépendance en plus |
+
+### 20.4 Essais
+
+- Tests unitaires : les 3 algorithmes, défi faux ou rejoué, autre origine,
+  autre domaine, autre clé, signature tronquée, compteur en recul, entrées
+  aléatoires (fuzzing du lecteur CBOR et des vérifications : 400 000
+  essais sans plantage).
+- Bout en bout : création, connexion, suppression avec un faux
+  authentificateur ; codes de secours (une fois, pas deux, pas pour un
+  autre compte).
+- **Vrai navigateur** (Chromium, authentificateur virtuel, sur
+  `localhost`) : création d'une passkey, connexion par passkey, connexion
+  par code de secours.
+- **Pas essayé** : un vrai téléphone, une vraie clé USB, Firefox, Safari,
+  Windows Hello (RS256 n'est testé qu'avec le faux authentificateur), et
+  derrière nginx.
+
+### 20.5 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Fausse page de connexion (hameçonnage) | la passkey est liée au domaine par le navigateur ; le serveur revérifie l'origine et le domaine |
+| Réponse rejouée | défi aléatoire, effacé dès le premier essai, valable 5 min |
+| Passkey ajoutée par une session volée | code 2FA demandé pour préparer la création ; audit |
+| Codes de secours volés en base | empreintes seulement ; 60 bits d'aléa |
+| Essais de codes de secours en rafale | mêmes verrous que le code 2FA (adresse, compte, 5 essais par session) |
+| Même code utilisé deux fois en même temps | mise à jour conditionnelle (`utilise_le = 0`) |
+| Donnée piégée envoyée par le navigateur | lecteur CBOR borné (profondeur 6, 64 éléments, tailles limitées), fuzzing |
+| En-tête `Host` falsifié | il ne change que le domaine attendu pour sa propre requête ; une clé créée ailleurs reste refusée |
+| Téléphone volé avec la 2FA | l'administrateur remet la 2FA à zéro : codes et passkeys effacés |
+| Mot de passe connu de l'attaquant | la passkey ou le code reste nécessaire ; message à l'administrateur à chaque essai faux |

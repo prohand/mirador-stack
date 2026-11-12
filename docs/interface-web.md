@@ -244,3 +244,33 @@ Vue d'ensemble :
 - « Colonnes » masque des colonnes ; tri et colonnes sont retenus dans le
   navigateur.
 
+## 11. Codes de secours et passkeys (« Mon compte »)
+
+SPEC § 20.
+
+**Codes de secours** (téléphone de la 2FA perdu) :
+
+- « Mon compte » › « Codes de secours » › code 2FA › « Créer 10 nouveaux
+  codes ». Ils ne sont affichés **qu'une fois** : les ranger dans le
+  gestionnaire de mots de passe ou sur papier.
+- À la connexion, après le mot de passe : « Téléphone perdu ? Utiliser un
+  code de secours ». Un code ne sert qu'une fois.
+- Une fois connecté : « Double authentification » › « Téléphone perdu » pour
+  préparer une nouvelle 2FA avec un autre code de secours.
+- Chaque usage envoie un message sur le canal de notification.
+- Plus de code, plus de téléphone : `utilisateur-secours NOM` sur le serveur
+  (`docs/administration-serveur.md`).
+
+**Passkeys** :
+
+- « Mon compte » › « Passkeys » › nom + code 2FA › « Continuer », puis
+  « Créer la passkey sur cet appareil ».
+- À la connexion, après le mot de passe : « Utiliser une passkey » à la
+  place du code.
+- Il faut ouvrir l'interface par son **nom de domaine en HTTPS** (pas par
+  une adresse IP). nginx doit transmettre l'en-tête `Host` (déjà le cas avec
+  la configuration du § 2).
+- Une passkey ne marche que sous le domaine où elle a été créée : si le
+  domaine de l'interface change, il faut la recréer.
+- Le code 2FA reste demandé pour les actions sensibles.
+

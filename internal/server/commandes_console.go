@@ -66,6 +66,11 @@ func commandeConsole(ctx context.Context, db *sql.DB, nom string, pos []string, 
 		if err := auth.ReinitialiserTOTP(ctx, db, pos[0], qui, "", t); err != nil {
 			return true, err
 		}
+		// Compte repris en main : ses codes de secours et ses passkeys ne
+		// valent plus rien (SPEC § 20).
+		if err := auth.EffacerSecoursEtPasskeys(ctx, db, pos[0]); err != nil {
+			return true, err
+		}
 		if err := auth.DefinirDesactive(ctx, db, pos[0], false, qui, "", t); err != nil {
 			return true, err
 		}

@@ -10,6 +10,7 @@
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
+| 5 ter. Codes de secours de la 2FA et passkeys | **faite, à valider** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -589,6 +590,24 @@ fournis, filtre par conteneur, empreinte de la machine liée au token.
 
 Ordre de mise à jour : **serveur d'abord**, puis les agents (un agent
 récent marche avec un ancien serveur, mais sans ces réglages).
+
+## Codes de secours et passkeys (12/11, SPEC § 20)
+
+| Partie | État |
+|---|---|
+| Codes de secours : 10 codes à usage unique, connexion et nouvelle 2FA | **fait** |
+| Passkeys : création, connexion (à la place du code 2FA), suppression | **fait** |
+| Tests : unitaires, fuzzing, bout en bout, vrai navigateur (Chromium) | **fait** |
+| Essai avec un vrai téléphone ou une vraie clé, derrière nginx | **à faire chez toi** |
+
+- Aucune dépendance ajoutée ; migration 0012 ; `go vet` et
+  `go test -race ./...` verts ; `gosec` à voir en CI.
+- Coût : ~0,1 ms par connexion par passkey ; rien en mémoire hors un défi
+  par session en cours.
+- **À confirmer** : la passkey remplace le code 2FA après le mot de passe
+  (choix prudent). Connexion par passkey seule : possible ensuite.
+- À essayer sur le VPS : créer des codes de secours, créer une passkey
+  depuis le téléphone, se déconnecter, se reconnecter des deux façons.
 
 ## Prochaine étape
 
