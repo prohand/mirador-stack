@@ -43,6 +43,36 @@ func TestAppliquer(t *testing.T) {
 	}
 }
 
+// Réglages de surveillance choisis dans l'interface (SPEC § 19).
+func TestAppliquerSurveillance(t *testing.T) {
+	d, err := Decoder(strings.NewReader(`{"temperatures":false,"ventilateurs":true,"zfs":true,"mdraid":true,
+		"docker_metriques":false,"envoyer_smart":false,"systemd_validation":true,"systemd_surveiller":["ssh.service","nginx.service"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := Appliquer(base(), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Temperatures || !a.Ventilateurs || !a.ZFS || !a.Mdraid || a.DockerMetriques || a.EnvoyerSmart ||
+		!a.SystemdValidation || len(a.SystemdSurveiller) != 2 {
+		t.Errorf("valeurs non appliquées : %+v", a)
+	}
+	if !a.EnvoyerPareFeu || !a.EnvoyerCertificats {
+		t.Error("les valeurs absentes gardent leur défaut (envoyé)")
+	}
+	// Défauts : ce qui était collecté le reste, les nouveautés sont éteintes.
+	b := base()
+	if !b.Temperatures || !b.DockerMetriques || !b.EnvoyerSmart || b.Ventilateurs || b.ZFS || b.Mdraid || b.SystemdValidation {
+		t.Errorf("défauts inattendus : %+v", b)
+	}
+	// Un nom de service qui n'en est pas un est refusé.
+	d, _ = Decoder(strings.NewReader(`{"systemd_surveiller":["rm -rf /"]}`))
+	if _, err := Appliquer(base(), d); err == nil {
+		t.Error("nom de service invalide accepté")
+	}
+}
+
 func TestRefus(t *testing.T) {
 	cas := map[string]string{
 		// Champs qui n'existent pas dans le schéma : refusés en bloc.

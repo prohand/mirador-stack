@@ -92,18 +92,29 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces),
 		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant),
 		collect.NewUname(),
-		collect.NewTemperatures(cfg.RacineSys),
-		// Résultats de l'assistant root (pare-feu, SMART, certificats) :
-		// rien n'est envoyé tant que l'assistant n'a pas écrit son fichier.
-		collect.NewRacine(cfg.FichierRoot),
+		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
+		// sinon seulement signalés à l'interface (SPEC.md § 19).
+		collect.NewMateriel(cfg.RacineSys, cfg.RacineProc, cfg.Ventilateurs, cfg.ZFS, cfg.Mdraid),
 	}
+	if cfg.Temperatures {
+		liste = append(liste, collect.NewTemperatures(cfg.RacineSys))
+	}
+	// Résultats de l'assistant root (pare-feu, SMART, certificats) : rien
+	// n'est envoyé tant que l'assistant n'a pas écrit son fichier.
+	r := collect.NewRacine(cfg.FichierRoot)
+	r.SansPareFeu, r.SansSmart, r.SansCertificats = !cfg.EnvoyerPareFeu, !cfg.EnvoyerSmart, !cfg.EnvoyerCertificats
+	liste = append(liste, r)
 	if cfg.Systemd {
-		liste = append(liste, collect.NewSystemd(cfg.SystemdIgnorer))
+		s := collect.NewSystemd(cfg.SystemdIgnorer)
+		if cfg.SystemdValidation {
+			s.Valider(cfg.SystemdSurveiller)
+		}
+		liste = append(liste, s)
 	}
 	if cfg.MisesAJour {
 		liste = append(liste, collect.NewMisesAJour())
 	}
-	if cfg.Docker != "" {
+	if cfg.Docker != "" && cfg.DockerMetriques {
 		if d, err := collect.NewDocker(cfg.Docker); err == nil {
 			liste = append(liste, d)
 		} else {

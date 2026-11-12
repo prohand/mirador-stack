@@ -42,7 +42,15 @@ const (
 	// Heure de l'agent au moment de l'envoi (millisecondes Unix) : le serveur
 	// mesure le décalage d'horloge, même pour un lot resté en file d'attente.
 	EnteteHeure = "X-Mirador-Heure"
+	// Capacités de l'agent, séparées par des virgules. Un ancien serveur
+	// ignore cet en-tête ; un ancien agent ne l'envoie pas, et le serveur ne
+	// lui envoie alors aucun réglage qu'il ne connaît pas.
+	EnteteCapacites = "X-Mirador-Capacites"
 )
+
+// CapaciteSurveillance : l'agent connaît les réglages de surveillance choisis
+// dans l'interface (SPEC.md § 19) et signale ce qu'il détecte sur la machine.
+const CapaciteSurveillance = "surveillance"
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).

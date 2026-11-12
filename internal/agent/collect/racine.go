@@ -32,6 +32,10 @@ type Racine struct {
 
 	modif    time.Time
 	resultat *racine.Resultat
+
+	// Résultats non envoyés (choix de l'interface, SPEC.md § 19). L'assistant
+	// root tourne quand même : il ne lit jamais la configuration distante.
+	SansPareFeu, SansSmart, SansCertificats bool
 }
 
 // NewRacine crée le collecteur.
@@ -65,13 +69,16 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		return nil
 	}
 
-	if pf := res.PareFeu; pf != nil {
+	if pf := res.PareFeu; pf != nil && !r.SansPareFeu {
 		l := [2]metrics.Label{metrics.L("tool", pf.Outil), metrics.L("policy", pf.Politique)}
 		b.Add("node_firewall_input_policy_drop", bool01(pf.Restrictif()), l[:]...)
 		b.Add("node_firewall_input_rules", float64(pf.Regles), l[:]...)
 	}
 
 	for i := range res.Smart {
+		if r.SansSmart {
+			break
+		}
 		d := &res.Smart[i]
 		dev := metrics.L("device", d.Nom)
 		if d.SanteOK != nil {
@@ -92,7 +99,7 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		}
 	}
 
-	if c := res.Certificats; c != nil {
+	if c := res.Certificats; c != nil && !r.SansCertificats {
 		for i := range c.Liste {
 			cert := &c.Liste[i]
 			l := [3]metrics.Label{metrics.L("path", cert.Chemin), metrics.L("cn", cert.CN), metrics.L("issuer", cert.Emetteur)}
