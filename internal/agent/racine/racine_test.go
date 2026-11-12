@@ -320,6 +320,11 @@ func TestCertificatsDistants(t *testing.T) {
 	if len(c.Motifs) != 1 || c.Motifs[0].Fichiers != 4 || c.Motifs[0].Lus != 1 || c.Motifs[0].Ecartes != 3 {
 		t.Errorf("compte rendu : %+v", c.Motifs)
 	}
+	// Raisons précises : privkey.pem (clé), fuite.pem (lien hors dossier),
+	// tube.pem (illisible).
+	if m := c.Motifs[0]; m.Cles != 1 || m.HorsDossier != 1 || m.Illisibles != 1 || m.Doubles != 0 {
+		t.Errorf("raisons : %+v", m)
+	}
 	// Chemin sans aucun fichier : compte rendu à zéro (« aucun fichier trouvé »).
 	vide := lireCertificats(nil, []string{filepath.Join(dir, "etc/rien/*.crt")})
 	if len(vide.Motifs) != 1 || vide.Motifs[0].Fichiers != 0 || vide.Motifs[0].Lus != 0 {

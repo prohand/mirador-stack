@@ -3242,7 +3242,7 @@ donc **une seule clé** de ce fichier, avec ces règles :
 |---|---|
 | Fichier ouvert sans suivre de lien (`O_NOFOLLOW`), sans bloquer, fichier ordinaire, 256 Kio au plus ; message d'erreur sans contenu du fichier | assistant root |
 | Chemin absolu, sans `..`, `//`, `/./`, ni caractère de contrôle | agent à la réception, serveur à l'enregistrement, assistant root avant lecture |
-| Dossiers autorisés : `/etc/`, `/opt/`, `/srv/`, `/var/lib/`, `/usr/local/` (pas `/proc`, `/sys`, `/dev`, `/run`, `/tmp`, `/home`, `/root`) | idem |
+| Dossiers autorisés : `/etc/`, `/opt/`, `/srv/`, `/var/lib/`, `/usr/local/`, `/usr/share/ca-certificates/` (ajout du 12/11, § 22.4) (pas `/proc`, `/sys`, `/dev`, `/run`, `/tmp`, `/home`, `/root`) | idem |
 | Nom en `.pem`, `.crt`, `.cer` ou `.cert` (écrit en toutes lettres) | idem |
 | Aucun nom contenant « key » ou « priv » (clé privée), ni dans le motif, ni dans le fichier trouvé, ni dans sa cible réelle | idem + assistant root |
 | Cible réelle (liens suivis) dans un dossier autorisé | assistant root |
@@ -3326,3 +3326,21 @@ choix enregistrés d'affilée peuvent donc déclencher une règle de type
 - Réglages : barre d'onglets retirée de la page d'accueil des réglages.
 - Code 2FA des actions sensibles : nom d'utilisateur caché pour le
   remplissage par Vaultwarden.
+
+### 22.4 Chemins de certificats : raison précise, certificats d'autorités **[Fait, demande du 12/11]**
+
+Constat : `/etc/ssl/certs/GlobalSign_ECC_Root_CA_-_R4.pem` ajouté dans
+l'interface donnait « 1 fichier trouvé, aucun certificat lisible (clé
+privée, lien hors dossier autorisé, autre format) ». C'est un lien vers
+`/usr/share/ca-certificates/mozilla/…`, hors des dossiers autorisés.
+
+- Raison précise par fichier écarté : nom de clé privée, lien vers un
+  dossier non autorisé (ou lien cassé), pas un certificat lisible, déjà lu
+  par un autre chemin. Assistant root : compteurs dans `root.json` ; agent :
+  `mirador_agent_certificats_chemin_ecartes{chemin, raison}` ; interface :
+  « aucun lu : lien vers un dossier non autorisé (1) ».
+- `/usr/share/ca-certificates/` ajouté aux dossiers autorisés (une seule
+  liste pour le serveur, l'agent et l'assistant root) : certificats publics
+  des autorités, cibles des liens de `/etc/ssl/certs`. Le reste de
+  `/usr/share` reste refusé. Risque : nul (fichiers publics, lecture seule,
+  mêmes contrôles de nom et de format).

@@ -29,12 +29,20 @@ type Certificats struct {
 	Motifs []ResultatMotif `json:"motifs,omitempty"`
 }
 
-// ResultatMotif : ce qu'a donné un chemin venu du serveur.
+// ResultatMotif : ce qu'a donné un chemin venu du serveur. Les fichiers
+// écartés le sont pour une raison précise, affichée dans l'interface.
 type ResultatMotif struct {
 	Motif    string `json:"motif"`
 	Fichiers int    `json:"fichiers"` // fichiers trouvés par le motif
 	Lus      int    `json:"lus"`      // certificats lus
-	Ecartes  int    `json:"ecartes"`  // clé privée, lien hors dossier, illisible, en double
+	Ecartes  int    `json:"ecartes"`  // total des fichiers écartés (raisons ci-dessous)
+	// Raisons : nom de clé privée ; lien (ou fichier) hors des dossiers
+	// autorisés ; pas un certificat lisible (autre format, trop gros, tube…) ;
+	// même fichier déjà lu par un autre chemin.
+	Cles        int `json:"cles,omitempty"`
+	HorsDossier int `json:"hors_dossier,omitempty"`
+	Illisibles  int `json:"illisibles,omitempty"`
+	Doubles     int `json:"doubles,omitempty"`
 }
 
 // Certificat : un certificat lu avec succès.
@@ -82,14 +90,23 @@ func lireCertificats(locaux, distants []string) *Certificats {
 			if len(c.Liste) >= maxCertificats {
 				return
 			}
-			if distant && !fichierDistantSur(f) {
-				res.Ecartes++
-				continue // nom de clé privée, ou lien vers un autre dossier
+			if distant {
+				switch raisonDistant(f) {
+				case "cle":
+					res.Ecartes++
+					res.Cles++
+					continue
+				case "hors_dossier":
+					res.Ecartes++
+					res.HorsDossier++
+					continue
+				}
 			}
 			cert, ino, ok := lireCertificat(f)
 			if ino != 0 {
 				if vus[ino] {
 					res.Ecartes++
+					res.Doubles++
 					continue
 				}
 				vus[ino] = true
@@ -98,6 +115,7 @@ func lireCertificats(locaux, distants []string) *Certificats {
 				// Clé privée, fichier non reconnu ou illisible dans un dossier scanné.
 				c.Erreurs++
 				res.Ecartes++
+				res.Illisibles++
 				continue
 			}
 			c.Liste = append(c.Liste, cert)
@@ -121,15 +139,26 @@ var dossierAutorise = config.DossierDistantAutorise
 // fichierDistantSur : pour un fichier trouvé par un motif venu du serveur, le
 // nom ne doit pas ressembler à une clé privée, et le fichier réel (liens
 // suivis) doit rester dans un dossier autorisé, sous un nom autorisé.
-func fichierDistantSur(f string) bool {
+func fichierDistantSur(f string) bool { return raisonDistant(f) == "" }
+
+// raisonDistant : ” si le fichier peut être lu, sinon la raison du refus
+// (« cle » : nom de clé privée ; « hors_dossier » : lien dont la cible sort
+// des dossiers autorisés, ou lien cassé).
+func raisonDistant(f string) string {
 	if !config.FichierAccepteDistant(f) {
-		return false
+		return "cle"
 	}
 	reel, err := filepath.EvalSymlinks(f)
 	if err != nil {
-		return false
+		return "hors_dossier"
 	}
-	return dossierAutorise(reel) && config.FichierAccepteDistant(reel)
+	if !config.FichierAccepteDistant(reel) {
+		return "cle"
+	}
+	if !dossierAutorise(reel) {
+		return "hors_dossier"
+	}
+	return ""
 }
 
 // lireCertificat lit le premier certificat PEM du fichier (le certificat du

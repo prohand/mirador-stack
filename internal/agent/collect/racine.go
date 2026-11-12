@@ -137,6 +137,12 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 			ch := metrics.L("chemin", m.Motif)
 			b.Add("mirador_agent_certificats_chemin_fichiers", float64(m.Fichiers), ch)
 			b.Add("mirador_agent_certificats_chemin_lus", float64(m.Lus), ch)
+			for raison, n := range map[string]int{"cle": m.Cles, "hors_dossier": m.HorsDossier,
+				"illisible": m.Illisibles, "double": m.Doubles} {
+				if n > 0 {
+					b.Add("mirador_agent_certificats_chemin_ecartes", float64(n), ch, metrics.L("raison", raison))
+				}
+			}
 		}
 		// Trouvés = certificats envoyés (les retirés ne comptent plus).
 		b.Add("ssl_certs_found_total", float64(envoyes))

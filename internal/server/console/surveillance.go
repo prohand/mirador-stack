@@ -129,7 +129,8 @@ const metriquesSurv = `mirador_agent_detecte|node_hwmon_temp_celsius|node_therma
 	`ssl_cert_not_after_timestamp_seconds|` +
 	// Assistant root (12/11) : sa version, et le compte rendu de chaque
 	// chemin de certificat ajouté dans l'interface.
-	`mirador_agent_root_info|mirador_agent_certificats_chemin_fichiers|mirador_agent_certificats_chemin_lus`
+	`mirador_agent_root_info|mirador_agent_certificats_chemin_fichiers|mirador_agent_certificats_chemin_lus|` +
+	`mirador_agent_certificats_chemin_ecartes`
 
 func exprSurv(machine string) string {
 	return fmt.Sprintf(`{instance=%q,__name__=~%q}`, machine, metriquesSurv)
@@ -193,15 +194,16 @@ type releve struct {
 	montages            map[string]float64 // point de montage → taille (octets)
 	certs               []certSurv
 	versionAgent        string
-	versionRacine       string             // assistant root ('' = inconnu)
-	motifsFichiers      map[string]float64 // chemin ajouté → fichiers trouvés
-	motifsLus           map[string]float64 // chemin ajouté → certificats lus
+	versionRacine       string                        // assistant root ('' = inconnu)
+	motifsFichiers      map[string]float64            // chemin ajouté → fichiers trouvés
+	motifsLus           map[string]float64            // chemin ajouté → certificats lus
+	motifsEcartes       map[string]map[string]float64 // chemin → raison → fichiers écartés
 }
 
 func lireReleve(ech []alertes.Echantillon) releve {
 	r := releve{detecte: map[string][]string{}, pools: map[string]string{}, grappes: map[string]float64{},
 		services: map[string]bool{}, montages: map[string]float64{},
-		motifsFichiers: map[string]float64{}, motifsLus: map[string]float64{}}
+		motifsFichiers: map[string]float64{}, motifsLus: map[string]float64{}, motifsEcartes: map[string]map[string]float64{}}
 	for i := range ech {
 		e := &ech[i]
 		v := e.Valeur
@@ -266,6 +268,12 @@ func lireReleve(ech []alertes.Echantillon) releve {
 			r.motifsFichiers[etq("chemin")] = v
 		case "mirador_agent_certificats_chemin_lus":
 			r.motifsLus[etq("chemin")] = v
+		case "mirador_agent_certificats_chemin_ecartes":
+			ch := etq("chemin")
+			if r.motifsEcartes[ch] == nil {
+				r.motifsEcartes[ch] = map[string]float64{}
+			}
+			r.motifsEcartes[ch][etq("raison")] = v
 		case "node_disk_io_time_seconds_total":
 			r.disques = append(r.disques, etq("device"))
 		case "node_network_receive_bytes_total":
@@ -532,14 +540,39 @@ func resultatMotif(m string, r *releve, racineAncienne bool) motifSurv {
 	case fichiers == 0:
 		s.Resultat, s.Classe = "aucun fichier trouvé à ce chemin", "attention"
 	case lus == 0:
-		s.Resultat, s.Classe = pluriel(int(fichiers), "fichier")+" trouvé(s), aucun certificat lisible (clé privée, lien hors dossier autorisé, autre format)", "attention"
+		s.Resultat, s.Classe = pluriel(int(fichiers), "fichier")+" trouvé(s), aucun lu : ", "attention"
+		if r := raisonsEcartes(r.motifsEcartes[m]); r != "" {
+			s.Resultat += r
+		} else { // agent d'avant le 12/11 : raison inconnue
+			s.Resultat += "clé privée, lien hors dossier autorisé ou autre format"
+		}
 	default:
 		s.Resultat, s.Classe = pluriel(int(lus), "certificat")+" lu(s)", "ok"
 		if e := int(fichiers - lus); e > 0 {
 			s.Resultat += fmt.Sprintf(", %d fichier(s) écarté(s)", e)
+			if r := raisonsEcartes(r.motifsEcartes[m]); r != "" {
+				s.Resultat += " : " + r
+			}
 		}
 	}
 	return s
+}
+
+// raisonsEcartes : « lien vers un dossier non autorisé (1), clé privée (2) ».
+func raisonsEcartes(raisons map[string]float64) string {
+	libelles := []struct{ cle, texte string }{
+		{"hors_dossier", "lien vers un dossier non autorisé"},
+		{"cle", "nom de clé privée"},
+		{"illisible", "pas un certificat lisible"},
+		{"double", "déjà lu par un autre chemin"},
+	}
+	var out []string
+	for _, l := range libelles {
+		if n := int(raisons[l.cle]); n > 0 {
+			out = append(out, fmt.Sprintf("%s (%d)", l.texte, n))
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // surveillance : le bloc d'une machine (vide si les métriques manquent).
