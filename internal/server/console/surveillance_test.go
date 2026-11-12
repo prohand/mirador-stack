@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -163,6 +164,15 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 		strings.Join(*cfg.SystemdSurveiller, ",") != "fwupd-refresh.service,nginx.service" || cfg.SystemdIgnorer != nil {
 		t.Fatalf("services : %+v", cfg)
 	}
+	// Service supprimé de la machine : ignoré puis « oublié », il quitte la
+	// configuration (plus dans « Ignoré ou absent »).
+	poster("pve1", url.Values{"s.mirador-test.service": {"ignorer"}, "code": {b.code(secret)}})
+	poster("pve1", url.Values{"s.mirador-test.service": {"oublier"}, "code": {b.code(secret)}})
+	cfg, _ = flotte.ConfigEffective(ctx, b.db, 1)
+	if (cfg.SystemdIgnorer != nil && slices.Contains(*cfg.SystemdIgnorer, "mirador-test.service")) ||
+		slices.Contains(*cfg.SystemdSurveiller, "mirador-test.service") {
+		t.Fatalf("service oublié encore présent : %+v", cfg)
+	}
 	// Rétablir les températures (valeur par défaut) ; choix pour tout le groupe.
 	poster("pve1", url.Values{"g.temperatures": {"defaut"}, "g.mdraid": {"oui"}, "portee": {"groupe"}, "code": {b.code(secret)}})
 	cfg, _ = flotte.ConfigEffective(ctx, b.db, 1)
@@ -212,6 +222,12 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 	if cfg.IgnorerDisques != nil || cfg.CertificatsAjout == nil || strings.Join(*cfg.CertificatsAjout, ",") != "/etc/nginx/ssl/*.crt" ||
 		cfg.IgnorerMontages == nil {
 		t.Fatalf("après rétablissement : %+v", cfg)
+	}
+	// Certificat retiré puis supprimé de la machine : « Oublier » le retire
+	// de la liste des retraits.
+	poster("pve1", url.Values{"c./etc/ssl/local/vieux.pem": {"oublier"}, "code": {b.code(secret)}})
+	if cfg, _ = flotte.ConfigEffective(ctx, b.db, 1); cfg.CertificatsIgnorer != nil {
+		t.Fatalf("certificat oublié encore retiré : %v", *cfg.CertificatsIgnorer)
 	}
 	// Chemin de certificat dangereux : refusé avec un message clair.
 	if _, page := poster("pve1", url.Values{"certificats_nouveaux": {"/etc/shadow"}, "code": {b.code(secret)}}); !strings.Contains(page, "chemin de certificat refusé") {
@@ -335,5 +351,43 @@ func TestCompteRenduChemins(t *testing.T) {
 		if m.Motif == "/opt/neuf/*.pem" && !strings.Contains(m.Resultat, "trop ancien") {
 			t.Errorf("chemin non lu : %q", m.Resultat)
 		}
+	}
+}
+
+// Élément retiré mais encore envoyé par l'agent (il n'a pas encore appliqué
+// le retrait) : une seule ligne, « Retiré » (bug du 12/11 : deux lignes).
+func TestElementRetireUneSeuleLigne(t *testing.T) {
+	certs, disques := []string{"/etc/ssl/certs/ca.pem"}, []string{"sdb"}
+	cfg := &distant.ConfigDistante{CertificatsIgnorer: &certs, IgnorerDisques: &disques}
+	echs := []alertes.Echantillon{
+		ech("mirador_agent_info", 1, "version", "0.2.15"),
+		ech("ssl_cert_not_after_timestamp_seconds", 2147483647, "path", "/etc/ssl/certs/ca.pem", "cn", "GlobalSign", "issuer", "GlobalSign"),
+		ech("node_disk_io_time_seconds_total", 1, "device", "sdb"),
+		ech("node_disk_io_time_seconds_total", 1, "device", "sda"),
+	}
+	v := classerSurveillance(cfg, echs, true)
+	n := 0
+	for _, c := range v.Certs {
+		if c.Chemin == "/etc/ssl/certs/ca.pem" {
+			n++
+			if !c.Retire || c.CN != "GlobalSign" {
+				t.Errorf("certificat : %+v", c)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("certificat retiré affiché %d fois", n)
+	}
+	n = 0
+	for _, c := range v.Composants {
+		if c.Nom == "sdb" {
+			n++
+			if !c.Retire {
+				t.Errorf("disque : %+v", c)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("disque retiré affiché %d fois", n)
 	}
 }

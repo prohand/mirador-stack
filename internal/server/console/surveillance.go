@@ -496,8 +496,14 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 		}
 		return *p
 	}
+	// Un élément retiré n'apparaît qu'une fois, en « Retiré », même si
+	// l'agent l'envoie encore (il n'applique le retrait qu'à sa relecture de
+	// la configuration, et sa dernière mesure reste lue quelques minutes).
 	ajouter := func(genre string, vus []string, detail func(string) string, retires []string) {
 		for _, n := range vus {
+			if slices.Contains(retires, n) {
+				continue
+			}
 			v.Composants = append(v.Composants, composantSurv{Genre: genre, Nom: n, Detail: detail(n)})
 		}
 		for _, n := range retires {
@@ -515,9 +521,21 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 	sort.Strings(montages)
 	ajouter("montage", montages, func(m string) string { return tailleLisible(int64(r.montages[m])) }, liste(cfg.IgnorerMontages))
 
-	v.Certs = append(v.Certs, r.certs...)
-	for _, c := range liste(cfg.CertificatsIgnorer) {
-		v.Certs = append(v.Certs, certSurv{Chemin: c, Retire: true})
+	retires := liste(cfg.CertificatsIgnorer)
+	connus := map[string]certSurv{}
+	for _, c := range r.certs {
+		if slices.Contains(retires, c.Chemin) {
+			connus[c.Chemin] = c // encore envoyé : nom et émetteur gardés pour la ligne « Retiré »
+			continue
+		}
+		v.Certs = append(v.Certs, c)
+	}
+	for _, c := range retires {
+		l := certSurv{Chemin: c, Retire: true}
+		if k, ok := connus[c]; ok {
+			l.CN, l.Emetteur = k.CN, k.Emetteur
+		}
+		v.Certs = append(v.Certs, l)
 		v.NbRetires++
 	}
 	v.VersionAgent, v.VersionRacine = r.versionAgent, r.versionRacine
@@ -776,6 +794,12 @@ func (c *Console) postSurveillance(q *req, m flotte.InfoMachine) error {
 		case "ignorer", "non":
 			delete(surveiller, nom)
 			ignorer[nom] = true
+		case "oublier":
+			// Service supprimé de la machine (ou choix à refaire) : retiré de
+			// la configuration. S'il existe encore, il revient « à valider »
+			// (ou est surveillé d'office sans validation un par un).
+			delete(surveiller, nom)
+			delete(ignorer, nom)
 		case "":
 			return nil
 		default:
@@ -922,7 +946,10 @@ func choixElements(q *req, cfg *distant.ConfigDistante) (map[string]any, error) 
 				delete(listes[cle], nom)
 			case valeurs[0] == "retirer":
 				listes[cle][nom] = true
-			case valeurs[0] == "retablir" && cle != "certificats_ajout":
+			case (valeurs[0] == "retablir" || valeurs[0] == "oublier") && cle != "certificats_ajout":
+				// « Oublier » (fichier ou élément supprimé de la machine) : comme
+				// « Rétablir », il quitte la liste des retraits ; s'il existe
+				// encore, il est de nouveau envoyé.
 				delete(listes[cle], nom)
 			default:
 				return nil, errors.New("choix inconnu")
