@@ -1,5 +1,5 @@
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
-{{define "code2fa"}}<label class="code">Code 2FA <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
+{{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
 {{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}">
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}

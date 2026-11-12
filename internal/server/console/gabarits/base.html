@@ -13,7 +13,7 @@
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
-<body data-csrf="{{.CSRF}}">
+<body data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}">
 {{template "icones"}}
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">

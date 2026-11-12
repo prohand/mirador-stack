@@ -438,3 +438,25 @@ document.addEventListener("change", function (e) {
     if (e.target.closest && e.target.closest("[data-aller]")) { ouvrir(); }
   });
 })();
+
+// Code 2FA des actions sensibles : comme sur la page de connexion, un champ
+// caché « nom d'utilisateur » rattache le formulaire au bon compte, pour que
+// Vaultwarden / Bitwarden propose d'y remplir le code TOTP. Champ SANS nom :
+// il n'est jamais envoyé au serveur.
+(function () {
+  var nom = document.body.getAttribute("data-utilisateur");
+  if (!nom) { return; }
+  var champs = document.querySelectorAll('form input[name="code"][autocomplete="one-time-code"]');
+  for (var i = 0; i < champs.length; i++) {
+    var f = champs[i].form;
+    if (!f || f.querySelector('input[autocomplete="username"]')) { continue; }
+    var u = document.createElement("input");
+    u.type = "text";
+    u.autocomplete = "username";
+    u.value = nom;
+    u.readOnly = true;
+    u.hidden = true;
+    u.tabIndex = -1;
+    f.insertBefore(u, f.firstChild);
+  }
+})();

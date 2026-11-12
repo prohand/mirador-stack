@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -423,6 +424,14 @@ func classerSurveillance(cfg *distant.ConfigDistante, ech []alertes.Echantillon,
 				v.SvcSurveilles = append(v.SvcSurveilles, serviceSurv{Nom: n, Arrete: !tourne})
 			}
 		}
+		// Un service déjà choisi (surveillé ou ignoré) n'est plus « à valider »,
+		// même si l'agent le signale encore : il n'applique sa nouvelle
+		// configuration qu'à sa prochaine relecture (5 min au plus).
+		if cfg.SystemdIgnorer != nil {
+			for _, n := range *cfg.SystemdIgnorer {
+				vus[n] = true
+			}
+		}
 		for _, n := range r.detecte["service"] {
 			if !vus[n] {
 				v.SvcAValider = append(v.SvcAValider, serviceSurv{Nom: n})
@@ -503,7 +512,10 @@ func (c *Console) surveillance(ctx context.Context, m flotte.InfoMachine, t time
 // nouveautes : nombre d'éléments « à valider » par machine, pour la vue
 // d'ensemble (une requête pour tout le parc).
 func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t time.Time) map[string]int {
-	ech, err := c.instant(ctx, `count by (instance, genre) (mirador_agent_detecte)`, t)
+	// Services : une série par service (étiquette « nom »), pour retirer tout
+	// de suite ceux déjà choisis dans la configuration (l'agent ne l'applique
+	// qu'à sa prochaine relecture). Autres genres : un compte par genre.
+	ech, err := c.instant(ctx, `count by (instance, genre) (mirador_agent_detecte{genre!="service"}) or max by (instance, genre, nom) (mirador_agent_detecte{genre="service"})`, t)
 	if err != nil || len(ech) == 0 {
 		return nil
 	}
@@ -515,11 +527,6 @@ func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t tim
 	out := map[string]int{}
 	for _, e := range ech {
 		nom, genre := e.Etiquettes.Get("instance"), e.Etiquettes.Get("genre")
-		if genre == "service" {
-			out[nom] += int(e.Valeur)
-			continue
-		}
-		// Ventilateurs, ZFS, RAID : déjà refusé pour cette machine ?
 		cfg, lu := configs[nom]
 		if !lu {
 			if id, ok := ids[nom]; ok {
@@ -527,6 +534,13 @@ func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t tim
 			}
 			configs[nom] = cfg
 		}
+		if genre == "service" {
+			if !serviceChoisi(cfg, e.Etiquettes.Get("nom")) {
+				out[nom]++
+			}
+			continue
+		}
+		// Ventilateurs, ZFS, RAID : déjà refusé pour cette machine ?
 		if cfg == nil || valeurSurv(cfg, genre) == nil {
 			out[nom]++
 		}
@@ -566,6 +580,19 @@ func (c *Console) aValider(ctx context.Context, t time.Time) map[string]int {
 	}
 	c.cacheValider.parMachine, c.cacheValider.expire = out, t.Add(time.Minute)
 	return out
+}
+
+// serviceChoisi : service déjà surveillé ou ignoré dans la configuration.
+func serviceChoisi(cfg *distant.ConfigDistante, nom string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, l := range []*[]string{cfg.SystemdSurveiller, cfg.SystemdIgnorer} {
+		if l != nil && slices.Contains(*l, nom) {
+			return true
+		}
+	}
+	return false
 }
 
 // oublierAValider : après un choix enregistré, le compteur est recalculé.

@@ -273,3 +273,23 @@ func BenchmarkClasserSurveillance(b *testing.B) {
 		classerSurveillance(cfg, r, true)
 	}
 }
+
+// Service ignoré mais encore signalé par l'agent (il n'a pas encore relu sa
+// configuration) : plus « à valider », ni dans la fiche ni dans le compteur.
+func TestServiceIgnoreAussitot(t *testing.T) {
+	vrai := true
+	ign := []string{"postfix.service"}
+	cfg := &distant.ConfigDistante{SystemdValidation: &vrai, SystemdSurveiller: &[]string{}, SystemdIgnorer: &ign}
+	v := classerSurveillance(cfg, relevePhysique(), true)
+	for _, s := range v.SvcAValider {
+		if s.Nom == "postfix.service" {
+			t.Fatal("service ignoré encore « à valider »")
+		}
+	}
+	if len(v.SvcIgnores) != 1 || v.SvcIgnores[0].Nom != "postfix.service" {
+		t.Errorf("ignorés : %+v", v.SvcIgnores)
+	}
+	if !serviceChoisi(cfg, "postfix.service") || serviceChoisi(cfg, "autre.service") || serviceChoisi(nil, "x") {
+		t.Error("serviceChoisi")
+	}
+}

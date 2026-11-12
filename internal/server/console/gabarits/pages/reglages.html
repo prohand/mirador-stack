@@ -1,6 +1,5 @@
 {{define "contenu"}}
 <h1>Réglages</h1>
-{{template "onglets-reglages" (onglet $ "")}}
 <div class="grille">
 {{range sectionsReglages $.Olvid}}<a class="carte lien-carte" href="{{.Href}}"><h2>{{.Titre}}</h2><small>{{.Aide}}</small></a>
 {{end}}</div>
