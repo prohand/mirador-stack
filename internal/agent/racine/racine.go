@@ -16,8 +16,10 @@
 //     (mémoire, pas de disque) et s'arrête ;
 //   - l'agent lit ce fichier et envoie les valeurs.
 //
-// L'assistant n'ouvre aucune connexion réseau et n'est jamais mis à jour par
-// la mise à jour automatique. De la configuration distante, il ne lit qu'UNE
+// L'assistant n'ouvre aucune connexion réseau. L'agent ne le modifie jamais :
+// c'est l'assistant lui-même qui se remplace par la version signée de l'agent,
+// après avoir revérifié la signature en root (SPEC.md § 22.5 ; refusé avec
+// MIRADOR_MAJ_RACINE=non). De la configuration distante, il ne lit qu'UNE
 // clé, les chemins de certificats ajoutés dans l'interface, avec des règles
 // strictes (SPEC.md § 21.3) ; MIRADOR_CERTIFICATS_DISTANTS=non l'en empêche.
 package racine

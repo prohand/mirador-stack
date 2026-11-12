@@ -27,7 +27,8 @@ import (
 //	  echec.json                           dernier échec (signalé au serveur)
 //
 // L'agent se met à jour sans root. Il ne peut pas toucher à l'assistant root,
-// rangé ailleurs et appartenant à root.
+// rangé ailleurs et appartenant à root : l'assistant se met à jour lui-même à
+// partir de ce dossier (SPEC.md § 22.5).
 type Installateur struct {
 	Dossier string
 	// SelfTest lance le nouveau binaire en mode contrôle ; remplaçable dans les tests.
