@@ -25,6 +25,47 @@
 {{else}}
 <p>Changer de téléphone ou d'application : une nouvelle 2FA est préparée, puis confirmée par un de ses codes.</p>
 <form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}<button>Préparer une nouvelle 2FA</button></form>
+<details><summary>Téléphone perdu : préparer la nouvelle 2FA avec un code de secours</summary>
+<form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}
+  <label>Code de secours <input name="secours" autocomplete="off" autocapitalize="characters" spellcheck="false" pattern="[A-Za-z0-9 \-]{12,16}" maxlength="16" required placeholder="ABCD-EFGH-JKLM"></label>
+  <button class="secondaire">Préparer une nouvelle 2FA</button></form></details>
+{{end}}
+</section>
+
+<section class="carte" id="secours">
+<h2>Codes de secours</h2>
+{{if .D.CodesNouveaux}}
+<p class="message"><strong>À noter maintenant</strong> (gestionnaire de mots de passe ou papier rangé) : ces codes ne seront plus jamais affichés. Chacun remplace le code 2FA une seule fois.</p>
+<ul class="codes-secours">{{range .D.CodesNouveaux}}<li><code>{{.}}</code></li>{{end}}</ul>
+{{end}}
+<p>Si le téléphone de la 2FA est perdu, un code de secours permet de se connecter, puis de recréer la 2FA.
+{{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> code(s) sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
+<form method="post" action="/compte/codes-secours" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}
+<button {{if .D.CodesRestants}}data-confirmer="Créer 10 nouveaux codes ? Les anciens ne marcheront plus."{{end}}>Créer 10 nouveaux codes</button></form>
+</section>
+
+<section class="carte" id="passkeys">
+<h2>Passkeys</h2>
+<p>Une passkey (empreinte, visage, code de l'appareil, clé de sécurité ou gestionnaire de mots de passe) remplace le code 2FA à la connexion, après le mot de passe. Elle ne marche que sur ce site : une fausse page ne peut pas s'en servir.</p>
+{{if .D.Passkeys}}<div class="defile"><table><thead><tr><th>Nom</th><th>Domaine</th><th>Créée</th><th>Dernier usage</th><th></th></tr></thead><tbody>
+{{range .D.Passkeys}}<tr><td>{{.Nom}}</td><td><code>{{.Domaine}}</code></td><td>{{dateS .CreeLe}}</td><td>{{if .UtiliseLe}}{{depuisS .UtiliseLe}}{{else}}Jamais{{end}}</td>
+<td><form method="post" action="/compte/passkey/supprimer" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}">{{template "code2fa"}}<button class="danger petit" data-confirmer="Supprimer la passkey « {{.Nom}} » ?">Supprimer</button></form></td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune passkey enregistrée."}}{{end}}
+{{if not .D.PasskeyPossible}}
+<p class="message">Les passkeys demandent un nom de domaine en HTTPS. Cette page est ouverte par <code>{{.D.Domaine}}</code> : les navigateurs refusent une adresse IP.</p>
+{{else if .D.PKDefi}}
+<form method="post" action="/compte/passkey/enregistrer" class="pile" data-passkey-form>{{template "csrf" .CSRF}}
+  <input type="hidden" name="client"><input type="hidden" name="attestation">
+  <p>Code accepté. Créer maintenant la passkey « <strong>{{.D.PKNom}}</strong> » (5 minutes) :</p>
+  <button type="button" data-passkey="creer" data-defi="{{.D.PKDefi}}" data-domaine="{{.D.Domaine}}" data-utilisateur="{{.D.PKUtilisateur}}" data-compte="{{.D.U.Nom}}" data-exclure="{{.D.PKExclure}}" data-algorithmes="{{.D.PKAlgorithmes}}">Créer la passkey sur cet appareil</button>
+  <p class="erreur-texte" data-passkey-erreur hidden></p>
+</form>
+{{else}}
+<h3>Ajouter une passkey</h3>
+<form method="post" action="/compte/passkey/preparer" class="ligne">{{template "csrf" .CSRF}}
+  <label>Nom (pour la reconnaître) <input name="nom" maxlength="40" placeholder="Téléphone, clé USB…"></label>
+  {{template "code2fa"}}<button>Continuer</button></form>
+<p><small>Le code 2FA reste demandé pour les actions sensibles, et la 2FA par application reste obligatoire : la passkey est un moyen de plus, pas le seul.</small></p>
 {{end}}
 </section>
 {{end}}

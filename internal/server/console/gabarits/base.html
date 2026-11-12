@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{{statique "uplot/uPlot.min.css"}}">
 <link rel="icon" href="{{statique "icone.svg"}}" type="image/svg+xml">
 <script src="{{statique "mirador.js"}}" defer></script>
+<script src="{{statique "passkey.js"}}" defer></script>
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
@@ -20,6 +21,7 @@
       <a class="logo" href="/" title="mirador"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#2F5BEA"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span class="txt">mirador</span></a>
       <button type="button" class="replier" data-replier aria-label="Replier ou déplier le menu" title="Replier ou déplier le menu"><svg class="icone"><use href="#i-chevron"></use></svg></button>
     </div>
+    <button type="button" class="aller" data-aller title="Aller à une machine, un tableau ou une page (Ctrl+K)"><svg class="icone"><use href="#i-loupe"></use></svg><span>Aller à…</span><kbd>Ctrl K</kbd></button>
     <nav aria-label="Menu principal">
       <div class="groupe">Supervision</div>
       {{template "lien-menu" (menu "/" "ensemble" "Vue d'ensemble" .Menu "accueil" 0)}}

@@ -58,6 +58,25 @@ type Session struct {
 	Creee, Vue      time.Time
 	Adresse         string
 	Flash, Alerte   string // message affiché une fois (succès / erreur)
+	// Passkeys (SPEC § 20) : défi en cours (à usage unique, 5 min) et nom
+	// choisi pour la clé en cours de création.
+	DefiPasskey   string
+	DefiPasskeyLe time.Time
+	NomPasskey    string
+	// Codes de secours tout juste créés : affichés une seule fois.
+	CodesSecours []string
+}
+
+// PrendreDefiPasskey rend le défi en cours s'il est encore valable, et
+// l'efface dans tous les cas : un défi ne sert qu'une fois.
+func (m *Magasin) PrendreDefiPasskey(empreinte string, t time.Time) (defi, nom string) {
+	m.Modifier(empreinte, func(s *Session) {
+		if s.DefiPasskey != "" && t.Sub(s.DefiPasskeyLe) <= DureeDefiPasskey {
+			defi, nom = s.DefiPasskey, s.NomPasskey
+		}
+		s.DefiPasskey, s.NomPasskey = "", ""
+	})
+	return defi, nom
 }
 
 // Ref : début de l'empreinte, pour désigner une session dans la page

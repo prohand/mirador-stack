@@ -146,6 +146,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	a := agent.Nouveau(cfg, token, journal)
 	if cfg.Serveur != "" {
 		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal,
+			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
 				journal.Info("redémarrage demandé", "raison", raison)

@@ -86,6 +86,7 @@
         {
           "type": "courbe",
           "titre": "CPU",
+          "description": "Utilisation du processeur de chaque nœud",
           "unite": "percent",
           "seuils": [
             {
@@ -112,6 +113,7 @@
         {
           "type": "courbe",
           "titre": "Load average",
+          "description": "Processus qui attendent le processeur ou le disque",
           "unite": "short",
           "requetes": [
             {
@@ -134,6 +136,7 @@
         {
           "type": "courbe",
           "titre": "Memoire utilisee",
+          "description": "Mémoire occupée sur chaque nœud",
           "unite": "percent",
           "seuils": [
             {
@@ -160,6 +163,7 @@
         {
           "type": "courbe",
           "titre": "I/O wait et swap",
+          "description": "Temps perdu à attendre le disque, et mémoire déplacée sur le disque",
           "unite": "percent",
           "requetes": [
             {
@@ -177,6 +181,7 @@
         {
           "type": "courbe",
           "titre": "Trafic reseau",
+          "description": "Débit entrant et sortant de chaque nœud",
           "unite": "bps",
           "requetes": [
             {
@@ -235,6 +240,7 @@
         {
           "type": "courbe",
           "titre": "ARC ZFS",
+          "description": "Mémoire utilisée par le cache de ZFS",
           "unite": "bytes",
           "requetes": [
             {
@@ -299,6 +305,7 @@
         {
           "type": "courbe",
           "titre": "CPU par machine",
+          "description": "Processeur utilisé par chaque VM et conteneur",
           "unite": "percent",
           "requetes": [
             {
@@ -311,6 +318,7 @@
         {
           "type": "courbe",
           "titre": "Memoire par machine",
+          "description": "Mémoire utilisée par chaque VM et conteneur",
           "unite": "percent",
           "requetes": [
             {
@@ -323,6 +331,7 @@
         {
           "type": "courbe",
           "titre": "Disque par machine",
+          "description": "Lectures et écritures de chaque VM et conteneur",
           "unite": "Bps",
           "requetes": [
             {
@@ -340,6 +349,7 @@
         {
           "type": "courbe",
           "titre": "Reseau par machine",
+          "description": "Débit réseau de chaque VM et conteneur",
           "unite": "bps",
           "requetes": [
             {
@@ -417,6 +427,7 @@
         {
           "type": "barres",
           "titre": "Occupation des stockages",
+          "description": "Place utilisée sur chaque stockage",
           "unite": "percent",
           "seuils": [
             {
@@ -443,6 +454,7 @@
         {
           "type": "courbe",
           "titre": "Espace libre — evolution",
+          "description": "Place restante sur chaque stockage",
           "unite": "bytes",
           "requetes": [
             {

@@ -2886,3 +2886,284 @@ Menaces (ajouts) :
 | Mot de passe connu : centaines de sessions partielles pour essayer des codes | 3 par compte ; essais réservés (§ 18.27) |
 | Serveur exposé par erreur sans nginx | refus de démarrer |
 | Dépendance avec une faille connue | `govulncheck` en CI + Dependabot |
+
+---
+
+## 19. Idées reprises de Beszel : surveillance par machine et vue d'ensemble **[Fait, à valider — demande du 12/11]**
+
+- Source : `github.com/henrygd/beszel` (Go, licence MIT), documentation lue
+  le 12/11. **Aucun code repris** : seulement des idées, réécrites ici.
+- Branche : `claude/laughing-sagan-7w7xrm`. Maquette validée le 12/11
+  (deux écrans : vue d'ensemble, page machine).
+
+### 19.1 Ce que je retiens, ce que j'écarte
+
+| Idée Beszel | Dans mirador | Pourquoi |
+|---|---|---|
+| Barres colorées, tri, filtre, choix des colonnes dans la liste des machines | vue d'ensemble (§ 19.5) | on voit d'un coup d'œil la machine qui va mal |
+| Bandeau d'identité sous le nom de la machine | page machine | plus court que le tableau « Identité » (gardé, replié) |
+| Vitesse des ventilateurs (`/sys/class/hwmon`) | collecteur « matériel », éteint par défaut | panne matérielle non vue aujourd'hui |
+| Santé des pools ZFS | idem, lu dans `/proc/spl/kstat/zfs/*/state` | pas de commande `zpool`, pas de root |
+| État du RAID logiciel (mdraid) par sysfs | idem, `/sys/block/md*/md/degraded` | idem |
+| Sondes ajoutées dans l'interface, par machine | devient « ce que la machine envoie se choisit dans l'interface », avec détection | demande de l'utilisateur |
+
+| Écarté | Raison |
+|---|---|
+| Mode SSH (le hub se connecte à l'agent, port 45876) | l'agent n'ouvre jamais de port |
+| Mise à jour de l'agent depuis GitHub | mirador : versions signées Ed25519, clé hors serveur |
+| PocketBase, Shoutrrr | déjà écartés (§ 12.2) |
+| Socket Docker monté, capacités `SYS_RAWIO` / `SYS_ADMIN` pour SMART | proxy en lecture seule et assistant root gardés |
+| OAuth / OIDC, partage entre utilisateurs | surface d'attaque en plus, un seul admin |
+| GPU, batterie, Wi-Fi, Podman, Windows | absents du parc |
+| Sondes de port (TCP, HTTP, ping, DNS) | **refusé par l'utilisateur le 12/11** |
+| CPU et mémoire par service systemd | pas demandé ; beaucoup de séries, à mesurer d'abord |
+| Scrub ZFS, usage par dataset | demande la commande `zpool` (root) ; seule la santé est lue |
+
+### 19.2 Principe **[Décidé, réponses du 12/11]**
+
+- Ce qui était collecté avant **reste actif** sans rien valider.
+- Tout ce qui est surveillé **peut être retiré**, machine par machine.
+- Les **nouveautés** (ventilateurs, ZFS, RAID logiciel, et les services si on
+  le demande) ne sont pas surveillées sans validation : l'agent dit seulement
+  « ça existe », l'interface propose.
+- Services systemd proposés : seulement ceux démarrés au boot et qui
+  devraient tourner (mêmes exclusions qu'avant, § 4.2), sans les services de
+  base (`systemd-*`, `getty@`, `user@`, `dbus*`).
+
+### 19.3 Agent
+
+| Réglage (local `MIRADOR_…` et distant) | Défaut | Effet |
+|---|---|---|
+| `temperatures` | oui | capteurs de `/sys` |
+| `docker_metriques` | oui | métriques des conteneurs (les logs ont leur propre réglage) |
+| `envoyer_pare_feu`, `envoyer_smart`, `envoyer_certificats` | oui | résultats de l'assistant root envoyés ou non |
+| `ventilateurs`, `zfs`, `mdraid` | **non** | nouveaux collecteurs |
+| `systemd_validation` + `systemd_surveiller` | non | seuls les services de la liste sont suivis |
+
+- Collecteur « matériel » : lecture directe de `/sys` et `/proc`, **aucune
+  commande, aucun droit en plus**. Rythme lent (60 s) ; liste des éléments
+  relue toutes les 10 min.
+- Métriques (noms de node_exporter quand ils existent) :
+  `node_hwmon_fan_rpm{chip,sensor}`, `node_zfs_zpool_state{zpool,state}`
+  (toujours `state="online"` à 0 ou 1, plus l'état courant s'il diffère),
+  `node_md_degraded{device}` (disques manquants), `node_md_disks_required{device}`.
+- Détection : un genre éteint n'envoie qu'**une série par élément trouvé**,
+  `mirador_agent_detecte{genre,nom}` (genres : `ventilateurs`, `zfs`,
+  `mdraid`, `service`). Pas de nouveau point d'entrée, pas de table en plus.
+- **Limite connue** : `envoyer_smart = non` (et pare-feu, certificats) arrête
+  l'**envoi**, pas l'assistant root : il ne lit jamais la configuration
+  distante (§ 6.4), il continue donc de lancer `smartctl` toutes les 30 min.
+  Pour l'arrêter vraiment : `MIRADOR_SMART=non` dans le fichier local.
+- À vérifier sur une vraie machine (rien de tel ici) : le fichier
+  `/proc/spl/kstat/zfs/<pool>/state` sur les Proxmox (OpenZFS ≥ 0.8), les
+  capteurs `fan*_input`, une grappe `md`.
+
+### 19.4 Serveur et compatibilité
+
+- Les choix sont des **clés de la configuration distante** (valeurs typées,
+  mêmes contrôles et même audit que « Configuration des agents »), à la
+  portée de la machine ou du groupe. Les services sont toujours réglés par
+  machine.
+- **Ancien agent** : il refuserait tout le document à cause d'une clé
+  inconnue. L'agent annonce donc ce qu'il sait faire (en-tête
+  `X-Mirador-Capacites: surveillance`, ignoré par un ancien serveur) ; sans
+  cet en-tête, le serveur **retire** les clés nouvelles du document (ETag
+  recalculé). La capacité est gardée sur la fiche (migration 0011) et
+  l'interface bloque les réglages nouveaux pour un agent trop ancien.
+- État affiché : **aucun stockage en plus**. Il se déduit d'une requête sur
+  les dernières métriques de la machine (en cache 60 s) et de sa
+  configuration effective.
+- La page « Configuration des agents » garde ces clés quand on enregistre
+  une portée (« retirer la portée » les enlève aussi).
+- Trois règles fournies, actives par défaut, sans effet là où rien n'est
+  validé : `PoolZfsDegrade` (critique, 2 min), `RaidLogicielDegrade`
+  (critique, 2 min), `VentilateurArrete` (avertissement, 10 min, seulement si
+  le ventilateur a tourné dans les 24 h). Un service validé qui s'arrête est
+  couvert par `ServiceAutomatiqueArrete` (règle 11).
+
+### 19.5 Interface
+
+- **Page machine**, bloc « À surveiller sur cette machine » : « Détecté, à
+  valider » (Surveiller / Ignorer / Plus tard), « Surveillé » (Garder /
+  Retirer, avec un point rouge si quelque chose ne va pas), « Ignoré ou
+  absent » (Rétablir). Boutons « Tout surveiller » et « Tout ignorer ». Choix
+  pour la machine ou pour tout son groupe.
+- **Un seul formulaire, un seul code 2FA** pour tous les choix : changer la
+  configuration d'un agent est une action sensible (revue du 11/11). Écart
+  avec la maquette, qui montrait un bouton par ligne.
+- Services : repliés ; option « Nouveaux services : me les proposer avant
+  de les surveiller » (au départ, ceux suivis aujourd'hui restent suivis).
+- **Vue d'ensemble** : barres CPU / mémoire / disque (vert < 70 %, orange
+  70 à 85 %, rouge au-dessus, chiffre toujours affiché), tri par colonne
+  (3 clics : décroissant, croissant, ordre par gravité), filtre, colonnes
+  masquables, cloche avec le nombre d'alertes, colonne « À valider ». Tri et
+  colonnes retenus dans le navigateur ; le tableau n'est pas rechargé
+  pendant une saisie.
+- **Ajouté ensuite** (réponse du 12/11, « maintenant ») : recherche rapide,
+  sous-titres, filtre des courbes, empreinte de la machine (§ 19.8).
+- **Pas fait** : bouton 1 / 2 colonnes. Écart : la colonne « Réseau » de la
+  maquette n'y est pas (une requête de plus par minute pour un chiffre peu
+  utile).
+
+### 19.8 Compléments du 12/11
+
+- **Recherche rapide** : Ctrl+K (ou bouton « Aller à… » du menu) ouvre une
+  liste des pages, des machines et des tableaux ; flèches et Entrée. La
+  liste est lue une fois à l'ouverture (`/donnees/aller`), le filtrage se
+  fait dans le navigateur : aucune requête pendant la frappe.
+- **Sous-titres** : une ligne sous le titre des 18 graphiques fournis qui
+  n'en avaient pas (« Serveurs Linux » et « Proxmox »). Un tableau déjà
+  installé ou modifié garde son texte : « Rétablir » pour prendre le nouveau.
+- **Filtre des courbes** : à partir de 6 courbes (conteneurs, machines…),
+  un champ au-dessus du graphique ne garde que celles dont le nom contient
+  le texte tapé. Rien n'est redemandé au serveur.
+- **Empreinte de la machine** (idée de Beszel) :
+  - l'agent envoie `X-Mirador-Empreinte` : SHA-256 de `/etc/machine-id`
+    (32 chiffres hexadécimaux ; l'identifiant lui-même ne sort pas), et
+    seulement vers mirador-server ;
+  - le serveur garde la dernière empreinte reçue (écrite avec « vu le »,
+    une fois par minute : pas d'écriture en plus) ;
+  - **option par machine**, éteinte par défaut : « Lier le token à cette
+    machine » (code 2FA). Lié, le token est refusé (403) s'il vient d'une
+    autre machine ou sans empreinte ;
+  - **limite** : cela protège d'un token qui fuit seul (sauvegarde, journal,
+    copie d'un fichier). Qui lit le token sur la machine peut aussi lire
+    `/etc/machine-id` ;
+  - **à savoir** : délier avant de réinstaller ou de cloner la machine, et
+    avant de revenir à un agent plus ancien, sinon elle est refusée. Un
+    retour arrière automatique après une mise à jour ratée vers une version
+    sans empreinte serait bloqué de la même façon : lier seulement quand
+    toutes les versions en service envoient l'empreinte ;
+  - migration 0013.
+
+### 19.6 Coût mesuré (machine de développement, 4 cœurs)
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, collecteur « matériel », détection seule | 0,13 µs par passage, 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé (2 ventilateurs, 1 pool, 1 grappe) | 21 µs par passage (toutes les 60 s), 20 allocations (ouverture des fichiers) | idem ✅ |
+| Agent, RAM | pas de tampon en plus ; non mesurée sur une vraie machine | < 30 Mio, à confirmer |
+| Séries en plus par machine | 1 par élément détecté ; 1 par ventilateur, 1 à 2 par pool, 2 par grappe une fois validés | — |
+| Serveur, classement d'une machine | 4,2 µs | — |
+| Serveur, page machine / fragment de la vue d'ensemble (5 machines, démonstration) | 3 à 5 ms | — |
+| Serveur, écritures disque | aucune hors enregistrement d'un choix | ✅ |
+
+Non mesuré : RAM du serveur sous charge (50 agents). Rien n'est gardé en
+mémoire en plus du cache de requêtes existant (deux entrées de plus par
+page machine ouverte, une pour la vue d'ensemble) ; à confirmer au prochain
+test de charge.
+
+### 19.7 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Session volée qui éteint la surveillance d'une machine | code 2FA à chaque enregistrement ; ligne d'audit ; un code ne sert qu'une fois |
+| Serveur compromis qui pousse une configuration malveillante | inchangé : que des booléens et des noms de services validés (`….service`, 200 au plus) ; jamais de commande ni de chemin |
+| Machine compromise qui ment sur ce qu'elle détecte | elle ne peut que proposer ; rien n'est activé sans l'admin ; noms limités à des caractères sûrs, 64 éléments et 100 services au plus |
+| Nom de service ou de pool piégé (XSS) | échappé par `html/template` ; formats vérifiés à l'entrée |
+| En-tête de capacité falsifié | il ne donne aucun droit : il change seulement les clés que l'agent reçoit pour lui-même |
+| Ancien agent cassé par une clé inconnue | clés nouvelles retirées pour lui (§ 19.4), testé |
+
+---
+
+## 20. Codes de secours de la 2FA et passkeys **[Fait, à valider — demande du 12/11]**
+
+Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
+
+### 20.1 Codes de secours
+
+- **10 codes** par compte, forme `XXXX-XXXX-XXXX` (12 signes sans 0, O, 1,
+  I : 60 bits d'aléa). Créés dans « Mon compte » avec le code 2FA, **affichés
+  une seule fois**. En créer de nouveaux annule les anciens.
+- En base : seulement l'empreinte SHA-256 (un code a assez d'aléa pour se
+  passer d'Argon2id : pas de calcul lourd à la connexion).
+- Un code **remplace le code 2FA une seule fois** :
+  - à la connexion (lien « Téléphone perdu ? ») ;
+  - pour préparer une nouvelle 2FA dans « Mon compte » (sinon un téléphone
+    perdu enfermerait dehors).
+- Il ne sert **pas** aux autres actions sensibles : elles gardent le code de
+  l'application.
+- Un code faux compte comme un code 2FA faux (verrous, CrowdSec, 5 essais).
+- Chaque usage : ligne d'audit, ligne de journal, et message à
+  l'administrateur avec le nombre de codes restants.
+- La remise à zéro de la 2FA par un administrateur, ou la commande
+  `utilisateur-secours`, efface aussi les codes de secours et les passkeys
+  (compte repris en main).
+
+### 20.2 Passkeys (WebAuthn)
+
+- **Deux usages** (réponse du 12/11 : « je veux les 2 ») :
+  1. après le mot de passe, la passkey **remplace le code 2FA** ;
+  2. **passkey seule**, sans mot de passe : bouton « Se connecter avec une
+     passkey » sur la page de connexion. La clé dit de quel compte il
+     s'agit, et l'appareil **doit vérifier l'utilisateur** (code PIN,
+     empreinte, visage) : cela fait deux facteurs. Une clé qui ne fait que
+     « toucher » est refusée ici (elle reste valable après le mot de passe).
+- La passkey seule demande une clé « découvrable » (téléphone, ordinateur,
+  gestionnaire de mots de passe, clé USB récente). Réglage « Sécurité » pour
+  l'interdire ; autorisée par défaut.
+- Défi de la passkey seule : demandé au clic, gardé en mémoire (2 000 au
+  plus, 5 min, usage unique) puisqu'il n'y a pas encore de session.
+- La 2FA par application reste obligatoire et reste demandée pour les
+  actions sensibles.
+- Création dans « Mon compte » : nom + code 2FA, puis le navigateur crée la
+  clé. 10 passkeys au plus par compte. Suppression avec le code 2FA.
+- **Aucune dépendance ajoutée** : vérification écrite ici (~450 lignes avec
+  le lecteur CBOR), avec la bibliothèque standard de Go. Une bibliothèque
+  WebAuthn aurait amené une dizaine de modules pour des fonctions dont on ne
+  se sert pas (attestation des fabricants, TPM).
+- Algorithmes acceptés : ES256 (P-256), Ed25519, RS256 (Windows Hello).
+- Ce qui est vérifié : défi aléatoire à usage unique (5 min, dans la
+  session), type d'opération, **origine** (anti-hameçonnage), domaine,
+  présence de l'utilisateur, signature, compteur de signatures s'il est
+  utilisé. Attestation du fabricant non demandée (« none »).
+- Le serveur ne garde que la clé publique, le domaine et un compteur.
+- **Domaine** : celui sous lequel l'interface est ouverte (en-tête `Host`,
+  transmis par nginx). Une passkey ne marche que sous le domaine où elle a
+  été créée. Sous une adresse IP, les passkeys sont refusées (les
+  navigateurs l'imposent) et la page le dit. HTTPS obligatoire, sauf
+  `localhost`.
+- Script : `passkey.js` (3,9 Ko, sans dépendance, CSP inchangée).
+
+### 20.3 Coût
+
+| Mesure | Résultat |
+|---|---|
+| Connexion par passkey (vérification ES256) | 0,09 ms, 1,7 Ko alloués (machine de développement) |
+| Code de secours | une empreinte SHA-256 + une écriture |
+| RAM | un défi de 43 caractères par session en cours ; rien d'autre |
+| Disque | 2 tables (migration 0012) ; une écriture par usage |
+| Binaire | pas de dépendance en plus |
+
+### 20.4 Essais
+
+- Tests unitaires : les 3 algorithmes, défi faux ou rejoué, autre origine,
+  autre domaine, autre clé, signature tronquée, compteur en recul, entrées
+  aléatoires (fuzzing du lecteur CBOR et des vérifications : 400 000
+  essais sans plantage).
+- Bout en bout : création, connexion, suppression avec un faux
+  authentificateur ; codes de secours (une fois, pas deux, pas pour un
+  autre compte).
+- **Vrai navigateur** (Chromium, authentificateur virtuel, sur
+  `localhost`) : création d'une passkey, connexion par passkey, connexion
+  par code de secours.
+- **Pas essayé** : un vrai téléphone, une vraie clé USB, Firefox, Safari,
+  Windows Hello (RS256 n'est testé qu'avec le faux authentificateur), et
+  derrière nginx.
+
+### 20.5 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Fausse page de connexion (hameçonnage) | la passkey est liée au domaine par le navigateur ; le serveur revérifie l'origine et le domaine |
+| Réponse rejouée | défi aléatoire, effacé dès le premier essai, valable 5 min |
+| Passkey ajoutée par une session volée | code 2FA demandé pour préparer la création ; audit |
+| Codes de secours volés en base | empreintes seulement ; 60 bits d'aléa |
+| Essais de codes de secours en rafale | mêmes verrous que le code 2FA (adresse, compte, 5 essais par session) |
+| Même code utilisé deux fois en même temps | mise à jour conditionnelle (`utilise_le = 0`) |
+| Donnée piégée envoyée par le navigateur | lecteur CBOR borné (profondeur 6, 64 éléments, tailles limitées), fuzzing |
+| En-tête `Host` falsifié | il ne change que le domaine attendu pour sa propre requête ; une clé créée ailleurs reste refusée |
+| Passkey seule : appareil volé et déverrouillé | vérification de l'utilisateur exigée à chaque connexion ; supprimer la passkey (ou remise à zéro par un admin) |
+| Passkey seule : remplissage de la mémoire par des demandes de défi | 2 000 défis au plus, 5 min ; refusé pour une adresse verrouillée |
+| Téléphone volé avec la 2FA | l'administrateur remet la 2FA à zéro : codes et passkeys effacés |
+| Mot de passe connu de l'attaquant | la passkey ou le code reste nécessaire ; message à l'administrateur à chaque essai faux |

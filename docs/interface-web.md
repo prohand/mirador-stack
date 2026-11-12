@@ -150,7 +150,7 @@ toutes les sessions (elles sont en mémoire).
 
 | Page | Contenu |
 |---|---|
-| Vue d'ensemble | machines, muettes, alertes, canaux, sauvegarde, stockage, état du parc (rafraîchi chaque minute, en pause si l'onglet est caché) |
+| Vue d'ensemble | machines, muettes, alertes, canaux, sauvegarde, stockage, état du parc (rafraîchi chaque minute, en pause si l'onglet est caché) ; tableau des machines avec barres, tri, filtre, colonnes masquables, alertes et éléments « à valider » (§ 10) |
 | Machines | jeton (nom facultatif, site, type, groupe), approbation (nom corrigeable), étiquettes, renommage (historique de l'ancien nom rattaché au nouveau dans les graphiques et les logs), adresses, token, version cible, suppression ; graphiques de la machine |
 | Mises à jour | versions publiées, version globale, fenêtre horaire, publication (manifeste signé + binaire) |
 | Alertes | en cours, historique, détail, accusé de réception, silence en un clic ; silences, maintenances, inhibitions, dépendances ; envois ; comparaison vmalert |
@@ -208,3 +208,85 @@ toutes les sessions (elles sont en mémoire).
   (« le tableau a changé entre-temps »).
 - Sur téléphone, le glisser-déposer n'est pas garanti : utiliser un
   ordinateur pour la disposition.
+
+## 10. Choisir ce qui est surveillé sur chaque machine
+
+Sur la page d'une machine, bloc « À surveiller sur cette machine »
+(SPEC § 19).
+
+- **Détecté, à valider** : ce que l'agent a trouvé et qui n'est pas encore
+  surveillé (ventilateurs, pools ZFS, RAID logiciel, nouveaux services).
+  Choisir « Surveiller », « Ignorer » ou laisser « Plus tard ».
+- **Surveillé** : ce que la machine envoie. Un point rouge signale un
+  problème. « Retirer » arrête l'envoi (et donc les alertes liées) ;
+  l'historique reste.
+- **Ignoré ou absent** : « Rétablir » remet la valeur par défaut.
+- Taper le **code 2FA**, puis « Enregistrer les choix » (ou « Tout
+  surveiller » / « Tout ignorer »). La machine applique le choix à sa
+  prochaine demande (5 min au plus) ; l'agent redémarre seul.
+- « Appliquer à : tout le groupe » enregistre le choix pour toutes les
+  machines du groupe de configuration. Les services restent par machine.
+- **Services systemd** : par défaut, tous les services démarrés au boot sont
+  suivis automatiquement. Avec « Nouveaux services : me les proposer avant
+  de les surveiller », ceux suivis aujourd'hui le restent, et chaque nouveau
+  service apparaît dans « à valider ».
+- Un agent trop ancien affiche un message : les réglages nouveaux sont
+  grisés jusqu'à sa mise à jour ; le reste fonctionne.
+- Retirer « Disques SMART », « Pare-feu » ou « Certificats » arrête l'envoi,
+  pas l'assistant root de la machine. Pour l'arrêter aussi : `MIRADOR_SMART=non`
+  (ou `MIRADOR_PAREFEU=non`) dans `/etc/mirador-agent/agent.conf`.
+
+Vue d'ensemble :
+
+- un clic sur « Machine », « CPU », « Mémoire », « Disque » ou « Alertes »
+  trie ; un deuxième inverse ; un troisième revient à l'ordre par gravité ;
+- « Filtre » cherche dans le nom, le site, le type et le groupe ;
+- « Colonnes » masque des colonnes ; tri et colonnes sont retenus dans le
+  navigateur.
+
+## 11. Codes de secours et passkeys (« Mon compte »)
+
+SPEC § 20.
+
+**Codes de secours** (téléphone de la 2FA perdu) :
+
+- « Mon compte » › « Codes de secours » › code 2FA › « Créer 10 nouveaux
+  codes ». Ils ne sont affichés **qu'une fois** : les ranger dans le
+  gestionnaire de mots de passe ou sur papier.
+- À la connexion, après le mot de passe : « Téléphone perdu ? Utiliser un
+  code de secours ». Un code ne sert qu'une fois.
+- Une fois connecté : « Double authentification » › « Téléphone perdu » pour
+  préparer une nouvelle 2FA avec un autre code de secours.
+- Chaque usage envoie un message sur le canal de notification.
+- Plus de code, plus de téléphone : `utilisateur-secours NOM` sur le serveur
+  (`docs/administration-serveur.md`).
+
+**Passkeys** :
+
+- « Mon compte » › « Passkeys » › nom + code 2FA › « Continuer », puis
+  « Créer la passkey sur cet appareil ».
+- À la connexion, deux façons :
+  - mot de passe, puis « Utiliser une passkey » à la place du code ;
+  - « Se connecter avec une passkey », sans mot de passe : l'appareil
+    demande alors son code PIN, l'empreinte ou le visage.
+- Pour interdire la passkey seule : « Sécurité » › décocher « Autoriser la
+  connexion par passkey seule ».
+- Il faut ouvrir l'interface par son **nom de domaine en HTTPS** (pas par
+  une adresse IP). nginx doit transmettre l'en-tête `Host` (déjà le cas avec
+  la configuration du § 2).
+- Une passkey ne marche que sous le domaine où elle a été créée : si le
+  domaine de l'interface change, il faut la recréer.
+- Le code 2FA reste demandé pour les actions sensibles.
+
+## 12. Raccourcis et lien du token à la machine
+
+- **Ctrl+K** (ou « Aller à… » dans le menu) : aller à une machine, un
+  tableau ou une page en tapant quelques lettres.
+- **Filtre des courbes** : sur un graphique de 6 courbes ou plus, le champ
+  « Filtrer les courbes… » ne garde que celles dont le nom contient le texte.
+- **Lier le token à la machine** (page de la machine › « Modifier la
+  machine ») : le token est alors refusé s'il est copié sur une autre
+  machine. À délier avant de réinstaller ou de cloner la machine, ou de
+  revenir à un agent plus ancien. Si une machine liée devient muette après
+  une réinstallation : « Délier », attendre une minute, « Lier ».
+

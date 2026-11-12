@@ -86,6 +86,26 @@ type Agent struct {
 	// Forme : http://127.0.0.1:2375 ou unix:///chemin/absolu.
 	Docker string `json:"docker"`
 
+	// Surveillance choisie dans l'interface (SPEC.md § 19) : ce que la machine
+	// envoie ou non. Les trois derniers sont nouveaux et éteints par défaut :
+	// l'agent signale seulement qu'ils existent, l'interface propose de les
+	// activer.
+	Temperatures    bool `json:"temperatures"`     // capteurs de /sys (défaut oui)
+	DockerMetriques bool `json:"docker_metriques"` // métriques des conteneurs (défaut oui, si Docker est configuré)
+	Ventilateurs    bool `json:"ventilateurs"`     // vitesse des ventilateurs (/sys/class/hwmon)
+	ZFS             bool `json:"zfs"`              // santé des pools ZFS (/proc/spl/kstat/zfs)
+	Mdraid          bool `json:"mdraid"`           // RAID logiciel (/sys/block/md*)
+	// Services systemd validés un par un : avec SystemdValidation, seuls les
+	// services de SystemdSurveiller sont suivis ; les autres services démarrés
+	// au boot sont seulement signalés (« à valider » dans l'interface).
+	SystemdValidation bool     `json:"systemd_validation"`
+	SystemdSurveiller []string `json:"systemd_surveiller"`
+	// Résultats de l'assistant root : envoyés ou non. L'assistant lui-même ne
+	// lit jamais la configuration distante (il continue de tourner).
+	EnvoyerPareFeu     bool `json:"envoyer_pare_feu"`
+	EnvoyerSmart       bool `json:"envoyer_smart"`
+	EnvoyerCertificats bool `json:"envoyer_certificats"`
+
 	// Logs du journal (partie 5).
 	// Metriques : collecte et envoi des métriques de la machine (défaut oui).
 	// Non : « logs seulement » ; l'agent n'envoie alors que ses propres
@@ -153,6 +173,11 @@ func Defaut() Agent {
 		NiveauLog:             "info",
 		Systemd:               true,
 		MisesAJour:            true,
+		Temperatures:          true,
+		DockerMetriques:       true,
+		EnvoyerPareFeu:        true,
+		EnvoyerSmart:          true,
+		EnvoyerCertificats:    true,
 		Certificats:           certificatsDefaut(),
 		FichierRoot:           "/run/mirador-agent/root.json",
 		Metriques:             true,
@@ -260,6 +285,14 @@ func (a *Agent) Valider() error {
 	for _, n := range a.SystemdIgnorer {
 		if !formatUnite.MatchString(n) {
 			ajoute("MIRADOR_SYSTEMD_IGNORER : nom de service invalide %q", n)
+		}
+	}
+	if len(a.SystemdSurveiller) > 200 {
+		ajoute("MIRADOR_SYSTEMD_SURVEILLER : 200 services au plus")
+	}
+	for _, n := range a.SystemdSurveiller {
+		if !formatUnite.MatchString(n) {
+			ajoute("MIRADOR_SYSTEMD_SURVEILLER : nom de service invalide %q", n)
 		}
 	}
 	if len(a.Certificats) > 50 {
@@ -482,6 +515,26 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.SystemdIgnorer = liste(valeur)
 	case "MIRADOR_MISES_A_JOUR":
 		a.MisesAJour, err = ouiNon(valeur)
+	case "MIRADOR_TEMPERATURES":
+		a.Temperatures, err = ouiNon(valeur)
+	case "MIRADOR_DOCKER_METRIQUES":
+		a.DockerMetriques, err = ouiNon(valeur)
+	case "MIRADOR_VENTILATEURS":
+		a.Ventilateurs, err = ouiNon(valeur)
+	case "MIRADOR_ZFS":
+		a.ZFS, err = ouiNon(valeur)
+	case "MIRADOR_MDRAID":
+		a.Mdraid, err = ouiNon(valeur)
+	case "MIRADOR_SYSTEMD_VALIDATION":
+		a.SystemdValidation, err = ouiNon(valeur)
+	case "MIRADOR_SYSTEMD_SURVEILLER":
+		a.SystemdSurveiller = liste(valeur)
+	case "MIRADOR_ENVOYER_PAREFEU":
+		a.EnvoyerPareFeu, err = ouiNon(valeur)
+	case "MIRADOR_ENVOYER_SMART":
+		a.EnvoyerSmart, err = ouiNon(valeur)
+	case "MIRADOR_ENVOYER_CERTIFICATS":
+		a.EnvoyerCertificats, err = ouiNon(valeur)
 	case "MIRADOR_DOCKER":
 		a.Docker = valeur
 	case "MIRADOR_PAREFEU":

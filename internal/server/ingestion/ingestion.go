@@ -256,9 +256,17 @@ func (g *Ingestion) Accueillir(w http.ResponseWriter, r *http.Request) (m Machin
 	token, present := extraireToken(r)
 	var err error
 	if present {
-		m, err = g.auth.Verifier(r.Context(), token, adresse, maintenant)
+		m, err = g.auth.VerifierMachine(r.Context(), token, adresse, r.Header.Get(protocole.EnteteEmpreinte), maintenant)
 	}
 	switch {
+	case errors.Is(err, ErrEmpreinte):
+		// Token lié à une machine et présenté par une autre : token copié,
+		// ou machine réinstallée (à relier dans l'interface). Compté comme un échec.
+		g.echecsIP.Prendre(ip, 1, maintenant)
+		liberer()
+		g.opt.Journal.Warn("token utilisé par une autre machine que celle à laquelle il est lié", "machine", m.Nom, "ip", ip)
+		g.refuser(w, http.StatusForbidden, "token lié à une autre machine", 0)
+		return m, nil, false
 	case errors.Is(err, ErrIP):
 		// Token valable depuis une autre adresse : token volé, ou machine
 		// qui a changé d'IP (à corriger dans l'interface). Compté comme un échec.

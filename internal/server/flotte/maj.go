@@ -247,7 +247,7 @@ func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.mu.Lock()
-	f.battements[m.ID] = battement{le: f.opt.Maintenant().Unix(), b: b}
+	f.battements[m.ID] = battement{le: f.opt.Maintenant().Unix(), b: b, capacites: capacitesDe(r)}
 	f.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -273,8 +273,8 @@ func (f *Flotte) EcrireBattements(ctx context.Context) error {
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE machines SET battement_le = ?, version_agent = ?,
 			architecture = CASE WHEN ? = '' THEN architecture ELSE ? END,
-			demarrage_le = ?, maj_essai = ?, maj_echec = ? WHERE id = ?`,
-			x.le, x.b.Version, x.b.Architecture, x.b.Architecture, demarrage, x.b.MajEssai, x.b.MajEchec, id); err != nil {
+			demarrage_le = ?, maj_essai = ?, maj_echec = ?, capacites = ? WHERE id = ?`,
+			x.le, x.b.Version, x.b.Architecture, x.b.Architecture, demarrage, x.b.MajEssai, x.b.MajEchec, x.capacites, id); err != nil {
 			return err
 		}
 	}

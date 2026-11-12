@@ -9,6 +9,8 @@
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
+| 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
+| 5 ter. Codes de secours de la 2FA et passkeys | **faite, à valider** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -545,6 +547,71 @@ Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la 
 - **À vérifier sur le VPS avant de mettre à jour** : `config/server.conf`
   contient bien `MIRADOR_PROXY=…` (sinon le serveur refuse de démarrer).
 - Non lancé ici : `gosec` (pas installé) ; la CI le fera.
+
+## Idées reprises de Beszel (12/11, SPEC § 19)
+
+Demande : choisir ce qui est surveillé sur chaque machine (détection par
+l'agent, proposition, validation ou non), et un design plus lisible.
+Maquette validée, pas de vérification de port.
+
+| Partie | État |
+|---|---|
+| Agent : réglages de surveillance, ventilateurs, ZFS, RAID logiciel, détection | **fait** (fichiers d'exemple ; aucun vrai capteur, pool ou grappe ici) |
+| Serveur : choix dans la configuration typée, anciens agents protégés, 3 règles | **fait** |
+| Page machine : bloc « À surveiller », bandeau | **fait** |
+| Vue d'ensemble : barres, tri, filtre, colonnes, alertes, « à valider » | **fait** |
+| Documentation (`docs/interface-web.md` § 10), SPEC § 19 | **fait** |
+
+Mesures (machine de développement, 4 cœurs) :
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, détection seule | 0,13 µs par passage (60 s), 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé | 21 µs par passage, 20 allocations | idem ✅ |
+| Agent, écritures disque | aucune | ✅ |
+| Serveur, page machine et vue d'ensemble | 3 à 5 ms (5 machines) | — |
+| Serveur, écritures disque | seulement à l'enregistrement d'un choix | ✅ |
+| RAM de l'agent et du serveur | **non mesurée en conditions réelles** | à faire sur srv-test et le VPS |
+
+Tests : `go vet` et `go test -race ./...` verts. `gosec` non lancé ici (pas
+installé) : la CI le fera. Règles : 80 après import (77 avant, + 3).
+
+À vérifier chez toi (commandes à coller, sorties à me renvoyer) :
+
+```bash
+# Sur un Proxmox : le fichier d'état des pools existe-t-il, lisible sans root ?
+sudo -u mirador-agent sh -c 'for f in /proc/spl/kstat/zfs/*/state; do echo "$f : $(cat "$f")"; done'
+# Ventilateurs et RAID logiciel vus par le noyau
+ls /sys/class/hwmon/*/fan*_input 2>/dev/null; ls -d /sys/block/md*/md 2>/dev/null
+```
+
+Ajouté ensuite (12/11, SPEC § 19.8) : recherche rapide Ctrl+K, sous-titres
+de 18 graphiques fournis, filtre des courbes, empreinte de la machine (token
+lié à la machine, option éteinte par défaut, migration 0013). Essayé dans
+Chromium sur le serveur de démonstration.
+
+Ordre de mise à jour : **serveur d'abord**, puis les agents (un agent
+récent marche avec un ancien serveur, mais sans ces réglages).
+
+## Codes de secours et passkeys (12/11, SPEC § 20)
+
+| Partie | État |
+|---|---|
+| Codes de secours : 10 codes à usage unique, connexion et nouvelle 2FA | **fait** |
+| Passkeys : création, connexion (à la place du code 2FA), suppression | **fait** |
+| Tests : unitaires, fuzzing, bout en bout, vrai navigateur (Chromium) | **fait** |
+| Essai avec un vrai téléphone ou une vraie clé, derrière nginx | **à faire chez toi** |
+
+- Aucune dépendance ajoutée ; migration 0012 ; `go vet` et
+  `go test -race ./...` verts ; `gosec` à voir en CI.
+- Coût : ~0,1 ms par connexion par passkey ; rien en mémoire hors un défi
+  par session en cours.
+- Réponse du 12/11 (« je veux les 2 ») : la passkey remplace le code 2FA
+  après le mot de passe, **et** peut servir seule, sans mot de passe
+  (l'appareil doit alors vérifier l'utilisateur ; réglage « Sécurité » pour
+  l'interdire). Les deux essayés dans Chromium.
+- À essayer sur le VPS : créer des codes de secours, créer une passkey
+  depuis le téléphone, se déconnecter, se reconnecter des deux façons.
 
 ## Prochaine étape
 

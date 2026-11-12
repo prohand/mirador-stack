@@ -3,6 +3,7 @@
 package console
 
 import (
+	"encoding/base64"
 	"errors"
 	"html/template"
 	"mirador-stack/internal/server/auth"
@@ -21,15 +22,140 @@ type donneesCompte struct {
 	U             auth.Utilisateur
 	Secret, Etape string
 	QR            template.URL
+	// Codes de secours et passkeys (SPEC § 20).
+	CodesRestants   int
+	CodesNouveaux   []string // tout juste créés : affichés cette fois seulement
+	Passkeys        []auth.Passkey
+	PasskeyPossible bool   // faux sous une adresse IP ou sans HTTPS
+	Domaine         string // domaine de l'interface (rpId)
+	// Passkey en cours de création (défi préparé après le code 2FA).
+	PKDefi, PKNom, PKUtilisateur, PKExclure, PKAlgorithmes string
 }
 
 func (c *Console) pageCompte(q *req) {
+	ctx := q.r.Context()
 	d := donneesCompte{U: q.u}
 	if q.s.SecretPropose != "" {
 		d.QR, _ = auth.ImageQR(auth.URITOTP(q.u.Nom, q.s.SecretPropose))
 		d.Secret = grouper(q.s.SecretPropose)
 	}
+	d.CodesRestants, _ = auth.CodesSecoursRestants(ctx, c.db, q.u.ID)
+	if len(q.s.CodesSecours) > 0 {
+		d.CodesNouveaux = q.s.CodesSecours
+		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.CodesSecours = nil })
+	}
+	d.Passkeys, _ = auth.ListerPasskeys(ctx, c.db, q.u.ID)
+	if domaine, _, err := auth.DomaineEtOrigine(q.r.Host); err == nil {
+		d.Domaine, d.PasskeyPossible = domaine, auth.PasskeyPossible(domaine)
+	}
+	if q.s.DefiPasskey != "" && q.t.Sub(q.s.DefiPasskeyLe) <= auth.DureeDefiPasskey {
+		d.PKDefi, d.PKNom = q.s.DefiPasskey, q.s.NomPasskey
+		d.PKUtilisateur = base64.RawURLEncoding.EncodeToString([]byte("mirador-" + strconv.FormatInt(q.u.ID, 10)))
+		var exclure, algs []string
+		for _, p := range d.Passkeys {
+			exclure = append(exclure, p.IdentifiantB64())
+		}
+		for _, a := range auth.AlgorithmesPasskey {
+			algs = append(algs, strconv.Itoa(a))
+		}
+		d.PKExclure, d.PKAlgorithmes = strings.Join(exclure, ","), strings.Join(algs, ",")
+	}
 	c.rendre(q, "compte", "Mon compte", "compte", d)
+}
+
+// verifierCodeOuSecours : code 2FA, ou code de secours (champ « secours »)
+// pour qui a perdu son téléphone et doit recréer sa 2FA.
+func (c *Console) verifierCodeOuSecours(q *req) error {
+	secours := q.r.PostFormValue("secours")
+	if secours == "" {
+		return c.verifierCode(q)
+	}
+	if c.sensibleBloque(q) {
+		return errTropEssais
+	}
+	finir, libre := c.debuterSensible(q)
+	if !libre {
+		return errTropEssais
+	}
+	defer finir()
+	bon, err := auth.UtiliserCodeSecours(q.r.Context(), c.db, q.u, secours, q.ip.String(), q.t)
+	if err != nil {
+		return err
+	}
+	if !bon {
+		if err := c.echecSensible(q, "code de secours faux (action sensible)"); err != nil {
+			return err
+		}
+		return errors.New("code de secours faux ou déjà utilisé")
+	}
+	return nil
+}
+
+// postCodesSecours : dix nouveaux codes (les anciens ne valent plus rien),
+// affichés une seule fois sur la page du compte.
+func (c *Console) postCodesSecours(q *req) {
+	err := c.verifierCode(q)
+	if err == nil {
+		var codes []string
+		if codes, err = auth.CreerCodesSecours(q.r.Context(), c.db, q.u, q.qui(), q.ip.String(), q.t); err == nil {
+			c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.CodesSecours = codes })
+		}
+	}
+	c.retour(q, "/compte#secours", err, "nouveaux codes de secours créés : les noter maintenant, ils ne seront plus affichés")
+}
+
+// postPasskeyPreparer : code 2FA demandé, puis un défi est gardé dans la
+// session ; la page propose alors de créer la clé sur l'appareil.
+func (c *Console) postPasskeyPreparer(q *req) {
+	err := func() error {
+		domaine, _, err := auth.DomaineEtOrigine(q.r.Host)
+		if err != nil || !auth.PasskeyPossible(domaine) {
+			return errors.New("les passkeys demandent un nom de domaine en HTTPS (pas une adresse IP)")
+		}
+		if err := c.verifierCode(q); err != nil {
+			return err
+		}
+		defi, err := auth.NouveauDefiPasskey()
+		if err != nil {
+			return err
+		}
+		nom := auth.NomPasskey(q.r.PostFormValue("nom"))
+		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.DefiPasskey, s.DefiPasskeyLe, s.NomPasskey = defi, q.t, nom })
+		return nil
+	}()
+	c.retour(q, "/compte#passkeys", err, "code accepté : créer maintenant la passkey sur cet appareil (5 minutes)")
+}
+
+// postPasskeyEnregistrer : réponse du navigateur après la création.
+func (c *Console) postPasskeyEnregistrer(q *req) {
+	err := func() error {
+		defi, nom := c.sessions.PrendreDefiPasskey(q.s.Empreinte, q.t)
+		if defi == "" {
+			return errors.New("demande expirée : recommencer avec un code 2FA")
+		}
+		domaine, origine, err := auth.DomaineEtOrigine(q.r.Host)
+		if err != nil {
+			return err
+		}
+		p, err := auth.VerifierCreation(q.r.PostFormValue("client"), q.r.PostFormValue("attestation"), defi, domaine, origine)
+		if err != nil {
+			c.journal.Warn("console : création de passkey refusée", "ip", q.ip.String(), "utilisateur", q.u.Nom, "detail", err.Error())
+			return errors.New("passkey refusée par le serveur (détail dans le journal)")
+		}
+		return auth.AjouterPasskey(q.r.Context(), c.db, q.u, p, nom, q.ip.String(), q.t)
+	}()
+	c.retour(q, "/compte#passkeys", err, "passkey enregistrée : elle peut remplacer le code 2FA à la connexion")
+}
+
+func (c *Console) postPasskeySupprimer(q *req) {
+	err := c.verifierCode(q)
+	if err == nil {
+		var id int64
+		if id, err = strconv.ParseInt(q.r.PostFormValue("id"), 10, 64); err == nil {
+			err = auth.SupprimerPasskey(q.r.Context(), c.db, q.u, id, q.ip.String(), q.t)
+		}
+	}
+	c.retour(q, "/compte#passkeys", err, "passkey supprimée")
 }
 
 // postMotDePasse : ancien mot de passe + code 2FA + nouveau (deux fois).
@@ -96,7 +222,7 @@ func (c *Console) garderSession(q *req) error {
 // ne remplace l'ancienne qu'après un code juste de la nouvelle : on ne peut
 // pas s'enfermer dehors avec un téléphone mal réglé.
 func (c *Console) post2FANouvelle(q *req) {
-	err := c.verifierCode(q)
+	err := c.verifierCodeOuSecours(q)
 	if err == nil {
 		var secret string
 		if secret, err = auth.NouveauSecretTOTP(); err == nil {
@@ -177,8 +303,10 @@ func (c *Console) postUtilisateur(q *req) {
 			}
 			err = auth.DefinirDesactive(ctx, c.db, nom, action == "desactiver", q.qui(), ip, q.t)
 		case "reinitialiser_2fa":
-			err = auth.ReinitialiserTOTP(ctx, c.db, nom, q.qui(), ip, q.t)
-			ok = "2FA effacée : la personne la recrée à sa prochaine connexion"
+			if err = auth.ReinitialiserTOTP(ctx, c.db, nom, q.qui(), ip, q.t); err == nil {
+				err = auth.EffacerSecoursEtPasskeys(ctx, c.db, nom)
+			}
+			ok = "2FA, codes de secours et passkeys effacés : la personne recrée sa 2FA à sa prochaine connexion"
 		case "mot_de_passe":
 			err = auth.DefinirMotDePasse(ctx, c.db, nom, q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
 			ok = "mot de passe changé, sessions de ce compte fermées"
@@ -249,6 +377,7 @@ func (c *Console) postSecurite(q *req) {
 				return err
 			}
 			s.IPs = strings.TrimSpace(q.r.PostFormValue("ips"))
+			s.SansPasskeySeule = q.r.PostFormValue("passkey_seule") == ""
 		}
 		if err := s.Valider(); err != nil {
 			return err
