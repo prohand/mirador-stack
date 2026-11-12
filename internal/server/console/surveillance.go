@@ -886,6 +886,12 @@ func choixElements(q *req, cfg *distant.ConfigDistante) (map[string]any, error) 
 // pas de métriques.
 type identiteMachine struct {
 	Noyau, Memoire, Coeurs, Allumee string
+	// Intervalle d'envoi des métriques (réglage effectif, défaut 30 s) et
+	// lien vers son réglage pour cette machine.
+	Intervalle, LienIntervalle string
+	// Mises à jour de paquets (apt) : -1 = pas de valeur.
+	Paquets, PaquetsSecurite int
+	Redemarrage              bool
 }
 
 func (c *Console) identite(ctx context.Context, m flotte.InfoMachine, ech []alertes.Echantillon, t time.Time) identiteMachine {
@@ -904,6 +910,27 @@ func (c *Console) identite(ctx context.Context, m flotte.InfoMachine, ech []aler
 	}
 	if n, err := c.instant(ctx, fmt.Sprintf(`count(node_cpu_seconds_total{instance=%q,mode="idle"})`, m.Nom), t); err == nil && len(n) == 1 {
 		id.Coeurs = pluriel(int(n[0].Valeur), "cœur")
+	}
+	id.Intervalle = "30 s"
+	if cfg, err := flotte.ConfigEffective(ctx, c.db, m.ID); err == nil && cfg != nil && cfg.Intervalle != nil {
+		id.Intervalle = dureeLisible(time.Duration(*cfg.Intervalle))
+	}
+	id.LienIntervalle = fmt.Sprintf("/reglages/agents?portee=machine:%d", m.ID)
+	// Mises à jour de paquets : dernière valeur des 3 dernières heures (l'agent
+	// les compte toutes les quelques heures seulement).
+	id.Paquets = -1
+	sel := fmt.Sprintf(`{__name__=~"apt_upgrades_pending|apt_upgrades_security_pending|node_reboot_required", instance=%q}`, m.Nom)
+	if ech, err := c.instant(ctx, `last_over_time(`+sel+`[3h])`, t); err == nil {
+		for _, e := range ech {
+			switch e.Etiquettes.Get("__name__") {
+			case "apt_upgrades_pending":
+				id.Paquets = int(e.Valeur)
+			case "apt_upgrades_security_pending":
+				id.PaquetsSecurite = int(e.Valeur)
+			case "node_reboot_required":
+				id.Redemarrage = e.Valeur > 0
+			}
+		}
 	}
 	return id
 }

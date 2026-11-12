@@ -33,6 +33,16 @@ func ReglesMirador() []Regle {
 			Description: "Compteur oom_kill du noyau (/proc/vmstat). Le processus tué est écrit dans le journal " +
 				"(« Out of memory: Killed process »).",
 			Note: "SPEC § 4.6 bis : activée par défaut"}),
+		// Paquets (demande du 12/11) : mises à jour de sécurité qui attendent.
+		// « Pour » de 3 jours : le temps normal de les appliquer.
+		m(Regle{Nom: "MisesAJourSecuriteEnAttente", Groupe: "hote", Intervalle: Duree(5 * time.Minute),
+			Expr:    `max by (instance) (apt_upgrades_security_pending) > 0`,
+			Pour:    Duree(72 * time.Hour),
+			Gravite: Avertissement,
+			Resume:  "{{ $value | humanize }} mise(s) à jour de sécurité attendent depuis plus de 3 jours sur {{ $labels.instance }}",
+			Description: "Compté par l'agent avec « apt-get -s upgrade » (simulation, rien n'est installé). " +
+				"Appliquer les mises à jour (apt upgrade), puis redémarrer si demandé.",
+			Note: "Demande du 12/11 : réglable (délai, gravité) dans Règles"}),
 		// Matériel (SPEC § 19) : ces métriques n'existent que sur les machines où
 		// l'élément a été validé dans l'interface ; ailleurs, la règle ne voit rien.
 		m(Regle{Nom: "PoolZfsDegrade", Groupe: "materiel",

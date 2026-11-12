@@ -317,6 +317,7 @@ document.addEventListener("change", function (e) {
       if (etat === "") { return true; }
       if (etat === "probleme") { return parseInt(g, 10) >= 1; }
       if (etat === "valider") { return parseInt(l.getAttribute("data-valider"), 10) > 0; }
+      if (etat === "majs") { return parseInt(l.getAttribute("data-majs"), 10) > 0; }
       return g === etat;
     }
     lignes.forEach(function (l) {

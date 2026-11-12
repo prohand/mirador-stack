@@ -56,6 +56,7 @@
         <option value="1">Avertissement</option>
         <option value="0">En ligne</option>
         <option value="valider">À valider</option>
+        <option value="majs">Mises à jour en attente</option>
       </select></label>
       <label>Filtre <input type="search" data-filtre-parc placeholder="nom, site, type…" maxlength="63" autocomplete="off"></label>
       <details class="colonnes"><summary class="bouton secondaire">Colonnes</summary><div class="menu-colonnes">
@@ -63,8 +64,8 @@
       {{if .D.LienLinux}}<a href="/tableaux/serveurs-linux">Tableau « Serveurs Linux » →</a>{{end}}
     </div></div>
   {{if .D.Parc}}<div class="defile"><table class="parc">
-  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
-  <tbody>{{range $i, $l := .D.Parc}}<tr data-rang="{{$i}}" data-nom="{{.Nom}}" data-texte="{{.Nom}} {{.Site}} {{.Env}} {{.Groupe}}" data-cpu="{{.PctCPU}}" data-memoire="{{.PctMemoire}}" data-disque="{{.PctDisque}}" data-alertes="{{.Alertes}}" data-etat="{{.Gravite}}" data-valider="{{.Nouveautes}}" data-vu="{{.VuLe}}">
+  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-majs masque-tel" data-tri="majs">Mises à jour</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
+  <tbody>{{range $i, $l := .D.Parc}}<tr data-rang="{{$i}}" data-nom="{{.Nom}}" data-texte="{{.Nom}} {{.Site}} {{.Env}} {{.Groupe}}" data-cpu="{{.PctCPU}}" data-memoire="{{.PctMemoire}}" data-disque="{{.PctDisque}}" data-alertes="{{.Alertes}}" data-etat="{{.Gravite}}" data-valider="{{.Nouveautes}}" data-majs="{{.Paquets}}" data-vu="{{.VuLe}}">
     <td class="nom-machine"><a href="/machines/{{.Nom}}"><b>{{.Nom}}</b></a><span class="sous">{{.Site}}{{if .Env}} · {{.Env}}{{end}}</span></td>
     <td><span class="pastille {{.ClasseEtat}}">{{.Etat}}</span></td>
     <td class="col-courbe masque-tel">{{if .Etincelle}}<svg class="etincelle" viewBox="0 0 90 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{.Etincelle}}"></polyline></svg>{{end}}</td>
@@ -73,6 +74,7 @@
     <td class="col-disque"><div class="mesure"><span>{{.Disque}}</span>{{if ge .PctDisque 0}}<div class="jauge {{.ClasseDisque}}"><i class="largeur-{{.PctDisque}}"></i></div>{{end}}</div></td>
     <td class="col-alertes"><a class="cloche {{.ClasseAlertes}}" href="/machines/{{.Nom}}" title="Alertes actives de {{.Nom}}"><svg class="icone"><use href="#i-alertes"></use></svg>{{.Alertes}}</a></td>
     <td class="col-valider masque-tel">{{if .Nouveautes}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance">{{.Nouveautes}} à valider</a>{{end}}</td>
+    <td class="col-majs masque-tel">{{if gt .Paquets 0}}<a class="pastille {{if .PaquetsSecurite}}attention{{end}}" href="/machines/{{.Nom}}" title="Paquets à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}">{{.Paquets}}{{if .PaquetsSecurite}} · {{.PaquetsSecurite}} sécu{{end}}</a>{{else if eq .Paquets 0}}<span class="sous">À jour</span>{{end}}{{if .Redemarrage}} <span class="pastille attention" title="Redémarrage nécessaire (/run/reboot-required)">Redémarrer</span>{{end}}</td>
     <td class="col-vu masque-tel">{{depuisS .VuLe}}</td></tr>{{end}}</tbody>
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
