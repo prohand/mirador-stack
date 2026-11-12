@@ -3231,7 +3231,7 @@ Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
   Machines), Silences et maintenances (Alertes), Utilisateurs, Sécurité,
   Journal d'audit.
 
-### 21.3 Chemins de certificats venus du serveur : écart assumé
+### 21.3 Chemins de certificats venus du serveur : écart assumé **[Décidé, validé par l'utilisateur le 12/11]**
 
 La revue du 11/11 avait décidé : « root ne lit jamais la configuration
 distante » (le fichier gardé appartient à l'agent, sans root). Choix de

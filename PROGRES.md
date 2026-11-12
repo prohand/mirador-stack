@@ -619,7 +619,7 @@ récent marche avec un ancien serveur, mais sans ces réglages).
 | Partie | État |
 |---|---|
 | Agent : disques, interfaces, montages, certificats retirés un par un ; chemins de certificats depuis l'interface | **fait** |
-| Assistant root : lecture des chemins venus du serveur, avec garde-fous (§ 21.3) | **fait** (testé ici : lien, tube, clé privée, dossier interdit) |
+| Assistant root : lecture des chemins venus du serveur, avec garde-fous (§ 21.3) | **fait, écart de sécurité validé le 12/11** (testé ici : lien, tube, clé privée, dossier interdit) |
 | Serveur : capacité `elements`, anciens agents protégés | **fait** |
 | Page machine : détail Système et Certificats | **fait** (vu dans Chromium, démonstration) |
 | Signal « à valider » : menu, liste, en-tête | **fait** |
