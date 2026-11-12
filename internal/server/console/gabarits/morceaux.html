@@ -15,12 +15,15 @@
 {{define "rangees"}}{{range .}}<details class="rangee" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
 <div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
 {{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
-{{define "liste-alertes"}}{{if .}}<div class="defile"><table>
-<thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Résumé</th><th>Depuis</th><th>État</th></tr></thead>
-<tbody>{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
+{{define "liste-alertes"}}{{if .}}<div data-alertes>
+<div class="ligne filtres-alertes"><label>Gravité <select data-filtre-gravite><option value="">Toutes</option><option value="3">Critique</option><option value="2">Avertissement</option><option value="1">Info</option></select></label>
+<label>Filtre <input type="search" data-filtre-alertes placeholder="alerte, machine, résumé…" maxlength="63" autocomplete="off"></label></div>
+<div class="defile"><table>
+<thead><tr><th data-tri="gravite">Gravité</th><th data-tri="regle">Alerte</th><th data-tri="machine">Machine</th><th>Résumé</th><th data-tri="depuis">Depuis</th><th>État</th></tr></thead>
+<tbody>{{range $i, $a := .}}<tr data-rang="{{$i}}" data-gravite="{{if egal .Gravite "critical"}}3{{else if egal .Gravite "warning"}}2{{else}}1{{end}}" data-regle="{{.Regle}}" data-machine="{{.Machine}}" data-depuis="{{.Depuis}}" data-texte="{{.Regle}} {{.Machine}} {{.Resume}}"><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
 <td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{.Resume}}</td><td>{{depuisMs .Depuis}}</td>
 <td>{{if egal .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td></tr>{{end}}</tbody>
-</table></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
+</table></div><p class="vide" data-alertes-vide hidden>Aucune alerte ne correspond aux filtres.</p></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
