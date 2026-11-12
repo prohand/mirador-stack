@@ -2886,3 +2886,149 @@ Menaces (ajouts) :
 | Mot de passe connu : centaines de sessions partielles pour essayer des codes | 3 par compte ; essais réservés (§ 18.27) |
 | Serveur exposé par erreur sans nginx | refus de démarrer |
 | Dépendance avec une faille connue | `govulncheck` en CI + Dependabot |
+
+---
+
+## 19. Idées reprises de Beszel : surveillance par machine et vue d'ensemble **[Fait, à valider — demande du 12/11]**
+
+- Source : `github.com/henrygd/beszel` (Go, licence MIT), documentation lue
+  le 12/11. **Aucun code repris** : seulement des idées, réécrites ici.
+- Branche : `claude/laughing-sagan-7w7xrm`. Maquette validée le 12/11
+  (deux écrans : vue d'ensemble, page machine).
+
+### 19.1 Ce que je retiens, ce que j'écarte
+
+| Idée Beszel | Dans mirador | Pourquoi |
+|---|---|---|
+| Barres colorées, tri, filtre, choix des colonnes dans la liste des machines | vue d'ensemble (§ 19.5) | on voit d'un coup d'œil la machine qui va mal |
+| Bandeau d'identité sous le nom de la machine | page machine | plus court que le tableau « Identité » (gardé, replié) |
+| Vitesse des ventilateurs (`/sys/class/hwmon`) | collecteur « matériel », éteint par défaut | panne matérielle non vue aujourd'hui |
+| Santé des pools ZFS | idem, lu dans `/proc/spl/kstat/zfs/*/state` | pas de commande `zpool`, pas de root |
+| État du RAID logiciel (mdraid) par sysfs | idem, `/sys/block/md*/md/degraded` | idem |
+| Sondes ajoutées dans l'interface, par machine | devient « ce que la machine envoie se choisit dans l'interface », avec détection | demande de l'utilisateur |
+
+| Écarté | Raison |
+|---|---|
+| Mode SSH (le hub se connecte à l'agent, port 45876) | l'agent n'ouvre jamais de port |
+| Mise à jour de l'agent depuis GitHub | mirador : versions signées Ed25519, clé hors serveur |
+| PocketBase, Shoutrrr | déjà écartés (§ 12.2) |
+| Socket Docker monté, capacités `SYS_RAWIO` / `SYS_ADMIN` pour SMART | proxy en lecture seule et assistant root gardés |
+| OAuth / OIDC, partage entre utilisateurs | surface d'attaque en plus, un seul admin |
+| GPU, batterie, Wi-Fi, Podman, Windows | absents du parc |
+| Sondes de port (TCP, HTTP, ping, DNS) | **refusé par l'utilisateur le 12/11** |
+| CPU et mémoire par service systemd | pas demandé ; beaucoup de séries, à mesurer d'abord |
+| Scrub ZFS, usage par dataset | demande la commande `zpool` (root) ; seule la santé est lue |
+
+### 19.2 Principe **[Décidé, réponses du 12/11]**
+
+- Ce qui était collecté avant **reste actif** sans rien valider.
+- Tout ce qui est surveillé **peut être retiré**, machine par machine.
+- Les **nouveautés** (ventilateurs, ZFS, RAID logiciel, et les services si on
+  le demande) ne sont pas surveillées sans validation : l'agent dit seulement
+  « ça existe », l'interface propose.
+- Services systemd proposés : seulement ceux démarrés au boot et qui
+  devraient tourner (mêmes exclusions qu'avant, § 4.2), sans les services de
+  base (`systemd-*`, `getty@`, `user@`, `dbus*`).
+
+### 19.3 Agent
+
+| Réglage (local `MIRADOR_…` et distant) | Défaut | Effet |
+|---|---|---|
+| `temperatures` | oui | capteurs de `/sys` |
+| `docker_metriques` | oui | métriques des conteneurs (les logs ont leur propre réglage) |
+| `envoyer_pare_feu`, `envoyer_smart`, `envoyer_certificats` | oui | résultats de l'assistant root envoyés ou non |
+| `ventilateurs`, `zfs`, `mdraid` | **non** | nouveaux collecteurs |
+| `systemd_validation` + `systemd_surveiller` | non | seuls les services de la liste sont suivis |
+
+- Collecteur « matériel » : lecture directe de `/sys` et `/proc`, **aucune
+  commande, aucun droit en plus**. Rythme lent (60 s) ; liste des éléments
+  relue toutes les 10 min.
+- Métriques (noms de node_exporter quand ils existent) :
+  `node_hwmon_fan_rpm{chip,sensor}`, `node_zfs_zpool_state{zpool,state}`
+  (toujours `state="online"` à 0 ou 1, plus l'état courant s'il diffère),
+  `node_md_degraded{device}` (disques manquants), `node_md_disks_required{device}`.
+- Détection : un genre éteint n'envoie qu'**une série par élément trouvé**,
+  `mirador_agent_detecte{genre,nom}` (genres : `ventilateurs`, `zfs`,
+  `mdraid`, `service`). Pas de nouveau point d'entrée, pas de table en plus.
+- **Limite connue** : `envoyer_smart = non` (et pare-feu, certificats) arrête
+  l'**envoi**, pas l'assistant root : il ne lit jamais la configuration
+  distante (§ 6.4), il continue donc de lancer `smartctl` toutes les 30 min.
+  Pour l'arrêter vraiment : `MIRADOR_SMART=non` dans le fichier local.
+- À vérifier sur une vraie machine (rien de tel ici) : le fichier
+  `/proc/spl/kstat/zfs/<pool>/state` sur les Proxmox (OpenZFS ≥ 0.8), les
+  capteurs `fan*_input`, une grappe `md`.
+
+### 19.4 Serveur et compatibilité
+
+- Les choix sont des **clés de la configuration distante** (valeurs typées,
+  mêmes contrôles et même audit que « Configuration des agents »), à la
+  portée de la machine ou du groupe. Les services sont toujours réglés par
+  machine.
+- **Ancien agent** : il refuserait tout le document à cause d'une clé
+  inconnue. L'agent annonce donc ce qu'il sait faire (en-tête
+  `X-Mirador-Capacites: surveillance`, ignoré par un ancien serveur) ; sans
+  cet en-tête, le serveur **retire** les clés nouvelles du document (ETag
+  recalculé). La capacité est gardée sur la fiche (migration 0011) et
+  l'interface bloque les réglages nouveaux pour un agent trop ancien.
+- État affiché : **aucun stockage en plus**. Il se déduit d'une requête sur
+  les dernières métriques de la machine (en cache 60 s) et de sa
+  configuration effective.
+- La page « Configuration des agents » garde ces clés quand on enregistre
+  une portée (« retirer la portée » les enlève aussi).
+- Trois règles fournies, actives par défaut, sans effet là où rien n'est
+  validé : `PoolZfsDegrade` (critique, 2 min), `RaidLogicielDegrade`
+  (critique, 2 min), `VentilateurArrete` (avertissement, 10 min, seulement si
+  le ventilateur a tourné dans les 24 h). Un service validé qui s'arrête est
+  couvert par `ServiceAutomatiqueArrete` (règle 11).
+
+### 19.5 Interface
+
+- **Page machine**, bloc « À surveiller sur cette machine » : « Détecté, à
+  valider » (Surveiller / Ignorer / Plus tard), « Surveillé » (Garder /
+  Retirer, avec un point rouge si quelque chose ne va pas), « Ignoré ou
+  absent » (Rétablir). Boutons « Tout surveiller » et « Tout ignorer ». Choix
+  pour la machine ou pour tout son groupe.
+- **Un seul formulaire, un seul code 2FA** pour tous les choix : changer la
+  configuration d'un agent est une action sensible (revue du 11/11). Écart
+  avec la maquette, qui montrait un bouton par ligne.
+- Services : repliés ; option « Nouveaux services : me les proposer avant
+  de les surveiller » (au départ, ceux suivis aujourd'hui restent suivis).
+- **Vue d'ensemble** : barres CPU / mémoire / disque (vert < 70 %, orange
+  70 à 85 %, rouge au-dessus, chiffre toujours affiché), tri par colonne
+  (3 clics : décroissant, croissant, ordre par gravité), filtre, colonnes
+  masquables, cloche avec le nombre d'alertes, colonne « À valider ». Tri et
+  colonnes retenus dans le navigateur ; le tableau n'est pas rechargé
+  pendant une saisie.
+- **Pas fait** (dans la maquette ou la liste) : recherche rapide Ctrl+K,
+  sous-titres des graphiques des tableaux fournis, filtre par conteneur sur
+  les graphiques Docker, bouton 1 / 2 colonnes, empreinte de la machine liée
+  au token. Écart : la colonne « Réseau » de la maquette n'y est pas (une
+  requête de plus par minute pour un chiffre peu utile).
+
+### 19.6 Coût mesuré (machine de développement, 4 cœurs)
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, collecteur « matériel », détection seule | 0,13 µs par passage, 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé (2 ventilateurs, 1 pool, 1 grappe) | 21 µs par passage (toutes les 60 s), 20 allocations (ouverture des fichiers) | idem ✅ |
+| Agent, RAM | pas de tampon en plus ; non mesurée sur une vraie machine | < 30 Mio, à confirmer |
+| Séries en plus par machine | 1 par élément détecté ; 1 par ventilateur, 1 à 2 par pool, 2 par grappe une fois validés | — |
+| Serveur, classement d'une machine | 4,2 µs | — |
+| Serveur, page machine / fragment de la vue d'ensemble (5 machines, démonstration) | 3 à 5 ms | — |
+| Serveur, écritures disque | aucune hors enregistrement d'un choix | ✅ |
+
+Non mesuré : RAM du serveur sous charge (50 agents). Rien n'est gardé en
+mémoire en plus du cache de requêtes existant (deux entrées de plus par
+page machine ouverte, une pour la vue d'ensemble) ; à confirmer au prochain
+test de charge.
+
+### 19.7 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Session volée qui éteint la surveillance d'une machine | code 2FA à chaque enregistrement ; ligne d'audit ; un code ne sert qu'une fois |
+| Serveur compromis qui pousse une configuration malveillante | inchangé : que des booléens et des noms de services validés (`….service`, 200 au plus) ; jamais de commande ni de chemin |
+| Machine compromise qui ment sur ce qu'elle détecte | elle ne peut que proposer ; rien n'est activé sans l'admin ; noms limités à des caractères sûrs, 64 éléments et 100 services au plus |
+| Nom de service ou de pool piégé (XSS) | échappé par `html/template` ; formats vérifiés à l'entrée |
+| En-tête de capacité falsifié | il ne donne aucun droit : il change seulement les clés que l'agent reçoit pour lui-même |
+| Ancien agent cassé par une clé inconnue | clés nouvelles retirées pour lui (§ 19.4), testé |

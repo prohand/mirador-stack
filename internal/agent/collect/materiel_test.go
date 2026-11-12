@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"mirador-stack/internal/agent/metrics"
 )
 
 // arbre crée des fichiers d'exemple (chemin → contenu) sous un dossier de test.
@@ -110,5 +112,33 @@ func TestSystemdValidation(t *testing.T) {
 	// L'échec d'une unité reste suivi, validée ou non.
 	if p["node_systemd_unit_state|name=cron.service|state=failed"] != 1 {
 		t.Error("node_systemd_unit_state doit rester envoyé pour toutes les unités")
+	}
+}
+
+// Coût d'un passage (toutes les 60 s) : tout activé, puis détection seule.
+func BenchmarkMateriel(b *testing.B) {
+	for _, cas := range []struct {
+		nom   string
+		actif bool
+	}{{"active", true}, {"detection", false}} {
+		b.Run(cas.nom, func(b *testing.B) {
+			r := b.TempDir()
+			for chemin, contenu := range map[string]string{
+				"sys/class/hwmon/hwmon0/name": "nct6798\n", "sys/class/hwmon/hwmon0/fan1_input": "1180\n",
+				"sys/class/hwmon/hwmon0/fan2_input": "900\n", "sys/block/md0/md/degraded": "0\n",
+				"sys/block/md0/md/raid_disks": "2\n", "proc/spl/kstat/zfs/rpool/state": "ONLINE\n",
+			} {
+				p := filepath.Join(r, chemin)
+				_ = os.MkdirAll(filepath.Dir(p), 0o750)
+				_ = os.WriteFile(p, []byte(contenu), 0o600)
+			}
+			m := NewMateriel(filepath.Join(r, "sys"), filepath.Join(r, "proc"), cas.actif, cas.actif, cas.actif)
+			lot := metrics.NewBatch(64, nil)
+			b.ReportAllocs()
+			for b.Loop() {
+				lot.Reset(0)
+				_ = m.Collecter(lot)
+			}
+		})
 	}
 }

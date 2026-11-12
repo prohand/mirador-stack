@@ -209,3 +209,13 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 		t.Error("le formulaire admin doit demander le code 2FA")
 	}
 }
+
+// Coût du classement pour une machine (le reste est une requête en cache).
+func BenchmarkClasserSurveillance(b *testing.B) {
+	r := relevePhysique()
+	cfg := &distant.ConfigDistante{}
+	b.ReportAllocs()
+	for b.Loop() {
+		classerSurveillance(cfg, r, true)
+	}
+}

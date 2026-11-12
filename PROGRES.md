@@ -9,6 +9,7 @@
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
+| 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -545,6 +546,49 @@ Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la 
 - **À vérifier sur le VPS avant de mettre à jour** : `config/server.conf`
   contient bien `MIRADOR_PROXY=…` (sinon le serveur refuse de démarrer).
 - Non lancé ici : `gosec` (pas installé) ; la CI le fera.
+
+## Idées reprises de Beszel (12/11, SPEC § 19)
+
+Demande : choisir ce qui est surveillé sur chaque machine (détection par
+l'agent, proposition, validation ou non), et un design plus lisible.
+Maquette validée, pas de vérification de port.
+
+| Partie | État |
+|---|---|
+| Agent : réglages de surveillance, ventilateurs, ZFS, RAID logiciel, détection | **fait** (fichiers d'exemple ; aucun vrai capteur, pool ou grappe ici) |
+| Serveur : choix dans la configuration typée, anciens agents protégés, 3 règles | **fait** |
+| Page machine : bloc « À surveiller », bandeau | **fait** |
+| Vue d'ensemble : barres, tri, filtre, colonnes, alertes, « à valider » | **fait** |
+| Documentation (`docs/interface-web.md` § 10), SPEC § 19 | **fait** |
+
+Mesures (machine de développement, 4 cœurs) :
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, détection seule | 0,13 µs par passage (60 s), 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé | 21 µs par passage, 20 allocations | idem ✅ |
+| Agent, écritures disque | aucune | ✅ |
+| Serveur, page machine et vue d'ensemble | 3 à 5 ms (5 machines) | — |
+| Serveur, écritures disque | seulement à l'enregistrement d'un choix | ✅ |
+| RAM de l'agent et du serveur | **non mesurée en conditions réelles** | à faire sur srv-test et le VPS |
+
+Tests : `go vet` et `go test -race ./...` verts. `gosec` non lancé ici (pas
+installé) : la CI le fera. Règles : 80 après import (77 avant, + 3).
+
+À vérifier chez toi (commandes à coller, sorties à me renvoyer) :
+
+```bash
+# Sur un Proxmox : le fichier d'état des pools existe-t-il, lisible sans root ?
+sudo -u mirador-agent sh -c 'for f in /proc/spl/kstat/zfs/*/state; do echo "$f : $(cat "$f")"; done'
+# Ventilateurs et RAID logiciel vus par le noyau
+ls /sys/class/hwmon/*/fan*_input 2>/dev/null; ls -d /sys/block/md*/md 2>/dev/null
+```
+
+Pas fait, à décider : recherche rapide Ctrl+K, sous-titres des graphiques
+fournis, filtre par conteneur, empreinte de la machine liée au token.
+
+Ordre de mise à jour : **serveur d'abord**, puis les agents (un agent
+récent marche avec un ancien serveur, mais sans ces réglages).
 
 ## Prochaine étape
 
