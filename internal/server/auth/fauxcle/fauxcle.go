@@ -16,6 +16,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"math/big"
 )
 
 // Cle : une passkey simulée.
@@ -53,16 +54,22 @@ func b64(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
 // --- Écriture CBOR (ce qu'il faut, pas plus) -----------------------------------------
 
+// grosBoutiste : les « octets » derniers octets de n, poids fort d'abord
+// (aucune conversion d'entier : rien ne peut déborder).
+func grosBoutiste(n uint64, octets int) []byte {
+	return binary.BigEndian.AppendUint64(nil, n)[8-octets:]
+}
+
 func tete(majeur byte, n uint64) []byte {
 	switch {
 	case n < 24:
 		return []byte{majeur<<5 | byte(n)}
 	case n < 1<<8:
-		return []byte{majeur<<5 | 24, byte(n)}
+		return append([]byte{majeur<<5 | 24}, grosBoutiste(n, 1)...)
 	case n < 1<<16:
-		return binary.BigEndian.AppendUint16([]byte{majeur<<5 | 25}, uint16(n))
+		return append([]byte{majeur<<5 | 25}, grosBoutiste(n, 2)...)
 	}
-	return binary.BigEndian.AppendUint32([]byte{majeur<<5 | 26}, uint32(n))
+	return append([]byte{majeur<<5 | 26}, grosBoutiste(n, 4)...)
 }
 
 func entier(v int) []byte {
@@ -89,7 +96,7 @@ func (c *Cle) cose() []byte {
 	case ed25519.PublicKey:
 		return table(entier(1), entier(1), entier(3), entier(-8), entier(-1), entier(6), entier(-2), octets(k))
 	case *rsa.PublicKey:
-		e := []byte{byte(k.E >> 16), byte(k.E >> 8), byte(k.E)}
+		e := big.NewInt(int64(k.E)).Bytes()
 		return table(entier(1), entier(3), entier(3), entier(-257), entier(-1), octets(k.N.Bytes()), entier(-2), octets(e))
 	case *ecdsa.PublicKey:
 		x, y := make([]byte, 32), make([]byte, 32)
@@ -116,7 +123,7 @@ func (c *Cle) entete(drapeaux byte) []byte {
 func (c *Cle) Creer(defi string) (client, attestation string) {
 	aut := c.entete(0x45) // présent, vérifié, clé jointe
 	aut = append(aut, make([]byte, 16)...)
-	aut = binary.BigEndian.AppendUint16(aut, uint16(len(c.Identifiant)))
+	aut = append(aut, grosBoutiste(uint64(len(c.Identifiant)), 2)...)
 	aut = append(aut, c.Identifiant...)
 	aut = append(aut, c.cose()...)
 	objet := table(texte("fmt"), texte("none"), texte("attStmt"), table(), texte("authData"), octets(aut))
