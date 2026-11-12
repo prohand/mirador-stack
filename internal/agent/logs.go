@@ -29,9 +29,10 @@ type chaineLogs struct {
 	journal    *slog.Logger
 }
 
-// Envoi d'un lot : toutes les 5 s, ou dès qu'il atteint 512 Kio (comme Alloy).
+// Envoi d'un lot : toutes les 2 s (logs presque en direct, demande du 12/11 ;
+// un lot vide n'envoie rien), ou dès qu'il atteint 512 Kio.
 const (
-	attenteLotLogs = 5 * time.Second
+	attenteLotLogs = 2 * time.Second
 	tailleLotLogs  = 512 << 10
 )
 

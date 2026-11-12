@@ -315,6 +315,16 @@ func TestCertificatsDistants(t *testing.T) {
 	if c.Erreurs != 1 { // le tube
 		t.Errorf("erreurs = %d, attendu 1 (le tube)", c.Erreurs)
 	}
+	// Compte rendu du chemin (12/11) : 4 fichiers trouvés (site, privkey,
+	// fuite, tube), 1 lu, 3 écartés.
+	if len(c.Motifs) != 1 || c.Motifs[0].Fichiers != 4 || c.Motifs[0].Lus != 1 || c.Motifs[0].Ecartes != 3 {
+		t.Errorf("compte rendu : %+v", c.Motifs)
+	}
+	// Chemin sans aucun fichier : compte rendu à zéro (« aucun fichier trouvé »).
+	vide := lireCertificats(nil, []string{filepath.Join(dir, "etc/rien/*.crt")})
+	if len(vide.Motifs) != 1 || vide.Motifs[0].Fichiers != 0 || vide.Motifs[0].Lus != 0 {
+		t.Errorf("chemin vide : %+v", vide.Motifs)
+	}
 }
 
 func TestMotifsDistants(t *testing.T) {

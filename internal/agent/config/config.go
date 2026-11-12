@@ -63,6 +63,10 @@ type Agent struct {
 	// FichierConfigDistante : dernière configuration reçue du serveur (relue
 	// au démarrage, sans attendre le réseau).
 	FichierConfigDistante string `json:"-"`
+	// FichierActualiser : touché par l'agent quand l'interface demande
+	// « Actualiser » ; une unité systemd (mirador-agent-root.path) relance
+	// alors l'assistant root. Dans le dossier de l'agent.
+	FichierActualiser string `json:"-"`
 
 	// Rythmes de collecte.
 	Intervalle     time.Duration `json:"intervalle"`      // métriques rapides (défaut 30 s)
@@ -209,6 +213,7 @@ func Defaut() Agent {
 		FichierCles:           "/etc/mirador-agent/cles-publiques.txt",
 		FichierJeton:          "/var/lib/mirador-agent/jeton",
 		FichierConfigDistante: "/var/lib/mirador-agent/config-distante.json",
+		FichierActualiser:     "/var/lib/mirador-agent/actualiser-racine",
 	}
 }
 
@@ -635,6 +640,8 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.MajAuto, err = ouiNon(valeur)
 	case "MIRADOR_FICHIER_CONFIG_DISTANTE":
 		a.FichierConfigDistante = valeur
+	case "MIRADOR_FICHIER_ACTUALISER":
+		a.FichierActualiser = valeur
 	case "MIRADOR_INTERVALLE":
 		a.Intervalle, err = time.ParseDuration(valeur)
 	case "MIRADOR_INTERVALLE_LENT":

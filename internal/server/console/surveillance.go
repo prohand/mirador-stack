@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -88,8 +89,17 @@ type vueSurveillance struct {
 	CertsSuivis  bool // « Certificats » n'est pas retiré
 	Composants   []composantSurv
 	Certs        []certSurv
-	MotifsAjout  []string
+	MotifsAjout  []motifSurv
 	NbRetires    int // composants et certificats retirés
+	// Assistant root plus ancien que l'agent : il n'est mis à jour qu'en
+	// relançant le script d'installation (jamais automatiquement).
+	VersionRacine, VersionAgent string
+	RacineAncienne              bool
+}
+
+// motifSurv : un chemin de certificat ajouté et ce qu'il a donné sur la machine.
+type motifSurv struct {
+	Motif, Resultat, Classe string // Classe : ok, attention ou '' (pas encore lu)
 }
 
 // composantSurv : un disque, une interface ou un montage.
@@ -116,7 +126,10 @@ const metriquesSurv = `mirador_agent_detecte|node_hwmon_temp_celsius|node_therma
 	// Détail par élément (SPEC § 21) : une série par disque, interface,
 	// montage et certificat.
 	`node_disk_io_time_seconds_total|node_network_receive_bytes_total|node_filesystem_size_bytes|` +
-	`ssl_cert_not_after_timestamp_seconds`
+	`ssl_cert_not_after_timestamp_seconds|` +
+	// Assistant root (12/11) : sa version, et le compte rendu de chaque
+	// chemin de certificat ajouté dans l'interface.
+	`mirador_agent_root_info|mirador_agent_certificats_chemin_fichiers|mirador_agent_certificats_chemin_lus`
 
 func exprSurv(machine string) string {
 	return fmt.Sprintf(`{instance=%q,__name__=~%q}`, machine, metriquesSurv)
@@ -179,11 +192,16 @@ type releve struct {
 	disques, interfaces []string
 	montages            map[string]float64 // point de montage → taille (octets)
 	certs               []certSurv
+	versionAgent        string
+	versionRacine       string             // assistant root ('' = inconnu)
+	motifsFichiers      map[string]float64 // chemin ajouté → fichiers trouvés
+	motifsLus           map[string]float64 // chemin ajouté → certificats lus
 }
 
 func lireReleve(ech []alertes.Echantillon) releve {
 	r := releve{detecte: map[string][]string{}, pools: map[string]string{}, grappes: map[string]float64{},
-		services: map[string]bool{}, montages: map[string]float64{}}
+		services: map[string]bool{}, montages: map[string]float64{},
+		motifsFichiers: map[string]float64{}, motifsLus: map[string]float64{}}
 	for i := range ech {
 		e := &ech[i]
 		v := e.Valeur
@@ -241,6 +259,13 @@ func lireReleve(ech []alertes.Echantillon) releve {
 			r.logsDocker = &e.Valeur
 		case "mirador_agent_info":
 			r.agent = true
+			r.versionAgent = etq("version")
+		case "mirador_agent_root_info":
+			r.versionRacine = etq("version")
+		case "mirador_agent_certificats_chemin_fichiers":
+			r.motifsFichiers[etq("chemin")] = v
+		case "mirador_agent_certificats_chemin_lus":
+			r.motifsLus[etq("chemin")] = v
 		case "node_disk_io_time_seconds_total":
 			r.disques = append(r.disques, etq("device"))
 		case "node_network_receive_bytes_total":
@@ -423,6 +448,14 @@ func classerSurveillance(cfg *distant.ConfigDistante, ech []alertes.Echantillon,
 				v.SvcSurveilles = append(v.SvcSurveilles, serviceSurv{Nom: n, Arrete: !tourne})
 			}
 		}
+		// Un service déjà choisi (surveillé ou ignoré) n'est plus « à valider »,
+		// même si l'agent le signale encore : il n'applique sa nouvelle
+		// configuration qu'à sa prochaine relecture (5 min au plus).
+		if cfg.SystemdIgnorer != nil {
+			for _, n := range *cfg.SystemdIgnorer {
+				vus[n] = true
+			}
+		}
 		for _, n := range r.detecte["service"] {
 			if !vus[n] {
 				v.SvcAValider = append(v.SvcAValider, serviceSurv{Nom: n})
@@ -479,7 +512,34 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 		v.Certs = append(v.Certs, certSurv{Chemin: c, Retire: true})
 		v.NbRetires++
 	}
-	v.MotifsAjout = liste(cfg.CertificatsAjout)
+	v.VersionAgent, v.VersionRacine = r.versionAgent, r.versionRacine
+	v.RacineAncienne = r.versionRacine != "" && r.versionAgent != "" && r.versionRacine != r.versionAgent
+	for _, m := range liste(cfg.CertificatsAjout) {
+		v.MotifsAjout = append(v.MotifsAjout, resultatMotif(m, r, v.RacineAncienne))
+	}
+}
+
+// resultatMotif : phrase du compte rendu d'un chemin ajouté.
+func resultatMotif(m string, r *releve, racineAncienne bool) motifSurv {
+	s := motifSurv{Motif: m}
+	fichiers, connu := r.motifsFichiers[m]
+	lus := r.motifsLus[m]
+	switch {
+	case !connu && racineAncienne:
+		s.Resultat, s.Classe = "pas lu : assistant root trop ancien (relancer le script d'installation)", "attention"
+	case !connu:
+		s.Resultat = "pas encore lu (l'assistant root passe toutes les 15 min)"
+	case fichiers == 0:
+		s.Resultat, s.Classe = "aucun fichier trouvé à ce chemin", "attention"
+	case lus == 0:
+		s.Resultat, s.Classe = pluriel(int(fichiers), "fichier")+" trouvé(s), aucun certificat lisible (clé privée, lien hors dossier autorisé, autre format)", "attention"
+	default:
+		s.Resultat, s.Classe = pluriel(int(lus), "certificat")+" lu(s)", "ok"
+		if e := int(fichiers - lus); e > 0 {
+			s.Resultat += fmt.Sprintf(", %d fichier(s) écarté(s)", e)
+		}
+	}
+	return s
 }
 
 // surveillance : le bloc d'une machine (vide si les métriques manquent).
@@ -503,7 +563,10 @@ func (c *Console) surveillance(ctx context.Context, m flotte.InfoMachine, t time
 // nouveautes : nombre d'éléments « à valider » par machine, pour la vue
 // d'ensemble (une requête pour tout le parc).
 func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t time.Time) map[string]int {
-	ech, err := c.instant(ctx, `count by (instance, genre) (mirador_agent_detecte)`, t)
+	// Services : une série par service (étiquette « nom »), pour retirer tout
+	// de suite ceux déjà choisis dans la configuration (l'agent ne l'applique
+	// qu'à sa prochaine relecture). Autres genres : un compte par genre.
+	ech, err := c.instant(ctx, `count by (instance, genre) (mirador_agent_detecte{genre!="service"}) or max by (instance, genre, nom) (mirador_agent_detecte{genre="service"})`, t)
 	if err != nil || len(ech) == 0 {
 		return nil
 	}
@@ -515,11 +578,6 @@ func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t tim
 	out := map[string]int{}
 	for _, e := range ech {
 		nom, genre := e.Etiquettes.Get("instance"), e.Etiquettes.Get("genre")
-		if genre == "service" {
-			out[nom] += int(e.Valeur)
-			continue
-		}
-		// Ventilateurs, ZFS, RAID : déjà refusé pour cette machine ?
 		cfg, lu := configs[nom]
 		if !lu {
 			if id, ok := ids[nom]; ok {
@@ -527,6 +585,13 @@ func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t tim
 			}
 			configs[nom] = cfg
 		}
+		if genre == "service" {
+			if !serviceChoisi(cfg, e.Etiquettes.Get("nom")) {
+				out[nom]++
+			}
+			continue
+		}
+		// Ventilateurs, ZFS, RAID : déjà refusé pour cette machine ?
 		if cfg == nil || valeurSurv(cfg, genre) == nil {
 			out[nom]++
 		}
@@ -566,6 +631,19 @@ func (c *Console) aValider(ctx context.Context, t time.Time) map[string]int {
 	}
 	c.cacheValider.parMachine, c.cacheValider.expire = out, t.Add(time.Minute)
 	return out
+}
+
+// serviceChoisi : service déjà surveillé ou ignoré dans la configuration.
+func serviceChoisi(cfg *distant.ConfigDistante, nom string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, l := range []*[]string{cfg.SystemdSurveiller, cfg.SystemdIgnorer} {
+		if l != nil && slices.Contains(*l, nom) {
+			return true
+		}
+	}
+	return false
 }
 
 // oublierAValider : après un choix enregistré, le compteur est recalculé.
@@ -859,6 +937,12 @@ func choixElements(q *req, cfg *distant.ConfigDistante) (map[string]any, error) 
 // pas de métriques.
 type identiteMachine struct {
 	Noyau, Memoire, Coeurs, Allumee string
+	// Intervalle d'envoi des métriques (réglage effectif, défaut 30 s) et
+	// lien vers son réglage pour cette machine.
+	Intervalle, LienIntervalle string
+	// Mises à jour de paquets (apt) : -1 = pas de valeur.
+	Paquets, PaquetsSecurite int
+	Redemarrage              bool
 }
 
 func (c *Console) identite(ctx context.Context, m flotte.InfoMachine, ech []alertes.Echantillon, t time.Time) identiteMachine {
@@ -877,6 +961,27 @@ func (c *Console) identite(ctx context.Context, m flotte.InfoMachine, ech []aler
 	}
 	if n, err := c.instant(ctx, fmt.Sprintf(`count(node_cpu_seconds_total{instance=%q,mode="idle"})`, m.Nom), t); err == nil && len(n) == 1 {
 		id.Coeurs = pluriel(int(n[0].Valeur), "cœur")
+	}
+	id.Intervalle = "30 s"
+	if cfg, err := flotte.ConfigEffective(ctx, c.db, m.ID); err == nil && cfg != nil && cfg.Intervalle != nil {
+		id.Intervalle = dureeLisible(time.Duration(*cfg.Intervalle))
+	}
+	id.LienIntervalle = fmt.Sprintf("/reglages/agents?portee=machine:%d", m.ID)
+	// Mises à jour de paquets : dernière valeur des 3 dernières heures (l'agent
+	// les compte toutes les quelques heures seulement).
+	id.Paquets = -1
+	sel := fmt.Sprintf(`{__name__=~"apt_upgrades_pending|apt_upgrades_security_pending|node_reboot_required", instance=%q}`, m.Nom)
+	if ech, err := c.instant(ctx, `last_over_time(`+sel+`[3h])`, t); err == nil {
+		for _, e := range ech {
+			switch e.Etiquettes.Get("__name__") {
+			case "apt_upgrades_pending":
+				id.Paquets = int(e.Valeur)
+			case "apt_upgrades_security_pending":
+				id.PaquetsSecurite = int(e.Valeur)
+			case "node_reboot_required":
+				id.Redemarrage = e.Valeur > 0
+			}
+		}
 	}
 	return id
 }

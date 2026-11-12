@@ -309,6 +309,7 @@ type donneesMachine struct {
 	Surv        vueSurveillance // bloc « À surveiller sur cette machine »
 	Identite    identiteMachine // bandeau sous le nom
 	Agent       bool            // machine avec agent (pas un collecteur)
+	Ingestion   string          // adresse d'ingestion (commande de réinstallation)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -338,6 +339,7 @@ func (c *Console) pageMachine(q *req) {
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)
+		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	}
 	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
 		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
@@ -386,6 +388,14 @@ func (c *Console) postMachine(q *req) {
 		}
 	}
 	switch action {
+	case "actualiser":
+		// Relecture de la configuration et relance de l'assistant root
+		// (SPEC § 22) : rien de modifié, pas de code 2FA.
+		var id int64
+		if id, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
+			flotte.DemanderActualisation(id, q.t)
+			ok = "actualisation demandée : la machine relit sa configuration et relance l'assistant root (environ 1 min, puis recharger la page)"
+		}
 	case "approuver":
 		// Nom, site, type et groupe : ceux du jeton (ou proposés par la
 		// machine), corrigeables ici avant d'approuver.
@@ -679,6 +689,10 @@ type ligneParc struct {
 	ClasseAlertes                 string // gravité la plus forte
 	Nouveautes                    int    // éléments détectés « à valider »
 	Muette                        bool
+	// Mises à jour de paquets (apt) : -1 = pas de valeur (pas Debian/Ubuntu,
+	// ou réglage « Mises à jour » retiré).
+	Paquets, PaquetsSecurite int
+	Redemarrage              bool // /run/reboot-required présent
 }
 
 // barre : pourcentage entier et couleur d'une barre de la vue d'ensemble
@@ -704,6 +718,11 @@ const (
 	exprCPU6h   = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[10m])))`
 	exprMemoire = `100 * (1 - max by (instance) (node_memory_MemAvailable_bytes) / max by (instance) (node_memory_MemTotal_bytes))`
 	exprDisque  = `max by (instance) (100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"}))`
+	// Mises à jour de paquets : dernière valeur des 3 dernières heures
+	// (l'agent les compte toutes les quelques heures seulement).
+	exprPaquets         = `max by (instance) (last_over_time(apt_upgrades_pending[3h]))`
+	exprPaquetsSecurite = `max by (instance) (last_over_time(apt_upgrades_security_pending[3h]))`
+	exprRedemarrage     = `max by (instance) (last_over_time(node_reboot_required[15m]))`
 )
 
 // parc : une ligne par machine approuvée, les plus en difficulté d'abord.
@@ -734,6 +753,7 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		return out
 	}
 	cpu, mem, disque := valeurs(exprCPU), valeurs(exprMemoire), valeurs(exprDisque)
+	paquets, securite, redemarrage := valeurs(exprPaquets), valeurs(exprPaquetsSecurite), valeurs(exprRedemarrage)
 	courbes := c.etincelles(ctx, q.t)
 	nouveautes := c.nouveautes(ctx, ms, q.t)
 	pct := func(m map[string]float64, nom string) string {
@@ -753,6 +773,11 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		l.PctMemoire, l.ClasseMemoire = barre(mem, m.Nom)
 		l.PctDisque, l.ClasseDisque = barre(disque, m.Nom)
 		l.Alertes, l.Nouveautes = nombre[m.Nom], nouveautes[m.Nom]
+		l.Paquets, l.PaquetsSecurite = -1, 0
+		if v, ok := paquets[m.Nom]; ok {
+			l.Paquets, l.PaquetsSecurite = int(v), int(securite[m.Nom])
+		}
+		l.Redemarrage = redemarrage[m.Nom] > 0
 		switch pire[m.Nom] {
 		case alertes.Critique:
 			l.ClasseAlertes = "erreur"

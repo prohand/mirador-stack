@@ -124,9 +124,9 @@ unset MIRADOR_JETON
 # ---------------------------------------------------------------- désinstallation
 if [ "$MODE" = desinstaller ]; then
   info "Arrêt et suppression de mirador-agent"
-  systemctl disable --now mirador-agent.service mirador-agent-root.timer >/dev/null 2>&1 || true
+  systemctl disable --now mirador-agent.service mirador-agent-root.timer mirador-agent-root.path >/dev/null 2>&1 || true
   rm -f "$UNITES/mirador-agent.service" "$UNITES/mirador-agent-root.service" \
-        "$UNITES/mirador-agent-root.timer" "$UNITES/mirador-agent-retour.service"
+        "$UNITES/mirador-agent-root.timer" "$UNITES/mirador-agent-root.path" "$UNITES/mirador-agent-retour.service"
   systemctl daemon-reload
   if command -v docker >/dev/null 2>&1 && docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     docker rm -f "$PROXY_NOM" >/dev/null
@@ -451,6 +451,27 @@ SystemCallArchitectures=native
 EOF
 }
 
+# Relance de l'assistant root à la demande (bouton « Actualiser » de
+# l'interface, SPEC § 22) : l'agent touche un fichier de SON dossier, et
+# systemd lance l'assistant (même programme, mêmes règles que le minuteur).
+# L'agent ne peut que déclencher un passage, jamais choisir ce qui tourne ;
+# il se limite à une demande par minute, et systemd coupe au-delà.
+chemin_root() {
+  cat <<EOF
+[Unit]
+Description=mirador-agent : mesures root à la demande (Actualiser)
+
+[Path]
+PathModified=$VARLIB/actualiser-racine
+Unit=mirador-agent-root.service
+TriggerLimitIntervalSec=60
+TriggerLimitBurst=3
+
+[Install]
+WantedBy=paths.target
+EOF
+}
+
 timer_root() {
   cat <<'EOF'
 [Unit]
@@ -495,6 +516,7 @@ if [ "$MODE" = afficher ]; then
   echo "----- mirador-agent.service"; unite_agent
   echo "----- mirador-agent-root.service"; unite_root
   echo "----- mirador-agent-root.timer"; timer_root
+  echo "----- mirador-agent-root.path"; chemin_root
   echo "----- mirador-agent-retour.service"; unite_retour
   exit 0
 fi
@@ -701,10 +723,12 @@ info "Unités systemd"
 unite_agent  > "$UNITES/mirador-agent.service"
 unite_root   > "$UNITES/mirador-agent-root.service"
 timer_root   > "$UNITES/mirador-agent-root.timer"
+chemin_root  > "$UNITES/mirador-agent-root.path"
 unite_retour > "$UNITES/mirador-agent-retour.service"
-chmod 0644 "$UNITES"/mirador-agent*.service "$UNITES/mirador-agent-root.timer"
+chmod 0644 "$UNITES"/mirador-agent*.service "$UNITES/mirador-agent-root.timer" "$UNITES/mirador-agent-root.path"
 systemctl daemon-reload
 systemctl enable --now mirador-agent-root.timer >/dev/null
+systemctl enable --now mirador-agent-root.path >/dev/null || echo "   (relance à la demande indisponible : l'assistant passe toutes les 15 min)"
 systemctl start mirador-agent-root.service || echo "   (assistant root en échec : journalctl -u mirador-agent-root)"
 systemctl enable mirador-agent.service >/dev/null
 systemctl reset-failed mirador-agent.service 2>/dev/null || true

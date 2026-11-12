@@ -3278,3 +3278,51 @@ ni `/etc/shadow`, ni bloquer l'assistant.
 | Nom piégé (XSS) dans un disque, un montage, un CN | échappé par `html/template` ; noms vérifiés à l'entrée |
 | Ancien agent cassé par une clé inconnue | clés retirées pour lui selon ses capacités (testé avec 0.2.12) |
 | Formulaire géant | 600 éléments au plus par envoi, 20 chemins ajoutés |
+
+## 22. Retours du 12/11 : temps réel, paquets, certificats, filtres **[Fait, à valider]**
+
+Retours après l'essai de la partie 5 quater (§ 21) et réponses du 12/11
+(« configuration en temps réel : oui », « logs 1 à 2 s », « métriques 30 s
+réglables par machine », « paquets : vue d'ensemble, en-tête, alerte »).
+
+### 22.1 Configuration en temps réel
+
+| Élément | Choix | Raison / coût |
+|---|---|---|
+| Principe | l'agent garde sa demande de configuration ouverte (`X-Mirador-Attendre: 40`) ; le serveur répond dès que la configuration de la machine change, sur « Actualiser », ou au bout de 45 s au plus | l'agent n'ouvre toujours aucun port ; changements appliqués en 1 à 2 s au lieu de 5 min |
+| Serveur | signal en mémoire réveillé par `DefinirConfig` (et donc `ModifierConfig`) ; la place de décodage de l'ingestion est rendue pendant l'attente ; 45 s < délai d'écriture (60 s) du serveur et de nginx | une goroutine et une connexion TLS par machine (quelques dizaines de Ko) ; aucune requête en base pendant l'attente |
+| Compatibilité | le serveur l'annonce (`X-Mirador-Attente: 1`) ; sans cette réponse (ancien serveur), l'agent garde le rythme de 5 min | pas de boucle rapide contre un ancien serveur |
+| Agent | une demande au plus toutes les 2 s | protège le serveur si une réponse revient tout de suite |
+| Commande en ligne (`mirador-server config`, autre processus) | pas de signal : appliquée à la fin de l'attente en cours (45 s au plus) | — |
+
+Un changement de configuration fait toujours redémarrer l'agent par systemd
+(choix de l'utilisateur du 12/11 : pas de relance « sur place ») ; plusieurs
+choix enregistrés d'affilée peuvent donc déclencher une règle de type
+« service qui redémarre en boucle ».
+
+### 22.2 « Actualiser » et assistant root
+
+| Élément | Choix |
+|---|---|
+| Bouton « Actualiser » (fiche machine, bloc « À surveiller », admin) | rien n'est modifié (pas de code 2FA) ; numéro de demande en mémoire, réveille l'agent en attente |
+| Agent | à la demande, touche `/var/lib/mirador-agent/actualiser-racine` (une fois par minute au plus) |
+| Script d'installation | unité `mirador-agent-root.path` (`PathModified`, `TriggerLimitIntervalSec=60`, `TriggerLimitBurst=3`) qui lance `mirador-agent-root.service` ; à poser en relançant le script une fois |
+| Menace | un agent compromis peut seulement déclencher des passages de l'assistant (même programme, mêmes règles) ; systemd coupe au-delà de 3 par minute, le minuteur de 15 min reste |
+| Version de l'assistant | l'agent envoie `mirador_agent_root_info{version}` ; la fiche signale un assistant plus ancien que l'agent, avec la commande de réinstallation (l'assistant n'est jamais mis à jour automatiquement) |
+| Chemins de certificats ajoutés | compte rendu par chemin (`mirador_agent_certificats_chemin_fichiers` / `_lus`) : lu, aucun fichier, aucun certificat lisible, pas encore lu, assistant trop ancien |
+
+### 22.3 Paquets, logs, métriques, filtres
+
+- Paquets (`apt_upgrades_pending`, `apt_upgrades_security_pending`,
+  `node_reboot_required`) : colonne « Mises à jour » de la vue d'ensemble
+  (tri, filtre « Mises à jour en attente »), en-tête de la fiche machine,
+  règle mirador `MisesAJourSecuriteEnAttente` (sécurité en attente depuis
+  3 jours, avertissement).
+- Logs : lots toutes les 2 s au lieu de 5 (un lot vide n'envoie rien).
+- Métriques : 30 s par défaut ; intervalle affiché dans la fiche avec un
+  lien vers son réglage par machine (10 s à 5 min).
+- « Alertes en cours » : tri par colonne et filtres gravité + texte.
+- Service ignoré : retiré tout de suite de « à valider ».
+- Réglages : barre d'onglets retirée de la page d'accueil des réglages.
+- Code 2FA des actions sensibles : nom d'utilisateur caché pour le
+  remplissage par Vaultwarden.

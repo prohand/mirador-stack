@@ -10,7 +10,7 @@
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
-| 5 ter. Codes de secours de la 2FA et passkeys | **faite, à valider** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
+| 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 5 quater. Élément par élément, signal « à valider », Réglages rangés | **faite, à valider** (SPEC § 21) | `claude/affectionate-albattani-izl0lb` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
@@ -325,6 +325,27 @@ journalctl refuse le curseur, reprise à la fin du journal.
 importée, assignée ; la machine de test est passée seule de 0.2.9 à 0.2.10
 (signature vérifiée, redémarrage propre, essai de 10 min, « mise à jour
 confirmée »).
+Deuxième (12/11) : 0.2.10 → 0.2.11 de la même façon ; plus d'erreur
+journalctl après le redémarrage (bug de reprise du journal corrigé).
+
+**Mesure de 24 h de l'agent avec mirador-server (11-12/11, `mesurer.sh 24`,
+machine de test, 2 cœurs, Alloy en parallèle)**
+
+| Processus | RSS moy / max | Mémoire propre moy. | CPU moyen | Écrit en 24 h |
+|---|---|---|---|---|
+| mirador-agent | 21,0 / 23,5 Mo | 13,6 Mo | ≈ 0,09 % d'un cœur (systemd : 8,7 s en 2 h 49) | 32 Ko |
+| journalctl (enfant de l'agent) | 52,5 / 100,7 Mo | 1,0 Mo (le reste : cache des fichiers du journal, partagé) | ≈ 0 | 0 |
+| proxy Docker | 15,2 / 18,8 Mo | 9,1 Mo | ≈ 0 | 0 |
+| **Alloy** (référence) | 154,2 / 157,7 Mo | 77,8 Mo | 0,75 % | 165 Mo |
+
+- Objectif agent < 30 Mio : **atteint** (21 Mo, ~7 fois moins qu'Alloy) ;
+  total côté mirador (agent + journalctl propre + proxy) ≈ 31 à 37 Mo.
+- CPU : le chiffre du script (0,002 %) est faussé par 3 redémarrages de
+  l'agent pendant la mesure (réinstallation, deux mises à jour) ; valeur
+  retenue : celle de systemd. À remesurer sur 24 h sans mise à jour si
+  besoin d'un chiffre précis.
+- Comparaison avec vmalert sur 24 h : aucun écart (aucune alerte des deux
+  côtés).
 
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
@@ -640,20 +661,14 @@ sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"err
 
 ## Prochaine étape
 
-- Étape 3 **validée le 10/11/2026** (pull request #4).
-- En parallèle, sur le VPS (par l'utilisateur, `docs/installation-serveur.md`) :
-  installation de mirador-server à côté de la stack actuelle, passage de
-  `srv-test-mirador` sur mirador-server, mesure de 24 h.
-- À décider : poser le tag `v0.1.0` (publication de l'image sur ghcr.io), ou
-  construire l'image sur le VPS.
-- **Étape 4 validée le 10/11/2026** (branche `claude/admiring-lamport-nqtigt`,
-  pull request vers `main`).
-- À l'installation de mirador-server sur le VPS : essais Olvid réels
-  (`docs/olvid.md` § 2 et § 4).
-- Sur le VPS, quand mirador-server y tourne : importer les règles
-  (`docs/administration-serveur.md`, § Alertes), configurer Telegram en
-  **mode ombre**, activer la comparaison avec vmalert, regarder
-  `comparer-vmalert` après quelques jours.
-- **Étape 5 faite** (branche `claude/admiring-wright-2n17eb`) : à essayer
-  sur le VPS (`docs/interface-web.md`), puis validation ; questions ci-dessus.
-- Ensuite : étape 6 (équipements sans agent, `mirador-collector`).
+Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
+mises à jour automatiques signées).
+
+1. Valider 5 quater (élément par élément, « à valider », Réglages rangés).
+2. Enrôler 2 ou 3 autres machines (VM, VPS, Docker) : comparaison avec
+   vmalert plus parlante (vraies alertes).
+3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
+5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+6. Validation de l'étape 5 (et 5 bis, 5 quater), puis étape 6
+   (`mirador-collector` : Synology, UniFi, syslog OPNsense, Proxmox).

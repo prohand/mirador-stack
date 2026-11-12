@@ -24,6 +24,17 @@ type Certificats struct {
 	Liste   []Certificat `json:"liste,omitempty"`
 	Trouves int          `json:"trouves"` // ssl_certs_found_total
 	Erreurs int          `json:"erreurs"` // ssl_certs_read_errors_total
+	// Motifs : compte rendu de chaque chemin ajouté dans l'interface (12/11),
+	// pour dire « aucun fichier », « 2 certificats lus », « écarté »…
+	Motifs []ResultatMotif `json:"motifs,omitempty"`
+}
+
+// ResultatMotif : ce qu'a donné un chemin venu du serveur.
+type ResultatMotif struct {
+	Motif    string `json:"motif"`
+	Fichiers int    `json:"fichiers"` // fichiers trouvés par le motif
+	Lus      int    `json:"lus"`      // certificats lus
+	Ecartes  int    `json:"ecartes"`  // clé privée, lien hors dossier, illisible, en double
 }
 
 // Certificat : un certificat lu avec succès.
@@ -53,11 +64,16 @@ func lireCertificats(locaux, distants []string) *Certificats {
 	c := &Certificats{}
 	vus := map[uint64]bool{}
 	parcourir := func(motif string, distant bool) {
+		res := ResultatMotif{Motif: motif}
+		if distant {
+			defer func() { c.Motifs = append(c.Motifs, res) }()
+		}
 		fichiers, err := filepath.Glob(motif)
 		if err != nil {
 			return // motif validé à la lecture de la configuration
 		}
 		sort.Strings(fichiers)
+		res.Fichiers = len(fichiers)
 		if distant && len(fichiers) > maxFichiersDistant {
 			fichiers = fichiers[:maxFichiersDistant]
 			c.Erreurs++
@@ -67,11 +83,13 @@ func lireCertificats(locaux, distants []string) *Certificats {
 				return
 			}
 			if distant && !fichierDistantSur(f) {
+				res.Ecartes++
 				continue // nom de clé privée, ou lien vers un autre dossier
 			}
 			cert, ino, ok := lireCertificat(f)
 			if ino != 0 {
 				if vus[ino] {
+					res.Ecartes++
 					continue
 				}
 				vus[ino] = true
@@ -79,10 +97,12 @@ func lireCertificats(locaux, distants []string) *Certificats {
 			if !ok {
 				// Clé privée, fichier non reconnu ou illisible dans un dossier scanné.
 				c.Erreurs++
+				res.Ecartes++
 				continue
 			}
 			c.Liste = append(c.Liste, cert)
 			c.Trouves++
+			res.Lus++
 		}
 	}
 	for _, m := range locaux {

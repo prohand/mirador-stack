@@ -1,5 +1,5 @@
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
-{{define "code2fa"}}<label class="code">Code 2FA <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
+{{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
 {{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}">
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
@@ -15,12 +15,15 @@
 {{define "rangees"}}{{range .}}<details class="rangee" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
 <div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
 {{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
-{{define "liste-alertes"}}{{if .}}<div class="defile"><table>
-<thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Résumé</th><th>Depuis</th><th>État</th></tr></thead>
-<tbody>{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
+{{define "liste-alertes"}}{{if .}}<div data-alertes>
+<div class="ligne filtres-alertes"><label>Gravité <select data-filtre-gravite><option value="">Toutes</option><option value="3">Critique</option><option value="2">Avertissement</option><option value="1">Info</option></select></label>
+<label>Filtre <input type="search" data-filtre-alertes placeholder="alerte, machine, résumé…" maxlength="63" autocomplete="off"></label></div>
+<div class="defile"><table>
+<thead><tr><th data-tri="gravite">Gravité</th><th data-tri="regle">Alerte</th><th data-tri="machine">Machine</th><th>Résumé</th><th data-tri="depuis">Depuis</th><th>État</th></tr></thead>
+<tbody>{{range $i, $a := .}}<tr data-rang="{{$i}}" data-gravite="{{if egal .Gravite "critical"}}3{{else if egal .Gravite "warning"}}2{{else}}1{{end}}" data-regle="{{.Regle}}" data-machine="{{.Machine}}" data-depuis="{{.Depuis}}" data-texte="{{.Regle}} {{.Machine}} {{.Resume}}"><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
 <td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{.Resume}}</td><td>{{depuisMs .Depuis}}</td>
 <td>{{if egal .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td></tr>{{end}}</tbody>
-</table></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
+</table></div><p class="vide" data-alertes-vide hidden>Aucune alerte ne correspond aux filtres.</p></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
@@ -56,6 +59,7 @@
         <option value="1">Avertissement</option>
         <option value="0">En ligne</option>
         <option value="valider">À valider</option>
+        <option value="majs">Mises à jour en attente</option>
       </select></label>
       <label>Filtre <input type="search" data-filtre-parc placeholder="nom, site, type…" maxlength="63" autocomplete="off"></label>
       <details class="colonnes"><summary class="bouton secondaire">Colonnes</summary><div class="menu-colonnes">
@@ -63,8 +67,8 @@
       {{if .D.LienLinux}}<a href="/tableaux/serveurs-linux">Tableau « Serveurs Linux » →</a>{{end}}
     </div></div>
   {{if .D.Parc}}<div class="defile"><table class="parc">
-  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
-  <tbody>{{range $i, $l := .D.Parc}}<tr data-rang="{{$i}}" data-nom="{{.Nom}}" data-texte="{{.Nom}} {{.Site}} {{.Env}} {{.Groupe}}" data-cpu="{{.PctCPU}}" data-memoire="{{.PctMemoire}}" data-disque="{{.PctDisque}}" data-alertes="{{.Alertes}}" data-etat="{{.Gravite}}" data-valider="{{.Nouveautes}}" data-vu="{{.VuLe}}">
+  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-majs masque-tel" data-tri="majs">Mises à jour</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
+  <tbody>{{range $i, $l := .D.Parc}}<tr data-rang="{{$i}}" data-nom="{{.Nom}}" data-texte="{{.Nom}} {{.Site}} {{.Env}} {{.Groupe}}" data-cpu="{{.PctCPU}}" data-memoire="{{.PctMemoire}}" data-disque="{{.PctDisque}}" data-alertes="{{.Alertes}}" data-etat="{{.Gravite}}" data-valider="{{.Nouveautes}}" data-majs="{{.Paquets}}" data-vu="{{.VuLe}}">
     <td class="nom-machine"><a href="/machines/{{.Nom}}"><b>{{.Nom}}</b></a><span class="sous">{{.Site}}{{if .Env}} · {{.Env}}{{end}}</span></td>
     <td><span class="pastille {{.ClasseEtat}}">{{.Etat}}</span></td>
     <td class="col-courbe masque-tel">{{if .Etincelle}}<svg class="etincelle" viewBox="0 0 90 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{.Etincelle}}"></polyline></svg>{{end}}</td>
@@ -73,6 +77,7 @@
     <td class="col-disque"><div class="mesure"><span>{{.Disque}}</span>{{if ge .PctDisque 0}}<div class="jauge {{.ClasseDisque}}"><i class="largeur-{{.PctDisque}}"></i></div>{{end}}</div></td>
     <td class="col-alertes"><a class="cloche {{.ClasseAlertes}}" href="/machines/{{.Nom}}" title="Alertes actives de {{.Nom}}"><svg class="icone"><use href="#i-alertes"></use></svg>{{.Alertes}}</a></td>
     <td class="col-valider masque-tel">{{if .Nouveautes}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance">{{.Nouveautes}} à valider</a>{{end}}</td>
+    <td class="col-majs masque-tel">{{if gt .Paquets 0}}<a class="pastille {{if .PaquetsSecurite}}attention{{end}}" href="/machines/{{.Nom}}" title="Paquets à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}">{{.Paquets}}{{if .PaquetsSecurite}} · {{.PaquetsSecurite}} sécu{{end}}</a>{{else if eq .Paquets 0}}<span class="sous">À jour</span>{{end}}{{if .Redemarrage}} <span class="pastille attention" title="Redémarrage nécessaire (/run/reboot-required)">Redémarrer</span>{{end}}</td>
     <td class="col-vu masque-tel">{{depuisS .VuLe}}</td></tr>{{end}}</tbody>
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}

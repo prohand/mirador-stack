@@ -573,3 +573,47 @@ func TestImporterGitHub(t *testing.T) {
 		t.Error("dépôt invalide accepté")
 	}
 }
+
+// Configuration en temps réel (SPEC § 22) : la demande attend un
+// changement, l'attente expire sinon, et « Actualiser » réveille l'agent.
+func TestConfigEnDirect(t *testing.T) {
+	b := nouveauBanc(t)
+	token, _ := TokenManuel(ctx, b.db, "pc", "admin", t0)
+	id, _ := IDMachine(ctx, b.db, "pc")
+	w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "")
+	etag := w.Header().Get("ETag")
+	if w.Code != http.StatusOK || w.Header().Get(protocole.EnteteAttente) != "1" {
+		t.Fatalf("première demande : %d %q", w.Code, w.Header())
+	}
+	attendre := func(entetes ...string) (*httptest.ResponseRecorder, time.Duration) {
+		debut := time.Now()
+		e := append([]string{"If-None-Match", etag, protocole.EnteteAttendre, "2"}, entetes...)
+		w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", e...)
+		return w, time.Since(debut)
+	}
+	// Rien ne change : 304 au bout de l'attente (2 s).
+	if w, d := attendre(); w.Code != http.StatusNotModified || d < 1900*time.Millisecond {
+		t.Fatalf("sans changement : %d après %v", w.Code, d)
+	}
+	// Changement pendant l'attente : réponse aussitôt, avec la nouvelle config.
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		_ = DefinirConfig(ctx, b.db, "machine:"+strconv.FormatInt(id, 10), []byte(`{"intervalle":"60s"}`), "admin", t0)
+	}()
+	w2, d := attendre()
+	if w2.Code != http.StatusOK || d > 1500*time.Millisecond || !strings.Contains(w2.Body.String(), "60s") {
+		t.Fatalf("changement : %d après %v %s", w2.Code, d, w2.Body)
+	}
+	etag = w2.Header().Get("ETag")
+	// « Actualiser » : réponse aussitôt (304, config inchangée) avec le numéro.
+	go func() { time.Sleep(200 * time.Millisecond); DemanderActualisation(id, time.Now()) }()
+	w3, d := attendre(protocole.EnteteActualise, "0")
+	n, _ := strconv.ParseInt(w3.Header().Get(protocole.EnteteActualiser), 10, 64)
+	if w3.Code != http.StatusNotModified || d > 1500*time.Millisecond || n == 0 {
+		t.Fatalf("actualiser : %d après %v, numéro %d", w3.Code, d, n)
+	}
+	// Demande déjà traitée : l'agent attend de nouveau.
+	if w4, d := attendre(protocole.EnteteActualise, strconv.FormatInt(n, 10)); w4.Code != http.StatusNotModified || d < 1900*time.Millisecond {
+		t.Fatalf("après traitement : %d après %v", w4.Code, d)
+	}
+}

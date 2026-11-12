@@ -317,6 +317,7 @@ document.addEventListener("change", function (e) {
       if (etat === "") { return true; }
       if (etat === "probleme") { return parseInt(g, 10) >= 1; }
       if (etat === "valider") { return parseInt(l.getAttribute("data-valider"), 10) > 0; }
+      if (etat === "majs") { return parseInt(l.getAttribute("data-majs"), 10) > 0; }
       return g === etat;
     }
     lignes.forEach(function (l) {
@@ -436,5 +437,113 @@ document.addEventListener("change", function (e) {
   });
   document.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("[data-aller]")) { ouvrir(); }
+  });
+})();
+
+// Code 2FA des actions sensibles : comme sur la page de connexion, un champ
+// caché « nom d'utilisateur » rattache le formulaire au bon compte, pour que
+// Vaultwarden / Bitwarden propose d'y remplir le code TOTP. Champ SANS nom :
+// il n'est jamais envoyé au serveur.
+(function () {
+  var nom = document.body.getAttribute("data-utilisateur");
+  if (!nom) { return; }
+  var champs = document.querySelectorAll('form input[name="code"][autocomplete="one-time-code"]');
+  for (var i = 0; i < champs.length; i++) {
+    var f = champs[i].form;
+    if (!f || f.querySelector('input[autocomplete="username"]')) { continue; }
+    var u = document.createElement("input");
+    u.type = "text";
+    u.autocomplete = "username";
+    u.value = nom;
+    u.readOnly = true;
+    u.hidden = true;
+    u.tabIndex = -1;
+    f.insertBefore(u, f.firstChild);
+  }
+})();
+
+// Tableaux « Alertes en cours » (vue d'ensemble, fiche machine, Alertes) :
+// tri par colonne (clic sur le titre) et filtres gravité + texte, retenus
+// dans le navigateur. Sans JavaScript, le tableau reste dans l'ordre du
+// serveur.
+(function () {
+  var cleTri = "mirador.alertes.tri", cleGravite = "mirador.alertes.gravite";
+  function lire(cle, defaut) {
+    try { var v = window.localStorage.getItem(cle); return v === null ? defaut : v; } catch (e) { return defaut; }
+  }
+  function ecrire(cle, v) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+  var textes = {};
+  function appliquer(zone, n) {
+    var table = zone.querySelector("table");
+    if (!table) { return; }
+    table.querySelectorAll("th[data-tri]").forEach(function (th) {
+      if (th.querySelector("button")) { return; }
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = th.textContent;
+      th.textContent = "";
+      th.appendChild(b);
+    });
+    var tri = lire(cleTri, "").split(":"), col = tri[0], sens = tri[1] === "asc" ? 1 : -1;
+    var corps = table.tBodies[0], lignes = Array.prototype.slice.call(corps.rows);
+    lignes.sort(function (a, b) {
+      if (col === "regle" || col === "machine") {
+        var c = a.getAttribute("data-" + col).localeCompare(b.getAttribute("data-" + col));
+        if (c !== 0) { return sens * c; }
+      } else if (col) {
+        var x = parseFloat(a.getAttribute("data-" + col)), y = parseFloat(b.getAttribute("data-" + col));
+        if (x !== y) { return sens * (x - y); }
+      }
+      return parseInt(a.getAttribute("data-rang"), 10) - parseInt(b.getAttribute("data-rang"), 10);
+    });
+    lignes.forEach(function (l) { corps.appendChild(l); });
+    table.querySelectorAll("th[data-tri]").forEach(function (th) {
+      if (th.getAttribute("data-tri") === col) { th.setAttribute("aria-sort", sens === 1 ? "ascending" : "descending"); }
+      else { th.removeAttribute("aria-sort"); }
+    });
+    var gravite = lire(cleGravite, ""), choix = zone.querySelector("[data-filtre-gravite]");
+    if (choix && choix.value !== gravite) { choix.value = gravite; }
+    var mots = (textes[n] || "").toLowerCase().split(/\s+/).filter(Boolean), visibles = 0;
+    lignes.forEach(function (l) {
+      var texte = l.getAttribute("data-texte").toLowerCase();
+      var garde = (gravite === "" || l.getAttribute("data-gravite") === gravite) &&
+        mots.every(function (m) { return texte.indexOf(m) >= 0; });
+      l.hidden = !garde;
+      if (garde) { visibles++; }
+    });
+    var vide = zone.querySelector("[data-alertes-vide]");
+    if (vide) { vide.hidden = visibles > 0; }
+  }
+  function tout() {
+    document.querySelectorAll("[data-alertes]").forEach(function (z, n) { appliquer(z, n); });
+  }
+  tout();
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-alertes] th[data-tri] button");
+    if (!b) { return; }
+    var col = b.parentNode.getAttribute("data-tri"), tri = lire(cleTri, "").split(":");
+    // Premier clic : décroissant (la plus grave, la plus récente d'abord) ;
+    // pour les noms : croissant. Troisième clic : ordre du serveur.
+    var premier = (col === "regle" || col === "machine") ? "asc" : "desc";
+    var second = premier === "asc" ? "desc" : "asc", nouveau;
+    if (tri[0] !== col) { nouveau = col + ":" + premier; }
+    else if (tri[1] === premier) { nouveau = col + ":" + second; }
+    else { nouveau = ""; }
+    ecrire(cleTri, nouveau);
+    tout();
+  });
+  document.addEventListener("change", function (e) {
+    if (e.target.matches && e.target.matches("[data-alertes] [data-filtre-gravite]")) {
+      ecrire(cleGravite, e.target.value);
+      tout();
+    }
+  });
+  document.addEventListener("input", function (e) {
+    if (e.target.matches && e.target.matches("[data-alertes] [data-filtre-alertes]")) {
+      var zones = document.querySelectorAll("[data-alertes]");
+      for (var n = 0; n < zones.length; n++) {
+        if (zones[n].contains(e.target)) { textes[n] = e.target.value; appliquer(zones[n], n); }
+      }
+    }
   });
 })();

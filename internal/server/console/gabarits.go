@@ -231,7 +231,7 @@ func fonctions() template.FuncMap {
 		// Colonnes que l'on peut masquer dans le tableau de la vue d'ensemble.
 		"colonnesParc": func() map[string]string {
 			return map[string]string{"courbe": "Courbe CPU", "cpu": "CPU", "memoire": "Mémoire", "disque": "Disque",
-				"alertes": "Alertes", "valider": "À valider", "vu": "Vu"}
+				"alertes": "Alertes", "valider": "À valider", "majs": "Mises à jour", "vu": "Vu"}
 		},
 		"entier": func(f float64) int64 { return int64(f) },
 	}
