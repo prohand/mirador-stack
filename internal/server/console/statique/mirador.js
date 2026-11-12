@@ -44,6 +44,10 @@ document.addEventListener("click", function (e) {
   var zones = [];
   function recharger(z) {
     if (document.hidden || z.enCours) { return; }
+    // Pas de rechargement pendant une saisie ou un menu ouvert dans la zone
+    // (filtre et colonnes de la vue d'ensemble) : il reviendra au tour suivant.
+    var actif = document.activeElement;
+    if ((actif && z.el.contains(actif) && actif.matches("input, select, textarea")) || z.el.querySelector("details.colonnes[open]")) { return; }
     z.enCours = true;
     fetch(z.url, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
       .then(function (r) {
@@ -258,4 +262,88 @@ document.addEventListener("change", function (e) {
       ta.focus();
     }).catch(function () {});
   });
+})();
+
+// Vue d'ensemble : tri par colonne, filtre et colonnes masquées du tableau
+// des machines. Les choix sont retenus dans le navigateur et ré-appliqués
+// après chaque rechargement du tableau (toutes les minutes).
+(function () {
+  var cleTri = "mirador.parc.tri", cleCol = "mirador.parc.colonnes";
+  var filtre = "";
+  function lire(cle, defaut) {
+    try { var v = window.localStorage.getItem(cle); return v === null ? defaut : v; } catch (e) { return defaut; }
+  }
+  function ecrire(cle, v) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+  function appliquer() {
+    var zone = document.querySelector("[data-parc]");
+    if (!zone) { return; }
+    var table = zone.querySelector("table.parc");
+    if (!table) { return; }
+    // Titres triables : un vrai bouton dans chaque titre (clavier compris).
+    table.querySelectorAll("th[data-tri]").forEach(function (th) {
+      if (th.querySelector("button")) { return; }
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = th.textContent;
+      th.textContent = "";
+      th.appendChild(b);
+    });
+    // Tri : « colonne:sens » ; vide = ordre du serveur (les plus en difficulté d'abord).
+    var tri = lire(cleTri, "").split(":"), col = tri[0], sens = tri[1] === "asc" ? 1 : -1;
+    var corps = table.tBodies[0], lignes = Array.prototype.slice.call(corps.rows);
+    lignes.sort(function (a, b) {
+      if (col === "nom") { return sens * a.getAttribute("data-nom").localeCompare(b.getAttribute("data-nom")); }
+      if (col) {
+        var x = parseFloat(a.getAttribute("data-" + col)), y = parseFloat(b.getAttribute("data-" + col));
+        if (x !== y) { return sens * (x - y); }
+      }
+      return parseInt(a.getAttribute("data-rang"), 10) - parseInt(b.getAttribute("data-rang"), 10);
+    });
+    lignes.forEach(function (l) { corps.appendChild(l); });
+    table.querySelectorAll("th[data-tri]").forEach(function (th) {
+      if (th.getAttribute("data-tri") === col) { th.setAttribute("aria-sort", sens === 1 ? "ascending" : "descending"); }
+      else { th.removeAttribute("aria-sort"); }
+    });
+    // Filtre : tous les mots tapés doivent se trouver dans nom, site, type ou groupe.
+    var champ = zone.querySelector("[data-filtre-parc]");
+    if (champ && champ.value !== filtre && document.activeElement !== champ) { champ.value = filtre; }
+    var mots = filtre.toLowerCase().split(/\s+/).filter(Boolean), visibles = 0;
+    lignes.forEach(function (l) {
+      var texte = l.getAttribute("data-texte").toLowerCase();
+      var garde = mots.every(function (m) { return texte.indexOf(m) >= 0; });
+      l.hidden = !garde;
+      if (garde) { visibles++; }
+    });
+    var vide = zone.querySelector("[data-parc-vide]");
+    if (vide) { vide.hidden = visibles > 0; }
+    // Colonnes masquées.
+    var masquees = lire(cleCol, "").split(",").filter(Boolean);
+    zone.querySelectorAll("[data-colonne]").forEach(function (c) {
+      var nom = c.getAttribute("data-colonne"), masquee = masquees.indexOf(nom) >= 0;
+      c.checked = !masquee;
+      table.classList.toggle("sans-" + nom, masquee);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("th[data-tri] button");
+    if (!b) { return; }
+    var col = b.parentNode.getAttribute("data-tri"), tri = lire(cleTri, "").split(":");
+    // 1er clic : du plus grand au plus petit (noms : A → Z) ; 2e : l'inverse ; 3e : ordre du serveur.
+    var premier = col === "nom" ? "asc" : "desc", second = col === "nom" ? "desc" : "asc";
+    var suivant = tri[0] !== col ? col + ":" + premier : (tri[1] === premier ? col + ":" + second : "");
+    ecrire(cleTri, suivant);
+    appliquer();
+  });
+  document.addEventListener("input", function (e) {
+    if (e.target.matches && e.target.matches("[data-filtre-parc]")) { filtre = e.target.value; appliquer(); }
+  });
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches("[data-colonne]")) { return; }
+    var masquees = [];
+    document.querySelectorAll("[data-colonne]").forEach(function (c) { if (!c.checked) { masquees.push(c.getAttribute("data-colonne")); } });
+    ecrire(cleCol, masquees.join(","));
+    appliquer();
+  });
+  document.addEventListener("mirador:fragment", appliquer);
+  appliquer();
 })();

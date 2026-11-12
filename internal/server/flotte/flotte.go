@@ -51,8 +51,9 @@ type Flotte struct {
 }
 
 type battement struct {
-	le int64
-	b  protocole.Battement
+	le        int64
+	b         protocole.Battement
+	capacites string // en-tête X-Mirador-Capacites (vide : ancien agent)
 }
 
 // Nouvelle prépare la flotte.

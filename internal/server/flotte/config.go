@@ -19,6 +19,7 @@ import (
 
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
+	"mirador-stack/internal/protocole"
 )
 
 // Portées de la configuration des agents (SPEC § 6.7) : défaut global, puis
@@ -156,6 +157,14 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		f.opt.Journal.Error("configuration d'une machine", "machine", m.Nom, "erreur", err)
 		erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
 		return
+	}
+	// Agent d'avant la surveillance (SPEC § 19) : il refuserait tout le
+	// document à cause d'une clé qu'il ne connaît pas. On les lui retire.
+	if !ACapacite(capacitesDe(r), protocole.CapaciteSurveillance) {
+		if doc, etag, err = sansSurveillance(doc); err != nil {
+			erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
+			return
+		}
 	}
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "no-store")

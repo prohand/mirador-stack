@@ -1,8 +1,58 @@
 {{define "contenu"}}
 {{$m := .D.M}}
-<h1>{{$m.Nom}} {{if $m.Muette}}<span class="pastille erreur">Muette</span>{{end}} {{if not (egal $m.Statut "approuvee")}}<span class="pastille attention">{{$m.Statut}}</span>{{end}}</h1>
-<div class="grille">
-<section class="carte"><h2>Identité</h2><table>
+<div class="titre-page"><div>
+<h1>{{$m.Nom}} {{if $m.Muette}}<span class="pastille erreur">Muette</span>{{else if egal $m.Statut "approuvee"}}<span class="pastille ok">En ligne</span>{{end}} {{if not (egal $m.Statut "approuvee")}}<span class="pastille attention">{{$m.Statut}}</span>{{end}}{{if .D.Alertes}} <span class="pastille erreur">{{len .D.Alertes}} alerte(s)</span>{{end}}</h1>
+<p class="bandeau-machine"><span>{{$m.Site}}{{if $m.Env}} · {{$m.Env}}{{end}}{{if $m.Groupe}} · {{$m.Groupe}}{{end}}</span>{{with .D.Identite}}{{if .Noyau}}<span>{{.Noyau}}</span>{{end}}{{if .Coeurs}}<span>{{.Coeurs}}{{if .Memoire}} · {{.Memoire}}{{end}}</span>{{end}}{{if .Allumee}}<span>Allumée depuis {{.Allumee}}</span>{{end}}{{end}}{{if $m.Version}}<span>Agent {{$m.Version}}</span>{{end}}<span>Vue {{depuisS $m.VuLe}}</span></p>
+</div></div>
+{{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+
+{{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
+<div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
+<div class="compteurs">{{if $s.NbAValider}}<span class="pastille attention">{{$s.NbAValider}} à valider</span>{{end}}<span class="pastille ok">{{$s.NbSurveilles}} surveillé(s)</span>{{if $s.NbIgnores}}<span class="pastille">{{$s.NbIgnores}} ignoré(s)</span>{{end}}</div></div>
+{{if not $s.Capable}}<p class="message">L'agent de cette machine ne connaît pas encore les nouveaux réglages (ventilateurs, ZFS, RAID logiciel, validation des services, retrait des températures, de SMART, du pare-feu, des certificats ou des conteneurs). <a href="/mises-a-jour">Le mettre à jour</a> pour les utiliser ; le reste fonctionne déjà.</p>{{end}}
+<form method="post" class="surv">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="surveillance">
+{{if or $s.AValider $s.SvcAValider}}<h3 class="titre-attention">Détecté, à valider</h3>
+<div class="surv-liste a-valider">
+{{range $s.AValider}}<div class="surv-ligne"><div class="surv-quoi"><b>{{.Titre}}</b><span class="sous">{{.Detail}}</span></div>
+<div class="surv-propose"><span class="sous">Proposé</span>{{majuscule .Propose}}</div>
+{{if $.Admin}}<label class="surv-choix"><span class="sous">Choix</span><select name="g.{{.Cle}}" {{if .Bloque}}disabled title="Agent trop ancien"{{end}}><option value="">Plus tard</option><option value="oui">Surveiller</option><option value="non">Ignorer</option></select></label>{{end}}</div>{{end}}
+{{range $s.SvcAValider}}<div class="surv-ligne"><div class="surv-quoi"><b>{{.Nom}}</b><span class="sous">Service démarré au boot, pas encore validé</span></div>
+<div class="surv-propose"><span class="sous">Proposé</span>Doit tourner ; alerte s'il s'arrête</div>
+{{if $.Admin}}<label class="surv-choix"><span class="sous">Choix</span><select name="s.{{.Nom}}"><option value="">Plus tard</option><option value="surveiller">Surveiller</option><option value="ignorer">Ignorer</option></select></label>{{end}}</div>{{end}}
+</div>{{end}}
+
+<h3 class="titre-ok">Surveillé</h3>
+{{if $s.Surveilles}}<div class="surv-cartes">
+{{range $s.Surveilles}}<div class="surv-carte"><div class="surv-quoi"><b><span class="point {{if .Alerte}}erreur{{else}}ok{{end}}"></span>{{.Titre}}</b><span class="sous">{{.Detail}}</span></div>
+{{if $.Admin}}<select class="petit" name="g.{{.Cle}}" aria-label="{{.Titre}}" {{if .Bloque}}disabled title="Agent trop ancien"{{end}}><option value="">Garder</option><option value="non">Retirer</option></select>{{end}}</div>{{end}}
+</div>{{else}}{{template "vide" "Rien n'est encore surveillé (aucune donnée reçue de cette machine)."}}{{end}}
+{{if or $s.SvcSurveilles $s.Validation}}<details class="surv-services"><summary>Services systemd suivis ({{len $s.SvcSurveilles}}){{if $s.Validation}} · validés un par un{{else}} · tous ceux démarrés au boot, automatiquement{{end}}</summary>
+<div class="defile"><table><thead><tr><th>Service</th><th>État</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
+{{range $s.SvcSurveilles}}<tr><td><code>{{.Nom}}</code></td><td>{{if .Arrete}}<span class="pastille erreur">Arrêté</span>{{else}}<span class="pastille ok">Actif</span>{{end}}</td>
+{{if $.Admin}}<td><select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">Garder</option><option value="ignorer">Retirer</option></select></td>{{end}}</tr>{{end}}
+</tbody></table></div>
+{{if $.Admin}}<label class="surv-validation">Nouveaux services
+<select name="validation" {{if not $s.Capable}}disabled title="Agent trop ancien"{{end}}><option value="">{{if $s.Validation}}Me les proposer (actuel){{else}}Les surveiller automatiquement (actuel){{end}}</option>{{if $s.Validation}}<option value="non">Les surveiller automatiquement</option>{{else}}<option value="oui">Me les proposer avant de les surveiller</option>{{end}}</select></label>{{end}}
+</details>{{end}}
+
+{{if or $s.Ignores $s.SvcIgnores $s.Absents}}<h3 class="titre-doux">Ignoré ou absent</h3>
+<div class="surv-ignores">
+{{range $s.Ignores}}<span class="pastille">{{.Titre}} : ignoré{{if $.Admin}} <select class="petit" name="g.{{.Cle}}" aria-label="{{.Titre}}" {{if .Bloque}}disabled{{end}}><option value="">—</option><option value="defaut">Rétablir</option></select>{{end}}</span>{{end}}
+{{range $s.SvcIgnores}}<span class="pastille"><code>{{.Nom}}</code> : ignoré{{if $.Admin}} <select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">—</option><option value="retablir">Rétablir</option></select>{{end}}</span>{{end}}
+{{range $s.Absents}}<span class="pastille">{{.}} : absent sur cette machine</span>{{end}}
+</div>{{end}}
+
+{{if .Admin}}<div class="ligne surv-pied">
+{{if $s.Groupe}}<label>Appliquer à <select name="portee"><option value="machine">Cette machine</option><option value="groupe">Tout le groupe « {{$s.Groupe}} »</option></select></label>{{end}}
+{{template "code2fa"}}<button>Enregistrer les choix</button>
+{{if $s.NbAValider}}<button class="secondaire" name="tout" value="oui">Tout surveiller ({{$s.NbAValider}})</button><button class="secondaire" name="tout" value="non">Tout ignorer</button>{{end}}
+</div>
+<p><small>Les choix partent dans la configuration typée de l'agent, appliquée à sa prochaine demande (5 min au plus) ; aucune commande n'est envoyée. « Retirer » arrête l'envoi et donc les alertes liées ; l'historique reste. Les services sont toujours réglés pour cette machine seule. Chaque changement est inscrit dans le journal d'audit.</small></p>{{end}}
+</form>
+</section>{{end}}
+
+<details class="carte"><summary><strong>Détails de la machine</strong></summary>
+<table>
 <tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>
 <tr><th>Site / type / groupe</th><td>{{$m.Site}} / {{$m.Env}} / {{$m.Groupe}}</td></tr>
 <tr><th>Dernière donnée</th><td>{{depuisS $m.VuLe}} ({{dateS $m.VuLe}})</td></tr>
@@ -14,9 +64,7 @@
 <tr><th>Adresses autorisées</th><td><code>{{if $m.IPsAutorisees}}{{$m.IPsAutorisees}}{{else}}Toutes{{end}}</code></td></tr>
 <tr><th>Dernière adresse vue</th><td><code>{{$m.DerniereIP}}</code></td></tr>
 <tr><th>Enrôlée le</th><td>{{dateS $m.CreeLe}}</td></tr>
-</table></section>
-<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>
-</div>
+</table></details>
 
 {{if .Admin}}<details class="carte"><summary><strong>Modifier la machine</strong></summary>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="etiquettes">

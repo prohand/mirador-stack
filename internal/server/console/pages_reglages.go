@@ -563,6 +563,13 @@ func (c *Console) postAgents(q *req) {
 		}
 		doc := map[string]any{}
 		if f.texte("action") != "retirer" {
+			// Les choix de surveillance (page de chaque machine, SPEC § 19) ne
+			// sont pas dans ce formulaire : ils sont gardés tels quels.
+			for k, v := range c.lirePortee(q.r.Context(), portee) {
+				if flotte.CleSurveillance(k) {
+					doc[k] = v
+				}
+			}
 			for _, ch := range champsAgent {
 				v := f.texte(ch.Nom)
 				if v == "" {
