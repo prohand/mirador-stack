@@ -547,3 +547,124 @@ document.addEventListener("change", function (e) {
     }
   });
 })();
+
+// Tous les autres tableaux (demande du 12/11) : tri par clic sur un titre et,
+// à partir de 6 lignes, un champ « Filtrer ce tableau ». Le tri comprend les
+// nombres (« 1 234,5 »), les tailles (« 20,5 Go »), les durées (« il y a
+// 3 min », « 2 h 05 ») et les dates (« 12/11/2026 08:14 »). Le tri choisi est
+// retenu par page. Exclus : tableaux déjà triables (vue d'ensemble, alertes),
+// tableaux d'édition (class « formulaire », l'ordre y compte), tableaux
+// marqués data-sans-tri, lignes fusionnées (colspan).
+(function () {
+  var unites = { o: 1, ko: 1e3, mo: 1e6, go: 1e9, to: 1e12, kio: 1024, mio: 1048576, gio: 1073741824, tio: 1099511627776,
+    ms: 0.001, s: 1, min: 60, h: 3600, j: 86400 };
+  function valeur(td) {
+    var brut = td.getAttribute("data-valeur");
+    if (brut !== null) { var n = parseFloat(brut); return isNaN(n) ? brut.toLowerCase() : n; }
+    var t = td.textContent.replace(/[  ]/g, " ").trim();
+    if (t === "" || t === "—" || t === "-") { return null; }
+    var d = t.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (d) { return Date.UTC(+d[3], +d[2] - 1, +d[1], +(d[4] || 0), +(d[5] || 0), +(d[6] || 0)); }
+    var r = t.match(/^il y a\s+(\d+)\s*(s|min|h|j)\b/i);
+    if (r) { return parseInt(r[1], 10) * unites[r[2].toLowerCase()]; }
+    // Durées des règles : « 3d », « 15m », « 1h30m », « 0s ».
+    if (/^(\d+(d|h|m|s))+$/.test(t)) {
+      var total = 0, mult = { d: 86400, h: 3600, m: 60, s: 1 };
+      t.replace(/(\d+)(d|h|m|s)/g, function (_, n, u) { total += parseInt(n, 10) * mult[u]; return ""; });
+      return total;
+    }
+    var hm = t.match(/^(\d+)\s*h\s*(\d{2})$/);
+    if (hm) { return parseInt(hm[1], 10) * 3600 + parseInt(hm[2], 10) * 60; }
+    var m = t.match(/^(-?\d[\d ]*(?:[.,]\d+)?)\s*(%|[kKmMgGtT]?i?o|ms|s|min|h|j)?(?:\s|$|\/)/);
+    if (m) {
+      var x = parseFloat(m[1].replace(/ /g, "").replace(",", "."));
+      if (!isNaN(x)) { return x * (m[2] && unites[m[2].toLowerCase()] ? unites[m[2].toLowerCase()] : 1); }
+    }
+    return t.toLowerCase();
+  }
+  function comparer(a, b) {
+    if (a === null && b === null) { return 0; }
+    if (a === null) { return 1; }
+    if (b === null) { return -1; }
+    if (typeof a === "number" && typeof b === "number") { return a - b; }
+    return String(a).localeCompare(String(b), "fr", { numeric: true, sensitivity: "base" });
+  }
+  function lire(cle) { try { return window.localStorage.getItem(cle) || ""; } catch (e) { return ""; } }
+  function ecrire(cle, v) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+  function exclu(table) {
+    return table.hasAttribute("data-sans-tri") || table.classList.contains("formulaire") || table.classList.contains("parc") ||
+      table.closest("[data-alertes], [data-parc]") || table.querySelector("th[data-tri]") ||
+      !table.tHead || !table.tBodies[0] || table.tBodies[0].rows.length < 2 || table.tBodies[0].querySelector("td[colspan], th[colspan]");
+  }
+  function trier(table, cle) {
+    var etat = lire(cle).split(":"), col = etat[0] === "" ? -1 : parseInt(etat[0], 10), sens = etat[1] === "desc" ? -1 : 1;
+    var corps = table.tBodies[0], lignes = Array.prototype.slice.call(corps.rows);
+    lignes.sort(function (a, b) {
+      if (col >= 0 && a.cells[col] && b.cells[col]) {
+        var c = comparer(valeur(a.cells[col]), valeur(b.cells[col]));
+        if (c !== 0) { return sens * c; }
+      }
+      return parseInt(a.getAttribute("data-rang-tri"), 10) - parseInt(b.getAttribute("data-rang-tri"), 10);
+    });
+    lignes.forEach(function (l) { corps.appendChild(l); });
+    var ths = table.tHead.rows[0].cells;
+    for (var i = 0; i < ths.length; i++) {
+      if (i === col) { ths[i].setAttribute("aria-sort", sens === 1 ? "ascending" : "descending"); }
+      else { ths[i].removeAttribute("aria-sort"); }
+    }
+  }
+  function preparer(table, n) {
+    if (table.getAttribute("data-trie") || exclu(table)) { return; }
+    table.setAttribute("data-trie", "1");
+    var cle = "mirador.tri." + location.pathname + "." + n;
+    Array.prototype.forEach.call(table.tBodies[0].rows, function (l, i) { l.setAttribute("data-rang-tri", i); });
+    var ths = table.tHead.rows[0].cells;
+    Array.prototype.forEach.call(ths, function (th, i) {
+      if (th.textContent.trim() === "" || th.querySelector("button, input, select, a")) { return; }
+      th.setAttribute("data-tri", String(i)); // même style que les autres titres triables
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = th.textContent.trim();
+      th.textContent = "";
+      th.appendChild(b);
+      b.addEventListener("click", function () {
+        // 1er clic : croissant ; 2e : décroissant ; 3e : ordre d'origine.
+        var etat = lire(cle).split(":"), nouveau;
+        if (etat[0] !== String(i)) { nouveau = i + ":asc"; }
+        else if (etat[1] === "asc") { nouveau = i + ":desc"; }
+        else { nouveau = ""; }
+        ecrire(cle, nouveau);
+        trier(table, cle);
+      });
+    });
+    if (table.tBodies[0].rows.length >= 6) {
+      var champ = document.createElement("input");
+      champ.type = "search";
+      champ.placeholder = "Filtrer ce tableau…";
+      champ.setAttribute("aria-label", "Filtrer ce tableau");
+      champ.maxLength = 63;
+      champ.className = "filtre-tableau";
+      var avant = table.closest(".defile") || table;
+      avant.parentNode.insertBefore(champ, avant);
+      champ.addEventListener("input", function () {
+        var mots = champ.value.toLowerCase().split(/\s+/).filter(Boolean);
+        Array.prototype.forEach.call(table.tBodies[0].rows, function (l) {
+          var texte = l.textContent.toLowerCase();
+          l.hidden = !mots.every(function (m) { return texte.indexOf(m) >= 0; });
+        });
+      });
+    }
+    if (lire(cle)) { trier(table, cle); }
+  }
+  function tout() {
+    var tables = document.querySelectorAll("table");
+    var vues = [];
+    Array.prototype.forEach.call(tables, function (t) {
+      if (vues.indexOf(t) >= 0) { return; }
+      vues.push(t);
+      preparer(t, vues.length - 1);
+    });
+  }
+  tout();
+  document.addEventListener("mirador:fragment", tout);
+})();
