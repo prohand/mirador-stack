@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -64,14 +65,20 @@ type Options struct {
 
 // Console : l'interface en marche.
 type Console struct {
+	defis    defisConnexion // défis des connexions par passkey seule
 	opt      Options
 	db       *sql.DB
 	journal  *slog.Logger
-	sessions *magasin
-	verrous  *verrous
+	sessions *auth.Magasin
+	verrous  *auth.Verrous
 	securite atomic.Pointer[Securite]
 	mux      *http.ServeMux
 	pages    *gabarits
+
+	// prevenir : envoi d'un message de sécurité par les canaux de
+	// notification (nil sans canaux ; remplaçable dans les tests).
+	prevenir func(ctx context.Context, groupe, texte string)
+	messages antiRafale
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -86,6 +93,7 @@ type Console struct {
 	interfaceCourante     atomic.Pointer[ReglagesInterface]
 	tableaux              atomic.Pointer[etatTableaux]      // tableaux en service (fournis + base)
 	cacheMet              cacheMetriques                    // métriques reçues (assistant de requête)
+	cacheValider          cacheAValider                     // éléments « à valider » par machine (menu, liste)
 	verrousLevesLe        atomic.Int64                      // dernière levée des verrous vue (commande de secours)
 	nomsAnciens           atomic.Pointer[map[string]string] // ancien nom → nom actuel (historique des machines renommées)
 
@@ -99,7 +107,7 @@ type Console struct {
 }
 
 type compteCache struct {
-	u      Utilisateur
+	u      auth.Utilisateur
 	expire time.Time
 }
 
@@ -113,9 +121,12 @@ func Nouvelle(ctx context.Context, opt Options) (*Console, error) {
 	if opt.Maintenant == nil {
 		opt.Maintenant = time.Now
 	}
-	c := &Console{opt: opt, db: opt.DB, journal: opt.Journal, sessions: nouveauMagasin(), verrous: nouveauxVerrous(),
+	c := &Console{opt: opt, db: opt.DB, journal: opt.Journal, sessions: auth.NouveauMagasin(), verrous: auth.NouveauxVerrous(),
 		comptes: map[int64]compteCache{}, cache: cacheRequetes{tout: map[string]entreeRequete{}},
 		recherches: make(chan struct{}, 2)}
+	if opt.Postier != nil {
+		c.prevenir = opt.Postier.Prevenir
+	}
 	if opt.Metriques != nil {
 		// La base brute ou agrégée est choisie selon la période demandée.
 		// Historique des machines renommées rattaché au nouveau nom (lecture).
@@ -157,14 +168,14 @@ func (c *Console) maintenant() time.Time { return c.opt.Maintenant() }
 // compte n'existe, un jeton aléatoire, valable jusqu'au prochain démarrage,
 // est affiché dans le journal (docker logs mirador-server).
 func (c *Console) preparerPremierAdmin(ctx context.Context) error {
-	n, err := NombreUtilisateurs(ctx, c.db)
+	n, err := auth.NombreUtilisateurs(ctx, c.db)
 	if err != nil {
 		return err
 	}
 	if n > 0 {
 		return nil
 	}
-	c.jetonPremier = "mirador_premier_" + aleatoire(24)
+	c.jetonPremier = "mirador_premier_" + auth.Aleatoire(24)
 	c.journal.Warn("console : aucun compte ; ouvrir /premier-admin avec ce jeton à usage unique (valable jusqu'au prochain redémarrage)",
 		"jeton", c.jetonPremier)
 	return nil
@@ -206,7 +217,7 @@ func (c *Console) Tour(ctx context.Context) {
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()
-	c.sessions.nettoyer(t, time.Duration(s.Inactivite), time.Duration(s.DureeMax))
+	c.sessions.Nettoyer(t, time.Duration(s.Inactivite), time.Duration(s.DureeMax))
 }
 
 // lireNomsAnciens : table « ancien nom → nom actuel » (machines renommées),
@@ -267,8 +278,8 @@ func memeOrigine(r *http.Request) bool {
 type req struct {
 	w  http.ResponseWriter
 	r  *http.Request
-	s  *Session // copie
-	u  Utilisateur
+	s  *auth.Session // copie
+	u  auth.Utilisateur
 	ip netip.Addr
 	t  time.Time
 }
@@ -276,40 +287,40 @@ type req struct {
 // qui : nom noté dans l'audit.
 func (q *req) qui() string { return "web:" + q.u.Nom }
 
-func (q *req) admin() bool { return q.u.Role == RoleAdmin }
+func (q *req) admin() bool { return q.u.Role == auth.RoleAdmin }
 
 type gestionnaire func(*req)
 
 // lecture : page accessible à tout compte connecté.
-func (c *Console) lecture(f gestionnaire) http.HandlerFunc { return c.proteger(RoleLecture, f) }
+func (c *Console) lecture(f gestionnaire) http.HandlerFunc { return c.proteger(auth.RoleLecture, f) }
 
 // admin : action réservée au rôle admin.
-func (c *Console) admin(f gestionnaire) http.HandlerFunc { return c.proteger(RoleAdmin, f) }
+func (c *Console) admin(f gestionnaire) http.HandlerFunc { return c.proteger(auth.RoleAdmin, f) }
 
 func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		t := c.maintenant()
 		q := &req{w: w, r: r, ip: web.AdresseClient(r), t: t}
-		ck, _ := r.Cookie(NomCookie)
+		ck, _ := r.Cookie(auth.NomCookie)
 		if ck != nil {
-			q.s = c.sessions.lire(ck.Value)
+			q.s = c.sessions.Lire(ck.Value)
 		}
 		sec := c.securite.Load()
-		if q.s != nil && expiree(q.s, t, time.Duration(sec.Inactivite), time.Duration(sec.DureeMax)) {
-			c.sessions.supprimer(q.s.empreinte)
+		if q.s != nil && auth.Expiree(q.s, t, time.Duration(sec.Inactivite), time.Duration(sec.DureeMax)) {
+			c.sessions.Supprimer(q.s.Empreinte)
 			q.s = nil
 		}
 		if q.s == nil {
 			c.versConnexion(w, r)
 			return
 		}
-		if q.s.Etape != etapeComplet {
+		if q.s.Etape != auth.EtapeComplet {
 			http.Redirect(w, r, cheminEtape(q.s.Etape), http.StatusSeeOther)
 			return
 		}
 		u, err := c.compte(r.Context(), q.s.UtilisateurID, t)
 		if err != nil || u.Desactive || u.Generation != q.s.Generation || u.TOTP == "" {
-			c.sessions.supprimer(q.s.empreinte)
+			c.sessions.Supprimer(q.s.Empreinte)
 			c.versConnexion(w, r)
 			return
 		}
@@ -325,11 +336,11 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 				return
 			}
 		}
-		if role == RoleAdmin && u.Role != RoleAdmin {
+		if role == auth.RoleAdmin && u.Role != auth.RoleAdmin {
 			http.Error(w, "réservé au rôle admin", http.StatusForbidden)
 			return
 		}
-		c.sessions.modifier(q.s.empreinte, func(s *Session) { s.Vue = t })
+		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Vue = t })
 		f(q)
 	}
 }
@@ -345,21 +356,21 @@ func (c *Console) versConnexion(w http.ResponseWriter, r *http.Request) {
 }
 
 func cheminEtape(e string) string {
-	if e == etapeCreer {
+	if e == auth.EtapeCreer {
 		return "/connexion/2fa-creer"
 	}
 	return "/connexion/code"
 }
 
 // compte : compte lu en base, gardé 10 s en mémoire.
-func (c *Console) compte(ctx context.Context, id int64, t time.Time) (Utilisateur, error) {
+func (c *Console) compte(ctx context.Context, id int64, t time.Time) (auth.Utilisateur, error) {
 	c.muComptes.Lock()
 	cc, ok := c.comptes[id]
 	c.muComptes.Unlock()
 	if ok && t.Before(cc.expire) {
 		return cc.u, nil
 	}
-	u, err := LireUtilisateurID(ctx, c.db, id)
+	u, err := auth.LireUtilisateurID(ctx, c.db, id)
 	if err != nil {
 		return u, err
 	}
@@ -381,7 +392,7 @@ func (c *Console) oublierComptes() {
 
 // flash : message affiché une fois sur la page suivante.
 func (c *Console) flash(q *req, ok, erreur string) {
-	c.sessions.modifier(q.s.empreinte, func(s *Session) { s.Flash, s.Alerte = ok, erreur })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Flash, s.Alerte = ok, erreur })
 }
 
 // retour : après une écriture, message puis redirection (303 : le
@@ -407,7 +418,13 @@ var (
 
 // sensibleBloque : adresse ou compte verrouillé (vérifié AVANT tout calcul).
 func (c *Console) sensibleBloque(q *req) bool {
-	return c.verrous.bloqueAdresse(q.ip.String(), q.t) || c.verrous.bloqueCompte(q.u.Nom, q.ip.String(), q.t)
+	return c.verrous.BloqueAdresse(q.ip.String(), q.t) || c.verrous.BloqueCompte(q.u.Nom, q.ip.String(), q.t)
+}
+
+// debuterSensible : essai réservé avant la vérification d'un code ou d'un
+// mot de passe (rafale de requêtes simultanées : voir verrou.go).
+func (c *Console) debuterSensible(q *req) (finir func(), ok bool) {
+	return c.verrous.Debuter(q.u.Nom, q.ip.String(), c.securite.Load().Echecs, q.t)
 }
 
 // echecSensible : compté par adresse ET par compte, et dans la session ;
@@ -415,9 +432,9 @@ func (c *Console) sensibleBloque(q *req) bool {
 func (c *Console) echecSensible(q *req, raison string) error {
 	c.echecConnexion(q.ip.String(), q.u.Nom, raison, q.t)
 	n := 0
-	c.sessions.modifier(q.s.empreinte, func(s *Session) { s.EssaisSensibles++; n = s.EssaisSensibles })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.EssaisSensibles++; n = s.EssaisSensibles })
 	if n >= essaisSensiblesMax {
-		c.sessions.supprimer(q.s.empreinte)
+		c.sessions.Supprimer(q.s.Empreinte)
 		c.journal.Warn("console : session fermée après trop d'essais", "ip", q.ip.String(), "utilisateur", q.u.Nom)
 		return errSessionFermee
 	}
@@ -431,13 +448,18 @@ func (c *Console) verifierCode(q *req) error {
 	if c.sensibleBloque(q) {
 		return errTropEssais
 	}
+	finir, libre := c.debuterSensible(q)
+	if !libre {
+		return errTropEssais
+	}
+	defer finir()
 	secret, err := c.dechiffrerTOTP(q.u.TOTP)
 	if err != nil {
 		return err
 	}
-	pas, ok := VerifierTOTP(secret, code, q.t, q.u.TOTPDernier)
+	pas, ok := auth.VerifierTOTP(secret, code, q.t, q.u.TOTPDernier)
 	if ok {
-		ok, err = NoterPasTOTP(q.r.Context(), c.db, q.u.ID, pas, q.t)
+		ok, err = auth.NoterPasTOTP(q.r.Context(), c.db, q.u.ID, pas, q.t)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"mirador-stack/internal/server/auth"
 	"text/tabwriter"
 	"time"
 
@@ -30,7 +31,7 @@ Interface web (secours) :
 func commandeConsole(ctx context.Context, db *sql.DB, nom string, pos []string, sortie io.Writer, t time.Time) (traite bool, err error) {
 	switch nom {
 	case "utilisateurs":
-		us, err := console.ListerUtilisateurs(ctx, db)
+		us, err := auth.ListerUtilisateurs(ctx, db)
 		if err != nil {
 			return true, err
 		}
@@ -59,13 +60,18 @@ func commandeConsole(ctx context.Context, db *sql.DB, nom string, pos []string, 
 			return true, err
 		}
 		mdp := base64.RawURLEncoding.EncodeToString(b)
-		if err := console.DefinirMotDePasse(ctx, db, pos[0], mdp, qui, "", t); err != nil {
+		if err := auth.DefinirMotDePasse(ctx, db, pos[0], mdp, qui, "", t); err != nil {
 			return true, err
 		}
-		if err := console.ReinitialiserTOTP(ctx, db, pos[0], qui, "", t); err != nil {
+		if err := auth.ReinitialiserTOTP(ctx, db, pos[0], qui, "", t); err != nil {
 			return true, err
 		}
-		if err := console.DefinirDesactive(ctx, db, pos[0], false, qui, "", t); err != nil {
+		// Compte repris en main : ses codes de secours et ses passkeys ne
+		// valent plus rien (SPEC § 20).
+		if err := auth.EffacerSecoursEtPasskeys(ctx, db, pos[0]); err != nil {
+			return true, err
+		}
+		if err := auth.DefinirDesactive(ctx, db, pos[0], false, qui, "", t); err != nil {
 			return true, err
 		}
 		// Le serveur en marche lève ses verrous de connexion (5 s au plus).

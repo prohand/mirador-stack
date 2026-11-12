@@ -44,6 +44,32 @@ func TestRacine(t *testing.T) {
 		"mirador_agent_root_age_seconds": 600,
 	})
 
+	// Choix de l'interface : résultats de l'assistant non envoyés (SPEC § 19).
+	sans := NewRacine(chemin)
+	sans.maintenant = r.maintenant
+	sans.SansPareFeu, sans.SansSmart, sans.SansCertificats = true, true, true
+	if p := collecter(t, sans); len(p) != 2 {
+		t.Errorf("tout retiré : seuls l'âge et les erreurs de l'assistant attendus, obtenu %v", p)
+	}
+	// Un certificat retiré dans l'interface (SPEC § 21) : plus envoyé, et
+	// plus compté dans ssl_certs_found_total.
+	ig := NewRacine(chemin)
+	ig.maintenant = r.maintenant
+	ig.IgnorerCertificats([]string{"/etc/letsencrypt/live/exemple.org/cert.pem"})
+	p2 := collecter(t, ig)
+	for k := range p2 {
+		if contient(k, "ssl_cert_not_after") {
+			t.Errorf("certificat retiré envoyé : %s", k)
+		}
+	}
+	if v, ok := p2["ssl_certs_found_total"]; !ok || v != 0 {
+		t.Errorf("ssl_certs_found_total = %v, attendu 0", v)
+	}
+	sans.SansSmart = false
+	if p := collecter(t, sans); p["smartctl_device_smart_status|device=sda"] != 1 || len(p) != 7 {
+		t.Errorf("SMART seul attendu, obtenu %v", p)
+	}
+
 	// Assistant arrêté depuis 3 h : plus de valeurs, seulement l'âge.
 	r.maintenant = func() time.Time { return t0.Add(3 * time.Hour) }
 	p = collecter(t, r)

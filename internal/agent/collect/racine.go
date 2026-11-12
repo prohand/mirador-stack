@@ -32,6 +32,25 @@ type Racine struct {
 
 	modif    time.Time
 	resultat *racine.Resultat
+
+	// Résultats non envoyés (choix de l'interface, SPEC.md § 19). L'assistant
+	// root tourne quand même : il ne lit jamais la configuration distante.
+	SansPareFeu, SansSmart, SansCertificats bool
+	// Certificats retirés un par un dans l'interface (chemins exacts) : lus
+	// par l'assistant root, mais pas envoyés (SPEC.md § 21).
+	certsIgnores map[string]bool
+}
+
+// IgnorerCertificats : chemins des certificats à ne pas envoyer.
+func (r *Racine) IgnorerCertificats(chemins []string) {
+	if len(chemins) == 0 {
+		r.certsIgnores = nil
+		return
+	}
+	r.certsIgnores = make(map[string]bool, len(chemins))
+	for _, c := range chemins {
+		r.certsIgnores[c] = true
+	}
 }
 
 // NewRacine crée le collecteur.
@@ -65,13 +84,16 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		return nil
 	}
 
-	if pf := res.PareFeu; pf != nil {
+	if pf := res.PareFeu; pf != nil && !r.SansPareFeu {
 		l := [2]metrics.Label{metrics.L("tool", pf.Outil), metrics.L("policy", pf.Politique)}
 		b.Add("node_firewall_input_policy_drop", bool01(pf.Restrictif()), l[:]...)
 		b.Add("node_firewall_input_rules", float64(pf.Regles), l[:]...)
 	}
 
 	for i := range res.Smart {
+		if r.SansSmart {
+			break
+		}
 		d := &res.Smart[i]
 		dev := metrics.L("device", d.Nom)
 		if d.SanteOK != nil {
@@ -92,14 +114,20 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		}
 	}
 
-	if c := res.Certificats; c != nil {
+	if c := res.Certificats; c != nil && !r.SansCertificats {
+		envoyes := 0
 		for i := range c.Liste {
 			cert := &c.Liste[i]
+			if r.certsIgnores[cert.Chemin] {
+				continue
+			}
+			envoyes++
 			l := [3]metrics.Label{metrics.L("path", cert.Chemin), metrics.L("cn", cert.CN), metrics.L("issuer", cert.Emetteur)}
 			b.Add("ssl_cert_not_after_timestamp_seconds", float64(cert.Fin.Unix()), l[:]...)
 			b.Add("ssl_cert_not_before_timestamp_seconds", float64(cert.Debut.Unix()), l[:]...)
 		}
-		b.Add("ssl_certs_found_total", float64(c.Trouves))
+		// Trouvés = certificats envoyés (les retirés ne comptent plus).
+		b.Add("ssl_certs_found_total", float64(envoyes))
 		b.Add("ssl_certs_read_errors_total", float64(c.Erreurs))
 	}
 	return nil

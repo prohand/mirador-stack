@@ -1,6 +1,6 @@
 {{define "contenu"}}
 <h1>Configuration des agents</h1>
-{{template "onglets-reglages" (onglet $ "agents")}}
+{{template "onglets-machines" "agents"}}
 <p>Trois niveaux : <strong>défaut</strong> → <strong>groupe</strong> → <strong>machine</strong>. Un champ vide hérite du niveau au-dessus. Valeurs typées et vérifiées avec le code de l'agent : jamais de commande ni de chemin d'exécutable.</p>
 <form method="get" class="ligne filtres"><label>Portée <input name="portee" value="{{.D.Portee}}" list="portees" maxlength="80"></label>
 <datalist id="portees"><option value="defaut">{{range .D.Groupes}}<option value="groupe:{{.Nom}}">{{end}}{{range .D.Machines}}<option value="machine:{{.ID}}">{{.Nom}}</option>{{end}}</datalist><button>Afficher</button>

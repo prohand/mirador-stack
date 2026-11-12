@@ -86,6 +86,41 @@ type Agent struct {
 	// Forme : http://127.0.0.1:2375 ou unix:///chemin/absolu.
 	Docker string `json:"docker"`
 
+	// Surveillance choisie dans l'interface (SPEC.md § 19) : ce que la machine
+	// envoie ou non. Les trois derniers sont nouveaux et éteints par défaut :
+	// l'agent signale seulement qu'ils existent, l'interface propose de les
+	// activer.
+	Temperatures    bool `json:"temperatures"`     // capteurs de /sys (défaut oui)
+	DockerMetriques bool `json:"docker_metriques"` // métriques des conteneurs (défaut oui, si Docker est configuré)
+	Ventilateurs    bool `json:"ventilateurs"`     // vitesse des ventilateurs (/sys/class/hwmon)
+	ZFS             bool `json:"zfs"`              // santé des pools ZFS (/proc/spl/kstat/zfs)
+	Mdraid          bool `json:"mdraid"`           // RAID logiciel (/sys/block/md*)
+	// Services systemd validés un par un : avec SystemdValidation, seuls les
+	// services de SystemdSurveiller sont suivis ; les autres services démarrés
+	// au boot sont seulement signalés (« à valider » dans l'interface).
+	SystemdValidation bool     `json:"systemd_validation"`
+	SystemdSurveiller []string `json:"systemd_surveiller"`
+	// Résultats de l'assistant root : envoyés ou non. L'assistant lui-même ne
+	// lit jamais la configuration distante (il continue de tourner).
+	EnvoyerPareFeu     bool `json:"envoyer_pare_feu"`
+	EnvoyerSmart       bool `json:"envoyer_smart"`
+	EnvoyerCertificats bool `json:"envoyer_certificats"`
+
+	// Éléments retirés un par un dans l'interface (SPEC.md § 21) : noms
+	// exacts, en plus des expressions MIRADOR_EXCLURE_*.
+	IgnorerDisques    []string `json:"ignorer_disques"`    // ex. sdb
+	IgnorerInterfaces []string `json:"ignorer_interfaces"` // ex. ens19
+	IgnorerMontages   []string `json:"ignorer_montages"`   // ex. /mnt/sauvegarde
+	// Certificats choisis dans l'interface (SPEC.md § 21) :
+	//   - CertificatsAjout : chemins en plus de MIRADOR_CERTIFICATS, lus par
+	//     l'assistant root avec des garde-fous (ValiderMotifDistant) ;
+	//   - CertificatsIgnorer : certificats trouvés mais pas envoyés.
+	CertificatsAjout   []string `json:"certificats_ajout"`
+	CertificatsIgnorer []string `json:"certificats_ignorer"`
+	// CertificatsDistants : réglage LOCAL seulement (le serveur ne peut pas
+	// le changer). Non = l'assistant root ignore les chemins venus du serveur.
+	CertificatsDistants bool `json:"-"`
+
 	// Logs du journal (partie 5).
 	// Metriques : collecte et envoi des métriques de la machine (défaut oui).
 	// Non : « logs seulement » ; l'agent n'envoie alors que ses propres
@@ -153,7 +188,13 @@ func Defaut() Agent {
 		NiveauLog:             "info",
 		Systemd:               true,
 		MisesAJour:            true,
+		Temperatures:          true,
+		DockerMetriques:       true,
+		EnvoyerPareFeu:        true,
+		EnvoyerSmart:          true,
+		EnvoyerCertificats:    true,
 		Certificats:           certificatsDefaut(),
+		CertificatsDistants:   true,
 		FichierRoot:           "/run/mirador-agent/root.json",
 		Metriques:             true,
 		Journal:               true,
@@ -182,6 +223,8 @@ var (
 	formatNom   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)
 	formatLabel = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)
 	formatUnite = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]{1,255}\.service$`)
+	// Nom de disque ou d'interface (/proc/diskstats, /proc/net/dev).
+	formatElement = regexp.MustCompile(`^[A-Za-z0-9_.:@+-]{1,64}$`)
 )
 
 // Valider vérifie chaque champ. Elle renvoie toutes les erreurs d'un coup,
@@ -262,12 +305,54 @@ func (a *Agent) Valider() error {
 			ajoute("MIRADOR_SYSTEMD_IGNORER : nom de service invalide %q", n)
 		}
 	}
+	if len(a.SystemdSurveiller) > 200 {
+		ajoute("MIRADOR_SYSTEMD_SURVEILLER : 200 services au plus")
+	}
+	for _, n := range a.SystemdSurveiller {
+		if !formatUnite.MatchString(n) {
+			ajoute("MIRADOR_SYSTEMD_SURVEILLER : nom de service invalide %q", n)
+		}
+	}
 	if len(a.Certificats) > 50 {
 		ajoute("MIRADOR_CERTIFICATS : 50 motifs au plus")
 	}
 	for _, m := range a.Certificats {
 		if err := validerMotif(m); err != nil {
 			ajoute("MIRADOR_CERTIFICATS : %v", err)
+		}
+	}
+	for nom, l := range map[string][]string{"ignorer_disques": a.IgnorerDisques, "ignorer_interfaces": a.IgnorerInterfaces} {
+		if len(l) > MaxIgnores {
+			ajoute("%s : %d noms au plus", nom, MaxIgnores)
+		}
+		for _, n := range l {
+			if !formatElement.MatchString(n) {
+				ajoute("%s : nom invalide %q", nom, n)
+			}
+		}
+	}
+	if len(a.IgnorerMontages) > MaxIgnores {
+		ajoute("ignorer_montages : %d montages au plus", MaxIgnores)
+	}
+	for _, m := range a.IgnorerMontages {
+		if err := validerChemin(m); err != nil {
+			ajoute("ignorer_montages : %v", err)
+		}
+	}
+	if len(a.CertificatsIgnorer) > 2*MaxIgnores {
+		ajoute("certificats_ignorer : %d chemins au plus", 2*MaxIgnores)
+	}
+	for _, m := range a.CertificatsIgnorer {
+		if err := validerChemin(m); err != nil {
+			ajoute("certificats_ignorer : %v", err)
+		}
+	}
+	if len(a.CertificatsAjout) > MaxMotifsDistants {
+		ajoute("certificats_ajout : %d chemins au plus", MaxMotifsDistants)
+	}
+	for _, m := range a.CertificatsAjout {
+		if err := ValiderMotifDistant(m); err != nil {
+			ajoute("certificats_ajout : %v", err)
 		}
 	}
 	if a.TamponLogs < tamponMin || a.TamponLogs > tamponMax {
@@ -348,6 +433,98 @@ func validerMotif(m string) error {
 		return fmt.Errorf("motif %q invalide : %v", m, err)
 	}
 	return nil
+}
+
+// Bornes des listes choisies dans l'interface.
+const (
+	MaxIgnores        = 100 // disques, interfaces, montages (200 certificats)
+	MaxMotifsDistants = 20  // chemins de certificats ajoutés depuis l'interface
+)
+
+// validerChemin : chemin absolu exact (montage, certificat), sans « .. » ni
+// caractère de contrôle.
+func validerChemin(c string) error {
+	if !strings.HasPrefix(c, "/") || len(c) > 512 || strings.Contains(c, "/../") || strings.HasSuffix(c, "/..") {
+		return fmt.Errorf("chemin %q : chemin absolu sans « .. » attendu", c)
+	}
+	for _, r := range c {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("chemin %q : caractère de contrôle", c)
+		}
+	}
+	return nil
+}
+
+// Dossiers où l'assistant root accepte de chercher un certificat demandé par
+// le serveur (SPEC.md § 21.3). Pas /proc, /sys, /dev, /run, /tmp, /home,
+// /root : rien à y chercher, et l'unité root masque déjà /home et /root.
+var prefixesDistants = []string{"/etc/", "/opt/", "/srv/", "/var/lib/", "/usr/local/"}
+
+// Extensions acceptées pour un chemin demandé par le serveur.
+var extensionsDistantes = []string{".pem", ".crt", ".cer", ".cert"}
+
+// ValiderMotifDistant : règles d'un chemin de certificat venu du serveur,
+// plus strictes que celles du fichier local, car c'est root qui lit le
+// fichier. Vérifié par l'agent à la réception ET par l'assistant root avant
+// chaque lecture.
+//   - chemin absolu sous un dossier autorisé, sans « .. » ;
+//   - nom de fichier en .pem, .crt, .cer ou .cert (jamais « * » seul) ;
+//   - pas de clé privée visée (« key » ou « priv » dans le nom) ;
+//   - 3 jokers au plus (*, ?, [).
+func ValiderMotifDistant(m string) error {
+	if err := validerMotif(m); err != nil {
+		return err
+	}
+	if err := validerChemin(m); err != nil {
+		return err
+	}
+	if strings.Contains(m, "//") || strings.Contains(m, "/./") {
+		return fmt.Errorf("motif %q : chemin non normalisé", m)
+	}
+	bon := false
+	for _, p := range prefixesDistants {
+		if strings.HasPrefix(m, p) {
+			bon = true
+		}
+	}
+	if !bon {
+		return fmt.Errorf("motif %q : dossier non autorisé (%s)", m, strings.Join(prefixesDistants, ", "))
+	}
+	nom := strings.ToLower(m[strings.LastIndexByte(m, '/')+1:])
+	bon = false
+	for _, e := range extensionsDistantes {
+		if strings.HasSuffix(nom, e) {
+			bon = true
+		}
+	}
+	if !bon { // l'extension est écrite en toutes lettres : pas de joker possible dedans
+		return fmt.Errorf("motif %q : le nom doit finir par .pem, .crt, .cer ou .cert", m)
+	}
+	if strings.Contains(nom, "key") || strings.Contains(nom, "priv") {
+		return fmt.Errorf("motif %q : ressemble à une clé privée", m)
+	}
+	if strings.Count(m, "*")+strings.Count(m, "?")+strings.Count(m, "[") > 3 {
+		return fmt.Errorf("motif %q : 3 jokers au plus", m)
+	}
+	return nil
+}
+
+// DossierDistantAutorise : le fichier réel (liens suivis) est-il dans un
+// dossier où l'assistant root accepte de lire pour le serveur ?
+func DossierDistantAutorise(c string) bool {
+	for _, p := range prefixesDistants {
+		if strings.HasPrefix(c, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// FichierAccepteDistant : contrôle d'un fichier trouvé par un motif distant
+// (le joker a pu donner un nom de clé privée, ex. « *.pem » → privkey.pem).
+func FichierAccepteDistant(chemin string) bool {
+	nom := strings.ToLower(chemin[strings.LastIndexByte(chemin, '/')+1:])
+	return !strings.Contains(nom, "key") && !strings.Contains(nom, "priv")
 }
 
 // validerDocker n'accepte que le proxy local : http vers la machine elle-même
@@ -482,6 +659,26 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.SystemdIgnorer = liste(valeur)
 	case "MIRADOR_MISES_A_JOUR":
 		a.MisesAJour, err = ouiNon(valeur)
+	case "MIRADOR_TEMPERATURES":
+		a.Temperatures, err = ouiNon(valeur)
+	case "MIRADOR_DOCKER_METRIQUES":
+		a.DockerMetriques, err = ouiNon(valeur)
+	case "MIRADOR_VENTILATEURS":
+		a.Ventilateurs, err = ouiNon(valeur)
+	case "MIRADOR_ZFS":
+		a.ZFS, err = ouiNon(valeur)
+	case "MIRADOR_MDRAID":
+		a.Mdraid, err = ouiNon(valeur)
+	case "MIRADOR_SYSTEMD_VALIDATION":
+		a.SystemdValidation, err = ouiNon(valeur)
+	case "MIRADOR_SYSTEMD_SURVEILLER":
+		a.SystemdSurveiller = liste(valeur)
+	case "MIRADOR_ENVOYER_PAREFEU":
+		a.EnvoyerPareFeu, err = ouiNon(valeur)
+	case "MIRADOR_ENVOYER_SMART":
+		a.EnvoyerSmart, err = ouiNon(valeur)
+	case "MIRADOR_ENVOYER_CERTIFICATS":
+		a.EnvoyerCertificats, err = ouiNon(valeur)
 	case "MIRADOR_DOCKER":
 		a.Docker = valeur
 	case "MIRADOR_PAREFEU":
@@ -490,6 +687,14 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.Smart, err = ouiNon(valeur)
 	case "MIRADOR_CERTIFICATS":
 		a.Certificats = liste(valeur)
+	case "MIRADOR_CERTIFICATS_DISTANTS":
+		a.CertificatsDistants, err = ouiNon(valeur)
+	case "MIRADOR_IGNORER_DISQUES":
+		a.IgnorerDisques = liste(valeur)
+	case "MIRADOR_IGNORER_INTERFACES":
+		a.IgnorerInterfaces = liste(valeur)
+	case "MIRADOR_IGNORER_MONTAGES":
+		a.IgnorerMontages = liste(valeur)
 	case "MIRADOR_FICHIER_ROOT":
 		a.FichierRoot = valeur
 	case "MIRADOR_METRIQUES":

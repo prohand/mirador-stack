@@ -24,6 +24,7 @@ import (
 func (c *Console) routesReglages() {
 	m := c.mux
 	m.HandleFunc("GET /reglages", c.lecture(func(q *req) { c.rendre(q, "reglages", "Réglages", "reglages", nil) }))
+	m.HandleFunc("GET /reglages/export", c.lecture(func(q *req) { c.rendre(q, "export", "Export / import", "reglages", nil) }))
 	m.HandleFunc("GET /reglages/notifications", c.lecture(c.pageNotifications))
 	m.HandleFunc("POST /reglages/notifications", c.admin(c.postNotifications))
 	m.HandleFunc("GET /reglages/conservation", c.lecture(c.pageConservation))
@@ -544,7 +545,7 @@ func (c *Console) donneesAgents(q *req, portee string) donneesAgents {
 }
 
 func (c *Console) pageAgents(q *req) {
-	c.rendre(q, "agents", "Configuration des agents", "reglages", c.donneesAgents(q, q.r.URL.Query().Get("portee")))
+	c.rendre(q, "agents", "Configuration des agents", "machines", c.donneesAgents(q, q.r.URL.Query().Get("portee")))
 }
 
 func (c *Console) postAgents(q *req) {
@@ -563,6 +564,13 @@ func (c *Console) postAgents(q *req) {
 		}
 		doc := map[string]any{}
 		if f.texte("action") != "retirer" {
+			// Les choix de surveillance (page de chaque machine, SPEC § 19 et 21) ne
+			// sont pas dans ce formulaire : ils sont gardés tels quels.
+			for k, v := range c.lirePortee(q.r.Context(), portee) {
+				if flotte.ClePageMachine(k) {
+					doc[k] = v
+				}
+			}
 			for _, ch := range champsAgent {
 				v := f.texte(ch.Nom)
 				if v == "" {
@@ -624,7 +632,7 @@ func (c *Console) postTestMasquage(q *req) {
 	} else {
 		d.Masq = m.Masquer(d.Ligne)
 	}
-	c.rendre(q, "agents", "Configuration des agents", "reglages", d)
+	c.rendre(q, "agents", "Configuration des agents", "machines", d)
 }
 
 // --- Interface : fuseau, thème, mode debug temporaire ------------------------------------

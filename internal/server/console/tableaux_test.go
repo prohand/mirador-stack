@@ -4,6 +4,7 @@ package console
 
 import (
 	"encoding/json"
+	"mirador-stack/internal/server/auth"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -105,7 +106,7 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	qr, _ := ImageQR("https://invitation.olvid.io/#AAAA")
+	qr, _ := auth.ImageQR("https://invitation.olvid.io/#AAAA")
 	cas := map[string]any{
 		"panneau-modifier": donneesPanneau{T: tableauxDepart["serveurs-linux"], Position: "0.0", Unites: unitesProposees, Largeurs: largeursProposees,
 			P: Panneau{Type: "courbe", Titre: "x", Unite: "inconnue"}, Requetes: []ligneRequete{{"A", "up", ""}},

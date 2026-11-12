@@ -8,13 +8,13 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"mirador-stack/internal/server/auth"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"mirador-stack/internal/server/config"
-	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
 )
@@ -70,7 +70,53 @@ func TestDemoInterface(t *testing.T) {
 		mk("node_network_receive_bytes_total", func(k int) float64 { return float64(k) * 3e6 * (1 + ph/3) }, "device", "eth0")
 		mk("node_network_transmit_bytes_total", func(k int) float64 { return float64(k) * 1e6 }, "device", "eth0")
 		mk("node_systemd_unit_state", func(int) float64 { return map[bool]float64{true: 1, false: 0}[i == 2] }, "name", "nginx.service", "state", "failed")
+		// Bloc « À surveiller » (SPEC § 19) : ce que chaque machine envoie déjà.
+		un := func(int) float64 { return 1 }
+		mk("mirador_agent_info", un, "version", "0.5.0")
+		mk("node_systemd_enabled_units_total", func(int) float64 { return 3 })
+		mk("node_systemd_enabled_units_down", func(int) float64 { return 0 })
+		for _, svc := range []string{"ssh.service", "cron.service", "nginx.service"} {
+			mk("node_systemd_unit_enabled_active", un, "name", svc)
+		}
+		mk("apt_upgrades_pending", func(int) float64 { return float64(3 * i) })
+		mk("mirador_logs_journal_lines_read_total", func(k int) float64 { return float64(k) })
+		mk("node_firewall_input_policy_drop", un, "tool", "nftables", "policy", "drop")
+		mk("node_firewall_input_rules", func(int) float64 { return 14 }, "tool", "nftables", "policy", "drop")
+		if m == "pve1" { // machine physique : capteurs, disques, et des nouveautés à valider
+			mk("node_hwmon_temp_celsius", func(int) float64 { return 54 }, "chip", "coretemp", "sensor", "temp1")
+			mk("node_hwmon_temp_celsius", func(int) float64 { return 43 }, "chip", "nct6798", "sensor", "temp2")
+			for _, d := range []string{"sda", "sdb", "nvme0"} {
+				mk("smartctl_device_smart_status", un, "device", d)
+			}
+			mk("ssl_certs_found_total", func(int) float64 { return 2 })
+			// Détail par élément (SPEC § 21).
+			mk("ssl_cert_not_after_timestamp_seconds", func(int) float64 { return float64(now.Add(54 * 24 * time.Hour).Unix()) },
+				"path", "/etc/pve/local/pveproxy-ssl.pem", "cn", "pve1.maison.lan", "issuer", "R11")
+			mk("ssl_cert_not_after_timestamp_seconds", func(int) float64 { return float64(now.Add(5 * 24 * time.Hour).Unix()) },
+				"path", "/etc/ssl/local/imprimante.crt", "cn", "imprimante.lan", "issuer", "CA maison")
+			for _, d := range []string{"sda", "sdb", "nvme0n1"} {
+				mk("node_disk_io_time_seconds_total", func(k int) float64 { return float64(k) }, "device", d)
+			}
+			mk("node_network_receive_bytes_total", func(k int) float64 { return float64(k) }, "device", "vmbr0")
+			mk("node_filesystem_size_bytes", func(int) float64 { return 2 << 40 }, "mountpoint", "/mnt/sauvegarde", "fstype", "ext4", "device", "/dev/sdb1")
+			mk("mirador_agent_detecte", func(int) float64 { return 3 }, "genre", "ventilateurs", "nom", "capteurs")
+			mk("mirador_agent_detecte", un, "genre", "zfs", "nom", "rpool")
+			mk("mirador_agent_detecte", un, "genre", "service", "nom", "pve-cluster.service")
+			mk("mirador_agent_detecte", un, "genre", "service", "nom", "postfix.service")
+		}
+		if m == "vm-docker" {
+			mk("node_docker_up", un)
+			for _, ct := range []string{"traefik", "postgres", "appli"} {
+				mk("node_docker_container_running", un, "name", ct)
+			}
+			mk("mirador_logs_docker_streams", func(int) float64 { return 3 })
+		}
 	}
+	// Agents récents (capacité « surveillance ») ; pve1 valide ses services un par un.
+	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements'`)
+	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par)
+		SELECT 'config_agent:machine:' || id, '{"systemd_ignorer":["fwupd-refresh.service"],"systemd_surveiller":["cron.service","nginx.service","ssh.service"],"systemd_validation":true,"ignorer_interfaces":["ens19"],"certificats_ajout":["/etc/nginx/ssl/*.crt"]}', ?, 'demo'
+		FROM machines WHERE nom = 'pve1'`, now.Unix())
 	if err := s.met.Ecrire(ctx, series); err != nil {
 		t.Fatal(err)
 	}
@@ -86,10 +132,10 @@ func TestDemoInterface(t *testing.T) {
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
 	_ = s.jx.Ecrire(ctx, lignes)
-	_ = console.CreerUtilisateur(ctx, s.db, "admin", console.RoleAdmin, "une longue phrase de passe", "demo", "", now)
-	secret, _ := console.NouveauSecretTOTP()
+	_ = auth.CreerUtilisateur(ctx, s.db, "admin", auth.RoleAdmin, "une longue phrase de passe", "demo", "", now)
+	secret, _ := auth.NouveauSecretTOTP()
 	ch, _ := secrets.Chiffrer(s.cle, "console.totp", secret)
-	_ = console.DefinirTOTP(ctx, s.db, "admin", ch, 0, "demo", "", now)
+	_ = auth.DefinirTOTP(ctx, s.db, "admin", ch, 0, "demo", "", now)
 	if f := os.Getenv("DEMO_SECRET"); f != "" {
 		_ = os.WriteFile(f, []byte(secret), 0o600)
 	}

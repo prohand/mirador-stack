@@ -157,6 +157,15 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
 		return
 	}
+	// Agent d'avant la surveillance (SPEC § 19) ou les éléments (§ 21) : il
+	// refuserait tout le document à cause d'une clé qu'il ne connaît pas. On
+	// les lui retire.
+	if retirer := clesInconnues(capacitesDe(r)); len(retirer) > 0 {
+		if doc, etag, err = sansCles(doc, retirer); err != nil {
+			erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
+			return
+		}
+	}
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Header.Get("If-None-Match") == etag {

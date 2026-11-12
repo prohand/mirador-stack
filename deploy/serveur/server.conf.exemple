@@ -7,5 +7,6 @@ MIRADOR_ECOUTE_INTERFACE=0.0.0.0:9441
 MIRADOR_DONNEES=/var/lib/mirador
 MIRADOR_FICHIER_CLE=/run/secrets/mirador_cle
 # Adresse de nginx vue depuis le conteneur (passerelle du réseau « obs ») :
-# seule autorisée à transmettre l'IP réelle du client.
+# seule autorisée à transmettre l'IP réelle du client. Obligatoire quand
+# l'écoute sort de la machine (0.0.0.0) et que le TLS n'est pas fait ici.
 MIRADOR_PROXY=172.30.0.1

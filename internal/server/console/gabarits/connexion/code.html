@@ -11,5 +11,19 @@
   <input id="totp" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus placeholder="123456" aria-label="Code 2FA à usage unique (TOTP)">
   <button>Se connecter</button>
 </form>
+{{if .D.PKDefi}}
+<form method="post" action="/connexion/passkey" class="pile" data-passkey-form>
+  {{template "csrf" .D.Jeton}}
+  <input type="hidden" name="identifiant"><input type="hidden" name="client"><input type="hidden" name="authentificateur"><input type="hidden" name="signature">
+  <button type="button" class="secondaire" data-passkey="utiliser" data-defi="{{.D.PKDefi}}" data-domaine="{{.D.PKDomaine}}" data-ids="{{.D.PKIds}}">Utiliser une passkey</button>
+  <p class="erreur-texte" data-passkey-erreur hidden></p>
+</form>{{end}}
+<details class="secours"><summary>Téléphone perdu ? Utiliser un code de secours</summary>
+<form method="post" action="/connexion/code" class="pile">
+  {{template "csrf" .D.Jeton}}
+  <label for="secours">Code de secours (il ne sert qu'une fois)</label>
+  <input id="secours" name="secours" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" pattern="[A-Za-z0-9 \-]{12,16}" maxlength="16" required placeholder="ABCD-EFGH-JKLM">
+  <button class="secondaire">Se connecter avec ce code</button>
+</form></details>
 <p><a href="/connexion">Recommencer</a></p>
 {{end}}

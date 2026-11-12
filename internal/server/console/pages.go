@@ -44,6 +44,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /tableaux/{nom}", c.lecture(c.pageTableau))
 	m.HandleFunc("GET /donnees/courbe", c.lecture(c.donneesCourbe))
 	m.HandleFunc("GET /donnees/volume-logs", c.lecture(c.donneesVolumeLogs))
+	m.HandleFunc("GET /donnees/aller", c.lecture(c.donneesAller))
 	c.routesAlertes()
 	c.routesLogs()
 	c.routesReglages()
@@ -71,6 +72,7 @@ type donneesAccueil struct {
 	SauvegardeOK                 bool
 	Metriques, Logs              int64
 	Parc                         []ligneParc
+	Nouveautes                   int // éléments détectés « à valider », tout le parc
 	Principal, Secours           notif.EtatCanal
 	Plafond                      int64 // plafond total de stockage (réglage « Conservation »)
 	PctStockage                  int
@@ -148,6 +150,9 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	}
 	d.Actives = d.Critiques + d.Avertissements + d.Infos
 	d.Parc = c.parc(q, d.Alertes)
+	for _, l := range d.Parc {
+		d.Nouveautes += l.Nouveautes
+	}
 	return d
 }
 
@@ -185,7 +190,8 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 
 type vueMachine struct {
 	flotte.InfoMachine
-	Muette bool
+	Muette   bool
+	AValider int // éléments détectés « à valider » (SPEC § 19)
 }
 
 type donneesMachines struct {
@@ -206,8 +212,12 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		c.flash(q, "", err.Error())
 	}
 	var d donneesMachines
+	var aValider map[string]int
+	if c.lecteur != nil {
+		aValider = c.aValider(q.r.Context(), q.t)
+	}
 	for _, m := range ms {
-		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette}
+		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette, AValider: aValider[m.Nom]}
 		switch m.Statut {
 		case "en_attente":
 			d.EnAttente = append(d.EnAttente, v)
@@ -296,6 +306,9 @@ type donneesMachine struct {
 	Periode     string
 	Periodes    []string
 	Versions    []string
+	Surv        vueSurveillance // bloc « À surveiller sur cette machine »
+	Identite    identiteMachine // bandeau sous le nom
+	Agent       bool            // machine avec agent (pas un collecteur)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -321,6 +334,11 @@ func (c *Console) pageMachine(q *req) {
 	d := donneesMachine{Listes: c.lireListes(q.r.Context()), M: vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette},
 		Alertes: c.alertesEnCours(m.Nom), Periodes: periodesProposees}
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
+	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
+		var ech []alertes.Echantillon
+		d.Surv, ech = c.surveillance(ctx, m, q.t)
+		d.Identite = c.identite(ctx, m, ech, q.t)
+	}
 	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
 		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
 		vals, periode, duree, err := lireFiltres(t, v)
@@ -357,7 +375,10 @@ func (c *Console) postMachine(q *req) {
 	ok := "fait"
 	var err error
 	// Actions sensibles (brief) : code 2FA.
-	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true}
+	// « surveillance » change la configuration de l'agent : même règle que la
+	// page « Configuration des agents » (revue de sécurité du 11/11).
+	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
+		"surveillance": true, "empreinte": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -388,6 +409,22 @@ func (c *Console) postMachine(q *req) {
 		ok = "machine refusée"
 	case "etiquettes":
 		err = c.definirEtiquettes(q, nom, f)
+	case "empreinte":
+		lier := f("lier") == "oui"
+		err = flotte.LierEmpreinte(ctx, c.db, nom, lier, q.qui(), q.t)
+		ok = "token lié à cette machine : il sera refusé s'il est présenté par une autre"
+		if !lier {
+			ok = "le token n'est plus lié à la machine"
+		}
+	case "surveillance":
+		if m, trouve := c.machine(q); !trouve {
+			err = flotte.ErrMachineInconnue
+		} else {
+			err = c.postSurveillance(q, m)
+			c.oublierAValider() // compteur du menu recalculé
+		}
+		vers += "#surveillance"
+		ok = "choix enregistrés : la machine les applique à sa prochaine demande (5 min au plus)"
 	case "renommer":
 		nouveau := strings.TrimSpace(f("nouveau"))
 		if err = flotte.Renommer(ctx, c.db, nom, nouveau, q.qui(), q.t); err == nil {
@@ -634,6 +671,31 @@ type ligneParc struct {
 	DisquePlein            bool
 	VuLe                   int64
 	rang                   int
+	// Barres (0 à 100, -1 = pas de valeur) et leur couleur (ok, attention, erreur).
+	PctCPU, PctMemoire, PctDisque int
+	ClasseCPU, ClasseMemoire      string
+	ClasseDisque                  string
+	Alertes                       int    // alertes actives hors sourdine
+	ClasseAlertes                 string // gravité la plus forte
+	Nouveautes                    int    // éléments détectés « à valider »
+	Muette                        bool
+}
+
+// barre : pourcentage entier et couleur d'une barre de la vue d'ensemble
+// (vert sous 70 %, orange de 70 à 85 %, rouge au-dessus).
+func barre(m map[string]float64, nom string) (int, string) {
+	v, ok := m[nom]
+	if !ok || math.IsNaN(v) {
+		return -1, ""
+	}
+	p := int(math.Round(math.Max(0, math.Min(100, v))))
+	switch {
+	case p >= 85:
+		return p, "erreur"
+	case p >= 70:
+		return p, "attention"
+	}
+	return p, "ok"
 }
 
 // Requêtes de la vue d'ensemble (celles du tableau « Serveurs Linux »).
@@ -652,10 +714,12 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		return nil
 	}
 	pire := map[string]string{}
+	nombre := map[string]int{}
 	for _, a := range actives {
 		if a.Etat != "active" || a.Sourdine != "" {
 			continue
 		}
+		nombre[a.Machine]++
 		if a.Gravite == alertes.Critique || pire[a.Machine] == "" {
 			pire[a.Machine] = a.Gravite
 		}
@@ -671,6 +735,7 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	}
 	cpu, mem, disque := valeurs(exprCPU), valeurs(exprMemoire), valeurs(exprDisque)
 	courbes := c.etincelles(ctx, q.t)
+	nouveautes := c.nouveautes(ctx, ms, q.t)
 	pct := func(m map[string]float64, nom string) string {
 		if v, ok := m[nom]; ok {
 			return formater(v, "percent", &zero)
@@ -684,8 +749,20 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		}
 		l := ligneParc{Nom: m.Nom, Site: m.Site, Env: m.Env, Groupe: m.Groupe, VuLe: m.VuLe, Etincelle: courbes[m.Nom],
 			CPU: pct(cpu, m.Nom), Memoire: pct(mem, m.Nom), Disque: pct(disque, m.Nom), DisquePlein: disque[m.Nom] >= 90}
+		l.PctCPU, l.ClasseCPU = barre(cpu, m.Nom)
+		l.PctMemoire, l.ClasseMemoire = barre(mem, m.Nom)
+		l.PctDisque, l.ClasseDisque = barre(disque, m.Nom)
+		l.Alertes, l.Nouveautes = nombre[m.Nom], nouveautes[m.Nom]
+		switch pire[m.Nom] {
+		case alertes.Critique:
+			l.ClasseAlertes = "erreur"
+		case "":
+		default:
+			l.ClasseAlertes = "attention"
+		}
 		switch {
 		case q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette:
+			l.Muette = true
 			l.Etat, l.ClasseEtat, l.rang = "Muette", "", 1
 		case pire[m.Nom] == alertes.Critique:
 			l.Etat, l.ClasseEtat, l.rang = "Critique", "erreur", 0
@@ -704,6 +781,10 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	})
 	return out
 }
+
+// Gravite : état pour le tri et le filtre de la vue d'ensemble (3 critique,
+// 2 muette, 1 avertissement, 0 en ligne sans alerte).
+func (l ligneParc) Gravite() int { return 3 - l.rang }
 
 var zero = 0
 
@@ -736,4 +817,44 @@ func (c *Console) etincelles(ctx context.Context, t time.Time) map[string]string
 	}
 	c.etincellesCache, c.etincellesExpire = out, t.Add(time.Minute)
 	return out
+}
+
+// --- Recherche rapide (Ctrl+K) ------------------------------------------------------------
+
+// destination : une ligne de la recherche rapide.
+type destination struct {
+	Titre string `json:"titre"`
+	Genre string `json:"genre"` // Page, Machine, Tableau
+	Lien  string `json:"lien"`
+}
+
+// donneesAller : pages, machines et tableaux où l'on peut aller (lus une
+// fois à l'ouverture de la recherche ; le filtrage se fait dans le navigateur).
+func (c *Console) donneesAller(q *req) {
+	out := []destination{
+		{"Vue d'ensemble", "Page", "/"}, {"Machines", "Page", "/machines"}, {"Alertes", "Page", "/alertes"},
+		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
+		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
+	}
+	if q.admin() {
+		out = append(out, destination{"Mises à jour des agents", "Page", "/mises-a-jour"},
+			destination{"Configuration des agents", "Page", "/reglages/agents"},
+			destination{"Notifications", "Page", "/reglages/notifications"},
+			destination{"Conservation des données", "Page", "/reglages/conservation"},
+			destination{"Sauvegardes", "Page", "/reglages/sauvegardes"},
+			destination{"Utilisateurs", "Page", "/utilisateurs"}, destination{"Sécurité", "Page", "/securite"})
+	}
+	if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+		for _, m := range ms {
+			if m.Statut == "approuvee" {
+				out = append(out, destination{m.Nom, "Machine", "/machines/" + url.PathEscape(m.Nom)})
+			}
+		}
+	}
+	for _, t := range c.listeTableaux() {
+		out = append(out, destination{t.Titre, "Tableau", "/tableaux/" + url.PathEscape(t.Nom)})
+	}
+	q.w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	q.w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(q.w).Encode(out)
 }

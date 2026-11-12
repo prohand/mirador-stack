@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package console
+package auth
 
 import (
 	"context"
@@ -57,8 +57,9 @@ type execer interface {
 	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
 }
 
-// Auditer écrit une ligne d'audit (jamais de secret : l'appelant masque).
-func Auditer(ctx context.Context, x execer, qui, action, objet, avant, apres, adresse string, t time.Time) error {
+// auditer écrit une ligne dans le journal d'audit (jamais de secret). Même
+// table et mêmes colonnes que console.Auditer : à changer ensemble.
+func auditer(ctx context.Context, x execer, qui, action, objet, avant, apres, adresse string, t time.Time) error {
 	_, err := x.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		t.Unix(), qui, action, objet, avant, apres, adresse)
 	return err
@@ -120,7 +121,7 @@ func NombreUtilisateurs(ctx context.Context, db *sql.DB) (int, error) {
 // CreerUtilisateur ajoute un compte. Sa 2FA sera créée à sa première
 // connexion (obligatoire avant tout accès).
 func CreerUtilisateur(ctx context.Context, db *sql.DB, nom, role, mdp, qui, adresse string, t time.Time) error {
-	if err := errors.Join(VerifierNom(nom), verifierRole(role)); err != nil {
+	if err := errors.Join(VerifierNom(nom), verifierRole(role), VerifierSimple(mdp, nom)); err != nil {
 		return err
 	}
 	e, err := Empreinte(mdp)
@@ -145,7 +146,7 @@ func CreerUtilisateur(ctx context.Context, db *sql.DB, nom, role, mdp, qui, adre
 		nom, role, e, t.Unix()); err != nil {
 		return err
 	}
-	if err := Auditer(ctx, tx, qui, "utilisateur_creer", nom, "", "role="+role, adresse, t); err != nil {
+	if err := auditer(ctx, tx, qui, "utilisateur_creer", nom, "", "role="+role, adresse, t); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -172,7 +173,7 @@ func modifier(ctx context.Context, db *sql.DB, nom, action, avant, apres, qui, a
 			return err
 		}
 	}
-	if err := Auditer(ctx, tx, qui, action, nom, avant, apres, adresse, t); err != nil {
+	if err := auditer(ctx, tx, qui, action, nom, avant, apres, adresse, t); err != nil {
 		return err
 	}
 	if err := verifierUnAdmin(ctx, tx); err != nil {
@@ -196,6 +197,9 @@ func verifierUnAdmin(ctx context.Context, tx *sql.Tx) error {
 
 // DefinirMotDePasse change le mot de passe et ferme les sessions du compte.
 func DefinirMotDePasse(ctx context.Context, db *sql.DB, nom, mdp, qui, adresse string, t time.Time) error {
+	if err := VerifierSimple(mdp, nom); err != nil {
+		return err
+	}
 	e, err := Empreinte(mdp)
 	if err != nil {
 		return err

@@ -1,8 +1,81 @@
 {{define "contenu"}}
 {{$m := .D.M}}
-<h1>{{$m.Nom}} {{if $m.Muette}}<span class="pastille erreur">Muette</span>{{end}} {{if not (egal $m.Statut "approuvee")}}<span class="pastille attention">{{$m.Statut}}</span>{{end}}</h1>
-<div class="grille">
-<section class="carte"><h2>Identité</h2><table>
+<div class="titre-page"><div>
+<h1>{{$m.Nom}} {{if $m.Muette}}<span class="pastille erreur">Muette</span>{{else if egal $m.Statut "approuvee"}}<span class="pastille ok">En ligne</span>{{end}} {{if not (egal $m.Statut "approuvee")}}<span class="pastille attention">{{$m.Statut}}</span>{{end}}{{if .D.Alertes}} <span class="pastille erreur">{{len .D.Alertes}} alerte(s)</span>{{end}}{{if .D.Agent}}{{if .D.Surv.NbAValider}} <a class="pastille attention" href="#surveillance" title="L'agent a trouvé quelque chose de nouveau à surveiller">{{.D.Surv.NbAValider}} à valider</a>{{end}}{{end}}</h1>
+<p class="bandeau-machine"><span>{{$m.Site}}{{if $m.Env}} · {{$m.Env}}{{end}}{{if $m.Groupe}} · {{$m.Groupe}}{{end}}</span>{{with .D.Identite}}{{if .Noyau}}<span>{{.Noyau}}</span>{{end}}{{if .Coeurs}}<span>{{.Coeurs}}{{if .Memoire}} · {{.Memoire}}{{end}}</span>{{end}}{{if .Allumee}}<span>Allumée depuis {{.Allumee}}</span>{{end}}{{end}}{{if $m.Version}}<span>Agent {{$m.Version}}</span>{{end}}<span>Vue {{depuisS $m.VuLe}}</span></p>
+</div></div>
+{{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+
+{{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
+<div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
+<div class="compteurs">{{if $s.NbAValider}}<span class="pastille attention">{{$s.NbAValider}} à valider</span>{{end}}<span class="pastille ok">{{$s.NbSurveilles}} surveillé(s)</span>{{if $s.NbIgnores}}<span class="pastille">{{$s.NbIgnores}} ignoré(s)</span>{{end}}</div></div>
+{{if not $s.Capable}}<p class="message">L'agent de cette machine ne connaît pas encore les nouveaux réglages (ventilateurs, ZFS, RAID logiciel, validation des services, retrait des températures, de SMART, du pare-feu, des certificats ou des conteneurs). <a href="/mises-a-jour">Le mettre à jour</a> pour les utiliser ; le reste fonctionne déjà.</p>{{end}}
+<form method="post" class="surv">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="surveillance">
+{{if or $s.AValider $s.SvcAValider}}<h3 class="titre-attention">Détecté, à valider</h3>
+<div class="surv-liste a-valider">
+{{range $s.AValider}}<div class="surv-ligne"><div class="surv-quoi"><b>{{.Titre}}</b><span class="sous">{{.Detail}}</span></div>
+<div class="surv-propose"><span class="sous">Proposé</span>{{majuscule .Propose}}</div>
+{{if $.Admin}}<label class="surv-choix"><span class="sous">Choix</span><select name="g.{{.Cle}}" {{if .Bloque}}disabled title="Agent trop ancien"{{end}}><option value="">Plus tard</option><option value="oui">Surveiller</option><option value="non">Ignorer</option></select></label>{{end}}</div>{{end}}
+{{range $s.SvcAValider}}<div class="surv-ligne"><div class="surv-quoi"><b>{{.Nom}}</b><span class="sous">Service démarré au boot, pas encore validé</span></div>
+<div class="surv-propose"><span class="sous">Proposé</span>Doit tourner ; alerte s'il s'arrête</div>
+{{if $.Admin}}<label class="surv-choix"><span class="sous">Choix</span><select name="s.{{.Nom}}"><option value="">Plus tard</option><option value="surveiller">Surveiller</option><option value="ignorer">Ignorer</option></select></label>{{end}}</div>{{end}}
+</div>{{end}}
+
+<h3 class="titre-ok">Surveillé</h3>
+{{if $s.Surveilles}}<div class="surv-cartes">
+{{range $s.Surveilles}}<div class="surv-carte"><div class="surv-quoi"><b><span class="point {{if .Alerte}}erreur{{else}}ok{{end}}"></span>{{.Titre}}</b><span class="sous">{{.Detail}}</span></div>
+{{if $.Admin}}<select class="petit" name="g.{{.Cle}}" aria-label="{{.Titre}}" {{if .Bloque}}disabled title="Agent trop ancien"{{end}}><option value="">Garder</option><option value="non">Retirer</option></select>{{end}}</div>{{end}}
+</div>{{else}}{{template "vide" "Rien n'est encore surveillé (aucune donnée reçue de cette machine)."}}{{end}}
+{{if or $s.SvcSurveilles $s.Validation}}<details class="surv-services"><summary>Services systemd suivis ({{len $s.SvcSurveilles}}){{if $s.Validation}} · validés un par un{{else}} · tous ceux démarrés au boot, automatiquement{{end}}</summary>
+<div class="defile"><table><thead><tr><th>Service</th><th>État</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
+{{range $s.SvcSurveilles}}<tr><td><code>{{.Nom}}</code></td><td>{{if .Arrete}}<span class="pastille erreur">Arrêté</span>{{else}}<span class="pastille ok">Actif</span>{{end}}</td>
+{{if $.Admin}}<td><select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">Garder</option><option value="ignorer">Retirer</option></select></td>{{end}}</tr>{{end}}
+</tbody></table></div>
+{{if $.Admin}}<label class="surv-validation">Nouveaux services
+<select name="validation" {{if not $s.Capable}}disabled title="Agent trop ancien"{{end}}><option value="">{{if $s.Validation}}Me les proposer (actuel){{else}}Les surveiller automatiquement (actuel){{end}}</option>{{if $s.Validation}}<option value="non">Les surveiller automatiquement</option>{{else}}<option value="oui">Me les proposer avant de les surveiller</option>{{end}}</select></label>{{end}}
+</details>{{end}}
+{{if and $s.SystemeSuivi $s.Composants}}<details class="surv-services" id="surv-systeme"><summary>Système : disques, interfaces, montages ({{len $s.Composants}})</summary>
+{{if not $s.Elements}}<p class="message">L'agent de cette machine est trop ancien pour retirer un élément précis : <a href="/mises-a-jour">le mettre à jour</a>.</p>{{end}}
+<div class="defile"><table><thead><tr><th>Type</th><th>Nom</th><th>Détail</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
+{{range $s.Composants}}<tr><td>{{majuscule .Genre}}</td><td><code>{{.Nom}}</code></td><td>{{if .Retire}}<span class="pastille">Retiré</span>{{else}}{{.Detail}}{{end}}</td>
+{{if $.Admin}}<td><select class="petit" name="e.{{.Genre}}.{{.Nom}}" aria-label="{{.Nom}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
+</tbody></table></div>
+<p><small>Processeur et mémoire sont toujours envoyés avec « Système ». Les disques virtuels (loop, ram, dm-…), les interfaces internes (docker, veth, lo…) et les montages système ne sont jamais listés : réglage dans <a href="/reglages/agents">Configuration des agents</a>.</small></p>
+</details>{{end}}
+{{if $s.CertsSuivis}}<details class="surv-services" id="surv-certificats"><summary>Certificats ({{len $s.Certs}}){{if $s.MotifsAjout}} · {{len $s.MotifsAjout}} chemin(s) ajouté(s){{end}}</summary>
+{{if not $s.Elements}}<p class="message">L'agent de cette machine est trop ancien pour choisir les certificats ici : <a href="/mises-a-jour">le mettre à jour</a>.</p>{{end}}
+{{if $s.Certs}}<div class="defile"><table><thead><tr><th>Fichier</th><th>Nom</th><th>Émetteur</th><th>Expire</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
+{{range $s.Certs}}<tr><td><code>{{.Chemin}}</code></td><td>{{.CN}}</td><td>{{.Emetteur}}</td>
+<td>{{if .Retire}}<span class="pastille">Retiré</span>{{else}}<span class="pastille {{if lt .Jours 7}}erreur{{else if lt .Jours 21}}attention{{else}}ok{{end}}">{{.Jours}} j</span> <small>{{dateS .FinS}}</small>{{end}}</td>
+{{if $.Admin}}<td><select class="petit" name="c.{{.Chemin}}" aria-label="{{.Chemin}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
+</tbody></table></div>{{else}}<p><small>Aucun certificat trouvé pour l'instant.</small></p>{{end}}
+<h4>Où chercher</h4>
+<p><small>Toujours cherchés (fichier local de la machine) : <code>/etc/letsencrypt/live/*/cert.pem</code>, <code>/etc/ssl/local/*.crt</code>, <code>/etc/ssl/local/*.pem</code>, <code>/etc/pve/local/pveproxy-ssl.pem</code>, <code>/etc/proxmox-backup/proxy.pem</code>.</small></p>
+{{if $s.MotifsAjout}}<div class="defile"><table><thead><tr><th>Chemin ajouté ici</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
+{{range $s.MotifsAjout}}<tr><td><code>{{.}}</code></td>{{if $.Admin}}<td><select class="petit" name="cm.{{.}}" aria-label="{{.}}" {{if not $s.Elements}}disabled{{end}}><option value="">Garder</option><option value="retirer">Retirer</option></select></td>{{end}}</tr>{{end}}
+</tbody></table></div>{{end}}
+{{if $.Admin}}<label class="surv-ajout">Ajouter des chemins (un par ligne)<textarea name="certificats_nouveaux" rows="2" maxlength="10000" placeholder="/etc/nginx/ssl/*.crt" {{if not $s.Elements}}disabled{{end}}></textarea></label>
+<p><small>Règles : sous <code>/etc</code>, <code>/opt</code>, <code>/srv</code>, <code>/var/lib</code> ou <code>/usr/local</code> ; nom en <code>.pem</code>, <code>.crt</code>, <code>.cer</code> ou <code>.cert</code> ; jamais une clé privée ; 3 jokers <code>*</code> au plus ; 20 chemins. Lu au prochain passage de l'assistant root (15 min au plus). Une machine peut refuser ces chemins avec <code>MIRADOR_CERTIFICATS_DISTANTS=non</code> dans son fichier local.</small></p>{{end}}
+</details>{{end}}
+
+{{if or $s.Ignores $s.SvcIgnores $s.Absents}}<h3 class="titre-doux">Ignoré ou absent</h3>
+<div class="surv-ignores">
+{{range $s.Ignores}}<span class="pastille">{{.Titre}} : ignoré{{if $.Admin}} <select class="petit" name="g.{{.Cle}}" aria-label="{{.Titre}}" {{if .Bloque}}disabled{{end}}><option value="">—</option><option value="defaut">Rétablir</option></select>{{end}}</span>{{end}}
+{{range $s.SvcIgnores}}<span class="pastille"><code>{{.Nom}}</code> : ignoré{{if $.Admin}} <select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">—</option><option value="retablir">Rétablir</option></select>{{end}}</span>{{end}}
+{{range $s.Absents}}<span class="pastille">{{.}} : absent sur cette machine</span>{{end}}
+</div>{{end}}
+
+{{if .Admin}}<div class="ligne surv-pied">
+{{if $s.Groupe}}<label>Appliquer à <select name="portee"><option value="machine">Cette machine</option><option value="groupe">Tout le groupe « {{$s.Groupe}} »</option></select></label>{{end}}
+{{template "code2fa"}}<button>Enregistrer les choix</button>
+{{if $s.NbAValider}}<button class="secondaire" name="tout" value="oui">Tout surveiller ({{$s.NbAValider}})</button><button class="secondaire" name="tout" value="non">Tout ignorer</button>{{end}}
+</div>
+<p><small>Les choix partent dans la configuration typée de l'agent, appliquée à sa prochaine demande (5 min au plus) ; aucune commande n'est envoyée. « Retirer » arrête l'envoi et donc les alertes liées ; l'historique reste. Les services sont toujours réglés pour cette machine seule. Chaque changement est inscrit dans le journal d'audit.</small></p>{{end}}
+</form>
+</section>{{end}}
+
+<details class="carte"><summary><strong>Détails de la machine</strong></summary>
+<table>
 <tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>
 <tr><th>Site / type / groupe</th><td>{{$m.Site}} / {{$m.Env}} / {{$m.Groupe}}</td></tr>
 <tr><th>Dernière donnée</th><td>{{depuisS $m.VuLe}} ({{dateS $m.VuLe}})</td></tr>
@@ -13,10 +86,9 @@
 <tr><th>Tokens actifs</th><td>{{$m.TokensActifs}}</td></tr>
 <tr><th>Adresses autorisées</th><td><code>{{if $m.IPsAutorisees}}{{$m.IPsAutorisees}}{{else}}Toutes{{end}}</code></td></tr>
 <tr><th>Dernière adresse vue</th><td><code>{{$m.DerniereIP}}</code></td></tr>
+<tr><th>Token lié à la machine</th><td>{{if $m.EmpreinteLiee}}Oui{{else}}Non{{end}}</td></tr>
 <tr><th>Enrôlée le</th><td>{{dateS $m.CreeLe}}</td></tr>
-</table></section>
-<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>
-</div>
+</table></details>
 
 {{if .Admin}}<details class="carte"><summary><strong>Modifier la machine</strong></summary>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="etiquettes">
@@ -35,6 +107,14 @@
   <label>Adresses ou préfixes, séparés par des virgules (vide = toutes) <input name="ips" value="{{$m.IPsAutorisees}}" maxlength="2000"></label>
   {{if $m.DerniereIP}}<small>Dernière adresse vue : <code>{{$m.DerniereIP}}</code></small>{{end}}
   {{template "code2fa"}}<button>Enregistrer</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="empreinte">
+  <h3>Lier le token à cette machine</h3>
+  {{if $m.EmpreinteLiee}}<p>Le token est <strong>lié</strong> à la machine (empreinte <code>{{printf "%.8s" $m.EmpreinteLiee}}…</code>). Présenté par une autre machine, il est refusé.{{if and $m.EmpreinteVue (not (egal $m.EmpreinteVue $m.EmpreinteLiee))}} <span class="erreur-texte">La machine envoie maintenant une autre empreinte (<code>{{printf "%.8s" $m.EmpreinteVue}}…</code>) : réinstallée ou clonée ? Délier puis relier si c'est normal.</span>{{end}}</p>
+  <input type="hidden" name="lier" value="non">{{template "code2fa"}}<button class="secondaire">Délier</button>
+  {{else if $m.EmpreinteVue}}<p>La machine envoie l'empreinte <code>{{printf "%.8s" $m.EmpreinteVue}}…</code> (dérivée de <code>/etc/machine-id</code>). Lié, le token ne marche plus s'il est copié sur une autre machine.</p>
+  <small>À délier avant de réinstaller ou de cloner la machine, ou avant de revenir à un agent plus ancien (qui n'envoie pas d'empreinte) : sinon elle sera refusée.</small>
+  <input type="hidden" name="lier" value="oui">{{template "code2fa"}}<button>Lier</button>
+  {{else}}<p><small>Cette machine n'a pas encore envoyé d'empreinte (agent trop ancien, ou <code>/etc/machine-id</code> absent).</small></p>{{end}}</form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
   <h3>Version de l'agent</h3>
   <label>Version assignée à cette machine <select name="version"><option value="">Celle de toutes les machines</option><option value="bloquer">Bloquer sur la version actuelle</option>{{range .D.Versions}}<option {{if egal . $m.VersionCible}}selected{{end}}>{{.}}</option>{{end}}</select></label>

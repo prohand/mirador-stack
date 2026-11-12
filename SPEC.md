@@ -2774,3 +2774,507 @@ Menaces :
 | Workflow modifié sur une branche pour lire la clé | secrets d'environnement limités aux tags `v*` ; `main` protégée (PR obligatoire) |
 | Compte GitHub piraté | peut signer : protéger le compte (2FA, clés de sécurité) ; c'était déjà le cas (le code venait de GitHub) |
 | GitHub ou réseau qui sert un autre fichier | signature vérifiée avec la clé réglée ; empreinte et taille vérifiées |
+
+### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions à valider]**
+
+Revue en lecture du code de connexion (mot de passe, 2FA, sessions,
+verrous), du déploiement et de l'organisation du code.
+
+Corrigé (gravité moyenne) :
+
+| Constat | Correction |
+|---|---|
+| Verrou contournable par une rafale : le verrou était lu avant le calcul, l'échec compté après. Des requêtes envoyées en même temps passaient toutes le contrôle. Mesuré : 40 mots de passe essayés au lieu de 5 depuis une adresse (`TestRafaleMotsDePasse`). Même principe pour les codes 2FA (mesuré : 6 au lieu de 5 ; en théorie plus avec beaucoup de sessions partielles) | un essai est **réservé avant** la vérification (`verrous.debuter`) : échecs récents + essais en cours ≥ seuil → refus (429, non compté, écrit dans le journal). Appliqué au mot de passe, au code 2FA, aux actions sensibles et au changement de mot de passe. Coût : une table en mémoire qui ne contient que les requêtes en cours |
+
+Propositions de sécurité (non faites, à valider) :
+
+| Gravité | Constat | Proposition |
+|---|---|---|
+| Moyenne (**fait**, § 18.28) | Mot de passe volé : rien ne prévient l'admin. Les codes 2FA faux après un bon mot de passe ne font qu'une ligne de journal | notification (canal existant) sur « code 2FA faux après un bon mot de passe », « compte verrouillé » et « connexion depuis une nouvelle adresse » |
+| Faible (**fait**, § 18.28) | Le nom saisi est écrit tel quel dans le journal : un mot de passe tapé par erreur dans le champ « Nom » s'y retrouve (et part vers CrowdSec) | écrire le nom seulement s'il a la forme d'un nom valide, sinon « (invalide) » |
+| Faible (**fait**, § 18.29) | Durée du verrou fixe (15 min) : un attaquant patient recommence sans fin | durée doublée à chaque nouveau verrou du même compte (plafond 24 h) |
+| Faible (**fait**, § 18.29) | Sessions partielles sans limite par compte (avec le bon mot de passe) | 3 sessions partielles au plus par compte, la plus ancienne est fermée |
+| Faible (**accepté**) | Redémarrage = verrous oubliés | acceptable (CrowdSec garde ses bannissements) ; à noter |
+| Info (**fait autrement**, § 18.29) | Pas de liste de mots de passe trop courants | petite liste embarquée (~10 Ko) ou rien : 12 caractères + 2FA suffisent |
+| Info (**gardé**) | `Sec-Fetch-Site: none` accepté pour une écriture | garder (jeton CSRF + `SameSite=Strict` couvrent) |
+
+Vérifié, rien à redire : cookie `__Host-`, nouvel identifiant à chaque
+étape, empreinte SHA-256 de l'identifiant, Argon2id + leurre, anti-rejeu
+TOTP, CSRF, CSP sans script en ligne, corps limité à 1 Mio, adresse du
+client prise seulement derrière le proxy déclaré, nom d'utilisateur sensible
+à la casse (pas de contournement du verrou par « Admin »).
+
+Propositions d'architecture (non faites, à valider) :
+
+| Sujet | Constat | Proposition | Coût |
+|---|---|---|---|
+| Paquet `console` (**fait**, § 18.29) | 10 500 lignes, 30 % du code : pages, comptes, sessions, verrous, tableaux mélangés | sortir l'authentification dans `internal/server/auth` (comptes, mot de passe, TOTP, sessions, verrous) : plus facile à relire et à tester seul | aucun à l'exécution |
+| Réseau Docker `obs` (**reporté à l'étape 7**) | partagé avec l'ancienne stack : un autre conteneur joint mirador sans nginx | réseau dédié `mirador` (nginx de l'hôte + Olvid seulement) à la bascule (étape 7) | aucun |
+| Écoutes (**fait**, § 18.29) | `0.0.0.0` dans le conteneur, protection = pas de port publié | garder, mais refuser au démarrage une écoute hors boucle locale sans `MIRADOR_PROXY` ni TLS | aucun |
+| Dépendances (**fait en partie**, § 18.29) | AWS SDK, SFTP, Prometheus, gRPC dans un seul binaire : grosse surface | `govulncheck` déjà en CI ; ajouter Dependabot (ou Renovate) et figer les actions par empreinte | aucun |
+| Démarrage (**fait**, § 18.29) | `Demarrer` ferme à la main à chaque erreur (`errors.Join(…Close())` répété 8 fois) | une liste de « fermetures » dépilée en cas d'erreur | aucun |
+| Réglages (**écarté après mesure**, § 18.29) | relus en base toutes les 5 s par la console (5 requêtes SQLite par tour) | un numéro de version des réglages, relu seul ; le reste seulement s'il change | moins d'I/O |
+| Sessions (**gardé**) | en mémoire : un redémarrage (mise à jour) déconnecte tout le monde | garder (plus sûr, zéro écriture disque) | — |
+
+### 18.28 Messages de sécurité et nom dans le journal **[Fait, validé le 11/11]**
+
+Deux propositions du § 18.27 retenues (« oui » du 11/11).
+
+Messages envoyés à l'administrateur par les canaux de notification :
+
+| Événement | Texte | Pourquoi |
+|---|---|---|
+| Code 2FA faux après un mot de passe juste | compte, adresse | le mot de passe est sans doute connu de quelqu'un d'autre |
+| Compte verrouillé | compte, dernière adresse | attaque en cours sur ce compte |
+| Connexion réussie depuis une nouvelle adresse | compte, adresse | session ouverte ailleurs que d'habitude |
+
+- Chemin des alertes critiques : canal principal, secours si panne, file
+  d'attente si tout est en panne. **Mode ombre** : seulement noté dans
+  l'historique des envois (type `securite`).
+- Envoi à part : la page de connexion n'attend pas le canal.
+- **Un message par heure et par sujet** au plus (table bornée à 1 000) : un
+  attaquant ne peut pas noyer l'administrateur.
+- Compte verrouillé : message seulement si le compte existe.
+- Adresses connues gardées en mémoire (30 jours) : la première connexion
+  après un redémarrage du serveur prévient aussi.
+- Jamais de mot de passe ni de code dans le texte (testé).
+- Coût : rien au repos ; un envoi par événement.
+
+Nom dans le journal : un texte saisi dans le champ « Nom » qui n'a pas la
+forme d'un nom de compte est écrit `(invalide)`. Un mot de passe tapé au
+mauvais endroit ne va plus dans le journal ni vers CrowdSec. La forme de la
+ligne ne change pas (`deploy/crowdsec/` inchangé).
+
+| Menace | Parade |
+|---|---|
+| Inconnu qui déclenche des messages en rafale | 1 message / heure / sujet ; rien pour un compte inconnu |
+| Durée de réponse qui trahit l'envoi | envoi hors de la requête |
+| Secret dans un message ou dans le journal | texte fixe + nom du compte + adresse seulement ; nom filtré |
+
+### 18.29 Reste des propositions du § 18.27 **[Fait, « fait le reste » du 12/11]**
+
+Sécurité de la connexion :
+
+| Sujet | Décision | Coût |
+|---|---|---|
+| Verrou progressif | chaque nouveau verrou de la même adresse ou du même compte dure 2 fois plus (15 min, 30 min, 1 h… **24 h au plus**) ; série oubliée après 24 h sans verrou, ou après une connexion réussie (compte). La durée réelle est dans le journal et dans le message à l'admin | un entier par compteur |
+| Sessions partielles | **3** sessions « avant le code » au plus par compte ; la plus ancienne est fermée | aucun |
+| Mots de passe trop simples | refusés : un caractère ou un motif court répété, une suite (`123456789012`, `abcdef…`), le nom du compte ou « mirador » avec moins de 8 autres caractères utiles. **Pas de liste embarquée** (rien à maintenir, 0 octet) ; 12 caractères + 2FA font le reste | aucun |
+| Verrous oubliés au redémarrage | accepté : rien sur disque ; CrowdSec garde ses bannissements | — |
+| `Sec-Fetch-Site: none` | gardé : jeton CSRF + `SameSite=Strict` couvrent | — |
+
+Adresse de confiance (connexion réussie < 30 j) : toujours exemptée du
+verrou du **compte**, même long. Sinon : `utilisateur-secours`.
+
+Architecture :
+
+| Sujet | Décision | Coût |
+|---|---|---|
+| Paquet `internal/server/auth` | comptes, mots de passe, TOTP, sessions, verrous (1 250 lignes) sortis de `console` (10 500 → 9 760 lignes). `auth` ne connaît pas `console` ; ses tests unitaires l'ont suivi. Aucun changement de comportement. `Auditer` reste dans `console` ; `auth` écrit dans la même table (`auditer`, à changer ensemble) | aucun à l'exécution |
+| Écoute ouverte | refus au démarrage si une écoute sort de la machine sans `MIRADOR_PROXY` ni TLS (interface en clair, verrous communs à tous). `127.0.0.1`, `::1`, `localhost` : acceptés sans rien | aucun |
+| Démarrage | une liste de fermetures dépilée en cas d'échec (10 fermetures recopiées → 1) | aucun |
+| Dependabot | modules Go, actions GitHub, images Docker ; **une fois par mois, regroupé** (5 pull requests au plus). Coût : ~7 min de CI par pull request (§ 18.24) ; supprimer `.github/dependabot.yml` pour l'arrêter | minutes de CI |
+| Actions figées par empreinte | **pas fait** : il faut les empreintes exactes de chaque action, que je ne peux pas vérifier d'ici. À faire à la main (`uses: actions/checkout@<sha> # v4`) | — |
+| Réglages relus toutes les 5 s | **écarté après mesure** : un passage = 52 µs, 18 Ko alloués, aucune écriture disque, soit 0,001 % d'un cœur. Un numéro de version ajouterait du code pour un gain non mesurable | — |
+| Réseau Docker dédié | **reporté à l'étape 7** : tant que la comparaison avec vmalert tourne, mirador doit joindre l'ancienne stack sur `obs` | — |
+
+Menaces (ajouts) :
+
+| Menace | Parade |
+|---|---|
+| Attaquant patient qui revient après chaque verrou | verrou doublé jusqu'à 24 h ; message à l'admin (§ 18.28) |
+| Mot de passe connu : centaines de sessions partielles pour essayer des codes | 3 par compte ; essais réservés (§ 18.27) |
+| Serveur exposé par erreur sans nginx | refus de démarrer |
+| Dépendance avec une faille connue | `govulncheck` en CI + Dependabot |
+
+---
+
+## 19. Idées reprises de Beszel : surveillance par machine et vue d'ensemble **[Fait, à valider — demande du 12/11]**
+
+- Source : `github.com/henrygd/beszel` (Go, licence MIT), documentation lue
+  le 12/11. **Aucun code repris** : seulement des idées, réécrites ici.
+- Branche : `claude/laughing-sagan-7w7xrm`. Maquette validée le 12/11
+  (deux écrans : vue d'ensemble, page machine).
+
+### 19.1 Ce que je retiens, ce que j'écarte
+
+| Idée Beszel | Dans mirador | Pourquoi |
+|---|---|---|
+| Barres colorées, tri, filtre, choix des colonnes dans la liste des machines | vue d'ensemble (§ 19.5) | on voit d'un coup d'œil la machine qui va mal |
+| Bandeau d'identité sous le nom de la machine | page machine | plus court que le tableau « Identité » (gardé, replié) |
+| Vitesse des ventilateurs (`/sys/class/hwmon`) | collecteur « matériel », éteint par défaut | panne matérielle non vue aujourd'hui |
+| Santé des pools ZFS | idem, lu dans `/proc/spl/kstat/zfs/*/state` | pas de commande `zpool`, pas de root |
+| État du RAID logiciel (mdraid) par sysfs | idem, `/sys/block/md*/md/degraded` | idem |
+| Sondes ajoutées dans l'interface, par machine | devient « ce que la machine envoie se choisit dans l'interface », avec détection | demande de l'utilisateur |
+
+| Écarté | Raison |
+|---|---|
+| Mode SSH (le hub se connecte à l'agent, port 45876) | l'agent n'ouvre jamais de port |
+| Mise à jour de l'agent depuis GitHub | mirador : versions signées Ed25519, clé hors serveur |
+| PocketBase, Shoutrrr | déjà écartés (§ 12.2) |
+| Socket Docker monté, capacités `SYS_RAWIO` / `SYS_ADMIN` pour SMART | proxy en lecture seule et assistant root gardés |
+| OAuth / OIDC, partage entre utilisateurs | surface d'attaque en plus, un seul admin |
+| GPU, batterie, Wi-Fi, Podman, Windows | absents du parc |
+| Sondes de port (TCP, HTTP, ping, DNS) | **refusé par l'utilisateur le 12/11** |
+| CPU et mémoire par service systemd | pas demandé ; beaucoup de séries, à mesurer d'abord |
+| Scrub ZFS, usage par dataset | demande la commande `zpool` (root) ; seule la santé est lue |
+
+### 19.2 Principe **[Décidé, réponses du 12/11]**
+
+- Ce qui était collecté avant **reste actif** sans rien valider.
+- Tout ce qui est surveillé **peut être retiré**, machine par machine.
+- Les **nouveautés** (ventilateurs, ZFS, RAID logiciel, et les services si on
+  le demande) ne sont pas surveillées sans validation : l'agent dit seulement
+  « ça existe », l'interface propose.
+- Services systemd proposés : seulement ceux démarrés au boot et qui
+  devraient tourner (mêmes exclusions qu'avant, § 4.2), sans les services de
+  base (`systemd-*`, `getty@`, `user@`, `dbus*`).
+
+### 19.3 Agent
+
+| Réglage (local `MIRADOR_…` et distant) | Défaut | Effet |
+|---|---|---|
+| `temperatures` | oui | capteurs de `/sys` |
+| `docker_metriques` | oui | métriques des conteneurs (les logs ont leur propre réglage) |
+| `envoyer_pare_feu`, `envoyer_smart`, `envoyer_certificats` | oui | résultats de l'assistant root envoyés ou non |
+| `ventilateurs`, `zfs`, `mdraid` | **non** | nouveaux collecteurs |
+| `systemd_validation` + `systemd_surveiller` | non | seuls les services de la liste sont suivis |
+
+- Collecteur « matériel » : lecture directe de `/sys` et `/proc`, **aucune
+  commande, aucun droit en plus**. Rythme lent (60 s) ; liste des éléments
+  relue toutes les 10 min.
+- Métriques (noms de node_exporter quand ils existent) :
+  `node_hwmon_fan_rpm{chip,sensor}`, `node_zfs_zpool_state{zpool,state}`
+  (toujours `state="online"` à 0 ou 1, plus l'état courant s'il diffère),
+  `node_md_degraded{device}` (disques manquants), `node_md_disks_required{device}`.
+- Détection : un genre éteint n'envoie qu'**une série par élément trouvé**,
+  `mirador_agent_detecte{genre,nom}` (genres : `ventilateurs`, `zfs`,
+  `mdraid`, `service`). Pas de nouveau point d'entrée, pas de table en plus.
+- **Limite connue** : `envoyer_smart = non` (et pare-feu, certificats) arrête
+  l'**envoi**, pas l'assistant root : il ne lit jamais la configuration
+  distante (§ 6.4), il continue donc de lancer `smartctl` toutes les 30 min.
+  Pour l'arrêter vraiment : `MIRADOR_SMART=non` dans le fichier local.
+- À vérifier sur une vraie machine (rien de tel ici) : le fichier
+  `/proc/spl/kstat/zfs/<pool>/state` sur les Proxmox (OpenZFS ≥ 0.8), les
+  capteurs `fan*_input`, une grappe `md`.
+
+### 19.4 Serveur et compatibilité
+
+- Les choix sont des **clés de la configuration distante** (valeurs typées,
+  mêmes contrôles et même audit que « Configuration des agents »), à la
+  portée de la machine ou du groupe. Les services sont toujours réglés par
+  machine.
+- **Ancien agent** : il refuserait tout le document à cause d'une clé
+  inconnue. L'agent annonce donc ce qu'il sait faire (en-tête
+  `X-Mirador-Capacites: surveillance`, ignoré par un ancien serveur) ; sans
+  cet en-tête, le serveur **retire** les clés nouvelles du document (ETag
+  recalculé). La capacité est gardée sur la fiche (migration 0011) et
+  l'interface bloque les réglages nouveaux pour un agent trop ancien.
+- État affiché : **aucun stockage en plus**. Il se déduit d'une requête sur
+  les dernières métriques de la machine (en cache 60 s) et de sa
+  configuration effective.
+- La page « Configuration des agents » garde ces clés quand on enregistre
+  une portée (« retirer la portée » les enlève aussi).
+- Trois règles fournies, actives par défaut, sans effet là où rien n'est
+  validé : `PoolZfsDegrade` (critique, 2 min), `RaidLogicielDegrade`
+  (critique, 2 min), `VentilateurArrete` (avertissement, 10 min, seulement si
+  le ventilateur a tourné dans les 24 h). Un service validé qui s'arrête est
+  couvert par `ServiceAutomatiqueArrete` (règle 11).
+
+### 19.5 Interface
+
+- **Page machine**, bloc « À surveiller sur cette machine » : « Détecté, à
+  valider » (Surveiller / Ignorer / Plus tard), « Surveillé » (Garder /
+  Retirer, avec un point rouge si quelque chose ne va pas), « Ignoré ou
+  absent » (Rétablir). Boutons « Tout surveiller » et « Tout ignorer ». Choix
+  pour la machine ou pour tout son groupe.
+- **Un seul formulaire, un seul code 2FA** pour tous les choix : changer la
+  configuration d'un agent est une action sensible (revue du 11/11). Écart
+  avec la maquette, qui montrait un bouton par ligne.
+- Services : repliés ; option « Nouveaux services : me les proposer avant
+  de les surveiller » (au départ, ceux suivis aujourd'hui restent suivis).
+- **Vue d'ensemble** : barres CPU / mémoire / disque (vert < 70 %, orange
+  70 à 85 %, rouge au-dessus, chiffre toujours affiché), tri par colonne
+  (3 clics : décroissant, croissant, ordre par gravité), filtre, colonnes
+  masquables, cloche avec le nombre d'alertes, colonne « À valider ». Tri et
+  colonnes retenus dans le navigateur ; le tableau n'est pas rechargé
+  pendant une saisie.
+- **Ajouté ensuite** (réponse du 12/11, « maintenant ») : recherche rapide,
+  sous-titres, filtre des courbes, empreinte de la machine (§ 19.8).
+- **Pas fait** : bouton 1 / 2 colonnes. Écart : la colonne « Réseau » de la
+  maquette n'y est pas (une requête de plus par minute pour un chiffre peu
+  utile).
+
+### 19.8 Compléments du 12/11
+
+- **Recherche rapide** : Ctrl+K (ou bouton « Aller à… » du menu) ouvre une
+  liste des pages, des machines et des tableaux ; flèches et Entrée. La
+  liste est lue une fois à l'ouverture (`/donnees/aller`), le filtrage se
+  fait dans le navigateur : aucune requête pendant la frappe.
+- **Sous-titres** : une ligne sous le titre des 18 graphiques fournis qui
+  n'en avaient pas (« Serveurs Linux » et « Proxmox »). Un tableau déjà
+  installé ou modifié garde son texte : « Rétablir » pour prendre le nouveau.
+- **Filtre des courbes** : à partir de 6 courbes (conteneurs, machines…),
+  un champ au-dessus du graphique ne garde que celles dont le nom contient
+  le texte tapé. Rien n'est redemandé au serveur.
+- **Empreinte de la machine** (idée de Beszel) :
+  - l'agent envoie `X-Mirador-Empreinte` : SHA-256 de `/etc/machine-id`
+    (32 chiffres hexadécimaux ; l'identifiant lui-même ne sort pas), et
+    seulement vers mirador-server ;
+  - le serveur garde la dernière empreinte reçue (écrite avec « vu le »,
+    une fois par minute : pas d'écriture en plus) ;
+  - **option par machine**, éteinte par défaut : « Lier le token à cette
+    machine » (code 2FA). Lié, le token est refusé (403) s'il vient d'une
+    autre machine ou sans empreinte ;
+  - **limite** : cela protège d'un token qui fuit seul (sauvegarde, journal,
+    copie d'un fichier). Qui lit le token sur la machine peut aussi lire
+    `/etc/machine-id` ;
+  - **à savoir** : délier avant de réinstaller ou de cloner la machine, et
+    avant de revenir à un agent plus ancien, sinon elle est refusée. Un
+    retour arrière automatique après une mise à jour ratée vers une version
+    sans empreinte serait bloqué de la même façon : lier seulement quand
+    toutes les versions en service envoient l'empreinte ;
+  - migration 0013.
+
+### 19.6 Coût mesuré (machine de développement, 4 cœurs)
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, collecteur « matériel », détection seule | 0,13 µs par passage, 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé (2 ventilateurs, 1 pool, 1 grappe) | 21 µs par passage (toutes les 60 s), 20 allocations (ouverture des fichiers) | idem ✅ |
+| Agent, RAM | pas de tampon en plus ; non mesurée sur une vraie machine | < 30 Mio, à confirmer |
+| Séries en plus par machine | 1 par élément détecté ; 1 par ventilateur, 1 à 2 par pool, 2 par grappe une fois validés | — |
+| Serveur, classement d'une machine | 4,2 µs | — |
+| Serveur, page machine / fragment de la vue d'ensemble (5 machines, démonstration) | 3 à 5 ms | — |
+| Serveur, écritures disque | aucune hors enregistrement d'un choix | ✅ |
+
+Non mesuré : RAM du serveur sous charge (50 agents). Rien n'est gardé en
+mémoire en plus du cache de requêtes existant (deux entrées de plus par
+page machine ouverte, une pour la vue d'ensemble) ; à confirmer au prochain
+test de charge.
+
+### 19.7 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Session volée qui éteint la surveillance d'une machine | code 2FA à chaque enregistrement ; ligne d'audit ; un code ne sert qu'une fois |
+| Serveur compromis qui pousse une configuration malveillante | inchangé : que des booléens et des noms de services validés (`….service`, 200 au plus) ; jamais de commande ni de chemin |
+| Machine compromise qui ment sur ce qu'elle détecte | elle ne peut que proposer ; rien n'est activé sans l'admin ; noms limités à des caractères sûrs, 64 éléments et 100 services au plus |
+| Nom de service ou de pool piégé (XSS) | échappé par `html/template` ; formats vérifiés à l'entrée |
+| En-tête de capacité falsifié | il ne donne aucun droit : il change seulement les clés que l'agent reçoit pour lui-même |
+| Ancien agent cassé par une clé inconnue | clés nouvelles retirées pour lui (§ 19.4), testé |
+
+---
+
+## 20. Codes de secours de la 2FA et passkeys **[Fait, à valider — demande du 12/11]**
+
+Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
+
+### 20.1 Codes de secours
+
+- **10 codes** par compte, forme `XXXX-XXXX-XXXX` (12 signes sans 0, O, 1,
+  I : 60 bits d'aléa). Créés dans « Mon compte » avec le code 2FA, **affichés
+  une seule fois**. En créer de nouveaux annule les anciens.
+- En base : seulement l'empreinte SHA-256 (un code a assez d'aléa pour se
+  passer d'Argon2id : pas de calcul lourd à la connexion).
+- Un code **remplace le code 2FA une seule fois** :
+  - à la connexion (lien « Téléphone perdu ? ») ;
+  - pour préparer une nouvelle 2FA dans « Mon compte » (sinon un téléphone
+    perdu enfermerait dehors).
+- Il ne sert **pas** aux autres actions sensibles : elles gardent le code de
+  l'application.
+- Un code faux compte comme un code 2FA faux (verrous, CrowdSec, 5 essais).
+- Chaque usage : ligne d'audit, ligne de journal, et message à
+  l'administrateur avec le nombre de codes restants.
+- La remise à zéro de la 2FA par un administrateur, ou la commande
+  `utilisateur-secours`, efface aussi les codes de secours et les passkeys
+  (compte repris en main).
+
+### 20.2 Passkeys (WebAuthn)
+
+- **Deux usages** (réponse du 12/11 : « je veux les 2 ») :
+  1. après le mot de passe, la passkey **remplace le code 2FA** ;
+  2. **passkey seule**, sans mot de passe : bouton « Se connecter avec une
+     passkey » sur la page de connexion. La clé dit de quel compte il
+     s'agit, et l'appareil **doit vérifier l'utilisateur** (code PIN,
+     empreinte, visage) : cela fait deux facteurs. Une clé qui ne fait que
+     « toucher » est refusée ici (elle reste valable après le mot de passe).
+- La passkey seule demande une clé « découvrable » (téléphone, ordinateur,
+  gestionnaire de mots de passe, clé USB récente). Réglage « Sécurité » pour
+  l'interdire ; autorisée par défaut.
+- Défi de la passkey seule : demandé au clic, gardé en mémoire (2 000 au
+  plus, 5 min, usage unique) puisqu'il n'y a pas encore de session.
+- La 2FA par application reste obligatoire et reste demandée pour les
+  actions sensibles.
+- Création dans « Mon compte » : nom + code 2FA, puis le navigateur crée la
+  clé. 10 passkeys au plus par compte. Suppression avec le code 2FA.
+- **Aucune dépendance ajoutée** : vérification écrite ici (~450 lignes avec
+  le lecteur CBOR), avec la bibliothèque standard de Go. Une bibliothèque
+  WebAuthn aurait amené une dizaine de modules pour des fonctions dont on ne
+  se sert pas (attestation des fabricants, TPM).
+- Algorithmes acceptés : ES256 (P-256), Ed25519, RS256 (Windows Hello).
+- Ce qui est vérifié : défi aléatoire à usage unique (5 min, dans la
+  session), type d'opération, **origine** (anti-hameçonnage), domaine,
+  présence de l'utilisateur, signature, compteur de signatures s'il est
+  utilisé. Attestation du fabricant non demandée (« none »).
+- Le serveur ne garde que la clé publique, le domaine et un compteur.
+- **Domaine** : celui sous lequel l'interface est ouverte (en-tête `Host`,
+  transmis par nginx). Une passkey ne marche que sous le domaine où elle a
+  été créée. Sous une adresse IP, les passkeys sont refusées (les
+  navigateurs l'imposent) et la page le dit. HTTPS obligatoire, sauf
+  `localhost`.
+- Script : `passkey.js` (3,9 Ko, sans dépendance, CSP inchangée).
+
+### 20.3 Coût
+
+| Mesure | Résultat |
+|---|---|
+| Connexion par passkey (vérification ES256) | 0,09 ms, 1,7 Ko alloués (machine de développement) |
+| Code de secours | une empreinte SHA-256 + une écriture |
+| RAM | un défi de 43 caractères par session en cours ; rien d'autre |
+| Disque | 2 tables (migration 0012) ; une écriture par usage |
+| Binaire | pas de dépendance en plus |
+
+### 20.4 Essais
+
+- Tests unitaires : les 3 algorithmes, défi faux ou rejoué, autre origine,
+  autre domaine, autre clé, signature tronquée, compteur en recul, entrées
+  aléatoires (fuzzing du lecteur CBOR et des vérifications : 400 000
+  essais sans plantage).
+- Bout en bout : création, connexion, suppression avec un faux
+  authentificateur ; codes de secours (une fois, pas deux, pas pour un
+  autre compte).
+- **Vrai navigateur** (Chromium, authentificateur virtuel, sur
+  `localhost`) : création d'une passkey, connexion par passkey, connexion
+  par code de secours.
+- **Pas essayé** : un vrai téléphone, une vraie clé USB, Firefox, Safari,
+  Windows Hello (RS256 n'est testé qu'avec le faux authentificateur), et
+  derrière nginx.
+
+### 20.5 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Fausse page de connexion (hameçonnage) | la passkey est liée au domaine par le navigateur ; le serveur revérifie l'origine et le domaine |
+| Réponse rejouée | défi aléatoire, effacé dès le premier essai, valable 5 min |
+| Passkey ajoutée par une session volée | code 2FA demandé pour préparer la création ; audit |
+| Codes de secours volés en base | empreintes seulement ; 60 bits d'aléa |
+| Essais de codes de secours en rafale | mêmes verrous que le code 2FA (adresse, compte, 5 essais par session) |
+| Même code utilisé deux fois en même temps | mise à jour conditionnelle (`utilise_le = 0`) |
+| Donnée piégée envoyée par le navigateur | lecteur CBOR borné (profondeur 6, 64 éléments, tailles limitées), fuzzing |
+| En-tête `Host` falsifié | il ne change que le domaine attendu pour sa propre requête ; une clé créée ailleurs reste refusée |
+| Passkey seule : appareil volé et déverrouillé | vérification de l'utilisateur exigée à chaque connexion ; supprimer la passkey (ou remise à zéro par un admin) |
+| Passkey seule : remplissage de la mémoire par des demandes de défi | 2 000 défis au plus, 5 min ; refusé pour une adresse verrouillée |
+| Téléphone volé avec la 2FA | l'administrateur remet la 2FA à zéro : codes et passkeys effacés |
+| Mot de passe connu de l'attaquant | la passkey ou le code reste nécessaire ; message à l'administrateur à chaque essai faux |
+
+
+---
+
+## 21. Élément par élément, signal « à valider », réglages rangés **[Fait, à valider — demandes du 12/11]**
+
+Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
+
+- gérer ce qui est surveillé **dans** « Système » et « Certificats » ;
+- réponse « tout gérer depuis l'interface » (y compris les chemins de
+  certificats, au prix d'un écart avec la revue du 11/11, voir § 21.3) ;
+- une info visible quand une machine a quelque chose de nouveau à valider ;
+- un menu Réglages cohérent ;
+- tri et filtre sur « État » et « À valider » dans la vue d'ensemble.
+
+### 21.1 Agent
+
+| Réglage (distant, et local `MIRADOR_…`) | Effet |
+|---|---|
+| `ignorer_disques` / `MIRADOR_IGNORER_DISQUES` | disques retirés (noms exacts, 100 au plus) |
+| `ignorer_interfaces` / `MIRADOR_IGNORER_INTERFACES` | interfaces retirées (100 au plus) |
+| `ignorer_montages` / `MIRADOR_IGNORER_MONTAGES` | points de montage retirés (chemins exacts, 100 au plus) |
+| `certificats_ignorer` | certificats lus mais pas envoyés (chemins exacts, 200 au plus) |
+| `certificats_ajout` | chemins en plus de `MIRADOR_CERTIFICATS`, lus par l'assistant root (20 au plus, règles du § 21.3) |
+| `MIRADOR_CERTIFICATS_DISTANTS` (local seulement, défaut oui) | non = l'assistant root ignore `certificats_ajout` |
+
+- Les listes s'ajoutent aux expressions `MIRADOR_EXCLURE_*` (même filtre,
+  une table de noms en plus : pas de coût mesurable).
+- `ssl_certs_found_total` compte les certificats **envoyés** (les retirés
+  n'y sont plus).
+- Nouvelle capacité annoncée : `elements` (en-tête `X-Mirador-Capacites:
+  surveillance,elements`). Le serveur retire ces clés pour un agent qui ne
+  l'annonce pas (0.2.12 compris) : il refuserait sinon tout le document.
+
+### 21.2 Interface
+
+- Page machine, bloc « À surveiller » :
+  - « Système : disques, interfaces, montages » (replié) : un tableau,
+    Garder / Retirer / Rétablir par ligne ;
+  - « Certificats » (replié, visible même si aucun certificat n'est encore
+    trouvé) : fichier, nom, émetteur, jours restants (rouge < 7, orange
+    < 21), Garder / Retirer ; chemins ajoutés (Retirer) ; champ « Ajouter
+    des chemins » ;
+  - même formulaire et **même code 2FA** que le reste du bloc ; toujours à
+    la portée de la machine ;
+  - rien de stocké en plus : le détail vient des dernières métriques (4
+    noms de métriques ajoutés à la requête du bloc, une série par élément)
+    et de la configuration.
+- Signal « à valider » : compteur **orange** sur « Machines » dans le menu
+  (nombre de machines concernées, sur toutes les pages), colonne dans la
+  liste des machines, pastille à côté du nom de la machine. Le calcul est
+  gardé 60 s (oublié dès qu'un choix est enregistré).
+- Vue d'ensemble : tri sur « État » (par gravité), « À valider » et « Vu » ;
+  liste « Afficher » (toutes, à regarder, critiques, muettes,
+  avertissement, en ligne, à valider), retenue dans le navigateur.
+- Réglages : **une seule liste** en Go sert aux onglets et aux cartes
+  (mêmes noms, même ordre). Onglets : Notifications, Olvid (si activé),
+  Conservation des données, Sauvegardes, Sites, types et groupes,
+  Interface, Export / import (devenu une page). Les réglages rangés
+  ailleurs sont rappelés sous « Ailleurs dans mirador » avec leur place :
+  Configuration et Mises à jour des agents (Machines, avec les onglets de
+  Machines), Silences et maintenances (Alertes), Utilisateurs, Sécurité,
+  Journal d'audit.
+
+### 21.3 Chemins de certificats venus du serveur : écart assumé **[Décidé, validé par l'utilisateur le 12/11]**
+
+La revue du 11/11 avait décidé : « root ne lit jamais la configuration
+distante » (le fichier gardé appartient à l'agent, sans root). Choix de
+l'utilisateur le 12/11 : tout gérer depuis l'interface. L'assistant root lit
+donc **une seule clé** de ce fichier, avec ces règles :
+
+| Contrôle | Où |
+|---|---|
+| Fichier ouvert sans suivre de lien (`O_NOFOLLOW`), sans bloquer, fichier ordinaire, 256 Kio au plus ; message d'erreur sans contenu du fichier | assistant root |
+| Chemin absolu, sans `..`, `//`, `/./`, ni caractère de contrôle | agent à la réception, serveur à l'enregistrement, assistant root avant lecture |
+| Dossiers autorisés : `/etc/`, `/opt/`, `/srv/`, `/var/lib/`, `/usr/local/` (pas `/proc`, `/sys`, `/dev`, `/run`, `/tmp`, `/home`, `/root`) | idem |
+| Nom en `.pem`, `.crt`, `.cer` ou `.cert` (écrit en toutes lettres) | idem |
+| Aucun nom contenant « key » ou « priv » (clé privée), ni dans le motif, ni dans le fichier trouvé, ni dans sa cible réelle | idem + assistant root |
+| Cible réelle (liens suivis) dans un dossier autorisé | assistant root |
+| 3 jokers au plus, 20 chemins, 100 fichiers examinés par chemin | idem |
+| Fichier ouvert sans bloquer (tube, périphérique), fichier ordinaire, 1 Mio au plus | assistant root (aussi pour les chemins locaux) |
+| Sortie : chemin, nom (CN), émetteur, dates : rien d'autre du fichier | inchangé |
+| Veto local : `MIRADOR_CERTIFICATS_DISTANTS=non` | fichier local, que le serveur ne peut pas changer |
+
+Ce qui reste possible pour un attaquant qui tient le serveur ou le compte
+de l'agent : faire lire à root un fichier `*.pem` / `*.crt` d'un dossier
+autorisé, et savoir s'il contient un certificat (et lequel). Un certificat
+n'est pas un secret. Il ne peut ni lire une clé privée nommée comme telle,
+ni `/etc/shadow`, ni bloquer l'assistant.
+
+### 21.4 Coût mesuré (machine de développement, 4 cœurs)
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, disques + réseau, sans / avec 4 noms retirés | 8,8 / 7,7 µs par passage, 6 allocations (identique) | < 1 % d'un cœur ✅ |
+| Assistant root, 20 certificats, chemin local / distant | 0,22 / 0,31 ms toutes les 15 min | ✅ |
+| Serveur, classement du bloc d'une machine | 5,4 µs (4,2 avant) | — |
+| Serveur, compteur du menu | 1 requête + 1 lecture SQLite par machine ayant une détection, au plus une fois par minute | — |
+| Séries en plus | aucune côté agent ; la requête du bloc lit des séries déjà envoyées | ✅ |
+| Écritures disque | seulement à l'enregistrement d'un choix | ✅ |
+
+### 21.5 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Serveur compromis qui fait lire un fichier sensible à root | règles du § 21.3 ; veto local |
+| Compte de l'agent compromis qui modifie le fichier gardé | même chose : root revérifie chaque chemin ; lien symbolique refusé |
+| Session volée qui retire un disque ou un certificat (alerte masquée) | code 2FA à chaque enregistrement ; ligne d'audit |
+| Nom piégé (XSS) dans un disque, un montage, un CN | échappé par `html/template` ; noms vérifiés à l'entrée |
+| Ancien agent cassé par une clé inconnue | clés retirées pour lui selon ses capacités (testé avec 0.2.12) |
+| Formulaire géant | 600 éléments au plus par envoi, 20 chemins ajoutés |

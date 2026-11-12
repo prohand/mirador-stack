@@ -43,6 +43,28 @@ type ConfigDistante struct {
 	SystemdIgnorer *[]string `json:"systemd_ignorer,omitempty"`
 	MisesAJour     *bool     `json:"mises_a_jour,omitempty"`
 
+	// Surveillance choisie dans l'interface (SPEC.md § 19). Champs ajoutés
+	// après la 0.2.11 : le serveur ne les envoie qu'aux agents qui annoncent
+	// la capacité « surveillance » (un ancien agent refuserait le document).
+	Temperatures       *bool     `json:"temperatures,omitempty"`
+	DockerMetriques    *bool     `json:"docker_metriques,omitempty"`
+	Ventilateurs       *bool     `json:"ventilateurs,omitempty"`
+	ZFS                *bool     `json:"zfs,omitempty"`
+	Mdraid             *bool     `json:"mdraid,omitempty"`
+	SystemdValidation  *bool     `json:"systemd_validation,omitempty"`
+	SystemdSurveiller  *[]string `json:"systemd_surveiller,omitempty"`
+	EnvoyerPareFeu     *bool     `json:"envoyer_pare_feu,omitempty"`
+	EnvoyerSmart       *bool     `json:"envoyer_smart,omitempty"`
+	EnvoyerCertificats *bool     `json:"envoyer_certificats,omitempty"`
+
+	// Éléments choisis un par un (SPEC.md § 21). Ajoutés après la 0.2.12 :
+	// envoyés seulement aux agents qui annoncent la capacité « elements ».
+	IgnorerDisques     *[]string `json:"ignorer_disques,omitempty"`
+	IgnorerInterfaces  *[]string `json:"ignorer_interfaces,omitempty"`
+	IgnorerMontages    *[]string `json:"ignorer_montages,omitempty"`
+	CertificatsAjout   *[]string `json:"certificats_ajout,omitempty"`
+	CertificatsIgnorer *[]string `json:"certificats_ignorer,omitempty"`
+
 	Metriques     *bool     `json:"metriques,omitempty"` // non = logs seulement
 	Journal       *bool     `json:"journal,omitempty"`
 	LogsDocker    *bool     `json:"logs_docker,omitempty"`
@@ -95,6 +117,21 @@ func Appliquer(base config.Agent, d *ConfigDistante) (config.Agent, error) {
 	affecter(&a.Systemd, d.Systemd)
 	affecter(&a.SystemdIgnorer, d.SystemdIgnorer)
 	affecter(&a.MisesAJour, d.MisesAJour)
+	affecter(&a.Temperatures, d.Temperatures)
+	affecter(&a.DockerMetriques, d.DockerMetriques)
+	affecter(&a.Ventilateurs, d.Ventilateurs)
+	affecter(&a.ZFS, d.ZFS)
+	affecter(&a.Mdraid, d.Mdraid)
+	affecter(&a.SystemdValidation, d.SystemdValidation)
+	affecter(&a.SystemdSurveiller, d.SystemdSurveiller)
+	affecter(&a.EnvoyerPareFeu, d.EnvoyerPareFeu)
+	affecter(&a.EnvoyerSmart, d.EnvoyerSmart)
+	affecter(&a.EnvoyerCertificats, d.EnvoyerCertificats)
+	affecter(&a.IgnorerDisques, d.IgnorerDisques)
+	affecter(&a.IgnorerInterfaces, d.IgnorerInterfaces)
+	affecter(&a.IgnorerMontages, d.IgnorerMontages)
+	affecter(&a.CertificatsAjout, d.CertificatsAjout)
+	affecter(&a.CertificatsIgnorer, d.CertificatsIgnorer)
 	affecter(&a.Metriques, d.Metriques)
 	affecter(&a.Journal, d.Journal)
 	affecter(&a.LogsDocker, d.LogsDocker)
@@ -127,7 +164,9 @@ type Recuperateur struct {
 	URL    string // https://serveur/api/agent/v1/config
 	Token  string
 	Client *http.Client
-	etag   string
+	// Empreinte de la machine ('' : pas envoyée).
+	Empreinte string
+	etag      string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -142,6 +181,10 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	req.Header.Set("Authorization", "Bearer "+r.Token)
 	req.Header.Set(protocole.EnteteProtocole, "1")
 	req.Header.Set(protocole.EnteteVersion, version.Version)
+	req.Header.Set(protocole.EnteteCapacites, protocole.Capacites)
+	if r.Empreinte != "" {
+		req.Header.Set(protocole.EnteteEmpreinte, r.Empreinte)
+	}
 	if r.etag != "" {
 		req.Header.Set("If-None-Match", r.etag)
 	}

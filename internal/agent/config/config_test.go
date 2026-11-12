@@ -169,3 +169,53 @@ func TestMetriquesReglables(t *testing.T) {
 		t.Error("métriques désactivées par défaut")
 	}
 }
+
+// L'empreinte de la machine : stable, propre à la machine, et jamais
+// l'identifiant lui-même.
+func TestEmpreinteMachine(t *testing.T) {
+	dir := t.TempDir()
+	ecrire := func(nom, contenu string) string {
+		p := filepath.Join(dir, nom)
+		if err := os.WriteFile(p, []byte(contenu), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	a := EmpreinteMachine(ecrire("a", "0123456789abcdef0123456789abcdef\n"))
+	b := EmpreinteMachine(ecrire("b", "fedcba9876543210fedcba9876543210\n"))
+	if len(a) != 32 || a == b || a != EmpreinteMachine(filepath.Join(dir, "a")) {
+		t.Errorf("empreintes : %q %q", a, b)
+	}
+	if strings.Contains(a, "0123456789abcdef") {
+		t.Error("l'identifiant de la machine ne doit pas sortir tel quel")
+	}
+	for _, mauvais := range []string{ecrire("vide", ""), ecrire("court", "abc\n"), filepath.Join(dir, "absent")} {
+		if e := EmpreinteMachine(mauvais); e != "" {
+			t.Errorf("%s : empreinte %q attendue vide", mauvais, e)
+		}
+	}
+	// Jamais envoyée ailleurs que vers mirador-server.
+	sans := Agent{}
+	if h := sans.EntetesMachine(map[string]string{}); len(h) != 0 {
+		t.Errorf("en-tête envoyé sans mirador-server : %v", h)
+	}
+}
+
+func TestMotifDistant(t *testing.T) {
+	for _, m := range []string{"/etc/nginx/ssl/*.crt", "/etc/letsencrypt/live/*/cert.pem", "/opt/appli/tls/serveur.pem",
+		"/srv/certs/*.cer", "/var/lib/traefik/certs/*.cert", "/usr/local/etc/x.pem"} {
+		if err := ValiderMotifDistant(m); err != nil {
+			t.Errorf("%s refusé : %v", m, err)
+		}
+	}
+	for _, m := range []string{"/etc/shadow", "/etc/ssl/*", "/proc/self/x.pem", "/home/a/x.pem", "/root/.acme.sh/x.cer",
+		"/tmp/x.pem", "/etc/../x.pem", "/etc//x.pem", "/etc/ssl/private/privkey.pem", "/etc/ssl/serveur.key.pem",
+		"/etc/*/*/*/*.pem", "etc/x.pem", "/etc/x.pem\x00"} {
+		if err := ValiderMotifDistant(m); err == nil {
+			t.Errorf("%q accepté à tort", m)
+		}
+	}
+	if !FichierAccepteDistant("/etc/ssl/serveur.pem") || FichierAccepteDistant("/etc/ssl/privkey.pem") {
+		t.Error("FichierAccepteDistant")
+	}
+}

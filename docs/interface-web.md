@@ -104,6 +104,22 @@ Chaque échec est écrit dans le journal du serveur, sous une forme fixe :
 {"level":"WARN","msg":"console : échec de connexion","ip":"203.0.113.9","utilisateur":"admin","raison":"mot de passe faux"}
 ```
 
+Un texte saisi dans le champ « Nom » qui n'a pas la forme d'un nom de compte
+est écrit `"utilisateur":"(invalide)"` (un mot de passe tapé au mauvais
+endroit ne va pas dans le journal).
+
+Messages de sécurité (canal de notification principal, 1 par heure et par
+sujet au plus) :
+
+- code 2FA faux après un mot de passe juste ;
+- compte verrouillé ;
+- connexion réussie depuis une nouvelle adresse (aussi à la première
+  connexion après un redémarrage du serveur).
+
+Verrou progressif : chaque nouveau verrou de la même adresse ou du même
+compte dure deux fois plus longtemps (15 min, 30 min, 1 h… 24 h au plus).
+Tout lever : `utilisateur-secours` (§ 5).
+
 Fichiers prêts (à relire et adapter) : `deploy/crowdsec/mirador-logs.yaml`
 (parseur) et `deploy/crowdsec/mirador-bf.yaml` (scénario). Acquisition :
 
@@ -134,14 +150,15 @@ toutes les sessions (elles sont en mémoire).
 
 | Page | Contenu |
 |---|---|
-| Vue d'ensemble | machines, muettes, alertes, canaux, sauvegarde, stockage, état du parc (rafraîchi chaque minute, en pause si l'onglet est caché) |
+| Vue d'ensemble | machines, muettes, alertes, canaux, sauvegarde, stockage, état du parc (rafraîchi chaque minute, en pause si l'onglet est caché) ; tableau des machines avec barres, tri, filtre, colonnes masquables, alertes et éléments « à valider » (§ 10) |
 | Machines | jeton (nom facultatif, site, type, groupe), approbation (nom corrigeable), étiquettes, renommage (historique de l'ancien nom rattaché au nouveau dans les graphiques et les logs), adresses, token, version cible, suppression ; graphiques de la machine |
 | Mises à jour | versions publiées, version globale, fenêtre horaire, publication (manifeste signé + binaire) |
 | Alertes | en cours, historique, détail, accusé de réception, silence en un clic ; silences, maintenances, inhibitions, dépendances ; envois ; comparaison vmalert |
 | Règles | liste et santé, modèles, formulaire, test sur 24 h, import / export YAML, modifications |
 | Logs | recherche bornée, répétitions repliées, palmarès ; flux bloqués |
 | Tableaux | Serveurs Linux, Proxmox, OPNsense, Synology, UniFi, Certificats (convertis des tableaux Grafana), et ceux créés ici ; tous modifiables (§ 9) |
-| Réglages | notifications, conservation, sauvegardes, sites / types / groupes de configuration, agents (par défaut → groupe → machine), interface (GéoIP : téléchargement à la demande, effacée si décochée), export / import |
+| Réglages | notifications, (Olvid), conservation, sauvegardes, sites / types / groupes de configuration, interface (GéoIP : téléchargement à la demande, effacée si décochée), export / import ; mêmes noms et même ordre dans les onglets et les cartes. En bas, « Ailleurs dans mirador » : les réglages rangés avec ce qu'ils concernent (configuration et mises à jour des agents dans Machines, silences dans Alertes, utilisateurs, sécurité, audit) |
+| Configuration des agents | onglet de Machines : par défaut → groupe → machine |
 | Utilisateurs, Sécurité, Audit | comptes, sessions, verrouillage, liste d'adresses, journal d'audit |
 
 ## 7. Olvid depuis l'interface
@@ -192,3 +209,104 @@ toutes les sessions (elles sont en mémoire).
   (« le tableau a changé entre-temps »).
 - Sur téléphone, le glisser-déposer n'est pas garanti : utiliser un
   ordinateur pour la disposition.
+
+## 10. Choisir ce qui est surveillé sur chaque machine
+
+Sur la page d'une machine, bloc « À surveiller sur cette machine »
+(SPEC § 19).
+
+- **Détecté, à valider** : ce que l'agent a trouvé et qui n'est pas encore
+  surveillé (ventilateurs, pools ZFS, RAID logiciel, nouveaux services).
+  Choisir « Surveiller », « Ignorer » ou laisser « Plus tard ».
+- **Surveillé** : ce que la machine envoie. Un point rouge signale un
+  problème. « Retirer » arrête l'envoi (et donc les alertes liées) ;
+  l'historique reste.
+- **Ignoré ou absent** : « Rétablir » remet la valeur par défaut.
+- Taper le **code 2FA**, puis « Enregistrer les choix » (ou « Tout
+  surveiller » / « Tout ignorer »). La machine applique le choix à sa
+  prochaine demande (5 min au plus) ; l'agent redémarre seul.
+- « Appliquer à : tout le groupe » enregistre le choix pour toutes les
+  machines du groupe de configuration. Les services restent par machine.
+- **Services systemd** : par défaut, tous les services démarrés au boot sont
+  suivis automatiquement. Avec « Nouveaux services : me les proposer avant
+  de les surveiller », ceux suivis aujourd'hui le restent, et chaque nouveau
+  service apparaît dans « à valider ».
+- Un agent trop ancien affiche un message : les réglages nouveaux sont
+  grisés jusqu'à sa mise à jour ; le reste fonctionne.
+- Retirer « Disques SMART », « Pare-feu » ou « Certificats » arrête l'envoi,
+  pas l'assistant root de la machine. Pour l'arrêter aussi : `MIRADOR_SMART=non`
+  (ou `MIRADOR_PAREFEU=non`) dans `/etc/mirador-agent/agent.conf`.
+- **Élément par élément** (SPEC § 21, agent récent) :
+  - « Système : disques, interfaces, montages » : garder ou retirer un
+    disque, une interface réseau ou un point de montage précis ;
+    « Rétablir » le remet ;
+  - « Certificats » : la liste des certificats trouvés, avec les jours
+    restants ; garder ou retirer chacun. « Ajouter des chemins » : un par
+    ligne, par exemple `/etc/nginx/ssl/*.crt`. Règles : sous `/etc`,
+    `/opt`, `/srv`, `/var/lib` ou `/usr/local`, nom en `.pem`, `.crt`,
+    `.cer` ou `.cert`, jamais une clé privée, 3 jokers au plus, 20 chemins.
+    Lu au prochain passage de l'assistant root (15 min au plus) ;
+  - une machine peut refuser les chemins venus de l'interface :
+    `MIRADOR_CERTIFICATS_DISTANTS=non` dans son fichier local.
+- **Signal « à valider »** : compteur orange sur « Machines » dans le menu
+  (nombre de machines concernées), colonne « À valider » dans la liste des
+  machines et la vue d'ensemble, pastille à côté du nom de la machine.
+
+Vue d'ensemble :
+
+- un clic sur « Machine », « État », « CPU », « Mémoire », « Disque »,
+  « Alertes », « À valider » ou « Vu » trie ; un deuxième inverse ; un
+  troisième revient à l'ordre par gravité ;
+- « Afficher » ne garde que les machines à regarder (critique, muette ou
+  avertissement), une seule gravité, ou celles qui ont des éléments à
+  valider ;
+- « Filtre » cherche dans le nom, le site, le type et le groupe ;
+- « Colonnes » masque des colonnes ; tri et colonnes sont retenus dans le
+  navigateur.
+
+## 11. Codes de secours et passkeys (« Mon compte »)
+
+SPEC § 20.
+
+**Codes de secours** (téléphone de la 2FA perdu) :
+
+- « Mon compte » › « Codes de secours » › code 2FA › « Créer 10 nouveaux
+  codes ». Ils ne sont affichés **qu'une fois** : les ranger dans le
+  gestionnaire de mots de passe ou sur papier.
+- À la connexion, après le mot de passe : « Téléphone perdu ? Utiliser un
+  code de secours ». Un code ne sert qu'une fois.
+- Une fois connecté : « Double authentification » › « Téléphone perdu » pour
+  préparer une nouvelle 2FA avec un autre code de secours.
+- Chaque usage envoie un message sur le canal de notification.
+- Plus de code, plus de téléphone : `utilisateur-secours NOM` sur le serveur
+  (`docs/administration-serveur.md`).
+
+**Passkeys** :
+
+- « Mon compte » › « Passkeys » › nom + code 2FA › « Continuer », puis
+  « Créer la passkey sur cet appareil ».
+- À la connexion, deux façons :
+  - mot de passe, puis « Utiliser une passkey » à la place du code ;
+  - « Se connecter avec une passkey », sans mot de passe : l'appareil
+    demande alors son code PIN, l'empreinte ou le visage.
+- Pour interdire la passkey seule : « Sécurité » › décocher « Autoriser la
+  connexion par passkey seule ».
+- Il faut ouvrir l'interface par son **nom de domaine en HTTPS** (pas par
+  une adresse IP). nginx doit transmettre l'en-tête `Host` (déjà le cas avec
+  la configuration du § 2).
+- Une passkey ne marche que sous le domaine où elle a été créée : si le
+  domaine de l'interface change, il faut la recréer.
+- Le code 2FA reste demandé pour les actions sensibles.
+
+## 12. Raccourcis et lien du token à la machine
+
+- **Ctrl+K** (ou « Aller à… » dans le menu) : aller à une machine, un
+  tableau ou une page en tapant quelques lettres.
+- **Filtre des courbes** : sur un graphique de 6 courbes ou plus, le champ
+  « Filtrer les courbes… » ne garde que celles dont le nom contient le texte.
+- **Lier le token à la machine** (page de la machine › « Modifier la
+  machine ») : le token est alors refusé s'il est copié sur une autre
+  machine. À délier avant de réinstaller ou de cloner la machine, ou de
+  revenir à un agent plus ancien. Si une machine liée devient muette après
+  une réinstallation : « Délier », attendre une minute, « Lier ».
+

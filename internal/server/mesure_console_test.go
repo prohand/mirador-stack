@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/config"
-	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
 )
@@ -80,10 +80,10 @@ func TestMesureInterface(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_ = console.CreerUtilisateur(ctx, s.db, "admin", console.RoleAdmin, "une longue phrase de passe", "test", "", now)
-	secret, _ := console.NouveauSecretTOTP()
+	_ = auth.CreerUtilisateur(ctx, s.db, "admin", auth.RoleAdmin, "une longue phrase de passe", "test", "", now)
+	secret, _ := auth.NouveauSecretTOTP()
 	ch, _ := secrets.Chiffrer(s.cle, "console.totp", secret)
-	_ = console.DefinirTOTP(ctx, s.db, "admin", ch, 0, "test", "", now)
+	_ = auth.DefinirTOTP(ctx, s.db, "admin", ch, 0, "test", "", now)
 	runtime.GC()
 	rssAvant := rssMesure()
 
@@ -93,7 +93,7 @@ func TestMesureInterface(t *testing.T) {
 	n.faire(http.MethodPost, "/connexion", url.Values{"nom": {"admin"}, "mot_de_passe": {"une longue phrase de passe"}})
 	tConnexion := time.Since(t0)
 	_, corps, _ := n.faire(http.MethodGet, "/connexion/code", nil)
-	code, _ := console.CodeTOTP(secret, time.Now())
+	code, _ := auth.CodeTOTP(secret, time.Now())
 	n.faire(http.MethodPost, "/connexion/code", url.Values{"csrf": {reCSRFe2e.FindStringSubmatch(corps)[1]}, "code": {code}})
 
 	_, corps, _ = n.faire(http.MethodGet, "/tableaux/serveurs-linux?periode=6h", nil)

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -135,7 +136,7 @@ func trouver(t *testing.T, re *regexp.Regexp, s string) string {
 
 func (b *banc) code(secret string) string {
 	b.h.avancer(31 * time.Second)
-	c, err := codeTOTP(secret, b.h.maintenant().Unix()/pasTOTP)
+	c, err := auth.CodeTOTP(secret, b.h.maintenant())
 	if err != nil {
 		b.t.Fatal(err)
 	}
@@ -281,7 +282,7 @@ func TestAccesSansSession(t *testing.T) {
 	}
 	// Faux cookie.
 	r, _ := http.NewRequest(http.MethodGet, b.srv.URL+"/", nil)
-	r.AddCookie(&http.Cookie{Name: NomCookie, Value: "invente"})
+	r.AddCookie(&http.Cookie{Name: auth.NomCookie, Value: "invente"})
 	resp, err := c.Do(r)
 	if err != nil {
 		t.Fatal(err)
@@ -329,7 +330,7 @@ func TestCSRF(t *testing.T) {
 	if code, _, _ := b.post(c, "/utilisateurs", v); code != http.StatusSeeOther {
 		t.Errorf("création correcte refusée : %d", code)
 	}
-	if _, err := LireUtilisateur(context.Background(), b.db, "bob"); err != nil {
+	if _, err := auth.LireUtilisateur(context.Background(), b.db, "bob"); err != nil {
 		t.Error("bob non créé")
 	}
 }
@@ -340,12 +341,12 @@ func TestRolesEtCodeSensible(t *testing.T) {
 	// Sans code 2FA : refusé (action sensible).
 	v := url.Values{"csrf": {b.csrf(c, "/utilisateurs")}, "action": {"creer"}, "nom": {"lea"}, "role": {"lecture"}, "mot_de_passe": {"mot de passe de lea"}}
 	b.post(c, "/utilisateurs", v)
-	if _, err := LireUtilisateur(context.Background(), b.db, "lea"); err == nil {
+	if _, err := auth.LireUtilisateur(context.Background(), b.db, "lea"); err == nil {
 		t.Fatal("compte créé sans code 2FA")
 	}
 	v.Set("code", b.code(secret))
 	b.post(c, "/utilisateurs", v)
-	if _, err := LireUtilisateur(context.Background(), b.db, "lea"); err != nil {
+	if _, err := auth.LireUtilisateur(context.Background(), b.db, "lea"); err != nil {
 		t.Fatal("compte non créé avec le code")
 	}
 	// lea se connecte (2FA à créer), puis n'a que la lecture.
@@ -366,7 +367,7 @@ func TestRolesEtCodeSensible(t *testing.T) {
 		t.Errorf("lecture : POST /utilisateurs → %d", code)
 	}
 	// Le dernier admin ne peut pas être rétrogradé ni supprimé.
-	err := DefinirRole(context.Background(), b.db, "admin", RoleLecture, "test", "", b.h.maintenant())
+	err := auth.DefinirRole(context.Background(), b.db, "admin", auth.RoleLecture, "test", "", b.h.maintenant())
 	if err == nil {
 		t.Error("dernier admin rétrogradé")
 	}
@@ -471,45 +472,6 @@ func TestListeIPAConfirmer(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
-
-func TestMotDePasse(t *testing.T) {
-	e, err := Empreinte("douze caractères")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !Comparer(e, "douze caractères") || Comparer(e, "douze caracteres") {
-		t.Error("comparaison fausse")
-	}
-	if _, err := Empreinte("court"); err == nil {
-		t.Error("mot de passe court accepté")
-	}
-	// Empreinte abîmée : refus sans calcul démesuré.
-	if Comparer("$argon2id$v=19$m=99999999,t=1,p=1$AAAA$AAAA", "x") {
-		t.Error("empreinte abîmée acceptée")
-	}
-}
-
-func TestTOTP(t *testing.T) {
-	// Vecteur de la RFC 6238 (SHA-1, T = 59 s → 94287082, 6 derniers chiffres).
-	secret := b32.EncodeToString([]byte("12345678901234567890"))
-	if c, _ := codeTOTP(secret, 59/30); c != "287082" {
-		t.Fatalf("RFC 6238 : %s", c)
-	}
-	t0 := time.Unix(59, 0)
-	pas, ok := VerifierTOTP(secret, "287 082", t0, 0)
-	if !ok || pas != 1 {
-		t.Fatal("code juste refusé")
-	}
-	if _, ok := VerifierTOTP(secret, "287082", t0, pas); ok {
-		t.Error("code rejoué accepté")
-	}
-	if _, ok := VerifierTOTP(secret, "287082", t0.Add(5*time.Minute), 0); ok {
-		t.Error("code trop vieux accepté")
-	}
-	if !strings.HasPrefix(URITOTP("admin", secret), "otpauth://totp/mirador:admin?") {
-		t.Error("URI otpauth")
-	}
-}
 
 func TestRefererLocal(t *testing.T) {
 	for _, c := range []struct{ ref, attendu string }{

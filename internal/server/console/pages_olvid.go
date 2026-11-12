@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"html/template"
+	"mirador-stack/internal/server/auth"
 	"strconv"
 	"strings"
 
@@ -53,7 +54,7 @@ func (c *Console) pageOlvid(q *req) {
 	var errs []error
 	var e error
 	if d.Lien, e = a.LienInvitation(ctx); e == nil && d.Lien != "" {
-		d.QR, _ = ImageQR(d.Lien)
+		d.QR, _ = auth.ImageQR(d.Lien)
 	}
 	errs = append(errs, e)
 	d.Invitations, e = a.Invitations(ctx)

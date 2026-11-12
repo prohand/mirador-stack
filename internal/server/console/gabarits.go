@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"io/fs"
 	"mime"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"path"
 	"slices"
@@ -193,6 +194,18 @@ func fonctions() template.FuncMap {
 			}
 			return o
 		},
+		// sectionsReglages : onglets et cartes des réglages (Olvid seulement
+		// si le canal est activé).
+		"sectionsReglages": func(olvid bool) []sectionReglages {
+			out := make([]sectionReglages, 0, len(sectionsReglages))
+			for _, x := range sectionsReglages {
+				if x.Cle != "olvid" || olvid {
+					out = append(out, x)
+				}
+			}
+			return out
+		},
+		"pagesLieesReglages": func() []sectionReglages { return pagesLieesReglages },
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s
@@ -202,13 +215,24 @@ func fonctions() template.FuncMap {
 		"menu": func(href, icone, libelle, actif, cle string, compteur int) lienMenu {
 			return lienMenu{Href: href, Icone: icone, Libelle: libelle, Actif: actif == cle, Compteur: compteur}
 		},
+		// menuAValider : lien avec un compteur orange (« à valider ») au lieu
+		// du compteur rouge des alertes.
+		"menuAValider": func(href, icone, libelle, actif, cle string, compteur int, aide string) lienMenu {
+			return lienMenu{Href: href, Icone: icone, Libelle: libelle, Actif: actif == cle, Compteur: compteur,
+				ClasseCompteur: "attention", AideCompteur: aide}
+		},
 		"initiale": func(nom string) string {
 			for _, r := range nom {
 				return string(r)
 			}
 			return "?"
 		},
-		"mio":    func(n int64) int64 { return n >> 20 },
+		"mio": func(n int64) int64 { return n >> 20 },
+		// Colonnes que l'on peut masquer dans le tableau de la vue d'ensemble.
+		"colonnesParc": func() map[string]string {
+			return map[string]string{"courbe": "Courbe CPU", "cpu": "CPU", "memoire": "Mémoire", "disque": "Disque",
+				"alertes": "Alertes", "valider": "À valider", "vu": "Vu"}
+		},
 		"entier": func(f float64) int64 { return int64(f) },
 	}
 }
@@ -328,12 +352,43 @@ type lienMenu struct {
 	Href, Icone, Libelle string
 	Actif                bool
 	Compteur             int
+	ClasseCompteur       string // vide (rouge) ou « attention » (orange)
+	AideCompteur         string // bulle d'aide du compteur
 }
 
 // ongletsReglages : données du morceau « onglets-reglages ».
 type ongletsReglages struct {
 	Actif string
 	Olvid bool
+}
+
+// sectionReglages : une page de Réglages. La MÊME liste sert aux onglets et
+// aux cartes de la page d'accueil des réglages : mêmes noms, même ordre.
+type sectionReglages struct {
+	Cle, Titre, Href, Aide string
+	Ou                     string // pages liées : où la page se trouve dans le menu
+}
+
+// sectionsReglages : pages rangées sous /reglages (onglets).
+var sectionsReglages = []sectionReglages{
+	{Cle: "notifications", Titre: "Notifications", Href: "/reglages/notifications", Aide: "Canaux, principal et secours, bascule, routage par gravité, heartbeat, mode ombre, test d'envoi"},
+	{Cle: "olvid", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
+	{Cle: "conservation", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
+	{Cle: "sauvegardes", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
+	{Cle: "sites", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
+	{Cle: "interface", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau horaire, thème, menu, mode debug temporaire"},
+	{Cle: "export", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},
+}
+
+// pagesLieesReglages : réglages rangés ailleurs dans le menu (à leur place
+// logique), rappelés sur la page d'accueil des réglages.
+var pagesLieesReglages = []sectionReglages{
+	{Titre: "Configuration des agents", Href: "/reglages/agents", Ou: "Machines", Aide: "Par défaut, par groupe, par machine ; test du masquage"},
+	{Titre: "Mises à jour des agents", Href: "/mises-a-jour", Ou: "Machines", Aide: "Versions signées, déploiement progressif"},
+	{Titre: "Silences et maintenances", Href: "/sourdine", Ou: "Alertes", Aide: "Silences, inhibitions, dépendances"},
+	{Titre: "Utilisateurs", Href: "/utilisateurs", Ou: "Configuration", Aide: "Comptes, rôles, 2FA"},
+	{Titre: "Sécurité", Href: "/securite", Ou: "Configuration", Aide: "Sessions, verrouillage, liste d'adresses"},
+	{Titre: "Journal d'audit", Href: "/audit", Ou: "Configuration", Aide: "Qui, quand, avant / après"},
 }
 
 // Page : données communes de toutes les pages de l'interface.
@@ -350,6 +405,7 @@ type Page struct {
 	Disposition   string // gauche ou haut (réglage « Interface »)
 	Replie        bool   // menu replié par défaut
 	NbAlertes     int    // alertes actives (compteur du menu)
+	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
 	Olvid         bool   // canal Olvid activé : l'onglet « Olvid » apparaît
 	D             any
 }
@@ -362,7 +418,7 @@ func (c *Console) rendre(q *req, nom, titre, menu string, d any) {
 func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	p := Page{Titre: titre, Menu: menu, Utilisateur: q.u.Nom, Admin: q.admin(), CSRF: q.s.CSRF,
 		Version: c.opt.Version, D: d}
-	c.sessions.modifier(q.s.empreinte, func(s *Session) { p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", "" })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", "" })
 	p.Flash, p.Alerte = majusculeDebut(p.Flash), majusculeDebut(p.Alerte)
 	if c.opt.Aiguilleur != nil {
 		p.ModeOmbre = c.opt.Aiguilleur.Mode() == "ombre"
@@ -384,6 +440,9 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 				p.NbAlertes++
 			}
 		}
+	}
+	if c.lecteur != nil {
+		p.NbAValider = len(c.aValider(q.r.Context(), q.t))
 	}
 	c.pages.executer(q.w, code, nom, p)
 }

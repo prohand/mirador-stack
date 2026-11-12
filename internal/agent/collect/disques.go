@@ -18,21 +18,28 @@ import (
 // l'expression régulière n'est évaluée qu'une fois par nom.
 type filtre struct {
 	re    *regexp.Regexp
+	noms  map[string]bool // noms exacts retirés dans l'interface (SPEC.md § 21)
 	vu    map[string]bool // nom → exclu ?
 	maxVu int
 }
 
-func newFiltre(expr string) *filtre {
+func newFiltre(expr string, noms ...string) *filtre {
 	f := &filtre{vu: make(map[string]bool), maxVu: 4096}
 	if expr != "" {
 		f.re = regexp.MustCompile(expr) // déjà validée par config.Valider
+	}
+	if len(noms) > 0 {
+		f.noms = make(map[string]bool, len(noms))
+		for _, n := range noms {
+			f.noms[n] = true
+		}
 	}
 	return f
 }
 
 // exclu dit si nom doit être ignoré. nom doit être une chaîne internée.
 func (f *filtre) exclu(nom string) bool {
-	if f.re == nil {
+	if f.re == nil && f.noms == nil {
 		return false
 	}
 	if e, ok := f.vu[nom]; ok {
@@ -41,7 +48,7 @@ func (f *filtre) exclu(nom string) bool {
 	if len(f.vu) >= f.maxVu {
 		clear(f.vu)
 	}
-	e := f.re.MatchString(nom)
+	e := f.noms[nom] || (f.re != nil && f.re.MatchString(nom))
 	f.vu[nom] = e
 	return e
 }
@@ -57,12 +64,13 @@ type Disques struct {
 	filtre *filtre
 }
 
-// NewDisques crée le collecteur ; exclure est l'expression des disques ignorés.
-func NewDisques(proc, exclure string) *Disques {
+// NewDisques crée le collecteur ; exclure est l'expression des disques
+// ignorés, ignorer la liste des disques retirés un par un.
+func NewDisques(proc, exclure string, ignorer ...string) *Disques {
 	return &Disques{
 		chemin: filepath.Join(proc, "diskstats"),
 		intern: metrics.NewInterner(1024),
-		filtre: newFiltre(exclure),
+		filtre: newFiltre(exclure, ignorer...),
 	}
 }
 
@@ -124,12 +132,13 @@ type Reseau struct {
 	filtre *filtre
 }
 
-// NewReseau crée le collecteur ; exclure est l'expression des interfaces ignorées.
-func NewReseau(proc, exclure string) *Reseau {
+// NewReseau crée le collecteur ; exclure est l'expression des interfaces
+// ignorées, ignorer la liste des interfaces retirées une par une.
+func NewReseau(proc, exclure string, ignorer ...string) *Reseau {
 	return &Reseau{
 		chemin: filepath.Join(proc, "net", "dev"),
 		intern: metrics.NewInterner(1024),
-		filtre: newFiltre(exclure),
+		filtre: newFiltre(exclure, ignorer...),
 	}
 }
 
@@ -210,12 +219,13 @@ type SystemesFichiers struct {
 	bloques map[string]bool // montages distants dont le dernier statfs n'est pas revenu
 }
 
-// NewSystemesFichiers crée le collecteur.
-func NewSystemesFichiers(proc, exclMontages, exclTypes, typesDistant string) *SystemesFichiers {
+// NewSystemesFichiers crée le collecteur ; ignorer : montages retirés un
+// par un dans l'interface (chemins exacts).
+func NewSystemesFichiers(proc, exclMontages, exclTypes, typesDistant string, ignorer ...string) *SystemesFichiers {
 	return &SystemesFichiers{
 		chemin:       filepath.Join(proc, "self", "mountinfo"),
 		intern:       metrics.NewInterner(4096),
-		exclMontages: newFiltre(exclMontages),
+		exclMontages: newFiltre(exclMontages, ignorer...),
 		exclTypes:    newFiltre(exclTypes),
 		typesDistant: newFiltre(typesDistant),
 		statfs:       syscall.Statfs,

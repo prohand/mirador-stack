@@ -46,6 +46,7 @@ type Lien struct {
 	Token        string
 	Client       *http.Client
 	Journal      *slog.Logger
+	Empreinte    string                 // empreinte de la machine ('' : pas envoyée)
 	Installateur *majagent.Installateur // nil : pas de mise à jour
 	// Redemarrer arrête l'agent proprement ; systemd le relance.
 	Redemarrer func(raison string)
@@ -126,6 +127,10 @@ func (l *Lien) requete(ctx context.Context, methode, chemin string, corps []byte
 	req.Header.Set(protocole.EnteteProtocole, "1")
 	req.Header.Set(protocole.EnteteVersion, version.Version)
 	req.Header.Set(protocole.EnteteHeure, fmt.Sprint(time.Now().UnixMilli()))
+	req.Header.Set(protocole.EnteteCapacites, protocole.Capacites)
+	if l.Empreinte != "" {
+		req.Header.Set(protocole.EnteteEmpreinte, l.Empreinte)
+	}
 	req.Header.Set("User-Agent", "mirador-agent/"+version.Version)
 	for k, v := range entetes {
 		req.Header.Set(k, v)
@@ -235,7 +240,7 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 // --- Configuration distante --------------------------------------------------------
 
 func (l *Lien) boucleConfig(ctx context.Context) {
-	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client}
+	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte}
 	if !attendre(ctx, l.etale()) {
 		return
 	}

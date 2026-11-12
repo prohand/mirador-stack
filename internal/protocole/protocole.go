@@ -42,7 +42,27 @@ const (
 	// Heure de l'agent au moment de l'envoi (millisecondes Unix) : le serveur
 	// mesure le décalage d'horloge, même pour un lot resté en file d'attente.
 	EnteteHeure = "X-Mirador-Heure"
+	// Capacités de l'agent, séparées par des virgules. Un ancien serveur
+	// ignore cet en-tête ; un ancien agent ne l'envoie pas, et le serveur ne
+	// lui envoie alors aucun réglage qu'il ne connaît pas.
+	EnteteCapacites = "X-Mirador-Capacites"
+	// Empreinte de la machine (32 chiffres hexadécimaux, dérivée de
+	// /etc/machine-id). Si l'admin a lié le token à la machine, le serveur
+	// refuse ce token avec une autre empreinte (token copié ailleurs).
+	EnteteEmpreinte = "X-Mirador-Empreinte"
 )
+
+// CapaciteSurveillance : l'agent connaît les réglages de surveillance choisis
+// dans l'interface (SPEC.md § 19) et signale ce qu'il détecte sur la machine.
+const CapaciteSurveillance = "surveillance"
+
+// CapaciteElements : l'agent sait retirer un disque, une interface, un
+// montage ou un certificat précis, et chercher des certificats aux chemins
+// ajoutés dans l'interface (SPEC.md § 21).
+const CapaciteElements = "elements"
+
+// Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
+const Capacites = CapaciteSurveillance + "," + CapaciteElements
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).

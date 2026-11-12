@@ -9,6 +9,9 @@
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
+| 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
+| 5 ter. Codes de secours de la 2FA et passkeys | **faite, à valider** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
+| 5 quater. Élément par élément, signal « à valider », Réglages rangés | **faite, à valider** (SPEC § 21) | `claude/affectionate-albattani-izl0lb` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -532,6 +535,129 @@ docker volume ls
 
 Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la SPEC
 à jour si tu en trouves.
+
+## Deuxième revue de sécurité et d'architecture (11/11)
+
+- Branche `claude/architecture-security-login-sont9e` ; détail : SPEC § 18.27.
+- **Corrigé** : verrou de connexion contournable par une rafale de requêtes
+  simultanées (40 mots de passe essayés au lieu de 5, mesuré). Un essai est
+  maintenant réservé avant chaque vérification (mot de passe, code 2FA,
+  actions sensibles). Tests : `rafale_test.go` ; `go vet` et
+  `go test -race ./...` verts.
+- Coût : une table en mémoire limitée aux requêtes en cours (quelques
+  octets) ; pas de CPU ni d'I/O en plus.
+- **Fait après validation** (SPEC § 18.28) : messages de sécurité à
+  l'administrateur (code 2FA faux après un bon mot de passe, compte
+  verrouillé, connexion depuis une nouvelle adresse ; 1 par heure et par
+  sujet) ; nom filtré dans le journal. Tests : `prevenir_test.go`,
+  `TestPrevenir`.
+- **À essayer sur le VPS** : se connecter depuis une autre adresse, taper un
+  code 2FA faux ; le message doit arriver sur le canal principal.
+- **Reste fait le 12/11** (SPEC § 18.29) :
+  - verrou progressif (15 min → 24 h), 3 sessions partielles par compte,
+    mots de passe trop simples refusés ;
+  - paquet `internal/server/auth` sorti de `console` (sans changement de
+    comportement) ;
+  - écoute ouverte refusée sans `MIRADOR_PROXY` ni TLS ; démarrage
+    simplifié ; Dependabot (mensuel, regroupé).
+- **Mesure** : boucle de la console = 52 µs par passage toutes les 5 s,
+  18 Ko alloués, aucune écriture disque → relecture des réglages gardée
+  telle quelle. Les autres changements n'ajoutent ni RAM, ni CPU, ni I/O
+  mesurables (un entier par compteur de verrou).
+- **Pas fait** : actions GitHub figées par empreinte (à faire à la main) ;
+  réseau Docker dédié (étape 7).
+- **À vérifier sur le VPS avant de mettre à jour** : `config/server.conf`
+  contient bien `MIRADOR_PROXY=…` (sinon le serveur refuse de démarrer).
+- Non lancé ici : `gosec` (pas installé) ; la CI le fera.
+
+## Idées reprises de Beszel (12/11, SPEC § 19)
+
+Demande : choisir ce qui est surveillé sur chaque machine (détection par
+l'agent, proposition, validation ou non), et un design plus lisible.
+Maquette validée, pas de vérification de port.
+
+| Partie | État |
+|---|---|
+| Agent : réglages de surveillance, ventilateurs, ZFS, RAID logiciel, détection | **fait** (fichiers d'exemple ; aucun vrai capteur, pool ou grappe ici) |
+| Serveur : choix dans la configuration typée, anciens agents protégés, 3 règles | **fait** |
+| Page machine : bloc « À surveiller », bandeau | **fait** |
+| Vue d'ensemble : barres, tri, filtre, colonnes, alertes, « à valider » | **fait** |
+| Documentation (`docs/interface-web.md` § 10), SPEC § 19 | **fait** |
+
+Mesures (machine de développement, 4 cœurs) :
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, détection seule | 0,13 µs par passage (60 s), 0 allocation | < 1 % d'un cœur ✅ |
+| Agent, tout activé | 21 µs par passage, 20 allocations | idem ✅ |
+| Agent, écritures disque | aucune | ✅ |
+| Serveur, page machine et vue d'ensemble | 3 à 5 ms (5 machines) | — |
+| Serveur, écritures disque | seulement à l'enregistrement d'un choix | ✅ |
+| RAM de l'agent et du serveur | **non mesurée en conditions réelles** | à faire sur srv-test et le VPS |
+
+Tests : `go vet` et `go test -race ./...` verts. `gosec` non lancé ici (pas
+installé) : la CI le fera. Règles : 80 après import (77 avant, + 3).
+
+À vérifier chez toi (commandes à coller, sorties à me renvoyer) :
+
+```bash
+# Sur un Proxmox : le fichier d'état des pools existe-t-il, lisible sans root ?
+sudo -u mirador-agent sh -c 'for f in /proc/spl/kstat/zfs/*/state; do echo "$f : $(cat "$f")"; done'
+# Ventilateurs et RAID logiciel vus par le noyau
+ls /sys/class/hwmon/*/fan*_input 2>/dev/null; ls -d /sys/block/md*/md 2>/dev/null
+```
+
+Ajouté ensuite (12/11, SPEC § 19.8) : recherche rapide Ctrl+K, sous-titres
+de 18 graphiques fournis, filtre des courbes, empreinte de la machine (token
+lié à la machine, option éteinte par défaut, migration 0013). Essayé dans
+Chromium sur le serveur de démonstration.
+
+Ordre de mise à jour : **serveur d'abord**, puis les agents (un agent
+récent marche avec un ancien serveur, mais sans ces réglages).
+
+## Codes de secours et passkeys (12/11, SPEC § 20)
+
+| Partie | État |
+|---|---|
+| Codes de secours : 10 codes à usage unique, connexion et nouvelle 2FA | **fait** |
+| Passkeys : création, connexion (à la place du code 2FA), suppression | **fait** |
+| Tests : unitaires, fuzzing, bout en bout, vrai navigateur (Chromium) | **fait** |
+| Essai avec un vrai téléphone ou une vraie clé, derrière nginx | **à faire chez toi** |
+
+- Aucune dépendance ajoutée ; migration 0012 ; `go vet` et
+  `go test -race ./...` verts ; `gosec` à voir en CI.
+- Coût : ~0,1 ms par connexion par passkey ; rien en mémoire hors un défi
+  par session en cours.
+- Réponse du 12/11 (« je veux les 2 ») : la passkey remplace le code 2FA
+  après le mot de passe, **et** peut servir seule, sans mot de passe
+  (l'appareil doit alors vérifier l'utilisateur ; réglage « Sécurité » pour
+  l'interdire). Les deux essayés dans Chromium.
+- À essayer sur le VPS : créer des codes de secours, créer une passkey
+  depuis le téléphone, se déconnecter, se reconnecter des deux façons.
+
+## Élément par élément, « à valider », Réglages (12/11, SPEC § 21)
+
+| Partie | État |
+|---|---|
+| Agent : disques, interfaces, montages, certificats retirés un par un ; chemins de certificats depuis l'interface | **fait** |
+| Assistant root : lecture des chemins venus du serveur, avec garde-fous (§ 21.3) | **fait, écart de sécurité validé le 12/11** (testé ici : lien, tube, clé privée, dossier interdit) |
+| Serveur : capacité `elements`, anciens agents protégés | **fait** |
+| Page machine : détail Système et Certificats | **fait** (vu dans Chromium, démonstration) |
+| Signal « à valider » : menu, liste, en-tête | **fait** |
+| Vue d'ensemble : tri État / À valider / Vu, filtre d'état | **fait** |
+| Réglages : onglets et cartes depuis une seule liste | **fait** |
+
+Mesures (SPEC § 21.4) : agent sans coût mesurable ; assistant root 0,3 ms
+pour 20 certificats toutes les 15 min ; serveur 5,4 µs par machine pour le
+bloc, compteur du menu calculé au plus une fois par minute. RAM réelle
+toujours à mesurer sur srv-test et le VPS.
+
+À vérifier chez toi après mise à jour (serveur d'abord, puis l'agent) :
+
+```bash
+# L'assistant root a-t-il lu les chemins ajoutés dans l'interface ? (erreurs éventuelles)
+sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
+```
 
 ## Prochaine étape
 

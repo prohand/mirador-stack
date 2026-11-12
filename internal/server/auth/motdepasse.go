@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package console
+package auth
 
 import (
 	"crypto/rand"
@@ -62,6 +62,57 @@ func VerifierRegles(mdp string) error {
 	return nil
 }
 
+// VerifierSimple refuse les mots de passe assez longs mais devinés en
+// premier : un seul caractère répété, une suite (« 123456789012 »,
+// « abcdefghijkl »), un motif court répété (« abcabcabcabc »), ou le nom du
+// compte / « mirador » complété par quelques caractères. Pas de liste de
+// mots de passe connus à embarquer : la longueur (12) et la 2FA font le reste.
+func VerifierSimple(mdp, nom string) error {
+	trop := errors.New("mot de passe trop simple (répétition, suite, ou nom du compte)")
+	r := []rune(strings.ToLower(mdp))
+	if len(r) == 0 {
+		return nil // la longueur est vérifiée ailleurs
+	}
+	// Suite : chaque caractère suit le précédent (+1, −1) ou le répète (0).
+	suite := true
+	pas := func(a, b rune) rune { // « 9 » puis « 0 » compte comme une suite
+		if a == '9' && b == '0' {
+			return 1
+		}
+		return b - a
+	}
+	for i := 1; i < len(r) && suite; i++ {
+		d := pas(r[i-1], r[i])
+		suite = d == pas(r[0], r[1]) && d >= -1 && d <= 1
+	}
+	if suite {
+		return trop
+	}
+	// Motif de 1 à 4 caractères répété sur toute la longueur.
+	for n := 1; n <= 4 && n < len(r); n++ {
+		repete := true
+		for i := n; i < len(r) && repete; i++ {
+			repete = r[i] == r[i-n]
+		}
+		if repete {
+			return trop
+		}
+	}
+	// Nom du compte ou « mirador » : sans lui, il doit rester 8 caractères
+	// qui ne sont pas eux-mêmes une suite ou une répétition.
+	bas := string(r)
+	for _, mot := range []string{strings.ToLower(nom), "mirador"} {
+		if mot == "" || !strings.Contains(bas, mot) {
+			continue
+		}
+		reste := strings.Trim(strings.Replace(bas, mot, "", 1), " -_.,;:!?/+*@#")
+		if utf8.RuneCountInString(reste) < 8 || VerifierSimple(reste, "") != nil {
+			return trop
+		}
+	}
+	return nil
+}
+
 // Empreinte renvoie l'empreinte à garder en base (format PHC :
 // $argon2id$v=19$m=…,t=…,p=…$sel$empreinte).
 func Empreinte(mdp string) (string, error) {
@@ -80,9 +131,9 @@ func Empreinte(mdp string) (string, error) {
 		base64.RawStdEncoding.EncodeToString(sel), base64.RawStdEncoding.EncodeToString(e)), nil
 }
 
-// empreinteLeurre : comparée quand le compte n'existe pas, pour que la
+// EmpreinteLeurre : comparée quand le compte n'existe pas, pour que la
 // durée de réponse ne dise pas si un nom d'utilisateur existe.
-var empreinteLeurre, _ = Empreinte("leurre-pour-un-compte-inconnu")
+var EmpreinteLeurre, _ = Empreinte("leurre-pour-un-compte-inconnu")
 
 // Comparer dit si mdp correspond à l'empreinte (temps constant).
 func Comparer(empreinte, mdp string) bool {

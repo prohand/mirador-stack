@@ -39,6 +39,26 @@ type Systemd struct {
 	rafraichi   time.Time
 	redemarrage map[string]float64 // nom → NRestarts
 	actives     []serviceActive    // services activés au démarrage, retenus
+	proposes    []string           // services détectés, pas encore validés
+
+	// Validation service par service (SPEC.md § 19) : si « valider » est vrai,
+	// seuls les services de « surveiller » sont suivis ; les autres sont
+	// seulement signalés (mirador_agent_detecte{genre="service"}).
+	valider    bool
+	surveiller map[string]bool
+}
+
+// maxProposes borne le nombre de services signalés « à valider ».
+const maxProposes = 100
+
+// Valider active la validation service par service : seuls les services de la
+// liste sont surveillés, les autres sont proposés dans l'interface.
+func (s *Systemd) Valider(surveiller []string) {
+	s.valider = true
+	s.surveiller = make(map[string]bool, len(surveiller))
+	for _, n := range surveiller {
+		s.surveiller[n] = true
+	}
 }
 
 // uniteEtat : une unité chargée et son état (ActiveState).
@@ -152,6 +172,9 @@ func (s *Systemd) Collecter(b *metrics.Batch) error {
 		b.Add("node_systemd_enabled_units_total", float64(len(s.actives)))
 		b.Add("node_systemd_enabled_units_down", float64(arretes))
 	}
+	for _, nom := range s.proposes {
+		b.Add(MetriqueDetecte, 1, metrics.L("genre", "service"), metrics.L("nom", nom))
+	}
 	return nil
 }
 
@@ -168,6 +191,7 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 	}
 
 	var actives []serviceActive
+	var proposes []string
 	if noms, err := s.source.ServicesActivesAuDemarrage(ctx); err == nil {
 		sort.Strings(noms)
 		for _, nom := range noms {
@@ -181,6 +205,13 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 			if !devraitTourner(p) {
 				continue
 			}
+			if s.valider && !s.surveiller[nom] {
+				// Pas encore validé dans l'interface : signalé, pas surveillé.
+				if len(proposes) < maxProposes && !serviceDeBase(nom) {
+					proposes = append(proposes, nom)
+				}
+				continue
+			}
 			actives = append(actives, serviceActive{
 				nom:    nom,
 				tourne: p.Etat == "active" || p.Etat == "activating" || p.Etat == "reloading",
@@ -191,6 +222,7 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 	s.mu.Lock()
 	s.redemarrage = redem
 	s.actives = actives
+	s.proposes = proposes
 	s.rafraichi = s.maintenant()
 	s.mu.Unlock()
 }
@@ -213,6 +245,14 @@ func devraitTourner(p proprietesService) bool {
 		return false // 5. tâche de démarrage terminée normalement
 	}
 	return true
+}
+
+// serviceDeBase : services du système lui-même, jamais proposés (ils
+// noieraient la liste « à valider » ; l'échec d'une unité reste suivi par
+// node_systemd_unit_state).
+func serviceDeBase(nom string) bool {
+	return strings.HasPrefix(nom, "systemd-") || strings.HasPrefix(nom, "getty@") ||
+		strings.HasPrefix(nom, "user@") || strings.HasPrefix(nom, "dbus")
 }
 
 func bool01(v bool) float64 {
