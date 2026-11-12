@@ -794,6 +794,12 @@ func (c *Console) postSurveillance(q *req, m flotte.InfoMachine) error {
 		case "ignorer", "non":
 			delete(surveiller, nom)
 			ignorer[nom] = true
+		case "oublier":
+			// Service supprimé de la machine (ou choix à refaire) : retiré de
+			// la configuration. S'il existe encore, il revient « à valider »
+			// (ou est surveillé d'office sans validation un par un).
+			delete(surveiller, nom)
+			delete(ignorer, nom)
 		case "":
 			return nil
 		default:

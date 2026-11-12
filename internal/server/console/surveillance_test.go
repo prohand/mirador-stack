@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -162,6 +163,15 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 	if cfg.SystemdValidation == nil || !*cfg.SystemdValidation || cfg.SystemdSurveiller == nil ||
 		strings.Join(*cfg.SystemdSurveiller, ",") != "fwupd-refresh.service,nginx.service" || cfg.SystemdIgnorer != nil {
 		t.Fatalf("services : %+v", cfg)
+	}
+	// Service supprimé de la machine : ignoré puis « oublié », il quitte la
+	// configuration (plus dans « Ignoré ou absent »).
+	poster("pve1", url.Values{"s.mirador-test.service": {"ignorer"}, "code": {b.code(secret)}})
+	poster("pve1", url.Values{"s.mirador-test.service": {"oublier"}, "code": {b.code(secret)}})
+	cfg, _ = flotte.ConfigEffective(ctx, b.db, 1)
+	if (cfg.SystemdIgnorer != nil && slices.Contains(*cfg.SystemdIgnorer, "mirador-test.service")) ||
+		slices.Contains(*cfg.SystemdSurveiller, "mirador-test.service") {
+		t.Fatalf("service oublié encore présent : %+v", cfg)
 	}
 	// Rétablir les températures (valeur par défaut) ; choix pour tout le groupe.
 	poster("pve1", url.Values{"g.temperatures": {"defaut"}, "g.mdraid": {"oui"}, "portee": {"groupe"}, "code": {b.code(secret)}})

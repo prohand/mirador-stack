@@ -65,7 +65,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{if or $s.Ignores $s.SvcIgnores $s.Absents}}<h3 class="titre-doux">Ignoré ou absent</h3>
 <div class="surv-ignores">
 {{range $s.Ignores}}<span class="pastille">{{.Titre}} : ignoré{{if $.Admin}} <select class="petit" name="g.{{.Cle}}" aria-label="{{.Titre}}" {{if .Bloque}}disabled{{end}}><option value="">—</option><option value="defaut">Rétablir</option></select>{{end}}</span>{{end}}
-{{range $s.SvcIgnores}}<span class="pastille"><code>{{.Nom}}</code> : ignoré{{if $.Admin}} <select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">—</option><option value="retablir">Rétablir</option></select>{{end}}</span>{{end}}
+{{range $s.SvcIgnores}}<span class="pastille"><code>{{.Nom}}</code> : ignoré{{if $.Admin}} <select class="petit" name="s.{{.Nom}}" aria-label="{{.Nom}}"><option value="">—</option><option value="retablir">Rétablir</option><option value="oublier" title="Pour un service supprimé de la machine : il disparaît de cette liste">Oublier (service supprimé)</option></select>{{end}}</span>{{end}}
 {{range $s.Absents}}<span class="pastille">{{.}} : absent sur cette machine</span>{{end}}
 </div>{{end}}
 
