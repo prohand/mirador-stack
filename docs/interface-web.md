@@ -265,12 +265,28 @@ SPEC § 20.
 
 - « Mon compte » › « Passkeys » › nom + code 2FA › « Continuer », puis
   « Créer la passkey sur cet appareil ».
-- À la connexion, après le mot de passe : « Utiliser une passkey » à la
-  place du code.
+- À la connexion, deux façons :
+  - mot de passe, puis « Utiliser une passkey » à la place du code ;
+  - « Se connecter avec une passkey », sans mot de passe : l'appareil
+    demande alors son code PIN, l'empreinte ou le visage.
+- Pour interdire la passkey seule : « Sécurité » › décocher « Autoriser la
+  connexion par passkey seule ».
 - Il faut ouvrir l'interface par son **nom de domaine en HTTPS** (pas par
   une adresse IP). nginx doit transmettre l'en-tête `Host` (déjà le cas avec
   la configuration du § 2).
 - Une passkey ne marche que sous le domaine où elle a été créée : si le
   domaine de l'interface change, il faut la recréer.
 - Le code 2FA reste demandé pour les actions sensibles.
+
+## 12. Raccourcis et lien du token à la machine
+
+- **Ctrl+K** (ou « Aller à… » dans le menu) : aller à une machine, un
+  tableau ou une page en tapant quelques lettres.
+- **Filtre des courbes** : sur un graphique de 6 courbes ou plus, le champ
+  « Filtrer les courbes… » ne garde que celles dont le nom contient le texte.
+- **Lier le token à la machine** (page de la machine › « Modifier la
+  machine ») : le token est alors refusé s'il est copié sur une autre
+  machine. À délier avant de réinstaller ou de cloner la machine, ou de
+  revenir à un agent plus ancien. Si une machine liée devient muette après
+  une réinstallation : « Délier », attendre une minute, « Lier ».
 

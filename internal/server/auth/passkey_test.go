@@ -40,7 +40,7 @@ func TestPasskeyCreationEtConnexion(t *testing.T) {
 			}
 			defi2, _ := NouveauDefiPasskey()
 			c, a, s := cle.Signer(defi2)
-			if _, err := VerifierConnexion(p, c, a, s, defi2, domaineTest, origineTest); err != nil {
+			if _, err := VerifierConnexion(p, c, a, s, defi2, domaineTest, origineTest, false); err != nil {
 				t.Fatalf("connexion refusée : %v", err)
 			}
 			// Tout ce qui doit être refusé à la connexion.
@@ -60,12 +60,12 @@ func TestPasskeyCreationEtConnexion(t *testing.T) {
 				if strings.HasPrefix(cas, "défi") {
 					attendu, _ = NouveauDefiPasskey()
 				}
-				if _, err := VerifierConnexion(p, r[0], r[1], r[2], attendu, domaineTest, origineTest); !errors.Is(err, ErrPasskey) {
+				if _, err := VerifierConnexion(p, r[0], r[1], r[2], attendu, domaineTest, origineTest, false); !errors.Is(err, ErrPasskey) {
 					t.Errorf("%s : accepté (%v)", cas, err)
 				}
 			}
 			// Clé créée pour un autre domaine : inutilisable ici.
-			if _, err := VerifierConnexion(p, c, a, s, defi2, "autre.example.org", "https://autre.example.org"); !errors.Is(err, ErrPasskey) {
+			if _, err := VerifierConnexion(p, c, a, s, defi2, "autre.example.org", "https://autre.example.org", false); !errors.Is(err, ErrPasskey) {
 				t.Error("clé acceptée sous un autre domaine")
 			}
 		})
@@ -99,6 +99,27 @@ func TestPasskeyCreationRefusee(t *testing.T) {
 	}
 }
 
+// Passkey seule (sans mot de passe) : l'appareil doit avoir vérifié
+// l'utilisateur ; une clé qui ne fait que « toucher » est refusée.
+func TestPasskeyVerificationExigee(t *testing.T) {
+	cle := fauxcle.Nouvelle(algES256, domaineTest, origineTest)
+	defi, _ := NouveauDefiPasskey()
+	client, att := cle.Creer(defi)
+	p, _ := VerifierCreation(client, att, defi, domaineTest, origineTest)
+	c, a, s := cle.Signer(defi)
+	if _, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest, true); err != nil {
+		t.Fatalf("clé avec vérification refusée : %v", err)
+	}
+	cle.SansVerification = true
+	c, a, s = cle.Signer(defi)
+	if _, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest, true); !errors.Is(err, ErrPasskey) {
+		t.Error("clé sans vérification de l'utilisateur acceptée seule")
+	}
+	if _, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest, false); err != nil {
+		t.Errorf("la même clé doit rester valable après un mot de passe : %v", err)
+	}
+}
+
 // Compteur de signatures : il doit avancer quand la clé s'en sert.
 func TestPasskeyCompteur(t *testing.T) {
 	cle := fauxcle.Nouvelle(algES256, domaineTest, origineTest)
@@ -110,13 +131,13 @@ func TestPasskeyCompteur(t *testing.T) {
 		t.Fatalf("%+v %v", p, err)
 	}
 	c, a, s := cle.Signer(defi)
-	n, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest)
+	n, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest, false)
 	if err != nil || n != 6 {
 		t.Fatalf("compteur %d %v", n, err)
 	}
 	p.Compteur = 9 // la base a vu plus loin : la réponse vient d'une copie
 	c, a, s = cle.Signer(defi)
-	if _, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest); !errors.Is(err, ErrPasskey) {
+	if _, err := VerifierConnexion(p, c, a, s, defi, domaineTest, origineTest, false); !errors.Is(err, ErrPasskey) {
 		t.Error("compteur en recul accepté")
 	}
 }
@@ -273,7 +294,7 @@ func FuzzPasskey(f *testing.F) {
 		_, _, _ = lireCBOR(att, 0)
 		_, _ = VerifierCreation(client, base64.RawURLEncoding.EncodeToString(att), "defi", domaineTest, origineTest)
 		p := &Passkey{Domaine: domaineTest, Algorithme: algES256, ClePublique: att}
-		_, _ = VerifierConnexion(p, client, base64.RawURLEncoding.EncodeToString(att), client, "defi", domaineTest, origineTest)
+		_, _ = VerifierConnexion(p, client, base64.RawURLEncoding.EncodeToString(att), client, "defi", domaineTest, origineTest, false)
 	})
 }
 
@@ -285,7 +306,7 @@ func BenchmarkVerifierConnexion(b *testing.B) {
 	c, a, s := cle.Signer("defi")
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := VerifierConnexion(p, c, a, s, "defi", domaineTest, origineTest); err != nil {
+		if _, err := VerifierConnexion(p, c, a, s, "defi", domaineTest, origineTest, false); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -433,6 +433,7 @@
         {
           "type": "courbe",
           "titre": "CPU",
+          "description": "Utilisation moyenne de tous les cœurs",
           "unite": "percent",
           "requetes": [
             {
@@ -458,6 +459,7 @@
         {
           "type": "courbe",
           "titre": "Memoire utilisee",
+          "description": "Mémoire occupée, sans le cache du système",
           "unite": "percent",
           "requetes": [
             {
@@ -470,6 +472,7 @@
         {
           "type": "courbe",
           "titre": "Swap utilise",
+          "description": "Mémoire déplacée sur le disque ; une hausse durable ralentit la machine",
           "unite": "bytes",
           "requetes": [
             {
@@ -487,6 +490,7 @@
         {
           "type": "barres",
           "titre": "Occupation des systemes de fichiers",
+          "description": "Place utilisée par point de montage",
           "unite": "percent",
           "decimales": 0,
           "seuils": [
@@ -568,6 +572,7 @@
         {
           "type": "courbe",
           "titre": "Erreurs et pertes",
+          "description": "Paquets en erreur ou jetés par interface ; normalement à zéro",
           "unite": "pps",
           "requetes": [
             {
@@ -862,6 +867,7 @@
         {
           "type": "courbe",
           "titre": "Memoire par conteneur (top 10)",
+          "description": "Mémoire réellement occupée, sans le cache des fichiers",
           "unite": "bytes",
           "requetes": [
             {

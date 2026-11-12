@@ -283,7 +283,12 @@ func VerifierCreation(clientB64, attestationB64, defi, domaine, origine string) 
 // VerifierConnexion contrôle la réponse du navigateur à une demande de
 // connexion (navigator.credentials.get) pour la passkey p. Elle renvoie le
 // nouveau compteur de signatures.
-func VerifierConnexion(p *Passkey, clientB64, authentificateurB64, signatureB64, defi, domaine, origine string) (uint32, error) {
+//
+// exigerVerification : la clé doit avoir vérifié l'utilisateur (code PIN,
+// empreinte, visage). Obligatoire quand la passkey sert seule, sans mot de
+// passe : elle vaut alors deux facteurs (l'appareil + ce que l'on sait ou
+// ce que l'on est).
+func VerifierConnexion(p *Passkey, clientB64, authentificateurB64, signatureB64, defi, domaine, origine string, exigerVerification bool) (uint32, error) {
 	if p.Domaine != domaine {
 		return 0, refus("clé créée pour %q, pas pour %q", p.Domaine, domaine)
 	}
@@ -298,9 +303,12 @@ func VerifierConnexion(p *Passkey, clientB64, authentificateurB64, signatureB64,
 	if err != nil {
 		return 0, refus("données de l'authentificateur illisibles")
 	}
-	_, compteur, _, err := lireAuthentificateur(aut, domaine)
+	drapeaux, compteur, _, err := lireAuthentificateur(aut, domaine)
 	if err != nil {
 		return 0, err
+	}
+	if exigerVerification && drapeaux&drapeauVerifie == 0 {
+		return 0, refus("l'appareil n'a pas vérifié l'utilisateur (code PIN ou biométrie)")
 	}
 	signature, err := decoderB64(signatureB64, 1<<10)
 	if err != nil {
@@ -428,4 +436,24 @@ func SupprimerPasskey(ctx context.Context, db *sql.DB, u Utilisateur, id int64, 
 func NoterPasskeyUtilisee(ctx context.Context, db *sql.DB, id int64, compteur uint32, t time.Time) error {
 	_, err := db.ExecContext(ctx, `UPDATE passkeys SET compteur = ?, utilise_le = ? WHERE id = ?`, compteur, t.Unix(), id)
 	return err
+}
+
+// PasskeyParIdentifiant retrouve une passkey par son identifiant (connexion
+// sans mot de passe : c'est la clé qui dit de quel compte il s'agit).
+func PasskeyParIdentifiant(ctx context.Context, db *sql.DB, identifiantB64 string) (*Passkey, error) {
+	id, err := decoderB64(identifiantB64, 1023)
+	if err != nil || len(id) == 0 {
+		return nil, ErrPasskey
+	}
+	var p Passkey
+	err = db.QueryRowContext(ctx, `SELECT id, utilisateur_id, identifiant, cle_publique, algorithme, compteur, domaine, nom, cree_le, utilise_le
+		FROM passkeys WHERE identifiant = ?`, id).Scan(&p.ID, &p.UtilisateurID, &p.Identifiant, &p.ClePublique, &p.Algorithme, &p.Compteur,
+		&p.Domaine, &p.Nom, &p.CreeLe, &p.UtiliseLe)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrPasskey
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }

@@ -347,3 +347,82 @@ document.addEventListener("change", function (e) {
   document.addEventListener("mirador:fragment", appliquer);
   appliquer();
 })();
+
+// Recherche rapide (Ctrl+K ou bouton « Aller à… ») : machines, tableaux et
+// pages. La liste est lue une fois (/donnees/aller) ; le filtrage se fait
+// ici. Tout est inséré comme TEXTE. Flèches et Entrée pour choisir.
+(function () {
+  var boite = null, champ = null, liste = null, tout = null, choix = 0;
+  function construire() {
+    boite = document.createElement("dialog");
+    boite.className = "aller-boite";
+    champ = document.createElement("input");
+    champ.type = "search";
+    champ.placeholder = "Machine, tableau ou page…";
+    champ.setAttribute("aria-label", "Aller à");
+    champ.maxLength = 63;
+    liste = document.createElement("ul");
+    boite.appendChild(champ);
+    boite.appendChild(liste);
+    document.body.appendChild(boite);
+    champ.addEventListener("input", function () { choix = 0; afficher(); });
+    champ.addEventListener("keydown", function (e) {
+      var n = liste.children.length;
+      if (e.key === "ArrowDown" && n) { choix = (choix + 1) % n; marquer(); e.preventDefault(); }
+      if (e.key === "ArrowUp" && n) { choix = (choix + n - 1) % n; marquer(); e.preventDefault(); }
+      if (e.key === "Enter" && liste.children[choix]) { window.location = liste.children[choix].firstChild.getAttribute("href"); }
+    });
+    boite.addEventListener("click", function (e) { if (e.target === boite) { boite.close(); } });
+  }
+  function marquer() {
+    Array.prototype.forEach.call(liste.children, function (li, i) { li.classList.toggle("choisi", i === choix); });
+    if (liste.children[choix]) { liste.children[choix].scrollIntoView({ block: "nearest" }); }
+  }
+  function afficher() {
+    var mots = champ.value.toLowerCase().split(/\s+/).filter(Boolean);
+    liste.textContent = "";
+    (tout || []).filter(function (d) {
+      var t = (d.titre + " " + d.genre).toLowerCase();
+      return mots.every(function (m) { return t.indexOf(m) >= 0; });
+    }).slice(0, 12).forEach(function (d) {
+      var li = document.createElement("li"), a = document.createElement("a"), g = document.createElement("span");
+      a.setAttribute("href", d.lien);
+      a.textContent = d.titre;
+      g.textContent = d.genre;
+      a.appendChild(g);
+      li.appendChild(a);
+      liste.appendChild(li);
+    });
+    if (!liste.children.length) {
+      var vide = document.createElement("li");
+      vide.className = "vide";
+      vide.textContent = tout ? "Rien ne correspond." : "Chargement…";
+      liste.appendChild(vide);
+    }
+    marquer();
+  }
+  function ouvrir() {
+    if (!window.HTMLDialogElement) { return; }
+    if (!boite) { construire(); }
+    if (boite.open) { return; }
+    champ.value = "";
+    choix = 0;
+    boite.showModal();
+    afficher();
+    if (tout) { return; }
+    fetch("/donnees/aller", { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (d) {
+        // Liens internes seulement (jamais une adresse complète).
+        tout = (d || []).filter(function (x) { return typeof x.lien === "string" && x.lien.charAt(0) === "/" && x.lien.charAt(1) !== "/"; });
+        afficher();
+      })
+      .catch(function () { tout = []; afficher(); });
+  }
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); ouvrir(); }
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-aller]")) { ouvrir(); }
+  });
+})();

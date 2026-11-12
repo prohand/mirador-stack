@@ -377,6 +377,7 @@ func (c *Console) postSecurite(q *req) {
 				return err
 			}
 			s.IPs = strings.TrimSpace(q.r.PostFormValue("ips"))
+			s.SansPasskeySeule = q.r.PostFormValue("passkey_seule") == ""
 		}
 		if err := s.Valider(); err != nil {
 			return err

@@ -5,12 +5,14 @@ package console
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"html/template"
 	"mirador-stack/internal/server/auth"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mirador-stack/internal/server/secrets"
@@ -37,6 +39,29 @@ type donneesConnexion struct {
 	// Passkeys du compte utilisables sous ce domaine (étape du code) : défi,
 	// domaine et identifiants (séparés par des virgules), pour passkey.js.
 	PKDefi, PKDomaine, PKIds string
+	// PKSeule : la page de connexion propose la passkey seule (sans mot de
+	// passe) ; PKDomaine est alors rempli, le défi est demandé au clic.
+	PKSeule bool
+}
+
+// passkeySeule : domaine si la connexion par passkey seule est possible
+// sous cet hôte (réglage de sécurité, nom de domaine en HTTPS), sinon "".
+func (c *Console) passkeySeule(r *http.Request) string {
+	if c.securite.Load().SansPasskeySeule {
+		return ""
+	}
+	domaine, _, err := auth.DomaineEtOrigine(r.Host)
+	if err != nil || !auth.PasskeyPossible(domaine) {
+		return ""
+	}
+	return domaine
+}
+
+// pageConnexionAvec : page de connexion (code HTTP, erreur éventuelle).
+func (c *Console) pageConnexionAvec(w http.ResponseWriter, r *http.Request, code int, d donneesConnexion) {
+	d.PKDomaine = c.passkeySeule(r)
+	d.PKSeule = d.PKDomaine != ""
+	c.pages.rendreSeuleCode(w, code, "connexion", "Connexion", d)
 }
 
 func (c *Console) pageConnexion(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +69,7 @@ func (c *Console) pageConnexion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/premier-admin", http.StatusSeeOther)
 		return
 	}
-	c.pages.rendreSeule(w, "connexion", "Connexion", donneesConnexion{})
+	c.pageConnexionAvec(w, r, http.StatusOK, donneesConnexion{})
 }
 
 // premierAFaire : vrai tant qu'aucun compte n'existe. Un compte créé
@@ -105,13 +130,13 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	if c.verrous.BloqueAdresse(ip, t) {
 		d.Erreur = "trop d'essais depuis cette adresse : réessayer plus tard"
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "adresse verrouillée")
-		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, d)
 		return
 	}
 	if c.verrous.BloqueCompte(nom, ip, t) {
 		d.Erreur = "trop d'essais sur ce compte : réessayer plus tard"
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "compte verrouillé")
-		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, d)
 		return
 	}
 	// Essai réservé avant le calcul : une rafale de requêtes simultanées
@@ -120,7 +145,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		d.Erreur = messageSimultanes
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "trop d'essais en même temps")
-		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, d)
 		return
 	}
 	defer finir()
@@ -136,7 +161,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	bon, occupe := auth.ComparerOccupe(empreinte, mdp)
 	if occupe {
 		d.Erreur = auth.ErrOccupe.Error()
-		c.pages.rendreSeuleCode(w, http.StatusServiceUnavailable, "connexion", "Connexion", d)
+		c.pageConnexionAvec(w, r, http.StatusServiceUnavailable, d)
 		return
 	}
 	if u.ID == 0 || !bon || u.Desactive {
@@ -149,7 +174,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 		}
 		c.echecConnexion(ip, nom, raison, t)
 		d.Erreur = messageEchec
-		c.pages.rendreSeuleCode(w, http.StatusUnauthorized, "connexion", "Connexion", d)
+		c.pageConnexionAvec(w, r, http.StatusUnauthorized, d)
 		return
 	}
 	etape := auth.EtapeCode
@@ -350,7 +375,7 @@ func (c *Console) postPasskey(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			compteur, err := auth.VerifierConnexion(p, r.PostFormValue("client"), r.PostFormValue("authentificateur"),
-				r.PostFormValue("signature"), defi, domaine, origine)
+				r.PostFormValue("signature"), defi, domaine, origine, false)
 			if err != nil {
 				return err
 			}
@@ -367,6 +392,152 @@ func (c *Console) postPasskey(w http.ResponseWriter, r *http.Request) {
 		c.echecEtapeCode(w, r, s, u, "passkey refusée", "passkey refusée : réessayer, ou utiliser le code 2FA")
 		return
 	}
+	c.reussir(w, r, s, u.Nom, ip, t)
+}
+
+// --- Passkey seule (sans mot de passe) -----------------------------------------------
+
+// defisConnexion : défis des connexions par passkey seule. Avant la
+// connexion il n'y a pas de session où les garder : ils sont ici, en
+// mémoire, bornés, valables 5 min et à usage unique.
+type defisConnexion struct {
+	mu   sync.Mutex
+	tout map[string]time.Time
+}
+
+const defisConnexionMax = 2000
+
+func (d *defisConnexion) nouveau(t time.Time) (string, error) {
+	defi, err := auth.NouveauDefiPasskey()
+	if err != nil {
+		return "", err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.tout == nil {
+		d.tout = map[string]time.Time{}
+	}
+	for k, le := range d.tout { // ménage des défis expirés
+		if t.Sub(le) > auth.DureeDefiPasskey {
+			delete(d.tout, k)
+		}
+	}
+	if len(d.tout) >= defisConnexionMax {
+		return "", errors.New("trop de demandes en cours")
+	}
+	d.tout[defi] = t
+	return defi, nil
+}
+
+// prendre : vrai si le défi a été émis ici il y a moins de 5 min ; il est
+// effacé dans tous les cas (usage unique).
+func (d *defisConnexion) prendre(defi string, t time.Time) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	le, ok := d.tout[defi]
+	delete(d.tout, defi)
+	return ok && t.Sub(le) <= auth.DureeDefiPasskey
+}
+
+// postDefiPasskey : défi pour une connexion par passkey seule (appelé par
+// passkey.js au clic sur le bouton). Réponse JSON : {defi, domaine}.
+func (c *Console) postDefiPasskey(w http.ResponseWriter, r *http.Request) {
+	t := c.maintenant()
+	ip := web.AdresseClient(r).String()
+	domaine := c.passkeySeule(r)
+	if domaine == "" || c.verrous.BloqueAdresse(ip, t) {
+		http.Error(w, "connexion par passkey indisponible", http.StatusForbidden)
+		return
+	}
+	defi, err := c.defis.nouveau(t)
+	if err != nil {
+		http.Error(w, "trop de demandes : réessayer dans un instant", http.StatusTooManyRequests)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]string{"defi": defi, "domaine": domaine})
+}
+
+// postPasskeySeule : connexion sans mot de passe. La passkey dit de quel
+// compte il s'agit ; elle doit avoir vérifié l'utilisateur (deux facteurs :
+// l'appareil, et son code PIN ou la biométrie).
+func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
+	t := c.maintenant()
+	ip := web.AdresseClient(r).String()
+	refuser := func(code int, nom, raison string) {
+		if raison != "" {
+			c.echecConnexion(ip, nom, raison, t)
+		}
+		c.pageConnexionAvec(w, r, code, donneesConnexion{Erreur: "passkey refusée : réessayer, ou se connecter avec le mot de passe"})
+	}
+	domaine := c.passkeySeule(r)
+	if domaine == "" {
+		refuser(http.StatusForbidden, "", "")
+		return
+	}
+	if c.verrous.BloqueAdresse(ip, t) {
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", "", "raison", "adresse verrouillée")
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, donneesConnexion{Erreur: "trop d'essais depuis cette adresse : réessayer plus tard"})
+		return
+	}
+	_, origine, _ := auth.DomaineEtOrigine(r.Host)
+	// Le défi est lu dans la réponse du navigateur ; il doit avoir été émis
+	// ici, et ne sert qu'une fois.
+	defi := r.PostFormValue("defi")
+	if !c.defis.prendre(defi, t) {
+		refuser(http.StatusUnauthorized, "", "passkey : défi inconnu ou expiré")
+		return
+	}
+	p, err := auth.PasskeyParIdentifiant(r.Context(), c.db, r.PostFormValue("identifiant"))
+	if err != nil {
+		if !errors.Is(err, auth.ErrPasskey) {
+			http.Error(w, "base indisponible", http.StatusServiceUnavailable)
+			return
+		}
+		refuser(http.StatusUnauthorized, "", "passkey inconnue")
+		return
+	}
+	u, err := auth.LireUtilisateurID(r.Context(), c.db, p.UtilisateurID)
+	if err != nil || u.Desactive || u.TOTP == "" {
+		refuser(http.StatusUnauthorized, "", "passkey d'un compte désactivé ou sans 2FA")
+		return
+	}
+	if c.verrous.BloqueCompte(u.Nom, ip, t) {
+		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", u.Nom, "raison", "compte verrouillé")
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, donneesConnexion{Erreur: "trop d'essais sur ce compte : réessayer plus tard"})
+		return
+	}
+	finir, libre := c.verrous.Debuter(u.Nom, ip, c.securite.Load().Echecs, t)
+	if !libre {
+		c.pageConnexionAvec(w, r, http.StatusTooManyRequests, donneesConnexion{Erreur: messageSimultanes})
+		return
+	}
+	defer finir()
+	compteur, err := auth.VerifierConnexion(p, r.PostFormValue("client"), r.PostFormValue("authentificateur"),
+		r.PostFormValue("signature"), defi, domaine, origine, true)
+	if err != nil {
+		c.journal.Warn("console : passkey refusée", "ip", ip, "utilisateur", u.Nom, "detail", err.Error())
+		refuser(http.StatusUnauthorized, u.Nom, "passkey refusée (sans mot de passe)")
+		return
+	}
+	if err := auth.NoterPasskeyUtilisee(r.Context(), c.db, p.ID, compteur, t); err != nil {
+		http.Error(w, "base indisponible", http.StatusServiceUnavailable)
+		return
+	}
+	// Nouvelle session : une ancienne session du navigateur n'est jamais reprise.
+	if ck, _ := r.Cookie(auth.NomCookie); ck != nil {
+		if s := c.sessions.Lire(ck.Value); s != nil {
+			c.sessions.Supprimer(s.Empreinte)
+		}
+	}
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip}, t)
+	s := c.sessions.Lire(id)
+	if s == nil {
+		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+		return
+	}
+	c.journal.Info("console : connexion par passkey seule", "ip", ip, "utilisateur", u.Nom, "passkey", p.Nom)
 	c.reussir(w, r, s, u.Nom, ip, t)
 }
 

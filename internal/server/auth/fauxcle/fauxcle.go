@@ -25,7 +25,10 @@ type Cle struct {
 	Compteur    uint32
 	Domaine     string
 	Origine     string
-	prive       crypto.Signer
+	// SansVerification : la clé confirme la présence (un toucher) mais ne
+	// vérifie pas l'utilisateur (ni code PIN ni biométrie).
+	SansVerification bool
+	prive            crypto.Signer
 }
 
 // Nouvelle crée une clé pour un domaine et une origine.
@@ -127,7 +130,11 @@ func (c *Cle) Signer(defi string) (client, authentificateur, signature string) {
 	if c.Compteur > 0 {
 		c.Compteur++
 	}
-	aut := c.entete(0x05)
+	drapeaux := byte(0x05) // présent + vérifié
+	if c.SansVerification {
+		drapeaux = 0x01
+	}
+	aut := c.entete(drapeaux)
 	cl := c.client("webauthn.get", defi)
 	h := sha256.Sum256(cl)
 	message := append(append([]byte{}, aut...), h[:]...)

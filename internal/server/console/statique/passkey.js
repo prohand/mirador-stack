@@ -53,6 +53,8 @@
         user: { id: versOctets(d("utilisateur")), name: d("compte"), displayName: d("compte") },
         pubKeyCredParams: d("algorithmes").split(",").map(function (a) { return { type: "public-key", alg: parseInt(a, 10) }; }),
         excludeCredentials: liste(d("exclure")),
+        // Clé « découvrable » si l'appareil le permet : elle peut alors
+        // servir seule, sans taper le nom du compte.
         authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
         attestation: "none",
         timeout: 120000
@@ -60,6 +62,23 @@
         form.elements.client.value = versTexte(cle.response.clientDataJSON);
         form.elements.attestation.value = versTexte(cle.response.attestationObject);
       });
+    } else if (d("passkey") === "seule") {
+      // Sans mot de passe : le défi est demandé au serveur, la clé choisit
+      // le compte, et l'appareil doit vérifier l'utilisateur (code PIN,
+      // empreinte, visage).
+      demande = fetch("/connexion/passkey-defi", { method: "POST", credentials: "same-origin", headers: { "X-Requested-With": "mirador" } })
+        .then(function (r) { if (!r.ok) { throw new Error("defi"); } return r.json(); })
+        .then(function (j) {
+          form.elements.defi.value = j.defi;
+          return navigator.credentials.get({ publicKey: {
+            challenge: versOctets(j.defi), rpId: j.domaine, userVerification: "required", timeout: 120000
+          } });
+        }).then(function (cle) {
+          form.elements.identifiant.value = versTexte(cle.rawId);
+          form.elements.client.value = versTexte(cle.response.clientDataJSON);
+          form.elements.authentificateur.value = versTexte(cle.response.authenticatorData);
+          form.elements.signature.value = versTexte(cle.response.signature);
+        });
     } else {
       demande = navigator.credentials.get({ publicKey: {
         challenge: versOctets(d("defi")),

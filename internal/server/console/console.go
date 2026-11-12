@@ -65,6 +65,7 @@ type Options struct {
 
 // Console : l'interface en marche.
 type Console struct {
+	defis    defisConnexion // défis des connexions par passkey seule
 	opt      Options
 	db       *sql.DB
 	journal  *slog.Logger

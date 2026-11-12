@@ -23,6 +23,9 @@ type Securite struct {
 	Echecs     int           `json:"echecs"`     // échecs avant verrouillage (par adresse)
 	Verrou     alertes.Duree `json:"verrou"`     // durée du verrouillage
 	IPs        string        `json:"ips"`        // adresses ou préfixes autorisés ('' = toutes)
+	// SansPasskeySeule : interdit la connexion par passkey seule (sans mot
+	// de passe). La passkey reste utilisable à la place du code 2FA.
+	SansPasskeySeule bool `json:"sans_passkey_seule,omitempty"`
 }
 
 // SecuriteDefaut : sessions courtes (brief).

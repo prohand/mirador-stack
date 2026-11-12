@@ -86,6 +86,7 @@
         if (el.u) { el.u.destroy(); }
         el.textContent = "";
         el.u = new uPlot(opts, donnees, el);
+        filtrer(el, d.series.length);
         if (d.erreur) {
           var p = document.createElement("small");
           p.textContent = d.erreur;
@@ -94,6 +95,34 @@
       })
       .catch(function () { el.textContent = "données indisponibles"; })
       .finally(function () { el.enCours = false; });
+  }
+
+  // Filtre des séries : à partir de 6 courbes (conteneurs, machines…), un
+  // petit champ au-dessus du graphique ne garde que celles dont le nom
+  // contient le texte tapé. Le choix est gardé d'un rechargement à l'autre.
+  function appliquerFiltre(el) {
+    if (!el.u) { return; }
+    var mots = (el.filtre || "").toLowerCase().split(/\s+/).filter(Boolean);
+    for (var i = 1; i < el.u.series.length; i++) {
+      var nom = String(el.u.series[i].label || "").toLowerCase();
+      var garde = mots.every(function (m) { return nom.indexOf(m) >= 0; });
+      if (el.u.series[i].show !== garde) { el.u.setSeries(i, { show: garde }); }
+    }
+  }
+  function filtrer(el, nb) {
+    if (!el.champFiltre && nb >= 6 && el.parentNode) {
+      var boite = document.createElement("div"), champ = document.createElement("input");
+      boite.className = "filtre-series";
+      champ.type = "search";
+      champ.placeholder = "Filtrer les courbes…";
+      champ.setAttribute("aria-label", "Filtrer les courbes de ce graphique");
+      champ.maxLength = 63;
+      champ.addEventListener("input", function () { el.filtre = champ.value; appliquerFiltre(el); });
+      boite.appendChild(champ);
+      el.parentNode.insertBefore(boite, el);
+      el.champFiltre = champ;
+    }
+    if (el.filtre) { appliquerFiltre(el); }
   }
 
   function tout() { document.querySelectorAll("[data-courbe]").forEach(dessiner); }

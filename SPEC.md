@@ -2999,11 +2999,42 @@ Menaces (ajouts) :
   masquables, cloche avec le nombre d'alertes, colonne « À valider ». Tri et
   colonnes retenus dans le navigateur ; le tableau n'est pas rechargé
   pendant une saisie.
-- **Pas fait** (dans la maquette ou la liste) : recherche rapide Ctrl+K,
-  sous-titres des graphiques des tableaux fournis, filtre par conteneur sur
-  les graphiques Docker, bouton 1 / 2 colonnes, empreinte de la machine liée
-  au token. Écart : la colonne « Réseau » de la maquette n'y est pas (une
-  requête de plus par minute pour un chiffre peu utile).
+- **Ajouté ensuite** (réponse du 12/11, « maintenant ») : recherche rapide,
+  sous-titres, filtre des courbes, empreinte de la machine (§ 19.8).
+- **Pas fait** : bouton 1 / 2 colonnes. Écart : la colonne « Réseau » de la
+  maquette n'y est pas (une requête de plus par minute pour un chiffre peu
+  utile).
+
+### 19.8 Compléments du 12/11
+
+- **Recherche rapide** : Ctrl+K (ou bouton « Aller à… » du menu) ouvre une
+  liste des pages, des machines et des tableaux ; flèches et Entrée. La
+  liste est lue une fois à l'ouverture (`/donnees/aller`), le filtrage se
+  fait dans le navigateur : aucune requête pendant la frappe.
+- **Sous-titres** : une ligne sous le titre des 18 graphiques fournis qui
+  n'en avaient pas (« Serveurs Linux » et « Proxmox »). Un tableau déjà
+  installé ou modifié garde son texte : « Rétablir » pour prendre le nouveau.
+- **Filtre des courbes** : à partir de 6 courbes (conteneurs, machines…),
+  un champ au-dessus du graphique ne garde que celles dont le nom contient
+  le texte tapé. Rien n'est redemandé au serveur.
+- **Empreinte de la machine** (idée de Beszel) :
+  - l'agent envoie `X-Mirador-Empreinte` : SHA-256 de `/etc/machine-id`
+    (32 chiffres hexadécimaux ; l'identifiant lui-même ne sort pas), et
+    seulement vers mirador-server ;
+  - le serveur garde la dernière empreinte reçue (écrite avec « vu le »,
+    une fois par minute : pas d'écriture en plus) ;
+  - **option par machine**, éteinte par défaut : « Lier le token à cette
+    machine » (code 2FA). Lié, le token est refusé (403) s'il vient d'une
+    autre machine ou sans empreinte ;
+  - **limite** : cela protège d'un token qui fuit seul (sauvegarde, journal,
+    copie d'un fichier). Qui lit le token sur la machine peut aussi lire
+    `/etc/machine-id` ;
+  - **à savoir** : délier avant de réinstaller ou de cloner la machine, et
+    avant de revenir à un agent plus ancien, sinon elle est refusée. Un
+    retour arrière automatique après une mise à jour ratée vers une version
+    sans empreinte serait bloqué de la même façon : lier seulement quand
+    toutes les versions en service envoient l'empreinte ;
+  - migration 0013.
 
 ### 19.6 Coût mesuré (machine de développement, 4 cœurs)
 
@@ -3061,11 +3092,20 @@ Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 
 ### 20.2 Passkeys (WebAuthn)
 
-- **Rôle choisi** : la passkey **remplace le code 2FA** à la connexion,
-  après le mot de passe. La 2FA par application reste obligatoire et reste
-  demandée pour les actions sensibles. Pas de connexion sans mot de passe.
-  → **À confirmer** : c'est le choix le plus prudent ; une connexion par
-  passkey seule (sans mot de passe) est possible plus tard sur la même base.
+- **Deux usages** (réponse du 12/11 : « je veux les 2 ») :
+  1. après le mot de passe, la passkey **remplace le code 2FA** ;
+  2. **passkey seule**, sans mot de passe : bouton « Se connecter avec une
+     passkey » sur la page de connexion. La clé dit de quel compte il
+     s'agit, et l'appareil **doit vérifier l'utilisateur** (code PIN,
+     empreinte, visage) : cela fait deux facteurs. Une clé qui ne fait que
+     « toucher » est refusée ici (elle reste valable après le mot de passe).
+- La passkey seule demande une clé « découvrable » (téléphone, ordinateur,
+  gestionnaire de mots de passe, clé USB récente). Réglage « Sécurité » pour
+  l'interdire ; autorisée par défaut.
+- Défi de la passkey seule : demandé au clic, gardé en mémoire (2 000 au
+  plus, 5 min, usage unique) puisqu'il n'y a pas encore de session.
+- La 2FA par application reste obligatoire et reste demandée pour les
+  actions sensibles.
 - Création dans « Mon compte » : nom + code 2FA, puis le navigateur crée la
   clé. 10 passkeys au plus par compte. Suppression avec le code 2FA.
 - **Aucune dépendance ajoutée** : vérification écrite ici (~450 lignes avec
@@ -3123,5 +3163,7 @@ Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 | Même code utilisé deux fois en même temps | mise à jour conditionnelle (`utilise_le = 0`) |
 | Donnée piégée envoyée par le navigateur | lecteur CBOR borné (profondeur 6, 64 éléments, tailles limitées), fuzzing |
 | En-tête `Host` falsifié | il ne change que le domaine attendu pour sa propre requête ; une clé créée ailleurs reste refusée |
+| Passkey seule : appareil volé et déverrouillé | vérification de l'utilisateur exigée à chaque connexion ; supprimer la passkey (ou remise à zéro par un admin) |
+| Passkey seule : remplissage de la mémoire par des demandes de défi | 2 000 défis au plus, 5 min ; refusé pour une adresse verrouillée |
 | Téléphone volé avec la 2FA | l'administrateur remet la 2FA à zéro : codes et passkeys effacés |
 | Mot de passe connu de l'attaquant | la passkey ou le code reste nécessaire ; message à l'administrateur à chaque essai faux |

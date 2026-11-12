@@ -585,8 +585,10 @@ sudo -u mirador-agent sh -c 'for f in /proc/spl/kstat/zfs/*/state; do echo "$f :
 ls /sys/class/hwmon/*/fan*_input 2>/dev/null; ls -d /sys/block/md*/md 2>/dev/null
 ```
 
-Pas fait, à décider : recherche rapide Ctrl+K, sous-titres des graphiques
-fournis, filtre par conteneur, empreinte de la machine liée au token.
+Ajouté ensuite (12/11, SPEC § 19.8) : recherche rapide Ctrl+K, sous-titres
+de 18 graphiques fournis, filtre des courbes, empreinte de la machine (token
+lié à la machine, option éteinte par défaut, migration 0013). Essayé dans
+Chromium sur le serveur de démonstration.
 
 Ordre de mise à jour : **serveur d'abord**, puis les agents (un agent
 récent marche avec un ancien serveur, mais sans ces réglages).
@@ -604,8 +606,10 @@ récent marche avec un ancien serveur, mais sans ces réglages).
   `go test -race ./...` verts ; `gosec` à voir en CI.
 - Coût : ~0,1 ms par connexion par passkey ; rien en mémoire hors un défi
   par session en cours.
-- **À confirmer** : la passkey remplace le code 2FA après le mot de passe
-  (choix prudent). Connexion par passkey seule : possible ensuite.
+- Réponse du 12/11 (« je veux les 2 ») : la passkey remplace le code 2FA
+  après le mot de passe, **et** peut servir seule, sans mot de passe
+  (l'appareil doit alors vérifier l'utilisateur ; réglage « Sécurité » pour
+  l'interdire). Les deux essayés dans Chromium.
 - À essayer sur le VPS : créer des codes de secours, créer une passkey
   depuis le téléphone, se déconnecter, se reconnecter des deux façons.
 

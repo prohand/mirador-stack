@@ -15,6 +15,8 @@ func (c *Console) routes() {
 	m.HandleFunc("GET /connexion/code", c.pageCode)
 	m.HandleFunc("POST /connexion/code", c.postCode)
 	m.HandleFunc("POST /connexion/passkey", c.postPasskey)
+	m.HandleFunc("POST /connexion/passkey-defi", c.postDefiPasskey)
+	m.HandleFunc("POST /connexion/passkey-seule", c.postPasskeySeule)
 	m.HandleFunc("GET /connexion/2fa-creer", c.pageCreer2FA)
 	m.HandleFunc("POST /connexion/2fa-creer", c.postCreer2FA)
 	m.HandleFunc("POST /deconnexion", c.postDeconnexion)

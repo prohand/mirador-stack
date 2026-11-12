@@ -425,3 +425,22 @@ form.surv h3 { font-size: 13px; margin: 18px 0 8px; }
 details.secours { margin: 14px 0; }
 details.secours form { margin-top: 10px; }
 form[data-passkey-form] { margin-top: 12px; }
+
+/* --- Recherche rapide (Ctrl+K) --------------------------------------------------------- */
+button.aller { width: 100%; min-height: 38px; margin: 0 0 12px; padding: 0 10px; display: flex; align-items: center; gap: 10px; background: var(--carte); color: var(--doux); border: 1px solid var(--bord-champ); font-weight: 500; }
+button.aller:hover { background: var(--survol); filter: none; }
+button.aller kbd { margin-left: auto; font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid var(--bord-champ); border-radius: 6px; color: var(--pale); }
+.replie button.aller span, .replie button.aller kbd { display: none; }
+.replie button.aller { justify-content: center; padding: 0; }
+dialog.aller-boite { width: min(520px, calc(100vw - 32px)); margin-top: 12vh; padding: 12px; border: 1px solid var(--bord); border-radius: 16px; background: var(--carte); color: var(--texte); box-shadow: 0 16px 48px rgba(17,24,39,.25); }
+dialog.aller-boite::backdrop { background: rgba(15,20,32,.45); }
+dialog.aller-boite input { width: 100%; }
+dialog.aller-boite ul { list-style: none; margin: 10px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+dialog.aller-boite li a { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 10px; text-decoration: none; color: var(--texte); font-weight: 500; }
+dialog.aller-boite li a span { color: var(--pale); font-size: 12px; font-weight: 500; }
+dialog.aller-boite li.choisi a, dialog.aller-boite li a:hover { background: var(--accent-fond); color: var(--accent-texte); }
+dialog.aller-boite li.vide { padding: 9px 10px; color: var(--pale); }
+
+/* --- Filtre des séries d'un graphique -------------------------------------------------- */
+.filtre-series { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
+.filtre-series input { width: 180px; min-height: 30px; padding: 2px 10px; font-size: 13px; }

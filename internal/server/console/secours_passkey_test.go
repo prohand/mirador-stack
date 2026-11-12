@@ -118,6 +118,13 @@ func TestPasskeys(t *testing.T) {
 	b := nouveauBanc(t)
 	const mdp = "une longue phrase de passe"
 	c, secret := b.premierAdmin("admin", mdp)
+	// Ce test fait exprès beaucoup d'essais faux : seuil de verrouillage relevé.
+	large := SecuriteDefaut()
+	large.Echecs = 50
+	if _, err := EcrireSecurite(context.Background(), b.db, large, "test", "", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	b.c.Tour(context.Background())
 	// Les cookies sont rangés par hôte : une session ouverte sous le nom de domaine.
 	cd, etape := b.motDePasse("admin", mdp)
 	if code, _, _ := b.sous(cd, http.MethodPost, "/connexion/code", url.Values{"csrf": {trouver(t, reCSRF, etape)}, "code": {b.code(secret)}}); code != http.StatusSeeOther {
@@ -200,6 +207,59 @@ func TestPasskeys(t *testing.T) {
 	// Sans mot de passe : pas d'accès à l'étape passkey.
 	if code, _, _ := b.sous(b.client(), http.MethodPost, "/connexion/passkey", url.Values{"identifiant": {"x"}}); code != http.StatusSeeOther {
 		t.Errorf("étape passkey sans session : %d", code)
+	}
+
+	// Passkey seule, sans mot de passe : la page de connexion la propose,
+	// le défi vient du serveur et ne sert qu'une fois.
+	if _, page, _ := b.sous(b.client(), http.MethodGet, "/connexion", nil); !strings.Contains(page, "Se connecter avec une passkey") {
+		t.Fatal("bouton « passkey seule » absent de la page de connexion")
+	}
+	if _, page, _ := b.get(b.client(), "/connexion"); strings.Contains(page, "Se connecter avec une passkey") {
+		t.Error("passkey seule proposée sous une adresse IP")
+	}
+	seule := func(nav *http.Client, k *fauxcle.Cle, defi string) (int, http.Header) {
+		cl, aut, sig := k.Signer(defi)
+		code, _, h := b.sous(nav, http.MethodPost, "/connexion/passkey-seule", url.Values{"defi": {defi}, "identifiant": {liste[0].IdentifiantB64()},
+			"client": {cl}, "authentificateur": {aut}, "signature": {sig}})
+		return code, h
+	}
+	nouveauDefi := func(nav *http.Client) string {
+		code, corps, _ := b.sous(nav, http.MethodPost, "/connexion/passkey-defi", url.Values{})
+		if code != http.StatusOK {
+			t.Fatalf("défi : %d %s", code, corps)
+		}
+		return trouver(t, regexp.MustCompile(`"defi":"([A-Za-z0-9_-]{43})"`), corps)
+	}
+	c4 := b.client()
+	// Un défi invente (pas émis par le serveur) est refusé.
+	invente, _ := auth.NouveauDefiPasskey()
+	if code, _ := seule(c4, cle, invente); code != http.StatusUnauthorized {
+		t.Fatalf("défi invente : %d", code)
+	}
+	defi4 := nouveauDefi(c4)
+	code, h = seule(c4, cle, defi4)
+	if code != http.StatusSeeOther || h.Get("Location") != "/" {
+		t.Fatalf("connexion par passkey seule : %d %s", code, h.Get("Location"))
+	}
+	if code, page, _ := b.sous(c4, http.MethodGet, "/compte", nil); code != http.StatusOK || !strings.Contains(page, "Mon compte") {
+		t.Fatalf("session après passkey seule : %d", code)
+	}
+	// Le même défi ne sert pas deux fois.
+	if code, _ := seule(b.client(), cle, defi4); code != http.StatusUnauthorized {
+		t.Errorf("défi rejoué : %d", code)
+	}
+	// Réglage « passkey seule interdite » : plus de bouton, plus de défi.
+	sec := large
+	sec.SansPasskeySeule = true
+	if _, err := EcrireSecurite(context.Background(), b.db, sec, "test", "", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	b.c.Tour(context.Background()) // relit les réglages
+	if _, page, _ := b.sous(b.client(), http.MethodGet, "/connexion", nil); strings.Contains(page, "Se connecter avec une passkey") {
+		t.Error("passkey seule encore proposée après l'interdiction")
+	}
+	if code, _, _ := b.sous(b.client(), http.MethodPost, "/connexion/passkey-defi", url.Values{}); code != http.StatusForbidden {
+		t.Errorf("défi encore servi : %d", code)
 	}
 
 	// Supprimer : code 2FA demandé.

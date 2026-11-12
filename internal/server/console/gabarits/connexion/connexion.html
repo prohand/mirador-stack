@@ -4,4 +4,10 @@
   <label>Mot de passe <input type="password" name="mot_de_passe" autocomplete="current-password" required maxlength="512"></label>
   <button>Continuer</button>
 </form>
+{{if .D.PKSeule}}
+<form method="post" action="/connexion/passkey-seule" class="pile" data-passkey-form>
+  <input type="hidden" name="defi"><input type="hidden" name="identifiant"><input type="hidden" name="client"><input type="hidden" name="authentificateur"><input type="hidden" name="signature">
+  <button type="button" class="secondaire" data-passkey="seule" data-domaine="{{.D.PKDomaine}}">Se connecter avec une passkey</button>
+  <p class="erreur-texte" data-passkey-erreur hidden></p>
+</form>{{end}}
 {{end}}

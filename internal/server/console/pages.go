@@ -44,6 +44,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /tableaux/{nom}", c.lecture(c.pageTableau))
 	m.HandleFunc("GET /donnees/courbe", c.lecture(c.donneesCourbe))
 	m.HandleFunc("GET /donnees/volume-logs", c.lecture(c.donneesVolumeLogs))
+	m.HandleFunc("GET /donnees/aller", c.lecture(c.donneesAller))
 	c.routesAlertes()
 	c.routesLogs()
 	c.routesReglages()
@@ -806,4 +807,44 @@ func (c *Console) etincelles(ctx context.Context, t time.Time) map[string]string
 	}
 	c.etincellesCache, c.etincellesExpire = out, t.Add(time.Minute)
 	return out
+}
+
+// --- Recherche rapide (Ctrl+K) ------------------------------------------------------------
+
+// destination : une ligne de la recherche rapide.
+type destination struct {
+	Titre string `json:"titre"`
+	Genre string `json:"genre"` // Page, Machine, Tableau
+	Lien  string `json:"lien"`
+}
+
+// donneesAller : pages, machines et tableaux où l'on peut aller (lus une
+// fois à l'ouverture de la recherche ; le filtrage se fait dans le navigateur).
+func (c *Console) donneesAller(q *req) {
+	out := []destination{
+		{"Vue d'ensemble", "Page", "/"}, {"Machines", "Page", "/machines"}, {"Alertes", "Page", "/alertes"},
+		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
+		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
+	}
+	if q.admin() {
+		out = append(out, destination{"Mises à jour des agents", "Page", "/mises-a-jour"},
+			destination{"Configuration des agents", "Page", "/reglages/agents"},
+			destination{"Notifications", "Page", "/reglages/notifications"},
+			destination{"Conservation des données", "Page", "/reglages/conservation"},
+			destination{"Sauvegardes", "Page", "/reglages/sauvegardes"},
+			destination{"Utilisateurs", "Page", "/utilisateurs"}, destination{"Sécurité", "Page", "/securite"})
+	}
+	if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+		for _, m := range ms {
+			if m.Statut == "approuvee" {
+				out = append(out, destination{m.Nom, "Machine", "/machines/" + url.PathEscape(m.Nom)})
+			}
+		}
+	}
+	for _, t := range c.listeTableaux() {
+		out = append(out, destination{t.Titre, "Tableau", "/tableaux/" + url.PathEscape(t.Nom)})
+	}
+	q.w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	q.w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(q.w).Encode(out)
 }
