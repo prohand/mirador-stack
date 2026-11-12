@@ -9,9 +9,9 @@
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
-| 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
+| 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **Validée le 12/11/2026** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
-| 5 quater. Élément par élément, signal « à valider », Réglages rangés | **faite, à valider** (SPEC § 21) | `claude/affectionate-albattani-izl0lb` |
+| 5 quater. Élément par élément, signal « à valider », Réglages rangés | **Validée le 12/11/2026** (SPEC § 21, retours corrigés : § 22) | `claude/affectionate-albattani-izl0lb` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -664,9 +664,8 @@ sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"err
 Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
 mises à jour automatiques signées).
 
-1. Valider 5 quater (élément par élément, « à valider », Réglages rangés).
-2. Enrôler 2 ou 3 autres machines (VM, VPS, Docker) : comparaison avec
-   vmalert plus parlante (vraies alertes).
+1. 5 bis et 5 quater validées le 12/11 (serveur et agent en 0.2.17).
+2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
