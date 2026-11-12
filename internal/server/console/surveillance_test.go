@@ -391,3 +391,22 @@ func TestElementRetireUneSeuleLigne(t *testing.T) {
 		t.Errorf("disque retiré affiché %d fois", n)
 	}
 }
+
+// Assistant en 0.2.15 et agent en 0.2.17, mais rien ne manque à l'assistant :
+// pas d'alerte (fausse alerte du 12/11). L'agent le dit avec
+// mirador_agent_root_a_jour ; 0 = vraiment trop ancien.
+func TestAssistantAJour(t *testing.T) {
+	cfg := &distant.ConfigDistante{}
+	echs := []alertes.Echantillon{
+		ech("mirador_agent_info", 1, "version", "0.2.17"),
+		ech("mirador_agent_root_info", 1, "version", "0.2.15"),
+		ech("mirador_agent_root_a_jour", 1),
+	}
+	if v := classerSurveillance(cfg, echs, true); v.RacineAncienne {
+		t.Error("fausse alerte : assistant à jour signalé trop ancien")
+	}
+	echs[2] = ech("mirador_agent_root_a_jour", 0)
+	if v := classerSurveillance(cfg, echs, true); !v.RacineAncienne {
+		t.Error("assistant trop ancien non signalé")
+	}
+}

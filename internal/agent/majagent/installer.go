@@ -27,7 +27,8 @@ import (
 //	  echec.json                           dernier échec (signalé au serveur)
 //
 // L'agent se met à jour sans root. Il ne peut pas toucher à l'assistant root,
-// rangé ailleurs et appartenant à root.
+// rangé ailleurs et appartenant à root : l'assistant se met à jour lui-même à
+// partir de ce dossier (SPEC.md § 22.5).
 type Installateur struct {
 	Dossier string
 	// SelfTest lance le nouveau binaire en mode contrôle ; remplaçable dans les tests.
@@ -94,6 +95,13 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 	}
 	if err := os.Rename(tmp.Name(), final); err != nil {
 		return err
+	}
+	// Manifeste signé gardé à côté du binaire : l'assistant root s'en sert
+	// pour vérifier LUI-MÊME la signature avant de se mettre à jour (SPEC §
+	// 22.5). Écrit sous l'identité de l'agent : sans valeur pour un faussaire
+	// (la signature est revérifiée par root avec sa propre clé).
+	if brut, err := json.Marshal(m); err == nil {
+		_ = os.WriteFile(final+".manifeste.json", brut, 0o644) // #nosec G306 -- manifeste public
 	}
 
 	ctxTest, annuler := context.WithTimeout(ctx, 30*time.Second)

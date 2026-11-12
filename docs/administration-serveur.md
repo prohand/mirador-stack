@@ -104,6 +104,16 @@ sans les secrets, sa CI publie l'agent sans signature.
      publier "$(cat mirador-agent-linux-amd64.manifeste.json)" - < mirador-agent-linux-amd64
    ```
 
+### Assistant root
+
+L'assistant root (certificats, SMART, pare-feu) se met à jour **tout seul**
+depuis la version signée et confirmée de l'agent, quand les mises à jour
+automatiques sont activées : il revérifie lui-même la signature avec la clé
+de `/etc/mirador-agent/cles-publiques.txt` (SPEC § 22.5). Pour l'interdire
+sur une machine : `MIRADOR_MAJ_RACINE=non` dans `/etc/mirador-agent/agent.conf`
+(ou `--sans-maj-racine` à l'installation) ; il ne change alors qu'en
+relançant le script d'installation.
+
 ### Changer de clé
 
 Régler les **deux** clés dans l'interface (l'actuelle et la nouvelle),

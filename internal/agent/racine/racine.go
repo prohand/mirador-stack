@@ -16,8 +16,10 @@
 //     (mémoire, pas de disque) et s'arrête ;
 //   - l'agent lit ce fichier et envoie les valeurs.
 //
-// L'assistant n'ouvre aucune connexion réseau et n'est jamais mis à jour par
-// la mise à jour automatique. De la configuration distante, il ne lit qu'UNE
+// L'assistant n'ouvre aucune connexion réseau. L'agent ne le modifie jamais :
+// c'est l'assistant lui-même qui se remplace par la version signée de l'agent,
+// après avoir revérifié la signature en root (SPEC.md § 22.5 ; refusé avec
+// MIRADOR_MAJ_RACINE=non). De la configuration distante, il ne lit qu'UNE
 // clé, les chemins de certificats ajoutés dans l'interface, avec des règles
 // strictes (SPEC.md § 21.3) ; MIRADOR_CERTIFICATS_DISTANTS=non l'en empêche.
 package racine
@@ -37,6 +39,7 @@ import (
 // Resultat est le contenu du fichier écrit par l'assistant.
 type Resultat struct {
 	Version     string       `json:"version"`
+	Format      int          `json:"format,omitempty"` // FormatAssistant (0 : assistant d'avant le 12/11)
 	Horodatage  time.Time    `json:"horodatage"`
 	PareFeu     *PareFeu     `json:"pare_feu,omitempty"`
 	Smart       []Disque     `json:"smart,omitempty"`
@@ -69,12 +72,23 @@ func Executer(cfg config.Agent, maintenant time.Time) error {
 	if errDistants != nil {
 		r.Erreurs = append(r.Erreurs, "certificats : "+errDistants.Error())
 	}
+	// Mise à jour de l'assistant lui-même (SPEC § 22.5) : sert au passage
+	// suivant. Le résultat est dans le journal (systemd) et dans root.json.
+	if cible, err := os.Executable(); err == nil {
+		msg, err := MettreAJourAssistant(cfg, cible)
+		if err != nil {
+			r.Erreurs = append(r.Erreurs, "mise à jour de l'assistant : "+err.Error())
+			fmt.Fprintln(os.Stderr, "mise à jour de l'assistant root refusée :", err)
+		} else if msg != "" {
+			fmt.Fprintln(os.Stderr, msg)
+		}
+	}
 	return Ecrire(cfg.FichierRoot, r)
 }
 
 // Mesurer fait les mesures avec les programmes donnés (remplacés dans les tests).
 func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog programmes) *Resultat {
-	r := &Resultat{Version: version.Version, Horodatage: maintenant.UTC()}
+	r := &Resultat{Version: version.Version, Format: FormatAssistant, Horodatage: maintenant.UTC()}
 	if cfg.PareFeu {
 		pf, err := lirePareFeu(prog)
 		if err != nil {
