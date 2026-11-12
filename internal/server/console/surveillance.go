@@ -496,8 +496,14 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 		}
 		return *p
 	}
+	// Un élément retiré n'apparaît qu'une fois, en « Retiré », même si
+	// l'agent l'envoie encore (il n'applique le retrait qu'à sa relecture de
+	// la configuration, et sa dernière mesure reste lue quelques minutes).
 	ajouter := func(genre string, vus []string, detail func(string) string, retires []string) {
 		for _, n := range vus {
+			if slices.Contains(retires, n) {
+				continue
+			}
 			v.Composants = append(v.Composants, composantSurv{Genre: genre, Nom: n, Detail: detail(n)})
 		}
 		for _, n := range retires {
@@ -515,9 +521,21 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 	sort.Strings(montages)
 	ajouter("montage", montages, func(m string) string { return tailleLisible(int64(r.montages[m])) }, liste(cfg.IgnorerMontages))
 
-	v.Certs = append(v.Certs, r.certs...)
-	for _, c := range liste(cfg.CertificatsIgnorer) {
-		v.Certs = append(v.Certs, certSurv{Chemin: c, Retire: true})
+	retires := liste(cfg.CertificatsIgnorer)
+	connus := map[string]certSurv{}
+	for _, c := range r.certs {
+		if slices.Contains(retires, c.Chemin) {
+			connus[c.Chemin] = c // encore envoyé : nom et émetteur gardés pour la ligne « Retiré »
+			continue
+		}
+		v.Certs = append(v.Certs, c)
+	}
+	for _, c := range retires {
+		l := certSurv{Chemin: c, Retire: true}
+		if k, ok := connus[c]; ok {
+			l.CN, l.Emetteur = k.CN, k.Emetteur
+		}
+		v.Certs = append(v.Certs, l)
 		v.NbRetires++
 	}
 	v.VersionAgent, v.VersionRacine = r.versionAgent, r.versionRacine

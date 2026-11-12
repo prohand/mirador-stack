@@ -337,3 +337,41 @@ func TestCompteRenduChemins(t *testing.T) {
 		}
 	}
 }
+
+// Élément retiré mais encore envoyé par l'agent (il n'a pas encore appliqué
+// le retrait) : une seule ligne, « Retiré » (bug du 12/11 : deux lignes).
+func TestElementRetireUneSeuleLigne(t *testing.T) {
+	certs, disques := []string{"/etc/ssl/certs/ca.pem"}, []string{"sdb"}
+	cfg := &distant.ConfigDistante{CertificatsIgnorer: &certs, IgnorerDisques: &disques}
+	echs := []alertes.Echantillon{
+		ech("mirador_agent_info", 1, "version", "0.2.15"),
+		ech("ssl_cert_not_after_timestamp_seconds", 2147483647, "path", "/etc/ssl/certs/ca.pem", "cn", "GlobalSign", "issuer", "GlobalSign"),
+		ech("node_disk_io_time_seconds_total", 1, "device", "sdb"),
+		ech("node_disk_io_time_seconds_total", 1, "device", "sda"),
+	}
+	v := classerSurveillance(cfg, echs, true)
+	n := 0
+	for _, c := range v.Certs {
+		if c.Chemin == "/etc/ssl/certs/ca.pem" {
+			n++
+			if !c.Retire || c.CN != "GlobalSign" {
+				t.Errorf("certificat : %+v", c)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("certificat retiré affiché %d fois", n)
+	}
+	n = 0
+	for _, c := range v.Composants {
+		if c.Nom == "sdb" {
+			n++
+			if !c.Retire {
+				t.Errorf("disque : %+v", c)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("disque retiré affiché %d fois", n)
+	}
+}
