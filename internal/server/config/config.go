@@ -130,6 +130,16 @@ func (s *Serveur) Valider() error {
 	if s.EcouteAgents == s.EcouteInterface {
 		errs = append(errs, errors.New("agents et interface doivent écouter sur deux adresses différentes (SPEC § 5)"))
 	}
+	// Écoute ouverte au réseau : il faut nginx devant (MIRADOR_PROXY) ou le
+	// TLS fait ici. Sinon l'interface serait servie en clair, et toutes les
+	// connexions sembleraient venir de la même adresse (verrous communs).
+	if len(s.Proxys) == 0 && s.TLSCertificat == "" {
+		for nom, adr := range map[string]string{"MIRADOR_ECOUTE_AGENTS": s.EcouteAgents, "MIRADOR_ECOUTE_INTERFACE": s.EcouteInterface} {
+			if !ecouteLocale(adr) {
+				errs = append(errs, fmt.Errorf("%s=%s écoute hors de la machine : régler MIRADOR_PROXY (adresse de nginx) ou le TLS, ou écouter sur 127.0.0.1", nom, adr))
+			}
+		}
+	}
 	if (s.TLSCertificat == "") != (s.TLSCle == "") {
 		errs = append(errs, errors.New("MIRADOR_TLS_CERTIFICAT et MIRADOR_TLS_CLE vont ensemble"))
 	}
@@ -140,6 +150,20 @@ func (s *Serveur) Valider() error {
 		errs = append(errs, errors.New("MIRADOR_FICHIER_CLE doit être un chemin absolu"))
 	}
 	return errors.Join(errs...)
+}
+
+// ecouteLocale : l'adresse n'est joignable que depuis la machine elle-même
+// (127.0.0.1, ::1, localhost).
+func ecouteLocale(adr string) bool {
+	hote, _, err := net.SplitHostPort(adr)
+	if err != nil {
+		return true // adresse invalide : déjà signalée
+	}
+	if hote == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(hote)
+	return err == nil && ip.IsLoopback()
 }
 
 // LireCle charge la clé de chiffrement des secrets (32 octets en base64).

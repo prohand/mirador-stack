@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Mises à jour des dépendances proposées par GitHub (SPEC § 18.29).
+# Une fois par mois, regroupées : une pull request par famille au plus, pour
+# ne pas dépenser de minutes de CI (SPEC § 18.24). Les failles de sécurité
+# connues ouvrent une pull request tout de suite, hors calendrier.
+version: 2
+updates:
+  # Modules Go du projet (agent, serveur, outils).
+  - package-ecosystem: gomod
+    directory: /
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 2
+    groups:
+      go:
+        patterns: ["*"]
+
+  # Banc d'essai du stockage (module à part).
+  - package-ecosystem: gomod
+    directory: /bancs/stockage
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 1
+    groups:
+      go-bancs:
+        patterns: ["*"]
+
+  # Actions de la CI (checkout, setup-go, docker…).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Images de base du Dockerfile (golang) et du docker-compose (Olvid).
+  - package-ecosystem: docker
+    directory: /deploy/serveur
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 1
