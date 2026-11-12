@@ -194,7 +194,9 @@ jobs:
           # Clé lisible seulement par l'utilisateur du conteneur (le serveur
           # refuse une clé lisible par tous).
           openssl rand -base64 32 > cle && sudo chown 65532:65532 cle && sudo chmod 0400 cle
-          printf 'MIRADOR_ECOUTE_AGENTS=0.0.0.0:9440\nMIRADOR_ECOUTE_INTERFACE=0.0.0.0:9441\n' > server.conf
+          # MIRADOR_PROXY : obligatoire quand l'écoute sort de la machine
+          # (ici la passerelle du réseau Docker par défaut).
+          printf 'MIRADOR_ECOUTE_AGENTS=0.0.0.0:9440\nMIRADOR_ECOUTE_INTERFACE=0.0.0.0:9441\nMIRADOR_PROXY=172.17.0.1\n' > server.conf
           docker run -d --name essai --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             -v "$PWD/server.conf:/etc/mirador/server.conf:ro" -v "$PWD/cle:/run/secrets/mirador_cle:ro" \
             mirador-server:essai

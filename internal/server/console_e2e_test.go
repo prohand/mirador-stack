@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,7 +43,7 @@ func (n *navigateur) faire(methode, chemin string, v url.Values) (int, string, h
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	if n.cookie != "" {
-		r.AddCookie(&http.Cookie{Name: console.NomCookie, Value: n.cookie})
+		r.AddCookie(&http.Cookie{Name: auth.NomCookie, Value: n.cookie})
 	}
 	resp, err := n.c.Do(r)
 	if err != nil {
@@ -50,7 +51,7 @@ func (n *navigateur) faire(methode, chemin string, v url.Values) (int, string, h
 	}
 	defer resp.Body.Close()
 	for _, ck := range resp.Cookies() {
-		if ck.Name == console.NomCookie {
+		if ck.Name == auth.NomCookie {
 			n.cookie = ck.Value
 		}
 	}
@@ -112,12 +113,12 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	}
 
 	// Compte admin avec une 2FA connue.
-	if err := console.CreerUtilisateur(ctx, s.db, "admin", console.RoleAdmin, "une longue phrase de passe", "test", "", now); err != nil {
+	if err := auth.CreerUtilisateur(ctx, s.db, "admin", auth.RoleAdmin, "une longue phrase de passe", "test", "", now); err != nil {
 		t.Fatal(err)
 	}
-	secret, _ := console.NouveauSecretTOTP()
+	secret, _ := auth.NouveauSecretTOTP()
 	ch, _ := secrets.Chiffrer(s.cle, "console.totp", secret)
-	if err := console.DefinirTOTP(ctx, s.db, "admin", ch, 0, "test", "", now); err != nil {
+	if err := auth.DefinirTOTP(ctx, s.db, "admin", ch, 0, "test", "", now); err != nil {
 		t.Fatal(err)
 	}
 	n := &navigateur{t: t, base: "http://" + cfg.EcouteInterface, c: &http.Client{Timeout: 20 * time.Second,
@@ -126,7 +127,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		t.Fatalf("connexion : %d", code)
 	}
 	_, corps, _ := n.faire(http.MethodGet, "/connexion/code", nil)
-	code2fa, _ := console.CodeTOTP(secret, time.Now())
+	code2fa, _ := auth.CodeTOTP(secret, time.Now())
 	if code, _, h := n.faire(http.MethodPost, "/connexion/code", url.Values{"csrf": {reCSRFe2e.FindStringSubmatch(corps)[1]}, "code": {code2fa}}); code != http.StatusSeeOther || h.Get("Location") != "/" {
 		t.Fatalf("code 2FA : %d", code)
 	}
@@ -280,7 +281,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		// Chaque code ne sert qu'une fois : on attend le pas suivant.
 		for {
-			c, _ := console.CodeTOTP(secret, time.Now())
+			c, _ := auth.CodeTOTP(secret, time.Now())
 			if c != code2fa {
 				code2fa = c
 				return c

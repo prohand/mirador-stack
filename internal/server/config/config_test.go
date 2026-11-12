@@ -32,8 +32,33 @@ func TestRefus(t *testing.T) {
 		"écoute sans port":  "MIRADOR_ECOUTE_INTERFACE=0.0.0.0\n",
 		"double":            "MIRADOR_DONNEES=/a\nMIRADOR_DONNEES=/b\n",
 	} {
+		// Proxy déclaré : le refus vient bien du cas testé, pas de l'écoute.
+		if nom != "proxy invalide" {
+			contenu += "MIRADOR_PROXY=172.30.0.1\n"
+		}
 		if _, err := Lire(strings.NewReader(contenu)); err == nil {
 			t.Errorf("%s : aurait dû être refusé", nom)
+		}
+	}
+}
+
+// Écoute ouverte au réseau : nginx (MIRADOR_PROXY) ou TLS obligatoire.
+func TestEcouteOuverte(t *testing.T) {
+	local := "MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=[::1]:9441\n"
+	for nom, cas := range map[string]struct {
+		contenu string
+		accepte bool
+	}{
+		"défaut sans proxy":       {"", false},
+		"toutes les interfaces":   {"MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=:9441\n", false},
+		"adresse du réseau":       {"MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=192.0.2.10:9441\n", false},
+		"défaut avec proxy":       {"MIRADOR_PROXY=172.30.0.1\n", true},
+		"défaut avec TLS":         {"MIRADOR_TLS_CERTIFICAT=/c.pem\nMIRADOR_TLS_CLE=/k.pem\n", true},
+		"boucle locale sans rien": {local, true},
+	} {
+		_, err := Lire(strings.NewReader(cas.contenu))
+		if (err == nil) != cas.accepte {
+			t.Errorf("%s : accepté = %v (erreur : %v)", nom, err == nil, err)
 		}
 	}
 }

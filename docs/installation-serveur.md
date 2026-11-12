@@ -54,6 +54,10 @@ seule adresse autorisée à transmettre l'IP réelle des agents.
 MIRADOR_PROXY=172.30.0.1
 ```
 
+Le serveur **refuse de démarrer** si une écoute sort de la machine
+(`0.0.0.0`, adresse du réseau) sans `MIRADOR_PROXY` ni TLS : le message
+d'erreur dit quelle ligne régler.
+
 ## 2. Démarrage
 
 ```bash

@@ -8,13 +8,13 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"mirador-stack/internal/server/auth"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"mirador-stack/internal/server/config"
-	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
 )
@@ -86,10 +86,10 @@ func TestDemoInterface(t *testing.T) {
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
 	_ = s.jx.Ecrire(ctx, lignes)
-	_ = console.CreerUtilisateur(ctx, s.db, "admin", console.RoleAdmin, "une longue phrase de passe", "demo", "", now)
-	secret, _ := console.NouveauSecretTOTP()
+	_ = auth.CreerUtilisateur(ctx, s.db, "admin", auth.RoleAdmin, "une longue phrase de passe", "demo", "", now)
+	secret, _ := auth.NouveauSecretTOTP()
 	ch, _ := secrets.Chiffrer(s.cle, "console.totp", secret)
-	_ = console.DefinirTOTP(ctx, s.db, "admin", ch, 0, "demo", "", now)
+	_ = auth.DefinirTOTP(ctx, s.db, "admin", ch, 0, "demo", "", now)
 	if f := os.Getenv("DEMO_SECRET"); f != "" {
 		_ = os.WriteFile(f, []byte(secret), 0o600)
 	}

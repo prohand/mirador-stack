@@ -71,12 +71,23 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	}
 	s := &Serveur{cfg: cfg, cle: cle, journal: journal, debut: time.Now()}
 
+	// Ce qui est déjà ouvert, à refermer si la suite du démarrage échoue
+	// (dans l'ordre inverse de l'ouverture, comme Arreter).
+	var ouverts []func() error
+	echec := func(err error) (*Serveur, error) {
+		for i := len(ouverts) - 1; i >= 0; i-- {
+			err = errors.Join(err, ouverts[i]())
+		}
+		return nil, err
+	}
+
 	if s.db, err = base.Ouvrir(s.chemin("mirador.db")); err != nil {
 		return nil, fmt.Errorf("base : %w", err)
 	}
+	ouverts = append(ouverts, s.db.Close)
 	copie, err := base.Migrer(ctx, s.db, s.chemin("sauvegardes"))
 	if err != nil {
-		return nil, errors.Join(err, s.db.Close())
+		return echec(err)
 	}
 	if copie != "" {
 		journal.Info("base migrée ; copie d'avant migration gardée", "copie", copie)
@@ -86,34 +97,36 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	// Stockage (rétentions par défaut ; réglables dans l'interface, étape 5).
 	if s.met, err = metriques.Ouvrir(metriques.Options{Dossier: s.chemin("metriques"),
 		Journal: journal.With("composant", "metriques")}); err != nil {
-		return nil, errors.Join(fmt.Errorf("stockage des métriques : %w", err), s.db.Close())
+		return echec(fmt.Errorf("stockage des métriques : %w", err))
 	}
+	ouverts = append(ouverts, s.met.Fermer)
 	if s.jx, err = journaux.Ouvrir(journaux.Options{Dossier: s.chemin("logs"),
 		Journal: journal.With("composant", "logs")}); err != nil {
-		return nil, errors.Join(fmt.Errorf("stockage des logs : %w", err), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("stockage des logs : %w", err))
 	}
+	ouverts = append(ouverts, s.jx.Fermer)
 
 	// Alertes : règles mirador posées une fois, puis moteur (règles relues
 	// à chaud quand elles changent en base).
 	if n, err := alertes.PoserDefauts(ctx, s.db, time.Now()); err != nil {
-		return nil, errors.Join(fmt.Errorf("règles par défaut : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("règles par défaut : %w", err))
 	} else if n > 0 {
 		journal.Info("règles d'alerte mirador ajoutées", "nombre", n)
 	}
 	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(),
 		Journal: journal.With("composant", "alertes")}); err != nil {
-		return nil, errors.Join(fmt.Errorf("moteur d'alertes : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("moteur d'alertes : %w", err))
 	}
 	if _, err := notif.PoserDefauts(ctx, s.db, time.Now()); err != nil {
-		return nil, errors.Join(fmt.Errorf("inhibitions par défaut : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("inhibitions par défaut : %w", err))
 	}
 	if s.postier, err = notif.NouveauPostier(ctx, notif.OptionsPostier{DB: s.db, Cle: cle,
 		Journal: journal.With("composant", "canaux"), DerniereEvaluationOK: s.alertes.DerniereEvaluationOK}); err != nil {
-		return nil, errors.Join(fmt.Errorf("canaux de notification : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("canaux de notification : %w", err))
 	}
 	if s.aiguille, err = notif.Nouveau(ctx, notif.Options{DB: s.db, EnCours: s.alertes.EnCours,
 		Envoyeur: s.postier, Journal: journal.With("composant", "notifications")}); err != nil {
-		return nil, errors.Join(fmt.Errorf("notifications : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("notifications : %w", err))
 	}
 	s.alertes.DefinirRecepteur(s.aiguille)
 
@@ -126,7 +139,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
 		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal}); err != nil {
-		return nil, errors.Join(fmt.Errorf("interface web : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("interface web : %w", err))
 	}
 	fond, arret := context.WithCancel(context.Background())
 	s.arretFond, s.finFond = arret, make(chan struct{})
@@ -144,6 +157,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 			<-fini
 		}
 	}()
+	ouverts = append(ouverts, func() error { s.arreterFond(); return nil })
 
 	s.web = web.Nouveau(web.Options{
 		EcouteAgents:    cfg.EcouteAgents,
@@ -156,13 +170,11 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		Interface:       s.routesInterface(),
 	})
 	if err := s.web.Demarrer(); err != nil {
-		s.arreterFond()
-		return nil, errors.Join(err, s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(err)
 	}
+	ouverts = append(ouverts, func() error { s.web.Arreter(time.Second); return nil })
 	if err := s.ouvrirAdmin(); err != nil {
-		s.web.Arreter(time.Second)
-		s.arreterFond()
-		return nil, errors.Join(fmt.Errorf("socket d'administration : %w", err), s.jx.Fermer(), s.met.Fermer(), s.db.Close())
+		return echec(fmt.Errorf("socket d'administration : %w", err))
 	}
 	journal.Info("mirador-server démarré", "version", version.Complete(), "schema", v,
 		"agents", cfg.EcouteAgents, "interface", cfg.EcouteInterface)

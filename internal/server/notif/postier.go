@@ -311,6 +311,28 @@ func (p *Postier) prevenir(ctx context.Context, nom, role, transition, erreur st
 	}
 }
 
+// Prevenir : message de sécurité de mirador lui-même (connexion à
+// l'interface : code 2FA faux, compte verrouillé, nouvelle adresse), sans
+// alerte. Il suit le chemin des alertes critiques (canal principal, secours
+// si panne, file d'attente si tout est en panne). En mode ombre, il est
+// seulement noté dans l'historique des envois.
+func (p *Postier) Prevenir(ctx context.Context, groupe, texte string) {
+	if err := p.recharger(ctx); err != nil {
+		p.opt.Journal.Error("notifications : réglages", "erreur", err)
+	}
+	t := p.opt.Maintenant()
+	m := &Message{Le: t, Groupe: groupe, Gravite: alertes.Critique, Type: "securite", Systeme: texte, Son: true}
+	p.mu.Lock()
+	mode := p.reglages.Mode
+	p.mu.Unlock()
+	if mode == Ombre {
+		_ = NoterEnvoi(ctx, p.opt.DB, Envoi{Le: t, Canal: "ombre", Groupe: m.Groupe, Gravite: m.Gravite, Type: m.Type,
+			Statut: Ombre, Texte: texte})
+		return
+	}
+	p.envoyer(ctx, m, true)
+}
+
 func listeOuAucun(noms []string) string {
 	if len(noms) == 0 {
 		return "aucun autre canal (messages gardés en file d'attente)"

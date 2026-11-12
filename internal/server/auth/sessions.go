@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package console
+package auth
 
 import (
 	"crypto/rand"
@@ -24,9 +24,9 @@ import (
 
 // Étapes de la connexion.
 const (
-	etapeCode    = "code"     // mot de passe accepté, code 2FA attendu
-	etapeCreer   = "creer"    // mot de passe accepté, 2FA à créer
-	etapeComplet = "complete" // connecté
+	EtapeCode    = "code"     // mot de passe accepté, code 2FA attendu
+	EtapeCreer   = "creer"    // mot de passe accepté, 2FA à créer
+	EtapeComplet = "complete" // connecté
 )
 
 // NomCookie : préfixe __Host- = cookie Secure, sans domaine, chemin / ;
@@ -36,14 +36,15 @@ const NomCookie = "__Host-mirador"
 // Bornes.
 const (
 	sessionsMax      = 1000
-	dureeAvantCode   = 5 * time.Minute // entre le mot de passe et le code
-	essaisCodeMax    = 5               // codes faux avant de tout reprendre
+	partiellesMax    = 3               // sessions « avant le code » par compte
+	DureeAvantCode   = 5 * time.Minute // entre le mot de passe et le code
+	EssaisCodeMax    = 5               // codes faux avant de tout reprendre
 	tailleIdentifant = 32
 )
 
 // Session : état d'une connexion.
 type Session struct {
-	empreinte     string
+	Empreinte     string // empreinte SHA-256 de l\'identifiant du cookie
 	UtilisateurID int64
 	Nom           string
 	Generation    int64
@@ -61,16 +62,16 @@ type Session struct {
 
 // Ref : début de l'empreinte, pour désigner une session dans la page
 // « Sécurité » (jamais l'identifiant du cookie).
-func (s Session) Ref() string { return s.empreinte[:16] }
+func (s Session) Ref() string { return s.Empreinte[:16] }
 
-type magasin struct {
+type Magasin struct {
 	mu   sync.Mutex
 	tout map[string]*Session
 }
 
-func nouveauMagasin() *magasin { return &magasin{tout: map[string]*Session{}} }
+func NouveauMagasin() *Magasin { return &Magasin{tout: map[string]*Session{}} }
 
-func aleatoire(n int) string {
+func Aleatoire(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
 		panic(err) // le système n'a plus d'aléa : rien de sûr n'est possible
@@ -84,22 +85,49 @@ func empreinteID(id string) string {
 }
 
 // creer ajoute une session et renvoie l'identifiant à mettre dans le cookie.
-func (m *magasin) creer(s *Session, t time.Time) string {
-	id := aleatoire(tailleIdentifant)
-	s.empreinte = empreinteID(id)
-	s.CSRF = aleatoire(24)
+func (m *Magasin) Creer(s *Session, t time.Time) string {
+	id := Aleatoire(tailleIdentifant)
+	s.Empreinte = empreinteID(id)
+	s.CSRF = Aleatoire(24)
 	s.Creee, s.Vue = t, t
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if s.Etape != EtapeComplet {
+		m.limiterPartielles(s.UtilisateurID)
+	}
 	if len(m.tout) >= sessionsMax {
 		m.evincer()
 	}
-	m.tout[s.empreinte] = s
+	m.tout[s.Empreinte] = s
 	return id
 }
 
+// limiterPartielles : au plus partiellesMax sessions « avant le code » par
+// compte (appelé sous verrou, avant d'en ajouter une). La plus ancienne est
+// fermée : quelqu'un qui connaît le mot de passe ne peut pas en ouvrir des
+// centaines pour essayer des codes sur chacune.
+func (m *Magasin) limiterPartielles(utilisateur int64) {
+	for {
+		var vieille *Session
+		n := 0
+		for _, s := range m.tout {
+			if s.UtilisateurID != utilisateur || s.Etape == EtapeComplet {
+				continue
+			}
+			n++
+			if vieille == nil || s.Creee.Before(vieille.Creee) {
+				vieille = s
+			}
+		}
+		if n < partiellesMax {
+			return
+		}
+		delete(m.tout, vieille.Empreinte)
+	}
+}
+
 // evincer retire la session la moins récemment vue (appelé sous verrou).
-func (m *magasin) evincer() {
+func (m *Magasin) evincer() {
 	var vieille *Session
 	for _, s := range m.tout {
 		if vieille == nil || s.Vue.Before(vieille.Vue) {
@@ -107,12 +135,12 @@ func (m *magasin) evincer() {
 		}
 	}
 	if vieille != nil {
-		delete(m.tout, vieille.empreinte)
+		delete(m.tout, vieille.Empreinte)
 	}
 }
 
 // lire renvoie une COPIE de la session (nil si inconnue).
-func (m *magasin) lire(id string) *Session {
+func (m *Magasin) Lire(id string) *Session {
 	if id == "" || len(id) > 64 {
 		return nil
 	}
@@ -127,7 +155,7 @@ func (m *magasin) lire(id string) *Session {
 }
 
 // modifier applique f à la session (sous verrou).
-func (m *magasin) modifier(empreinte string, f func(*Session)) {
+func (m *Magasin) Modifier(empreinte string, f func(*Session)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s := m.tout[empreinte]; s != nil {
@@ -137,7 +165,7 @@ func (m *magasin) modifier(empreinte string, f func(*Session)) {
 
 // renouveler remplace l'identifiant (changement de droits) ; renvoie le
 // nouvel identifiant.
-func (m *magasin) renouveler(empreinte string, t time.Time, f func(*Session)) string {
+func (m *Magasin) Renouveler(empreinte string, t time.Time, f func(*Session)) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.tout[empreinte]
@@ -145,23 +173,23 @@ func (m *magasin) renouveler(empreinte string, t time.Time, f func(*Session)) st
 		return ""
 	}
 	delete(m.tout, empreinte)
-	id := aleatoire(tailleIdentifant)
-	s.empreinte = empreinteID(id)
-	s.CSRF = aleatoire(24)
+	id := Aleatoire(tailleIdentifant)
+	s.Empreinte = empreinteID(id)
+	s.CSRF = Aleatoire(24)
 	s.Vue = t
 	f(s)
-	m.tout[s.empreinte] = s
+	m.tout[s.Empreinte] = s
 	return id
 }
 
-func (m *magasin) supprimer(empreinte string) {
+func (m *Magasin) Supprimer(empreinte string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.tout, empreinte)
 }
 
 // fermerUtilisateur ferme toutes les sessions d'un compte (sauf garder).
-func (m *magasin) fermerUtilisateur(id int64, garder string) {
+func (m *Magasin) FermerUtilisateur(id int64, garder string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for k, s := range m.tout {
@@ -172,45 +200,45 @@ func (m *magasin) fermerUtilisateur(id int64, garder string) {
 }
 
 // nettoyer retire les sessions expirées.
-func (m *magasin) nettoyer(t time.Time, inactivite, max time.Duration) {
+func (m *Magasin) Nettoyer(t time.Time, inactivite, max time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for k, s := range m.tout {
-		if expiree(s, t, inactivite, max) {
+		if Expiree(s, t, inactivite, max) {
 			delete(m.tout, k)
 		}
 	}
 }
 
 // Liste des sessions ouvertes (page « Sécurité »).
-func (m *magasin) lister() []Session {
+func (m *Magasin) Lister() []Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]Session, 0, len(m.tout))
 	for _, s := range m.tout {
-		if s.Etape == etapeComplet {
+		if s.Etape == EtapeComplet {
 			out = append(out, *s)
 		}
 	}
 	return out
 }
 
-func expiree(s *Session, t time.Time, inactivite, max time.Duration) bool {
-	if s.Etape != etapeComplet {
-		return t.Sub(s.Creee) > dureeAvantCode
+func Expiree(s *Session, t time.Time, inactivite, max time.Duration) bool {
+	if s.Etape != EtapeComplet {
+		return t.Sub(s.Creee) > DureeAvantCode
 	}
 	return t.Sub(s.Vue) > inactivite || t.Sub(s.Creee) > max
 }
 
-// poserCookie : HttpOnly, Secure, SameSite=Strict (brief). Pas de date
+// PoserCookie : HttpOnly, Secure, SameSite=Strict (brief). Pas de date
 // d'expiration : le cookie disparaît à la fermeture du navigateur, et le
 // serveur applique de toute façon ses propres durées.
-func poserCookie(w http.ResponseWriter, id string) {
+func PoserCookie(w http.ResponseWriter, id string) {
 	http.SetCookie(w, &http.Cookie{Name: NomCookie, Value: id, Path: "/", HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteStrictMode})
 }
 
-func effacerCookie(w http.ResponseWriter) {
+func EffacerCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{Name: NomCookie, Value: "", Path: "/", HttpOnly: true, Secure: true,
 		SameSite: http.SameSiteStrictMode, MaxAge: -1})
 }

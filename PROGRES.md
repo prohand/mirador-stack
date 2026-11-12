@@ -512,6 +512,40 @@ docker volume ls
 Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la SPEC
 à jour si tu en trouves.
 
+## Deuxième revue de sécurité et d'architecture (11/11)
+
+- Branche `claude/architecture-security-login-sont9e` ; détail : SPEC § 18.27.
+- **Corrigé** : verrou de connexion contournable par une rafale de requêtes
+  simultanées (40 mots de passe essayés au lieu de 5, mesuré). Un essai est
+  maintenant réservé avant chaque vérification (mot de passe, code 2FA,
+  actions sensibles). Tests : `rafale_test.go` ; `go vet` et
+  `go test -race ./...` verts.
+- Coût : une table en mémoire limitée aux requêtes en cours (quelques
+  octets) ; pas de CPU ni d'I/O en plus.
+- **Fait après validation** (SPEC § 18.28) : messages de sécurité à
+  l'administrateur (code 2FA faux après un bon mot de passe, compte
+  verrouillé, connexion depuis une nouvelle adresse ; 1 par heure et par
+  sujet) ; nom filtré dans le journal. Tests : `prevenir_test.go`,
+  `TestPrevenir`.
+- **À essayer sur le VPS** : se connecter depuis une autre adresse, taper un
+  code 2FA faux ; le message doit arriver sur le canal principal.
+- **Reste fait le 12/11** (SPEC § 18.29) :
+  - verrou progressif (15 min → 24 h), 3 sessions partielles par compte,
+    mots de passe trop simples refusés ;
+  - paquet `internal/server/auth` sorti de `console` (sans changement de
+    comportement) ;
+  - écoute ouverte refusée sans `MIRADOR_PROXY` ni TLS ; démarrage
+    simplifié ; Dependabot (mensuel, regroupé).
+- **Mesure** : boucle de la console = 52 µs par passage toutes les 5 s,
+  18 Ko alloués, aucune écriture disque → relecture des réglages gardée
+  telle quelle. Les autres changements n'ajoutent ni RAM, ni CPU, ni I/O
+  mesurables (un entier par compteur de verrou).
+- **Pas fait** : actions GitHub figées par empreinte (à faire à la main) ;
+  réseau Docker dédié (étape 7).
+- **À vérifier sur le VPS avant de mettre à jour** : `config/server.conf`
+  contient bien `MIRADOR_PROXY=…` (sinon le serveur refuse de démarrer).
+- Non lancé ici : `gosec` (pas installé) ; la CI le fera.
+
 ## Prochaine étape
 
 - Étape 3 **validée le 10/11/2026** (pull request #4).
