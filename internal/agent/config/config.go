@@ -463,7 +463,9 @@ func validerChemin(c string) error {
 // Dossiers où l'assistant root accepte de chercher un certificat demandé par
 // le serveur (SPEC.md § 21.3). Pas /proc, /sys, /dev, /run, /tmp, /home,
 // /root : rien à y chercher, et l'unité root masque déjà /home et /root.
-var prefixesDistants = []string{"/etc/", "/opt/", "/srv/", "/var/lib/", "/usr/local/"}
+// /usr/share/ca-certificates/ (ajout du 12/11, SPEC § 22.4) : certificats
+// publics des autorités, cibles des liens de /etc/ssl/certs sur Debian.
+var prefixesDistants = []string{"/etc/", "/opt/", "/srv/", "/var/lib/", "/usr/local/", "/usr/share/ca-certificates/"}
 
 // Extensions acceptées pour un chemin demandé par le serveur.
 var extensionsDistantes = []string{".pem", ".crt", ".cer", ".cert"}

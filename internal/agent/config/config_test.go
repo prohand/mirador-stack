@@ -219,3 +219,19 @@ func TestMotifDistant(t *testing.T) {
 		t.Error("FichierAccepteDistant")
 	}
 }
+
+// Dossier des certificats d'autorités ajouté le 12/11 (SPEC § 22.4) : les
+// liens de /etc/ssl/certs y mènent ; le reste de /usr/share reste refusé.
+func TestDossierCertificatsAutorites(t *testing.T) {
+	if err := ValiderMotifDistant("/usr/share/ca-certificates/mozilla/*.crt"); err != nil {
+		t.Errorf("motif refusé : %v", err)
+	}
+	if !DossierDistantAutorise("/usr/share/ca-certificates/mozilla/GlobalSign_Root_CA.crt") {
+		t.Error("cible d'un lien de /etc/ssl/certs refusée")
+	}
+	for _, c := range []string{"/usr/share/doc/x.pem", "/usr/share/ca-certificates-bis/x.pem", "/usr/bin/x.pem"} {
+		if DossierDistantAutorise(c) || ValiderMotifDistant(c) == nil {
+			t.Errorf("%s accepté", c)
+		}
+	}
+}

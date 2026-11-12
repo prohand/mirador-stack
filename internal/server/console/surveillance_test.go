@@ -308,6 +308,7 @@ func TestCompteRenduChemins(t *testing.T) {
 		ech("mirador_agent_certificats_chemin_lus", 0, "chemin", "/etc/vide/*.crt"),
 		ech("mirador_agent_certificats_chemin_fichiers", 1, "chemin", "/etc/cles/*.pem"),
 		ech("mirador_agent_certificats_chemin_lus", 0, "chemin", "/etc/cles/*.pem"),
+		ech("mirador_agent_certificats_chemin_ecartes", 1, "chemin", "/etc/cles/*.pem", "raison", "hors_dossier"),
 	}
 	v := classerSurveillance(cfg, echs, true)
 	if v.RacineAncienne {
@@ -316,7 +317,7 @@ func TestCompteRenduChemins(t *testing.T) {
 	attendu := map[string]string{
 		"/etc/app/*.pem":  "2 certificats lu(s), 1 fichier(s) écarté(s)",
 		"/etc/vide/*.crt": "aucun fichier trouvé",
-		"/etc/cles/*.pem": "aucun certificat lisible",
+		"/etc/cles/*.pem": "aucun lu : lien vers un dossier non autorisé (1)",
 		"/opt/neuf/*.pem": "pas encore lu",
 	}
 	for _, m := range v.MotifsAjout {
