@@ -325,6 +325,25 @@ confirmée »).
 Deuxième (12/11) : 0.2.10 → 0.2.11 de la même façon ; plus d'erreur
 journalctl après le redémarrage (bug de reprise du journal corrigé).
 
+**Mesure de 24 h de l'agent avec mirador-server (11-12/11, `mesurer.sh 24`,
+machine de test, 2 cœurs, Alloy en parallèle)**
+
+| Processus | RSS moy / max | Mémoire propre moy. | CPU moyen | Écrit en 24 h |
+|---|---|---|---|---|
+| mirador-agent | 21,0 / 23,5 Mo | 13,6 Mo | ≈ 0,09 % d'un cœur (systemd : 8,7 s en 2 h 49) | 32 Ko |
+| journalctl (enfant de l'agent) | 52,5 / 100,7 Mo | 1,0 Mo (le reste : cache des fichiers du journal, partagé) | ≈ 0 | 0 |
+| proxy Docker | 15,2 / 18,8 Mo | 9,1 Mo | ≈ 0 | 0 |
+| **Alloy** (référence) | 154,2 / 157,7 Mo | 77,8 Mo | 0,75 % | 165 Mo |
+
+- Objectif agent < 30 Mio : **atteint** (21 Mo, ~7 fois moins qu'Alloy) ;
+  total côté mirador (agent + journalctl propre + proxy) ≈ 31 à 37 Mo.
+- CPU : le chiffre du script (0,002 %) est faussé par 3 redémarrages de
+  l'agent pendant la mesure (réinstallation, deux mises à jour) ; valeur
+  retenue : celle de systemd. À remesurer sur 24 h sans mise à jour si
+  besoin d'un chiffre précis.
+- Comparaison avec vmalert sur 24 h : aucun écart (aucune alerte des deux
+  côtés).
+
 **Installation sur le VPS (10/11)** : mirador-server 0.2.0 démarré, vhost
 dédié à la console, **interface web fonctionnelle**. Points relevés et
 corrigés dans la documentation : connexion à ghcr.io (token classic
