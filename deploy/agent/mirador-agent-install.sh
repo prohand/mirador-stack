@@ -52,6 +52,11 @@
 #                        seulement. Réglable ensuite dans l'interface (Configuration
 #                        des agents : « Métriques de la machine », « Logs du journal »)
 #   --auto-update        mises à jour signées automatiques (mode --mirador seulement)
+#   --sans-maj-racine    l'assistant root ne se met PAS à jour lui-même (il ne
+#                        change alors qu'en relançant ce script) ; par défaut, avec
+#                        --auto-update, il se met à jour depuis la version signée
+#                        et confirmée de l'agent (SPEC § 22.5). Gardé d'un passage
+#                        à l'autre (MIRADOR_MAJ_RACINE dans agent.conf)
 #   --cle-publique CLE   clé PUBLIQUE de signature des versions (base64 ; deux au
 #                        plus, séparées par une virgule). Sans cette option, en mode
 #                        mirador, elle est demandée au serveur à la première
@@ -79,7 +84,7 @@ PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
 PROXY_NOM=mirador-docker-proxy
 PROXY_PORT=12375
 
-BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""; CLE_PUBLIQUE=""
+BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""; CLE_PUBLIQUE=""; MAJ_RACINE=""
 DOCKER_MODE=auto; DOCKER_PROXY=""; PAREFEU_MODE=auto; SMART_MODE=auto
 LOGS=oui; METRIQUES=oui; MODE=installer; MIRADOR=non; JETON=""; MAJ_AUTO=non
 
@@ -94,6 +99,7 @@ while [ $# -gt 0 ]; do
     --env)             ENV_="${2:-}"; shift 2 ;;
     --nom)             NOM="${2:-}"; shift 2 ;;
     --cle-publique)    CLE_PUBLIQUE="${2:-}"; shift 2 ;;
+    --sans-maj-racine) MAJ_RACINE=non; shift ;;
     --token)           TOKEN="${2:-}"; shift 2 ;;
     --mirador)         MIRADOR=oui; shift ;;
     --jeton)           JETON="${2:-}"; MIRADOR=oui; shift 2 ;;
@@ -159,6 +165,7 @@ done
 # Site et env : repris de l'installation précédente s'ils ne sont pas donnés
 # (un second passage ne fait rien perdre).
 if [ -r "$ETC/agent.conf" ]; then
+  [ -n "$MAJ_RACINE" ] || MAJ_RACINE=$(sed -n 's/^MIRADOR_MAJ_RACINE=//p' "$ETC/agent.conf" | head -1 | tr -d '"')
   [ -n "$SITE" ] || SITE=$(sed -n 's/^MIRADOR_SITE=//p' "$ETC/agent.conf" | head -1 | tr -d '"')
   [ -n "$ENV_" ] || ENV_=$(sed -n 's/^MIRADOR_ENV=//p' "$ETC/agent.conf" | head -1 | tr -d '"')
 fi
@@ -323,6 +330,9 @@ MIRADOR_SERVEUR=$SERVEUR
 MIRADOR_FICHIER_TOKEN=$VARLIB/token
 MIRADOR_FICHIER_JETON=$VARLIB/jeton
 MIRADOR_MAJ_AUTO=$MAJ_AUTO
+# Assistant root mis à jour par lui-même (version signée et confirmée de
+# l'agent, signature revérifiée par root) ; « non » l'interdit sur cette machine.
+MIRADOR_MAJ_RACINE=${MAJ_RACINE:-oui}
 MIRADOR_METRIQUES=$METRIQUES
 MIRADOR_JOURNAL=$LOGS
 MIRADOR_LOGS_DOCKER=$LOGS
@@ -412,7 +422,9 @@ unite_root() {
   cat <<'EOF'
 # mirador-agent-root — assistant root : pare-feu, SMART, certificats.
 # Lancé par mirador-agent-root.timer, écrit /run/mirador-agent/root.json puis
-# s'arrête. Binaire root, jamais modifié par la mise à jour automatique.
+# s'arrête. Binaire root : jamais modifié par l'agent ; il se remplace
+# lui-même seulement depuis une version signée (revérifiée par root) et
+# confirmée de l'agent (SPEC § 22.5, MIRADOR_MAJ_RACINE).
 [Unit]
 Description=mirador-agent : mesures réservées à root
 
@@ -436,6 +448,8 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 ReadWritePaths=/run/mirador-agent
+# Son propre dossier : mise à jour par lui-même (SPEC § 22.5).
+ReadWritePaths=/usr/local/lib/mirador-agent
 # Verrou d'iptables (mode « legacy ») ; le « - » ignore le chemin s'il n'existe pas.
 ReadWritePaths=-/run/xtables.lock
 IPAddressDeny=any

@@ -86,6 +86,10 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 	if res.Version != "" {
 		b.Add("mirador_agent_root_info", 1, metrics.L("version", res.Version))
 	}
+	// L'assistant a-t-il tout ce que cet agent sait lui demander ? (pas une
+	// simple comparaison de versions : l'assistant ne change pas à chaque
+	// version de l'agent).
+	b.Add("mirador_agent_root_a_jour", bool01(res.Format >= racine.FormatAssistant))
 	if age > r.ageMax {
 		return nil
 	}

@@ -48,7 +48,7 @@ func TestRacine(t *testing.T) {
 	sans := NewRacine(chemin)
 	sans.maintenant = r.maintenant
 	sans.SansPareFeu, sans.SansSmart, sans.SansCertificats = true, true, true
-	if p := collecter(t, sans); len(p) != 3 || p["mirador_agent_root_info|version=test"] != 1 {
+	if p := collecter(t, sans); len(p) != 4 || p["mirador_agent_root_info|version=test"] != 1 {
 		t.Errorf("tout retiré : seuls l'âge, les erreurs et la version de l'assistant attendus, obtenu %v", p)
 	}
 	// Un certificat retiré dans l'interface (SPEC § 21) : plus envoyé, et
@@ -66,14 +66,14 @@ func TestRacine(t *testing.T) {
 		t.Errorf("ssl_certs_found_total = %v, attendu 0", v)
 	}
 	sans.SansSmart = false
-	if p := collecter(t, sans); p["smartctl_device_smart_status|device=sda"] != 1 || len(p) != 8 {
+	if p := collecter(t, sans); p["smartctl_device_smart_status|device=sda"] != 1 || len(p) != 9 {
 		t.Errorf("SMART seul attendu, obtenu %v", p)
 	}
 
 	// Assistant arrêté depuis 3 h : plus de valeurs, seulement l'âge.
 	r.maintenant = func() time.Time { return t0.Add(3 * time.Hour) }
 	p = collecter(t, r)
-	if len(p) != 3 || p["mirador_agent_root_age_seconds"] != 3*3600 {
+	if len(p) != 4 || p["mirador_agent_root_age_seconds"] != 3*3600 {
 		t.Errorf("fichier trop vieux : seuls l'âge et les erreurs attendus, obtenu %v", p)
 	}
 }

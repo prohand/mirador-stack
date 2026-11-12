@@ -130,7 +130,7 @@ const metriquesSurv = `mirador_agent_detecte|node_hwmon_temp_celsius|node_therma
 	// Assistant root (12/11) : sa version, et le compte rendu de chaque
 	// chemin de certificat ajouté dans l'interface.
 	`mirador_agent_root_info|mirador_agent_certificats_chemin_fichiers|mirador_agent_certificats_chemin_lus|` +
-	`mirador_agent_certificats_chemin_ecartes`
+	`mirador_agent_certificats_chemin_ecartes|mirador_agent_root_a_jour`
 
 func exprSurv(machine string) string {
 	return fmt.Sprintf(`{instance=%q,__name__=~%q}`, machine, metriquesSurv)
@@ -195,6 +195,7 @@ type releve struct {
 	certs               []certSurv
 	versionAgent        string
 	versionRacine       string                        // assistant root ('' = inconnu)
+	racineAJour         *float64                      // 1 : l'assistant a tout ce que l'agent sait lui demander
 	motifsFichiers      map[string]float64            // chemin ajouté → fichiers trouvés
 	motifsLus           map[string]float64            // chemin ajouté → certificats lus
 	motifsEcartes       map[string]map[string]float64 // chemin → raison → fichiers écartés
@@ -264,6 +265,8 @@ func lireReleve(ech []alertes.Echantillon) releve {
 			r.versionAgent = etq("version")
 		case "mirador_agent_root_info":
 			r.versionRacine = etq("version")
+		case "mirador_agent_root_a_jour":
+			r.racineAJour = &e.Valeur
 		case "mirador_agent_certificats_chemin_fichiers":
 			r.motifsFichiers[etq("chemin")] = v
 		case "mirador_agent_certificats_chemin_lus":
@@ -539,7 +542,13 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 		v.NbRetires++
 	}
 	v.VersionAgent, v.VersionRacine = r.versionAgent, r.versionRacine
-	v.RacineAncienne = r.versionRacine != "" && r.versionAgent != "" && r.versionRacine != r.versionAgent
+	// Agent qui le dit (0.2.18 et plus) : seulement si l'assistant manque
+	// vraiment de quelque chose. Agent plus ancien : versions comparées.
+	if r.racineAJour != nil {
+		v.RacineAncienne = *r.racineAJour == 0
+	} else {
+		v.RacineAncienne = r.versionRacine != "" && r.versionAgent != "" && r.versionRacine != r.versionAgent
+	}
 	for _, m := range liste(cfg.CertificatsAjout) {
 		v.MotifsAjout = append(v.MotifsAjout, resultatMotif(m, r, v.RacineAncienne))
 	}

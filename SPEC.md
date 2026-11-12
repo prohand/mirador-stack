@@ -3344,3 +3344,40 @@ privée, lien hors dossier autorisé, autre format) ». C'est un lien vers
   des autorités, cibles des liens de `/etc/ssl/certs`. Le reste de
   `/usr/share` reste refusé. Risque : nul (fichiers publics, lecture seule,
   mêmes contrôles de nom et de format).
+
+### 22.5 Assistant root : vraie version requise, mise à jour signée par lui-même **[Fait, demande du 12/11 « a et b, avec une sécurité »]**
+
+Constat : « Assistant root en 0.2.15, agent en 0.2.17 » affiché alors que
+l'assistant n'avait pas changé (0.2.16 et 0.2.17 ne touchaient que le
+serveur) ; et l'assistant ne se mettait à jour qu'en relançant le script.
+
+**a. Fausse alerte** : l'assistant écrit un numéro de comportement
+(`FormatAssistant`, 2 aujourd'hui) dans `root.json`, qui ne change que
+lorsque l'assistant change. L'agent envoie `mirador_agent_root_a_jour`
+(1 si le numéro suffit) ; l'interface n'alerte que sur 0 (agents plus
+anciens : comparaison des versions, comme avant).
+
+**b. Mise à jour par lui-même** : à chacun de ses passages (15 min, ou
+« Actualiser »), l'assistant root peut se remplacer par la version de
+l'agent en service.
+
+| Sécurité | Comment |
+|---|---|
+| Accord local | seulement avec `MIRADOR_MAJ_AUTO=oui` ; `MIRADOR_MAJ_RACINE=non` (ou `--sans-maj-racine` à l'installation) l'interdit ; fichier `agent.conf` appartenant à root, que ni l'agent ni le serveur ne peuvent changer |
+| Version déjà éprouvée | seulement la version en service de l'agent, une fois **confirmée** (plus de `essai.json`) : vérifiée, testée, et a tourné |
+| Jamais de retour arrière | version strictement plus récente que l'assistant, même signée « retour autorisé » |
+| Signature revérifiée par root | manifeste gardé par l'agent à côté du binaire (`mirador-agent-X.manifeste.json`), signature Ed25519 vérifiée avec la clé du fichier root `/etc/mirador-agent/cles-publiques.txt` (droits revérifiés) ; architecture vérifiée |
+| Fichiers de l'agent non fiables | nom du lien `current` vérifié, fichiers ouverts sans suivre de lien et sans bloquer, taille bornée ; empreinte et taille vérifiées sur les octets lus, puis ces octets-là écrits |
+| Remplacement sûr | seulement dans `/usr/local/lib/mirador-agent/` (seul dossier en écriture ajouté à l'unité root) ; fichier `.nouveau` puis renommage atomique ; ancienne version gardée (`.precedent`) |
+| Traces | message dans le journal de `mirador-agent-root` ; refus écrit dans `root.json` (erreurs de l'assistant) |
+
+Risque accepté (expliqué à l'utilisateur) : avec la clé de signature (secret
+GitHub), un attaquant pourrait faire installer son programme **en root**
+(avant : seulement sous l'identité de l'agent). La protection reste la
+clé : environnement GitHub limité aux tags, 2FA du compte. Le refus local
+`MIRADOR_MAJ_RACINE=non` reste possible machine par machine.
+
+Mise en route : relancer le script une fois (assistant au format 2 et
+dossier en écriture dans l'unité) ; ensuite, l'assistant suit l'agent seul.
+La version actuelle de l'agent (installée avant ce changement) n'a pas de
+manifeste gardé : l'assistant attend la version suivante.

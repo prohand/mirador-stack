@@ -60,6 +60,12 @@ type Agent struct {
 	// MajAuto : mises à jour signées automatiques. Seulement dans le fichier
 	// local (jamais réglable à distance) ; exige Serveur.
 	MajAuto bool `json:"-"`
+	// MajRacine : l'assistant root se met à jour lui-même depuis la version
+	// signée et confirmée par l'agent (SPEC § 22.5). Seulement avec MajAuto ;
+	// « non » dans le fichier local (root) l'interdit sur cette machine.
+	MajRacine bool `json:"-"`
+	// DossierBin : binaires de l'agent (versions, lien « current »).
+	DossierBin string `json:"-"`
 	// FichierConfigDistante : dernière configuration reçue du serveur (relue
 	// au démarrage, sans attendre le réseau).
 	FichierConfigDistante string `json:"-"`
@@ -214,6 +220,8 @@ func Defaut() Agent {
 		FichierJeton:          "/var/lib/mirador-agent/jeton",
 		FichierConfigDistante: "/var/lib/mirador-agent/config-distante.json",
 		FichierActualiser:     "/var/lib/mirador-agent/actualiser-racine",
+		MajRacine:             true,
+		DossierBin:            "/var/lib/mirador-agent/bin",
 	}
 }
 
@@ -640,6 +648,10 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.FichierJeton = valeur
 	case "MIRADOR_MAJ_AUTO":
 		a.MajAuto, err = ouiNon(valeur)
+	case "MIRADOR_MAJ_RACINE":
+		a.MajRacine, err = ouiNon(valeur)
+	case "MIRADOR_DOSSIER_BIN":
+		a.DossierBin = valeur
 	case "MIRADOR_FICHIER_CONFIG_DISTANTE":
 		a.FichierConfigDistante = valeur
 	case "MIRADOR_FICHIER_ACTUALISER":
