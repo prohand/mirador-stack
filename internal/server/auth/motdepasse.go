@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package console
+package auth
 
 import (
 	"crypto/rand"
@@ -131,9 +131,9 @@ func Empreinte(mdp string) (string, error) {
 		base64.RawStdEncoding.EncodeToString(sel), base64.RawStdEncoding.EncodeToString(e)), nil
 }
 
-// empreinteLeurre : comparée quand le compte n'existe pas, pour que la
+// EmpreinteLeurre : comparée quand le compte n'existe pas, pour que la
 // durée de réponse ne dise pas si un nom d'utilisateur existe.
-var empreinteLeurre, _ = Empreinte("leurre-pour-un-compte-inconnu")
+var EmpreinteLeurre, _ = Empreinte("leurre-pour-un-compte-inconnu")
 
 // Comparer dit si mdp correspond à l'empreinte (temps constant).
 func Comparer(empreinte, mdp string) bool {

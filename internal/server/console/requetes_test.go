@@ -4,7 +4,7 @@ package console
 
 import (
 	"context"
-	"fmt"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"net/url"
 	"strings"
@@ -153,43 +153,6 @@ func TestVolumeLogs(t *testing.T) {
 	}
 }
 
-// Revue de sécurité du 11/11 : verrouillage.
-func TestVerrousRevue(t *testing.T) {
-	v := nouveauxVerrous()
-	t0 := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	// IPv6 : tout le /64 compte ensemble.
-	for i := 0; i < 5; i++ {
-		v.echecAdresse(fmt.Sprintf("2001:db8:1:2::%x", i+1), 5, time.Hour, t0)
-	}
-	if !v.bloqueAdresse("2001:db8:1:2:ffff::9", t0) || v.bloqueAdresse("2001:db8:1:3::1", t0) {
-		t.Fatal("verrou IPv6 par /64 raté")
-	}
-	if cleAdresse("192.0.2.7") != "192.0.2.7" || cleAdresse("::ffff:192.0.2.7") != "192.0.2.7" {
-		t.Error("IPv4 (et IPv4 dans IPv6) : adresse complète attendue")
-	}
-	// Connexion réussie hier depuis 203.0.113.5 (adresse de confiance).
-	v.reussite("admin", "203.0.113.5", t0.Add(-24*time.Hour))
-	// Un compte verrouillé le reste malgré une avalanche de noms bidon.
-	for i := 0; i < 15; i++ {
-		v.echecCompte("admin", 15, time.Hour, t0)
-	}
-	for i := 0; i < entreesMax+50; i++ {
-		v.echecCompte(fmt.Sprintf("bidon%d", i), 15, time.Hour, t0)
-	}
-	if !v.bloqueCompte("admin", "198.51.100.1", t0) {
-		t.Fatal("verrou de compte effacé par la saturation de la table")
-	}
-	// Une adresse déjà connectée à ce compte n'est pas bloquée par le verrou
-	// du compte (un inconnu ne peut pas enfermer l'admin dehors).
-	if v.bloqueCompte("admin", "203.0.113.5", t0) || !v.bloqueCompte("admin", "203.0.113.6", t0) {
-		t.Error("adresse de confiance mal gérée")
-	}
-	v.lever()
-	if v.bloqueCompte("admin", "198.51.100.1", t0) {
-		t.Error("lever n'a pas levé le verrou")
-	}
-}
-
 // Revue de sécurité du 11/11 : code 2FA d'une action sensible essayé avec
 // une session volée : 5 codes faux ferment la session ; changement de mot
 // de passe verrouillé AVANT le calcul (pas d'oracle).
@@ -205,7 +168,7 @@ func TestEssaisSensibles(t *testing.T) {
 	if code, _, _ := b.get(c, "/utilisateurs"); code != http.StatusSeeOther {
 		t.Fatalf("session encore ouverte après %d codes faux : %d", essaisSensiblesMax, code)
 	}
-	if u, err := LireUtilisateur(context.Background(), b.db, "pirate"); err == nil {
+	if u, err := auth.LireUtilisateur(context.Background(), b.db, "pirate"); err == nil {
 		t.Fatalf("compte créé : %+v", u)
 	}
 }

@@ -5,6 +5,7 @@ package console
 import (
 	"errors"
 	"html/template"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"sort"
 	"strconv"
@@ -17,7 +18,7 @@ import (
 // --- Mon compte --------------------------------------------------------------------
 
 type donneesCompte struct {
-	U             Utilisateur
+	U             auth.Utilisateur
 	Secret, Etape string
 	QR            template.URL
 }
@@ -25,7 +26,7 @@ type donneesCompte struct {
 func (c *Console) pageCompte(q *req) {
 	d := donneesCompte{U: q.u}
 	if q.s.SecretPropose != "" {
-		d.QR, _ = ImageQR(URITOTP(q.u.Nom, q.s.SecretPropose))
+		d.QR, _ = auth.ImageQR(auth.URITOTP(q.u.Nom, q.s.SecretPropose))
 		d.Secret = grouper(q.s.SecretPropose)
 	}
 	c.rendre(q, "compte", "Mon compte", "compte", d)
@@ -45,7 +46,7 @@ func (c *Console) postMotDePasse(q *req) {
 		if !libre {
 			return errTropEssais
 		}
-		bon := Comparer(q.u.MotDePasse, q.r.PostFormValue("actuel"))
+		bon := auth.Comparer(q.u.MotDePasse, q.r.PostFormValue("actuel"))
 		if !bon {
 			err := c.echecSensible(q, "mot de passe faux (changement)")
 			finir()
@@ -65,7 +66,7 @@ func (c *Console) postMotDePasse(q *req) {
 		if n != q.r.PostFormValue("nouveau2") {
 			return errors.New("les deux nouveaux mots de passe sont différents")
 		}
-		if err := DefinirMotDePasse(q.r.Context(), c.db, q.u.Nom, n, q.qui(), q.ip.String(), q.t); err != nil {
+		if err := auth.DefinirMotDePasse(q.r.Context(), c.db, q.u.Nom, n, q.qui(), q.ip.String(), q.t); err != nil {
 			return err
 		}
 		return c.garderSession(q)
@@ -77,17 +78,17 @@ func (c *Console) postMotDePasse(q *req) {
 // (generation + 1), la session courante continue avec un nouvel identifiant.
 func (c *Console) garderSession(q *req) error {
 	c.oublierComptes()
-	u, err := LireUtilisateurID(q.r.Context(), c.db, q.u.ID)
+	u, err := auth.LireUtilisateurID(q.r.Context(), c.db, q.u.ID)
 	if err != nil {
 		return err
 	}
-	c.sessions.fermerUtilisateur(u.ID, q.s.empreinte)
-	id := c.sessions.renouveler(q.s.empreinte, q.t, func(s *Session) { s.Generation = u.Generation; s.SecretPropose = "" })
-	q.s = c.sessions.lire(id)
+	c.sessions.FermerUtilisateur(u.ID, q.s.Empreinte)
+	id := c.sessions.Renouveler(q.s.Empreinte, q.t, func(s *auth.Session) { s.Generation = u.Generation; s.SecretPropose = "" })
+	q.s = c.sessions.Lire(id)
 	if q.s == nil {
 		return errors.New("session perdue")
 	}
-	poserCookie(q.w, id)
+	auth.PoserCookie(q.w, id)
 	return nil
 }
 
@@ -98,8 +99,8 @@ func (c *Console) post2FANouvelle(q *req) {
 	err := c.verifierCode(q)
 	if err == nil {
 		var secret string
-		if secret, err = NouveauSecretTOTP(); err == nil {
-			c.sessions.modifier(q.s.empreinte, func(s *Session) { s.SecretPropose = secret })
+		if secret, err = auth.NouveauSecretTOTP(); err == nil {
+			c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.SecretPropose = secret })
 		}
 	}
 	c.retour(q, "/compte", err, "scanner le nouveau QR code puis saisir un code de la nouvelle 2FA")
@@ -110,7 +111,7 @@ func (c *Console) post2FAConfirmer(q *req) {
 		if q.s.SecretPropose == "" {
 			return errors.New("aucune nouvelle 2FA en cours")
 		}
-		pas, ok := VerifierTOTP(q.s.SecretPropose, q.r.PostFormValue("code"), q.t, 0)
+		pas, ok := auth.VerifierTOTP(q.s.SecretPropose, q.r.PostFormValue("code"), q.t, 0)
 		if !ok {
 			return errors.New("code faux : la 2FA actuelle est gardée")
 		}
@@ -118,7 +119,7 @@ func (c *Console) post2FAConfirmer(q *req) {
 		if err != nil {
 			return err
 		}
-		if err := DefinirTOTP(q.r.Context(), c.db, q.u.Nom, ch, pas, q.qui(), q.ip.String(), q.t); err != nil {
+		if err := auth.DefinirTOTP(q.r.Context(), c.db, q.u.Nom, ch, pas, q.qui(), q.ip.String(), q.t); err != nil {
 			return err
 		}
 		return c.garderSession(q)
@@ -127,14 +128,14 @@ func (c *Console) post2FAConfirmer(q *req) {
 }
 
 func (c *Console) post2FAAbandonner(q *req) {
-	c.sessions.modifier(q.s.empreinte, func(s *Session) { s.SecretPropose = "" })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.SecretPropose = "" })
 	c.retour(q, "/compte", nil, "nouvelle 2FA abandonnée, l'actuelle est gardée")
 }
 
 // --- Utilisateurs (admin) ----------------------------------------------------------
 
 func (c *Console) pageUtilisateurs(q *req) {
-	us, err := ListerUtilisateurs(q.r.Context(), c.db)
+	us, err := auth.ListerUtilisateurs(q.r.Context(), c.db)
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
@@ -151,49 +152,49 @@ func (c *Console) postUtilisateur(q *req) {
 	ok := "fait"
 	// Lu AVANT l'action : après une suppression, le compte n'existe plus
 	// et ses sessions doivent quand même être fermées (revue du 11/11).
-	cible, _ := LireUtilisateur(ctx, c.db, nom)
+	cible, _ := auth.LireUtilisateur(ctx, c.db, nom)
 	err := c.verifierCode(q)
 	if err == nil {
 		switch action {
 		case "creer":
-			err = CreerUtilisateur(ctx, c.db, nom, q.r.PostFormValue("role"), q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
+			err = auth.CreerUtilisateur(ctx, c.db, nom, q.r.PostFormValue("role"), q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
 			ok = "compte créé : la personne crée sa 2FA à sa première connexion"
 		case "role":
 			role := q.r.PostFormValue("role")
 			if nom == q.u.Nom && role != q.u.Role {
 				// Changer son propre rôle peut enfermer dehors : à confirmer.
-				if err = DefinirRole(ctx, c.db, nom, role, q.qui(), ip, q.t); err == nil {
+				if err = auth.DefinirRole(ctx, c.db, nom, role, q.qui(), ip, q.t); err == nil {
 					_, err = DemanderConfirmationRole(ctx, c.db, nom, q.u.Role, q.qui(), q.t)
 					ok = "rôle changé : confirmer dans les 2 minutes (bandeau en haut), sinon il revient"
 				}
 			} else {
-				err = DefinirRole(ctx, c.db, nom, role, q.qui(), ip, q.t)
+				err = auth.DefinirRole(ctx, c.db, nom, role, q.qui(), ip, q.t)
 			}
 		case "desactiver", "activer":
 			if nom == q.u.Nom {
 				err = errors.New("on ne peut pas désactiver son propre compte")
 				break
 			}
-			err = DefinirDesactive(ctx, c.db, nom, action == "desactiver", q.qui(), ip, q.t)
+			err = auth.DefinirDesactive(ctx, c.db, nom, action == "desactiver", q.qui(), ip, q.t)
 		case "reinitialiser_2fa":
-			err = ReinitialiserTOTP(ctx, c.db, nom, q.qui(), ip, q.t)
+			err = auth.ReinitialiserTOTP(ctx, c.db, nom, q.qui(), ip, q.t)
 			ok = "2FA effacée : la personne la recrée à sa prochaine connexion"
 		case "mot_de_passe":
-			err = DefinirMotDePasse(ctx, c.db, nom, q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
+			err = auth.DefinirMotDePasse(ctx, c.db, nom, q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
 			ok = "mot de passe changé, sessions de ce compte fermées"
 		case "supprimer":
 			if nom == q.u.Nom {
 				err = errors.New("on ne peut pas supprimer son propre compte")
 				break
 			}
-			err = SupprimerUtilisateur(ctx, c.db, nom, q.qui(), ip, q.t)
+			err = auth.SupprimerUtilisateur(ctx, c.db, nom, q.qui(), ip, q.t)
 		default:
 			err = errors.New("action inconnue")
 		}
 	}
 	if err == nil {
 		if cible.ID != 0 && action != "role" {
-			c.sessions.fermerUtilisateur(cible.ID, q.s.empreinte)
+			c.sessions.FermerUtilisateur(cible.ID, q.s.Empreinte)
 		}
 		c.oublierComptes()
 	}
@@ -205,7 +206,7 @@ func (c *Console) postUtilisateur(q *req) {
 type donneesSecurite struct {
 	S        Securite
 	Defaut   Securite
-	Sessions []Session
+	Sessions []auth.Session
 	MonIP    string
 }
 
@@ -214,7 +215,7 @@ func (c *Console) pageSecurite(q *req) {
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	ss := c.sessions.lister()
+	ss := c.sessions.Lister()
 	sort.Slice(ss, func(i, j int) bool { return ss[i].Vue.After(ss[j].Vue) })
 	c.rendre(q, "securite", "Sécurité", "securite", donneesSecurite{S: s, Defaut: SecuriteDefaut(), Sessions: ss, MonIP: q.ip.String()})
 }
@@ -298,9 +299,9 @@ func (c *Console) postConfirmer(q *req) {
 // soupçonné, poste oublié).
 func (c *Console) postFermerSession(q *req) {
 	e := q.r.PostFormValue("session")
-	for _, s := range c.sessions.lister() {
+	for _, s := range c.sessions.Lister() {
 		if s.Ref() == e {
-			c.sessions.supprimer(s.empreinte)
+			c.sessions.Supprimer(s.Empreinte)
 			c.retour(q, "/securite", nil, "session fermée")
 			return
 		}

@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"html/template"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ func (c *Console) premierAFaire() bool {
 	if c.jetonPremier == "" {
 		return false
 	}
-	if n, err := NombreUtilisateurs(context.Background(), c.db); err == nil && n > 0 {
+	if n, err := auth.NombreUtilisateurs(context.Background(), c.db); err == nil && n > 0 {
 		c.jetonPremier = ""
 		return false
 	}
@@ -61,7 +62,7 @@ func (c *Console) premierAFaire() bool {
 // d'un nom de compte n'est jamais écrit : c'est souvent un mot de passe
 // tapé par erreur dans le champ « Nom » (le journal est lu par CrowdSec).
 func nomJournal(nom string) string {
-	if nom == "" || VerifierNom(nom) == nil {
+	if nom == "" || auth.VerifierNom(nom) == nil {
 		return nom
 	}
 	return "(invalide)"
@@ -71,13 +72,13 @@ func nomJournal(nom string) string {
 func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
 	sec := c.securite.Load()
 	c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", raison)
-	if d := c.verrous.echecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
+	if d := c.verrous.EchecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
 		c.journal.Warn("console : adresse verrouillée", "ip", ip, "duree", d.String())
 	}
 	if nom == "" {
 		return
 	}
-	if d := c.verrous.echecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
+	if d := c.verrous.EchecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
 		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nomJournal(nom), "duree", d.String())
 		c.prevenirVerrou(nom, ip, d, t)
 	}
@@ -97,13 +98,13 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	if len(nom) > 64 {
 		nom = nom[:64]
 	}
-	if c.verrous.bloqueAdresse(ip, t) {
+	if c.verrous.BloqueAdresse(ip, t) {
 		d.Erreur = "trop d'essais depuis cette adresse : réessayer plus tard"
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "adresse verrouillée")
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
 		return
 	}
-	if c.verrous.bloqueCompte(nom, ip, t) {
+	if c.verrous.BloqueCompte(nom, ip, t) {
 		d.Erreur = "trop d'essais sur ce compte : réessayer plus tard"
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "compte verrouillé")
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "connexion", "Connexion", d)
@@ -111,7 +112,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	}
 	// Essai réservé avant le calcul : une rafale de requêtes simultanées
 	// ne donne pas plus d'essais que le seuil (voir verrou.go).
-	finir, ok := c.verrous.debuter(nom, ip, c.securite.Load().Echecs, t)
+	finir, ok := c.verrous.Debuter(nom, ip, c.securite.Load().Echecs, t)
 	if !ok {
 		d.Erreur = messageSimultanes
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", "trop d'essais en même temps")
@@ -119,18 +120,18 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer finir()
-	u, err := LireUtilisateur(r.Context(), c.db, nom)
-	if err != nil && !errors.Is(err, ErrUtilisateurInconnu) {
+	u, err := auth.LireUtilisateur(r.Context(), c.db, nom)
+	if err != nil && !errors.Is(err, auth.ErrUtilisateurInconnu) {
 		http.Error(w, "base indisponible", http.StatusServiceUnavailable)
 		return
 	}
 	empreinte := u.MotDePasse
 	if u.ID == 0 {
-		empreinte = empreinteLeurre // même durée de calcul qu'un vrai compte
+		empreinte = auth.EmpreinteLeurre // même durée de calcul qu'un vrai compte
 	}
-	bon, occupe := ComparerOccupe(empreinte, mdp)
+	bon, occupe := auth.ComparerOccupe(empreinte, mdp)
 	if occupe {
-		d.Erreur = ErrOccupe.Error()
+		d.Erreur = auth.ErrOccupe.Error()
 		c.pages.rendreSeuleCode(w, http.StatusServiceUnavailable, "connexion", "Connexion", d)
 		return
 	}
@@ -147,33 +148,33 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 		c.pages.rendreSeuleCode(w, http.StatusUnauthorized, "connexion", "Connexion", d)
 		return
 	}
-	etape := etapeCode
+	etape := auth.EtapeCode
 	if u.TOTP == "" {
-		etape = etapeCreer
+		etape = auth.EtapeCreer
 	}
 	// Nouvelle session à chaque connexion : une ancienne session (même
 	// partielle) n'est jamais reprise.
-	if ck, _ := r.Cookie(NomCookie); ck != nil {
-		if s := c.sessions.lire(ck.Value); s != nil {
-			c.sessions.supprimer(s.empreinte)
+	if ck, _ := r.Cookie(auth.NomCookie); ck != nil {
+		if s := c.sessions.Lire(ck.Value); s != nil {
+			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.creer(&Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip}, t)
-	poserCookie(w, id)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip}, t)
+	auth.PoserCookie(w, id)
 	http.Redirect(w, r, cheminEtape(etape), http.StatusSeeOther)
 }
 
 // sessionEtape : session partielle à l'étape attendue, sinon retour au début.
-func (c *Console) sessionEtape(w http.ResponseWriter, r *http.Request, etape string) *Session {
-	ck, _ := r.Cookie(NomCookie)
+func (c *Console) sessionEtape(w http.ResponseWriter, r *http.Request, etape string) *auth.Session {
+	ck, _ := r.Cookie(auth.NomCookie)
 	if ck == nil {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return nil
 	}
-	s := c.sessions.lire(ck.Value)
-	if s == nil || s.Etape != etape || c.maintenant().Sub(s.Creee) > dureeAvantCode {
+	s := c.sessions.Lire(ck.Value)
+	if s == nil || s.Etape != etape || c.maintenant().Sub(s.Creee) > auth.DureeAvantCode {
 		if s != nil {
-			c.sessions.supprimer(s.empreinte)
+			c.sessions.Supprimer(s.Empreinte)
 		}
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return nil
@@ -187,7 +188,7 @@ func (c *Console) sessionEtape(w http.ResponseWriter, r *http.Request, etape str
 }
 
 func (c *Console) pageCode(w http.ResponseWriter, r *http.Request) {
-	s := c.sessionEtape(w, r, etapeCode)
+	s := c.sessionEtape(w, r, auth.EtapeCode)
 	if s == nil {
 		return
 	}
@@ -195,21 +196,21 @@ func (c *Console) pageCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
-	s := c.sessionEtape(w, r, etapeCode)
+	s := c.sessionEtape(w, r, auth.EtapeCode)
 	if s == nil {
 		return
 	}
 	t := c.maintenant()
 	ip := web.AdresseClient(r).String()
 	d := donneesConnexion{Nom: s.Nom, Jeton: s.CSRF}
-	if c.verrous.bloqueAdresse(ip, t) || c.verrous.bloqueCompte(s.Nom, ip, t) {
-		c.sessions.supprimer(s.empreinte)
+	if c.verrous.BloqueAdresse(ip, t) || c.verrous.BloqueCompte(s.Nom, ip, t) {
+		c.sessions.Supprimer(s.Empreinte)
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return
 	}
 	// Essai réservé avant la vérification (rafale de codes, même répartie
 	// sur plusieurs sessions partielles : voir verrou.go).
-	finir, ok := c.verrous.debuter(s.Nom, ip, c.securite.Load().Echecs, t)
+	finir, ok := c.verrous.Debuter(s.Nom, ip, c.securite.Load().Echecs, t)
 	if !ok {
 		d.Erreur = messageSimultanes
 		c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", s.Nom, "raison", "trop d'essais en même temps")
@@ -217,9 +218,9 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer finir()
-	u, err := LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
+	u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
 	if err != nil || u.Desactive || u.TOTP == "" || u.Generation != s.Generation {
-		c.sessions.supprimer(s.empreinte)
+		c.sessions.Supprimer(s.Empreinte)
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return
 	}
@@ -229,9 +230,9 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "2FA illisible : voir le journal du serveur", http.StatusInternalServerError)
 		return
 	}
-	pas, ok := VerifierTOTP(secret, r.PostFormValue("code"), t, u.TOTPDernier)
+	pas, ok := auth.VerifierTOTP(secret, r.PostFormValue("code"), t, u.TOTPDernier)
 	if ok {
-		if ok, err = NoterPasTOTP(r.Context(), c.db, u.ID, pas, t); err != nil {
+		if ok, err = auth.NoterPasTOTP(r.Context(), c.db, u.ID, pas, t); err != nil {
 			http.Error(w, "base indisponible", http.StatusServiceUnavailable)
 			return
 		}
@@ -243,9 +244,9 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 		c.prevenirSecurite("2fa|"+u.Nom, "⚠️ mirador : code 2FA faux pour « "+u.Nom+" » après un mot de passe juste.\nAdresse : "+ip+
 			"\nSi ce n'est pas vous : changer le mot de passe de ce compte.", t)
 		essais := 0
-		c.sessions.modifier(s.empreinte, func(x *Session) { x.EssaisCode++; essais = x.EssaisCode })
-		if essais >= essaisCodeMax {
-			c.sessions.supprimer(s.empreinte)
+		c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.EssaisCode++; essais = x.EssaisCode })
+		if essais >= auth.EssaisCodeMax {
+			c.sessions.Supprimer(s.Empreinte)
 			http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 			return
 		}
@@ -257,17 +258,17 @@ func (c *Console) postCode(w http.ResponseWriter, r *http.Request) {
 }
 
 // reussir : connexion complète, nouvel identifiant de session.
-func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *Session, nom, ip string, t time.Time) {
-	nouvelle := !c.verrous.adresseConnue(nom, ip, t)
-	c.verrous.reussite(nom, ip, t)
+func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Session, nom, ip string, t time.Time) {
+	nouvelle := !c.verrous.AdresseConnue(nom, ip, t)
+	c.verrous.Reussite(nom, ip, t)
 	c.oublierComptes()
-	u, err := LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
+	u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
 	if err != nil {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return
 	}
-	id := c.sessions.renouveler(s.empreinte, t, func(x *Session) {
-		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = etapeComplet, t, "", 0, u.Generation
+	id := c.sessions.Renouveler(s.Empreinte, t, func(x *auth.Session) {
+		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = auth.EtapeComplet, t, "", 0, u.Generation
 	})
 	if id == "" {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
@@ -277,10 +278,10 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *Session, no
 	if nouvelle {
 		// Adresses connues gardées en mémoire : la première connexion après
 		// un redémarrage du serveur prévient aussi.
-		c.prevenirSecurite("adresse|"+nom+"|"+cleAdresse(ip), "🔑 mirador : connexion de « "+nom+" » depuis une nouvelle adresse : "+ip+
+		c.prevenirSecurite("adresse|"+nom+"|"+auth.CleAdresse(ip), "🔑 mirador : connexion de « "+nom+" » depuis une nouvelle adresse : "+ip+
 			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
 	}
-	poserCookie(w, id)
+	auth.PoserCookie(w, id)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -288,24 +289,24 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *Session, no
 // secret proposé reste en mémoire dans la session jusqu'à ce qu'un code
 // juste le confirme.
 func (c *Console) pageCreer2FA(w http.ResponseWriter, r *http.Request) {
-	s := c.sessionEtape(w, r, etapeCreer)
+	s := c.sessionEtape(w, r, auth.EtapeCreer)
 	if s == nil {
 		return
 	}
 	secret := s.SecretPropose
 	if secret == "" {
 		var err error
-		if secret, err = NouveauSecretTOTP(); err != nil {
+		if secret, err = auth.NouveauSecretTOTP(); err != nil {
 			http.Error(w, "aléa indisponible", http.StatusInternalServerError)
 			return
 		}
-		c.sessions.modifier(s.empreinte, func(x *Session) { x.SecretPropose = secret })
+		c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.SecretPropose = secret })
 	}
 	c.rendreCreer2FA(w, http.StatusOK, s, secret, "")
 }
 
-func (c *Console) rendreCreer2FA(w http.ResponseWriter, code int, s *Session, secret, erreur string) {
-	qr, _ := ImageQR(URITOTP(s.Nom, secret))
+func (c *Console) rendreCreer2FA(w http.ResponseWriter, code int, s *auth.Session, secret, erreur string) {
+	qr, _ := auth.ImageQR(auth.URITOTP(s.Nom, secret))
 	c.pages.rendreSeuleCode(w, code, "creer2fa", "Créer la 2FA", donneesConnexion{Nom: s.Nom, Jeton: s.CSRF, QR: qr,
 		Secret: grouper(secret), Erreur: erreur})
 }
@@ -323,7 +324,7 @@ func grouper(s string) string {
 }
 
 func (c *Console) postCreer2FA(w http.ResponseWriter, r *http.Request) {
-	s := c.sessionEtape(w, r, etapeCreer)
+	s := c.sessionEtape(w, r, auth.EtapeCreer)
 	if s == nil {
 		return
 	}
@@ -336,19 +337,19 @@ func (c *Console) postCreer2FA(w http.ResponseWriter, r *http.Request) {
 	// Le compte est relu : désactivé, mot de passe changé (génération) ou
 	// 2FA déjà créée ailleurs entre-temps → la session ne vaut plus rien
 	// (revue du 11/11 : « utilisateur-secours » lancé par une commande).
-	if u, err := LireUtilisateurID(r.Context(), c.db, s.UtilisateurID); err != nil || u.Desactive || u.Generation != s.Generation || u.TOTP != "" ||
-		c.verrous.bloqueAdresse(ip, t) {
-		c.sessions.supprimer(s.empreinte)
+	if u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID); err != nil || u.Desactive || u.Generation != s.Generation || u.TOTP != "" ||
+		c.verrous.BloqueAdresse(ip, t) {
+		c.sessions.Supprimer(s.Empreinte)
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 		return
 	}
-	pas, ok := VerifierTOTP(s.SecretPropose, r.PostFormValue("code"), t, 0)
+	pas, ok := auth.VerifierTOTP(s.SecretPropose, r.PostFormValue("code"), t, 0)
 	if !ok {
 		c.echecConnexion(ip, s.Nom, "code faux à la création de la 2FA", t)
 		essais := 0
-		c.sessions.modifier(s.empreinte, func(x *Session) { x.EssaisCode++; essais = x.EssaisCode })
-		if essais >= essaisCodeMax {
-			c.sessions.supprimer(s.empreinte)
+		c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.EssaisCode++; essais = x.EssaisCode })
+		if essais >= auth.EssaisCodeMax {
+			c.sessions.Supprimer(s.Empreinte)
 			http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 			return
 		}
@@ -360,25 +361,25 @@ func (c *Console) postCreer2FA(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "chiffrement impossible", http.StatusInternalServerError)
 		return
 	}
-	if err := DefinirTOTP(r.Context(), c.db, s.Nom, chiffre, pas, "web:"+s.Nom, ip, t); err != nil {
+	if err := auth.DefinirTOTP(r.Context(), c.db, s.Nom, chiffre, pas, "web:"+s.Nom, ip, t); err != nil {
 		http.Error(w, "enregistrement impossible", http.StatusServiceUnavailable)
 		return
 	}
-	c.sessions.fermerUtilisateur(s.UtilisateurID, s.empreinte)
+	c.sessions.FermerUtilisateur(s.UtilisateurID, s.Empreinte)
 	c.reussir(w, r, s, s.Nom, ip, t)
 }
 
 func (c *Console) postDeconnexion(w http.ResponseWriter, r *http.Request) {
-	if ck, _ := r.Cookie(NomCookie); ck != nil {
-		if s := c.sessions.lire(ck.Value); s != nil {
+	if ck, _ := r.Cookie(auth.NomCookie); ck != nil {
+		if s := c.sessions.Lire(ck.Value); s != nil {
 			if subtle.ConstantTimeCompare([]byte(r.PostFormValue("csrf")), []byte(s.CSRF)) != 1 {
 				http.Error(w, "jeton de formulaire invalide", http.StatusForbidden)
 				return
 			}
-			c.sessions.supprimer(s.empreinte)
+			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	effacerCookie(w)
+	auth.EffacerCookie(w)
 	http.Redirect(w, r, "/connexion", http.StatusSeeOther)
 }
 
@@ -397,7 +398,7 @@ func (c *Console) postPremier(w http.ResponseWriter, r *http.Request) {
 	ip := web.AdresseClient(r).String()
 	nom := strings.TrimSpace(r.PostFormValue("nom"))
 	d := donneesConnexion{Nom: nom, Premier: true}
-	if c.verrous.bloqueAdresse(ip, t) {
+	if c.verrous.BloqueAdresse(ip, t) {
 		d.Erreur = "trop d'essais depuis cette adresse : réessayer plus tard"
 		c.pages.rendreSeuleCode(w, http.StatusTooManyRequests, "premier", "Premier administrateur", d)
 		return
@@ -420,7 +421,7 @@ func (c *Console) postPremier(w http.ResponseWriter, r *http.Request) {
 		c.pages.rendreSeuleCode(w, http.StatusBadRequest, "premier", "Premier administrateur", d)
 		return
 	}
-	if err := CreerUtilisateur(r.Context(), c.db, nom, RoleAdmin, mdp, "premier-admin", ip, t); err != nil {
+	if err := auth.CreerUtilisateur(r.Context(), c.db, nom, auth.RoleAdmin, mdp, "premier-admin", ip, t); err != nil {
 		d.Erreur = err.Error()
 		c.pages.rendreSeuleCode(w, http.StatusBadRequest, "premier", "Premier administrateur", d)
 		return

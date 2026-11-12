@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"io/fs"
 	"mime"
+	"mirador-stack/internal/server/auth"
 	"net/http"
 	"path"
 	"slices"
@@ -362,7 +363,7 @@ func (c *Console) rendre(q *req, nom, titre, menu string, d any) {
 func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	p := Page{Titre: titre, Menu: menu, Utilisateur: q.u.Nom, Admin: q.admin(), CSRF: q.s.CSRF,
 		Version: c.opt.Version, D: d}
-	c.sessions.modifier(q.s.empreinte, func(s *Session) { p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", "" })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", "" })
 	p.Flash, p.Alerte = majusculeDebut(p.Flash), majusculeDebut(p.Alerte)
 	if c.opt.Aiguilleur != nil {
 		p.ModeOmbre = c.opt.Aiguilleur.Mode() == "ombre"

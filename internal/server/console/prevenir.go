@@ -4,6 +4,7 @@ package console
 
 import (
 	"context"
+	"mirador-stack/internal/server/auth"
 	"sync"
 	"time"
 )
@@ -62,10 +63,10 @@ func (c *Console) prevenirSecurite(sujet, texte string, t time.Time) {
 // prevenirVerrou : compte verrouillé. Seulement si le compte existe : un
 // inconnu qui essaie des noms au hasard ne déclenche aucun message.
 func (c *Console) prevenirVerrou(nom, ip string, duree time.Duration, t time.Time) {
-	if c.prevenir == nil || VerifierNom(nom) != nil {
+	if c.prevenir == nil || auth.VerifierNom(nom) != nil {
 		return
 	}
-	if _, err := LireUtilisateur(context.Background(), c.db, nom); err != nil {
+	if _, err := auth.LireUtilisateur(context.Background(), c.db, nom); err != nil {
 		return
 	}
 	c.prevenirSecurite("verrou|"+nom, "🔒 mirador : compte « "+nom+" » verrouillé pour "+duree.String()+" après trop d'échecs de connexion.\nDernière adresse : "+ip+

@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package console
+package auth
 
 import (
-	"context"
-	"database/sql"
 	"net/netip"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -55,7 +52,7 @@ type compteur struct {
 
 type table map[string]*compteur
 
-type verrous struct {
+type Verrous struct {
 	mu        sync.Mutex
 	adresses  table
 	comptes   table
@@ -63,8 +60,8 @@ type verrous struct {
 	enCours   map[string]int       // essais en cours de vérification (« a|adresse », « c|compte »)
 }
 
-func nouveauxVerrous() *verrous {
-	return &verrous{adresses: table{}, comptes: table{}, confiance: map[string]time.Time{}, enCours: map[string]int{}}
+func NouveauxVerrous() *Verrous {
+	return &Verrous{adresses: table{}, comptes: table{}, confiance: map[string]time.Time{}, enCours: map[string]int{}}
 }
 
 // debuter réserve un essai (mot de passe ou code) pour cette adresse et ce
@@ -74,10 +71,10 @@ func nouveauxVerrous() *verrous {
 // Si l'essai est accepté, appeler finir quand la vérification est terminée
 // (et comptée). La table des essais en cours ne contient que les requêtes
 // en cours de traitement : elle se vide toute seule.
-func (v *verrous) debuter(nom, ip string, seuil int, t time.Time) (finir func(), ok bool) {
+func (v *Verrous) Debuter(nom, ip string, seuil int, t time.Time) (finir func(), ok bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	adr := cleAdresse(ip)
+	adr := CleAdresse(ip)
 	ka, kc := "a|"+adr, "c|"+nom
 	if v.adresses.recents(adr, t)+v.enCours[ka] >= seuil {
 		return nil, false
@@ -101,8 +98,8 @@ func (v *verrous) debuter(nom, ip string, seuil int, t time.Time) (finir func(),
 	}, true
 }
 
-// cleAdresse : l'adresse (IPv4) ou son /64 (IPv6).
-func cleAdresse(ip string) string {
+// CleAdresse : l'adresse (IPv4) ou son /64 (IPv6).
+func CleAdresse(ip string) string {
 	a, err := netip.ParseAddr(ip)
 	if err != nil {
 		return ip
@@ -117,18 +114,18 @@ func cleAdresse(ip string) string {
 }
 
 // bloqueAdresse : l'adresse (ou son /64) est-elle verrouillée ?
-func (v *verrous) bloqueAdresse(ip string, t time.Time) bool {
+func (v *Verrous) BloqueAdresse(ip string, t time.Time) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.adresses.bloque(cleAdresse(ip), t)
+	return v.adresses.bloque(CleAdresse(ip), t)
 }
 
 // bloqueCompte : le compte est-il verrouillé pour cette adresse ? (jamais
 // pour une adresse depuis laquelle il s'est déjà connecté)
-func (v *verrous) bloqueCompte(nom, ip string, t time.Time) bool {
+func (v *Verrous) BloqueCompte(nom, ip string, t time.Time) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if le, ok := v.confiance[nom+"|"+cleAdresse(ip)]; ok && t.Sub(le) < dureeConfiance {
+	if le, ok := v.confiance[nom+"|"+CleAdresse(ip)]; ok && t.Sub(le) < dureeConfiance {
 		return false
 	}
 	return v.comptes.bloque(nom, t)
@@ -136,13 +133,13 @@ func (v *verrous) bloqueCompte(nom, ip string, t time.Time) bool {
 
 // echecAdresse, echecCompte : un échec. Si la clé vient d'être verrouillée,
 // renvoie la durée du verrou (0 sinon).
-func (v *verrous) echecAdresse(ip string, seuil int, duree time.Duration, t time.Time) time.Duration {
+func (v *Verrous) EchecAdresse(ip string, seuil int, duree time.Duration, t time.Time) time.Duration {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.adresses.echec(cleAdresse(ip), seuil, duree, t)
+	return v.adresses.echec(CleAdresse(ip), seuil, duree, t)
 }
 
-func (v *verrous) echecCompte(nom string, seuil int, duree time.Duration, t time.Time) time.Duration {
+func (v *Verrous) EchecCompte(nom string, seuil int, duree time.Duration, t time.Time) time.Duration {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.comptes.echec(nom, seuil, duree, t)
@@ -150,10 +147,10 @@ func (v *verrous) echecCompte(nom string, seuil int, duree time.Duration, t time
 
 // adresseConnue : ce compte s'est-il déjà connecté depuis cette adresse
 // (30 jours, depuis le démarrage du serveur) ?
-func (v *verrous) adresseConnue(nom, ip string, t time.Time) bool {
+func (v *Verrous) AdresseConnue(nom, ip string, t time.Time) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	le, ok := v.confiance[nom+"|"+cleAdresse(ip)]
+	le, ok := v.confiance[nom+"|"+CleAdresse(ip)]
 	return ok && t.Sub(le) < dureeConfiance
 }
 
@@ -161,7 +158,7 @@ func (v *verrous) adresseConnue(nom, ip string, t time.Time) bool {
 // l'adresse devient « de confiance » pour ce compte. Celui de l'ADRESSE est
 // gardé : se connecter à son propre compte ne remet pas à zéro les essais
 // faits depuis la même adresse sur un autre.
-func (v *verrous) reussite(nom, ip string, t time.Time) {
+func (v *Verrous) Reussite(nom, ip string, t time.Time) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	delete(v.comptes, nom)
@@ -175,11 +172,11 @@ func (v *verrous) reussite(nom, ip string, t time.Time) {
 			clear(v.confiance) // au pire : le verrou de compte s'applique à tous
 		}
 	}
-	v.confiance[nom+"|"+cleAdresse(ip)] = t
+	v.confiance[nom+"|"+CleAdresse(ip)] = t
 }
 
-// lever : efface tous les compteurs et verrous (commande de secours).
-func (v *verrous) lever() {
+// Lever : efface tous les compteurs et verrous (commande de secours).
+func (v *Verrous) Lever() {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.adresses, v.comptes = table{}, table{}
@@ -256,28 +253,5 @@ func (tb table) faireDeLaPlace(t time.Time) {
 		} else {
 			delete(tb, verrou)
 		}
-	}
-}
-
-// cleVerrousLeves : réglage écrit par la commande « utilisateur-secours »
-// (autre processus) ; le serveur en marche lève ses verrous en le voyant.
-const cleVerrousLeves = "console.verrous_leves"
-
-// DemanderLeveeVerrous : à appeler par une commande de secours.
-func DemanderLeveeVerrous(ctx context.Context, db *sql.DB, qui string, t time.Time) error {
-	return ecrireReglage(ctx, db, cleVerrousLeves, strconv.FormatInt(t.UnixNano(), 10), qui, t)
-}
-
-// leverSiDemande : vu à chaque tour (5 s).
-func (c *Console) leverSiDemande(ctx context.Context) {
-	var v string
-	if err := c.db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleVerrousLeves).Scan(&v); err != nil {
-		return
-	}
-	n, _ := strconv.ParseInt(v, 10, 64)
-	if n > c.verrousLevesLe.Load() {
-		c.verrousLevesLe.Store(n)
-		c.verrous.lever()
-		c.journal.Warn("console : verrous de connexion levés (commande de secours)")
 	}
 }
