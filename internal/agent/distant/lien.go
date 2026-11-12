@@ -127,7 +127,7 @@ func (l *Lien) requete(ctx context.Context, methode, chemin string, corps []byte
 	req.Header.Set(protocole.EnteteProtocole, "1")
 	req.Header.Set(protocole.EnteteVersion, version.Version)
 	req.Header.Set(protocole.EnteteHeure, fmt.Sprint(time.Now().UnixMilli()))
-	req.Header.Set(protocole.EnteteCapacites, protocole.CapaciteSurveillance)
+	req.Header.Set(protocole.EnteteCapacites, protocole.Capacites)
 	if l.Empreinte != "" {
 		req.Header.Set(protocole.EnteteEmpreinte, l.Empreinte)
 	}

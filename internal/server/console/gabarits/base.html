@@ -25,7 +25,7 @@
     <nav aria-label="Menu principal">
       <div class="groupe">Supervision</div>
       {{template "lien-menu" (menu "/" "ensemble" "Vue d'ensemble" .Menu "accueil" 0)}}
-      {{template "lien-menu" (menu "/machines" "machines" "Machines" .Menu "machines" 0)}}
+      {{template "lien-menu" (menuAValider "/machines" "machines" "Machines" .Menu "machines" .NbAValider "Machines où l'agent a trouvé quelque chose de nouveau à surveiller")}}
       {{template "lien-menu" (menu "/alertes" "alertes" "Alertes" .Menu "alertes" .NbAlertes)}}
       {{template "lien-menu" (menu "/logs" "logs" "Logs" .Menu "logs" 0)}}
       {{template "lien-menu" (menu "/tableaux" "tableaux" "Tableaux" .Menu "tableaux" 0)}}

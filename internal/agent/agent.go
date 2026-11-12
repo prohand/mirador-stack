@@ -88,9 +88,9 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		collect.NewMemoire(cfg.RacineProc),
 		collect.NewVMStat(cfg.RacineProc),
 		collect.NewPression(cfg.RacineProc),
-		collect.NewDisques(cfg.RacineProc, cfg.ExclureDisques),
-		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces),
-		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant),
+		collect.NewDisques(cfg.RacineProc, cfg.ExclureDisques, cfg.IgnorerDisques...),
+		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces, cfg.IgnorerInterfaces...),
+		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant, cfg.IgnorerMontages...),
 		collect.NewUname(),
 		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
 		// sinon seulement signalés à l'interface (SPEC.md § 19).
@@ -103,6 +103,7 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 	// n'est envoyé tant que l'assistant n'a pas écrit son fichier.
 	r := collect.NewRacine(cfg.FichierRoot)
 	r.SansPareFeu, r.SansSmart, r.SansCertificats = !cfg.EnvoyerPareFeu, !cfg.EnvoyerSmart, !cfg.EnvoyerCertificats
+	r.IgnorerCertificats(cfg.CertificatsIgnorer)
 	liste = append(liste, r)
 	if cfg.Systemd {
 		s := collect.NewSystemd(cfg.SystemdIgnorer)

@@ -16,8 +16,10 @@
 //     (mémoire, pas de disque) et s'arrête ;
 //   - l'agent lit ce fichier et envoie les valeurs.
 //
-// L'assistant n'ouvre aucune connexion réseau, ne lit pas la configuration
-// distante, et n'est jamais mis à jour par la mise à jour automatique.
+// L'assistant n'ouvre aucune connexion réseau et n'est jamais mis à jour par
+// la mise à jour automatique. De la configuration distante, il ne lit qu'UNE
+// clé, les chemins de certificats ajoutés dans l'interface, avec des règles
+// strictes (SPEC.md § 21.3) ; MIRADOR_CERTIFICATS_DISTANTS=non l'en empêche.
 package racine
 
 import (
@@ -57,7 +59,16 @@ func Executer(cfg config.Agent, maintenant time.Time) error {
 		return errors.New("l'assistant doit tourner en root (timer mirador-agent-root)")
 	}
 	precedent, _ := Lire(cfg.FichierRoot) // mesure SMART précédente, si elle existe
+	var errDistants error
+	if cfg.CertificatsDistants && cfg.Serveur != "" && cfg.FichierConfigDistante != "" {
+		cfg.CertificatsAjout, _, errDistants = MotifsDistants(cfg.FichierConfigDistante)
+	} else {
+		cfg.CertificatsAjout = nil
+	}
 	r := Mesurer(cfg, maintenant, precedent, programmesReels())
+	if errDistants != nil {
+		r.Erreurs = append(r.Erreurs, "certificats : "+errDistants.Error())
+	}
 	return Ecrire(cfg.FichierRoot, r)
 }
 
@@ -83,8 +94,8 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 			r.Smart, r.SmartLu = disques, maintenant.UTC()
 		}
 	}
-	if len(cfg.Certificats) > 0 {
-		r.Certificats = lireCertificats(cfg.Certificats, maintenant)
+	if len(cfg.Certificats) > 0 || len(cfg.CertificatsAjout) > 0 {
+		r.Certificats = lireCertificats(cfg.Certificats, cfg.CertificatsAjout)
 	}
 	return r
 }

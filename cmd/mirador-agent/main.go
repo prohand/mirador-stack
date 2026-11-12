@@ -94,8 +94,9 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	}
 	journal := slog.New(slog.NewTextHandler(erreurs, &slog.HandlerOptions{Level: niveau(locale.NiveauLog)}))
 	// Avec mirador-server : dernière configuration distante reçue (sur disque).
-	// Pas pour l'assistant root : ce fichier est modifiable par l'agent, root
-	// ne le lit jamais (revue de sécurité du 11/11).
+	// Pas pour l'assistant root : ce fichier est modifiable par l'agent (revue
+	// de sécurité du 11/11). Root n'en lit qu'une clé, les chemins de
+	// certificats, revérifiés avec des règles strictes (SPEC.md § 21.3).
 	cfg := locale
 	if !*collecteRoot {
 		cfg = distant.ConfigAuDemarrage(locale, journal)

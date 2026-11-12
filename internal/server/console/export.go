@@ -336,7 +336,7 @@ func (c *Console) postImporterConfiguration(q *req) {
 		return rap, nil
 	}()
 	if err != nil {
-		c.retour(q, "/reglages", err, "")
+		c.retour(q, "/reglages/export", err, "")
 		return
 	}
 	c.rendre(q, "import", "Import de la configuration", "reglages", rapport)

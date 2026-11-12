@@ -157,7 +157,8 @@ toutes les sessions (elles sont en mémoire).
 | Règles | liste et santé, modèles, formulaire, test sur 24 h, import / export YAML, modifications |
 | Logs | recherche bornée, répétitions repliées, palmarès ; flux bloqués |
 | Tableaux | Serveurs Linux, Proxmox, OPNsense, Synology, UniFi, Certificats (convertis des tableaux Grafana), et ceux créés ici ; tous modifiables (§ 9) |
-| Réglages | notifications, conservation, sauvegardes, sites / types / groupes de configuration, agents (par défaut → groupe → machine), interface (GéoIP : téléchargement à la demande, effacée si décochée), export / import |
+| Réglages | notifications, (Olvid), conservation, sauvegardes, sites / types / groupes de configuration, interface (GéoIP : téléchargement à la demande, effacée si décochée), export / import ; mêmes noms et même ordre dans les onglets et les cartes. En bas, « Ailleurs dans mirador » : les réglages rangés avec ce qu'ils concernent (configuration et mises à jour des agents dans Machines, silences dans Alertes, utilisateurs, sécurité, audit) |
+| Configuration des agents | onglet de Machines : par défaut → groupe → machine |
 | Utilisateurs, Sécurité, Audit | comptes, sessions, verrouillage, liste d'adresses, journal d'audit |
 
 ## 7. Olvid depuis l'interface
@@ -235,11 +236,30 @@ Sur la page d'une machine, bloc « À surveiller sur cette machine »
 - Retirer « Disques SMART », « Pare-feu » ou « Certificats » arrête l'envoi,
   pas l'assistant root de la machine. Pour l'arrêter aussi : `MIRADOR_SMART=non`
   (ou `MIRADOR_PAREFEU=non`) dans `/etc/mirador-agent/agent.conf`.
+- **Élément par élément** (SPEC § 21, agent récent) :
+  - « Système : disques, interfaces, montages » : garder ou retirer un
+    disque, une interface réseau ou un point de montage précis ;
+    « Rétablir » le remet ;
+  - « Certificats » : la liste des certificats trouvés, avec les jours
+    restants ; garder ou retirer chacun. « Ajouter des chemins » : un par
+    ligne, par exemple `/etc/nginx/ssl/*.crt`. Règles : sous `/etc`,
+    `/opt`, `/srv`, `/var/lib` ou `/usr/local`, nom en `.pem`, `.crt`,
+    `.cer` ou `.cert`, jamais une clé privée, 3 jokers au plus, 20 chemins.
+    Lu au prochain passage de l'assistant root (15 min au plus) ;
+  - une machine peut refuser les chemins venus de l'interface :
+    `MIRADOR_CERTIFICATS_DISTANTS=non` dans son fichier local.
+- **Signal « à valider »** : compteur orange sur « Machines » dans le menu
+  (nombre de machines concernées), colonne « À valider » dans la liste des
+  machines et la vue d'ensemble, pastille à côté du nom de la machine.
 
 Vue d'ensemble :
 
-- un clic sur « Machine », « CPU », « Mémoire », « Disque » ou « Alertes »
-  trie ; un deuxième inverse ; un troisième revient à l'ordre par gravité ;
+- un clic sur « Machine », « État », « CPU », « Mémoire », « Disque »,
+  « Alertes », « À valider » ou « Vu » trie ; un deuxième inverse ; un
+  troisième revient à l'ordre par gravité ;
+- « Afficher » ne garde que les machines à regarder (critique, muette ou
+  avertissement), une seule gravité, ou celles qui ont des éléments à
+  valider ;
 - « Filtre » cherche dans le nom, le site, le type et le groupe ;
 - « Colonnes » masque des colonnes ; tri et colonnes sont retenus dans le
   navigateur.

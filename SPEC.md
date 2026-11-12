@@ -3167,3 +3167,114 @@ Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 | Passkey seule : remplissage de la mémoire par des demandes de défi | 2 000 défis au plus, 5 min ; refusé pour une adresse verrouillée |
 | Téléphone volé avec la 2FA | l'administrateur remet la 2FA à zéro : codes et passkeys effacés |
 | Mot de passe connu de l'attaquant | la passkey ou le code reste nécessaire ; message à l'administrateur à chaque essai faux |
+
+
+---
+
+## 21. Élément par élément, signal « à valider », réglages rangés **[Fait, à valider — demandes du 12/11]**
+
+Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
+
+- gérer ce qui est surveillé **dans** « Système » et « Certificats » ;
+- réponse « tout gérer depuis l'interface » (y compris les chemins de
+  certificats, au prix d'un écart avec la revue du 11/11, voir § 21.3) ;
+- une info visible quand une machine a quelque chose de nouveau à valider ;
+- un menu Réglages cohérent ;
+- tri et filtre sur « État » et « À valider » dans la vue d'ensemble.
+
+### 21.1 Agent
+
+| Réglage (distant, et local `MIRADOR_…`) | Effet |
+|---|---|
+| `ignorer_disques` / `MIRADOR_IGNORER_DISQUES` | disques retirés (noms exacts, 100 au plus) |
+| `ignorer_interfaces` / `MIRADOR_IGNORER_INTERFACES` | interfaces retirées (100 au plus) |
+| `ignorer_montages` / `MIRADOR_IGNORER_MONTAGES` | points de montage retirés (chemins exacts, 100 au plus) |
+| `certificats_ignorer` | certificats lus mais pas envoyés (chemins exacts, 200 au plus) |
+| `certificats_ajout` | chemins en plus de `MIRADOR_CERTIFICATS`, lus par l'assistant root (20 au plus, règles du § 21.3) |
+| `MIRADOR_CERTIFICATS_DISTANTS` (local seulement, défaut oui) | non = l'assistant root ignore `certificats_ajout` |
+
+- Les listes s'ajoutent aux expressions `MIRADOR_EXCLURE_*` (même filtre,
+  une table de noms en plus : pas de coût mesurable).
+- `ssl_certs_found_total` compte les certificats **envoyés** (les retirés
+  n'y sont plus).
+- Nouvelle capacité annoncée : `elements` (en-tête `X-Mirador-Capacites:
+  surveillance,elements`). Le serveur retire ces clés pour un agent qui ne
+  l'annonce pas (0.2.12 compris) : il refuserait sinon tout le document.
+
+### 21.2 Interface
+
+- Page machine, bloc « À surveiller » :
+  - « Système : disques, interfaces, montages » (replié) : un tableau,
+    Garder / Retirer / Rétablir par ligne ;
+  - « Certificats » (replié, visible même si aucun certificat n'est encore
+    trouvé) : fichier, nom, émetteur, jours restants (rouge < 7, orange
+    < 21), Garder / Retirer ; chemins ajoutés (Retirer) ; champ « Ajouter
+    des chemins » ;
+  - même formulaire et **même code 2FA** que le reste du bloc ; toujours à
+    la portée de la machine ;
+  - rien de stocké en plus : le détail vient des dernières métriques (4
+    noms de métriques ajoutés à la requête du bloc, une série par élément)
+    et de la configuration.
+- Signal « à valider » : compteur **orange** sur « Machines » dans le menu
+  (nombre de machines concernées, sur toutes les pages), colonne dans la
+  liste des machines, pastille à côté du nom de la machine. Le calcul est
+  gardé 60 s (oublié dès qu'un choix est enregistré).
+- Vue d'ensemble : tri sur « État » (par gravité), « À valider » et « Vu » ;
+  liste « Afficher » (toutes, à regarder, critiques, muettes,
+  avertissement, en ligne, à valider), retenue dans le navigateur.
+- Réglages : **une seule liste** en Go sert aux onglets et aux cartes
+  (mêmes noms, même ordre). Onglets : Notifications, Olvid (si activé),
+  Conservation des données, Sauvegardes, Sites, types et groupes,
+  Interface, Export / import (devenu une page). Les réglages rangés
+  ailleurs sont rappelés sous « Ailleurs dans mirador » avec leur place :
+  Configuration et Mises à jour des agents (Machines, avec les onglets de
+  Machines), Silences et maintenances (Alertes), Utilisateurs, Sécurité,
+  Journal d'audit.
+
+### 21.3 Chemins de certificats venus du serveur : écart assumé **[Décidé, validé par l'utilisateur le 12/11]**
+
+La revue du 11/11 avait décidé : « root ne lit jamais la configuration
+distante » (le fichier gardé appartient à l'agent, sans root). Choix de
+l'utilisateur le 12/11 : tout gérer depuis l'interface. L'assistant root lit
+donc **une seule clé** de ce fichier, avec ces règles :
+
+| Contrôle | Où |
+|---|---|
+| Fichier ouvert sans suivre de lien (`O_NOFOLLOW`), sans bloquer, fichier ordinaire, 256 Kio au plus ; message d'erreur sans contenu du fichier | assistant root |
+| Chemin absolu, sans `..`, `//`, `/./`, ni caractère de contrôle | agent à la réception, serveur à l'enregistrement, assistant root avant lecture |
+| Dossiers autorisés : `/etc/`, `/opt/`, `/srv/`, `/var/lib/`, `/usr/local/` (pas `/proc`, `/sys`, `/dev`, `/run`, `/tmp`, `/home`, `/root`) | idem |
+| Nom en `.pem`, `.crt`, `.cer` ou `.cert` (écrit en toutes lettres) | idem |
+| Aucun nom contenant « key » ou « priv » (clé privée), ni dans le motif, ni dans le fichier trouvé, ni dans sa cible réelle | idem + assistant root |
+| Cible réelle (liens suivis) dans un dossier autorisé | assistant root |
+| 3 jokers au plus, 20 chemins, 100 fichiers examinés par chemin | idem |
+| Fichier ouvert sans bloquer (tube, périphérique), fichier ordinaire, 1 Mio au plus | assistant root (aussi pour les chemins locaux) |
+| Sortie : chemin, nom (CN), émetteur, dates : rien d'autre du fichier | inchangé |
+| Veto local : `MIRADOR_CERTIFICATS_DISTANTS=non` | fichier local, que le serveur ne peut pas changer |
+
+Ce qui reste possible pour un attaquant qui tient le serveur ou le compte
+de l'agent : faire lire à root un fichier `*.pem` / `*.crt` d'un dossier
+autorisé, et savoir s'il contient un certificat (et lequel). Un certificat
+n'est pas un secret. Il ne peut ni lire une clé privée nommée comme telle,
+ni `/etc/shadow`, ni bloquer l'assistant.
+
+### 21.4 Coût mesuré (machine de développement, 4 cœurs)
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| Agent, disques + réseau, sans / avec 4 noms retirés | 8,8 / 7,7 µs par passage, 6 allocations (identique) | < 1 % d'un cœur ✅ |
+| Assistant root, 20 certificats, chemin local / distant | 0,22 / 0,31 ms toutes les 15 min | ✅ |
+| Serveur, classement du bloc d'une machine | 5,4 µs (4,2 avant) | — |
+| Serveur, compteur du menu | 1 requête + 1 lecture SQLite par machine ayant une détection, au plus une fois par minute | — |
+| Séries en plus | aucune côté agent ; la requête du bloc lit des séries déjà envoyées | ✅ |
+| Écritures disque | seulement à l'enregistrement d'un choix | ✅ |
+
+### 21.5 Modèle de menaces
+
+| Menace | Parade |
+|---|---|
+| Serveur compromis qui fait lire un fichier sensible à root | règles du § 21.3 ; veto local |
+| Compte de l'agent compromis qui modifie le fichier gardé | même chose : root revérifie chaque chemin ; lien symbolique refusé |
+| Session volée qui retire un disque ou un certificat (alerte masquée) | code 2FA à chaque enregistrement ; ligne d'audit |
+| Nom piégé (XSS) dans un disque, un montage, un CN | échappé par `html/template` ; noms vérifiés à l'entrée |
+| Ancien agent cassé par une clé inconnue | clés retirées pour lui selon ses capacités (testé avec 0.2.12) |
+| Formulaire géant | 600 éléments au plus par envoi, 20 chemins ajoutés |

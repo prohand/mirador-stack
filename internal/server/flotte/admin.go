@@ -53,6 +53,12 @@ func (i InfoMachine) Surveillance() bool {
 	return ACapacite(i.Capacites, protocole.CapaciteSurveillance)
 }
 
+// Elements : l'agent sait retirer un élément précis et chercher des
+// certificats aux chemins ajoutés dans l'interface (SPEC § 21).
+func (i InfoMachine) Elements() bool {
+	return ACapacite(i.Capacites, protocole.CapaciteElements)
+}
+
 // CreerJeton fabrique un jeton d'enrôlement à usage unique, valable duree.
 // Le jeton n'est affiché qu'une fois ; seule son empreinte est gardée.
 func CreerJeton(ctx context.Context, db *sql.DB, duree time.Duration, qui string, maintenant time.Time) (string, error) {

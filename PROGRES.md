@@ -11,6 +11,7 @@
 | 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **faite, à valider** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **faite, à valider** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
+| 5 quater. Élément par élément, signal « à valider », Réglages rangés | **faite, à valider** (SPEC § 21) | `claude/affectionate-albattani-izl0lb` |
 | 6. Équipements sans agent + `mirador-collector` | non commencée | — |
 | 7. Bascule | non commencée | — |
 
@@ -612,6 +613,30 @@ récent marche avec un ancien serveur, mais sans ces réglages).
   l'interdire). Les deux essayés dans Chromium.
 - À essayer sur le VPS : créer des codes de secours, créer une passkey
   depuis le téléphone, se déconnecter, se reconnecter des deux façons.
+
+## Élément par élément, « à valider », Réglages (12/11, SPEC § 21)
+
+| Partie | État |
+|---|---|
+| Agent : disques, interfaces, montages, certificats retirés un par un ; chemins de certificats depuis l'interface | **fait** |
+| Assistant root : lecture des chemins venus du serveur, avec garde-fous (§ 21.3) | **fait, écart de sécurité validé le 12/11** (testé ici : lien, tube, clé privée, dossier interdit) |
+| Serveur : capacité `elements`, anciens agents protégés | **fait** |
+| Page machine : détail Système et Certificats | **fait** (vu dans Chromium, démonstration) |
+| Signal « à valider » : menu, liste, en-tête | **fait** |
+| Vue d'ensemble : tri État / À valider / Vu, filtre d'état | **fait** |
+| Réglages : onglets et cartes depuis une seule liste | **fait** |
+
+Mesures (SPEC § 21.4) : agent sans coût mesurable ; assistant root 0,3 ms
+pour 20 certificats toutes les 15 min ; serveur 5,4 µs par machine pour le
+bloc, compteur du menu calculé au plus une fois par minute. RAM réelle
+toujours à mesurer sur srv-test et le VPS.
+
+À vérifier chez toi après mise à jour (serveur d'abord, puis l'agent) :
+
+```bash
+# L'assistant root a-t-il lu les chemins ajoutés dans l'interface ? (erreurs éventuelles)
+sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
+```
 
 ## Prochaine étape
 

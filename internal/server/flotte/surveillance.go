@@ -35,6 +35,20 @@ var clesSurveillance = map[string]bool{
 // CleSurveillance dit si une clé demande un agent qui connaît la surveillance.
 func CleSurveillance(cle string) bool { return clesSurveillance[cle] }
 
+// clesElements : éléments choisis un par un (SPEC.md § 21), envoyés
+// seulement aux agents qui annoncent la capacité « elements ».
+var clesElements = map[string]bool{
+	"ignorer_disques": true, "ignorer_interfaces": true, "ignorer_montages": true,
+	"certificats_ajout": true, "certificats_ignorer": true,
+}
+
+// CleElements dit si une clé demande un agent qui connaît les éléments.
+func CleElements(cle string) bool { return clesElements[cle] }
+
+// ClePageMachine : clé réglée sur la page de la machine (bloc « À
+// surveiller »), et non dans « Configuration des agents ».
+func ClePageMachine(cle string) bool { return clesSurveillance[cle] || clesElements[cle] }
+
 var formatCapacites = regexp.MustCompile(`^[a-z0-9,_-]{0,100}$`)
 
 // capacitesDe lit l'en-tête X-Mirador-Capacites (vide pour un ancien agent).
@@ -56,15 +70,31 @@ func ACapacite(liste, capacite string) bool {
 	return false
 }
 
-// sansSurveillance retire les clés de surveillance d'une configuration
-// fusionnée et recalcule son ETag (agent trop ancien pour les comprendre).
-func sansSurveillance(doc []byte) ([]byte, string, error) {
+// clesInconnues : clés que l'agent ne comprendrait pas, d'après ses capacités.
+func clesInconnues(capacites string) map[string]bool {
+	out := map[string]bool{}
+	if !ACapacite(capacites, protocole.CapaciteSurveillance) {
+		for k := range clesSurveillance {
+			out[k] = true
+		}
+	}
+	if !ACapacite(capacites, protocole.CapaciteElements) {
+		for k := range clesElements {
+			out[k] = true
+		}
+	}
+	return out
+}
+
+// sansCles retire des clés d'une configuration fusionnée et recalcule son
+// ETag (agent trop ancien pour les comprendre).
+func sansCles(doc []byte, retirer map[string]bool) ([]byte, string, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(doc, &m); err != nil {
 		return nil, "", err
 	}
 	for k := range m {
-		if clesSurveillance[k] {
+		if retirer[k] {
 			delete(m, k)
 		}
 	}

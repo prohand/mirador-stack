@@ -272,7 +272,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 
 	// --- Réglages ---
 	for _, chemin := range []string{"/reglages", "/reglages/notifications", "/reglages/conservation", "/reglages/sauvegardes",
-		"/reglages/agents", "/reglages/agents?portee=machine:1", "/reglages/interface", "/audit"} {
+		"/reglages/agents", "/reglages/agents?portee=machine:1", "/reglages/interface", "/reglages/sites", "/reglages/export", "/audit"} {
 		if code, corps, _ := n.faire(http.MethodGet, chemin, nil); code != 200 || strings.Contains(corps, "erreur d'affichage") {
 			t.Errorf("%s : %d", chemin, code)
 		}

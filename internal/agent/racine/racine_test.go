@@ -12,6 +12,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -132,7 +134,7 @@ func TestSmart(t *testing.T) {
 }
 
 // ecrireCertificat crée un certificat autosigné dans dir/nom.
-func ecrireCertificat(t *testing.T, chemin, cn string, fin time.Time) {
+func ecrireCertificat(t testing.TB, chemin, cn string, fin time.Time) {
 	t.Helper()
 	cle, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -176,7 +178,7 @@ func TestCertificats(t *testing.T) {
 		filepath.Join(dir, "local/*.crt"),
 		filepath.Join(dir, "local/*.pem"),
 		filepath.Join(dir, "absent/*.pem"),
-	}, time.Now())
+	}, nil)
 	if c.Trouves != 2 || c.Erreurs != 1 || len(c.Liste) != 2 {
 		t.Fatalf("obtenu %+v", c)
 	}
@@ -272,5 +274,103 @@ func FuzzAnalyses(f *testing.F) {
 		analyserIptables(b)
 		analyserNft(b)
 		_, _ = analyserSmart("/dev/sda", b)
+	})
+}
+
+// Chemins ajoutés dans l'interface (SPEC.md § 21.3) : clés privées sautées,
+// lien vers un autre dossier refusé, tube nommé sans blocage.
+func TestCertificatsDistants(t *testing.T) {
+	dir := t.TempDir()
+	autorise := filepath.Join(dir, "etc") + "/"
+	ancien := dossierAutorise
+	dossierAutorise = func(c string) bool { return strings.HasPrefix(c, autorise) }
+	t.Cleanup(func() { dossierAutorise = ancien })
+
+	fin := time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC)
+	ecrireCertificat(t, filepath.Join(dir, "etc/app/site.pem"), "site.lan", fin)
+	ecrireCertificat(t, filepath.Join(dir, "dehors/autre.pem"), "dehors.lan", fin)
+	if err := os.WriteFile(filepath.Join(dir, "etc/app/privkey.pem"),
+		[]byte("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Lien qui sort du dossier autorisé : jamais lu.
+	if err := os.Symlink(filepath.Join(dir, "dehors/autre.pem"), filepath.Join(dir, "etc/app/fuite.pem")); err != nil {
+		t.Fatal(err)
+	}
+	// Tube nommé : ne doit pas bloquer l'assistant.
+	if err := syscall.Mkfifo(filepath.Join(dir, "etc/app/tube.pem"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fini := make(chan *Certificats, 1)
+	go func() { fini <- lireCertificats(nil, []string{filepath.Join(dir, "etc/app/*.pem")}) }()
+	var c *Certificats
+	select {
+	case c = <-fini:
+	case <-time.After(5 * time.Second):
+		t.Fatal("lecture bloquée sur le tube nommé")
+	}
+	if c.Trouves != 1 || len(c.Liste) != 1 || c.Liste[0].CN != "site.lan" {
+		t.Fatalf("obtenu %+v", c)
+	}
+	if c.Erreurs != 1 { // le tube
+		t.Errorf("erreurs = %d, attendu 1 (le tube)", c.Erreurs)
+	}
+}
+
+func TestMotifsDistants(t *testing.T) {
+	dir := t.TempDir()
+	chemin := filepath.Join(dir, "config-distante.json")
+	doc := `{"temperatures":true,"certificats_ajout":["/etc/nginx/ssl/*.crt","/proc/self/environ.pem",` +
+		`"/etc/shadow","/etc/x/privkey.pem","/etc/../root/a.pem","/opt/*/*/*/*.pem"]}`
+	if err := os.WriteFile(chemin, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, refuses, err := MotifsDistants(chemin)
+	if len(m) != 1 || m[0] != "/etc/nginx/ssl/*.crt" || refuses != 5 || err == nil {
+		t.Fatalf("obtenu %v, %d refusés, %v", m, refuses, err)
+	}
+	// Fichier absent : pas d'erreur, rien à lire.
+	if m, _, err := MotifsDistants(filepath.Join(dir, "absent.json")); m != nil || err != nil {
+		t.Fatalf("absent : %v %v", m, err)
+	}
+	// Lien symbolique (l'agent tenterait de faire lire un autre fichier à root) : refusé.
+	lien := filepath.Join(dir, "lien.json")
+	if err := os.Symlink(chemin, lien); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := MotifsDistants(lien); err == nil {
+		t.Fatal("lien symbolique accepté")
+	}
+	// Contenu illisible : le message ne contient rien du fichier.
+	if err := os.WriteFile(chemin, []byte("root:$6$secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := MotifsDistants(chemin); err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "root") {
+		t.Fatalf("erreur inattendue : %v", err)
+	}
+}
+
+// Coût de la lecture des certificats (SPEC § 21) : 20 fichiers par un motif
+// local et le même dossier par un motif distant (contrôles en plus).
+func BenchmarkCertificats(b *testing.B) {
+	dir := b.TempDir()
+	for i := 0; i < 20; i++ {
+		ecrireCertificat(b, filepath.Join(dir, "etc", "c"+strings.Repeat("x", i)+".pem"), "x.lan", time.Now().AddDate(0, 3, 0))
+	}
+	ancien := dossierAutorise
+	dossierAutorise = func(c string) bool { return strings.HasPrefix(c, dir) }
+	b.Cleanup(func() { dossierAutorise = ancien })
+	motif := filepath.Join(dir, "etc", "*.pem")
+	b.Run("local", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			lireCertificats([]string{motif}, nil)
+		}
+	})
+	b.Run("distant", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			lireCertificats(nil, []string{motif})
+		}
 	})
 }

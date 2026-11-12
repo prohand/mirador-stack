@@ -73,6 +73,42 @@ func TestAppliquerSurveillance(t *testing.T) {
 	}
 }
 
+// Éléments choisis un par un (SPEC § 21).
+func TestAppliquerElements(t *testing.T) {
+	d, err := Decoder(strings.NewReader(`{"ignorer_disques":["sdb"],"ignorer_interfaces":["ens19"],
+		"ignorer_montages":["/mnt/sauvegarde"],"certificats_ajout":["/etc/nginx/ssl/*.crt"],
+		"certificats_ignorer":["/etc/ssl/local/vieux.pem"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := Appliquer(base(), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.IgnorerDisques) != 1 || len(a.IgnorerInterfaces) != 1 || len(a.IgnorerMontages) != 1 ||
+		len(a.CertificatsAjout) != 1 || len(a.CertificatsIgnorer) != 1 {
+		t.Errorf("valeurs non appliquées : %+v", a)
+	}
+	for _, doc := range []string{
+		`{"ignorer_disques":["sd b"]}`,
+		`{"ignorer_interfaces":["eth0;reboot"]}`,
+		`{"ignorer_montages":["relatif"]}`,
+		`{"certificats_ajout":["/etc/shadow"]}`,
+		`{"certificats_ajout":["/proc/1/environ.pem"]}`,
+		`{"certificats_ajout":["/etc/ssl/private/*key*.pem"]}`,
+		`{"certificats_ajout":["/etc/../root/x.pem"]}`,
+		`{"certificats_ignorer":["/etc/a\u0001b.pem"]}`,
+	} {
+		d, err := Decoder(strings.NewReader(doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Appliquer(base(), d); err == nil {
+			t.Errorf("accepté à tort : %s", doc)
+		}
+	}
+}
+
 func TestRefus(t *testing.T) {
 	cas := map[string]string{
 		// Champs qui n'existent pas dans le schéma : refusés en bloc.

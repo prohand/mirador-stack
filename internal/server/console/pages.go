@@ -190,7 +190,8 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 
 type vueMachine struct {
 	flotte.InfoMachine
-	Muette bool
+	Muette   bool
+	AValider int // éléments détectés « à valider » (SPEC § 19)
 }
 
 type donneesMachines struct {
@@ -211,8 +212,12 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		c.flash(q, "", err.Error())
 	}
 	var d donneesMachines
+	var aValider map[string]int
+	if c.lecteur != nil {
+		aValider = c.aValider(q.r.Context(), q.t)
+	}
 	for _, m := range ms {
-		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette}
+		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette, AValider: aValider[m.Nom]}
 		switch m.Statut {
 		case "en_attente":
 			d.EnAttente = append(d.EnAttente, v)
@@ -416,6 +421,7 @@ func (c *Console) postMachine(q *req) {
 			err = flotte.ErrMachineInconnue
 		} else {
 			err = c.postSurveillance(q, m)
+			c.oublierAValider() // compteur du menu recalculé
 		}
 		vers += "#surveillance"
 		ok = "choix enregistrés : la machine les applique à sa prochaine demande (5 min au plus)"
@@ -775,6 +781,10 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	})
 	return out
 }
+
+// Gravite : état pour le tri et le filtre de la vue d'ensemble (3 critique,
+// 2 muette, 1 avertissement, 0 en ligne sans alerte).
+func (l ligneParc) Gravite() int { return 3 - l.rang }
 
 var zero = 0
 

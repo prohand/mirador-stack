@@ -93,6 +93,7 @@ type Console struct {
 	interfaceCourante     atomic.Pointer[ReglagesInterface]
 	tableaux              atomic.Pointer[etatTableaux]      // tableaux en service (fournis + base)
 	cacheMet              cacheMetriques                    // métriques reçues (assistant de requête)
+	cacheValider          cacheAValider                     // éléments « à valider » par machine (menu, liste)
 	verrousLevesLe        atomic.Int64                      // dernière levée des verrous vue (commande de secours)
 	nomsAnciens           atomic.Pointer[map[string]string] // ancien nom → nom actuel (historique des machines renommées)
 
