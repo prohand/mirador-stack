@@ -63,6 +63,7 @@
 <tr><th>Tokens actifs</th><td>{{$m.TokensActifs}}</td></tr>
 <tr><th>Adresses autorisées</th><td><code>{{if $m.IPsAutorisees}}{{$m.IPsAutorisees}}{{else}}Toutes{{end}}</code></td></tr>
 <tr><th>Dernière adresse vue</th><td><code>{{$m.DerniereIP}}</code></td></tr>
+<tr><th>Token lié à la machine</th><td>{{if $m.EmpreinteLiee}}Oui{{else}}Non{{end}}</td></tr>
 <tr><th>Enrôlée le</th><td>{{dateS $m.CreeLe}}</td></tr>
 </table></details>
 
@@ -83,6 +84,14 @@
   <label>Adresses ou préfixes, séparés par des virgules (vide = toutes) <input name="ips" value="{{$m.IPsAutorisees}}" maxlength="2000"></label>
   {{if $m.DerniereIP}}<small>Dernière adresse vue : <code>{{$m.DerniereIP}}</code></small>{{end}}
   {{template "code2fa"}}<button>Enregistrer</button></form>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="empreinte">
+  <h3>Lier le token à cette machine</h3>
+  {{if $m.EmpreinteLiee}}<p>Le token est <strong>lié</strong> à la machine (empreinte <code>{{printf "%.8s" $m.EmpreinteLiee}}…</code>). Présenté par une autre machine, il est refusé.{{if and $m.EmpreinteVue (not (egal $m.EmpreinteVue $m.EmpreinteLiee))}} <span class="erreur-texte">La machine envoie maintenant une autre empreinte (<code>{{printf "%.8s" $m.EmpreinteVue}}…</code>) : réinstallée ou clonée ? Délier puis relier si c'est normal.</span>{{end}}</p>
+  <input type="hidden" name="lier" value="non">{{template "code2fa"}}<button class="secondaire">Délier</button>
+  {{else if $m.EmpreinteVue}}<p>La machine envoie l'empreinte <code>{{printf "%.8s" $m.EmpreinteVue}}…</code> (dérivée de <code>/etc/machine-id</code>). Lié, le token ne marche plus s'il est copié sur une autre machine.</p>
+  <small>À délier avant de réinstaller ou de cloner la machine, ou avant de revenir à un agent plus ancien (qui n'envoie pas d'empreinte) : sinon elle sera refusée.</small>
+  <input type="hidden" name="lier" value="oui">{{template "code2fa"}}<button>Lier</button>
+  {{else}}<p><small>Cette machine n'a pas encore envoyé d'empreinte (agent trop ancien, ou <code>/etc/machine-id</code> absent).</small></p>{{end}}</form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
   <h3>Version de l'agent</h3>
   <label>Version assignée à cette machine <select name="version"><option value="">Celle de toutes les machines</option><option value="bloquer">Bloquer sur la version actuelle</option>{{range .D.Versions}}<option {{if egal . $m.VersionCible}}selected{{end}}>{{.}}</option>{{end}}</select></label>

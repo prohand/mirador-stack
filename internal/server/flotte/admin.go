@@ -43,6 +43,9 @@ type InfoMachine struct {
 	NomDuJeton                           bool   // nom choisi à la création du jeton
 	Capacites                            string // annoncées par l'agent (« surveillance »…)
 	DemarrageLe                          int64  // démarrage de l'agent
+	// Empreinte de la machine (SPEC § 19.8) : dernière reçue, et celle à
+	// laquelle le token est lié ('' : pas lié).
+	EmpreinteVue, EmpreinteLiee string
 }
 
 // Surveillance : l'agent connaît les réglages de surveillance (SPEC § 19).
@@ -121,7 +124,7 @@ func ListerMachines(ctx context.Context, db *sql.DB) ([]InfoMachine, error) {
 		m.version_cible, m.ip_enrolement, m.ips_autorisees, m.derniere_ip, m.maj_essai, m.maj_echec, m.vu_le, m.battement_le, m.cree_le,
 		(SELECT count(*) FROM tokens t WHERE t.machine_id = m.id AND t.revoque_le = 0),
 		EXISTS(SELECT 1 FROM jetons_enrolement j WHERE j.machine_id = m.id AND j.nom != ''),
-		m.capacites, m.demarrage_le
+		m.capacites, m.demarrage_le, m.empreinte_vue, m.empreinte_liee
 		FROM machines m ORDER BY m.nom`)
 	if err != nil {
 		return nil, err
@@ -132,7 +135,8 @@ func ListerMachines(ctx context.Context, db *sql.DB) ([]InfoMachine, error) {
 		var i InfoMachine
 		if err := rows.Scan(&i.ID, &i.Nom, &i.Type, &i.Statut, &i.Site, &i.Env, &i.Groupe, &i.Version, &i.Architecture,
 			&i.VersionCible, &i.IPEnrolement, &i.IPsAutorisees, &i.DerniereIP, &i.MajEssai, &i.MajEchec, &i.VuLe, &i.BattementLe,
-			&i.CreeLe, &i.TokensActifs, &i.NomDuJeton, &i.Capacites, &i.DemarrageLe); err != nil {
+			&i.CreeLe, &i.TokensActifs, &i.NomDuJeton, &i.Capacites, &i.DemarrageLe,
+			&i.EmpreinteVue, &i.EmpreinteLiee); err != nil {
 			return nil, err
 		}
 		out = append(out, i)
@@ -270,6 +274,35 @@ func DefinirIPs(ctx context.Context, db *sql.DB, nom, liste, qui string, mainten
 }
 
 var formatEtiquette = regexp.MustCompile(`^[A-Za-z0-9._-]{0,63}$`)
+
+// LierEmpreinte lie le token de la machine à l'empreinte qu'elle envoie en ce
+// moment (lier = true), ou retire ce lien. Lié, le token est refusé s'il est
+// présenté par une autre machine, ou par un agent trop ancien pour envoyer
+// son empreinte.
+func LierEmpreinte(ctx context.Context, db *sql.DB, nom string, lier bool, qui string, maintenant time.Time) error {
+	if !lier {
+		return changer(ctx, db, nom, qui, "machine_empreinte", "non liée", maintenant,
+			func(tx *sql.Tx, id int64) error {
+				_, err := tx.ExecContext(ctx, `UPDATE machines SET empreinte_liee = '' WHERE id = ?`, id)
+				return err
+			})
+	}
+	var vue string
+	if err := db.QueryRowContext(ctx, `SELECT empreinte_vue FROM machines WHERE nom = ?`, nom).Scan(&vue); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrMachineInconnue
+		}
+		return err
+	}
+	if !ingestion.EmpreinteValide(vue) {
+		return errors.New("cette machine n'a pas encore envoyé d'empreinte (agent trop ancien, ou /etc/machine-id absent)")
+	}
+	return changer(ctx, db, nom, qui, "machine_empreinte", "liée à "+vue[:8]+"…", maintenant,
+		func(tx *sql.Tx, id int64) error {
+			_, err := tx.ExecContext(ctx, `UPDATE machines SET empreinte_liee = ? WHERE id = ?`, vue, id)
+			return err
+		})
+}
 
 // DefinirEtiquettes : site, env et groupe (groupe = portée de configuration).
 func DefinirEtiquettes(ctx context.Context, db *sql.DB, nom, site, env, groupe, qui string, maintenant time.Time) error {

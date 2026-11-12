@@ -151,7 +151,9 @@ type Recuperateur struct {
 	URL    string // https://serveur/api/agent/v1/config
 	Token  string
 	Client *http.Client
-	etag   string
+	// Empreinte de la machine ('' : pas envoyée).
+	Empreinte string
+	etag      string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -167,6 +169,9 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	req.Header.Set(protocole.EnteteProtocole, "1")
 	req.Header.Set(protocole.EnteteVersion, version.Version)
 	req.Header.Set(protocole.EnteteCapacites, protocole.CapaciteSurveillance)
+	if r.Empreinte != "" {
+		req.Header.Set(protocole.EnteteEmpreinte, r.Empreinte)
+	}
 	if r.etag != "" {
 		req.Header.Set("If-None-Match", r.etag)
 	}

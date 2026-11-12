@@ -73,10 +73,10 @@ func nouvelleChaineLogs(cfg config.Agent, token string, j *slog.Logger) *chaineL
 	c.exp = envoi.NewExpediteur(c.file, envoi.Options{
 		URL:   urlJsonline(cfg.URLLogs),
 		Token: token,
-		Entetes: map[string]string{
+		Entetes: cfg.EntetesMachine(map[string]string{
 			"Content-Type":     "application/stream+json",
 			"Content-Encoding": "gzip",
-		},
+		}),
 		Journal: j,
 	})
 	return c

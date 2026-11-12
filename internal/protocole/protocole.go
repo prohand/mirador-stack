@@ -46,6 +46,10 @@ const (
 	// ignore cet en-tête ; un ancien agent ne l'envoie pas, et le serveur ne
 	// lui envoie alors aucun réglage qu'il ne connaît pas.
 	EnteteCapacites = "X-Mirador-Capacites"
+	// Empreinte de la machine (32 chiffres hexadécimaux, dérivée de
+	// /etc/machine-id). Si l'admin a lié le token à la machine, le serveur
+	// refuse ce token avec une autre empreinte (token copié ailleurs).
+	EnteteEmpreinte = "X-Mirador-Empreinte"
 )
 
 // CapaciteSurveillance : l'agent connaît les réglages de surveillance choisis

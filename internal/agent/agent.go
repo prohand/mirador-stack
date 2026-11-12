@@ -70,11 +70,11 @@ func Nouveau(cfg config.Agent, token string, journal *slog.Logger) *Agent {
 	a.exp = envoi.NewExpediteur(a.file, envoi.Options{
 		URL:   cfg.URLMetriques,
 		Token: token,
-		Entetes: map[string]string{
+		Entetes: cfg.EntetesMachine(map[string]string{
 			"Content-Type":                      "application/x-protobuf",
 			"Content-Encoding":                  "snappy",
 			"X-Prometheus-Remote-Write-Version": "0.1.0",
-		},
+		}),
 		Journal: journal,
 	})
 	return a

@@ -100,3 +100,56 @@ func TestCapaciteAuBattement(t *testing.T) {
 		t.Error("en-tête invalide accepté")
 	}
 }
+
+// Token lié à la machine (SPEC § 19.8) : refusé s'il est présenté par une
+// autre machine, ou sans empreinte ; rien ne change tant qu'il n'est pas lié.
+func TestTokenLieALaMachine(t *testing.T) {
+	b := nouveauBanc(t)
+	token, _ := TokenManuel(ctx, b.db, "pc", "admin", t0)
+	const moi, autre = "0123456789abcdef0123456789abcdef", "ffffffffffffffffffffffffffffffff"
+	battre := func(empreinte string) int {
+		corps, _ := json.Marshal(protocole.Battement{Version: "1.2.3", Architecture: "amd64", Demarrage: t0})
+		if empreinte == "" {
+			return b.requete(http.MethodPost, protocole.CheminBattement, token, corps, "").Code
+		}
+		return b.requete(http.MethodPost, protocole.CheminBattement, token, corps, "", protocole.EnteteEmpreinte, empreinte).Code
+	}
+	// Pas d'empreinte connue : impossible de lier.
+	if err := LierEmpreinte(ctx, b.db, "pc", true, "admin", t0); err == nil {
+		t.Fatal("lien accepté sans empreinte reçue")
+	}
+	// Pas lié : tout passe, et l'empreinte reçue est gardée.
+	if battre("") != http.StatusNoContent || battre(moi) != http.StatusNoContent {
+		t.Fatal("un token non lié doit passer avec ou sans empreinte")
+	}
+	if err := b.f.opt.Ingestion.Auth().EcrireVus(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if ms, _ := ListerMachines(ctx, b.db); ms[0].EmpreinteVue != moi || ms[0].EmpreinteLiee != "" {
+		t.Fatalf("empreinte vue : %+v", ms[0])
+	}
+	if err := LierEmpreinte(ctx, b.db, "pc", true, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	b.f.opt.Ingestion.Auth().Oublier()
+	if c := battre(moi); c != http.StatusNoContent {
+		t.Errorf("la bonne machine est refusée : %d", c)
+	}
+	for nom, e := range map[string]string{"autre machine": autre, "sans empreinte": "", "empreinte mal formée": "<script>"} {
+		if c := battre(e); c != http.StatusForbidden {
+			t.Errorf("%s : %d (403 attendu)", nom, c)
+		}
+	}
+	// Métriques et configuration : même refus.
+	if w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", protocole.EnteteEmpreinte, autre); w.Code != http.StatusForbidden {
+		t.Errorf("configuration servie à une autre machine : %d", w.Code)
+	}
+	// Délier : tout repasse.
+	if err := LierEmpreinte(ctx, b.db, "pc", false, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	b.f.opt.Ingestion.Auth().Oublier()
+	if c := battre(autre); c != http.StatusNoContent {
+		t.Errorf("après avoir délié : %d", c)
+	}
+}

@@ -372,7 +372,7 @@ func (c *Console) postMachine(q *req) {
 	// « surveillance » change la configuration de l'agent : même règle que la
 	// page « Configuration des agents » (revue de sécurité du 11/11).
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
-		"surveillance": true}
+		"surveillance": true, "empreinte": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -403,6 +403,13 @@ func (c *Console) postMachine(q *req) {
 		ok = "machine refusée"
 	case "etiquettes":
 		err = c.definirEtiquettes(q, nom, f)
+	case "empreinte":
+		lier := f("lier") == "oui"
+		err = flotte.LierEmpreinte(ctx, c.db, nom, lier, q.qui(), q.t)
+		ok = "token lié à cette machine : il sera refusé s'il est présenté par une autre"
+		if !lier {
+			ok = "le token n'est plus lié à la machine"
+		}
 	case "surveillance":
 		if m, trouve := c.machine(q); !trouve {
 			err = flotte.ErrMachineInconnue

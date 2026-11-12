@@ -5,10 +5,12 @@ package ingestion
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +34,15 @@ var ErrToken = errors.New("token absent ou invalide")
 // cette machine (HTTP 403 : l'agent garde ses lots et réessaie, rien n'est
 // perdu le temps de corriger la liste dans l'interface).
 var ErrIP = errors.New("adresse non autorisée pour ce token")
+
+// ErrEmpreinte : token valable, mais présenté par une autre machine que
+// celle à laquelle l'admin l'a lié (SPEC § 19.8). HTTP 403, comme ErrIP.
+var ErrEmpreinte = errors.New("token lié à une autre machine")
+
+var formatEmpreinte = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// EmpreinteValide : forme attendue de l'en-tête X-Mirador-Empreinte.
+func EmpreinteValide(e string) bool { return formatEmpreinte.MatchString(e) }
 
 // Durées du cache des tokens. Un token révoqué cesse de marcher au plus tard
 // après dureeCache (ou tout de suite avec Oublier).
@@ -60,13 +71,15 @@ type Auth struct {
 }
 
 type vu struct {
-	t  int64 // secondes Unix
-	ip netip.Addr
+	t         int64 // secondes Unix
+	ip        netip.Addr
+	empreinte string // dernière empreinte de machine reçue ('' : non envoyée)
 }
 
 type entreeCache struct {
 	m      Machine
 	ips    []netip.Prefix // vide : toute adresse
+	liee   string         // empreinte de machine exigée ('' : aucune)
 	ok     bool           // false : token refusé (cache négatif)
 	expire int64          // nanosecondes Unix
 }
@@ -96,6 +109,20 @@ func extraireToken(r *http.Request) (string, bool) {
 // l'adresse n'est pas dans la liste de la machine ; une autre erreur si la
 // base ne répond pas (le client réessaiera).
 func (a *Auth) Verifier(ctx context.Context, token string, ip netip.Addr, maintenant time.Time) (Machine, error) {
+	return a.verifier(ctx, token, ip, "", false, maintenant)
+}
+
+// VerifierMachine : comme Verifier, avec l'empreinte de machine envoyée par
+// l'agent. Si le token est lié à une machine, une empreinte différente ou
+// absente est refusée (ErrEmpreinte).
+func (a *Auth) VerifierMachine(ctx context.Context, token string, ip netip.Addr, empreinte string, maintenant time.Time) (Machine, error) {
+	if !EmpreinteValide(empreinte) {
+		empreinte = ""
+	}
+	return a.verifier(ctx, token, ip, empreinte, true, maintenant)
+}
+
+func (a *Auth) verifier(ctx context.Context, token string, ip netip.Addr, empreinte string, lier bool, maintenant time.Time) (Machine, error) {
 	e := Empreinte(token)
 	a.mu.Lock()
 	c, trouve := a.cache[e]
@@ -112,8 +139,11 @@ func (a *Auth) Verifier(ctx context.Context, token string, ip netip.Addr, mainte
 	if !ipAutorisee(c.ips, ip) {
 		return c.m, ErrIP
 	}
+	if lier && c.liee != "" && subtle.ConstantTimeCompare([]byte(c.liee), []byte(empreinte)) != 1 {
+		return c.m, ErrEmpreinte
+	}
 	a.mu.Lock()
-	a.vus[c.m.ID] = vu{t: maintenant.Unix(), ip: ip}
+	a.vus[c.m.ID] = vu{t: maintenant.Unix(), ip: ip, empreinte: empreinte}
 	a.mu.Unlock()
 	return c.m, nil
 }
@@ -164,9 +194,9 @@ func LireIPs(s string) ([]netip.Prefix, error) {
 func (a *Auth) chercher(ctx context.Context, e [32]byte, maintenant time.Time) (entreeCache, error) {
 	var c entreeCache
 	var ips string
-	err := a.db.QueryRowContext(ctx, `SELECT m.id, m.nom, m.type, m.site, m.env, m.groupe, m.ips_autorisees FROM tokens t
+	err := a.db.QueryRowContext(ctx, `SELECT m.id, m.nom, m.type, m.site, m.env, m.groupe, m.ips_autorisees, m.empreinte_liee FROM tokens t
 		JOIN machines m ON m.id = t.machine_id
-		WHERE t.empreinte = ? AND t.revoque_le = 0 AND m.statut = 'approuvee'`, e[:]).Scan(&c.m.ID, &c.m.Nom, &c.m.Type, &c.m.Site, &c.m.Env, &c.m.Groupe, &ips)
+		WHERE t.empreinte = ? AND t.revoque_le = 0 AND m.statut = 'approuvee'`, e[:]).Scan(&c.m.ID, &c.m.Nom, &c.m.Type, &c.m.Site, &c.m.Env, &c.m.Groupe, &ips, &c.liee)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		c.expire = maintenant.Add(dureeCacheRefus).UnixNano()
@@ -220,8 +250,9 @@ func (a *Auth) EcrireVus(ctx context.Context) error {
 		if v.ip.IsValid() {
 			ip = v.ip.String()
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE machines SET vu_le = ?, derniere_ip = ? WHERE id = ? AND vu_le <= ?`,
-			v.t, ip, id, v.t); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE machines SET vu_le = ?, derniere_ip = ?,
+			empreinte_vue = CASE WHEN ? = '' THEN empreinte_vue ELSE ? END WHERE id = ? AND vu_le <= ?`,
+			v.t, ip, v.empreinte, v.empreinte, id, v.t); err != nil {
 			return err
 		}
 	}

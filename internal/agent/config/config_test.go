@@ -169,3 +169,34 @@ func TestMetriquesReglables(t *testing.T) {
 		t.Error("métriques désactivées par défaut")
 	}
 }
+
+// L'empreinte de la machine : stable, propre à la machine, et jamais
+// l'identifiant lui-même.
+func TestEmpreinteMachine(t *testing.T) {
+	dir := t.TempDir()
+	ecrire := func(nom, contenu string) string {
+		p := filepath.Join(dir, nom)
+		if err := os.WriteFile(p, []byte(contenu), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	a := EmpreinteMachine(ecrire("a", "0123456789abcdef0123456789abcdef\n"))
+	b := EmpreinteMachine(ecrire("b", "fedcba9876543210fedcba9876543210\n"))
+	if len(a) != 32 || a == b || a != EmpreinteMachine(filepath.Join(dir, "a")) {
+		t.Errorf("empreintes : %q %q", a, b)
+	}
+	if strings.Contains(a, "0123456789abcdef") {
+		t.Error("l'identifiant de la machine ne doit pas sortir tel quel")
+	}
+	for _, mauvais := range []string{ecrire("vide", ""), ecrire("court", "abc\n"), filepath.Join(dir, "absent")} {
+		if e := EmpreinteMachine(mauvais); e != "" {
+			t.Errorf("%s : empreinte %q attendue vide", mauvais, e)
+		}
+	}
+	// Jamais envoyée ailleurs que vers mirador-server.
+	sans := Agent{}
+	if h := sans.EntetesMachine(map[string]string{}); len(h) != 0 {
+		t.Errorf("en-tête envoyé sans mirador-server : %v", h)
+	}
+}
