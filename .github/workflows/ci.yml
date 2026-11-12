@@ -20,10 +20,15 @@ name: ci
 on:
   push:
     # Documentation seule : rien à vérifier (ne s'applique pas aux tags).
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'reference/**'
+    # Exception : THIRD-PARTY.md est contrôlé par la CI (licences) ; le
+    # corriger doit donc la relancer. L'ordre compte : la dernière ligne qui
+    # correspond l'emporte.
+    paths:
+      - '**'
+      - '!**.md'
+      - '!docs/**'
+      - '!reference/**'
+      - 'THIRD-PARTY.md'
   # Lancement à la main (avec les benchmarks si demandé).
   workflow_dispatch:
     inputs:
