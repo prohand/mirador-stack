@@ -56,6 +56,14 @@ const (
 // dans l'interface (SPEC.md § 19) et signale ce qu'il détecte sur la machine.
 const CapaciteSurveillance = "surveillance"
 
+// CapaciteElements : l'agent sait retirer un disque, une interface, un
+// montage ou un certificat précis, et chercher des certificats aux chemins
+// ajoutés dans l'interface (SPEC.md § 21).
+const CapaciteElements = "elements"
+
+// Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
+const Capacites = CapaciteSurveillance + "," + CapaciteElements
+
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).
 type DemandeEnrolement struct {

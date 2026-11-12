@@ -4,12 +4,18 @@ package racine
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"syscall"
 	"time"
+
+	"mirador-stack/internal/agent/config"
 )
 
 // Certificats : résultat du parcours des certificats locaux (remplace
@@ -33,37 +39,45 @@ type Certificat struct {
 const (
 	maxCertificats    = 500
 	tailleMaxCertFich = 1 << 20
+	// Fichiers examinés pour un motif venu du serveur : un joker trop large
+	// ne fait pas ouvrir des milliers de fichiers par root.
+	maxFichiersDistant = 100
 )
 
-// lireCertificats parcourt les motifs (ex. /etc/letsencrypt/live/*/cert.pem).
+// lireCertificats parcourt les motifs du fichier local (ex.
+// /etc/letsencrypt/live/*/cert.pem), puis ceux ajoutés dans l'interface
+// (distants), avec des contrôles en plus pour ces derniers (SPEC.md § 21.3).
 // Un même fichier atteint par deux chemins (lien symbolique, cas de
 // /etc/pve/local) n'est compté qu'une fois (dédoublonnage par inode).
-func lireCertificats(motifs []string, _ time.Time) *Certificats {
+func lireCertificats(locaux, distants []string) *Certificats {
 	c := &Certificats{}
 	vus := map[uint64]bool{}
-	for _, motif := range motifs {
+	parcourir := func(motif string, distant bool) {
 		fichiers, err := filepath.Glob(motif)
 		if err != nil {
-			continue // motif validé à la lecture de la configuration
+			return // motif validé à la lecture de la configuration
 		}
 		sort.Strings(fichiers)
+		if distant && len(fichiers) > maxFichiersDistant {
+			fichiers = fichiers[:maxFichiersDistant]
+			c.Erreurs++
+		}
 		for _, f := range fichiers {
 			if len(c.Liste) >= maxCertificats {
-				return c
+				return
 			}
-			info, err := os.Stat(f)
-			if err != nil || !info.Mode().IsRegular() {
-				continue
+			if distant && !fichierDistantSur(f) {
+				continue // nom de clé privée, ou lien vers un autre dossier
 			}
-			if st, ok := info.Sys().(*syscall.Stat_t); ok {
-				if vus[st.Ino] {
+			cert, ino, ok := lireCertificat(f)
+			if ino != 0 {
+				if vus[ino] {
 					continue
 				}
-				vus[st.Ino] = true
+				vus[ino] = true
 			}
-			cert, ok := lireCertificat(f, info.Size())
 			if !ok {
-				// Clé privée ou fichier non reconnu dans un dossier scanné.
+				// Clé privée, fichier non reconnu ou illisible dans un dossier scanné.
 				c.Erreurs++
 				continue
 			}
@@ -71,31 +85,71 @@ func lireCertificats(motifs []string, _ time.Time) *Certificats {
 			c.Trouves++
 		}
 	}
+	for _, m := range locaux {
+		parcourir(m, false)
+	}
+	for _, m := range distants {
+		parcourir(m, true)
+	}
 	return c
 }
 
-// lireCertificat lit le premier certificat PEM du fichier (le certificat du
-// serveur dans un fullchain.pem, comme « openssl x509 »).
-func lireCertificat(chemin string, taille int64) (Certificat, bool) {
-	if taille > tailleMaxCertFich {
-		return Certificat{}, false
+// dossierAutorise : remplacé dans les tests (les fichiers de test ne sont
+// pas sous /etc).
+var dossierAutorise = config.DossierDistantAutorise
+
+// fichierDistantSur : pour un fichier trouvé par un motif venu du serveur, le
+// nom ne doit pas ressembler à une clé privée, et le fichier réel (liens
+// suivis) doit rester dans un dossier autorisé, sous un nom autorisé.
+func fichierDistantSur(f string) bool {
+	if !config.FichierAccepteDistant(f) {
+		return false
 	}
-	brut, err := os.ReadFile(chemin) // #nosec G304 -- fichiers trouvés par les motifs de la configuration
+	reel, err := filepath.EvalSymlinks(f)
 	if err != nil {
-		return Certificat{}, false
+		return false
+	}
+	return dossierAutorise(reel) && config.FichierAccepteDistant(reel)
+}
+
+// lireCertificat lit le premier certificat PEM du fichier (le certificat du
+// serveur dans un fullchain.pem, comme « openssl x509 »). Le fichier est
+// ouvert sans bloquer puis vérifié (fichier ordinaire, taille bornée) : un
+// tube ou un périphérique ne peut pas bloquer l'assistant. Renvoie aussi
+// l'inode (0 si inconnu) pour le dédoublonnage.
+func lireCertificat(chemin string) (Certificat, uint64, bool) {
+	f, err := os.OpenFile(chemin, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0) // #nosec G304 -- fichiers trouvés par les motifs validés
+	if err != nil {
+		return Certificat{}, 0, false
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return Certificat{}, 0, false
+	}
+	var ino uint64
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		ino = st.Ino
+	}
+	if !info.Mode().IsRegular() || info.Size() > tailleMaxCertFich {
+		return Certificat{}, ino, false
+	}
+	brut, err := io.ReadAll(io.LimitReader(f, tailleMaxCertFich))
+	if err != nil {
+		return Certificat{}, ino, false
 	}
 	for {
 		var bloc *pem.Block
 		bloc, brut = pem.Decode(brut)
 		if bloc == nil {
-			return Certificat{}, false
+			return Certificat{}, ino, false
 		}
 		if bloc.Type != "CERTIFICATE" {
 			continue
 		}
 		x, err := x509.ParseCertificate(bloc.Bytes)
 		if err != nil {
-			return Certificat{}, false
+			return Certificat{}, ino, false
 		}
 		cn := x.Subject.CommonName
 		if cn == "" {
@@ -106,6 +160,50 @@ func lireCertificat(chemin string, taille int64) (Certificat, bool) {
 			emetteur = "(inconnu)"
 		}
 		return Certificat{Chemin: chemin, CN: cn, Emetteur: emetteur,
-			Debut: x.NotBefore.UTC(), Fin: x.NotAfter.UTC()}, true
+			Debut: x.NotBefore.UTC(), Fin: x.NotAfter.UTC()}, ino, true
 	}
+}
+
+// tailleMaxConfigDistante : le fichier gardé par l'agent ne dépasse jamais
+// 256 Kio (taille maximale d'un document accepté).
+const tailleMaxConfigDistante = 256 << 10
+
+// MotifsDistants lit SEULEMENT la clé « certificats_ajout » de la dernière
+// configuration reçue du serveur, gardée par l'agent (SPEC.md § 21.3).
+//
+// Ce fichier appartient à l'agent (sans root) : root le lit donc comme une
+// donnée non fiable. Pas de lien symbolique suivi, fichier ordinaire et petit,
+// message d'erreur sans contenu du fichier, et chaque motif est revérifié
+// avec les règles strictes (ValiderMotifDistant). Un motif refusé est sauté
+// et compté ; les autres restent valables.
+func MotifsDistants(chemin string) (motifs []string, refuses int, err error) {
+	f, err := os.OpenFile(chemin, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0) // #nosec G304 -- chemin de la configuration locale
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, 0, nil // pas encore de configuration distante
+		}
+		return nil, 0, errors.New("configuration distante gardée : ouverture refusée (lien symbolique ?)")
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > tailleMaxConfigDistante {
+		return nil, 0, errors.New("configuration distante gardée : pas un petit fichier ordinaire")
+	}
+	var doc struct {
+		CertificatsAjout []string `json:"certificats_ajout"`
+	}
+	if json.NewDecoder(io.LimitReader(f, tailleMaxConfigDistante)).Decode(&doc) != nil {
+		return nil, 0, errors.New("configuration distante gardée illisible")
+	}
+	for i, m := range doc.CertificatsAjout {
+		if i >= config.MaxMotifsDistants || config.ValiderMotifDistant(m) != nil {
+			refuses++
+			continue
+		}
+		motifs = append(motifs, m)
+	}
+	if refuses > 0 {
+		err = fmt.Errorf("%d chemin(s) de certificat venus du serveur refusés", refuses)
+	}
+	return motifs, refuses, err
 }

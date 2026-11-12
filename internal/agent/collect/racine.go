@@ -36,6 +36,21 @@ type Racine struct {
 	// Résultats non envoyés (choix de l'interface, SPEC.md § 19). L'assistant
 	// root tourne quand même : il ne lit jamais la configuration distante.
 	SansPareFeu, SansSmart, SansCertificats bool
+	// Certificats retirés un par un dans l'interface (chemins exacts) : lus
+	// par l'assistant root, mais pas envoyés (SPEC.md § 21).
+	certsIgnores map[string]bool
+}
+
+// IgnorerCertificats : chemins des certificats à ne pas envoyer.
+func (r *Racine) IgnorerCertificats(chemins []string) {
+	if len(chemins) == 0 {
+		r.certsIgnores = nil
+		return
+	}
+	r.certsIgnores = make(map[string]bool, len(chemins))
+	for _, c := range chemins {
+		r.certsIgnores[c] = true
+	}
 }
 
 // NewRacine crée le collecteur.
@@ -100,13 +115,19 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 	}
 
 	if c := res.Certificats; c != nil && !r.SansCertificats {
+		envoyes := 0
 		for i := range c.Liste {
 			cert := &c.Liste[i]
+			if r.certsIgnores[cert.Chemin] {
+				continue
+			}
+			envoyes++
 			l := [3]metrics.Label{metrics.L("path", cert.Chemin), metrics.L("cn", cert.CN), metrics.L("issuer", cert.Emetteur)}
 			b.Add("ssl_cert_not_after_timestamp_seconds", float64(cert.Fin.Unix()), l[:]...)
 			b.Add("ssl_cert_not_before_timestamp_seconds", float64(cert.Debut.Unix()), l[:]...)
 		}
-		b.Add("ssl_certs_found_total", float64(c.Trouves))
+		// Trouvés = certificats envoyés (les retirés ne comptent plus).
+		b.Add("ssl_certs_found_total", float64(envoyes))
 		b.Add("ssl_certs_read_errors_total", float64(c.Erreurs))
 	}
 	return nil

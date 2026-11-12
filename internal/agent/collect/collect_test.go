@@ -251,3 +251,52 @@ func FuzzLecturesProc(f *testing.F) {
 		decoderOctal(string(data))
 	})
 }
+
+// Éléments retirés un par un dans l'interface (SPEC.md § 21) : noms exacts,
+// en plus des expressions.
+func TestElementsIgnores(t *testing.T) {
+	def := config.Defaut()
+	d := collecter(t, NewDisques(procTest, def.ExclureDisques, "sda"))
+	if len(d) != 3 || d["node_disk_io_time_seconds_total|device=sda1"] == 0 {
+		t.Errorf("sda retiré : seule la partition sda1 attendue, obtenu %v", d)
+	}
+	if r := collecter(t, NewReseau(procTest, def.ExclureInterfaces, "eth0")); len(r) != 0 {
+		t.Errorf("eth0 retirée : aucun point attendu, obtenu %v", r)
+	}
+	s := NewSystemesFichiers(procTest, def.ExclureMontages, def.ExclureTypesFS, def.ExclureTypesFSDistant, "/mnt/mon disque")
+	bloque := make(chan struct{})
+	defer close(bloque)
+	s.statfs = statfsFactice(bloque)
+	s.delaiDistant = 50 * time.Millisecond
+	p := collecter(t, s)
+	for k := range p {
+		if contient(k, "mountpoint=/mnt/mon disque") {
+			t.Errorf("montage retiré présent : %s", k)
+		}
+	}
+	if p["node_filesystem_size_bytes|device=/dev/sda1|fstype=ext4|mountpoint=/"] == 0 {
+		t.Error("la racine doit rester")
+	}
+}
+
+// Coût des listes de noms retirés (SPEC § 21) : un passage sur les disques
+// et le réseau, sans puis avec des noms retirés.
+func BenchmarkFiltresElements(b *testing.B) {
+	def := config.Defaut()
+	for _, cas := range []struct {
+		nom     string
+		ignorer []string
+	}{{"sans", nil}, {"avec", []string{"sda", "sdb", "eth1", "ens19"}}} {
+		b.Run(cas.nom, func(b *testing.B) {
+			d := NewDisques(procTest, def.ExclureDisques, cas.ignorer...)
+			r := NewReseau(procTest, def.ExclureInterfaces, cas.ignorer...)
+			lot := metrics.NewBatch(64, nil)
+			b.ReportAllocs()
+			for b.Loop() {
+				lot.Reset(0)
+				_ = d.Collecter(lot)
+				_ = r.Collecter(lot)
+			}
+		})
+	}
+}

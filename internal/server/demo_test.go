@@ -88,7 +88,17 @@ func TestDemoInterface(t *testing.T) {
 			for _, d := range []string{"sda", "sdb", "nvme0"} {
 				mk("smartctl_device_smart_status", un, "device", d)
 			}
-			mk("ssl_certs_found_total", un)
+			mk("ssl_certs_found_total", func(int) float64 { return 2 })
+			// Détail par élément (SPEC § 21).
+			mk("ssl_cert_not_after_timestamp_seconds", func(int) float64 { return float64(now.Add(54 * 24 * time.Hour).Unix()) },
+				"path", "/etc/pve/local/pveproxy-ssl.pem", "cn", "pve1.maison.lan", "issuer", "R11")
+			mk("ssl_cert_not_after_timestamp_seconds", func(int) float64 { return float64(now.Add(5 * 24 * time.Hour).Unix()) },
+				"path", "/etc/ssl/local/imprimante.crt", "cn", "imprimante.lan", "issuer", "CA maison")
+			for _, d := range []string{"sda", "sdb", "nvme0n1"} {
+				mk("node_disk_io_time_seconds_total", func(k int) float64 { return float64(k) }, "device", d)
+			}
+			mk("node_network_receive_bytes_total", func(k int) float64 { return float64(k) }, "device", "vmbr0")
+			mk("node_filesystem_size_bytes", func(int) float64 { return 2 << 40 }, "mountpoint", "/mnt/sauvegarde", "fstype", "ext4", "device", "/dev/sdb1")
 			mk("mirador_agent_detecte", func(int) float64 { return 3 }, "genre", "ventilateurs", "nom", "capteurs")
 			mk("mirador_agent_detecte", un, "genre", "zfs", "nom", "rpool")
 			mk("mirador_agent_detecte", un, "genre", "service", "nom", "pve-cluster.service")
@@ -103,9 +113,9 @@ func TestDemoInterface(t *testing.T) {
 		}
 	}
 	// Agents récents (capacité « surveillance ») ; pve1 valide ses services un par un.
-	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance'`)
+	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements'`)
 	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par)
-		SELECT 'config_agent:machine:' || id, '{"systemd_ignorer":["fwupd-refresh.service"],"systemd_surveiller":["cron.service","nginx.service","ssh.service"],"systemd_validation":true}', ?, 'demo'
+		SELECT 'config_agent:machine:' || id, '{"systemd_ignorer":["fwupd-refresh.service"],"systemd_surveiller":["cron.service","nginx.service","ssh.service"],"systemd_validation":true,"ignorer_interfaces":["ens19"],"certificats_ajout":["/etc/nginx/ssl/*.crt"]}', ?, 'demo'
 		FROM machines WHERE nom = 'pve1'`, now.Unix())
 	if err := s.met.Ecrire(ctx, series); err != nil {
 		t.Fatal(err)

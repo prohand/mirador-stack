@@ -2,21 +2,11 @@
 <h1>Réglages</h1>
 {{template "onglets-reglages" (onglet $ "")}}
 <div class="grille">
-<a class="carte lien-carte" href="/reglages/notifications"><h2>Notifications</h2><small>Canaux, principal et secours, bascule, routage par gravité, heartbeat, mode ombre, test d'envoi</small></a>
-<a class="carte lien-carte" href="/reglages/conservation"><h2>Conservation des données</h2><small>Durées, plafonds, état réel, estimation</small></a>
-<a class="carte lien-carte" href="/reglages/sauvegardes"><h2>Sauvegardes</h2><small>Fréquence, destinations, rétention, sauvegarde immédiate</small></a>
-<a class="carte lien-carte" href="/reglages/sites"><h2>Sites, types et groupes</h2><small>Listes proposées à l'ajout d'une machine et dans sa fiche</small></a>
-<a class="carte lien-carte" href="/reglages/agents"><h2>Configuration des agents</h2><small>Par défaut, par groupe, par machine ; test du masquage</small></a>
-<a class="carte lien-carte" href="/reglages/interface"><h2>Interface</h2><small>Fuseau horaire, thème, mode debug temporaire</small></a>
-<a class="carte lien-carte" href="/securite"><h2>Sécurité</h2><small>Sessions, verrouillage, liste d'adresses</small></a>
-<a class="carte lien-carte" href="/sourdine"><h2>Silences et maintenances</h2><small>Inhibitions, dépendances</small></a>
-<a class="carte lien-carte" href="/audit"><h2>Journal d'audit</h2><small>Qui, quand, avant / après</small></a>
-</div>
-{{if .Admin}}<section class="carte"><h2>Export / import de toute la configuration (YAML)</h2>
-<p><a href="/reglages/export.yaml">Exporter sans les secrets</a> · <a href="/reglages/export.yaml?secrets=chiffres">Exporter avec les secrets chiffrés</a> (lisibles seulement avec la même clé des secrets)</p>
-<form method="post" action="/reglages/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
-<label>Fichier exporté <input type="file" name="fichier" accept=".yaml,.yml" required></label>
-<fieldset><legend>Parties à appliquer</legend><div class="ligne">{{range $x := (liste "regles" "notifications" "conservation" "securite" "sauvegarde" "agents" "machines" "sourdine" "interface")}}<label class="case"><input type="checkbox" name="parties" value="{{$x}}"> {{$x}}</label>{{end}}</div></fieldset>
-<small>Les secrets « *** » gardent la valeur actuelle. Les inhibitions, dépendances et maintenances sont ajoutées (pas remplacées).</small>
-{{template "code2fa"}}<button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
+{{range sectionsReglages $.Olvid}}<a class="carte lien-carte" href="{{.Href}}"><h2>{{.Titre}}</h2><small>{{.Aide}}</small></a>
+{{end}}</div>
+<h2 class="titre-section">Ailleurs dans mirador</h2>
+<p class="sous">Ces réglages sont rangés avec ce qu'ils concernent.</p>
+<div class="grille">
+{{range pagesLieesReglages}}<a class="carte lien-carte secondaire" href="{{.Href}}"><span class="pastille">{{.Ou}}</span><h2>{{.Titre}}</h2><small>{{.Aide}}</small></a>
+{{end}}</div>
 {{end}}

@@ -192,10 +192,40 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 		t.Errorf("agent ancien : %+v", cfg)
 	}
 
+	// Éléments un par un (SPEC § 21) : refusés pour un agent sans la capacité.
+	if _, page := poster("pve1", url.Values{"e.disque.sdb": {"retirer"}, "code": {b.code(secret)}}); !strings.Contains(page, "agent plus récent") {
+		t.Error("élément accepté pour un agent sans la capacité « elements »")
+	}
+	if _, err := b.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements' WHERE id = 1`); err != nil {
+		t.Fatal(err)
+	}
+	poster("pve1", url.Values{"e.disque.sdb": {"retirer"}, "e.montage./mnt/sauvegarde": {"retirer"},
+		"c./etc/ssl/local/vieux.pem": {"retirer"}, "certificats_nouveaux": {"/etc/nginx/ssl/*.crt\n\n/opt/appli/tls.pem"},
+		"code": {b.code(secret)}})
+	cfg, _ = flotte.ConfigEffective(ctx, b.db, 1)
+	if cfg.IgnorerDisques == nil || (*cfg.IgnorerDisques)[0] != "sdb" || cfg.IgnorerMontages == nil ||
+		cfg.CertificatsIgnorer == nil || cfg.CertificatsAjout == nil || len(*cfg.CertificatsAjout) != 2 {
+		t.Fatalf("éléments : %+v", cfg)
+	}
+	poster("pve1", url.Values{"e.disque.sdb": {"retablir"}, "cm./opt/appli/tls.pem": {"retirer"}, "code": {b.code(secret)}})
+	cfg, _ = flotte.ConfigEffective(ctx, b.db, 1)
+	if cfg.IgnorerDisques != nil || cfg.CertificatsAjout == nil || strings.Join(*cfg.CertificatsAjout, ",") != "/etc/nginx/ssl/*.crt" ||
+		cfg.IgnorerMontages == nil {
+		t.Fatalf("après rétablissement : %+v", cfg)
+	}
+	// Chemin de certificat dangereux : refusé avec un message clair.
+	if _, page := poster("pve1", url.Values{"certificats_nouveaux": {"/etc/shadow"}, "code": {b.code(secret)}}); !strings.Contains(page, "chemin de certificat refusé") {
+		t.Error("/etc/shadow accepté")
+	}
+	if _, page := poster("pve1", url.Values{"e.disque.sdb": {"supprimer"}, "code": {b.code(secret)}}); !strings.Contains(page, `class="message erreur"`) {
+		t.Error("choix d'élément inconnu accepté")
+	}
+
 	// La page « Configuration des agents » garde les choix de surveillance.
 	_, page, _ := b.get(c, "/reglages/agents?portee=machine:1")
 	b.post(c, "/reglages/agents", url.Values{"csrf": {trouver(t, reCSRF, page)}, "portee": {"machine:1"}, "intervalle": {"60s"}, "code": {b.code(secret)}})
-	if cfg, _ := flotte.ConfigEffective(ctx, b.db, 1); cfg.ZFS == nil || cfg.Intervalle == nil || cfg.SystemdValidation == nil {
+	if cfg, _ := flotte.ConfigEffective(ctx, b.db, 1); cfg.ZFS == nil || cfg.Intervalle == nil || cfg.SystemdValidation == nil ||
+		cfg.CertificatsAjout == nil || cfg.IgnorerMontages == nil {
 		t.Errorf("choix perdus après « Configuration des agents » : %+v", cfg)
 	}
 	// Chaque changement est dans le journal d'audit.
@@ -207,6 +237,30 @@ func TestSurveillanceDansLInterface(t *testing.T) {
 	// Un compte en lecture seule ne peut pas enregistrer (pas de formulaire).
 	if strings.Count(corps, `name="code"`) == 0 {
 		t.Error("le formulaire admin doit demander le code 2FA")
+	}
+}
+
+// Détail par élément (SPEC § 21) : disques, interfaces, montages, certificats.
+func TestClasserElements(t *testing.T) {
+	r := append(relevePhysique(),
+		ech("node_disk_io_time_seconds_total", 1, "device", "sda"),
+		ech("node_network_receive_bytes_total", 1, "device", "eth0"),
+		ech("node_filesystem_size_bytes", 1<<30, "mountpoint", "/"),
+		ech("ssl_cert_not_after_timestamp_seconds", 1.8e9, "path", "/etc/ssl/local/a.pem", "cn", "a.lan", "issuer", "CA"))
+	ignores := []string{"sdb"}
+	certs := []string{"/etc/ssl/local/vieux.pem"}
+	ajout := []string{"/etc/nginx/ssl/*.crt"}
+	v := classerSurveillance(&distant.ConfigDistante{IgnorerDisques: &ignores, CertificatsIgnorer: &certs, CertificatsAjout: &ajout}, r, true)
+	if len(v.Composants) != 4 || v.NbRetires != 2 || len(v.Certs) != 2 || len(v.MotifsAjout) != 1 || !v.SystemeSuivi || !v.CertsSuivis {
+		t.Fatalf("détail : %+v", v)
+	}
+	if c := v.Composants[1]; c.Genre != "disque" || c.Nom != "sdb" || !c.Retire {
+		t.Errorf("disque retiré : %+v", c)
+	}
+	for _, l := range v.Surveilles {
+		if l.Cle == "metriques" && l.Detail != "Processeur, mémoire, 1 disque, 1 interface, 1 montage" {
+			t.Errorf("détail Système : %q", l.Detail)
+		}
 	}
 }
 

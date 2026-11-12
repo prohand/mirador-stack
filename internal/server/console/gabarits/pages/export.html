@@ -1,0 +1,12 @@
+{{define "contenu"}}
+<h1>Export / import</h1>
+{{template "onglets-reglages" (onglet $ "export")}}
+<section class="carte"><h2>Exporter toute la configuration (YAML)</h2>
+<p><a href="/reglages/export.yaml">Exporter sans les secrets</a> · <a href="/reglages/export.yaml?secrets=chiffres">Exporter avec les secrets chiffrés</a> (lisibles seulement avec la même clé des secrets)</p></section>
+{{if .Admin}}<section class="carte"><h2>Importer</h2>
+<form method="post" action="/reglages/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
+<label>Fichier exporté <input type="file" name="fichier" accept=".yaml,.yml" required></label>
+<fieldset><legend>Parties à appliquer</legend><div class="ligne">{{range $x := (liste "regles" "notifications" "conservation" "securite" "sauvegarde" "agents" "machines" "sourdine" "interface")}}<label class="case"><input type="checkbox" name="parties" value="{{$x}}"> {{$x}}</label>{{end}}</div></fieldset>
+<small>Les secrets « *** » gardent la valeur actuelle. Les inhibitions, dépendances et maintenances sont ajoutées (pas remplacées).</small>
+{{template "code2fa"}}<button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
+{{end}}

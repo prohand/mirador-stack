@@ -74,6 +74,40 @@ func TestSurveillanceSelonCapacite(t *testing.T) {
 	}
 }
 
+// Éléments choisis un par un (SPEC § 21) : seulement pour un agent qui
+// annonce « elements » ; un agent 0.2.12 (« surveillance » seule) ne les
+// reçoit pas.
+func TestElementsSelonCapacite(t *testing.T) {
+	b := nouveauBanc(t)
+	token, _ := TokenManuel(ctx, b.db, "pc", "admin", t0)
+	id, _ := IDMachine(ctx, b.db, "pc")
+	err := ModifierConfig(ctx, b.db, "machine:"+itoa(id), func(m map[string]any) {
+		m["zfs"] = true
+		m["ignorer_disques"] = []string{"sdb"}
+		m["certificats_ajout"] = []string{"/etc/nginx/ssl/*.crt"}
+	}, "admin", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v0212 := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", protocole.EnteteCapacites, protocole.CapaciteSurveillance)
+	if v0212.Body.String() != `{"zfs":true}` {
+		t.Fatalf("agent 0.2.12 : %s", v0212.Body)
+	}
+	recent := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", protocole.EnteteCapacites, protocole.Capacites)
+	for _, attendu := range []string{`"zfs":true`, `"ignorer_disques":["sdb"]`, `"certificats_ajout":["/etc/nginx/ssl/*.crt"]`} {
+		if !strings.Contains(recent.Body.String(), attendu) {
+			t.Errorf("agent récent : %s absent de %s", attendu, recent.Body)
+		}
+	}
+	// Un chemin de certificat hors des dossiers autorisés est refusé dès l'enregistrement.
+	err = ModifierConfig(ctx, b.db, "machine:"+itoa(id), func(m map[string]any) {
+		m["certificats_ajout"] = []string{"/etc/shadow"}
+	}, "admin", t0)
+	if err == nil {
+		t.Error("/etc/shadow accepté comme chemin de certificat")
+	}
+}
+
 // La capacité annoncée au battement est gardée sur la fiche de la machine.
 func TestCapaciteAuBattement(t *testing.T) {
 	b := nouveauBanc(t)

@@ -200,3 +200,22 @@ func TestEmpreinteMachine(t *testing.T) {
 		t.Errorf("en-tête envoyé sans mirador-server : %v", h)
 	}
 }
+
+func TestMotifDistant(t *testing.T) {
+	for _, m := range []string{"/etc/nginx/ssl/*.crt", "/etc/letsencrypt/live/*/cert.pem", "/opt/appli/tls/serveur.pem",
+		"/srv/certs/*.cer", "/var/lib/traefik/certs/*.cert", "/usr/local/etc/x.pem"} {
+		if err := ValiderMotifDistant(m); err != nil {
+			t.Errorf("%s refusé : %v", m, err)
+		}
+	}
+	for _, m := range []string{"/etc/shadow", "/etc/ssl/*", "/proc/self/x.pem", "/home/a/x.pem", "/root/.acme.sh/x.cer",
+		"/tmp/x.pem", "/etc/../x.pem", "/etc//x.pem", "/etc/ssl/private/privkey.pem", "/etc/ssl/serveur.key.pem",
+		"/etc/*/*/*/*.pem", "etc/x.pem", "/etc/x.pem\x00"} {
+		if err := ValiderMotifDistant(m); err == nil {
+			t.Errorf("%q accepté à tort", m)
+		}
+	}
+	if !FichierAccepteDistant("/etc/ssl/serveur.pem") || FichierAccepteDistant("/etc/ssl/privkey.pem") {
+		t.Error("FichierAccepteDistant")
+	}
+}

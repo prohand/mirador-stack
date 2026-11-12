@@ -9,8 +9,10 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
@@ -78,6 +80,30 @@ type vueSurveillance struct {
 	Validation                             bool // services validés un par un
 	SvcAValider, SvcSurveilles, SvcIgnores []serviceSurv
 	NbAValider, NbSurveilles, NbIgnores    int
+
+	// Détail par élément (SPEC.md § 21) : disques, interfaces, montages et
+	// certificats, chacun gardé ou retiré ; chemins de certificats ajoutés.
+	Elements     bool // l'agent connaît ces réglages
+	SystemeSuivi bool // « Système » est surveillé (sinon pas de détail)
+	CertsSuivis  bool // « Certificats » n'est pas retiré
+	Composants   []composantSurv
+	Certs        []certSurv
+	MotifsAjout  []string
+	NbRetires    int // composants et certificats retirés
+}
+
+// composantSurv : un disque, une interface ou un montage.
+type composantSurv struct {
+	Genre, Nom, Detail string // genre : disque, interface, montage
+	Retire             bool
+}
+
+// certSurv : un certificat trouvé (ou retiré) sur la machine.
+type certSurv struct {
+	Chemin, CN, Emetteur string
+	FinS                 int64 // date de fin (secondes Unix), 0 si retiré
+	Jours                int   // jours restants (négatif : expiré)
+	Retire               bool
 }
 
 // metriquesSurv : tout ce qu'il faut lire pour une machine, en une requête.
@@ -86,7 +112,11 @@ const metriquesSurv = `mirador_agent_detecte|node_hwmon_temp_celsius|node_therma
 	`node_firewall_input_rules|ssl_certs_found_total|node_docker_up|node_docker_container_running|` +
 	`node_systemd_enabled_units_total|node_systemd_enabled_units_down|node_systemd_unit_enabled_active|` +
 	`apt_upgrades_pending|mirador_logs_journal_lines_read_total|mirador_logs_docker_streams|mirador_agent_info|` +
-	`node_uname_info|node_memory_MemTotal_bytes|node_boot_time_seconds`
+	`node_uname_info|node_memory_MemTotal_bytes|node_boot_time_seconds|` +
+	// Détail par élément (SPEC § 21) : une série par disque, interface,
+	// montage et certificat.
+	`node_disk_io_time_seconds_total|node_network_receive_bytes_total|node_filesystem_size_bytes|` +
+	`ssl_cert_not_after_timestamp_seconds`
 
 func exprSurv(machine string) string {
 	return fmt.Sprintf(`{instance=%q,__name__=~%q}`, machine, metriquesSurv)
@@ -138,7 +168,7 @@ type releve struct {
 	smart, smartKO      int
 	pareFeu             *float64
 	regles              float64
-	certs               *float64
+	certsTotal          *float64
 	dockerUp            *float64
 	conteneurs          int
 	svcTotal, svcDown   *float64
@@ -146,10 +176,14 @@ type releve struct {
 	majs                *float64
 	journal, logsDocker *float64
 	agent               bool
+	disques, interfaces []string
+	montages            map[string]float64 // point de montage → taille (octets)
+	certs               []certSurv
 }
 
 func lireReleve(ech []alertes.Echantillon) releve {
-	r := releve{detecte: map[string][]string{}, pools: map[string]string{}, grappes: map[string]float64{}, services: map[string]bool{}}
+	r := releve{detecte: map[string][]string{}, pools: map[string]string{}, grappes: map[string]float64{},
+		services: map[string]bool{}, montages: map[string]float64{}}
 	for i := range ech {
 		e := &ech[i]
 		v := e.Valeur
@@ -188,7 +222,7 @@ func lireReleve(ech []alertes.Echantillon) releve {
 		case "node_firewall_input_rules":
 			r.regles = v
 		case "ssl_certs_found_total":
-			r.certs = &e.Valeur
+			r.certsTotal = &e.Valeur
 		case "node_docker_up":
 			r.dockerUp = &e.Valeur
 		case "node_docker_container_running":
@@ -207,11 +241,22 @@ func lireReleve(ech []alertes.Echantillon) releve {
 			r.logsDocker = &e.Valeur
 		case "mirador_agent_info":
 			r.agent = true
+		case "node_disk_io_time_seconds_total":
+			r.disques = append(r.disques, etq("device"))
+		case "node_network_receive_bytes_total":
+			r.interfaces = append(r.interfaces, etq("device"))
+		case "node_filesystem_size_bytes":
+			r.montages[etq("mountpoint")] = v
+		case "ssl_cert_not_after_timestamp_seconds":
+			r.certs = append(r.certs, certSurv{Chemin: etq("path"), CN: etq("cn"), Emetteur: etq("issuer"), FinS: int64(v)})
 		}
 	}
 	for _, l := range r.detecte {
 		sort.Strings(l)
 	}
+	sort.Strings(r.disques)
+	sort.Strings(r.interfaces)
+	sort.Slice(r.certs, func(i, j int) bool { return r.certs[i].Chemin < r.certs[j].Chemin })
 	return r
 }
 
@@ -228,7 +273,11 @@ func pluriel(n int, mot string) string {
 func (r *releve) detailSurv(cle string) (present bool, detail string, alerte bool) {
 	switch cle {
 	case "metriques":
-		return r.agent, "Processeur, mémoire, disques, réseau", false
+		if len(r.disques)+len(r.interfaces)+len(r.montages) == 0 {
+			return r.agent, "Processeur, mémoire, disques, réseau", false
+		}
+		return r.agent, fmt.Sprintf("Processeur, mémoire, %s, %s, %s", pluriel(len(r.disques), "disque"),
+			pluriel(len(r.interfaces), "interface"), pluriel(len(r.montages), "montage")), false
 	case "temperatures":
 		if r.temps == 0 {
 			return false, "", false
@@ -292,10 +341,10 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 		}
 		return true, "Entrées non bloquées par défaut", true
 	case "envoyer_certificats":
-		if r.certs == nil {
+		if r.certsTotal == nil {
 			return false, "", false
 		}
-		return true, pluriel(int(*r.certs), "certificat") + " suivi(s)", false
+		return true, pluriel(int(*r.certsTotal), "certificat") + " suivi(s)", false
 	case "docker_metriques":
 		if r.dockerUp == nil {
 			return false, "", false
@@ -388,10 +437,49 @@ func classerSurveillance(cfg *distant.ConfigDistante, ech []alertes.Echantillon,
 			sort.Slice(l, func(i, j int) bool { return l[i].Nom < l[j].Nom })
 		}
 	}
+	completerElements(&v, cfg, &r)
 	v.NbAValider = len(v.AValider) + len(v.SvcAValider)
 	v.NbSurveilles = len(v.Surveilles)
-	v.NbIgnores = len(v.Ignores) + len(v.SvcIgnores)
+	v.NbIgnores = len(v.Ignores) + len(v.SvcIgnores) + v.NbRetires
 	return v
+}
+
+// completerElements : détail de « Système » et de « Certificats » (SPEC.md
+// § 21). Ce qui est retiré n'envoie plus rien : il vient de la configuration.
+func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *releve) {
+	v.SystemeSuivi = cfg.Metriques == nil || *cfg.Metriques
+	v.CertsSuivis = cfg.EnvoyerCertificats == nil || *cfg.EnvoyerCertificats
+	liste := func(p *[]string) []string {
+		if p == nil {
+			return nil
+		}
+		return *p
+	}
+	ajouter := func(genre string, vus []string, detail func(string) string, retires []string) {
+		for _, n := range vus {
+			v.Composants = append(v.Composants, composantSurv{Genre: genre, Nom: n, Detail: detail(n)})
+		}
+		for _, n := range retires {
+			v.Composants = append(v.Composants, composantSurv{Genre: genre, Nom: n, Retire: true})
+			v.NbRetires++
+		}
+	}
+	rien := func(string) string { return "" }
+	ajouter("disque", r.disques, rien, liste(cfg.IgnorerDisques))
+	ajouter("interface", r.interfaces, rien, liste(cfg.IgnorerInterfaces))
+	montages := make([]string, 0, len(r.montages))
+	for m := range r.montages {
+		montages = append(montages, m)
+	}
+	sort.Strings(montages)
+	ajouter("montage", montages, func(m string) string { return tailleLisible(int64(r.montages[m])) }, liste(cfg.IgnorerMontages))
+
+	v.Certs = append(v.Certs, r.certs...)
+	for _, c := range liste(cfg.CertificatsIgnorer) {
+		v.Certs = append(v.Certs, certSurv{Chemin: c, Retire: true})
+		v.NbRetires++
+	}
+	v.MotifsAjout = liste(cfg.CertificatsAjout)
 }
 
 // surveillance : le bloc d'une machine (vide si les métriques manquent).
@@ -403,6 +491,12 @@ func (c *Console) surveillance(ctx context.Context, m flotte.InfoMachine, t time
 	ech, _ := c.instant(ctx, exprSurv(m.Nom), t)
 	v := classerSurveillance(cfg, ech, m.Surveillance())
 	v.Groupe = m.Groupe
+	v.Elements = m.Elements()
+	for i := range v.Certs {
+		if c := &v.Certs[i]; !c.Retire {
+			c.Jours = int(time.Unix(c.FinS, 0).Sub(t).Hours() / 24)
+		}
+	}
 	return v, ech
 }
 
@@ -438,6 +532,47 @@ func (c *Console) nouveautes(ctx context.Context, ms []flotte.InfoMachine, t tim
 		}
 	}
 	return out
+}
+
+// cacheAValider : nombre d'éléments « à valider » par machine, gardé 60 s.
+// Il sert au compteur du menu (toutes les pages) et à la liste des machines :
+// sans cache, chaque page relirait la configuration des machines.
+type cacheAValider struct {
+	mu         sync.Mutex
+	expire     time.Time
+	parMachine map[string]int
+}
+
+// aValider : éléments « à valider » par machine (approuvées seulement).
+func (c *Console) aValider(ctx context.Context, t time.Time) map[string]int {
+	c.cacheValider.mu.Lock()
+	defer c.cacheValider.mu.Unlock()
+	if c.cacheValider.parMachine != nil && t.Before(c.cacheValider.expire) {
+		return c.cacheValider.parMachine
+	}
+	out := map[string]int{}
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		var approuvees []flotte.InfoMachine
+		for _, m := range ms {
+			if m.Statut == "approuvee" {
+				approuvees = append(approuvees, m)
+			}
+		}
+		for nom, n := range c.nouveautes(ctx, approuvees, t) {
+			if n > 0 {
+				out[nom] = n
+			}
+		}
+	}
+	c.cacheValider.parMachine, c.cacheValider.expire = out, t.Add(time.Minute)
+	return out
+}
+
+// oublierAValider : après un choix enregistré, le compteur est recalculé.
+func (c *Console) oublierAValider() {
+	c.cacheValider.mu.Lock()
+	c.cacheValider.parMachine = nil
+	c.cacheValider.mu.Unlock()
 }
 
 // --- Enregistrement des choix ---------------------------------------------------------
@@ -560,7 +695,16 @@ func (c *Console) postSurveillance(q *req, m flotte.InfoMachine) error {
 			}
 		}
 	}
-	if len(genres) == 0 && !services {
+	// Disques, interfaces, montages, certificats (SPEC.md § 21) : toujours
+	// à la portée de la machine.
+	elements, err := choixElements(q, cfg)
+	if err != nil {
+		return err
+	}
+	if elements != nil && !m.Elements() {
+		return fmt.Errorf("le choix élément par élément demande un agent plus récent sur %s : le mettre à jour d'abord", m.Nom)
+	}
+	if len(genres) == 0 && !services && elements == nil {
 		return errors.New("aucun choix à enregistrer")
 	}
 	trie := func(e map[string]bool) any {
@@ -575,6 +719,9 @@ func (c *Console) postSurveillance(q *req, m flotte.InfoMachine) error {
 		return out
 	}
 	ecrireServices := func(doc map[string]any) {
+		for k, v := range elements {
+			doc[k] = v
+		}
 		if !services {
 			return
 		}
@@ -615,6 +762,94 @@ func (c *Console) postSurveillance(q *req, m flotte.InfoMachine) error {
 		}
 		ecrireServices(doc)
 	}, q.qui(), q.t)
+}
+
+// choixElements lit les choix élément par élément du formulaire :
+//
+//	e.disque.NOM, e.interface.NOM, e.montage.CHEMIN = retirer | retablir
+//	c.CHEMIN (certificat) = retirer | retablir
+//	cm.MOTIF (chemin ajouté) = retirer
+//	certificats_nouveaux = chemins à ajouter, un par ligne
+//
+// Renvoie les clés à écrire (nil = liste vide, clé retirée), ou nil si rien
+// n'a changé.
+func choixElements(q *req, cfg *distant.ConfigDistante) (map[string]any, error) {
+	ensemble := func(p *[]string) map[string]bool {
+		out := map[string]bool{}
+		if p != nil {
+			for _, n := range *p {
+				out[n] = true
+			}
+		}
+		return out
+	}
+	listes := map[string]map[string]bool{
+		"ignorer_disques":     ensemble(cfg.IgnorerDisques),
+		"ignorer_interfaces":  ensemble(cfg.IgnorerInterfaces),
+		"ignorer_montages":    ensemble(cfg.IgnorerMontages),
+		"certificats_ignorer": ensemble(cfg.CertificatsIgnorer),
+		"certificats_ajout":   ensemble(cfg.CertificatsAjout),
+	}
+	cleDe := map[string]string{"e.disque.": "ignorer_disques", "e.interface.": "ignorer_interfaces",
+		"e.montage.": "ignorer_montages", "c.": "certificats_ignorer", "cm.": "certificats_ajout"}
+	changees := map[string]bool{}
+	n := 0
+	for champ, valeurs := range q.r.PostForm {
+		if len(valeurs) == 0 || valeurs[0] == "" {
+			continue
+		}
+		for prefixe, cle := range cleDe {
+			nom, ok := strings.CutPrefix(champ, prefixe)
+			if !ok {
+				continue
+			}
+			if n++; n > 600 {
+				return nil, errors.New("trop d'éléments dans la demande")
+			}
+			switch {
+			case valeurs[0] == "retirer" && cle == "certificats_ajout":
+				delete(listes[cle], nom)
+			case valeurs[0] == "retirer":
+				listes[cle][nom] = true
+			case valeurs[0] == "retablir" && cle != "certificats_ajout":
+				delete(listes[cle], nom)
+			default:
+				return nil, errors.New("choix inconnu")
+			}
+			changees[cle] = true
+		}
+	}
+	for _, ligne := range strings.Split(q.r.PostFormValue("certificats_nouveaux"), "\n") {
+		ligne = strings.TrimSpace(ligne)
+		if ligne == "" {
+			continue
+		}
+		if err := config.ValiderMotifDistant(ligne); err != nil {
+			return nil, fmt.Errorf("chemin de certificat refusé : %v", err)
+		}
+		listes["certificats_ajout"][ligne] = true
+		changees["certificats_ajout"] = true
+	}
+	if len(changees) == 0 {
+		return nil, nil
+	}
+	if len(listes["certificats_ajout"]) > config.MaxMotifsDistants {
+		return nil, fmt.Errorf("%d chemins de certificats ajoutés au plus", config.MaxMotifsDistants)
+	}
+	out := map[string]any{}
+	for cle := range changees {
+		if len(listes[cle]) == 0 {
+			out[cle] = nil // clé retirée
+			continue
+		}
+		l := make([]string, 0, len(listes[cle]))
+		for n := range listes[cle] {
+			l = append(l, n)
+		}
+		sort.Strings(l)
+		out[cle] = l
+	}
+	return out, nil
 }
 
 // --- Bandeau d'identité -------------------------------------------------------------

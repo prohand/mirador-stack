@@ -268,7 +268,7 @@ document.addEventListener("change", function (e) {
 // des machines. Les choix sont retenus dans le navigateur et ré-appliqués
 // après chaque rechargement du tableau (toutes les minutes).
 (function () {
-  var cleTri = "mirador.parc.tri", cleCol = "mirador.parc.colonnes";
+  var cleTri = "mirador.parc.tri", cleCol = "mirador.parc.colonnes", cleEtat = "mirador.parc.etat";
   var filtre = "";
   function lire(cle, defaut) {
     try { var v = window.localStorage.getItem(cle); return v === null ? defaut : v; } catch (e) { return defaut; }
@@ -308,9 +308,20 @@ document.addEventListener("change", function (e) {
     var champ = zone.querySelector("[data-filtre-parc]");
     if (champ && champ.value !== filtre && document.activeElement !== champ) { champ.value = filtre; }
     var mots = filtre.toLowerCase().split(/\s+/).filter(Boolean), visibles = 0;
+    // Filtre d'état : « probleme » (gravité ≥ 1), une gravité précise, ou
+    // les machines qui ont des éléments à valider.
+    var etat = lire(cleEtat, ""), choixEtat = zone.querySelector("[data-filtre-etat]");
+    if (choixEtat && choixEtat.value !== etat) { choixEtat.value = etat; }
+    function etatGarde(l) {
+      var g = l.getAttribute("data-etat");
+      if (etat === "") { return true; }
+      if (etat === "probleme") { return parseInt(g, 10) >= 1; }
+      if (etat === "valider") { return parseInt(l.getAttribute("data-valider"), 10) > 0; }
+      return g === etat;
+    }
     lignes.forEach(function (l) {
       var texte = l.getAttribute("data-texte").toLowerCase();
-      var garde = mots.every(function (m) { return texte.indexOf(m) >= 0; });
+      var garde = etatGarde(l) && mots.every(function (m) { return texte.indexOf(m) >= 0; });
       l.hidden = !garde;
       if (garde) { visibles++; }
     });
@@ -338,6 +349,7 @@ document.addEventListener("change", function (e) {
     if (e.target.matches && e.target.matches("[data-filtre-parc]")) { filtre = e.target.value; appliquer(); }
   });
   document.addEventListener("change", function (e) {
+    if (e.target.matches && e.target.matches("[data-filtre-etat]")) { ecrire(cleEtat, e.target.value); appliquer(); return; }
     if (!e.target.matches || !e.target.matches("[data-colonne]")) { return; }
     var masquees = [];
     document.querySelectorAll("[data-colonne]").forEach(function (c) { if (!c.checked) { masquees.push(c.getAttribute("data-colonne")); } });

@@ -87,6 +87,7 @@ main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 36px; }
 .appli.replie .barre nav { align-items: center; }
 .appli.replie .barre nav a { width: 44px; height: 44px; justify-content: center; padding: 0; }
 .appli.replie .barre nav a + .groupe-sep { display: block; }
+.compteur.attention { background: var(--attention-fond); color: var(--attention); }
 .appli.replie .compteur { position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
 .appli.replie .barre-pied { flex-direction: column; padding: 14px 0 0; }
 .appli.replie .sortir { margin: 0; }
@@ -228,6 +229,9 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
 .lien-carte { text-decoration: none; color: var(--texte); display: block; }
 .lien-carte:hover { border-color: var(--accent); }
 .lien-carte h2 { font-family: var(--titres); }
+.lien-carte.secondaire { background: transparent; box-shadow: none; }
+.lien-carte.secondaire .pastille { margin-bottom: 8px; }
+.titre-section { margin: 28px 0 2px; font-size: 16px; }
 .filtres { margin-bottom: 1.2rem; }
 .u-legend { font-size: .78rem; }
 .diff-plus { color: var(--ok); } .diff-moins { color: var(--erreur); }
@@ -414,6 +418,8 @@ form.surv h3 { font-size: 13px; margin: 18px 0 8px; }
 .surv-services { margin-top: 12px; border: 1px solid var(--bord); border-radius: 12px; padding: 10px 14px; }
 .surv-services > summary { font-weight: 600; }
 .surv-services table { margin-top: 8px; }
+.surv-services h4 { font-size: 13px; margin: 14px 0 4px; }
+.surv-ajout { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 13px; max-width: 580px; }
 .surv-validation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--doux); }
 .surv-ignores { display: flex; flex-wrap: wrap; gap: 8px; }
 .surv-ignores .pastille { white-space: normal; padding: 5px 10px; font-weight: 500; }

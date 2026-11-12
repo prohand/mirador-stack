@@ -1,6 +1,6 @@
 {{define "contenu"}}
 <h1>Mises à jour des agents</h1>
-<p class="onglets"><a href="/machines">Machines</a><a class="actif" href="/mises-a-jour">Mises à jour des agents</a><a href="/reglages/agents">Configuration des agents</a></p>
+{{template "onglets-machines" "maj"}}
 <p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée par la CI de GitHub</strong> à chaque tag (ou à la main avec mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
 
 <section class="carte" id="cle"><h2>Clé publique de signature</h2>
