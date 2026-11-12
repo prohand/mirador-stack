@@ -2792,11 +2792,11 @@ Propositions de sécurité (non faites, à valider) :
 |---|---|---|
 | Moyenne (**fait**, § 18.28) | Mot de passe volé : rien ne prévient l'admin. Les codes 2FA faux après un bon mot de passe ne font qu'une ligne de journal | notification (canal existant) sur « code 2FA faux après un bon mot de passe », « compte verrouillé » et « connexion depuis une nouvelle adresse » |
 | Faible (**fait**, § 18.28) | Le nom saisi est écrit tel quel dans le journal : un mot de passe tapé par erreur dans le champ « Nom » s'y retrouve (et part vers CrowdSec) | écrire le nom seulement s'il a la forme d'un nom valide, sinon « (invalide) » |
-| Faible | Durée du verrou fixe (15 min) : un attaquant patient recommence sans fin | durée doublée à chaque nouveau verrou du même compte (plafond 24 h) |
-| Faible | Sessions partielles sans limite par compte (avec le bon mot de passe) | 3 sessions partielles au plus par compte, la plus ancienne est fermée |
-| Faible | Redémarrage = verrous oubliés | acceptable (CrowdSec garde ses bannissements) ; à noter |
-| Info | Pas de liste de mots de passe trop courants | petite liste embarquée (~10 Ko) ou rien : 12 caractères + 2FA suffisent |
-| Info | `Sec-Fetch-Site: none` accepté pour une écriture | garder (jeton CSRF + `SameSite=Strict` couvrent) |
+| Faible (**fait**, § 18.29) | Durée du verrou fixe (15 min) : un attaquant patient recommence sans fin | durée doublée à chaque nouveau verrou du même compte (plafond 24 h) |
+| Faible (**fait**, § 18.29) | Sessions partielles sans limite par compte (avec le bon mot de passe) | 3 sessions partielles au plus par compte, la plus ancienne est fermée |
+| Faible (**accepté**) | Redémarrage = verrous oubliés | acceptable (CrowdSec garde ses bannissements) ; à noter |
+| Info (**fait autrement**, § 18.29) | Pas de liste de mots de passe trop courants | petite liste embarquée (~10 Ko) ou rien : 12 caractères + 2FA suffisent |
+| Info (**gardé**) | `Sec-Fetch-Site: none` accepté pour une écriture | garder (jeton CSRF + `SameSite=Strict` couvrent) |
 
 Vérifié, rien à redire : cookie `__Host-`, nouvel identifiant à chaque
 étape, empreinte SHA-256 de l'identifiant, Argon2id + leurre, anti-rejeu
@@ -2808,13 +2808,13 @@ Propositions d'architecture (non faites, à valider) :
 
 | Sujet | Constat | Proposition | Coût |
 |---|---|---|---|
-| Paquet `console` | 10 500 lignes, 30 % du code : pages, comptes, sessions, verrous, tableaux mélangés | sortir l'authentification dans `internal/server/auth` (comptes, mot de passe, TOTP, sessions, verrous) : plus facile à relire et à tester seul | aucun à l'exécution |
-| Réseau Docker `obs` | partagé avec l'ancienne stack : un autre conteneur joint mirador sans nginx | réseau dédié `mirador` (nginx de l'hôte + Olvid seulement) à la bascule (étape 7) | aucun |
-| Écoutes | `0.0.0.0` dans le conteneur, protection = pas de port publié | garder, mais refuser au démarrage une écoute hors boucle locale sans `MIRADOR_PROXY` ni TLS | aucun |
-| Dépendances | AWS SDK, SFTP, Prometheus, gRPC dans un seul binaire : grosse surface | `govulncheck` déjà en CI ; ajouter Dependabot (ou Renovate) et figer les actions par empreinte | aucun |
-| Démarrage | `Demarrer` ferme à la main à chaque erreur (`errors.Join(…Close())` répété 8 fois) | une liste de « fermetures » dépilée en cas d'erreur | aucun |
-| Réglages | relus en base toutes les 5 s par la console (5 requêtes SQLite par tour) | un numéro de version des réglages, relu seul ; le reste seulement s'il change | moins d'I/O |
-| Sessions | en mémoire : un redémarrage (mise à jour) déconnecte tout le monde | garder (plus sûr, zéro écriture disque) | — |
+| Paquet `console` (**fait**, § 18.29) | 10 500 lignes, 30 % du code : pages, comptes, sessions, verrous, tableaux mélangés | sortir l'authentification dans `internal/server/auth` (comptes, mot de passe, TOTP, sessions, verrous) : plus facile à relire et à tester seul | aucun à l'exécution |
+| Réseau Docker `obs` (**reporté à l'étape 7**) | partagé avec l'ancienne stack : un autre conteneur joint mirador sans nginx | réseau dédié `mirador` (nginx de l'hôte + Olvid seulement) à la bascule (étape 7) | aucun |
+| Écoutes (**fait**, § 18.29) | `0.0.0.0` dans le conteneur, protection = pas de port publié | garder, mais refuser au démarrage une écoute hors boucle locale sans `MIRADOR_PROXY` ni TLS | aucun |
+| Dépendances (**fait en partie**, § 18.29) | AWS SDK, SFTP, Prometheus, gRPC dans un seul binaire : grosse surface | `govulncheck` déjà en CI ; ajouter Dependabot (ou Renovate) et figer les actions par empreinte | aucun |
+| Démarrage (**fait**, § 18.29) | `Demarrer` ferme à la main à chaque erreur (`errors.Join(…Close())` répété 8 fois) | une liste de « fermetures » dépilée en cas d'erreur | aucun |
+| Réglages (**écarté après mesure**, § 18.29) | relus en base toutes les 5 s par la console (5 requêtes SQLite par tour) | un numéro de version des réglages, relu seul ; le reste seulement s'il change | moins d'I/O |
+| Sessions (**gardé**) | en mémoire : un redémarrage (mise à jour) déconnecte tout le monde | garder (plus sûr, zéro écriture disque) | — |
 
 ### 18.28 Messages de sécurité et nom dans le journal **[Fait, validé le 11/11]**
 
@@ -2850,3 +2850,39 @@ ligne ne change pas (`deploy/crowdsec/` inchangé).
 | Inconnu qui déclenche des messages en rafale | 1 message / heure / sujet ; rien pour un compte inconnu |
 | Durée de réponse qui trahit l'envoi | envoi hors de la requête |
 | Secret dans un message ou dans le journal | texte fixe + nom du compte + adresse seulement ; nom filtré |
+
+### 18.29 Reste des propositions du § 18.27 **[Fait, « fait le reste » du 12/11]**
+
+Sécurité de la connexion :
+
+| Sujet | Décision | Coût |
+|---|---|---|
+| Verrou progressif | chaque nouveau verrou de la même adresse ou du même compte dure 2 fois plus (15 min, 30 min, 1 h… **24 h au plus**) ; série oubliée après 24 h sans verrou, ou après une connexion réussie (compte). La durée réelle est dans le journal et dans le message à l'admin | un entier par compteur |
+| Sessions partielles | **3** sessions « avant le code » au plus par compte ; la plus ancienne est fermée | aucun |
+| Mots de passe trop simples | refusés : un caractère ou un motif court répété, une suite (`123456789012`, `abcdef…`), le nom du compte ou « mirador » avec moins de 8 autres caractères utiles. **Pas de liste embarquée** (rien à maintenir, 0 octet) ; 12 caractères + 2FA font le reste | aucun |
+| Verrous oubliés au redémarrage | accepté : rien sur disque ; CrowdSec garde ses bannissements | — |
+| `Sec-Fetch-Site: none` | gardé : jeton CSRF + `SameSite=Strict` couvrent | — |
+
+Adresse de confiance (connexion réussie < 30 j) : toujours exemptée du
+verrou du **compte**, même long. Sinon : `utilisateur-secours`.
+
+Architecture :
+
+| Sujet | Décision | Coût |
+|---|---|---|
+| Paquet `internal/server/auth` | comptes, mots de passe, TOTP, sessions, verrous (1 250 lignes) sortis de `console` (10 500 → 9 760 lignes). `auth` ne connaît pas `console` ; ses tests unitaires l'ont suivi. Aucun changement de comportement. `Auditer` reste dans `console` ; `auth` écrit dans la même table (`auditer`, à changer ensemble) | aucun à l'exécution |
+| Écoute ouverte | refus au démarrage si une écoute sort de la machine sans `MIRADOR_PROXY` ni TLS (interface en clair, verrous communs à tous). `127.0.0.1`, `::1`, `localhost` : acceptés sans rien | aucun |
+| Démarrage | une liste de fermetures dépilée en cas d'échec (10 fermetures recopiées → 1) | aucun |
+| Dependabot | modules Go, actions GitHub, images Docker ; **une fois par mois, regroupé** (5 pull requests au plus). Coût : ~7 min de CI par pull request (§ 18.24) ; supprimer `.github/dependabot.yml` pour l'arrêter | minutes de CI |
+| Actions figées par empreinte | **pas fait** : il faut les empreintes exactes de chaque action, que je ne peux pas vérifier d'ici. À faire à la main (`uses: actions/checkout@<sha> # v4`) | — |
+| Réglages relus toutes les 5 s | **écarté après mesure** : un passage = 52 µs, 18 Ko alloués, aucune écriture disque, soit 0,001 % d'un cœur. Un numéro de version ajouterait du code pour un gain non mesurable | — |
+| Réseau Docker dédié | **reporté à l'étape 7** : tant que la comparaison avec vmalert tourne, mirador doit joindre l'ancienne stack sur `obs` | — |
+
+Menaces (ajouts) :
+
+| Menace | Parade |
+|---|---|
+| Attaquant patient qui revient après chaque verrou | verrou doublé jusqu'à 24 h ; message à l'admin (§ 18.28) |
+| Mot de passe connu : centaines de sessions partielles pour essayer des codes | 3 par compte ; essais réservés (§ 18.27) |
+| Serveur exposé par erreur sans nginx | refus de démarrer |
+| Dépendance avec une faille connue | `govulncheck` en CI + Dependabot |

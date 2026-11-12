@@ -116,6 +116,10 @@ sujet au plus) :
 - connexion réussie depuis une nouvelle adresse (aussi à la première
   connexion après un redémarrage du serveur).
 
+Verrou progressif : chaque nouveau verrou de la même adresse ou du même
+compte dure deux fois plus longtemps (15 min, 30 min, 1 h… 24 h au plus).
+Tout lever : `utilisateur-secours` (§ 5).
+
 Fichiers prêts (à relire et adapter) : `deploy/crowdsec/mirador-logs.yaml`
 (parseur) et `deploy/crowdsec/mirador-bf.yaml` (scénario). Acquisition :
 

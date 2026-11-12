@@ -529,8 +529,22 @@ Rappel : tu vérifies les règles de logs qui tournent chez toi ; je mettrai la 
   `TestPrevenir`.
 - **À essayer sur le VPS** : se connecter depuis une autre adresse, taper un
   code 2FA faux ; le message doit arriver sur le canal principal.
-- **Reste à valider** : 5 propositions de sécurité et 7 d'architecture
-  (SPEC § 18.27).
+- **Reste fait le 12/11** (SPEC § 18.29) :
+  - verrou progressif (15 min → 24 h), 3 sessions partielles par compte,
+    mots de passe trop simples refusés ;
+  - paquet `internal/server/auth` sorti de `console` (sans changement de
+    comportement) ;
+  - écoute ouverte refusée sans `MIRADOR_PROXY` ni TLS ; démarrage
+    simplifié ; Dependabot (mensuel, regroupé).
+- **Mesure** : boucle de la console = 52 µs par passage toutes les 5 s,
+  18 Ko alloués, aucune écriture disque → relecture des réglages gardée
+  telle quelle. Les autres changements n'ajoutent ni RAM, ni CPU, ni I/O
+  mesurables (un entier par compteur de verrou).
+- **Pas fait** : actions GitHub figées par empreinte (à faire à la main) ;
+  réseau Docker dédié (étape 7).
+- **À vérifier sur le VPS avant de mettre à jour** : `config/server.conf`
+  contient bien `MIRADOR_PROXY=…` (sinon le serveur refuse de démarrer).
+- Non lancé ici : `gosec` (pas installé) ; la CI le fera.
 
 ## Prochaine étape
 
