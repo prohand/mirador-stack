@@ -59,7 +59,17 @@ type Lien struct {
 
 	// Rythmes (modifiables dans les tests).
 	rythmeBattement, rythmeConfig, rythmeMaj, delaiEssai, premierDelai time.Duration
+	// attenteConfig : demande de configuration gardée ouverte par le serveur
+	// (SPEC § 22 ; 0 = comme avant, une demande toutes les 5 min).
+	attenteConfig time.Duration
+	// derniereActualisation : relance de l'assistant root au plus une fois
+	// par minute, même si l'interface en demande plus.
+	derniereActualisation time.Time
 }
+
+// AttenteConfig : durée demandée au serveur pour garder la demande de
+// configuration ouverte (sous les 45 s qu'il accorde au plus).
+const AttenteConfig = 40 * time.Second
 
 // ReglerRythmes : pour les tests seulement (tout à 0 = rythmes normaux).
 func (l *Lien) ReglerRythmes(battement, config, maj, essai, premier time.Duration) {
@@ -80,6 +90,7 @@ func (l *Lien) Tourner(ctx context.Context) {
 		// Premières demandes étalées : 25 agents ne demandent pas tous en même temps.
 		l.rythmeBattement, l.rythmeConfig, l.rythmeMaj, l.delaiEssai, l.premierDelai =
 			time.Minute, 5*time.Minute, 15*time.Minute, 10*time.Minute, time.Minute
+		l.attenteConfig = AttenteConfig
 	}
 	var wg sync.WaitGroup
 	lancer := func(f func(context.Context)) {
@@ -240,12 +251,15 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 // --- Configuration distante --------------------------------------------------------
 
 func (l *Lien) boucleConfig(ctx context.Context) {
-	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte}
+	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte,
+		Attendre: l.attenteConfig}
 	if !attendre(ctx, l.etale()) {
 		return
 	}
+	premiere := true
 	for {
 		rythme := l.rythmeConfig
+		debut := time.Now()
 		d, err := r.Recuperer(ctx)
 		switch {
 		case errors.Is(err, ErrInchange):
@@ -257,10 +271,54 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 			}
 			l.appliquer(d)
 		}
-		if !attendre(ctx, alea(rythme)) {
+		// « Actualiser » demandé dans l'interface (pas à la toute première
+		// réponse : une ancienne demande ne relance pas l'assistant à chaque
+		// démarrage de l'agent).
+		if err == nil || errors.Is(err, ErrInchange) {
+			if r.Actualiser > r.Actualise {
+				if !premiere {
+					l.actualiserRacine()
+				}
+				r.Actualise = r.Actualiser
+			}
+			premiere = false
+		}
+		// Serveur qui sait garder la demande ouverte : on en relance une
+		// aussitôt (au plus une toutes les 2 s). Sinon, ou en cas d'erreur :
+		// le rythme habituel (5 min).
+		attente := alea(rythme)
+		if err == nil || errors.Is(err, ErrInchange) {
+			if r.Attente && r.Attendre > 0 {
+				attente = max(0, 2*time.Second-time.Since(debut))
+			}
+		}
+		if !attendre(ctx, attente) {
 			return
 		}
 	}
+}
+
+// actualiserRacine : touche le fichier surveillé par l'unité systemd
+// mirador-agent-root.path, qui relance aussitôt l'assistant root. Au plus une
+// fois par minute. Sans cette unité (agent installé avant le 12/11), rien ne
+// se passe : l'assistant repasse à son heure (15 min).
+func (l *Lien) actualiserRacine() {
+	l.mu.Lock()
+	if time.Since(l.derniereActualisation) < time.Minute {
+		l.mu.Unlock()
+		return
+	}
+	l.derniereActualisation = time.Now()
+	l.mu.Unlock()
+	chemin := l.Locale.FichierActualiser
+	if chemin == "" {
+		return
+	}
+	if err := os.WriteFile(chemin, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {
+		l.Journal.Warn("demande de relance de l'assistant root impossible", "erreur", err)
+		return
+	}
+	l.Journal.Info("actualisation demandée dans l'interface : assistant root relancé")
 }
 
 // appliquer : une configuration refusée est ignorée (la configuration en cours

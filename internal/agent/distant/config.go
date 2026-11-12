@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"mirador-stack/internal/agent/config"
@@ -166,7 +167,16 @@ type Recuperateur struct {
 	Client *http.Client
 	// Empreinte de la machine ('' : pas envoyée).
 	Empreinte string
-	etag      string
+	// Attendre : demande gardée ouverte par le serveur jusqu'à un changement
+	// (0 = réponse immédiate). Actualise : dernière demande « Actualiser »
+	// déjà traitée (renvoyée au serveur).
+	Attendre  time.Duration
+	Actualise int64
+	// Réponse : le serveur sait attendre ; numéro de sa dernière demande
+	// « Actualiser » pour cette machine (0 = aucune).
+	Attente    bool
+	Actualiser int64
+	etag       string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -188,11 +198,17 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	if r.etag != "" {
 		req.Header.Set("If-None-Match", r.etag)
 	}
+	if r.Attendre > 0 {
+		req.Header.Set(protocole.EnteteAttendre, strconv.Itoa(int(r.Attendre.Seconds())))
+		req.Header.Set(protocole.EnteteActualise, strconv.FormatInt(r.Actualise, 10))
+	}
 	resp, err := r.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	r.Attente = resp.Header.Get(protocole.EnteteAttente) == "1"
+	r.Actualiser, _ = strconv.ParseInt(resp.Header.Get(protocole.EnteteActualiser), 10, 64)
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		return nil, ErrInchange

@@ -8,7 +8,8 @@
 
 {{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
 <div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
-<div class="compteurs">{{if $s.NbAValider}}<span class="pastille attention">{{$s.NbAValider}} à valider</span>{{end}}<span class="pastille ok">{{$s.NbSurveilles}} surveillé(s)</span>{{if $s.NbIgnores}}<span class="pastille">{{$s.NbIgnores}} ignoré(s)</span>{{end}}</div></div>
+<div class="compteurs">{{if $s.NbAValider}}<span class="pastille attention">{{$s.NbAValider}} à valider</span>{{end}}<span class="pastille ok">{{$s.NbSurveilles}} surveillé(s)</span>{{if $s.NbIgnores}}<span class="pastille">{{$s.NbIgnores}} ignoré(s)</span>{{end}}
+{{if $.Admin}}<form method="post" class="actualiser" title="La machine relit sa configuration et relance l'assistant root (certificats, SMART, pare-feu) : environ 1 min">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="actualiser"><button class="secondaire petit">Actualiser</button></form>{{end}}</div></div>
 {{if $s.RacineAncienne}}<div class="message">Assistant root en <b>{{$s.VersionRacine}}</b>, agent en <b>{{$s.VersionAgent}}</b>. L'assistant (lecture des certificats, de SMART et du pare-feu, en root) n'est mis à jour qu'en relançant le script d'installation sur la machine (jamais automatiquement, par sécurité). Sans lui, les chemins de certificats ajoutés ne sont pas lus. Sur la machine, en root :
 <pre class="commande">curl -fsSL {{if .D.Ingestion}}{{.D.Ingestion}}{{else}}https://ADRESSE-INGESTION{{end}}/api/agent/v1/install -o mirador-agent-install.sh
 bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{else}}https://ADRESSE-INGESTION{{end}} --mirador --auto-update</pre></div>{{end}}

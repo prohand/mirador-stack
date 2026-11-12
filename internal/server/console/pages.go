@@ -388,6 +388,14 @@ func (c *Console) postMachine(q *req) {
 		}
 	}
 	switch action {
+	case "actualiser":
+		// Relecture de la configuration et relance de l'assistant root
+		// (SPEC § 22) : rien de modifié, pas de code 2FA.
+		var id int64
+		if id, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
+			flotte.DemanderActualisation(id, q.t)
+			ok = "actualisation demandée : la machine relit sa configuration et relance l'assistant root (environ 1 min, puis recharger la page)"
+		}
 	case "approuver":
 		// Nom, site, type et groupe : ceux du jeton (ou proposés par la
 		// machine), corrigeables ici avant d'approuver.

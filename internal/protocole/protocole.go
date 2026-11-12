@@ -46,6 +46,14 @@ const (
 	// ignore cet en-tête ; un ancien agent ne l'envoie pas, et le serveur ne
 	// lui envoie alors aucun réglage qu'il ne connaît pas.
 	EnteteCapacites = "X-Mirador-Capacites"
+	// Configuration en temps réel (SPEC § 22) : l'agent demande au serveur
+	// de garder la requête ouverte (secondes, 45 au plus) et dit quelle
+	// demande « Actualiser » il a déjà traitée ; le serveur dit qu'il sait
+	// attendre et donne le numéro de la dernière demande « Actualiser ».
+	EnteteAttendre   = "X-Mirador-Attendre"
+	EnteteActualise  = "X-Mirador-Actualise"
+	EnteteAttente    = "X-Mirador-Attente"
+	EnteteActualiser = "X-Mirador-Actualiser"
 	// Empreinte de la machine (32 chiffres hexadécimaux, dérivée de
 	// /etc/machine-id). Si l'admin a lié le token à la machine, le serveur
 	// refuse ce token avec une autre empreinte (token copié ailleurs).

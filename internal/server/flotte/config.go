@@ -19,6 +19,7 @@ import (
 
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
+	"mirador-stack/internal/protocole"
 )
 
 // Portées de la configuration des agents (SPEC § 6.7) : défaut global, puis
@@ -100,7 +101,11 @@ func DefinirConfig(ctx context.Context, db *sql.DB, portee string, doc []byte, q
 	if err := audit(ctx, tx, maintenant.Unix(), qui, "config_agent", portee, avant, string(normalise), ""); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	SignalerConfig() // agents en attente : nouvelle configuration tout de suite
+	return nil
 }
 
 // ConfigMachine assemble la configuration d'une machine (défaut, puis groupe,
@@ -150,21 +155,59 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	defer liberer()
-	doc, etag, err := ConfigMachine(r.Context(), f.opt.DB, m.ID)
+	libere := false
+	defer func() {
+		if !libere {
+			liberer()
+		}
+	}()
+	charger := func() ([]byte, string, error) {
+		doc, etag, err := ConfigMachine(r.Context(), f.opt.DB, m.ID)
+		if err != nil {
+			return nil, "", err
+		}
+		// Agent d'avant la surveillance (SPEC § 19) ou les éléments (§ 21) :
+		// il refuserait tout le document à cause d'une clé qu'il ne connaît
+		// pas. On les lui retire.
+		if retirer := clesInconnues(capacitesDe(r)); len(retirer) > 0 {
+			return sansCles(doc, retirer)
+		}
+		return doc, etag, nil
+	}
+	signal := attenteSignal() // avant la lecture : aucun changement manqué
+	doc, etag, err := charger()
 	if err != nil {
 		f.opt.Journal.Error("configuration d'une machine", "machine", m.Nom, "erreur", err)
 		erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
 		return
 	}
-	// Agent d'avant la surveillance (SPEC § 19) ou les éléments (§ 21) : il
-	// refuserait tout le document à cause d'une clé qu'il ne connaît pas. On
-	// les lui retire.
-	if retirer := clesInconnues(capacitesDe(r)); len(retirer) > 0 {
-		if doc, etag, err = sansCles(doc, retirer); err != nil {
+	// Demande gardée ouverte (SPEC § 22) : rien de neuf pour cet agent,
+	// on attend un changement. La place de décodage de l'ingestion est
+	// rendue pendant l'attente (elle ne sert qu'aux envois de données).
+	actu := actualisationDe(m.ID)
+	vu, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteActualise), 10, 64)
+	if attente := lireAttente(r.Header.Get(protocole.EnteteAttendre)); attente > 0 &&
+		r.Header.Get("If-None-Match") == etag && actu <= vu {
+		liberer()
+		libere = true
+		minuterie := time.NewTimer(attente)
+		select {
+		case <-signal:
+		case <-minuterie.C:
+		case <-r.Context().Done():
+			minuterie.Stop()
+			return
+		}
+		minuterie.Stop()
+		if doc, etag, err = charger(); err != nil {
 			erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
 			return
 		}
+		actu = actualisationDe(m.ID)
+	}
+	w.Header().Set(protocole.EnteteAttente, "1") // ce serveur sait garder la demande ouverte
+	if actu > 0 {
+		w.Header().Set(protocole.EnteteActualiser, strconv.FormatInt(actu, 10))
 	}
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "no-store")
