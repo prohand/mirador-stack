@@ -9,7 +9,7 @@ de cette liste.
 |---|---|---|---|---|
 | `github.com/klauspost/compress` | v1.20.3 | BSD-3-Clause (+ parties Apache-2.0 et MIT) | mirador-agent | compression snappy du format *remote write* (et zstd pour les logs) ; plus rapide que les versions de la bibliothèque standard, sans cgo |
 | `github.com/godbus/dbus/v5` | v5.2.4 | BSD-2-Clause | mirador-agent | lecture de l'état des services systemd par D-Bus, sans lancer `systemctl` |
-| `golang.org/x/sys` | v0.49.0 | BSD-3-Clause | agent, serveur, mirador-release | appels système (Linux, Windows) |
+| `golang.org/x/sys` | v0.50.0 | BSD-3-Clause | agent, serveur, mirador-release | appels système (Linux, Windows) |
 | `golang.org/x/term` | v0.48.0 | BSD-3-Clause | mirador-release | saisie de la phrase de passe sans l'afficher (Windows et Linux) |
 | `rsc.io/qr` | v0.2.0 | BSD-3-Clause | mirador-server | QR code de la 2FA (et de l'invitation Olvid) dessiné par le serveur, sans service externe ; ~1 500 lignes, aucune dépendance |
 | `github.com/pkg/sftp` | v1.13.12 | BSD-2-Clause | mirador-server | copie des sauvegardes sur un serveur SFTP |
@@ -44,7 +44,7 @@ réellement appelé.
 | `github.com/Azure/azure-sdk-for-go/sdk/internal` | v1.13.0 | MIT | mirador-server (via prometheus/tsdb) |  |
 | `github.com/AzureAD/microsoft-authentication-library-for-go` | v1.10.1 | MIT | mirador-server (via prometheus/tsdb) |  |
 | `github.com/alecthomas/units` | v0.0.0-20240927000941-0f3dac36c52b | MIT | mirador-server (via prometheus/tsdb) |  |
-| `github.com/aws/aws-sdk-go-v2` | v1.47.3 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
+| `github.com/aws/aws-sdk-go-v2` | v1.47.8 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/aws/aws-sdk-go-v2/config` | v1.33.9 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/aws/aws-sdk-go-v2/credentials` | v1.20.9 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/aws/aws-sdk-go-v2/feature/ec2/imds` | v1.20.3 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
@@ -57,7 +57,7 @@ réellement appelé.
 | `github.com/aws/aws-sdk-go-v2/service/sso` | v1.38.4 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/aws/aws-sdk-go-v2/service/ssooidc` | v1.43.4 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/aws/aws-sdk-go-v2/service/sts` | v1.51.4 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
-| `github.com/aws/smithy-go` | v1.28.5 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
+| `github.com/aws/smithy-go` | v1.28.8 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/bboreham/go-loser` | v0.0.0-20230920113527-fcc2c21820a3 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/beorn7/perks` | v1.0.1 | MIT | mirador-server (via prometheus/tsdb) |  |
 | `github.com/cenkalti/backoff/v5` | v5.0.3 | MIT | mirador-server (via prometheus/tsdb) |  |
@@ -78,11 +78,12 @@ réellement appelé.
 | `github.com/munnerz/goautoneg` | v0.0.0-20191010083416-a7dc8b61c822 | BSD-3-Clause | mirador-server (via prometheus/tsdb) |  |
 | `github.com/mwitkow/go-conntrack` | v0.0.0-20190716064945-2f068394615f | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/oklog/ulid/v2` | v2.1.2 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
+| `github.com/pandatix/go-abnf` | v0.5.3 | MIT | mirador-server (via prometheus/common, lecture du format OpenMetrics) |  |
 | `github.com/pkg/browser` | v0.0.0-20240102092130-5ac0b6a4141c | BSD-2-Clause | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/client_golang` | v1.25.0 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/client_golang/exp` | v0.0.0-20261019101427-217707f26b14 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/client_model` | v0.6.3 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
-| `github.com/prometheus/common` | v0.72.1 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
+| `github.com/prometheus/common` | v0.73.1 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/otlptranslator` | v1.0.0 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/procfs` | v0.22.0 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `github.com/prometheus/prometheus` | v0.316.0 | Apache-2.0 | mirador-server (via prometheus/tsdb) | base de séries temporelles (TSDB) des métriques, choisie sur mesures (SPEC § 16.1) |
@@ -97,7 +98,7 @@ réellement appelé.
 | `go.uber.org/atomic` | v1.12.0 | MIT | mirador-server (via prometheus/tsdb) |  |
 | `go.uber.org/goleak` | v1.3.0 | MIT | mirador-server (via prometheus/tsdb) |  |
 | `go.yaml.in/yaml/v2` | v2.4.4 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
-| `go.yaml.in/yaml/v3` | v3.0.5 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
+| `go.yaml.in/yaml/v3` | v3.0.6 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | mirador-server, mirador-release | serveur : SSH des sauvegardes SFTP ; mirador-release : Argon2id (chiffrement de la clé privée) |
 | `golang.org/x/exp` | v0.0.0-20261014143641-f0251eb4aa3e | BSD-3-Clause | mirador-server (via prometheus/tsdb) |  |
 | `golang.org/x/net` | v0.62.0 | BSD-3-Clause | mirador-server (via prometheus/tsdb) |  |
@@ -107,7 +108,7 @@ réellement appelé.
 | `golang.org/x/time` | v0.16.0 | BSD-3-Clause | mirador-server (via prometheus/tsdb) |  |
 | `google.golang.org/api` | v0.305.0 | BSD-3-Clause | mirador-server (via prometheus/tsdb) |  |
 | `google.golang.org/genproto/googleapis/rpc` | v0.0.0-20261012220534-4341edf3f941 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
-| `google.golang.org/grpc` | v1.84.0 | Apache-2.0 | mirador-server (via prometheus/tsdb ; utilisé directement par le canal Olvid) |  |
+| `google.golang.org/grpc` | v1.85.0 | Apache-2.0 | mirador-server (via prometheus/tsdb ; utilisé directement par le canal Olvid) |  |
 | `google.golang.org/protobuf` | v1.36.12 | BSD-3-Clause | mirador-server (via prometheus/tsdb ; utilisé directement par le canal Olvid) |  |
 | `k8s.io/apimachinery` | v0.37.1 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
 | `k8s.io/client-go` | v0.37.1 | Apache-2.0 | mirador-server (via prometheus/tsdb) |  |
