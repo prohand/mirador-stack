@@ -89,8 +89,17 @@ type vueSurveillance struct {
 	CertsSuivis  bool // « Certificats » n'est pas retiré
 	Composants   []composantSurv
 	Certs        []certSurv
-	MotifsAjout  []string
+	MotifsAjout  []motifSurv
 	NbRetires    int // composants et certificats retirés
+	// Assistant root plus ancien que l'agent : il n'est mis à jour qu'en
+	// relançant le script d'installation (jamais automatiquement).
+	VersionRacine, VersionAgent string
+	RacineAncienne              bool
+}
+
+// motifSurv : un chemin de certificat ajouté et ce qu'il a donné sur la machine.
+type motifSurv struct {
+	Motif, Resultat, Classe string // Classe : ok, attention ou '' (pas encore lu)
 }
 
 // composantSurv : un disque, une interface ou un montage.
@@ -117,7 +126,10 @@ const metriquesSurv = `mirador_agent_detecte|node_hwmon_temp_celsius|node_therma
 	// Détail par élément (SPEC § 21) : une série par disque, interface,
 	// montage et certificat.
 	`node_disk_io_time_seconds_total|node_network_receive_bytes_total|node_filesystem_size_bytes|` +
-	`ssl_cert_not_after_timestamp_seconds`
+	`ssl_cert_not_after_timestamp_seconds|` +
+	// Assistant root (12/11) : sa version, et le compte rendu de chaque
+	// chemin de certificat ajouté dans l'interface.
+	`mirador_agent_root_info|mirador_agent_certificats_chemin_fichiers|mirador_agent_certificats_chemin_lus`
 
 func exprSurv(machine string) string {
 	return fmt.Sprintf(`{instance=%q,__name__=~%q}`, machine, metriquesSurv)
@@ -180,11 +192,16 @@ type releve struct {
 	disques, interfaces []string
 	montages            map[string]float64 // point de montage → taille (octets)
 	certs               []certSurv
+	versionAgent        string
+	versionRacine       string             // assistant root ('' = inconnu)
+	motifsFichiers      map[string]float64 // chemin ajouté → fichiers trouvés
+	motifsLus           map[string]float64 // chemin ajouté → certificats lus
 }
 
 func lireReleve(ech []alertes.Echantillon) releve {
 	r := releve{detecte: map[string][]string{}, pools: map[string]string{}, grappes: map[string]float64{},
-		services: map[string]bool{}, montages: map[string]float64{}}
+		services: map[string]bool{}, montages: map[string]float64{},
+		motifsFichiers: map[string]float64{}, motifsLus: map[string]float64{}}
 	for i := range ech {
 		e := &ech[i]
 		v := e.Valeur
@@ -242,6 +259,13 @@ func lireReleve(ech []alertes.Echantillon) releve {
 			r.logsDocker = &e.Valeur
 		case "mirador_agent_info":
 			r.agent = true
+			r.versionAgent = etq("version")
+		case "mirador_agent_root_info":
+			r.versionRacine = etq("version")
+		case "mirador_agent_certificats_chemin_fichiers":
+			r.motifsFichiers[etq("chemin")] = v
+		case "mirador_agent_certificats_chemin_lus":
+			r.motifsLus[etq("chemin")] = v
 		case "node_disk_io_time_seconds_total":
 			r.disques = append(r.disques, etq("device"))
 		case "node_network_receive_bytes_total":
@@ -488,7 +512,34 @@ func completerElements(v *vueSurveillance, cfg *distant.ConfigDistante, r *relev
 		v.Certs = append(v.Certs, certSurv{Chemin: c, Retire: true})
 		v.NbRetires++
 	}
-	v.MotifsAjout = liste(cfg.CertificatsAjout)
+	v.VersionAgent, v.VersionRacine = r.versionAgent, r.versionRacine
+	v.RacineAncienne = r.versionRacine != "" && r.versionAgent != "" && r.versionRacine != r.versionAgent
+	for _, m := range liste(cfg.CertificatsAjout) {
+		v.MotifsAjout = append(v.MotifsAjout, resultatMotif(m, r, v.RacineAncienne))
+	}
+}
+
+// resultatMotif : phrase du compte rendu d'un chemin ajouté.
+func resultatMotif(m string, r *releve, racineAncienne bool) motifSurv {
+	s := motifSurv{Motif: m}
+	fichiers, connu := r.motifsFichiers[m]
+	lus := r.motifsLus[m]
+	switch {
+	case !connu && racineAncienne:
+		s.Resultat, s.Classe = "pas lu : assistant root trop ancien (relancer le script d'installation)", "attention"
+	case !connu:
+		s.Resultat = "pas encore lu (l'assistant root passe toutes les 15 min)"
+	case fichiers == 0:
+		s.Resultat, s.Classe = "aucun fichier trouvé à ce chemin", "attention"
+	case lus == 0:
+		s.Resultat, s.Classe = pluriel(int(fichiers), "fichier")+" trouvé(s), aucun certificat lisible (clé privée, lien hors dossier autorisé, autre format)", "attention"
+	default:
+		s.Resultat, s.Classe = pluriel(int(lus), "certificat")+" lu(s)", "ok"
+		if e := int(fichiers - lus); e > 0 {
+			s.Resultat += fmt.Sprintf(", %d fichier(s) écarté(s)", e)
+		}
+	}
+	return s
 }
 
 // surveillance : le bloc d'une machine (vide si les métriques manquent).

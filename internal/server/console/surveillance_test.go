@@ -293,3 +293,46 @@ func TestServiceIgnoreAussitot(t *testing.T) {
 		t.Error("serviceChoisi")
 	}
 }
+
+// Chemins de certificats ajoutés : compte rendu de l'assistant root, et
+// assistant plus ancien que l'agent signalé (12/11).
+func TestCompteRenduChemins(t *testing.T) {
+	ajout := []string{"/etc/app/*.pem", "/etc/vide/*.crt", "/etc/cles/*.pem", "/opt/neuf/*.pem"}
+	cfg := &distant.ConfigDistante{CertificatsAjout: &ajout}
+	echs := []alertes.Echantillon{
+		ech("mirador_agent_info", 1, "version", "0.2.14"),
+		ech("mirador_agent_root_info", 1, "version", "0.2.14"),
+		ech("mirador_agent_certificats_chemin_fichiers", 3, "chemin", "/etc/app/*.pem"),
+		ech("mirador_agent_certificats_chemin_lus", 2, "chemin", "/etc/app/*.pem"),
+		ech("mirador_agent_certificats_chemin_fichiers", 0, "chemin", "/etc/vide/*.crt"),
+		ech("mirador_agent_certificats_chemin_lus", 0, "chemin", "/etc/vide/*.crt"),
+		ech("mirador_agent_certificats_chemin_fichiers", 1, "chemin", "/etc/cles/*.pem"),
+		ech("mirador_agent_certificats_chemin_lus", 0, "chemin", "/etc/cles/*.pem"),
+	}
+	v := classerSurveillance(cfg, echs, true)
+	if v.RacineAncienne {
+		t.Error("assistant à jour signalé ancien")
+	}
+	attendu := map[string]string{
+		"/etc/app/*.pem":  "2 certificats lu(s), 1 fichier(s) écarté(s)",
+		"/etc/vide/*.crt": "aucun fichier trouvé",
+		"/etc/cles/*.pem": "aucun certificat lisible",
+		"/opt/neuf/*.pem": "pas encore lu",
+	}
+	for _, m := range v.MotifsAjout {
+		if !strings.Contains(m.Resultat, attendu[m.Motif]) {
+			t.Errorf("%s : %q", m.Motif, m.Resultat)
+		}
+	}
+	// Assistant resté en 0.2.9 : signalé, et un chemin jamais lu le dit.
+	echs[1] = ech("mirador_agent_root_info", 1, "version", "0.2.9")
+	v = classerSurveillance(cfg, echs, true)
+	if !v.RacineAncienne || v.VersionRacine != "0.2.9" {
+		t.Errorf("assistant ancien non signalé : %+v", v)
+	}
+	for _, m := range v.MotifsAjout {
+		if m.Motif == "/opt/neuf/*.pem" && !strings.Contains(m.Resultat, "trop ancien") {
+			t.Errorf("chemin non lu : %q", m.Resultat)
+		}
+	}
+}

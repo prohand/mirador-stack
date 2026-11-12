@@ -80,6 +80,12 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 	age := r.maintenant().Sub(res.Horodatage)
 	b.Add("mirador_agent_root_age_seconds", age.Seconds())
 	b.Add("mirador_agent_root_errors", float64(len(res.Erreurs)))
+	// Version de l'assistant root : il n'est mis à jour qu'en relançant le
+	// script d'installation (jamais par la mise à jour automatique) ;
+	// l'interface signale un écart avec la version de l'agent.
+	if res.Version != "" {
+		b.Add("mirador_agent_root_info", 1, metrics.L("version", res.Version))
+	}
 	if age > r.ageMax {
 		return nil
 	}
@@ -125,6 +131,12 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 			l := [3]metrics.Label{metrics.L("path", cert.Chemin), metrics.L("cn", cert.CN), metrics.L("issuer", cert.Emetteur)}
 			b.Add("ssl_cert_not_after_timestamp_seconds", float64(cert.Fin.Unix()), l[:]...)
 			b.Add("ssl_cert_not_before_timestamp_seconds", float64(cert.Debut.Unix()), l[:]...)
+		}
+		// Compte rendu des chemins ajoutés dans l'interface.
+		for _, m := range c.Motifs {
+			ch := metrics.L("chemin", m.Motif)
+			b.Add("mirador_agent_certificats_chemin_fichiers", float64(m.Fichiers), ch)
+			b.Add("mirador_agent_certificats_chemin_lus", float64(m.Lus), ch)
 		}
 		// Trouvés = certificats envoyés (les retirés ne comptent plus).
 		b.Add("ssl_certs_found_total", float64(envoyes))

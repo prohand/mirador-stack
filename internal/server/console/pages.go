@@ -309,6 +309,7 @@ type donneesMachine struct {
 	Surv        vueSurveillance // bloc « À surveiller sur cette machine »
 	Identite    identiteMachine // bandeau sous le nom
 	Agent       bool            // machine avec agent (pas un collecteur)
+	Ingestion   string          // adresse d'ingestion (commande de réinstallation)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -338,6 +339,7 @@ func (c *Console) pageMachine(q *req) {
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)
+		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	}
 	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
 		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
