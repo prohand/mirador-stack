@@ -246,6 +246,11 @@ et bouton « Supprimer » ; les autres se réimportent depuis GitHub (signées) 
 (3) la sauvegarde ne contient alors que ces versions-là. Effet attendu :
 versions ~30 Mo, archive ~15 Mo par jour.
 
+**Fait en 0.2.21 (SPEC § 22.6), mesuré le 13/11** : au démarrage, 16
+binaires supprimés (toutes les arm64, versions 0.2.9 à 0.2.13) ; dossier
+`versions` 166 → 55 Mo. Le reste part au fil des jours (versions importées
+depuis moins de 24 h gardées).
+
 ### Réponses du 10/11 et suites
 
 | Question | Réponse | Conséquence |
