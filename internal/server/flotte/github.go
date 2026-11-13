@@ -81,6 +81,9 @@ func DefinirDepot(ctx context.Context, db *sql.DB, depot, qui string, maintenant
 type SourceGitHub struct {
 	Base   string       // défaut https://github.com
 	Client *http.Client // défaut : clientGitHub()
+	// Architectures : seules celles-ci sont importées (vide = toutes). Par
+	// défaut, l'interface passe celles du parc (SPEC § 22.6).
+	Architectures map[string]bool
 }
 
 // clientGitHub : HTTPS seulement ; redirections suivies seulement vers
@@ -119,6 +122,9 @@ func ImporterGitHub(ctx context.Context, db *sql.DB, dossier string, src SourceG
 	var faites []string
 	var erreurs []error
 	for _, arch := range []string{"amd64", "arm64"} {
+		if len(src.Architectures) > 0 && !src.Architectures[arch] {
+			continue // architecture absente du parc
+		}
 		nom := "mirador-agent-" + version + "-linux-" + arch
 		base := src.Base + "/" + depot + "/releases/download/" + url.PathEscape("v"+version) + "/"
 		brutM, err := telechargerGitHub(ctx, src.Client, base+nom+".manifeste.json", 64<<10)

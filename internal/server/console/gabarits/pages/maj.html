@@ -18,6 +18,7 @@
 {{with .D.Import}}{{if .EnCours}}<p class="message">Import de {{.Tag}} en cours… (recharger la page)</p>{{else if .Resultat}}<p class="message {{if .Erreur}}erreur{{end}}">Import de {{.Tag}} ({{date .Le}}) : {{.Resultat}}</p>{{end}}{{end}}
 {{if .Admin}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
 <label>Version <input name="tag" required maxlength="20" size="10" placeholder="v0.2.9" pattern="v?[0-9]+\.[0-9]+\.[0-9]+"></label>
+<label title="Par défaut, seulement les architectures des machines du parc"><input type="checkbox" name="toutes"> toutes les architectures</label>
 {{template "code2fa"}}<button>Importer</button></form>
 <details><summary><small>Changer de dépôt (fork)</small></summary>
 <form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="depot">
@@ -48,6 +49,10 @@
 {{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
 <p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
+<p><small>Gardées sur le serveur : la cible, les versions installées ou à l'essai sur une machine, les {{.D.Garder}} plus récentes et celles importées depuis moins de 24 h, pour les architectures du parc. Les autres sont supprimées chaque jour (réimportables depuis GitHub) : les sauvegardes restent petites.</small></p>
+{{if and .Admin .D.Choix}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="supprimer_version">
+<label>Supprimer la version <select name="version">{{range .D.Choix}}<option>{{.}}</option>{{end}}</select></label>
+{{template "code2fa"}}<button>Supprimer</button></form>{{end}}
 {{if .Admin}}<form method="post" action="/mises-a-jour/publier" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <h3>Publier une version à la main (signée sur ton poste)</h3>
 <label>Manifeste signé (.json, fait par mirador-release) <input type="file" name="manifeste" accept=".json,application/json" required></label>

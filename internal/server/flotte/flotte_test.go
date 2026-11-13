@@ -526,6 +526,8 @@ func TestImporterGitHub(t *testing.T) {
 	}
 	ajouter("moi/mirador", "1.3.0", "amd64", priv)  // arm64 absent : sauté
 	ajouter("moi/mirador", "1.4.0", "amd64", autre) // signée par une autre clé
+	ajouter("moi/mirador", "1.5.0", "amd64", priv)  // deux architectures publiées
+	ajouter("moi/mirador", "1.5.0", "arm64", priv)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, ok := fichiers[r.URL.Path]; ok {
 			_, _ = w.Write(c)
@@ -556,6 +558,12 @@ func TestImporterGitHub(t *testing.T) {
 	}
 	if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", "v9.9.9", "admin", t0); err == nil || !strings.Contains(err.Error(), "aucune version") {
 		t.Errorf("version absente : %v", err)
+	}
+	// Seulement les architectures du parc (SPEC § 22.6).
+	srcParc := src
+	srcParc.Architectures = map[string]bool{"amd64": true}
+	if archs, err := ImporterGitHub(ctx, b.db, dossier, srcParc, "moi/mirador", "v1.5.0", "admin", t0); err != nil || len(archs) != 1 || archs[0] != "amd64" {
+		t.Errorf("import limité au parc : %v %v", archs, err)
 	}
 	for _, mauvais := range []string{"1.3", "v1.3.0; rm", "../x"} {
 		if _, err := ImporterGitHub(ctx, b.db, dossier, src, "moi/mirador", mauvais, "admin", t0); err == nil {

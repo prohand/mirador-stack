@@ -381,7 +381,22 @@ func TestImportGitHubInterface(t *testing.T) {
 	if e := b.c.importMaj.lire(); e.EnCours || e.Erreur || !strings.Contains(e.Resultat, "amd64") {
 		t.Fatalf("import : %+v", e)
 	}
-	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "<td>1.3.0</td>") {
-		t.Error("version importée absente de la liste")
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "<td>1.3.0</td>") || !strings.Contains(corps, `value="supprimer_version"`) {
+		t.Error("version importée (ou bouton Supprimer) absente de la liste")
+	}
+	// Bouton « Supprimer » (SPEC § 22.6) : refusé tant que c'est la cible.
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cible"}, "version": {"1.3.0"}, "code": {b.code(secret)}})
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"supprimer_version"}, "version": {"1.3.0"}, "code": {b.code(secret)}})
+	if vs, _ := flotte.ListerVersions(context.Background(), b.c.db); len(vs) != 1 {
+		t.Fatal("version cible supprimée")
+	}
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cible"}, "version": {""}, "code": {b.code(secret)}})
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"supprimer_version"}, "version": {"1.3.0"}, "code": {b.code(secret)}})
+	if vs, _ := flotte.ListerVersions(context.Background(), b.c.db); len(vs) != 0 {
+		t.Errorf("version non supprimée : %+v", vs)
 	}
 }

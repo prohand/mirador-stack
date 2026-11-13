@@ -223,6 +223,29 @@ trancher après la mesure complète.
 Restes à faire (SPEC § 18.5) : vues personnalisables, carte du monde
 (fond SVG).
 
+### Mesure réelle du serveur (VPS, 12 → 13/11, 18 h 40)
+
+`docker stats` chaque minute (1120 relevés, une nuit complète avec la
+sauvegarde de 02:43), 1 machine avec agent, mode ombre, comparaison vmalert
+active. Deux redémarrages pour mise à jour (vers 10:24, puis avant 14:41).
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| RAM | 60 à 75 Mio au calme, **113 Mio au plus** (pointes toutes les ~2 h : rangement des métriques, puis mémoire rendue) | < 256 Mio ✅ (stack actuelle ~770 Mio : ~7 fois moins) |
+| CPU | **1,27 % d'un cœur en moyenne**, 9,2 % au plus (pointe courte) | < 5 % ✅ |
+| Écritures disque | ~100 Mo en 14 h 40, dont l'archive de sauvegarde (51 Mo) ; ~5,7 Mo/h hors sauvegarde | ✅ |
+| Lectures disque | ~140 Mo en 14 h 40, surtout la sauvegarde (relit les versions de l'agent) | ⚠️ voir dessous |
+| Données | métriques 14 Mo, logs 5 Mo, base 3 Mo, GéoIP 5 Mo | ✅ |
+| **Versions de l'agent** | **166 Mo** (toutes les versions importées, amd64 + arm64) | ⚠️ |
+| Archives de sauvegarde | 8 Ko → 19 Mo → 51 Mo en 3 jours (elles contiennent les versions) | ⚠️ 14 jours gardés : jusqu'à ~1 Go |
+
+⚠️ Solutions proposées (par ordre d'effet) : (1) garder seulement les
+versions utiles (cible, versions en service, 2 dernières), purge automatique
+et bouton « Supprimer » ; les autres se réimportent depuis GitHub (signées) ;
+(2) n'importer que les architectures présentes dans le parc (amd64 ici) ;
+(3) la sauvegarde ne contient alors que ces versions-là. Effet attendu :
+versions ~30 Mo, archive ~15 Mo par jour.
+
 ### Réponses du 10/11 et suites
 
 | Question | Réponse | Conséquence |
@@ -659,7 +682,13 @@ toujours à mesurer sur srv-test et le VPS.
 sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
 ```
 
-### Étape 6 : mesure de référence du collecteur actuel (à coller)
+### Étape 6 : mesure de référence du collecteur actuel (13/11)
+
+Alloy : 155 Mo résidents (179 Mo pour systemd), 0,86 % d'un cœur en
+moyenne ; unpoller : 26 Mo. Référence ~180 Mo ; objectif de
+`mirador-collector` : < 40 Mio (SPEC § 23.6).
+
+Commandes utilisées (pour refaire la mesure plus tard) :
 
 Sur le collecteur LAN (Alloy + unpoller), pour comparer avec
 `mirador-collector` (SPEC § 23.3) :
@@ -681,6 +710,9 @@ mises à jour automatiques signées).
    format 2, unité qui peut écrire son dossier, SPEC § 22.5). À confirmer
    à la 0.2.19 : l'assistant root suit l'agent tout seul (journal
    `mirador-agent-root`, `"version"` dans `/run/mirador-agent/root.json`).
+   0.2.19 : pas de mise à jour (manifeste effacé par le nettoyage, bug
+   corrigé en 0.2.20). **0.2.20 : validé le 13/11**, l'assistant root est
+   passé seul de 0.2.18 à 0.2.20 (signature vérifiée par root).
 2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).

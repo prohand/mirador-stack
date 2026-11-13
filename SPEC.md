@@ -3389,9 +3389,36 @@ maintenant écrit dans le journal de l'assistant. Comme c'est la nouvelle
 version qui confirme (et donc nettoie), la 0.2.20 garde son propre
 manifeste : l'assistant la suit dès qu'elle est confirmée.
 
+
+### 22.6 Versions de l'agent gardées sur le serveur **[Fait, à valider — mesure du 13/11]**
+
+Constat (mesure réelle de 18 h 40, `PROGRES.md`) : dossier `versions` à
+166 Mo (12 versions × amd64 + arm64), recopié dans chaque sauvegarde
+(8 Ko → 19 Mo → 51 Mo en 3 jours ; ~1 Go avec 14 jours gardés).
+
+| Règle | Pourquoi |
+|---|---|
+| Gardées : cible globale, cibles propres, version en service et à l'essai sur chaque machine (sauf refusées) | jamais retirer ce qu'une machine utilise ou va télécharger |
+| + les **2** plus récentes (numéro, pas date d'import) | retour arrière rapide sans réimport |
+| + celles importées depuis **moins de 24 h** | le temps d'en faire la cible (retour arrière vers une ancienne) |
+| Seulement les architectures du parc (toutes si aucune machine) | arm64 inutile ici : la moitié de la place |
+| Purge 2 min après le démarrage, puis toutes les 24 h ; fichiers orphelins (`.tmp`, sans ligne en base) effacés | coût : quelques requêtes SQL par jour |
+| Import : architectures du parc seulement, case « toutes les architectures » | ne pas télécharger ce qui serait purgé |
+| Bouton « Supprimer » (2FA), refusé pour une version en service ; audit `version_supprimee` | tout est réimportable depuis GitHub (signé) |
+
+Une machine d'une architecture absente s'installe avec le binaire intégré à
+l'image du serveur (`binaireInstallation`), puis on importe sa version.
+Effet attendu ici : versions ~30 Mo (≈ 4 versions amd64), archive de
+sauvegarde ~15 Mo au lieu de 51 Mo.
+
+Menaces : un attaquant connecté en admin peut supprimer des versions →
+2FA, audit, versions en service protégées, réimport possible ; la purge
+lit seulement la base (aucun chemin venu de l'extérieur : noms fabriqués
+par `nomBinaire`, fichiers orphelins filtrés par une expression stricte,
+fichiers ordinaires seulement).
 ---
 
-## 23. Étape 6 — sources sans agent et `mirador-collector` **[Brouillon à discuter — 13/11]**
+## 23. Étape 6 — sources sans agent et `mirador-collector` **[Décidé le 13/11 ; code après validation de l'étape 5]**
 
 Rien n'est codé. Ce brouillon reprend ce qui est déjà décidé (§ 4.4, § 5.2,
 § 5.3, § 5.3.1, § 11.2) et propose le découpage, les choix techniques et le
@@ -3478,3 +3505,71 @@ modèle de menaces. Les points marqués **[Question]** attendent une réponse.
    l'entrée InfluxDB côté serveur ?
 5. **[Question 5]** Mesure de référence : coller la consommation d'Alloy et
    d'unpoller sur le collecteur actuel (commandes dans `PROGRES.md`).
+
+### 23.6 Réponses du 13/11 et conséquences
+
+| # | Réponse | Conséquence proposée |
+|---|---|---|
+| 1 | Proxmox : agent seul, sans le flux InfluxDB, si possible ; OPNsense : pas le choix | **Proxmox par l'agent** (§ 23.7) ; entrée InfluxDB gardée pour **OPNsense seul** (Telegraf) |
+| 2 | (a), avec le renouvellement géré dans l'interface | certificat du syslog obtenu par ACME, renouvelé automatiquement, état et bouton « Renouveler » dans l'interface (§ 23.8) |
+| 3 | (b) | client UniFi natif dans le collecteur, unpoller retiré |
+| 4 | voir 1 | nouvel ordre (§ 23.9) |
+| 5 | mesure du collecteur actuel | Alloy : 155 Mo résidents (179 Mo pour systemd), 0,86 % d'un cœur en moyenne (256 s de CPU en 8 h 13) ; unpoller : 26 Mo ; **référence : ~180 Mo** pour < 40 Mio visés |
+
+### 23.7 Proxmox par l'agent, sans metric server **[Décidé, réponse du 13/11]**
+
+Ce que le metric server donne aujourd'hui, et d'où l'agent peut le lire, sans
+`pvesh`, sans API, sans token dans Proxmox (écarté au § 12 : `pvesh` lancé par
+l'agent) :
+
+| Donnée | Source lue par l'agent | Coût |
+|---|---|---|
+| nœud : CPU, load, mémoire, swap, réseau, disques | déjà collecté (comme toute machine) | 0 |
+| ARC ZFS, état des pools | `/proc/spl/kstat/zfs/` (déjà lu pour l'état des pools) | quelques fichiers |
+| invités : CPU, mémoire, I/O disque, PSI | cgroups v2 : `/sys/fs/cgroup/qemu.slice/<id>.scope/`, `/sys/fs/cgroup/lxc/<id>/` (lisibles sans root) | ~5 petits fichiers par invité, toutes les 30 s |
+| invités : réseau | interfaces `tap<id>i<n>` (VM) et `veth<id>i<n>` (LXC), déjà collectées | 0 |
+| invités : liste, nom, en marche ou arrêté | `/etc/pve/.vmlist` et ligne `name:`/`hostname:` des fichiers de `/etc/pve/` : réservés à root → **assistant root** (lecture seule, chemins figés) | 1 lecture / 15 min |
+| stockages : occupation | systèmes de fichiers déjà collectés ; pools ZFS par kstat | 0 |
+
+Limites (dites à l'avance) :
+- mémoire d'une VM = mémoire prise par son processus QEMU côté hôte, pas
+  la mémoire vue de l'intérieur (le metric server ne la donne qu'avec le
+  ballon ou l'agent invité) ;
+- place libre dans le disque d'une VM : seulement si l'agent mirador tourne
+  dans la VM (cas normal ici).
+
+Conséquences : le tableau « Proxmox » (31 panneaux) et les règles qui lisent
+le metric server sont réécrits avec les nouveaux noms
+(`mirador_pve_invite_*{id, nom, type}`) ; `ProxmoxMuet` devient l'`AgentMuet`
+du nœud. Aucun port, aucun token ajouté sur Proxmox. Le metric server reste
+utilisable pendant la comparaison.
+
+### 23.8 Certificat du syslog par ACME, géré dans l'interface **[Décidé, réponse du 13/11]**
+
+- Protocole ACME avec `golang.org/x/crypto/acme` (déjà dans les
+  dépendances : rien de nouveau à embarquer), défi DNS-01 chez deSEC (un appel
+  HTTPS simple, écrit à la main).
+- **La clé privée TLS ne quitte jamais le collecteur** : il la crée et envoie
+  seulement une demande de certificat (CSR) au serveur.
+- **Le serveur fait la démarche ACME** (le VPS sort déjà sur Internet ; le
+  jeton deSEC, secret chiffré, reste sur le serveur et n'est jamais envoyé au
+  collecteur) puis renvoie le certificat dans la configuration du collecteur.
+  Collecteur compromis : ni jeton deSEC ni compte ACME à voler.
+- Jeton deSEC limité à l'enregistrement `_acme-challenge` du nom du collecteur
+  (règle de jeton deSEC), saisi une fois dans l'interface.
+- Interface : nom du certificat, échéance, dernier renouvellement et son
+  résultat, bouton « Renouveler maintenant » (2FA), renouvellement
+  automatique 30 jours avant l'échéance, alerte si échec ou si moins de 14 jours.
+- Le collecteur recharge le certificat sans couper les connexions en cours.
+
+### 23.9 Ordre **[Décidé, 13/11]** (remplace § 23.2)
+
+| Partie | Contenu |
+|---|---|
+| 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
+| 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) |
+| 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » |
+| 4 | Syslog TLS + certificat ACME géré dans l'interface |
+| 5 | SNMP v3 (Synology) et sondes de certificats |
+| 6 | Client UniFi natif (unpoller retiré) |
+| 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
