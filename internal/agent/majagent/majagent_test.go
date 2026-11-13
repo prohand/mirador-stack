@@ -164,7 +164,11 @@ func TestInstallerConfirmerRetour(t *testing.T) {
 	if err := inst.Confirmer(); err != nil {
 		t.Fatal(err)
 	}
-	for nom, attendu := range map[string]bool{"mirador-agent-1.2.0": true, "mirador-agent-1.1.0": true, "mirador-agent-0.9.0": false} {
+	for nom, attendu := range map[string]bool{
+		"mirador-agent-1.2.0": true, "mirador-agent-1.1.0": true, "mirador-agent-0.9.0": false,
+		// Manifeste de la version en service : gardé pour l'assistant root (bug du 13/11).
+		"mirador-agent-1.2.0.manifeste.json": true,
+	} {
 		_, err := os.Stat(filepath.Join(dir, nom))
 		if (err == nil) != attendu {
 			t.Errorf("%s présent=%v, attendu %v", nom, err == nil, attendu)

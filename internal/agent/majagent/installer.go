@@ -61,6 +61,9 @@ func NewInstallateur(dossier, configuration string) *Installateur {
 	}
 }
 
+// suffixeManifeste : manifeste signé gardé à côté de chaque binaire.
+const suffixeManifeste = ".manifeste.json"
+
 var reVersion = regexp.MustCompile(`^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$`)
 
 // Installer écrit le binaire vérifié, le teste, puis l'active de façon
@@ -101,7 +104,7 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 	// 22.5). Écrit sous l'identité de l'agent : sans valeur pour un faussaire
 	// (la signature est revérifiée par root avec sa propre clé).
 	if brut, err := json.Marshal(m); err == nil {
-		_ = os.WriteFile(final+".manifeste.json", brut, 0o644) // #nosec G306 -- manifeste public
+		_ = os.WriteFile(final+suffixeManifeste, brut, 0o644) // #nosec G306 -- manifeste public
 	}
 
 	ctxTest, annuler := context.WithTimeout(ctx, 30*time.Second)
@@ -206,7 +209,8 @@ func (i *Installateur) DernierEchec() (version, raison string) {
 	return e["version"], e["raison"]
 }
 
-// nettoyer supprime les anciens binaires, sauf ceux à garder.
+// nettoyer supprime les anciens binaires, sauf ceux à garder (et leur
+// manifeste signé, dont l'assistant root a besoin : SPEC § 22.5).
 func (i *Installateur) nettoyer(garder ...string) {
 	entrees, err := os.ReadDir(i.Dossier)
 	if err != nil {
@@ -215,6 +219,7 @@ func (i *Installateur) nettoyer(garder ...string) {
 	ok := map[string]bool{}
 	for _, g := range garder {
 		ok[g] = true
+		ok[g+suffixeManifeste] = true
 	}
 	for _, e := range entrees {
 		if strings.HasPrefix(e.Name(), "mirador-agent-") && !ok[e.Name()] {

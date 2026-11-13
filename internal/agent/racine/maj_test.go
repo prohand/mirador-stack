@@ -93,6 +93,12 @@ func TestMettreAJourAssistant(t *testing.T) {
 	if msg, err := MettreAJourAssistant(cfg, cible); msg != "" || err != nil || contenu() != "assistant 1.0.0" {
 		t.Fatalf("retour arrière : %q %v", msg, err)
 	}
+	// Manifeste absent (bug du 13/11) : rien d'installé, mais signalé.
+	poser("1.1.0", priv, "assistant 1.1.0")
+	_ = os.Remove(filepath.Join(bin, "mirador-agent-1.1.0.manifeste.json"))
+	if _, err := MettreAJourAssistant(cfg, cible); err == nil || !strings.Contains(err.Error(), "manifeste signé absent") || contenu() != "assistant 1.0.0" {
+		t.Fatalf("manifeste absent : %v", err)
+	}
 	// Cas normal : signée, confirmée, plus récente → remplacée, ancienne gardée.
 	poser("1.1.0", priv, "assistant 1.1.0")
 	msg, err := MettreAJourAssistant(cfg, cible)
