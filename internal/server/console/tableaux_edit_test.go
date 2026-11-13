@@ -388,6 +388,12 @@ func TestImportGitHubInterface(t *testing.T) {
 	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "<td>1.3.0</td>") || !strings.Contains(corps, `value="supprimer_version"`) {
 		t.Error("version importée (ou bouton Supprimer) absente de la liste")
 	}
+	// Réglage « Versions récentes gardées » (1 à 10).
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"versions_gardees"}, "nombre": {"4"}, "code": {b.code(secret)}})
+	if n, _ := flotte.LireGarderVersions(context.Background(), b.c.db); n != 4 {
+		t.Errorf("versions gardées : %d", n)
+	}
 	// Bouton « Supprimer » (SPEC § 22.6) : refusé tant que c'est la cible.
 	b.h.avancer(31 * time.Second)
 	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cible"}, "version": {"1.3.0"}, "code": {b.code(secret)}})

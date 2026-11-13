@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"time"
 
 	"mirador-stack/internal/agent/majagent"
@@ -23,7 +24,7 @@ import (
 // Sont gardées :
 //   - les versions « en service » : cible globale, cibles propres des
 //     machines, version qui tourne et version à l'essai sur chaque machine ;
-//   - les GarderVersions plus récentes (pour revenir en arrière vite) ;
+//   - les N plus récentes (réglage, 2 par défaut : revenir en arrière vite) ;
 //   - celles publiées depuis moins de 24 h (le temps de choisir une version
 //     ancienne importée pour revenir en arrière, avant d'en faire la cible) ;
 //   - seulement les architectures du parc (s'il y a au moins une machine).
@@ -32,8 +33,55 @@ import (
 // machine d'une nouvelle architecture s'installe avec le binaire intégré à
 // l'image du serveur (binaireInstallation), puis on importe sa version.
 
-// GarderVersions : versions récentes gardées en plus de celles en service.
+// GarderVersions : versions récentes gardées en plus de celles en service
+// (défaut ; réglable de 1 à 10 dans Mises à jour des agents).
 const GarderVersions = 2
+
+// cleGarderVersions : réglage du nombre de versions récentes gardées.
+const cleGarderVersions = "maj.versions_gardees"
+
+// LireGarderVersions : nombre de versions récentes gardées (défaut 2).
+func LireGarderVersions(ctx context.Context, db *sql.DB) (int, error) {
+	var v string
+	err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleGarderVersions).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return GarderVersions, nil
+	}
+	if err != nil {
+		return GarderVersions, err
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > 10 {
+		return GarderVersions, nil
+	}
+	return n, nil
+}
+
+// DefinirGarderVersions : 1 à 10 (audit). Pris en compte au nettoyage
+// suivant (au plus tard dans 24 h, ou au démarrage du serveur).
+func DefinirGarderVersions(ctx context.Context, db *sql.DB, n int, qui string, maintenant time.Time) error {
+	if n < 1 || n > 10 {
+		return errors.New("versions gardées : de 1 à 10")
+	}
+	avant, err := LireGarderVersions(ctx, db)
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
+	if _, err := tx.ExecContext(ctx, `INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, ?, ?, ?)
+		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`,
+		cleGarderVersions, strconv.Itoa(n), maintenant.Unix(), qui); err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, maintenant.Unix(), qui, "versions_gardees", "", strconv.Itoa(avant), strconv.Itoa(n), ""); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
 // reFichierVersion : binaires rangés par Publier (nomBinaire) et fichiers
 // temporaires laissés par une écriture interrompue.
@@ -147,7 +195,11 @@ func NettoyerVersions(ctx context.Context, db *sql.DB, dossier, qui string, main
 	if err != nil {
 		return nil, err
 	}
-	recent := recentes(publiees, GarderVersions)
+	garder, err := LireGarderVersions(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	recent := recentes(publiees, garder)
 	nouvelles, err := versionsPublieesDepuis(ctx, db, maintenant.Add(-DelaiNouvelleVersion).Unix())
 	if err != nil {
 		return nil, err

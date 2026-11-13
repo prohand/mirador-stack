@@ -3399,7 +3399,7 @@ Constat (mesure réelle de 18 h 40, `PROGRES.md`) : dossier `versions` à
 | Règle | Pourquoi |
 |---|---|
 | Gardées : cible globale, cibles propres, version en service et à l'essai sur chaque machine (sauf refusées) | jamais retirer ce qu'une machine utilise ou va télécharger |
-| + les **2** plus récentes (numéro, pas date d'import) | retour arrière rapide sans réimport |
+| + les **2** plus récentes (numéro, pas date d'import ; réglable de 1 à 10 dans Mises à jour, demande du 13/11) | retour arrière rapide sans réimport |
 | + celles importées depuis **moins de 24 h** | le temps d'en faire la cible (retour arrière vers une ancienne) |
 | Seulement les architectures du parc (toutes si aucune machine) | arm64 inutile ici : la moitié de la place |
 | Purge 2 min après le démarrage, puis toutes les 24 h ; fichiers orphelins (`.tmp`, sans ligne en base) effacés | coût : quelques requêtes SQL par jour |
