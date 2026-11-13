@@ -198,7 +198,7 @@ type donneesMachines struct {
 	EnAttente, Approuvees, Autres []vueMachine
 	Ingestion                     string         // adresse d'ingestion (Réglages › Interface), vide = à renseigner
 	Jeton                         string         // jeton tout juste créé (affiché une seule fois)
-	OptionEnvoi                   string         // « --sans-logs », « --sans-metriques » ou vide
+	OptionEnvoi                   string         // options du script : « --sans-logs », « --sans-metriques », « --auto-update »
 	Listes                        ListesMachines // sites, types et groupes proposés (Réglages)
 }
 
@@ -256,12 +256,19 @@ func (c *Console) postJeton(q *req) {
 	d := c.donneesMachines(q)
 	d.Jeton = j
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
+	var options []string
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
-		d.OptionEnvoi = "--sans-logs"
+		options = append(options, "--sans-logs")
 	case "logs":
-		d.OptionEnvoi = "--sans-metriques"
+		options = append(options, "--sans-metriques")
 	}
+	// Mises à jour automatiques signées : décidées sur la machine (option du
+	// script, fichier local root), jamais par le serveur seul.
+	if q.r.PostFormValue("maj_auto") != "" {
+		options = append(options, "--auto-update")
+	}
+	d.OptionEnvoi = strings.Join(options, " ")
 	c.flash(q, "jeton d'enrôlement créé : à utiliser une seule fois, il n'est affiché qu'ici", "")
 	c.rendre(q, "machines", "Machines", "machines", d)
 }

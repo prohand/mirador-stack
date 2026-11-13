@@ -239,7 +239,11 @@ func TestSitesEtTypes(t *testing.T) {
 		t.Fatal("jeton créé avec un site inconnu")
 	}
 	b.h.avancer(31 * time.Second)
-	b.post(c, "/machines/jeton", url.Values{"csrf": {csrf}, "duree": {"1h"}, "site": {"maison"}, "env": {"vm"}, "code": {b.code(secret)}})
+	_, corps, _ := b.post(c, "/machines/jeton", url.Values{"csrf": {csrf}, "duree": {"1h"}, "site": {"maison"}, "env": {"vm"},
+		"envoi": {"metriques"}, "maj_auto": {"1"}, "code": {b.code(secret)}})
+	if !strings.Contains(corps, "--sans-logs --auto-update</pre>") {
+		t.Error("commande sans --auto-update (case cochée)")
+	}
 	var site, env string
 	_ = b.db.QueryRow(`SELECT site, env FROM jetons_enrolement`).Scan(&site, &env)
 	if site != "maison" || env != "vm" {
