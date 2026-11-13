@@ -36,6 +36,9 @@ type Racine struct {
 	// Résultats non envoyés (choix de l'interface, SPEC.md § 19). L'assistant
 	// root tourne quand même : il ne lit jamais la configuration distante.
 	SansPareFeu, SansSmart, SansCertificats bool
+	// Proxmox : nœud Proxmox (invités trouvés dans les cgroups) ; l'assistant
+	// doit alors savoir lister les invités (FormatRequis).
+	Proxmox bool
 	// Certificats retirés un par un dans l'interface (chemins exacts) : lus
 	// par l'assistant root, mais pas envoyés (SPEC.md § 21).
 	certsIgnores map[string]bool
@@ -89,9 +92,25 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 	// L'assistant a-t-il tout ce que cet agent sait lui demander ? (pas une
 	// simple comparaison de versions : l'assistant ne change pas à chaque
 	// version de l'agent).
-	b.Add("mirador_agent_root_a_jour", bool01(res.Format >= racine.FormatAssistant))
+	b.Add("mirador_agent_root_a_jour", bool01(res.Format >= racine.FormatRequis(r.Proxmox)))
 	if age > r.ageMax {
 		return nil
+	}
+
+	// Invités Proxmox : nom et configuration (la consommation vient de
+	// collect.Proxmox, lue dans les cgroups).
+	if pve := res.Proxmox; pve != nil {
+		for i := range pve.Invites {
+			inv := &pve.Invites[i]
+			l := [2]metrics.Label{metrics.L("id", inv.ID), metrics.L("type", inv.Type)}
+			b.Add("mirador_pve_invite_info", 1, l[0], l[1], metrics.L("nom", inv.Nom), metrics.L("noeud", pve.Noeud))
+			if inv.Memoire > 0 {
+				b.Add("mirador_pve_invite_memoire_max_octets", float64(inv.Memoire)*1024*1024, l[:]...)
+			}
+			if inv.Coeurs > 0 {
+				b.Add("mirador_pve_invite_coeurs", float64(inv.Coeurs), l[:]...)
+			}
+		}
 	}
 
 	if pf := res.PareFeu; pf != nil && !r.SansPareFeu {

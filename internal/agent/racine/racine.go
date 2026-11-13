@@ -45,6 +45,7 @@ type Resultat struct {
 	Smart       []Disque     `json:"smart,omitempty"`
 	SmartLu     time.Time    `json:"smart_lu,omitempty"`
 	Certificats *Certificats `json:"certificats,omitempty"`
+	Proxmox     *Proxmox     `json:"proxmox,omitempty"` // nœud Proxmox : liste des invités
 	Erreurs     []string     `json:"erreurs,omitempty"`
 }
 
@@ -111,6 +112,12 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 	if len(cfg.Certificats) > 0 || len(cfg.CertificatsAjout) > 0 {
 		r.Certificats = lireCertificats(cfg.Certificats, cfg.CertificatsAjout)
 	}
+	// Nœud Proxmox : liste des invités (rien ailleurs : /etc/pve absent).
+	pve, err := lireProxmox()
+	if err != nil {
+		r.Erreurs = append(r.Erreurs, "proxmox : "+err.Error())
+	}
+	r.Proxmox = pve
 	return r
 }
 

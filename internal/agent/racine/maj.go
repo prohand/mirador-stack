@@ -25,8 +25,18 @@ import (
 // assistant « trop ancien » que lorsqu'il lui manque vraiment quelque chose.
 //
 //	1 : avant le 12/11 (pas de numéro) ;
-//	2 : compte rendu des chemins de certificats, raisons, mise à jour signée.
-const FormatAssistant = 2
+//	2 : compte rendu des chemins de certificats, raisons, mise à jour signée ;
+//	3 : liste des invités Proxmox (SPEC § 23.7).
+const FormatAssistant = 3
+
+// FormatRequis : numéro dont l'agent a besoin. Le 3 n'apporte rien hors
+// Proxmox : pas d'alerte « assistant trop ancien » pour rien.
+func FormatRequis(proxmox bool) int {
+	if proxmox {
+		return 3
+	}
+	return 2
+}
 
 // Mise à jour de l'assistant root par lui-même (SPEC § 22.5), avec ces
 // sécurités :

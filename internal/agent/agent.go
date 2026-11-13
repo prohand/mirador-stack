@@ -103,6 +103,11 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 	// n'est envoyé tant que l'assistant n'a pas écrit son fichier.
 	r := collect.NewRacine(cfg.FichierRoot)
 	r.SansPareFeu, r.SansSmart, r.SansCertificats = !cfg.EnvoyerPareFeu, !cfg.EnvoyerSmart, !cfg.EnvoyerCertificats
+	// Nœud Proxmox : consommation des invités lue dans les cgroups (SPEC.md § 23.7).
+	if collect.ProxmoxPresent(cfg.RacineSys) {
+		liste = append(liste, collect.NewProxmox(cfg.RacineSys))
+		r.Proxmox = true
+	}
 	r.IgnorerCertificats(cfg.CertificatsIgnorer)
 	liste = append(liste, r)
 	if cfg.Systemd {

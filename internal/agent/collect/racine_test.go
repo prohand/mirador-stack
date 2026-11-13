@@ -70,6 +70,31 @@ func TestRacine(t *testing.T) {
 		t.Errorf("SMART seul attendu, obtenu %v", p)
 	}
 
+	// Nœud Proxmox (SPEC § 23.7) : invités nommés par l'assistant ; un
+	// assistant au format 2 n'est « à jour » que hors Proxmox.
+	res.Format = 2
+	res.Proxmox = &racine.Proxmox{Noeud: "pve1", Invites: []racine.Invite{
+		{ID: "100", Type: "qemu", Nom: "web-01", Memoire: 8192, Coeurs: 8}, {ID: "101", Type: "lxc"}}}
+	if err := racine.Ecrire(chemin, res); err != nil {
+		t.Fatal(err)
+	}
+	pve := NewRacine(chemin)
+	pve.maintenant = r.maintenant
+	pve.Proxmox = true
+	p3 := collecter(t, pve)
+	verifier(t, p3, map[string]float64{
+		"mirador_pve_invite_info|id=100|type=qemu|nom=web-01|noeud=pve1": 1,
+		"mirador_pve_invite_info|id=101|type=lxc|nom=|noeud=pve1":        1,
+		"mirador_pve_invite_memoire_max_octets|id=100|type=qemu":         8192 << 20,
+		"mirador_pve_invite_coeurs|id=100|type=qemu":                     8,
+		"mirador_agent_root_a_jour":                                      0,
+	})
+	horsPVE := NewRacine(chemin)
+	horsPVE.maintenant = r.maintenant
+	if p := collecter(t, horsPVE); p["mirador_agent_root_a_jour"] != 1 {
+		t.Error("format 2 hors Proxmox : assistant à jour attendu")
+	}
+
 	// Assistant arrêté depuis 3 h : plus de valeurs, seulement l'âge.
 	r.maintenant = func() time.Time { return t0.Add(3 * time.Hour) }
 	p = collecter(t, r)

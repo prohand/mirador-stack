@@ -705,6 +705,21 @@ free -m
 ```
 
 
+## Étape 6 — avancement (SPEC § 23)
+
+Étape 5 **validée le 13/11**.
+
+| Partie | État |
+|---|---|
+| 1a. Proxmox dans l'agent : invités lus dans les cgroups, liste et noms par l'assistant root | **fait**, à tester sur un nœud réel |
+| 1b. Tableau « Proxmox » et règles réécrits | à faire |
+| 2. Entrée InfluxDB (OPNsense) | à faire |
+| 3 à 7 | à faire |
+
+Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
+(~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
+écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
+
 ## Prochaine étape
 
 Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
