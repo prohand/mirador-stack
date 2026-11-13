@@ -3391,7 +3391,7 @@ manifeste : l'assistant la suit dès qu'elle est confirmée.
 
 ---
 
-## 23. Étape 6 — sources sans agent et `mirador-collector` **[Brouillon à discuter — 13/11]**
+## 23. Étape 6 — sources sans agent et `mirador-collector` **[Décidé le 13/11 ; code après validation de l'étape 5]**
 
 Rien n'est codé. Ce brouillon reprend ce qui est déjà décidé (§ 4.4, § 5.2,
 § 5.3, § 5.3.1, § 11.2) et propose le découpage, les choix techniques et le
@@ -3489,7 +3489,7 @@ modèle de menaces. Les points marqués **[Question]** attendent une réponse.
 | 4 | voir 1 | nouvel ordre (§ 23.9) |
 | 5 | mesure du collecteur actuel | Alloy : 155 Mo résidents (179 Mo pour systemd), 0,86 % d'un cœur en moyenne (256 s de CPU en 8 h 13) ; unpoller : 26 Mo ; **référence : ~180 Mo** pour < 40 Mio visés |
 
-### 23.7 Proxmox par l'agent, sans metric server **[Proposé]**
+### 23.7 Proxmox par l'agent, sans metric server **[Décidé, réponse du 13/11]**
 
 Ce que le metric server donne aujourd'hui, et d'où l'agent peut le lire, sans
 `pvesh`, sans API, sans token dans Proxmox (écarté au § 12 : `pvesh` lancé par
@@ -3517,7 +3517,7 @@ le metric server sont réécrits avec les nouveaux noms
 du nœud. Aucun port, aucun token ajouté sur Proxmox. Le metric server reste
 utilisable pendant la comparaison.
 
-### 23.8 Certificat du syslog par ACME, géré dans l'interface **[Proposé]**
+### 23.8 Certificat du syslog par ACME, géré dans l'interface **[Décidé, réponse du 13/11]**
 
 - Protocole ACME avec `golang.org/x/crypto/acme` (déjà dans les
   dépendances : rien de nouveau à embarquer), défi DNS-01 chez deSEC (un appel
@@ -3535,7 +3535,7 @@ utilisable pendant la comparaison.
   automatique 30 jours avant l'échéance, alerte si échec ou si moins de 14 jours.
 - Le collecteur recharge le certificat sans couper les connexions en cours.
 
-### 23.9 Ordre proposé (remplace § 23.2)
+### 23.9 Ordre **[Décidé, 13/11]** (remplace § 23.2)
 
 | Partie | Contenu |
 |---|---|
