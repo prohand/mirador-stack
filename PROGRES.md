@@ -659,7 +659,13 @@ toujours à mesurer sur srv-test et le VPS.
 sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
 ```
 
-### Étape 6 : mesure de référence du collecteur actuel (à coller)
+### Étape 6 : mesure de référence du collecteur actuel (13/11)
+
+Alloy : 155 Mo résidents (179 Mo pour systemd), 0,86 % d'un cœur en
+moyenne ; unpoller : 26 Mo. Référence ~180 Mo ; objectif de
+`mirador-collector` : < 40 Mio (SPEC § 23.6).
+
+Commandes utilisées (pour refaire la mesure plus tard) :
 
 Sur le collecteur LAN (Alloy + unpoller), pour comparer avec
 `mirador-collector` (SPEC § 23.3) :
