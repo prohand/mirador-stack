@@ -721,6 +721,9 @@ mises à jour automatiques signées).
 2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
+   **Fait le 13/11** (aucun écart ; test Telegram OK). Alertmanager envoie
+   encore en parallèle : alertes en double quelques jours, puis coupure à
+   l'étape 7.
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 6. Validation de l'étape 5 (et 5 bis, 5 quater), puis étape 6
    (`mirador-collector` : Synology, UniFi, syslog OPNsense, Proxmox).
