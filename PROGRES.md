@@ -681,6 +681,9 @@ mises à jour automatiques signées).
    format 2, unité qui peut écrire son dossier, SPEC § 22.5). À confirmer
    à la 0.2.19 : l'assistant root suit l'agent tout seul (journal
    `mirador-agent-root`, `"version"` dans `/run/mirador-agent/root.json`).
+   0.2.19 : pas de mise à jour (manifeste effacé par le nettoyage, bug
+   corrigé en 0.2.20). **0.2.20 : validé le 13/11**, l'assistant root est
+   passé seul de 0.2.18 à 0.2.20 (signature vérifiée par root).
 2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
