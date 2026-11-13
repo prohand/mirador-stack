@@ -60,6 +60,7 @@ func TestProxmox(t *testing.T) {
 	// VM sans io.stat (cas réel : Proxmox n'active pas le contrôleur io pour
 	// les VM) : disques lus sur les volumes ZFS (102) et LVM (103).
 	ecrireArbre(t, sys, map[string]string{
+		"fs/cgroup/qemu.slice/io.stat":            "8:0 rbytes=100 wbytes=200 rios=1 wios=2\n259:0 rbytes=1 wbytes=2 rios=1 wios=1\n",
 		"fs/cgroup/qemu.slice/102.scope/cpu.stat": "usage_usec 1000000\n",
 		"fs/cgroup/qemu.slice/103.scope/cpu.stat": "usage_usec 1000000\n",
 		// stat : lectures, fusions, SECTEURS LUS, ms, écritures, fusions, SECTEURS ÉCRITS…
@@ -116,6 +117,8 @@ func TestProxmox(t *testing.T) {
 		"mirador_pve_invite_disque_lus_octets_total|id=103|type=qemu":                       100 * 512,
 		"mirador_pve_invite_disque_ecrits_octets_total|id=103|type=qemu":                    200 * 512,
 		"mirador_pve_invite_disque_lus_octets_total|id=104|type=qemu":                       7,
+		"mirador_pve_vms_disque_lus_octets_total":                                           101,
+		"mirador_pve_vms_disque_ecrits_octets_total":                                        202,
 		"mirador_pve_invite_disque_ecrits_octets_total|id=104|type=qemu":                    9,
 		// VM 100 : io.stat du cgroup prioritaire sur la mesure de l'assistant.
 		"mirador_pve_invite_disque_lus_octets_total|id=100|type=qemu": 1500,
@@ -123,7 +126,8 @@ func TestProxmox(t *testing.T) {
 	// VM : en marche, CPU, mémoire, 2 disque, 5 pression, 2 réseau = 12 ;
 	// LXC : en marche, CPU, mémoire, 2 réseau = 5.
 	// + VM 102, 103 et 104 : en marche, CPU, 2 disque = 4 chacune.
-	if len(obtenu) != 29 {
+	// + total de toutes les VM (2).
+	if len(obtenu) != 31 {
 		t.Errorf("%d points : %v", len(obtenu), obtenu)
 	}
 	for k := range obtenu {

@@ -26,6 +26,7 @@ import (
 //	mirador_pve_invite_pression_secondes_total{id,type,ressource,niveau}
 //	mirador_pve_invite_reseau_recus_octets_total{id,type}   vu de l'invité
 //	mirador_pve_invite_reseau_envoyes_octets_total{id,type} vu de l'invité
+//	mirador_pve_vms_disque_lus_octets_total, _ecrits_  total de toutes les VM
 //
 // Nom, mémoire et cœurs configurés : lus par l'assistant root dans /etc/pve
 // (réservé à root), envoyés par le collecteur Racine (mirador_pve_invite_info).
@@ -140,6 +141,12 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 	}
 	if len(invites) == 0 {
 		return nil
+	}
+	// Total de toutes les VM, toutes les 30 s : io.stat de qemu.slice
+	// (présent quand la racine active le contrôleur io, cas de Proxmox 9).
+	if lus, ecrits, ok := p.io(filepath.Join(qemu, "io.stat")); ok {
+		b.Add("mirador_pve_vms_disque_lus_octets_total", float64(lus))
+		b.Add("mirador_pve_vms_disque_ecrits_octets_total", float64(ecrits))
 	}
 	reseau := p.lireReseau()
 	var disquesRacine map[string]racine.DisqueVM

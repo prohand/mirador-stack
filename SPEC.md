@@ -3594,7 +3594,30 @@ utilisable pendant la comparaison.
   la place d'un fichier de configuration → refusé ; .vmlist énorme ou
   abîmé → borné, erreur dans `root.json` ; aucune clé sensible lue
   (mot de passe cloud-init, `args`).
-- Reste (partie 1b) : tableau « Proxmox » et règles réécrits avec ces noms.
+- Total disque de toutes les VM : `mirador_pve_vms_disque_lus_octets_total`,
+  `_ecrits_` (`qemu.slice/io.stat`, toutes les 30 s).
+
+#### 23.7.2 Partie 1b faite (13/11) : tableau et règles **[Fait, à valider]**
+
+- Tableau « Proxmox VE » réécrit (même nom `proxmox` : un tableau installé
+  sans modification suit tout seul ; modifié : « Rétablir ») : vue
+  d'ensemble (nœuds, VM et LXC en marche, invités arrêtés, uptime), nœuds
+  (`node_*` de l'agent), disque de toutes les VM, inventaire des invités
+  (état, CPU en % des cœurs alloués, mémoire, mémoire configurée, cœurs),
+  CPU / mémoire / disque (moyenne 15 min) / réseau / pression par invité,
+  stockage (systèmes de fichiers, pools ZFS), matériel (températures,
+  SMART de l'assistant root), services systemd. Nom de l'invité joint par
+  `* on(instance, id) group_left(nom) mirador_pve_invite_info`.
+  Testé sur des données simulées (`tableau_proxmox_test.go`).
+- 3 règles fournies (groupe `proxmox`, posées au démarrage suivant) :
+  `ProxmoxInviteCpuSature` (> 95 % des cœurs, 15 min),
+  `ProxmoxConteneurMemoireSaturee` (LXC seulement, > 95 % de la mémoire
+  configurée, 15 min : pour une VM, la mémoire vue de l'hôte ne dit rien
+  du manque de mémoire dans l'invité), `ProxmoxListeInvitesIndisponible`
+  (invités en marche sans liste de l'assistant root, 30 min).
+- Règle importée `ProxmoxMuet` (lit le metric server) : à désactiver dans
+  « Règles » quand le metric server est coupé ; la panne d'un nœud est
+  alors couverte par `AgentMuet`.
 
 ### 23.8 Certificat du syslog par ACME, géré dans l'interface **[Décidé, réponse du 13/11]**
 
