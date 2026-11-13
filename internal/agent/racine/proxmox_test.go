@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -133,5 +134,22 @@ func TestDemandeDisques(t *testing.T) {
 	_ = os.Symlink(chemin, lien)
 	if demandeDisques(lien, t0) {
 		t.Error("lien suivi")
+	}
+}
+
+// Lecture refusée (unité d'avant la 0.2.24) : message qui dit quoi faire.
+func TestLireDisquesVMRefus(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root lit tout : refus impossible à simuler")
+	}
+	ac, ap := dossierCgroup, dossierProc
+	t.Cleanup(func() { dossierCgroup, dossierProc = ac, ap })
+	dossierCgroup, dossierProc = t.TempDir(), t.TempDir()
+	_ = os.MkdirAll(filepath.Join(dossierCgroup, "qemu.slice/114.scope"), 0o755)
+	_ = os.WriteFile(filepath.Join(dossierCgroup, "qemu.slice/114.scope/cgroup.procs"), []byte("7\n"), 0o644) // #nosec G306 -- test
+	_ = os.MkdirAll(filepath.Join(dossierProc, "7"), 0o755)
+	_ = os.WriteFile(filepath.Join(dossierProc, "7/io"), []byte("read_bytes: 1\nwrite_bytes: 1\n"), 0o000)
+	if _, err := lireDisquesVM(); err == nil || !strings.Contains(err.Error(), "relancer le script") {
+		t.Errorf("refus : %v", err)
 	}
 }

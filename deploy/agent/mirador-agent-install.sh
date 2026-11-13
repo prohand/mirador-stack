@@ -79,6 +79,7 @@ VARLIB=/var/lib/mirador-agent
 BIN_DIR=$VARLIB/bin
 ROOT_DIR=/usr/local/lib/mirador-agent
 UNITES=/etc/systemd/system
+TMPFILES=/etc/tmpfiles.d/mirador-agent.conf
 # Image du proxy de socket Docker, version figée (vérifiée le 08/11/2026).
 PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
 PROXY_NOM=mirador-docker-proxy
@@ -137,6 +138,8 @@ if [ "$MODE" = desinstaller ]; then
   if command -v docker >/dev/null 2>&1 && docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     docker rm -f "$PROXY_NOM" >/dev/null
   fi
+  rm -f "$TMPFILES"
+  rm -rf /run/mirador-agent
   rm -f "$ETC/agent.conf" "$ETC/token" "$ETC/cles-publiques.txt"
   rmdir "$ETC" 2>/dev/null || true
   rm -f "$ROOT_DIR/mirador-agent"
@@ -430,12 +433,14 @@ Description=mirador-agent : mesures réservées à root
 
 [Service]
 Type=oneshot
+# Groupe root (pas mirador-agent) : Linux ne montre /proc/<pid>/io d'un
+# processus root (QEMU) qu'à un appelant du même groupe (disques des VM,
+# SPEC § 23.7). root.json reste lisible par l'agent : /run/mirador-agent est
+# créé par tmpfiles.d en 2750 root:mirador-agent (les fichiers créés dedans
+# prennent le groupe mirador-agent).
 User=root
-Group=mirador-agent
+Group=root
 ExecStart=/usr/local/lib/mirador-agent/mirador-agent -collecte-root -config /etc/mirador-agent/agent.conf
-RuntimeDirectory=mirador-agent
-RuntimeDirectoryMode=0750
-RuntimeDirectoryPreserve=yes
 TimeoutStartSec=5min
 Nice=19
 IOSchedulingClass=idle
@@ -734,6 +739,12 @@ fi
 
 # ---------------------------------------------------------------- unités systemd
 info "Unités systemd"
+# Dossier du résultat de l'assistant root : créé à chaque démarrage par
+# systemd-tmpfiles (avant les services), groupe mirador-agent transmis aux
+# fichiers créés dedans (bit setgid).
+printf 'd /run/mirador-agent 2750 root %s -\n' "$UTILISATEUR" > "$TMPFILES"
+chmod 0644 "$TMPFILES"
+systemd-tmpfiles --create "$TMPFILES"
 unite_agent  > "$UNITES/mirador-agent.service"
 unite_root   > "$UNITES/mirador-agent-root.service"
 timer_root   > "$UNITES/mirador-agent-root.timer"

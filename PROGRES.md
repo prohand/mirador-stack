@@ -716,6 +716,13 @@ free -m
 | 2. Entrée InfluxDB (OPNsense) | à faire |
 | 3 à 7 | à faire |
 
+Première mesure sur le nœud Proxmox (13/11, 37 min après le démarrage, à
+refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
+137 Mo de plus vus par systemd sont du cache de fichiers du journal, rendu
+au besoin). Sur ce nœud, Alloy + smartctl_exporter : ~161 Mo (~7 fois plus).
+Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
+l'assistant) → corrigé en 0.2.24 (SPEC § 23.7), script à relancer une fois.
+
 Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
 écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
