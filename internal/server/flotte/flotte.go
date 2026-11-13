@@ -90,6 +90,7 @@ func (f *Flotte) Routes(m *http.ServeMux) {
 func (f *Flotte) Boucle(ctx context.Context) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
+	prochainNettoyage := time.Now().Add(2 * time.Minute) // au démarrage, puis chaque jour
 	for {
 		select {
 		case <-ctx.Done():
@@ -102,6 +103,16 @@ func (f *Flotte) Boucle(ctx context.Context) {
 		case <-t.C:
 			if err := f.EcrireBattements(ctx); err != nil {
 				f.opt.Journal.Error("écriture des battements", "erreur", err)
+			}
+			if time.Now().After(prochainNettoyage) && f.opt.DossierVersions != "" {
+				prochainNettoyage = time.Now().Add(24 * time.Hour)
+				faites, err := NettoyerVersions(ctx, f.opt.DB, f.opt.DossierVersions, "systeme", time.Now())
+				if err != nil {
+					f.opt.Journal.Warn("nettoyage des versions de l'agent", "erreur", err)
+				}
+				if len(faites) > 0 {
+					f.opt.Journal.Info("versions de l'agent supprimées (inutiles, réimportables)", "versions", faites)
+				}
 			}
 		}
 	}

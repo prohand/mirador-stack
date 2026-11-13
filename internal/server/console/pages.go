@@ -497,6 +497,7 @@ type donneesMaj struct {
 	Depot    string   // dépôt GitHub des versions signées
 	Choix    []string // versions publiées, sans doublon (une ligne par architecture dans Versions)
 	Import   vueImport
+	Garder   int // versions récentes gardées (flotte.GarderVersions)
 }
 
 type cleVue struct{ Valeur, Empreinte string }
@@ -525,7 +526,7 @@ func (e *etatImport) lire() vueImport {
 // lancerImport : import en arrière-plan (téléchargement de ~20 Mo depuis
 // GitHub : trop long pour une requête derrière nginx). Faux si un import est
 // déjà en cours.
-func (c *Console) lancerImport(depot, tag, qui string) bool {
+func (c *Console) lancerImport(depot, tag, qui string, toutes bool) bool {
 	c.importMaj.mu.Lock()
 	if c.importMaj.v.EnCours {
 		c.importMaj.mu.Unlock()
@@ -536,7 +537,12 @@ func (c *Console) lancerImport(depot, tag, qui string) bool {
 	go func() {
 		ctx, fin := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer fin()
-		archs, err := flotte.ImporterGitHub(ctx, c.db, filepath.Join(c.opt.Donnees, "versions"), c.sourceGitHub,
+		// Seulement les architectures du parc, sauf demande contraire (SPEC § 22.6).
+		src := c.sourceGitHub
+		if !toutes {
+			src.Architectures, _ = flotte.ArchitecturesParc(ctx, c.db)
+		}
+		archs, err := flotte.ImporterGitHub(ctx, c.db, filepath.Join(c.opt.Donnees, "versions"), src,
 			depot, tag, qui+" (GitHub "+depot+")", c.maintenant())
 		res := ""
 		if len(archs) > 0 {
@@ -574,6 +580,7 @@ func (c *Console) pageMisesAJour(q *req) {
 		}
 	}
 	d.Import = c.importMaj.lire()
+	d.Garder = flotte.GarderVersions
 	var e6 error
 	d.Depot, e6 = flotte.LireDepot(ctx, c.db)
 	cles, e5 := flotte.LireClesPubliques(ctx, c.db)
@@ -601,11 +608,15 @@ func (c *Console) postMisesAJour(q *req) {
 		case "importer":
 			var depot string
 			if depot, err = flotte.LireDepot(ctx, c.db); err == nil {
-				if !c.lancerImport(depot, strings.TrimSpace(q.r.PostFormValue("tag")), q.qui()) {
+				if !c.lancerImport(depot, strings.TrimSpace(q.r.PostFormValue("tag")), q.qui(), q.r.PostFormValue("toutes") != "") {
 					err = errors.New("un import est déjà en cours")
 				}
 				ok = "import lancé : recharger la page dans quelques secondes"
 			}
+		case "supprimer_version":
+			v := q.r.PostFormValue("version")
+			err = flotte.SupprimerVersion(ctx, c.db, filepath.Join(c.opt.Donnees, "versions"), v, q.qui(), q.t)
+			ok = "version " + v + " supprimée (réimportable depuis GitHub)"
 		case "cles":
 			err = flotte.DefinirClesPubliques(ctx, c.db, q.r.PostFormValue("cles"), q.qui(), q.t)
 			ok = "clé publique enregistrée : elle sera posée sur les machines installées à partir de maintenant"

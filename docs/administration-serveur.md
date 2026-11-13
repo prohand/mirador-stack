@@ -140,6 +140,16 @@ manifeste signé avec `-retour-autorise`). Il teste la nouvelle version
 10 minutes, il revient à l'ancienne version et ne retente pas celle-ci ;
 `MS machines` affiche l'échec.
 
+Versions gardées sur le serveur (chaque version pèse ~8 Mo par
+architecture, et les sauvegardes les recopient) : la cible, les versions
+installées ou à l'essai sur une machine, les 2 plus récentes et celles
+importées depuis moins de 24 h, pour les architectures du parc seulement.
+Les autres sont supprimées au démarrage puis chaque jour (journal :
+« versions de l'agent supprimées ») ; elles se réimportent depuis GitHub.
+L'import ne prend que les architectures du parc (case « toutes les
+architectures » pour le reste). Bouton « Supprimer » : refusé pour une
+version en service.
+
 ## Sauvegardes
 
 Voir `docs/sauvegarde-restauration.md` (réglages, SFTP, S3, restauration).

@@ -3389,6 +3389,33 @@ maintenant écrit dans le journal de l'assistant. Comme c'est la nouvelle
 version qui confirme (et donc nettoie), la 0.2.20 garde son propre
 manifeste : l'assistant la suit dès qu'elle est confirmée.
 
+
+### 22.6 Versions de l'agent gardées sur le serveur **[Fait, à valider — mesure du 13/11]**
+
+Constat (mesure réelle de 18 h 40, `PROGRES.md`) : dossier `versions` à
+166 Mo (12 versions × amd64 + arm64), recopié dans chaque sauvegarde
+(8 Ko → 19 Mo → 51 Mo en 3 jours ; ~1 Go avec 14 jours gardés).
+
+| Règle | Pourquoi |
+|---|---|
+| Gardées : cible globale, cibles propres, version en service et à l'essai sur chaque machine (sauf refusées) | jamais retirer ce qu'une machine utilise ou va télécharger |
+| + les **2** plus récentes (numéro, pas date d'import) | retour arrière rapide sans réimport |
+| + celles importées depuis **moins de 24 h** | le temps d'en faire la cible (retour arrière vers une ancienne) |
+| Seulement les architectures du parc (toutes si aucune machine) | arm64 inutile ici : la moitié de la place |
+| Purge 2 min après le démarrage, puis toutes les 24 h ; fichiers orphelins (`.tmp`, sans ligne en base) effacés | coût : quelques requêtes SQL par jour |
+| Import : architectures du parc seulement, case « toutes les architectures » | ne pas télécharger ce qui serait purgé |
+| Bouton « Supprimer » (2FA), refusé pour une version en service ; audit `version_supprimee` | tout est réimportable depuis GitHub (signé) |
+
+Une machine d'une architecture absente s'installe avec le binaire intégré à
+l'image du serveur (`binaireInstallation`), puis on importe sa version.
+Effet attendu ici : versions ~30 Mo (≈ 4 versions amd64), archive de
+sauvegarde ~15 Mo au lieu de 51 Mo.
+
+Menaces : un attaquant connecté en admin peut supprimer des versions →
+2FA, audit, versions en service protégées, réimport possible ; la purge
+lit seulement la base (aucun chemin venu de l'extérieur : noms fabriqués
+par `nomBinaire`, fichiers orphelins filtrés par une expression stricte,
+fichiers ordinaires seulement).
 ---
 
 ## 23. Étape 6 — sources sans agent et `mirador-collector` **[Décidé le 13/11 ; code après validation de l'étape 5]**
