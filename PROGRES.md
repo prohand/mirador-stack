@@ -659,6 +659,18 @@ toujours à mesurer sur srv-test et le VPS.
 sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
 ```
 
+### Étape 6 : mesure de référence du collecteur actuel (à coller)
+
+Sur le collecteur LAN (Alloy + unpoller), pour comparer avec
+`mirador-collector` (SPEC § 23.3) :
+
+```bash
+systemctl show alloy -p MemoryCurrent -p CPUUsageNSec
+ps -o rss=,etime=,cmd= -C alloy -C unpoller -C unifi-poller
+free -m
+```
+
+
 ## Prochaine étape
 
 Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec

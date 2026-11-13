@@ -3381,3 +3381,93 @@ Mise en route : relancer le script une fois (assistant au format 2 et
 dossier en écriture dans l'unité) ; ensuite, l'assistant suit l'agent seul.
 La version actuelle de l'agent (installée avant ce changement) n'a pas de
 manifeste gardé : l'assistant attend la version suivante.
+
+---
+
+## 23. Étape 6 — sources sans agent et `mirador-collector` **[Brouillon à discuter — 13/11]**
+
+Rien n'est codé. Ce brouillon reprend ce qui est déjà décidé (§ 4.4, § 5.2,
+§ 5.3, § 5.3.1, § 11.2) et propose le découpage, les choix techniques et le
+modèle de menaces. Les points marqués **[Question]** attendent une réponse.
+
+### 23.1 Ce qui existe déjà et sera réutilisé
+
+| Brique | Reprise pour le collecteur |
+|---|---|
+| enrôlement, token haché, approbation | même chemin, type « collecteur » |
+| configuration distante typée (long-poll, ETag) | même chemin, schéma propre au collecteur |
+| envoi métriques (remote write) et logs (JSON + zstd) | même code (`internal/agent/envoi`, `remotewrite`) |
+| mise à jour signée, essai, retour arrière | même code (`majagent`), binaire `mirador-collector-*` |
+| secrets chiffrés au repos, jamais ré-affichés | même paquet (`internal/server/secrets`) |
+| règles importées (37 « données attendues à l'étape 6 ») | rien à refaire si les noms de métriques sont les mêmes qu'aujourd'hui |
+
+### 23.2 Découpage proposé (chaque partie marche seule)
+
+| Partie | Contenu | Pourquoi dans cet ordre |
+|---|---|---|
+| 1 | Serveur : entrée InfluxDB v2 (`POST /api/v2/write`, `GET /health`) pour Proxmox et Telegraf (OPNsense) | aucun binaire nouveau ; supprime déjà un usage de VictoriaMetrics |
+| 2 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » | socle des parties 3 à 5 |
+| 3 | Syslog TLS (écoute LAN) | remplace la partie la plus exposée d'Alloy |
+| 4 | SNMP v3 (Synology) et sondes de certificats distants | sorties seulement |
+| 5 | UniFi (métriques et événements) | dépend de la question 3 |
+| 6 | Mesures, comparaison avec Alloy pendant quelques jours, puis retrait d'Alloy **sur validation** | critère de fin d'étape (§ 13) |
+
+### 23.3 Choix techniques proposés (coût RAM / CPU / disque)
+
+- **Entrée InfluxDB** : lecteur du *line protocol* écrit à la main (format
+  simple), bornes strictes (taille du corps, nombre de champs, longueur des
+  noms), fuzzing. Noms produits `mesure_champ` + tags en étiquettes, comme
+  VictoriaMetrics aujourd'hui. Coût : quelques centaines de lignes, aucune
+  dépendance. Token `Authorization: Token …` accepté en plus de `Bearer`.
+- **Syslog** : TLS 1.2 minimum, trame RFC 5425 (longueur en tête) et, par
+  compatibilité, une ligne par message ; formats RFC 5424 et RFC 3164 ; lecteur
+  écrit à la main, fuzzing. Limites : 8 Kio par message, 32 connexions,
+  connexion fermée après 5 min sans rien, 500 lignes/s par émetteur (rafale
+  1000), `filterlog` jeté par défaut. Tampon borné en mémoire (pas de disque) :
+  au-delà, les lignes sont comptées comme perdues. Coût visé : < 5 Mio pour
+  ~0,6 ligne/s en moyenne (52 500 lignes/jour aujourd'hui).
+- **SNMP v3** : bibliothèque `gosnmp` (BSD-2-Clause, compatible GPL-3.0). Écrire
+  soi-même la sécurité SNMP v3 (USM) serait risqué. Seulement GET/WALK, en
+  lecture, sur une liste d'OID **figée dans le code** par préréglage
+  (Synology, interfaces, système), avec les mêmes noms de métriques que
+  `snmp_exporter` aujourd'hui. Pas de fichier MIB à charger.
+- **Sondes de certificats** : connexion TLS, lecture du certificat sans le
+  valider, mêmes noms qu'aujourd'hui (`ssl_cert_not_after_timestamp_seconds`,
+  `probe_success`). Aucune dépendance.
+- **UniFi** : voir **[Question 3]**. Lecture seule de l'API du contrôleur.
+- **Proxmox, SMART** : déjà couvert par `mirador-agent` + assistant root si
+  l'agent est installé sur les Proxmox (plus besoin de `smartctl_exporter`).
+- **Objectifs du collecteur** (proposés) : < 40 Mio de RAM, < 1 % d'un cœur
+  en moyenne, aucune écriture disque en régime normal (sauf le cache de
+  configuration). Référence à mesurer : Alloy + unpoller sur le collecteur
+  actuel (LXC, 512 Mo conseillés).
+
+### 23.4 Modèle de menaces de l'étape 6
+
+| Menace | Conséquence | Parade |
+|---|---|---|
+| Émetteur syslog inconnu sur le LAN | fausses lignes, saturation | liste d'IP émettrices avec rôle, TLS obligatoire, limites par émetteur et globales, lignes refusées comptées par motif |
+| Message syslog piégé | plantage, XSS dans l'interface, CPU | lecteur borné et testé par fuzzing ; échappement à l'affichage (déjà en place) ; pas d'expression régulière fournie de l'extérieur |
+| Écoute détournée vers Internet | port ouvert au monde | adresse d'écoute choisie parmi les adresses **privées** déclarées par le collecteur ; jamais `0.0.0.0` ni une adresse publique ; refus au démarrage sinon |
+| Corps InfluxDB énorme ou piégé | mémoire, CPU du serveur | taille du corps bornée, lecture en flux, fuzzing, token par équipement, quotas d'ingestion existants |
+| Secrets SNMP / UniFi volés | lecture des équipements | comptes en **lecture seule** ; chiffrés sur le serveur ; fichier cache `0600` sur le collecteur ; jamais dans les logs ni ré-affichés |
+| Serveur compromis | collecteur détourné | config typée sans commande ; tests limités aux cibles déjà configurées (§ 5.3.1) ; mises à jour signées hors serveur |
+| Contrôleur UniFi au certificat auto-signé | interception | vérification du certificat activée par défaut ; sinon empreinte du certificat épinglée dans la configuration |
+| Collecteur compromis | faux syslog, accès aux équipements | utilisateur dédié, systemd strict, `CAP_NET_BIND_SERVICE` seulement si port < 1024 (6514 n'en a pas besoin), aucun accès Docker ni root |
+
+### 23.5 Questions à l'utilisateur (5 au plus)
+
+1. **[Question 1]** Proxmox et OPNsense envoient-ils **directement** au serveur
+   (comme aujourd'hui vers VictoriaMetrics), ou via le collecteur ? Proposé :
+   directement (rien à coder côté collecteur).
+2. **[Question 2]** Certificat du syslog : (a) obtenu par le collecteur
+   (ACME, défi DNS) ou (b) certbot garde la main, le collecteur relit le
+   fichier quand il change ? Proposé : (b) (moins de code, rien de nouveau à
+   protéger).
+3. **[Question 3]** UniFi : (a) garder unpoller au début et le lire en local,
+   ou (b) client Go natif tout de suite (unpoller retiré, RAM en moins, plus de
+   code) ? Proposé : (a) puis (b) une fois le reste validé.
+4. **[Question 4]** Ordre des parties (§ 23.2) : d'accord pour commencer par
+   l'entrée InfluxDB côté serveur ?
+5. **[Question 5]** Mesure de référence : coller la consommation d'Alloy et
+   d'unpoller sur le collecteur actuel (commandes dans `PROGRES.md`).
