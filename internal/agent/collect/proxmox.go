@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/agent/racine"
 )
 
 // Proxmox lit la consommation des invités (VM et LXC) d'un nœud Proxmox
@@ -48,8 +49,12 @@ type Proxmox struct {
 	// relistés toutes les cyclesVolumes (un disque ajouté est vu en ~5 min).
 	vols   map[string][]string
 	cycles int
-	dev    string // racine de /dev (tests)
-	block  string // <sys>/block
+	// DisquesRacine : disques des VM mesurés par l'assistant root
+	// (/proc/<pid>/io), pour les VM sans io.stat ni volume (disque en
+	// fichier qcow2). Mis à jour au rythme réglé (1 à 15 min).
+	DisquesRacine func() map[string]racine.DisqueVM
+	dev           string // racine de /dev (tests)
+	block         string // <sys>/block
 }
 
 // cyclesVolumes : volumes relistés tous les 10 cycles.
@@ -137,6 +142,10 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 		return nil
 	}
 	reseau := p.lireReseau()
+	var disquesRacine map[string]racine.DisqueVM
+	if p.DisquesRacine != nil {
+		disquesRacine = p.DisquesRacine()
+	}
 	if p.cycles%cyclesVolumes == 0 {
 		p.listerVolumes()
 	}
@@ -160,6 +169,12 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 		lus, ecrits, ok := p.io(inv.io)
 		if !ok {
 			lus, ecrits, ok = p.volumes(inv.id)
+		}
+		if !ok && inv.typ == "qemu" && disquesRacine != nil {
+			var d racine.DisqueVM
+			if d, ok = disquesRacine[inv.id]; ok {
+				lus, ecrits = d.Lus, d.Ecrits
+			}
 		}
 		if ok {
 			b.Add("mirador_pve_invite_disque_lus_octets_total", float64(lus), l...)

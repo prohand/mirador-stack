@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/agent/racine"
 )
 
 // ecrireArbre : crée les fichiers d'un faux /sys (chemin relatif → contenu).
@@ -84,8 +85,14 @@ func TestProxmox(t *testing.T) {
 	if !ProxmoxPresent(sys) {
 		t.Fatal("Proxmox non détecté")
 	}
+	// VM 104 : disque en fichier (qcow2) : ni io.stat ni volume ; mesure de
+	// l'assistant root (/proc/<pid>/io).
+	ecrireArbre(t, sys, map[string]string{"fs/cgroup/qemu.slice/104.scope/cpu.stat": "usage_usec 1\n"})
 	px := NewProxmox(sys)
 	px.dev = dev
+	px.DisquesRacine = func() map[string]racine.DisqueVM {
+		return map[string]racine.DisqueVM{"104": {Lus: 7, Ecrits: 9}, "100": {Lus: 1, Ecrits: 1}}
+	}
 	obtenu := collecter(t, px)
 	vm := "|id=100|type=qemu"
 	ct := "|id=101|type=lxc"
@@ -108,11 +115,15 @@ func TestProxmox(t *testing.T) {
 		"mirador_pve_invite_disque_ecrits_octets_total|id=102|type=qemu":                    (4000 + 8) * 512,
 		"mirador_pve_invite_disque_lus_octets_total|id=103|type=qemu":                       100 * 512,
 		"mirador_pve_invite_disque_ecrits_octets_total|id=103|type=qemu":                    200 * 512,
+		"mirador_pve_invite_disque_lus_octets_total|id=104|type=qemu":                       7,
+		"mirador_pve_invite_disque_ecrits_octets_total|id=104|type=qemu":                    9,
+		// VM 100 : io.stat du cgroup prioritaire sur la mesure de l'assistant.
+		"mirador_pve_invite_disque_lus_octets_total|id=100|type=qemu": 1500,
 	})
 	// VM : en marche, CPU, mémoire, 2 disque, 5 pression, 2 réseau = 12 ;
 	// LXC : en marche, CPU, mémoire, 2 réseau = 5.
-	// + VM 102 et 103 : en marche, CPU, 2 disque = 4 chacune.
-	if len(obtenu) != 25 {
+	// + VM 102, 103 et 104 : en marche, CPU, 2 disque = 4 chacune.
+	if len(obtenu) != 29 {
 		t.Errorf("%d points : %v", len(obtenu), obtenu)
 	}
 	for k := range obtenu {

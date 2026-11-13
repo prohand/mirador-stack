@@ -3559,9 +3559,24 @@ utilisable pendant la comparaison.
   (`/sys/block/<dev>/stat`, lisibles sans root) : ZFS par les liens
   `/dev/zvol/<pool>/…/vm-<id>-disk-<n>` → `zdN`, LVM par
   `/sys/block/dm-N/dm/name` (`<vg>-vm--<id>--disk--<n>`) ; partitions et
-  modèles ignorés ; table refaite toutes les 10 collectes. Disques en
-  fichier (qcow2 sur un stockage « dossier ») : pas mesurés. LXC : `io.stat`
+  modèles ignorés ; table refaite toutes les 10 collectes. LXC : `io.stat`
   du cgroup quand il existe.
+- Disques **en fichier** (qcow2 sur un stockage « dossier », cas réel du
+  13/11) : ni `io.stat` ni volume. **[Décidé, réponse du 13/11 : choix 1,
+  rythme réglable dans l'interface]** L'assistant root lit
+  `/proc/<pid>/io` (`read_bytes`, `write_bytes`) des processus du cgroup de
+  chaque VM (root seulement). Réglage « Disques des VM Proxmox »
+  (`proxmox_disques`, 1 à 15 min, défaut 5 min, capacité d'agent
+  `proxmox`) : l'agent écrit « disques » dans le fichier surveillé par
+  `mirador-agent-root.path` ; l'assistant fait alors un passage **léger**
+  (disques des VM seulement, le reste repris du dernier passage complet
+  de moins de 20 min ; contenu non fiable qui ne peut que réduire le
+  travail, demande vieille de plus d'une minute ignorée). Valeurs
+  envoyées sous les mêmes noms (`mirador_pve_invite_disque_*`), mises à
+  jour au rythme réglé : courbes en moyenne sur 2 × ce rythme.
+  Priorité : `io.stat` > volumes ZFS/LVM > assistant root.
+  Coût : un passage léger ≈ lancement du programme (~30 ms de CPU) ; à
+  1 min, ~0,05 % d'un cœur.
 - Assistant root (`racine/proxmox.go`) : `/etc/pve/.vmlist` + configuration
   courante de chaque invité de CE nœud (nom, mémoire, cœurs × sockets ; les
   instantanés et toutes les autres clés sont ignorés), fichiers lus sans

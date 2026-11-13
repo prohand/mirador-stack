@@ -61,6 +61,15 @@ func NewRacine(chemin string) *Racine {
 	return &Racine{chemin: chemin, ageMax: 2 * time.Hour, maintenant: time.Now}
 }
 
+// DisquesVM : disques des VM mesurés par l'assistant root (nœud Proxmox),
+// nil si la mesure a plus de 30 min (assistant arrêté).
+func (r *Racine) DisquesVM() map[string]racine.DisqueVM {
+	if r.resultat == nil || r.maintenant().Sub(r.resultat.DisquesLe) > 30*time.Minute {
+		return nil
+	}
+	return r.resultat.DisquesVM
+}
+
 func (r *Racine) Nom() string { return "racine" }
 func (r *Racine) Lent() bool  { return true }
 

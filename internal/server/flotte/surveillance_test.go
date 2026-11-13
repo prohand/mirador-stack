@@ -99,6 +99,25 @@ func TestElementsSelonCapacite(t *testing.T) {
 			t.Errorf("agent récent : %s absent de %s", attendu, recent.Body)
 		}
 	}
+	// Rythme des disques des VM (SPEC § 23.7) : seulement avec « proxmox ».
+	err = ModifierConfig(ctx, b.db, "machine:"+itoa(id), func(m map[string]any) {
+		m["proxmox_disques"] = "2m"
+	}, "admin", t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v0221 := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", protocole.EnteteCapacites, "surveillance,elements")
+	if strings.Contains(v0221.Body.String(), "proxmox_disques") {
+		t.Errorf("agent 0.2.21 : proxmox_disques envoyé : %s", v0221.Body)
+	}
+	recent = b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", protocole.EnteteCapacites, protocole.Capacites)
+	if !strings.Contains(recent.Body.String(), `"proxmox_disques":"2m0s"`) && !strings.Contains(recent.Body.String(), `"proxmox_disques":"2m"`) {
+		t.Errorf("agent récent : proxmox_disques absent : %s", recent.Body)
+	}
+	// Hors bornes (agent : 1 à 15 min) : refusé dès l'enregistrement.
+	if err := ModifierConfig(ctx, b.db, "machine:"+itoa(id), func(m map[string]any) { m["proxmox_disques"] = "10s" }, "admin", t0); err == nil {
+		t.Error("proxmox_disques = 10s accepté")
+	}
 	// Un chemin de certificat hors des dossiers autorisés est refusé dès l'enregistrement.
 	err = ModifierConfig(ctx, b.db, "machine:"+itoa(id), func(m map[string]any) {
 		m["certificats_ajout"] = []string{"/etc/shadow"}

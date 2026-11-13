@@ -159,6 +159,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	defer arreterEnvoi()
 
 	go a.Envoyer(ctxEnvoi)
+	go agent.TournerDisquesPVE(ctxCollecte, cfg, journal) // nœud Proxmox seulement
 	logsFinis := make(chan struct{})
 	go func() {
 		a.TournerLogs(ctxCollecte, ctxEnvoi)

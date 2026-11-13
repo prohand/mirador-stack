@@ -167,3 +167,104 @@ func lireBorne(chemin string, max int64) ([]byte, error) {
 	}
 	return b, nil
 }
+
+// --- Disques des VM (SPEC.md § 23.7) -----------------------------------------
+//
+// Proxmox n'active pas le contrôleur io pour les VM, et un disque en fichier
+// (qcow2) n'a pas de volume à lire : seul /proc/<pid>/io du processus QEMU
+// (lisible par root seulement) donne ses lectures et écritures réelles sur
+// le stockage. L'assistant le lit à chaque passage ; l'agent le relance au
+// rythme réglé dans l'interface (« Disques des VM Proxmox », 1 à 15 min) en
+// demandant un passage « disques » (léger : rien d'autre n'est remesuré).
+
+// DisqueVM : octets lus et écrits sur le stockage par le processus de la VM.
+type DisqueVM struct {
+	Lus    uint64 `json:"lus"`
+	Ecrits uint64 `json:"ecrits"`
+}
+
+// Remplacés dans les tests.
+var (
+	dossierCgroup = "/sys/fs/cgroup"
+	dossierProc   = "/proc"
+)
+
+// lireDisquesVM : nil hors Proxmox (pas de qemu.slice).
+func lireDisquesVM() (map[string]DisqueVM, error) {
+	slice := filepath.Join(dossierCgroup, "qemu.slice")
+	entrees, err := os.ReadDir(slice)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]DisqueVM{}
+	var errs []error
+	for _, e := range entrees {
+		id, ok := strings.CutSuffix(e.Name(), ".scope")
+		if !ok || !e.IsDir() || !reIDPVE.MatchString(id) {
+			continue
+		}
+		brut, err := lireBorne(filepath.Join(slice, e.Name(), "cgroup.procs"), 64<<10)
+		if err != nil {
+			continue // VM arrêtée entre-temps
+		}
+		var d DisqueVM
+		lu := false
+		for _, ligne := range strings.Fields(string(brut)) {
+			pid, err := strconv.Atoi(ligne)
+			if err != nil || pid <= 0 {
+				continue
+			}
+			l, e, err := lireIOProcessus(pid)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("VM %s : %w", id, err))
+				continue
+			}
+			d.Lus += l
+			d.Ecrits += e
+			lu = true
+		}
+		if lu {
+			out[id] = d
+		}
+		if len(out) >= maxInvitesPVE {
+			break
+		}
+	}
+	if len(errs) > 0 && len(out) == 0 {
+		return nil, errs[0] // une seule erreur suffit (souvent la même pour toutes)
+	}
+	return out, nil
+}
+
+// lireIOProcessus : read_bytes et write_bytes de /proc/<pid>/io (vraies
+// lectures et écritures sur le stockage, tous les fils du processus).
+func lireIOProcessus(pid int) (lus, ecrits uint64, err error) {
+	brut, err := os.ReadFile(filepath.Join(dossierProc, strconv.Itoa(pid), "io")) // #nosec G304 -- /proc/<pid>/io, pid numérique lu dans le cgroup
+	if err != nil {
+		return 0, 0, err
+	}
+	trouve := 0
+	for _, ligne := range strings.Split(string(brut), "\n") {
+		cle, val, ok := strings.Cut(ligne, ":")
+		if !ok {
+			continue
+		}
+		n, err := strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+		if err != nil {
+			continue
+		}
+		switch cle {
+		case "read_bytes":
+			lus, trouve = n, trouve+1
+		case "write_bytes":
+			ecrits, trouve = n, trouve+1
+		}
+	}
+	if trouve != 2 {
+		return 0, 0, errors.New("/proc/<pid>/io incomplet")
+	}
+	return lus, ecrits, nil
+}

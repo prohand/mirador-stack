@@ -19,6 +19,7 @@ import (
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/envoi"
 	mm "mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/agent/racine"
 	"mirador-stack/internal/agent/remotewrite"
 	"mirador-stack/internal/version"
 )
@@ -105,7 +106,9 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 	r.SansPareFeu, r.SansSmart, r.SansCertificats = !cfg.EnvoyerPareFeu, !cfg.EnvoyerSmart, !cfg.EnvoyerCertificats
 	// Nœud Proxmox : consommation des invités lue dans les cgroups (SPEC.md § 23.7).
 	if collect.ProxmoxPresent(cfg.RacineSys) {
-		liste = append(liste, collect.NewProxmox(cfg.RacineSys))
+		px := collect.NewProxmox(cfg.RacineSys)
+		px.DisquesRacine = r.DisquesVM
+		liste = append(liste, px)
 		r.Proxmox = true
 	}
 	r.IgnorerCertificats(cfg.CertificatsIgnorer)
@@ -297,5 +300,28 @@ func (a *Agent) Vider(delai time.Duration) {
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// TournerDisquesPVE : sur un nœud Proxmox, demande à l'assistant root un
+// passage « disques » (léger) au rythme réglé (SPEC.md § 23.7), en touchant
+// le fichier surveillé par mirador-agent-root.path. Sans cette unité, rien ne
+// se passe : les disques des VM sont mesurés toutes les 15 min.
+func TournerDisquesPVE(ctx context.Context, cfg config.Agent, journal *slog.Logger) {
+	if cfg.FichierActualiser == "" || !collect.ProxmoxPresent(cfg.RacineSys) || cfg.ProxmoxDisques <= 0 {
+		return
+	}
+	t := time.NewTicker(cfg.ProxmoxDisques)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			contenu := racine.ContenuDemandeDisques + " " + time.Now().UTC().Format(time.RFC3339) + "\n"
+			if err := os.WriteFile(cfg.FichierActualiser, []byte(contenu), 0o600); err != nil {
+				journal.Warn("demande de mesure des disques des VM impossible", "erreur", err)
+			}
+		}
 	}
 }
