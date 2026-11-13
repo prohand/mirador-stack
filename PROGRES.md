@@ -712,7 +712,7 @@ free -m
 | Partie | État |
 |---|---|
 | 1a. Proxmox dans l'agent : invités lus dans les cgroups, liste et noms par l'assistant root ; disques des VM (volumes ZFS/LVM, ou assistant root au rythme réglé pour les qcow2) | **fait**, chemins vérifiés sur un nœud Proxmox 9.2 ; agent à installer sur le nœud |
-| 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait**, testé sur données simulées ; à valider sur le nœud |
+| 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait** ; 13/11 : agent 0.2.23 sur un nœud Proxmox 9.2, assistant au format 3, invités nommés dans le tableau ; disque des VM qcow2 et mesure 24 h à confirmer |
 | 2. Entrée InfluxDB (OPNsense) | à faire |
 | 3 à 7 | à faire |
 
