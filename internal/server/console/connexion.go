@@ -543,7 +543,15 @@ func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 
 // reussir : connexion complète, nouvel identifiant de session.
 func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Session, nom, ip string, t time.Time) {
+	// « Nouvelle adresse » : d'après la base (survit aux redémarrages) ; si
+	// la base ne répond pas, d'après la mémoire (comme avant).
 	nouvelle := !c.verrous.AdresseConnue(nom, ip, t)
+	if vue, err := auth.AdresseDejaVue(r.Context(), c.db, s.UtilisateurID, ip, t); err == nil {
+		nouvelle = !vue
+	}
+	if err := auth.NoterAdresse(r.Context(), c.db, s.UtilisateurID, ip, t); err != nil {
+		c.journal.Warn("adresse de connexion non enregistrée", "erreur", err)
+	}
 	c.verrous.Reussite(nom, ip, t)
 	c.oublierComptes()
 	u, err := auth.LireUtilisateurID(r.Context(), c.db, s.UtilisateurID)
@@ -561,8 +569,6 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	}
 	c.journal.Info("console : connexion", "ip", ip, "utilisateur", nom)
 	if nouvelle {
-		// Adresses connues gardées en mémoire : la première connexion après
-		// un redémarrage du serveur prévient aussi.
 		c.prevenirSecurite("adresse|"+nom+"|"+auth.CleAdresse(ip), "🔑 mirador : connexion de « "+nom+" » depuis une nouvelle adresse : "+ip+
 			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
 	}

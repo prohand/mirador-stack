@@ -3702,3 +3702,14 @@ utilisable pendant la comparaison.
   par ligne reçue (~16 lignes/s), quelques Ko de mémoire. La liste
   repart vide au redémarrage du serveur et se remplit au fil des lignes
   (pas de relecture du disque).
+
+### 23.12 Message « nouvelle adresse » répété (correction du 14/11) **[Fait]**
+
+Les adresses déjà connues d'un compte n'étaient gardées qu'en mémoire :
+après chaque redémarrage du serveur (5 mises à jour le 13/11), la
+connexion suivante redonnait le message. Elles sont maintenant en base
+(table `adresses_connues`, migration 0014 : compte, adresse ou /64 IPv6,
+dernière connexion). Une adresse non revue depuis 30 jours redevient
+« nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
+(comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
+Coût : une lecture et une écriture SQLite par connexion réussie.
