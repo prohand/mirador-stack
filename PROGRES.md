@@ -659,12 +659,28 @@ toujours à mesurer sur srv-test et le VPS.
 sudo cat /run/mirador-agent/root.json | python3 -m json.tool | grep -A3 -E '"erreurs"|"chemin"'
 ```
 
+### Étape 6 : mesure de référence du collecteur actuel (à coller)
+
+Sur le collecteur LAN (Alloy + unpoller), pour comparer avec
+`mirador-collector` (SPEC § 23.3) :
+
+```bash
+systemctl show alloy -p MemoryCurrent -p CPUUsageNSec
+ps -o rss=,etime=,cmd= -C alloy -C unpoller -C unifi-poller
+free -m
+```
+
+
 ## Prochaine étape
 
 Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
 mises à jour automatiques signées).
 
 1. 5 bis et 5 quater validées le 12/11 (serveur et agent en 0.2.17).
+   13/11 : serveur, agent et assistant root en 0.2.18 (assistant au
+   format 2, unité qui peut écrire son dossier, SPEC § 22.5). À confirmer
+   à la 0.2.19 : l'assistant root suit l'agent tout seul (journal
+   `mirador-agent-root`, `"version"` dans `/run/mirador-agent/root.json`).
 2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
