@@ -218,6 +218,11 @@ func lireDisquesVM() (map[string]DisqueVM, error) {
 				continue
 			}
 			l, e, err := lireIOProcessus(pid)
+			if errors.Is(err, os.ErrPermission) {
+				// Unité installée avant la 0.2.24 : assistant dans le groupe
+				// mirador-agent, refusé par le noyau (pas le groupe de QEMU).
+				return nil, errors.New("lecture de /proc/<pid>/io refusée : relancer le script d'installation une fois (assistant root dans le groupe root, SPEC § 23.7)")
+			}
 			if err != nil {
 				errs = append(errs, fmt.Errorf("VM %s : %w", id, err))
 				continue

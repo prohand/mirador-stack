@@ -3575,6 +3575,15 @@ utilisable pendant la comparaison.
   envoyées sous les mêmes noms (`mirador_pve_invite_disque_*`), mises à
   jour au rythme réglé : courbes en moyenne sur 2 × ce rythme.
   Priorité : `io.stat` > volumes ZFS/LVM > assistant root.
+  Constaté le 13/11 : lecture refusée (« permission denied »). Le noyau ne
+  montre `/proc/<pid>/io` d'un processus root qu'à un appelant du même
+  **groupe** (ou avec `CAP_SYS_PTRACE`) ; l'assistant tournait dans le
+  groupe `mirador-agent`. Corrigé sans droit en plus : unité de
+  l'assistant en `Group=root`, et `/run/mirador-agent` créé par
+  `/etc/tmpfiles.d/mirador-agent.conf` en `2750 root:mirador-agent`
+  (bit setgid : `root.json` garde le groupe de l'agent). Écarté :
+  ajouter `CAP_SYS_PTRACE` (droit d'inspecter tout processus). Prend effet
+  en relançant le script une fois.
   Coût : un passage léger ≈ lancement du programme (~30 ms de CPU) ; à
   1 min, ~0,05 % d'un cœur.
 - Assistant root (`racine/proxmox.go`) : `/etc/pve/.vmlist` + configuration

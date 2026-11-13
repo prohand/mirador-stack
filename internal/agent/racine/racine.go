@@ -145,7 +145,8 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 
 // Ecrire enregistre le résultat de façon atomique (fichier temporaire puis
 // renommage) : l'agent ne lit jamais un fichier à moitié écrit.
-// Droits : 0640, groupe de l'agent (hérité du dossier, voir l'unité systemd).
+// Droits : 0640, groupe de l'agent (hérité du dossier /run/mirador-agent,
+// créé en 2750 root:mirador-agent par tmpfiles.d : voir le script).
 func Ecrire(chemin string, r *Resultat) error {
 	donnees, err := json.Marshal(r)
 	if err != nil {

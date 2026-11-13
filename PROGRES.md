@@ -712,9 +712,16 @@ free -m
 | Partie | État |
 |---|---|
 | 1a. Proxmox dans l'agent : invités lus dans les cgroups, liste et noms par l'assistant root ; disques des VM (volumes ZFS/LVM, ou assistant root au rythme réglé pour les qcow2) | **fait**, chemins vérifiés sur un nœud Proxmox 9.2 ; agent à installer sur le nœud |
-| 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait**, testé sur données simulées ; à valider sur le nœud |
+| 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait** ; 13/11 : agent 0.2.23 sur un nœud Proxmox 9.2, assistant au format 3, invités nommés dans le tableau ; disque des VM qcow2 et mesure 24 h à confirmer |
 | 2. Entrée InfluxDB (OPNsense) | à faire |
 | 3 à 7 | à faire |
+
+Première mesure sur le nœud Proxmox (13/11, 37 min après le démarrage, à
+refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
+137 Mo de plus vus par systemd sont du cache de fichiers du journal, rendu
+au besoin). Sur ce nœud, Alloy + smartctl_exporter : ~161 Mo (~7 fois plus).
+Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
+l'assistant) → corrigé en 0.2.24 (SPEC § 23.7), script à relancer une fois.
 
 Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
