@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mirador-stack/internal/agent/config"
@@ -45,7 +46,11 @@ type Resultat struct {
 	Smart       []Disque     `json:"smart,omitempty"`
 	SmartLu     time.Time    `json:"smart_lu,omitempty"`
 	Certificats *Certificats `json:"certificats,omitempty"`
-	Erreurs     []string     `json:"erreurs,omitempty"`
+	Proxmox     *Proxmox     `json:"proxmox,omitempty"` // nœud Proxmox : liste des invités
+	// Disques des VM (nœud Proxmox), mesurés à chaque passage, même léger.
+	DisquesVM map[string]DisqueVM `json:"disques_vm,omitempty"`
+	DisquesLe time.Time           `json:"disques_le,omitempty"`
+	Erreurs   []string            `json:"erreurs,omitempty"`
 }
 
 // TailleMaxFichier borne la lecture du fichier par l'agent.
@@ -62,6 +67,19 @@ func Executer(cfg config.Agent, maintenant time.Time) error {
 		return errors.New("l'assistant doit tourner en root (timer mirador-agent-root)")
 	}
 	precedent, _ := Lire(cfg.FichierRoot) // mesure SMART précédente, si elle existe
+	// Passage « disques » demandé par l'agent (nœud Proxmox) : seulement les
+	// disques des VM, le reste est repris du dernier passage complet (moins
+	// de 20 min ; sinon passage complet). Ni mise à jour ni certificats.
+	if precedent != nil && maintenant.Sub(precedent.Horodatage) < 20*time.Minute &&
+		demandeDisques(cfg.FichierActualiser, maintenant) {
+		r := *precedent
+		disques, err := lireDisquesVM()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "disques des VM :", err)
+		}
+		r.DisquesVM, r.DisquesLe = disques, maintenant.UTC()
+		return Ecrire(cfg.FichierRoot, &r)
+	}
 	var errDistants error
 	if cfg.CertificatsDistants && cfg.Serveur != "" && cfg.FichierConfigDistante != "" {
 		cfg.CertificatsAjout, _, errDistants = MotifsDistants(cfg.FichierConfigDistante)
@@ -69,6 +87,11 @@ func Executer(cfg config.Agent, maintenant time.Time) error {
 		cfg.CertificatsAjout = nil
 	}
 	r := Mesurer(cfg, maintenant, precedent, programmesReels())
+	if disques, err := lireDisquesVM(); err != nil {
+		r.Erreurs = append(r.Erreurs, "disques des VM : "+err.Error())
+	} else if disques != nil {
+		r.DisquesVM, r.DisquesLe = disques, maintenant.UTC()
+	}
 	if errDistants != nil {
 		r.Erreurs = append(r.Erreurs, "certificats : "+errDistants.Error())
 	}
@@ -111,6 +134,12 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 	if len(cfg.Certificats) > 0 || len(cfg.CertificatsAjout) > 0 {
 		r.Certificats = lireCertificats(cfg.Certificats, cfg.CertificatsAjout)
 	}
+	// Nœud Proxmox : liste des invités (rien ailleurs : /etc/pve absent).
+	pve, err := lireProxmox()
+	if err != nil {
+		r.Erreurs = append(r.Erreurs, "proxmox : "+err.Error())
+	}
+	r.Proxmox = pve
 	return r
 }
 
@@ -165,4 +194,24 @@ func Lire(chemin string) (*Resultat, error) {
 		return nil, fmt.Errorf("%s illisible : %w", chemin, err)
 	}
 	return &r, nil
+}
+
+// ContenuDemandeDisques : écrit par l'agent dans le fichier « actualiser »
+// pour un passage léger (disques des VM seulement).
+const ContenuDemandeDisques = "disques"
+
+// demandeDisques : le fichier « actualiser » (dossier de l'agent : contenu
+// non fiable, il ne peut que RÉDUIRE le travail) a été touché il y a moins
+// d'une minute avec le contenu « disques ». Un « Actualiser » de l'interface
+// y écrit une date : passage complet.
+func demandeDisques(chemin string, maintenant time.Time) bool {
+	if chemin == "" {
+		return false
+	}
+	info, err := os.Lstat(chemin)
+	if err != nil || !info.Mode().IsRegular() || maintenant.Sub(info.ModTime()) > time.Minute {
+		return false
+	}
+	brut, err := lireSansLien(chemin, 128)
+	return err == nil && strings.HasPrefix(string(brut), ContenuDemandeDisques)
 }

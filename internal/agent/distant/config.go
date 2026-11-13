@@ -66,6 +66,11 @@ type ConfigDistante struct {
 	CertificatsAjout   *[]string `json:"certificats_ajout,omitempty"`
 	CertificatsIgnorer *[]string `json:"certificats_ignorer,omitempty"`
 
+	// Nœud Proxmox (SPEC.md § 23.7) : rythme de mesure des disques des VM
+	// par l'assistant root. Ajouté en 0.2.22 : envoyé seulement aux agents
+	// qui annoncent la capacité « proxmox ».
+	ProxmoxDisques *config.Duree `json:"proxmox_disques,omitempty"`
+
 	Metriques     *bool     `json:"metriques,omitempty"` // non = logs seulement
 	Journal       *bool     `json:"journal,omitempty"`
 	LogsDocker    *bool     `json:"logs_docker,omitempty"`
@@ -108,6 +113,9 @@ func Appliquer(base config.Agent, d *ConfigDistante) (config.Agent, error) {
 	}
 	if d.IntervalleLent != nil {
 		a.IntervalleLent = time.Duration(*d.IntervalleLent)
+	}
+	if d.ProxmoxDisques != nil {
+		a.ProxmoxDisques = time.Duration(*d.ProxmoxDisques)
 	}
 	affecter(&a.TamponMetriques, d.TamponMetriques)
 	affecter(&a.TamponLogs, d.TamponLogs)

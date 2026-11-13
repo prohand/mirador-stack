@@ -69,8 +69,11 @@ const CapaciteSurveillance = "surveillance"
 // ajoutés dans l'interface (SPEC.md § 21).
 const CapaciteElements = "elements"
 
+// CapaciteProxmox : l'agent connaît le réglage « proxmox_disques » (SPEC.md § 23.7).
+const CapaciteProxmox = "proxmox"
+
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
-const Capacites = CapaciteSurveillance + "," + CapaciteElements
+const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).

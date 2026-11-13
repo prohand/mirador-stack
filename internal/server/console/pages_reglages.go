@@ -451,6 +451,7 @@ type champAgent struct {
 var champsAgent = []champAgent{
 	{Nom: "intervalle", Titre: "Intervalle de collecte", Genre: "duree", Aide: "10s à 5m (défaut 30s)"},
 	{Nom: "intervalle_lent", Titre: "Intervalle des données lentes", Genre: "duree", Aide: "SMART, mises à jour, certificats"},
+	{Nom: "proxmox_disques", Titre: "Disques des VM Proxmox", Genre: "duree", Aide: "nœuds Proxmox : mesure par l'assistant root, 1m à 15m (défaut 5m)"},
 	{Nom: "recuperation", Titre: "Récupération de la configuration", Genre: "duree", Aide: "toutes les 1 à 60 min"},
 	{Nom: "tampon_metriques", Titre: "Tampon des métriques (Mio)", Genre: "entier"},
 	{Nom: "tampon_logs", Titre: "Tampon des logs (Mio)", Genre: "entier"},

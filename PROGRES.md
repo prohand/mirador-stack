@@ -246,6 +246,11 @@ et bouton « Supprimer » ; les autres se réimportent depuis GitHub (signées) 
 (3) la sauvegarde ne contient alors que ces versions-là. Effet attendu :
 versions ~30 Mo, archive ~15 Mo par jour.
 
+**Fait en 0.2.21 (SPEC § 22.6), mesuré le 13/11** : au démarrage, 16
+binaires supprimés (toutes les arm64, versions 0.2.9 à 0.2.13) ; dossier
+`versions` 166 → 55 Mo. Le reste part au fil des jours (versions importées
+depuis moins de 24 h gardées).
+
 ### Réponses du 10/11 et suites
 
 | Question | Réponse | Conséquence |
@@ -700,6 +705,21 @@ free -m
 ```
 
 
+## Étape 6 — avancement (SPEC § 23)
+
+Étape 5 **validée le 13/11**.
+
+| Partie | État |
+|---|---|
+| 1a. Proxmox dans l'agent : invités lus dans les cgroups, liste et noms par l'assistant root | **fait**, à tester sur un nœud réel |
+| 1b. Tableau « Proxmox » et règles réécrits | à faire |
+| 2. Entrée InfluxDB (OPNsense) | à faire |
+| 3 à 7 | à faire |
+
+Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
+(~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
+écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
+
 ## Prochaine étape
 
 Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
@@ -716,6 +736,9 @@ mises à jour automatiques signées).
 2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
 3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
 4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
+   **Fait le 13/11** (aucun écart ; test Telegram OK). Alertmanager envoie
+   encore en parallèle : alertes en double quelques jours, puis coupure à
+   l'étape 7.
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 6. Validation de l'étape 5 (et 5 bis, 5 quater), puis étape 6
    (`mirador-collector` : Synology, UniFi, syslog OPNsense, Proxmox).

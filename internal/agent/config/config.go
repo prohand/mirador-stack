@@ -77,6 +77,9 @@ type Agent struct {
 	// Rythmes de collecte.
 	Intervalle     time.Duration `json:"intervalle"`      // métriques rapides (défaut 30 s)
 	IntervalleLent time.Duration `json:"intervalle_lent"` // températures (défaut 60 s)
+	// ProxmoxDisques : nœud Proxmox, disques des VM mesurés par l'assistant
+	// root (relancé par l'agent à ce rythme ; SPEC.md § 23.7). 1 à 15 min.
+	ProxmoxDisques time.Duration `json:"proxmox_disques"`
 
 	// Tampon mémoire des métriques en attente d'envoi (octets compressés).
 	TamponMetriques int `json:"tampon_metriques"`
@@ -187,6 +190,7 @@ func Defaut() Agent {
 	return Agent{
 		Intervalle:            30 * time.Second,
 		IntervalleLent:        60 * time.Second,
+		ProxmoxDisques:        5 * time.Minute,
 		TamponMetriques:       tamponDefaut,
 		ExclureMontages:       defautMontages,
 		ExclureTypesFS:        defautTypesFS,
@@ -286,6 +290,9 @@ func (a *Agent) Valider() error {
 	}
 	if a.IntervalleLent < a.Intervalle || a.IntervalleLent > 10*intervalleMax {
 		ajoute("MIRADOR_INTERVALLE_LENT %s hors bornes (%s à %s)", a.IntervalleLent, a.Intervalle, 10*intervalleMax)
+	}
+	if a.ProxmoxDisques < time.Minute || a.ProxmoxDisques > 15*time.Minute {
+		ajoute("MIRADOR_PROXMOX_DISQUES %s hors bornes (1m à 15m)", a.ProxmoxDisques)
 	}
 	if a.TamponMetriques < tamponMin || a.TamponMetriques > tamponMax {
 		ajoute("MIRADOR_TAMPON_METRIQUES %d hors bornes (%d à %d octets)", a.TamponMetriques, tamponMin, tamponMax)
@@ -660,6 +667,8 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.Intervalle, err = time.ParseDuration(valeur)
 	case "MIRADOR_INTERVALLE_LENT":
 		a.IntervalleLent, err = time.ParseDuration(valeur)
+	case "MIRADOR_PROXMOX_DISQUES":
+		a.ProxmoxDisques, err = time.ParseDuration(valeur)
 	case "MIRADOR_TAMPON_METRIQUES":
 		a.TamponMetriques, err = strconv.Atoi(valeur)
 	case "MIRADOR_EXCLURE_MONTAGES":

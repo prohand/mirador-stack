@@ -3544,6 +3544,58 @@ le metric server sont réécrits avec les nouveaux noms
 du nœud. Aucun port, aucun token ajouté sur Proxmox. Le metric server reste
 utilisable pendant la comparaison.
 
+#### 23.7.1 Partie 1a faite (13/11) : collecte **[Fait, à tester sur un nœud]**
+
+- Agent (`collect/proxmox.go`), lancé seulement si `qemu.slice` ou `lxc`
+  existe dans les cgroups : `mirador_pve_invite_en_marche`,
+  `_cpu_secondes_total`, `_memoire_octets` (sans le cache inactif, comme
+  `docker stats`), `_disque_lus_octets_total`, `_disque_ecrits_octets_total`,
+  `_pression_secondes_total{ressource,niveau}`, `_reseau_recus_octets_total`
+  et `_reseau_envoyes_octets_total` (vus de l'invité), étiquettes `id`,
+  `type` (`qemu`, `lxc`).
+- Disques des **VM** : Proxmox n'active pas le contrôleur `io` pour
+  `qemu.slice` (constaté sur Proxmox 9.2 : pas d'`io.stat`). L'agent lit
+  alors les compteurs des volumes de la VM, vus comme disques du nœud
+  (`/sys/block/<dev>/stat`, lisibles sans root) : ZFS par les liens
+  `/dev/zvol/<pool>/…/vm-<id>-disk-<n>` → `zdN`, LVM par
+  `/sys/block/dm-N/dm/name` (`<vg>-vm--<id>--disk--<n>`) ; partitions et
+  modèles ignorés ; table refaite toutes les 10 collectes. LXC : `io.stat`
+  du cgroup quand il existe.
+- Disques **en fichier** (qcow2 sur un stockage « dossier », cas réel du
+  13/11) : ni `io.stat` ni volume. **[Décidé, réponse du 13/11 : choix 1,
+  rythme réglable dans l'interface]** L'assistant root lit
+  `/proc/<pid>/io` (`read_bytes`, `write_bytes`) des processus du cgroup de
+  chaque VM (root seulement). Réglage « Disques des VM Proxmox »
+  (`proxmox_disques`, 1 à 15 min, défaut 5 min, capacité d'agent
+  `proxmox`) : l'agent écrit « disques » dans le fichier surveillé par
+  `mirador-agent-root.path` ; l'assistant fait alors un passage **léger**
+  (disques des VM seulement, le reste repris du dernier passage complet
+  de moins de 20 min ; contenu non fiable qui ne peut que réduire le
+  travail, demande vieille de plus d'une minute ignorée). Valeurs
+  envoyées sous les mêmes noms (`mirador_pve_invite_disque_*`), mises à
+  jour au rythme réglé : courbes en moyenne sur 2 × ce rythme.
+  Priorité : `io.stat` > volumes ZFS/LVM > assistant root.
+  Coût : un passage léger ≈ lancement du programme (~30 ms de CPU) ; à
+  1 min, ~0,05 % d'un cœur.
+- Assistant root (`racine/proxmox.go`) : `/etc/pve/.vmlist` + configuration
+  courante de chaque invité de CE nœud (nom, mémoire, cœurs × sockets ; les
+  instantanés et toutes les autres clés sont ignorés), fichiers lus sans
+  suivre de lien et bornés. L'agent envoie `mirador_pve_invite_info{id,type,
+  nom,noeud}`, `_memoire_max_octets`, `_coeurs`. Invité arrêté :
+  `info` présent, `en_marche` absent.
+- Assistant au format 3 ; exigé seulement sur un nœud Proxmox
+  (`FormatRequis`) : pas d'alerte « trop ancien » ailleurs.
+- Coût mesuré (30 invités, banc d'essai) : 0,83 ms par cycle de 30 s
+  (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle (ouverture
+  des fichiers), chemins gardés en cache ; assistant : quelques fichiers
+  de /etc/pve toutes les 15 min. Aucune écriture disque.
+- Menaces : noms d'invités venus de /etc/pve (écrits par un admin Proxmox)
+  → format strict (sinon non gardé) et échappement à l'affichage ; lien à
+  la place d'un fichier de configuration → refusé ; .vmlist énorme ou
+  abîmé → borné, erreur dans `root.json` ; aucune clé sensible lue
+  (mot de passe cloud-init, `args`).
+- Reste (partie 1b) : tableau « Proxmox » et règles réécrits avec ces noms.
+
 ### 23.8 Certificat du syslog par ACME, géré dans l'interface **[Décidé, réponse du 13/11]**
 
 - Protocole ACME avec `golang.org/x/crypto/acme` (déjà dans les
