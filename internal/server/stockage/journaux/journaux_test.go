@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -319,4 +320,33 @@ func BenchmarkEcrire(b *testing.B) {
 		}
 	}
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/1000, "ns/ligne")
+}
+
+// Valeurs vues pour les listes de la page Logs : bornées, triées.
+func TestValeursVues(t *testing.T) {
+	h := nouvelleHorloge(t0)
+	m := ouvrir(t, t.TempDir(), h, 1<<20)
+	defer m.Fermer()
+	lignes := []stockage.Ligne{ligne(0, "pc", "err", "a"), ligne(time.Second, "pc", "info", "b")}
+	lignes[1].Champs["container"] = "web"
+	for i := 0; i < maxValeursVues+20; i++ {
+		lignes = append(lignes, stockage.Ligne{T: t0.Add(time.Duration(i) * time.Minute).UnixMilli(), Msg: "x",
+			Champs: map[string]string{"unit": fmt.Sprintf("u%04d.service", i)}})
+	}
+	if err := m.Ecrire(context.Background(), lignes); err != nil {
+		t.Fatal(err)
+	}
+	if v := m.ValeursVues("level"); len(v) != 2 || v[0] != "err" || v[1] != "info" {
+		t.Errorf("niveaux : %v", v)
+	}
+	if v := m.ValeursVues("container"); len(v) != 1 || v[0] != "web" {
+		t.Errorf("conteneurs : %v", v)
+	}
+	u := m.ValeursVues("unit")
+	if len(u) != maxValeursVues || slices.Contains(u, "u0000.service") || !slices.Contains(u, fmt.Sprintf("u%04d.service", maxValeursVues+19)) {
+		t.Errorf("unités : %d, plus anciennes oubliées attendu", len(u))
+	}
+	if v := m.ValeursVues("host"); len(v) != 0 {
+		t.Errorf("host n'est pas suivi : %v", v)
+	}
 }

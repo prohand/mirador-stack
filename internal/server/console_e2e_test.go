@@ -260,6 +260,11 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	if !strings.Contains(corps, "× 2") {
 		t.Error("lignes répétées non repliées")
 	}
+	// Listes déroulantes (14/11) : valeurs vues dans les lignes reçues.
+	if !strings.Contains(corps, `<select name="unit">`) || !strings.Contains(corps, `<option>cron.service</option>`) ||
+		!strings.Contains(corps, `<option selected>vm-test</option>`) {
+		t.Error("listes des filtres de logs absentes")
+	}
 	if _, corps, _ = n.faire(http.MethodGet, "/logs?mots=refus%C3%A9e&periode=1h", nil); !strings.Contains(corps, "connexion refus") {
 		t.Error("recherche par mot")
 	}

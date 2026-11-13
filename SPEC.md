@@ -3688,3 +3688,17 @@ utilisable pendant la comparaison.
   NaN / infini refusés ; `/health` sans token ne dit rien (texte fixe) et
   passe par la limite par adresse ; token d'OPNsense volé : mêmes parades
   que pour un agent (adresses autorisées, révocation).
+
+### 23.11 Page Logs : listes déroulantes (demande du 14/11) **[Fait, à valider]**
+
+- Chaque filtre (Machine, Source, Niveau, Unité, Conteneur, Site, Type,
+  Groupe) devient une liste « (tous) + valeurs » ; la valeur choisie y est
+  toujours.
+- Machines, sites, types et groupes : base (machines, Réglages › Sites,
+  types et groupes). Niveaux : les 8 niveaux syslog + ceux vus.
+- Source, niveau, unité, conteneur : valeurs **vues dans les lignes
+  reçues** par le moteur de logs, gardées en mémoire (500 par champ au
+  plus, les plus anciennes oubliées). Coût : 4 recherches dans une table
+  par ligne reçue (~16 lignes/s), quelques Ko de mémoire. La liste
+  repart vide au redémarrage du serveur et se remplit au fil des lignes
+  (pas de relecture du disque).

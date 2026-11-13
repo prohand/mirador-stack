@@ -67,7 +67,51 @@ type donneesLogs struct {
 	Replier  bool
 }
 
-type champLog struct{ Nom, Titre, Valeur string }
+// champLog : un filtre ; Choix = valeurs proposées dans la liste (la
+// valeur actuelle y est toujours).
+type champLog struct {
+	Nom, Titre, Valeur string
+	Choix              []string
+}
+
+// niveauxSyslog : niveaux standard, toujours proposés.
+var niveauxSyslog = []string{"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}
+
+// choixLogs : valeurs proposées pour chaque filtre (SPEC § 18.5, demande du
+// 14/11) : machines, sites, types et groupes de la base ; source, niveau,
+// unité et conteneur vus dans les lignes reçues depuis le démarrage.
+func (c *Console) choixLogs(ctx context.Context, machines []string) map[string][]string {
+	l := c.lireListes(ctx)
+	out := map[string][]string{"host": machines, "site": l.Sites, "env": l.Types, "groupe": l.Groupes}
+	if c.opt.Logs != nil {
+		for _, ch := range journaux.ChampsListes {
+			out[ch] = c.opt.Logs.ValeursVues(ch)
+		}
+	}
+	vu := map[string]bool{}
+	for _, v := range out["level"] {
+		vu[v] = true
+	}
+	for _, n := range niveauxSyslog {
+		if !vu[n] {
+			out["level"] = append(out["level"], n)
+		}
+	}
+	return out
+}
+
+// avecValeur : la liste, plus la valeur actuelle si elle n'y est pas.
+func avecValeur(choix []string, v string) []string {
+	if v == "" {
+		return choix
+	}
+	for _, c := range choix {
+		if c == v {
+			return choix
+		}
+	}
+	return append([]string{v}, choix...)
+}
 
 var periodesLogs = []string{"15m", "1h", "6h", "24h", "7d", "30d"}
 
@@ -92,7 +136,7 @@ func (c *Console) pageLogs(q *req) {
 				}
 				champs[ch.Nom] = x
 			}
-			d.Champs = append(d.Champs, champLog{ch.Nom, ch.Titre, x})
+			d.Champs = append(d.Champs, champLog{Nom: ch.Nom, Titre: ch.Titre, Valeur: x})
 		}
 		if len(d.Mots) > 200 || len(d.Contient) > 200 {
 			return errors.New("recherche : 200 caractères au plus")
@@ -103,6 +147,10 @@ func (c *Console) pageLogs(q *req) {
 		for _, m := range ms {
 			d.Machines = append(d.Machines, m.Nom)
 		}
+	}
+	choix := c.choixLogs(q.r.Context(), d.Machines)
+	for i := range d.Champs {
+		d.Champs[i].Choix = avecValeur(choix[d.Champs[i].Nom], d.Champs[i].Valeur)
 	}
 	if err == nil && c.opt.Logs != nil {
 		var periode time.Duration
