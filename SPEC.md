@@ -3581,9 +3581,16 @@ utilisable pendant la comparaison.
   groupe `mirador-agent`. Corrigé sans droit en plus : unité de
   l'assistant en `Group=root`, et `/run/mirador-agent` créé par
   `/etc/tmpfiles.d/mirador-agent.conf` en `2750 root:mirador-agent`
-  (bit setgid : `root.json` garde le groupe de l'agent). Écarté :
-  ajouter `CAP_SYS_PTRACE` (droit d'inspecter tout processus). Prend effet
+  (bit setgid : `root.json` garde le groupe de l'agent). Prend effet
   en relançant le script une fois.
+  **Pas suffisant** (vérifié le 13/11 avec `setpriv --bounding-set=-sys_ptrace`) :
+  QEMU est protégé par le noyau (pas « inspectable »), même root a besoin
+  de `CAP_SYS_PTRACE`. **[Décidé, réponse du 13/11]** `CAP_SYS_PTRACE`
+  ajouté au jeu de droits de l'unité de l'assistant root (0.2.25). Risque :
+  l'assistant pourrait inspecter tout processus ; il a déjà
+  `CAP_SYS_ADMIN` (plus large) et son code ne lit que `/proc/<pid>/io` des
+  processus du cgroup de chaque VM (pid numérique lu dans le cgroup).
+  Alternative écartée : pas de disque par VM pour les disques qcow2.
   Coût : un passage léger ≈ lancement du programme (~30 ms de CPU) ; à
   1 min, ~0,05 % d'un cœur.
 - Assistant root (`racine/proxmox.go`) : `/etc/pve/.vmlist` + configuration

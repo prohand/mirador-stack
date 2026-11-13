@@ -448,7 +448,9 @@ MemoryMax=100M
 
 # Durcissement : pas de réseau sortant, système en lecture seule
 NoNewPrivileges=yes
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_RAWIO CAP_SYS_ADMIN CAP_DAC_READ_SEARCH
+# CAP_SYS_PTRACE : seulement pour lire /proc/<pid>/io des VM Proxmox (QEMU
+# est protégé par le noyau ; choix de l'utilisateur du 13/11, SPEC § 23.7).
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_RAWIO CAP_SYS_ADMIN CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
