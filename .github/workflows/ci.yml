@@ -129,6 +129,7 @@ jobs:
             ./internal/agent/distant:FuzzDecoder
             ./internal/server/ingestion:FuzzDecoderRemoteWrite
             ./internal/server/ingestion:FuzzDecoderJsonline
+            ./internal/server/ingestion:FuzzDecoderInflux
             ./internal/server/stockage/journaux:FuzzLireEntete
             ./internal/server/sauvegarde:FuzzLecture
             ./internal/server/alertes:FuzzImporter

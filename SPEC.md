@@ -3658,9 +3658,33 @@ utilisable pendant la comparaison.
 | Partie | Contenu |
 |---|---|
 | 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
-| 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) |
+| 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
 | 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » |
 | 4 | Syslog TLS + certificat ACME géré dans l'interface |
 | 5 | SNMP v3 (Synology) et sondes de certificats |
 | 6 | Client UniFi natif (unpoller retiré) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
+
+### 23.10 Partie 2 faite (14/11) : entrée InfluxDB v2 **[Fait, à tester avec OPNsense]**
+
+- Adresse : `POST /api/agent/v1/influx/api/v2/write` (Telegraf ajoute
+  `/api/v2/write` à l'URL donnée), `GET …/influx/health` et `…/ping` sans
+  token (réponse fixe). Sous `/api/agent/` : même bloc nginx que les agents.
+- Accueil identique aux agents : token par machine (`Token …` d'InfluxDB
+  accepté en plus de `Bearer …`), adresses autorisées, limites par adresse
+  et par machine, quotas de séries, nom imposé (`instance`) ; étiquette
+  `host` de Telegraf gardée (règles et tableau actuels inchangés).
+- Lecteur du *line protocol* écrit à la main (`ingestion/influx.go`) :
+  échappements, textes ignorés, booléens 1/0, entiers `i` et `u`,
+  précision `ns`/`us`/`ms`/`s`, gzip ; noms `mesure_champ` nettoyés comme
+  VictoriaMetrics. Ligne invalide : ignorée et comptée ; aucune ligne
+  valable : 400 ; au-delà de 4 Mio décompressés, 20 000 séries ou
+  200 000 points : 413.
+- Coût mesuré : pires cas de 4 Mio (champs, tags, lignes, guillemets,
+  antislash) traités en 4 à 120 ms ; un envoi normal d'OPNsense (~300
+  séries toutes les 30 s) : négligeable. Aucune dépendance ajoutée.
+- Menaces : corps piégé (bornes ci-dessus, fuzzing `FuzzDecoderInflux` en
+  CI), étiquettes réservées (`__…`) refusées, valeurs non UTF-8 refusées,
+  NaN / infini refusés ; `/health` sans token ne dit rien (texte fixe) et
+  passe par la limite par adresse ; token d'OPNsense volé : mêmes parades
+  que pour un agent (adresses autorisées, révocation).

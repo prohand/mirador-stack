@@ -29,6 +29,8 @@ const (
 	CheminMaj        = "/api/agent/v1/update"    // GET  : version assignée (ETag)
 	CheminBinaire    = "/api/agent/v1/binary"    // GET  : binaire signé d'une version
 	CheminBattement  = "/api/agent/v1/heartbeat" // POST : « je suis vivant » + état
+	// CheminInflux : entrée InfluxDB v2 (Telegraf : …/api/v2/write, …/health).
+	CheminInflux = "/api/agent/v1/influx"
 	// Installation (jeton d'enrôlement dans « Authorization: Bearer ») :
 	CheminInstallation        = "/api/agent/v1/install"        // GET : script d'installation
 	CheminInstallationBinaire = "/api/agent/v1/install/binary" // GET : binaire (?arch=amd64|arm64)

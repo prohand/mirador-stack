@@ -24,7 +24,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -196,6 +195,56 @@ func (g *Ingestion) Boucle(ctx context.Context) {
 func (g *Ingestion) Routes(m *http.ServeMux) {
 	m.HandleFunc("POST "+protocole.CheminMetriques, g.metriques)
 	m.HandleFunc("POST "+protocole.CheminLogs, g.logs)
+	// Entrée InfluxDB v2 (Telegraf d'OPNsense, SPEC § 23.9) : adresse à
+	// donner à Telegraf = https://<ingestion>/api/agent/v1/influx (Telegraf
+	// ajoute /api/v2/write). Sous /api/agent/ : même bloc nginx.
+	m.HandleFunc("POST "+protocole.CheminInflux+"/api/v2/write", g.influx)
+	m.HandleFunc("GET "+protocole.CheminInflux+"/health", g.santeInflux)
+	m.HandleFunc("GET "+protocole.CheminInflux+"/ping", g.santeInflux)
+}
+
+// influx : POST …/api/v2/write (line protocol, gzip accepté). Même accueil
+// que les agents (token « Token … » ou « Bearer … », adresses, limites).
+func (g *Ingestion) influx(w http.ResponseWriter, r *http.Request) {
+	m, liberer, ok := g.Accueillir(w, r)
+	if !ok {
+		return
+	}
+	defer liberer()
+	var compresse bool
+	switch strings.ToLower(r.Header.Get("Content-Encoding")) {
+	case "gzip":
+		compresse = true
+	case "", "identity":
+	default:
+		g.refuser(w, http.StatusBadRequest, "Content-Encoding : gzip ou rien", 0)
+		return
+	}
+	maintenant := g.opt.Maintenant()
+	series, ignorees, err := DecoderInflux(r.Body, compresse, r.URL.Query().Get("precision"), g.opt.Decodage, maintenant)
+	if err != nil {
+		g.erreurDecodage(w, m, err)
+		return
+	}
+	g.Compteurs.SeriesIgnorees.Add(uint64(ignorees)) // #nosec G115 -- compteur ≥ 0
+	// Pas d'en-tête d'heure chez Telegraf : seuls les points trop loin dans
+	// le futur sont écartés (ranger).
+	g.ranger(w, r, m, series, HeureBonne, 0, maintenant)
+}
+
+// santeInflux : GET …/health (et /ping), comme InfluxDB : certains clients
+// vérifient la cible avant d'envoyer. Rien de secret, pas de token.
+func (g *Ingestion) santeInflux(w http.ResponseWriter, r *http.Request) {
+	if !g.parIP.Prendre(CleLimite(web.AdresseClient(r)), 1, g.opt.Maintenant()) {
+		g.refuser(w, http.StatusTooManyRequests, "trop de requêtes", 1)
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, "/ping") {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = io.WriteString(w, `{"name":"mirador","message":"ready for queries and writes","status":"pass","checks":[],"version":"2.7.0"}`+"\n")
 }
 
 // erreurHTTP : réponse courte, en texte, sans détail interne.
@@ -411,7 +460,13 @@ func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.Compteurs.SeriesIgnorees.Add(uint64(ignorees)) // #nosec G115 -- compteur ≥ 0
+	g.ranger(w, r, m, series, dec, d, maintenant)
+}
 
+// ranger : fin commune des métriques (remote write et InfluxDB) : points
+// sans heure ou trop loin dans le futur écartés, nom (et site, type, groupe)
+// imposés, quotas, écriture, puis 204.
+func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, series []stockage.Serie, dec Decision, d time.Duration, maintenant time.Time) {
 	limiteFutur := maintenant.Add(g.opt.Horloge.Maximum).UnixMilli()
 	etiquette := imposeNom(m)
 	points, futurs := 0, 0
@@ -455,7 +510,7 @@ func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 	g.Compteurs.PointsFuturs.Add(uint64(futurs))     // #nosec G115 -- compteur ≥ 0
 	g.Compteurs.SeriesRefusees.Add(uint64(refusees)) // #nosec G115 -- compteur ≥ 0
 	if refusees > 0 {
-		g.avertirQuota(m, fmt.Sprintf("%d séries refusées (quota ou cardinalité)", refusees))
+		g.avertirQuota(m, "séries refusées (quota ou cardinalité)", refusees)
 	}
 	if len(series) > 0 {
 		if err := g.opt.Metriques.Ecrire(r.Context(), series); err != nil {
@@ -516,7 +571,7 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 		// tard (sa file est bornée : en cas de déluge durable, il jette les
 		// plus anciens lots, rien ne déborde côté serveur).
 		g.Compteurs.LignesRefusees.Add(uint64(len(lignes)))
-		g.avertirQuota(m, "quota de lignes de logs par minute dépassé")
+		g.avertirQuota(m, "quota de lignes de logs par minute dépassé", 0)
 		g.refuser(w, http.StatusTooManyRequests, "quota de logs dépassé", g.lignes.Attente(cle))
 		return
 	}
@@ -605,8 +660,9 @@ func (g *Ingestion) erreurDecodage(w http.ResponseWriter, m Machine, err error) 
 	}
 }
 
-// avertirQuota écrit au plus un avertissement toutes les 5 minutes par machine.
-func (g *Ingestion) avertirQuota(m Machine, msg string) {
+// avertirQuota écrit au plus un avertissement toutes les 5 minutes par
+// machine. msg : texte FIXE (jamais tiré de la requête) ; le nombre à part.
+func (g *Ingestion) avertirQuota(m Machine, msg string, nombre int) {
 	maintenant := g.opt.Maintenant()
 	g.mu.Lock()
 	dernier := g.avertis[m.ID]
@@ -616,5 +672,5 @@ func (g *Ingestion) avertirQuota(m Machine, msg string) {
 	}
 	g.avertis[m.ID] = maintenant
 	g.mu.Unlock()
-	g.opt.Journal.Warn(msg, "machine", m.Nom, "series_actives", g.quotas.Actives(m.ID))
+	g.opt.Journal.Warn(msg, "machine", m.Nom, "nombre", nombre, "series_actives", g.quotas.Actives(m.ID))
 }
