@@ -223,6 +223,29 @@ trancher après la mesure complète.
 Restes à faire (SPEC § 18.5) : vues personnalisables, carte du monde
 (fond SVG).
 
+### Mesure réelle du serveur (VPS, 12 → 13/11, 18 h 40)
+
+`docker stats` chaque minute (1120 relevés, une nuit complète avec la
+sauvegarde de 02:43), 1 machine avec agent, mode ombre, comparaison vmalert
+active. Deux redémarrages pour mise à jour (vers 10:24, puis avant 14:41).
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| RAM | 60 à 75 Mio au calme, **113 Mio au plus** (pointes toutes les ~2 h : rangement des métriques, puis mémoire rendue) | < 256 Mio ✅ (stack actuelle ~770 Mio : ~7 fois moins) |
+| CPU | **1,27 % d'un cœur en moyenne**, 9,2 % au plus (pointe courte) | < 5 % ✅ |
+| Écritures disque | ~100 Mo en 14 h 40, dont l'archive de sauvegarde (51 Mo) ; ~5,7 Mo/h hors sauvegarde | ✅ |
+| Lectures disque | ~140 Mo en 14 h 40, surtout la sauvegarde (relit les versions de l'agent) | ⚠️ voir dessous |
+| Données | métriques 14 Mo, logs 5 Mo, base 3 Mo, GéoIP 5 Mo | ✅ |
+| **Versions de l'agent** | **166 Mo** (toutes les versions importées, amd64 + arm64) | ⚠️ |
+| Archives de sauvegarde | 8 Ko → 19 Mo → 51 Mo en 3 jours (elles contiennent les versions) | ⚠️ 14 jours gardés : jusqu'à ~1 Go |
+
+⚠️ Solutions proposées (par ordre d'effet) : (1) garder seulement les
+versions utiles (cible, versions en service, 2 dernières), purge automatique
+et bouton « Supprimer » ; les autres se réimportent depuis GitHub (signées) ;
+(2) n'importer que les architectures présentes dans le parc (amd64 ici) ;
+(3) la sauvegarde ne contient alors que ces versions-là. Effet attendu :
+versions ~30 Mo, archive ~15 Mo par jour.
+
 ### Réponses du 10/11 et suites
 
 | Question | Réponse | Conséquence |
