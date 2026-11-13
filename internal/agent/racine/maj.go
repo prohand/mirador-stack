@@ -81,7 +81,9 @@ func MettreAJourAssistant(cfg config.Agent, cible string) (string, error) {
 	}
 	brutM, err := lireSansLien(filepath.Join(bin, nom+".manifeste.json"), 64<<10)
 	if errors.Is(err, os.ErrNotExist) {
-		return "", nil // version installée avant le 12/11 : attendre la suivante
+		// Version posée sans son manifeste (agent d'avant le 13/11) : rien
+		// à vérifier, donc rien à installer. Signalé pour qu'on le voie.
+		return "", fmt.Errorf("manifeste signé absent pour %s : attente de la version suivante", m[1])
 	}
 	if err != nil {
 		return "", fmt.Errorf("manifeste : %w", err)

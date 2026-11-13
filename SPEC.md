@@ -3382,6 +3382,13 @@ dossier en écriture dans l'unité) ; ensuite, l'assistant suit l'agent seul.
 La version actuelle de l'agent (installée avant ce changement) n'a pas de
 manifeste gardé : l'assistant attend la version suivante.
 
+Correction du 13/11 : le nettoyage qui suit la confirmation d'une version
+effaçait aussi son manifeste (0.2.18 et 0.2.19 touchées : l'assistant
+attendait sans rien dire). Corrigé en 0.2.20 ; un manifeste absent est
+maintenant écrit dans le journal de l'assistant. Comme c'est la nouvelle
+version qui confirme (et donc nettoie), la 0.2.20 garde son propre
+manifeste : l'assistant la suit dès qu'elle est confirmée.
+
 ---
 
 ## 23. Étape 6 — sources sans agent et `mirador-collector` **[Brouillon à discuter — 13/11]**
