@@ -63,7 +63,7 @@ func TestAlertesDeBoutEnBout(t *testing.T) {
 		}
 	}
 	code, sortie = commande("regles")
-	if code != 0 || !strings.Contains(sortie, "81 règle(s), 80 active(s)") {
+	if code != 0 || !strings.Contains(sortie, "84 règle(s), 83 active(s)") {
 		t.Fatalf("après import :\n%s", sortie)
 	}
 	if code, sortie = commande("regle-desactiver", "TemperatureElevee"); code != 0 {

@@ -50,6 +50,9 @@
 </tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
 <p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
 <p><small>Gardées sur le serveur : la cible, les versions installées ou à l'essai sur une machine, les {{.D.Garder}} plus récentes et celles importées depuis moins de 24 h, pour les architectures du parc. Les autres sont supprimées chaque jour (réimportables depuis GitHub) : les sauvegardes restent petites.</small></p>
+{{if .Admin}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="versions_gardees">
+<label>Versions récentes gardées <input type="number" name="nombre" min="1" max="10" value="{{.D.Garder}}" required></label>
+{{template "code2fa"}}<button>Enregistrer</button></form>{{end}}
 {{if and .Admin .D.Choix}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="supprimer_version">
 <label>Supprimer la version <select name="version">{{range .D.Choix}}<option>{{.}}</option>{{end}}</select></label>
 {{template "code2fa"}}<button>Supprimer</button></form>{{end}}

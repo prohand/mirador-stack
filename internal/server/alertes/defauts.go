@@ -66,6 +66,38 @@ func ReglesMirador() []Regle {
 			Resume:      "Le ventilateur {{ $labels.sensor }} ({{ $labels.chip }}) de {{ $labels.instance }} est à l'arrêt",
 			Description: "Il tournait dans les dernières 24 h. Un capteur non branché (toujours à 0) ne déclenche rien.",
 			Note:        "SPEC § 19"}),
+		// Proxmox par l'agent (SPEC § 23.7) : invités lus dans les cgroups,
+		// noms par l'assistant root. Sans nœud Proxmox, ces règles ne voient rien.
+		m(Regle{Nom: "ProxmoxInviteCpuSature", Groupe: "proxmox",
+			Expr: `max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) ` +
+				`/ max by (instance, id, type) (mirador_pve_invite_coeurs) ` +
+				`* on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`,
+			Pour:    Duree(15 * time.Minute),
+			Gravite: Avertissement,
+			Resume:  "{{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanizePercentage }} de ses cœurs depuis 15 min",
+			Description: "Temps CPU de l'invité (cgroup) rapporté aux cœurs configurés. Ajouter des cœurs, ou chercher " +
+				"le processus en cause dans l'invité.",
+			Note: "SPEC § 23.7"}),
+		m(Regle{Nom: "ProxmoxConteneurMemoireSaturee", Groupe: "proxmox",
+			Expr: `max by (instance, id, type) (mirador_pve_invite_memoire_octets{type="lxc"}) ` +
+				`/ max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type="lxc"}) ` +
+				`* on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`,
+			Pour:    Duree(15 * time.Minute),
+			Gravite: Avertissement,
+			Resume:  "Le conteneur {{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanizePercentage }} de sa mémoire",
+			Description: "Mémoire du cgroup sans le cache inactif, rapportée à la mémoire configurée : le noyau va " +
+				"tuer des processus dans le conteneur (OOM). Seulement les LXC : pour une VM, la mémoire vue de " +
+				"l'hôte ne dit pas si l'invité manque de mémoire (installer l'agent dans la VM).",
+			Note: "SPEC § 23.7"}),
+		m(Regle{Nom: "ProxmoxListeInvitesIndisponible", Groupe: "proxmox", Intervalle: Duree(5 * time.Minute),
+			Expr: `count by (instance) (mirador_pve_invite_en_marche) ` +
+				`unless on (instance) count by (instance) (mirador_pve_invite_info)`,
+			Pour:    Duree(30 * time.Minute),
+			Gravite: Avertissement,
+			Resume:  "{{ $labels.instance }} : invités en marche, mais pas de liste ni de noms (assistant root)",
+			Description: "L'assistant root ne lit pas /etc/pve : trop ancien (relancer le script, ou attendre sa mise " +
+				"à jour automatique), ou erreur (voir root.json, champ « erreurs »). Les tableaux n'ont alors pas les noms.",
+			Note: "SPEC § 23.7"}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -198,7 +199,7 @@ type donneesMachines struct {
 	EnAttente, Approuvees, Autres []vueMachine
 	Ingestion                     string         // adresse d'ingestion (Réglages › Interface), vide = à renseigner
 	Jeton                         string         // jeton tout juste créé (affiché une seule fois)
-	OptionEnvoi                   string         // « --sans-logs », « --sans-metriques » ou vide
+	OptionEnvoi                   string         // options du script : « --sans-logs », « --sans-metriques », « --auto-update »
 	Listes                        ListesMachines // sites, types et groupes proposés (Réglages)
 }
 
@@ -256,12 +257,19 @@ func (c *Console) postJeton(q *req) {
 	d := c.donneesMachines(q)
 	d.Jeton = j
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
+	var options []string
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
-		d.OptionEnvoi = "--sans-logs"
+		options = append(options, "--sans-logs")
 	case "logs":
-		d.OptionEnvoi = "--sans-metriques"
+		options = append(options, "--sans-metriques")
 	}
+	// Mises à jour automatiques signées : décidées sur la machine (option du
+	// script, fichier local root), jamais par le serveur seul.
+	if q.r.PostFormValue("maj_auto") != "" {
+		options = append(options, "--auto-update")
+	}
+	d.OptionEnvoi = strings.Join(options, " ")
 	c.flash(q, "jeton d'enrôlement créé : à utiliser une seule fois, il n'est affiché qu'ici", "")
 	c.rendre(q, "machines", "Machines", "machines", d)
 }
@@ -497,7 +505,7 @@ type donneesMaj struct {
 	Depot    string   // dépôt GitHub des versions signées
 	Choix    []string // versions publiées, sans doublon (une ligne par architecture dans Versions)
 	Import   vueImport
-	Garder   int // versions récentes gardées (flotte.GarderVersions)
+	Garder   int // versions récentes gardées (réglage, 1 à 10)
 }
 
 type cleVue struct{ Valeur, Empreinte string }
@@ -580,14 +588,15 @@ func (c *Console) pageMisesAJour(q *req) {
 		}
 	}
 	d.Import = c.importMaj.lire()
-	d.Garder = flotte.GarderVersions
+	var e7 error
+	d.Garder, e7 = flotte.LireGarderVersions(ctx, c.db)
 	var e6 error
 	d.Depot, e6 = flotte.LireDepot(ctx, c.db)
 	cles, e5 := flotte.LireClesPubliques(ctx, c.db)
 	for _, k := range cles {
 		d.Cles = append(d.Cles, cleVue{k, majagent.EmpreinteCle(k)})
 	}
-	if err := errors.Join(e1, e2, e3, e4, e5, e6); err != nil {
+	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7); err != nil {
 		c.flash(q, "", err.Error())
 	}
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
@@ -613,6 +622,14 @@ func (c *Console) postMisesAJour(q *req) {
 				}
 				ok = "import lancé : recharger la page dans quelques secondes"
 			}
+		case "versions_gardees":
+			var n int
+			if n, err = strconv.Atoi(q.r.PostFormValue("nombre")); err == nil {
+				err = flotte.DefinirGarderVersions(ctx, c.db, n, q.qui(), q.t)
+			} else {
+				err = errors.New("versions gardées : un nombre de 1 à 10")
+			}
+			ok = "nombre de versions gardées enregistré (appliqué au prochain nettoyage, au plus tard dans 24 h)"
 		case "supprimer_version":
 			v := q.r.PostFormValue("version")
 			err = flotte.SupprimerVersion(ctx, c.db, filepath.Join(c.opt.Donnees, "versions"), v, q.qui(), q.t)

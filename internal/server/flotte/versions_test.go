@@ -111,6 +111,24 @@ func TestNettoyerVersions(t *testing.T) {
 	if err := SupprimerVersion(ctx, b.db, dossier, "../x", "admin", t0); err == nil {
 		t.Error("version invalide acceptée")
 	}
+	// Réglage du nombre de versions récentes gardées (1 à 10).
+	if n, _ := LireGarderVersions(ctx, b.db); n != 2 {
+		t.Errorf("défaut : %d", n)
+	}
+	for _, mauvais := range []int{0, 11} {
+		if err := DefinirGarderVersions(ctx, b.db, mauvais, "admin", t0); err == nil {
+			t.Errorf("%d accepté", mauvais)
+		}
+	}
+	if err := DefinirGarderVersions(ctx, b.db, 5, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := LireGarderVersions(ctx, b.db); n != 5 {
+		t.Errorf("réglé : %d", n)
+	}
+	if err := DefinirGarderVersions(ctx, b.db, 2, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
 	// Aucune machine : toutes les architectures restent utiles.
 	if _, err := b.db.Exec(`DELETE FROM machines`); err != nil {
 		t.Fatal(err)

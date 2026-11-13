@@ -142,7 +142,8 @@ manifeste signé avec `-retour-autorise`). Il teste la nouvelle version
 
 Versions gardées sur le serveur (chaque version pèse ~8 Mo par
 architecture, et les sauvegardes les recopient) : la cible, les versions
-installées ou à l'essai sur une machine, les 2 plus récentes et celles
+installées ou à l'essai sur une machine, les 2 plus récentes (réglage
+« Versions récentes gardées », 1 à 10) et celles
 importées depuis moins de 24 h, pour les architectures du parc seulement.
 Les autres sont supprimées au démarrage puis chaque jour (journal :
 « versions de l'agent supprimées ») ; elles se réimportent depuis GitHub.
