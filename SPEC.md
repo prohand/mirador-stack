@@ -3553,6 +3553,15 @@ utilisable pendant la comparaison.
   `_pression_secondes_total{ressource,niveau}`, `_reseau_recus_octets_total`
   et `_reseau_envoyes_octets_total` (vus de l'invité), étiquettes `id`,
   `type` (`qemu`, `lxc`).
+- Disques des **VM** : Proxmox n'active pas le contrôleur `io` pour
+  `qemu.slice` (constaté sur Proxmox 9.2 : pas d'`io.stat`). L'agent lit
+  alors les compteurs des volumes de la VM, vus comme disques du nœud
+  (`/sys/block/<dev>/stat`, lisibles sans root) : ZFS par les liens
+  `/dev/zvol/<pool>/…/vm-<id>-disk-<n>` → `zdN`, LVM par
+  `/sys/block/dm-N/dm/name` (`<vg>-vm--<id>--disk--<n>`) ; partitions et
+  modèles ignorés ; table refaite toutes les 10 collectes. Disques en
+  fichier (qcow2 sur un stockage « dossier ») : pas mesurés. LXC : `io.stat`
+  du cgroup quand il existe.
 - Assistant root (`racine/proxmox.go`) : `/etc/pve/.vmlist` + configuration
   courante de chaque invité de CE nœud (nom, mémoire, cœurs × sockets ; les
   instantanés et toutes les autres clés sont ignorés), fichiers lus sans

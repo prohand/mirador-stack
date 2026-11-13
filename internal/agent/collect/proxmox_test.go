@@ -56,10 +56,37 @@ func TestProxmox(t *testing.T) {
 		"class/net/veth101i0/statistics/rx_bytes": "3\n",
 		"class/net/vmbr0/statistics/tx_bytes":     "99\n",
 	})
+	// VM sans io.stat (cas réel : Proxmox n'active pas le contrôleur io pour
+	// les VM) : disques lus sur les volumes ZFS (102) et LVM (103).
+	ecrireArbre(t, sys, map[string]string{
+		"fs/cgroup/qemu.slice/102.scope/cpu.stat": "usage_usec 1000000\n",
+		"fs/cgroup/qemu.slice/103.scope/cpu.stat": "usage_usec 1000000\n",
+		// stat : lectures, fusions, SECTEURS LUS, ms, écritures, fusions, SECTEURS ÉCRITS…
+		"block/zd16/stat":    "     100        0     2000      10      50        0     4000      20        0      30      30\n",
+		"block/zd32/stat":    "       1        0        8       1       1        0        8       1        0       2       2\n",
+		"block/dm-3/stat":    "10 0 100 1 10 0 200 1 0 2 2\n",
+		"block/dm-3/dm/name": "pve-vm--103--disk--0\n",
+		"block/dm-4/stat":    "10 0 999 1 10 0 999 1 0 2 2\n",
+		"block/dm-4/dm/name": "pve-root\n",
+	})
+	dev := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(dev, "zvol", "rpool", "data"), 0o755)
+	for nom, cible := range map[string]string{
+		"vm-102-disk-0":       "../../../zd16",
+		"vm-102-disk-1":       "../../../zd32",
+		"vm-102-disk-0-part1": "../../../zd16p1", // partition : ignorée
+		"base-900-disk-0":     "../../../zd48",   // modèle : ignoré
+	} {
+		if err := os.Symlink(cible, filepath.Join(dev, "zvol", "rpool", "data", nom)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if !ProxmoxPresent(sys) {
 		t.Fatal("Proxmox non détecté")
 	}
-	obtenu := collecter(t, NewProxmox(sys))
+	px := NewProxmox(sys)
+	px.dev = dev
+	obtenu := collecter(t, px)
 	vm := "|id=100|type=qemu"
 	ct := "|id=101|type=lxc"
 	verifier(t, obtenu, map[string]float64{
@@ -77,10 +104,15 @@ func TestProxmox(t *testing.T) {
 		"mirador_pve_invite_reseau_envoyes_octets_total" + vm:                               202,
 		"mirador_pve_invite_reseau_recus_octets_total" + ct:                                 7,
 		"mirador_pve_invite_reseau_envoyes_octets_total" + ct:                               3,
+		"mirador_pve_invite_disque_lus_octets_total|id=102|type=qemu":                       (2000 + 8) * 512,
+		"mirador_pve_invite_disque_ecrits_octets_total|id=102|type=qemu":                    (4000 + 8) * 512,
+		"mirador_pve_invite_disque_lus_octets_total|id=103|type=qemu":                       100 * 512,
+		"mirador_pve_invite_disque_ecrits_octets_total|id=103|type=qemu":                    200 * 512,
 	})
 	// VM : en marche, CPU, mémoire, 2 disque, 5 pression, 2 réseau = 12 ;
 	// LXC : en marche, CPU, mémoire, 2 réseau = 5.
-	if len(obtenu) != 17 {
+	// + VM 102 et 103 : en marche, CPU, 2 disque = 4 chacune.
+	if len(obtenu) != 25 {
 		t.Errorf("%d points : %v", len(obtenu), obtenu)
 	}
 	for k := range obtenu {

@@ -44,7 +44,16 @@ type Proxmox struct {
 	// fichiers) : pas d'allocation à chaque cycle. Vidés s'ils grossissent.
 	fichiers   map[string]*fichiersInvite
 	interfaces map[string]*fichiersInterface
+	// Volumes (disques) des VM : id → fichiers « stat » de /sys/block,
+	// relistés toutes les cyclesVolumes (un disque ajouté est vu en ~5 min).
+	vols   map[string][]string
+	cycles int
+	dev    string // racine de /dev (tests)
+	block  string // <sys>/block
 }
+
+// cyclesVolumes : volumes relistés tous les 10 cycles.
+const cyclesVolumes = 10
 
 // fichiersInvite : fichiers lus pour un invité.
 type fichiersInvite struct {
@@ -65,6 +74,7 @@ const maxCache = 4096
 // NewProxmox crée le collecteur (sys : racine de /sys, remplacée dans les tests).
 func NewProxmox(sys string) *Proxmox {
 	return &Proxmox{cgroup: filepath.Join(sys, "fs", "cgroup"), net: filepath.Join(sys, "class", "net"),
+		block: filepath.Join(sys, "block"), dev: "/dev",
 		fichiers: map[string]*fichiersInvite{}, interfaces: map[string]*fichiersInterface{}}
 }
 
@@ -127,6 +137,10 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 		return nil
 	}
 	reseau := p.lireReseau()
+	if p.cycles%cyclesVolumes == 0 {
+		p.listerVolumes()
+	}
+	p.cycles++
 	for _, inv := range invites {
 		l := inv.labels[:]
 		b.Add("mirador_pve_invite_en_marche", 1, l...)
@@ -140,7 +154,14 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 			}
 			b.Add("mirador_pve_invite_memoire_octets", float64(cur), l...)
 		}
-		if lus, ecrits, ok := p.io(inv.io); ok {
+		// Disques : io.stat du cgroup s'il existe (LXC) ; sinon (VM : Proxmox
+		// n'active pas le contrôleur io pour qemu.slice) les volumes ZFS ou
+		// LVM de l'invité, vus comme des disques du nœud.
+		lus, ecrits, ok := p.io(inv.io)
+		if !ok {
+			lus, ecrits, ok = p.volumes(inv.id)
+		}
+		if ok {
 			b.Add("mirador_pve_invite_disque_lus_octets_total", float64(lus), l...)
 			b.Add("mirador_pve_invite_disque_ecrits_octets_total", float64(ecrits), l...)
 		}
@@ -160,7 +181,12 @@ func (p *Proxmox) Collecter(b *metrics.Batch) error {
 
 // idInvite : identifiant Proxmox (100 à 999999999), sans expression régulière.
 func idInvite(s string) bool {
-	if len(s) < 3 || len(s) > 9 || s[0] == '0' {
+	return len(s) >= 3 && len(s) <= 9 && s[0] != '0' && chiffres(s)
+}
+
+// chiffres : s n'a que des chiffres (au moins un).
+func chiffres(s string) bool {
+	if s == "" || len(s) > 12 {
 		return false
 	}
 	for i := 0; i < len(s); i++ {
@@ -298,4 +324,91 @@ func (p *Proxmox) pression(chemin, debut string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// Noms des volumes de VM créés par Proxmox :
+//   - ZFS : /dev/zvol/<pool>/[…/]vm-<id>-disk-<n> → ../../zdN
+//   - LVM : /sys/block/dm-N/dm/name = « <vg>-vm--<id>--disk--<n> » (LVM
+//     double les tirets du nom du volume).
+//
+// Partitions (« -partN ») et modèles (« base-… ») ignorés.
+var (
+	reVolumeZFS = regexp.MustCompile(`^vm-([1-9][0-9]{2,8})-disk-[0-9]+$`)
+	reVolumeLVM = regexp.MustCompile(`(^|[^-])-vm--([1-9][0-9]{2,8})--disk--[0-9]+$`)
+)
+
+// listerVolumes : refait la table id → fichiers stat des volumes.
+func (p *Proxmox) listerVolumes() {
+	vols := map[string][]string{}
+	// ZFS : liens de /dev/zvol (deux niveaux au plus : pool/dataset).
+	racine := filepath.Join(p.dev, "zvol")
+	_ = filepath.WalkDir(racine, func(chemin string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if strings.Count(strings.TrimPrefix(chemin, racine), "/") > 3 {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		m := reVolumeZFS.FindStringSubmatch(d.Name())
+		if m == nil || d.Type()&os.ModeSymlink == 0 {
+			return nil
+		}
+		cible, err := os.Readlink(chemin)
+		if err != nil {
+			return nil
+		}
+		if nom := filepath.Base(cible); strings.HasPrefix(nom, "zd") && chiffres(strings.TrimPrefix(nom, "zd")) {
+			vols[m[1]] = append(vols[m[1]], filepath.Join(p.block, nom, "stat"))
+		}
+		return nil
+	})
+	// LVM : nom de chaque dm-N.
+	if entrees, err := os.ReadDir(p.block); err == nil {
+		for _, e := range entrees {
+			if !strings.HasPrefix(e.Name(), "dm-") {
+				continue
+			}
+			brut, err := p.lect.lire(filepath.Join(p.block, e.Name(), "dm", "name"))
+			if err != nil {
+				continue
+			}
+			if m := reVolumeLVM.FindStringSubmatch(string(bytes.TrimSpace(brut))); m != nil {
+				vols[m[2]] = append(vols[m[2]], filepath.Join(p.block, e.Name(), "stat"))
+			}
+		}
+	}
+	p.vols = vols
+}
+
+// volumes : octets lus et écrits sur les volumes d'une VM (fichier « stat »
+// d'un disque : 3e champ = secteurs lus, 7e = secteurs écrits, 512 octets).
+func (p *Proxmox) volumes(id string) (lus, ecrits uint64, ok bool) {
+	for _, chemin := range p.vols[id] {
+		data, err := p.lect.lire(chemin)
+		if err != nil {
+			continue
+		}
+		var champs [7]uint64
+		reste := data
+		n := 0
+		for n < 7 {
+			var c []byte
+			c, reste = champSuivant(reste)
+			v, bon := entier(bytes.TrimSpace(c))
+			if !bon {
+				break
+			}
+			champs[n] = v
+			n++
+		}
+		if n == 7 {
+			lus += champs[2] * 512
+			ecrits += champs[6] * 512
+			ok = true
+		}
+	}
+	return lus, ecrits, ok
 }
