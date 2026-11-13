@@ -721,7 +721,9 @@ refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
 137 Mo de plus vus par systemd sont du cache de fichiers du journal, rendu
 au besoin). Sur ce nœud, Alloy + smartctl_exporter : ~161 Mo (~7 fois plus).
 Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
-l'assistant) → corrigé en 0.2.24 (SPEC § 23.7), script à relancer une fois.
+l'assistant) → 0.2.24 (groupe root) pas suffisant : QEMU protégé par le
+noyau ; 0.2.25 : `CAP_SYS_PTRACE` pour l'assistant (choix du 13/11), script
+à relancer une fois.
 
 Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
