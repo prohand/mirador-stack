@@ -54,6 +54,7 @@ const (
 	longueurMaxToken  = 256
 	intervalleVuLe    = 60 * time.Second
 	prefixeAutorisant = "Bearer "
+	prefixeInflux     = "Token "
 )
 
 // Auth vérifie les tokens des machines. La base ne contient que leur empreinte
@@ -92,13 +93,20 @@ func NouvelleAuth(db *sql.DB) *Auth {
 // Empreinte : ce qui est gardé en base à la place du token.
 func Empreinte(token string) [32]byte { return sha256.Sum256([]byte(token)) }
 
-// extraireToken lit « Authorization: Bearer xxx ». Longueur bornée.
+// extraireToken lit « Authorization: Bearer xxx », ou « Token xxx » (forme
+// d'InfluxDB, envoyée par Telegraf). Longueur bornée.
 func extraireToken(r *http.Request) (string, bool) {
 	h := r.Header.Get("Authorization")
-	if len(h) <= len(prefixeAutorisant) || !strings.EqualFold(h[:len(prefixeAutorisant)], prefixeAutorisant) {
+	prefixe := ""
+	for _, p := range []string{prefixeAutorisant, prefixeInflux} {
+		if len(h) > len(p) && strings.EqualFold(h[:len(p)], p) {
+			prefixe = p
+		}
+	}
+	if prefixe == "" {
 		return "", false
 	}
-	t := strings.TrimSpace(h[len(prefixeAutorisant):])
+	t := strings.TrimSpace(h[len(prefixe):])
 	if len(t) < longueurMinToken || len(t) > longueurMaxToken {
 		return "", false
 	}

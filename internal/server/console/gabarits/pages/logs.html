@@ -1,8 +1,7 @@
 {{define "contenu"}}
 <h1>Logs</h1>
 <form method="get" class="ligne filtres">
-  {{range .D.Champs}}<label>{{.Titre}} <input name="{{.Nom}}" value="{{.Valeur}}" maxlength="200" size="12" {{if egal .Nom "host"}}list="machines-logs"{{end}}></label>{{end}}
-  <datalist id="machines-logs">{{range .D.Machines}}<option value="{{.}}">{{end}}</datalist>
+  {{range .D.Champs}}{{$v := .Valeur}}<label>{{.Titre}} <select name="{{.Nom}}"><option value="">(tous)</option>{{range .Choix}}<option{{if egal . $v}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
   <label>Mots entiers (tous) <input name="mots" value="{{.D.Mots}}" maxlength="200" placeholder="error timeout"></label>
   <label>Texte contenu <input name="contient" value="{{.D.Contient}}" maxlength="200" placeholder="plus lent"></label>
   <label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>

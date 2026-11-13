@@ -3658,9 +3658,58 @@ utilisable pendant la comparaison.
 | Partie | Contenu |
 |---|---|
 | 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
-| 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) |
+| 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
 | 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » |
 | 4 | Syslog TLS + certificat ACME géré dans l'interface |
 | 5 | SNMP v3 (Synology) et sondes de certificats |
 | 6 | Client UniFi natif (unpoller retiré) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
+
+### 23.10 Partie 2 faite (14/11) : entrée InfluxDB v2 **[Fait, à tester avec OPNsense]**
+
+- Adresse : `POST /api/agent/v1/influx/api/v2/write` (Telegraf ajoute
+  `/api/v2/write` à l'URL donnée), `GET …/influx/health` et `…/ping` sans
+  token (réponse fixe). Sous `/api/agent/` : même bloc nginx que les agents.
+- Accueil identique aux agents : token par machine (`Token …` d'InfluxDB
+  accepté en plus de `Bearer …`), adresses autorisées, limites par adresse
+  et par machine, quotas de séries, nom imposé (`instance`) ; étiquette
+  `host` de Telegraf gardée (règles et tableau actuels inchangés).
+- Lecteur du *line protocol* écrit à la main (`ingestion/influx.go`) :
+  échappements, textes ignorés, booléens 1/0, entiers `i` et `u`,
+  précision `ns`/`us`/`ms`/`s`, gzip ; noms `mesure_champ` nettoyés comme
+  VictoriaMetrics. Ligne invalide : ignorée et comptée ; aucune ligne
+  valable : 400 ; au-delà de 4 Mio décompressés, 20 000 séries ou
+  200 000 points : 413.
+- Coût mesuré : pires cas de 4 Mio (champs, tags, lignes, guillemets,
+  antislash) traités en 4 à 120 ms ; un envoi normal d'OPNsense (~300
+  séries toutes les 30 s) : négligeable. Aucune dépendance ajoutée.
+- Menaces : corps piégé (bornes ci-dessus, fuzzing `FuzzDecoderInflux` en
+  CI), étiquettes réservées (`__…`) refusées, valeurs non UTF-8 refusées,
+  NaN / infini refusés ; `/health` sans token ne dit rien (texte fixe) et
+  passe par la limite par adresse ; token d'OPNsense volé : mêmes parades
+  que pour un agent (adresses autorisées, révocation).
+
+### 23.11 Page Logs : listes déroulantes (demande du 14/11) **[Fait, à valider]**
+
+- Chaque filtre (Machine, Source, Niveau, Unité, Conteneur, Site, Type,
+  Groupe) devient une liste « (tous) + valeurs » ; la valeur choisie y est
+  toujours.
+- Machines, sites, types et groupes : base (machines, Réglages › Sites,
+  types et groupes). Niveaux : les 8 niveaux syslog + ceux vus.
+- Source, niveau, unité, conteneur : valeurs **vues dans les lignes
+  reçues** par le moteur de logs, gardées en mémoire (500 par champ au
+  plus, les plus anciennes oubliées). Coût : 4 recherches dans une table
+  par ligne reçue (~16 lignes/s), quelques Ko de mémoire. La liste
+  repart vide au redémarrage du serveur et se remplit au fil des lignes
+  (pas de relecture du disque).
+
+### 23.12 Message « nouvelle adresse » répété (correction du 14/11) **[Fait]**
+
+Les adresses déjà connues d'un compte n'étaient gardées qu'en mémoire :
+après chaque redémarrage du serveur (5 mises à jour le 13/11), la
+connexion suivante redonnait le message. Elles sont maintenant en base
+(table `adresses_connues`, migration 0014 : compte, adresse ou /64 IPv6,
+dernière connexion). Une adresse non revue depuis 30 jours redevient
+« nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
+(comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
+Coût : une lecture et une écriture SQLite par connexion réussie.

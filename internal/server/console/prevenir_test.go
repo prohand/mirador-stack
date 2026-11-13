@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"mirador-stack/internal/server/auth"
 )
 
 // ecouter remplace l'envoi des messages de sécurité par un canal de test.
@@ -42,6 +44,15 @@ func TestMessagesSecurite(t *testing.T) {
 	b.connecter("admin", mdpAdmin, secret)
 	if m := attendre(recus); m != "" {
 		t.Fatalf("adresse déjà connue : message inattendu %q", m)
+	}
+	// Après un redémarrage du serveur (mémoire vide) : toujours rien, les
+	// adresses connues sont en base (correction du 14/11).
+	b.c.verrous = auth.NouveauxVerrous()
+	b.c.messages = antiRafale{}
+	b.h.avancer(2 * time.Hour)
+	b.connecter("admin", mdpAdmin, secret)
+	if m := attendre(recus); m != "" {
+		t.Fatalf("après redémarrage, adresse connue : message inattendu %q", m)
 	}
 
 	// Bon mot de passe puis code faux : un message, pas deux (1 par heure).

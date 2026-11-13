@@ -23,6 +23,7 @@ import (
 	"hash/crc32"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,6 +71,59 @@ type Moteur struct {
 
 	// Compteurs (métriques internes, partie 7).
 	Lignes, Blocs, BlocsAbimes atomic.Uint64
+
+	// vus : valeurs vues des champs proposés en liste dans la page Logs
+	// (champ → valeur → dernière fois, ms). En mémoire seulement : la
+	// liste se remplit de nouveau après un redémarrage, au fil des lignes.
+	vus map[string]map[string]int64
+}
+
+// ChampsListes : champs dont les valeurs vues sont gardées pour les listes.
+var ChampsListes = []string{"job", "level", "unit", "container"}
+
+// maxValeursVues : au-delà, les valeurs les plus anciennes sont oubliées.
+const maxValeursVues = 500
+
+// noterValeurs (m.mu tenu).
+func (m *Moteur) noterValeurs(l *stockage.Ligne) {
+	if m.vus == nil {
+		m.vus = map[string]map[string]int64{}
+	}
+	for _, ch := range ChampsListes {
+		v, ok := l.Champs[ch]
+		if !ok || v == "" || len(v) > 200 {
+			continue
+		}
+		vals := m.vus[ch]
+		if vals == nil {
+			vals = map[string]int64{}
+			m.vus[ch] = vals
+		}
+		if _, connu := vals[v]; !connu && len(vals) >= maxValeursVues {
+			// Oublie la plus ancienne (rare : une valeur nouvelle au-delà de 500).
+			var vieille string
+			var t int64 = math.MaxInt64
+			for k, tv := range vals {
+				if tv < t {
+					vieille, t = k, tv
+				}
+			}
+			delete(vals, vieille)
+		}
+		vals[v] = l.T
+	}
+}
+
+// ValeursVues : valeurs vues d'un champ (ChampsListes), triées.
+func (m *Moteur) ValeursVues(champ string) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.vus[champ]))
+	for v := range m.vus[champ] {
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // fichier : un segment d'une heure.
@@ -211,6 +265,7 @@ func (m *Moteur) Ecrire(_ context.Context, lignes []stockage.Ligne) error {
 			m.debutEnC = m.opt.Maintenant()
 		}
 		m.enCours = append(m.enCours, lignes[i])
+		m.noterValeurs(&lignes[i])
 		m.tailleEnC += len(lignes[i].Msg) + 40
 		for k, v := range lignes[i].Champs {
 			m.tailleEnC += len(k) + len(v)

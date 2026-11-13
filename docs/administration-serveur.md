@@ -27,6 +27,38 @@ Une machine qui change d'adresse reçoit des 403 : elle garde ses données et
 réessaie. `MS machines` montre sa nouvelle adresse (« DERNIÈRE IP ») ; il
 suffit de corriger la liste avec `MS ips`.
 
+## OPNsense (Telegraf) vers mirador
+
+OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin
+`os-telegraf`), au format InfluxDB v2. mirador les reçoit directement
+(SPEC.md § 23.9), sous les mêmes noms qu'aujourd'hui (`cpu_usage_idle`,
+`pf_entries`…, étiquette `host`) : le tableau « OPNsense » et les règles
+importées marchent tels quels.
+
+1. Une machine et son token (affiché une seule fois) :
+
+   ```bash
+   MS token opnsense
+   MS ips opnsense "ADRESSE-PUBLIQUE-DU-PARE-FEU"
+   MS etiquettes -site bureau -env firewall opnsense
+   ```
+
+2. Dans OPNsense, Services › Telegraf › Output, sortie **InfluxDB v2** :
+   - URL : `https://ADRESSE-INGESTION/api/agent/v1/influx` (Telegraf ajoute
+     lui-même `/api/v2/write`) ;
+   - Token : celui de l'étape 1 ;
+   - Organisation et Bucket : au choix (ignorés par mirador).
+
+3. Vérifier : `MS machines` (dernière réception de `opnsense`), puis le
+   tableau « OPNsense ».
+
+Le nom de la machine (`instance`) est imposé par le token ; l'étiquette `host`
+envoyée par Telegraf est gardée. Lignes invalides ignorées et comptées ;
+corps compressé (gzip) accepté ; 4 Mio au plus après décompression.
+Pendant la période en parallèle, une seule sortie InfluxDB v2 est possible
+dans l'interface d'OPNsense : basculer vers mirador coupe l'envoi vers
+VictoriaMetrics (règle `OpnsenseMuet` de l'ancienne pile).
+
 ## Configuration des agents
 
 Document JSON avec seulement les réglages à changer (mêmes noms que la
