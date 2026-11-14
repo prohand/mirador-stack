@@ -365,15 +365,20 @@ func (c *Console) postSecurite(q *req) {
 		if q.r.PostFormValue("defaut") != "" {
 			s = SecuriteDefaut()
 		} else {
-			var e1, e2, e3, e4 error
+			var e1, e2, e3, e4, e5 error
 			s.Inactivite, e1 = lireDureeForm(q, "inactivite")
 			s.DureeMax, e2 = lireDureeForm(q, "duree_max")
 			s.Verrou, e3 = lireDureeForm(q, "verrou")
+			if v := strings.TrimSpace(q.r.PostFormValue("mode_admin")); v == "0" || v == "" {
+				s.ModeAdmin = 0
+			} else {
+				s.ModeAdmin, e5 = lireDureeForm(q, "mode_admin")
+			}
 			s.Echecs, e4 = strconv.Atoi(q.r.PostFormValue("echecs"))
 			if e4 != nil {
 				e4 = errors.New("échecs : nombre attendu")
 			}
-			if err := errors.Join(e1, e2, e3, e4); err != nil {
+			if err := errors.Join(e1, e2, e3, e4, e5); err != nil {
 				return err
 			}
 			s.IPs = strings.TrimSpace(q.r.PostFormValue("ips"))

@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
 	"net/http"
@@ -526,6 +527,11 @@ func TestModelesInterface(t *testing.T) {
 	if _, corps, _ := b.get(c, "/machines/web1/modeles/linux"); !strings.Contains(corps, "<code>nginx.service</code>") {
 		t.Error("services du modèle absents de la page des seuils")
 	}
+	// Services suggérés cochés : ajoutés à la liste (sans doublon).
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"services_ajouter"}, "modele": {"linux"}, "s": {"chrony.service", "ssh.service"}})
+	if l, _ := modeles.Services(ctx, b.c.db, modeles.Trouver("linux")); strings.Join(l, ",") != "chrony.service,nginx.service,ssh.service" {
+		t.Errorf("services après ajout : %v", l)
+	}
 	// Application automatique : réglage enregistré.
 	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"auto"}, "auto": {"oui"}})
 	if !modeles.LireAuto(ctx, b.c.db) {
@@ -562,6 +568,23 @@ func TestModeAdmin(t *testing.T) {
 	b.post(c, "/compte/codes-secours", url.Values{"csrf": {csrf}})
 	if _, corps, _ = b.get(c, "/compte"); strings.Contains(corps, `class="codes-secours"`) {
 		t.Error("codes de secours recréés sans code 2FA")
+	}
+	// Durée réglée à 0 (Réglages › Sécurité) : le mode est désactivé.
+	sec := SecuriteDefaut()
+	sec.ModeAdmin = 0
+	b.c.securite.Store(&sec)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle1}})
+	if _, corps, _ = b.get(c, "/mises-a-jour"); strings.Contains(corps, cle1) {
+		t.Error("mode administration désactivé : action sans code acceptée")
+	}
+	sec = SecuriteDefaut()
+	b.c.securite.Store(&sec)
+	for _, mauvais := range []time.Duration{30 * time.Second, 2 * time.Hour} {
+		s := SecuriteDefaut()
+		s.ModeAdmin = alertes.Duree(mauvais)
+		if s.Valider() == nil {
+			t.Errorf("mode administration %v accepté", mauvais)
+		}
 	}
 	// Quitter : le code est de nouveau demandé.
 	b.post(c, "/mode-admin/quitter", url.Values{"csrf": {csrf}})

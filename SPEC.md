@@ -3855,3 +3855,20 @@ liste des machines. Rien n'est attribué sans validation.
 4. **Page « Modèles »** : tableau modèles × groupes avec un seul
    « Enregistrer », nombre de machines et de détections sans attribution ;
    détail replié par modèle (règles, services, seuils par groupe).
+
+### 24.9 Retours du 14/11 : 100 modèles, services détectés, durée du mode administration **[Fait, à valider]**
+
+- **Beaucoup de modèles** : le tableau modèles × groupes et la liste des
+  cases d'une machine ont le filtre et le tri communs à tous les tableaux
+  (champ « Filtrer » dès 6 lignes, tri par colonne). Les détails restent
+  repliés. Avec les modèles personnels (partie C), une « famille » (Système,
+  Matériel, Applications, Réseau) pourra ranger la liste si besoin.
+- **Services** : l'agent voit les services de chaque machine (tous, ou les
+  services validés en mode « un par un »). La liste d'un modèle reste
+  choisie par l'admin, mais la page « Modèles » **suggère** les services vus
+  sur **toutes** les machines du modèle et **pas** sur toutes les autres
+  (propres au modèle), hors services de base (systemd-*, ssh, cron, dbus…)
+  et déjà listés, 20 au plus : cases cochées, « Ajouter à la liste ».
+- **Durée du mode administration** réglable dans Réglages › Sécurité
+  (`mode_admin`) : 0 = désactivé (code à chaque action sensible), 1 min à
+  1 h, défaut 10 min. Changer ce réglage demande un code frais (sécurité).

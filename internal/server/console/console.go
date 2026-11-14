@@ -448,22 +448,33 @@ func (c *Console) echecSensible(q *req, raison string) error {
 	return nil
 }
 
-// DureeModeAdmin : durée du mode administration après un code 2FA juste.
+// DureeModeAdmin : durée par défaut du mode administration (réglable dans
+// Réglages › Sécurité : 0 à 60 min).
 const DureeModeAdmin = 10 * time.Minute
+
+// dureeModeAdmin : durée réglée (0 = mode administration désactivé).
+func (c *Console) dureeModeAdmin() time.Duration {
+	if s := c.securite.Load(); s != nil {
+		return time.Duration(s.ModeAdmin)
+	}
+	return DureeModeAdmin
+}
 
 // verifierCode : code 2FA d'une action sensible (brief). Mode administration
 // (demande du 14/11) : sans code saisi, accepté tant que le mode est ouvert
 // (10 min après le dernier code juste, comme le « sudo » de GitHub).
 func (c *Console) verifierCode(q *req) error {
-	if strings.TrimSpace(q.r.PostFormValue("code")) == "" && q.t.Before(q.s.AdminJusqua) {
+	if strings.TrimSpace(q.r.PostFormValue("code")) == "" && q.t.Before(q.s.AdminJusqua) && c.dureeModeAdmin() > 0 {
 		return nil
 	}
 	if err := c.verifierCodeFrais(q); err != nil {
 		return err
 	}
-	jusqua := q.t.Add(DureeModeAdmin)
-	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = jusqua })
-	q.s.AdminJusqua = jusqua
+	if d := c.dureeModeAdmin(); d > 0 {
+		jusqua := q.t.Add(d)
+		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = jusqua })
+		q.s.AdminJusqua = jusqua
+	}
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -263,6 +264,7 @@ func lireParametres(mod *modeles.Modele, f func(string) string) (map[string]floa
 type vueCatalogue struct {
 	M        *modeles.Modele
 	Services []string
+	Suggeres []string          // services vus sur toutes ses machines (et pas partout)
 	Groupes  []vueGroupeModele // groupes qui le portent (seuils du groupe)
 	Cases    []vueCaseGroupe   // une case par groupe (tableau)
 	NbMach   int
@@ -316,9 +318,11 @@ func (c *Console) pageModeles(q *req) {
 			effsParMachine[m.ID][e.Modele.Nom] = true
 		}
 	}
+	servicesVus := c.servicesParMachine(ctx, q.t)
 	for _, mod := range modeles.Fournis() {
 		vc := vueCatalogue{M: mod}
 		vc.Services, _ = modeles.Services(ctx, c.db, mod)
+		vc.Suggeres = suggererServices(mod.Nom, vc.Services, ms, effsParMachine, servicesVus)
 		for _, g := range l.Groupes {
 			a, porte := parGroupe[g][mod.Nom]
 			vc.Cases = append(vc.Cases, vueCaseGroupe{Groupe: g, Coche: porte})
@@ -369,6 +373,28 @@ func (c *Console) postModeles(q *req) {
 			if actif {
 				ok = "application automatique activée : les modèles détectés seront appliqués et signalés"
 			}
+		case "services_ajouter":
+			mod := modeles.Trouver(f("modele"))
+			if mod == nil {
+				err = errors.New("modèle inconnu")
+				break
+			}
+			vers += "#" + url.PathEscape(mod.Nom)
+			var l []string
+			if l, err = modeles.Services(ctx, c.db, mod); err == nil {
+				vu := map[string]bool{}
+				for _, x := range l {
+					vu[x] = true
+				}
+				_ = q.r.ParseForm()
+				for _, x := range q.r.PostForm["s"] {
+					if !vu[x] {
+						l, vu[x] = append(l, x), true
+					}
+				}
+				err = modeles.DefinirServices(ctx, c.db, mod.Nom, l, q.qui(), q.t)
+			}
+			ok = "services ajoutés à « " + mod.Titre + " »"
 		case "services":
 			mod := modeles.Trouver(f("modele"))
 			if mod == nil {
@@ -500,3 +526,85 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 
 // formatSeuil : valeur d'un paramètre pour un champ de formulaire.
 func formatSeuil(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+
+// servicesParMachine : services vus par l'agent sur chaque machine (une
+// série node_systemd_unit_state par service chargé et suivi).
+func (c *Console) servicesParMachine(ctx context.Context, t time.Time) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	ech, err := c.instant(ctx, `max by (instance, name) (node_systemd_unit_state{state="failed", name=~".+\\.service"})`, t)
+	if err != nil {
+		return out
+	}
+	for _, e := range ech {
+		i, n := e.Etiquettes.Get("instance"), e.Etiquettes.Get("name")
+		if out[i] == nil {
+			out[i] = map[string]bool{}
+		}
+		out[i][n] = true
+	}
+	return out
+}
+
+// servicesSysteme : services de base, jamais suggérés.
+var servicesSysteme = []string{"systemd-", "user@", "getty@", "serial-getty@", "dbus", "polkit", "rsyslog", "cron", "ssh",
+	"networking", "ifup@", "apparmor", "e2scrub", "fstrim", "logrotate", "man-db", "apt-daily", "unattended-upgrades", "qemu-guest-agent"}
+
+// maxSuggestions : services suggérés par modèle.
+const maxSuggestions = 20
+
+// suggererServices : services vus sur TOUTES les machines du modèle et pas
+// sur toutes les autres machines (sinon ce n'est pas propre au modèle), hors
+// services de base et déjà listés.
+func suggererServices(modele string, deja []string, ms []flotte.InfoMachine, effs map[int64]map[string]bool, vus map[string]map[string]bool) []string {
+	var avec, sans []string
+	for _, m := range ms {
+		e, ok := effs[m.ID]
+		if !ok || vus[m.Nom] == nil {
+			continue // machine sans données systemd : ne compte pas
+		}
+		if e[modele] {
+			avec = append(avec, m.Nom)
+		} else {
+			sans = append(sans, m.Nom)
+		}
+	}
+	if len(avec) == 0 || len(sans) == 0 {
+		return nil
+	}
+	listes := map[string]bool{}
+	for _, d := range deja {
+		listes[d] = true
+	}
+	var out []string
+	for n := range vus[avec[0]] {
+		if listes[n] || !modeles.ReService.MatchString(n) {
+			continue
+		}
+		base := false
+		for _, p := range servicesSysteme {
+			if strings.HasPrefix(n, p) {
+				base = true
+				break
+			}
+		}
+		if base {
+			continue
+		}
+		partout := true
+		for _, m := range avec[1:] {
+			partout = partout && vus[m][n]
+		}
+		ailleurs := true
+		for _, m := range sans {
+			ailleurs = ailleurs && vus[m][n]
+		}
+		if partout && !ailleurs {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	if len(out) > maxSuggestions {
+		out = out[:maxSuggestions]
+	}
+	return out
+}

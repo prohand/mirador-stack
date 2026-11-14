@@ -8,6 +8,7 @@
   <label>Durée maximale d'une session <input name="duree_max" value="{{.D.S.DureeMax}}" required maxlength="10"> <small>1 h à 7 j, défaut {{.D.Defaut.DureeMax}}</small></label>
   <label>Échecs avant verrouillage (par adresse) <input type="number" name="echecs" min="3" max="50" value="{{.D.S.Echecs}}" required> <small>3 à 50, défaut {{.D.Defaut.Echecs}} ; le compte est verrouillé au triple</small></label>
   <label>Durée du verrouillage <input name="verrou" value="{{.D.S.Verrou}}" required maxlength="10"> <small>1 min à 24 h, défaut {{.D.Defaut.Verrou}}</small></label>
+  <label>Mode administration : plus de code 2FA pendant <input name="mode_admin" value="{{.D.S.ModeAdmin}}" maxlength="10"> <small>après un code juste ; 0 = désactivé (code à chaque action sensible), 1 min à 1 h, défaut {{.D.Defaut.ModeAdmin}}. La sécurité des comptes demande toujours le code.</small></label>
   <label>Adresses autorisées (vide = toutes ; virgules ; préfixes acceptés) <textarea name="ips" rows="3" maxlength="4096">{{.D.S.IPs}}</textarea>
     <small>Votre adresse : <code>{{.D.MonIP}}</code>. Un changement de cette liste doit être <strong>confirmé dans les 2 minutes</strong>, sinon l'ancienne revient.</small></label>
   <label class="case"><input type="checkbox" name="passkey_seule" value="1" {{if not .D.S.SansPasskeySeule}}checked{{end}}> Autoriser la connexion par passkey seule (sans mot de passe) <small>L'appareil doit alors vérifier l'utilisateur (code PIN, empreinte, visage). Décochée : la passkey ne remplace que le code 2FA, après le mot de passe.</small></label>

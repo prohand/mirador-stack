@@ -14,7 +14,7 @@
 <section class="carte">
 <h2>Modèles par groupe</h2>
 {{if $d.Groupes}}<form method="post" action="/modeles">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="groupes">
-<div class="defile"><table class="matrice" data-sans-tri><thead><tr><th>Modèle</th>{{range $d.Groupes}}<th>{{.}}</th>{{end}}<th>Machines</th></tr></thead><tbody>
+<div class="defile"><table class="matrice"><thead><tr><th>Modèle</th>{{range $d.Groupes}}<th>{{.}}</th>{{end}}<th>Machines</th></tr></thead><tbody>
 {{range $d.Catalogue}}{{$mod := .M}}<tr><td><a href="#{{$mod.Nom}}"><strong>{{$mod.Titre}}</strong></a></td>
 {{range .Cases}}<td><input type="checkbox" name="a" value="{{.Groupe}}|{{$mod.Nom}}" aria-label="{{$mod.Titre}} pour le groupe {{.Groupe}}" {{if .Coche}}checked{{end}} {{if not $.Admin}}disabled{{end}}></td>{{end}}
 <td><small>{{.NbMach}}{{if .NbDetec}} · <span class="pastille attention" title="Détecté sans être appliqué">★ {{.NbDetec}}</span>{{end}}</small></td></tr>{{end}}
@@ -25,10 +25,13 @@
 
 <h2>Détail des modèles</h2>
 <p><small><strong>Services attendus</strong> : surveillés sur toutes les machines du modèle (même si elles ne surveillent que les services validés un par un), avec une alerte si l'un d'eux n'existe pas. Un service en échec ou arrêté est signalé par les règles des services.</small></p>
-{{range $d.Catalogue}}{{$mod := .M}}<details class="carte modele" id="{{$mod.Nom}}"><summary><strong>{{$mod.Titre}}</strong> <small class="sous">{{len $mod.Regles}} règle(s) · {{len $mod.Parametres}} seuil(s) · {{len .Services}} service(s)</small></summary>
+{{range $d.Catalogue}}{{$mod := .M}}<details class="carte modele" id="{{$mod.Nom}}"><summary><strong>{{$mod.Titre}}</strong> <small class="sous">{{len $mod.Regles}} règle(s) · {{len $mod.Parametres}} seuil(s) · {{len .Services}} service(s)</small>{{if .Suggeres}} <span class="pastille attention">★ {{len .Suggeres}} service(s) suggéré(s)</span>{{end}}</summary>
 <p>{{$mod.Description}}</p>
 {{if $mod.Regles}}<h3>Règles</h3><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul>{{end}}
 <h3>Services attendus</h3>
+{{if .Suggeres}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services_ajouter">
+<p>★ Vus sur toutes les machines du modèle (et pas sur toutes les autres) : {{range $i, $x := .Suggeres}}{{if $i}}, {{end}}<label class="case"><input type="checkbox" name="s" value="{{$x}}" checked> <code>{{$x}}</code></label>{{end}}</p>
+{{if $.Admin}}{{template "code2fa"}}<button class="secondaire">Ajouter à la liste</button>{{end}}</form>{{end}}
 <form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services">
 <label>Services (séparés par des virgules) <input name="services" value="{{range $i, $x := .Services}}{{if $i}}, {{end}}{{$x}}{{end}}" size="60" maxlength="4000" placeholder="nginx.service, php8.2-fpm.service" {{if not $.Admin}}disabled{{end}}></label>
 {{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form>

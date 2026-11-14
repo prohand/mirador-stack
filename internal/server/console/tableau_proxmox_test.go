@@ -179,3 +179,23 @@ func TestModelesAuto(t *testing.T) {
 		t.Errorf("revenu après retrait : %+v", effs)
 	}
 }
+
+// Services suggérés pour un modèle : sur toutes ses machines, pas partout,
+// hors services de base et déjà listés.
+func TestSuggererServices(t *testing.T) {
+	ms := []flotte.InfoMachine{{ID: 1, Nom: "a"}, {ID: 2, Nom: "b"}, {ID: 3, Nom: "c"}, {ID: 4, Nom: "muette"}}
+	effs := map[int64]map[string]bool{1: {"docker": true}, 2: {"docker": true}, 3: {}, 4: {"docker": true}}
+	vus := map[string]map[string]bool{
+		"a": {"docker.service": true, "containerd.service": true, "nginx.service": true, "ssh.service": true, "systemd-journald.service": true, "commun.service": true},
+		"b": {"docker.service": true, "containerd.service": true, "ssh.service": true, "commun.service": true},
+		"c": {"ssh.service": true, "commun.service": true},
+	}
+	got := suggererServices("docker", []string{"docker.service"}, ms, effs, vus)
+	if strings.Join(got, ",") != "containerd.service" {
+		t.Errorf("suggérés : %v", got)
+	}
+	// Modèle porté par toutes les machines : rien à suggérer.
+	if got := suggererServices("docker", nil, ms[:2], effs, vus); got != nil {
+		t.Errorf("modèle partout : %v", got)
+	}
+}
