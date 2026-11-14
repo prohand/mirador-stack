@@ -50,6 +50,9 @@ type Lien struct {
 	Installateur *majagent.Installateur // nil : pas de mise à jour
 	// Redemarrer arrête l'agent proprement ; systemd le relance.
 	Redemarrer func(raison string)
+	// CSRSyslog : demande de certificat du syslog (mirador-collector), jointe
+	// à chaque battement ('' : rien).
+	CSRSyslog string
 
 	demarrage time.Time
 	mu        sync.Mutex
@@ -175,7 +178,7 @@ func (l *Lien) boucleBattement(ctx context.Context) {
 }
 
 func (l *Lien) battre(ctx context.Context) error {
-	b := protocole.Battement{Version: version.Version, Architecture: runtime.GOARCH, Demarrage: l.demarrage}
+	b := protocole.Battement{Version: version.Version, Architecture: runtime.GOARCH, Demarrage: l.demarrage, CSRSyslog: l.CSRSyslog}
 	if l.Installateur != nil {
 		if e, _ := l.Installateur.EnEssai(); e != nil {
 			b.MajEssai = e.Nouveau

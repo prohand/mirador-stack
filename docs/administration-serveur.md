@@ -44,6 +44,19 @@ relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
    équipements, ou les créer depuis Machines › Équipement sans agent ›
    *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
 
+Syslog TLS (partie 4), sur la page du collecteur :
+
+1. *Réglages du certificat* (une fois pour tous les collecteurs) : zone chez
+   deSEC (ex. `exemple.org`) et jeton deSEC limité à
+   `_acme-challenge.<nom du certificat>`.
+2. *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
+   `192.168.1.10:6514`), nom du certificat (ex. `syslog.lan.exemple.org`,
+   qui doit pointer vers cette adresse : DNS du LAN ou enregistrement A),
+   émetteurs « adresse équipement ».
+3. Le collecteur envoie sa demande, le serveur obtient le certificat (1 à
+   5 min), le collecteur ouvre l'écoute. Sur chaque équipement : syslog en
+   TCP + TLS vers le nom du certificat et le port choisi.
+
 Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
 Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
 

@@ -4,12 +4,17 @@ package flotte
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,6 +22,7 @@ import (
 
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/certsyslog"
 )
 
 // Collecteur (SPEC § 23.13) : type choisi au jeton, équipements rattachés,
@@ -164,5 +170,33 @@ func TestMisesAJourCollecteur(t *testing.T) {
 	vs, _ := ListerVersions(ctx, b.db)
 	if len(vs) != 2 {
 		t.Errorf("versions : %+v", vs)
+	}
+}
+
+// Demande de certificat du syslog jointe au battement : rangée pour un
+// collecteur, ignorée pour un agent, refusée si illisible.
+func TestBattementCSR(t *testing.T) {
+	b := nouveauBanc(t)
+	cle, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "syslog.lan.exemple.org"},
+		DNSNames: []string{"syslog.lan.exemple.org"}}, cle)
+	csr := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}))
+	tokA, _ := TokenManuel(ctx, b.db, "pc", "admin", t0)
+	tokC, _ := TokenManuel(ctx, b.db, "collecteur-lan", "admin", t0)
+	_, _ = b.db.Exec(`UPDATE machines SET type = 'collecteur' WHERE nom = 'collecteur-lan'`)
+	b.f.opt.Ingestion.Auth().Oublier()
+	for _, tok := range []string{tokA, tokC} {
+		corps, _ := json.Marshal(protocole.Battement{Version: "1.0.0", Architecture: "amd64", CSRSyslog: csr})
+		if w := b.requete(http.MethodPost, protocole.CheminBattement, tok, corps, ""); w.Code != http.StatusNoContent {
+			t.Fatalf("battement : %d", w.Code)
+		}
+	}
+	idA, _ := IDMachine(ctx, b.db, "pc")
+	idC, _ := IDMachine(ctx, b.db, "collecteur-lan")
+	if e, _ := certsyslog.LireEtat(ctx, b.db, idC); !e.CSR {
+		t.Error("demande du collecteur non rangée")
+	}
+	if e, _ := certsyslog.LireEtat(ctx, b.db, idA); e.CSR {
+		t.Error("demande d'un agent rangée")
 	}
 }

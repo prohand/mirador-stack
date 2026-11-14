@@ -64,3 +64,70 @@ func TestCollecteurInterface(t *testing.T) {
 		t.Error("rattachement sans code 2FA")
 	}
 }
+
+// Syslog TLS dans l'interface (SPEC § 23.14) : réglages vérifiés, posés
+// dans la configuration du collecteur ; certificat ajouté par le serveur ;
+// jeton deSEC chiffré et jamais réaffiché.
+func TestSyslogInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	csrf := b.csrf(c, "/machines")
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 1), ('nas', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
+	idNas, _ := flotte.IDMachine(ctx, b.c.db, "nas")
+	if err := flotte.RattacherEquipement(ctx, b.c.db, idC, idNas, "admin", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	b.h.avancer(31 * time.Second)
+	formulaire := url.Values{"csrf": {csrf}, "action": {"syslog"}, "ecoute": {"203.0.113.5:6514"}, "nom_certificat": {"syslog.lan.exemple.org"},
+		"emetteurs": {"192.168.1.20 nas"}, "code": {b.code(secret)}}
+	b.post(c, "/machines/collecteur-lan", formulaire)
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(doc), "syslog") {
+		t.Fatal("écoute sur une adresse publique acceptée")
+	}
+	formulaire.Set("ecoute", "192.168.1.10:6514")
+	formulaire.Set("emetteurs", "192.168.1.30 inconnu")
+	formulaire.Del("code")
+	b.post(c, "/machines/collecteur-lan", formulaire)
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(doc), "syslog") {
+		t.Fatal("émetteur d'un équipement non rattaché accepté")
+	}
+	formulaire.Set("emetteurs", "192.168.1.20 nas\n# commentaire\n192.168.2.0/24 nas")
+	b.post(c, "/machines/collecteur-lan", formulaire)
+	cfg, err := flotte.ConfigEffective(ctx, b.c.db, idC)
+	if err != nil || cfg.Collecteur == nil || cfg.Collecteur.Syslog == nil || len(cfg.Collecteur.Syslog.Emetteurs) != 2 || cfg.Collecteur.Syslog.Certificat != "" {
+		t.Fatalf("syslog enregistré : %+v %v", cfg.Collecteur, err)
+	}
+	if _, corps, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `id="syslog"`) || !strings.Contains(corps, "Pas encore de demande du collecteur") {
+		t.Error("état du certificat absent")
+	}
+	// Réglages deSEC : jeton chiffré, jamais réaffiché.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "domaine": {"exemple.org"}, "jeton": {"jeton-desec-tres-secret"}})
+	_, corps, _ := b.get(c, "/machines/collecteur-lan")
+	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") {
+		t.Error("jeton deSEC réaffiché ou non enregistré")
+	}
+	// Certificat obtenu (simulé) : posé dans la configuration du collecteur.
+	if _, err := b.c.db.Exec(`INSERT INTO certificats_syslog(machine_id, nom, csr, certificat, fin, obtenu_le) VALUES (?, 'syslog.lan.exemple.org', 'x', 'CHAINE-PEM', 4102444800, 1)`, idC); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); cfg.Collecteur.Syslog.Certificat != "CHAINE-PEM" {
+		t.Errorf("certificat non posé : %q", cfg.Collecteur.Syslog.Certificat)
+	}
+	if _, corps, _ = b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, "Obtenu") {
+		t.Error("certificat obtenu non affiché")
+	}
+	// Équipement détaché : ses émetteurs disparaissent de la configuration.
+	_ = flotte.DetacherEquipement(ctx, b.c.db, idNas, "admin", time.Now())
+	if cfg, err = flotte.ConfigEffective(ctx, b.c.db, idC); err != nil || len(cfg.Collecteur.Syslog.Emetteurs) != 0 {
+		t.Errorf("émetteurs d'un équipement détaché : %+v %v", cfg.Collecteur.Syslog, err)
+	}
+	// Arrêter le syslog.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"syslog_retirer"}})
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(doc), "syslog") {
+		t.Error("syslog non retiré")
+	}
+}

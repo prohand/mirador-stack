@@ -743,7 +743,8 @@ de style de même taille ; objectif serveur inchangé ✅.
 | 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait** ; 13/11 : agent 0.2.23 sur un nœud Proxmox 9.2, assistant au format 3, invités nommés dans le tableau ; disque des VM qcow2 et mesure 24 h à confirmer |
 | 2. Entrée InfluxDB (OPNsense) | **fait** (14/11), testé + fuzzing ; à brancher sur OPNsense (`docs/administration-serveur.md`) |
 | 3. `mirador-collector` : squelette, enrôlement (type au jeton), configuration, mise à jour signée par produit, équipements rattachés et contrôlés à l'arrivée, script d'installation | **fait** (14/11), testé (simulations, interface) ; à installer sur le LAN |
-| 4 à 7 | à faire (syslog TLS + ACME, SNMP v3 et sondes, UniFi natif, mesures et retrait d'Alloy) |
+| 4. Syslog TLS (adresse privée, émetteurs filtrés avant le TLS, RFC 5425/5424/3164, fuzzing) + certificat ACME (Let's Encrypt, défi DNS deSEC fait par le serveur, renouvellement, « Renouveler maintenant ») | **fait** (14/11), testé (TLS réel, faux ACME et faux deSEC, interface) ; à brancher sur le LAN |
+| 5 à 7 | à faire (SNMP v3 et sondes, UniFi natif, mesures et retrait d'Alloy) |
 
 Première mesure sur le nœud Proxmox (13/11, 37 min après le démarrage, à
 refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
@@ -753,6 +754,10 @@ Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
 l'assistant) → 0.2.24 (groupe root) pas suffisant : QEMU protégé par le
 noyau ; 0.2.25 : `CAP_SYS_PTRACE` pour l'assistant (choix du 13/11), script
 relancé : **disques des VM qcow2 mesurés** (vérifié le 13/11).
+
+Mesure partie 4 (banc d'essai) : 7 µs par ligne syslog (lecture, masquage,
+mise en lot) ; ~0,0005 % d'un cœur au rythme actuel, 0,35 % à 500 lignes/s ;
+mémoire bornée (file de 1 000 lignes, lots de 512 Kio, envoi 4 Mio).
 
 Mesure partie 3 (binaire réel, au repos, 40 s) : collecteur **12,5 Mo**
 résidents (4,5 Mo de mémoire propre), < 10 ms de CPU, binaire 7,7 Mo.

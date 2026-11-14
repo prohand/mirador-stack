@@ -125,11 +125,15 @@ type Battement struct {
 	Demarrage    time.Time `json:"demarrage"`
 	MajEssai     string    `json:"maj_essai,omitempty"` // version en cours d'essai
 	MajEchec     string    `json:"maj_echec,omitempty"` // dernier échec de mise à jour
+	// CSRSyslog : demande de certificat (PEM) du syslog de mirador-collector
+	// (SPEC § 23.14) ; le serveur fait la démarche ACME et renvoie le
+	// certificat dans la configuration.
+	CSRSyslog string `json:"csr_syslog,omitempty"`
 }
 
 // Bornes des messages JSON de l'agent (le serveur refuse au-delà).
 const (
-	TailleMaxDemande   = 4 << 10 // enrôlement, battement
+	TailleMaxDemande   = 8 << 10 // enrôlement, battement (CSR du syslog comprise)
 	DelaiEnrolementDef = 30      // secondes entre deux demandes d'enrôlement
 )
 

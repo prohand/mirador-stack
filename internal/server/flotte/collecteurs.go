@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"mirador-stack/internal/server/certsyslog"
 )
 
 // Collecteurs (SPEC § 23.13) : une machine de type « collecteur »
@@ -155,6 +157,44 @@ func configCollecteur(ctx context.Context, db *sql.DB, collecteur int64, saisie 
 	for _, q := range eqs {
 		if q.Statut == "approuvee" {
 			noms = append(noms, q.Nom)
+		}
+	}
+	// Syslog réglé : certificat obtenu par le serveur (ACME), posé ici,
+	// jamais saisi à la main.
+	if sl, ok := m["syslog"]; ok {
+		var sys map[string]json.RawMessage
+		if err := json.Unmarshal(sl, &sys); err != nil {
+			return nil, fmt.Errorf("réglage « syslog » : %w", err)
+		}
+		delete(sys, "certificat")
+		// Émetteurs d'équipements détachés : retirés (le collecteur refuserait
+		// sinon toute la configuration).
+		if brut, ok := sys["emetteurs"]; ok {
+			var ems []map[string]string
+			if json.Unmarshal(brut, &ems) == nil {
+				rattache := map[string]bool{}
+				for _, n := range noms {
+					rattache[n] = true
+				}
+				garde := ems[:0]
+				for _, e := range ems {
+					if rattache[e["machine"]] {
+						garde = append(garde, e)
+					}
+				}
+				sys["emetteurs"], _ = json.Marshal(garde)
+			}
+		}
+		if e, err := certsyslog.LireEtat(ctx, db, collecteur); err == nil && e.Certificat != "" {
+			var nom string
+			_ = json.Unmarshal(sys["nom_certificat"], &nom)
+			if e.Nom == nom {
+				brut, _ := json.Marshal(e.Certificat)
+				sys["certificat"] = brut
+			}
+		}
+		if m["syslog"], err = json.Marshal(sys); err != nil {
+			return nil, err
 		}
 	}
 	delete(m, "equipements")

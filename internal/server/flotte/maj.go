@@ -20,6 +20,7 @@ import (
 
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/certsyslog"
 )
 
 // formatVersionPubliee : versions « 1.2.3 » seulement (comme l'agent).
@@ -267,6 +268,13 @@ func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
 		!utf8.ValidString(b.MajEssai+b.MajEchec) || !formatTexteCourt.MatchString(b.MajEssai) || !formatTexteCourt.MatchString(b.MajEchec) {
 		erreur(w, http.StatusBadRequest, "battement invalide")
 		return
+	}
+	// Demande de certificat du syslog (collecteur seulement, SPEC § 23.14) :
+	// vérifiée et rangée ; un agent qui en enverrait une est ignoré.
+	if b.CSRSyslog != "" && m.Type == "collecteur" {
+		if err := certsyslog.NoterCSR(r.Context(), f.opt.DB, m.ID, b.CSRSyslog, f.opt.Maintenant()); err != nil {
+			f.opt.Journal.Warn("demande de certificat du syslog refusée", "collecteur", m.Nom, "erreur", err)
+		}
 	}
 	f.mu.Lock()
 	f.battements[m.ID] = battement{le: f.opt.Maintenant().Unix(), b: b, capacites: capacitesDe(r)}

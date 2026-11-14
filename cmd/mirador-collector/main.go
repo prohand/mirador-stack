@@ -118,9 +118,20 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 
 	journal.Info("démarrage", "version", version.Complete(), "collecteur", cfg.Nom,
 		"destination", cfg.URLMetriques, "equipements", len(cfg.Collecteur.Equipements))
-	a := agent.NouveauAvec(cfg, token, journal, agent.Options{Collecteurs: collecteur.Collecteurs(cfg), Job: collecteur.Job})
+	// Syslog TLS (partie 4) : clé locale, demande de certificat jointe au
+	// battement, écoute dès que le certificat est reçu.
+	sys, err := collecteur.NouveauSyslog(cfg, token, journal)
+	if err != nil {
+		journal.Error("syslog désactivé", "erreur", err)
+	}
+	mesures := collecteur.Collecteurs(cfg)
+	csr := ""
+	if sys != nil {
+		mesures, csr = append(mesures, sys), sys.CSR
+	}
+	a := agent.NouveauAvec(cfg, token, journal, agent.Options{Collecteurs: mesures, Job: collecteur.Job})
 	if cfg.Serveur != "" {
-		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal,
+		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
 			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
@@ -132,7 +143,15 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	ctxEnvoi, arreterEnvoi := context.WithCancel(context.Background())
 	defer arreterEnvoi()
 	go a.Envoyer(ctxEnvoi)
+	sysFini := make(chan struct{})
+	go func() {
+		if sys != nil {
+			sys.Tourner(ctx, ctxEnvoi)
+		}
+		close(sysFini)
+	}()
 	a.Tourner(ctx)
+	<-sysFini // dernier lot syslog mis en file
 
 	journal.Info("arrêt demandé, envoi des derniers lots")
 	a.Vider(5 * time.Second)

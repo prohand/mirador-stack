@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/certsyslog"
 	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
@@ -110,6 +111,20 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 			}
 			if m.MajEchec != "" {
 				ajout("mirador_machine_maj_echec", 1, "instance", m.Nom, "version", m.MajEchec)
+			}
+			// Certificat du syslog d'un collecteur (SPEC § 23.14) : échéance et
+			// dernier essai en échec (règles CertificatSyslog…).
+			if m.Type == "collecteur" {
+				if e, err := certsyslog.LireEtat(ctx, s.db, m.ID); err == nil && e.CSR {
+					if e.Fin > 0 {
+						ajout("mirador_collecteur_certificat_fin_timestamp_seconds", float64(e.Fin), "instance", m.Nom)
+					}
+					echec := 0.0
+					if e.Erreur != "" {
+						echec = 1
+					}
+					ajout("mirador_collecteur_certificat_echec", echec, "instance", m.Nom)
+				}
 			}
 			// Modèles de surveillance (SPEC § 24.2) : seuil effectif de chaque
 			// paramètre (les règles des modèles s'y comparent) et règles

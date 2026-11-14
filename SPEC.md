@@ -3660,7 +3660,7 @@ utilisable pendant la comparaison.
 | 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
 | 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
 | 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » — **fait le 14/11** (§ 23.13) |
-| 4 | Syslog TLS + certificat ACME géré dans l'interface |
+| 4 | Syslog TLS + certificat ACME géré dans l'interface — **fait le 14/11** (§ 23.14) |
 | 5 | SNMP v3 (Synology) et sondes de certificats |
 | 6 | Client UniFi natif (unpoller retiré) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
@@ -3788,6 +3788,81 @@ unpoller ≈ 180 Mo). Serveur : une lecture SQL par collecteur toutes les
 - Agent qui s'annoncerait collecteur : le type vient du jeton créé par
   l'admin ; la capacité seule n'ouvre que la clé `collecteur` de sa
   configuration, sans droit d'envoi en plus.
+
+### 23.14 Partie 4 faite (14/11) : syslog TLS et certificat ACME **[Fait, à tester sur le LAN]**
+
+**Réception (collecteur)**
+- Réglage par collecteur (page du collecteur › *Syslog TLS*, clé
+  `collecteur.syslog`) : adresse d'écoute (**IP privée** du LAN : port ≥ 1024,
+  6514 conseillé ; jamais `0.0.0.0`, la boucle locale ni une adresse
+  publique : refusé à l'enregistrement et revérifié au démarrage), nom du
+  certificat, **émetteurs** « adresse ou réseau du LAN → équipement
+  rattaché », `filterlog` jeté par défaut.
+- Un émetteur inconnu est coupé **avant** la poignée de main TLS. 32
+  connexions au plus, 4 par adresse, 10 s pour la poignée de main, 5 min
+  sans rien = fermée. TLS 1.2 minimum.
+- Lecteur écrit à la main (trames RFC 5425 « longueur espace message », ou
+  une ligne par message ; formats RFC 5424 et RFC 3164), 8 Kio par message,
+  UTF-8 rendu valide, testé par fuzzing (CI). Le fuzzing a trouvé un défaut
+  avant la livraison (nom du programme qui dépassait 48 octets après
+  remplacement des caractères invalides) : corrigé.
+- L'**hôte vient de l'adresse** de l'émetteur, jamais du message. Heure :
+  celle du message RFC 5424 si elle est plausible (−24 h, +5 min), sinon
+  l'heure de réception. Débit par équipement 500 lignes/s (rafale 1 000),
+  réglable ; au-delà, compté et jeté. Masquage des mots de passe, tokens…
+  comme les logs de l'agent.
+- Envoi : lots (job `syslog`, champs `host`, `ident`, `level`) toutes les
+  2 s ou dès 512 Kio, file de 4 Mio en mémoire (pas de disque), même envoi
+  que les logs de l'agent ; le serveur range chaque ligne sous l'équipement
+  (contrôle de la partie 3).
+- Mesures : `mirador_collecteur_syslog_ecoute`, `_connexions`,
+  `_lignes_total{equipement}`, `_refus_total{motif}` (émetteur inconnu, trop
+  de connexions, TLS, trame, format, débit, filterlog, file pleine),
+  `_certificat_fin_timestamp_seconds`.
+
+**Certificat (serveur)** — réponse 2 du 13/11 (§ 23.8)
+- Le collecteur crée sa clé ECDSA P-256 (`/var/lib/mirador-collector/syslog.key`,
+  0600, ne sort jamais) et joint une **demande (CSR)** à son battement.
+- Le serveur la vérifie (signature, clé, un seul nom) et fait la démarche
+  **ACME** (`golang.org/x/crypto/acme`, déjà dans les dépendances) avec le
+  défi **DNS-01 chez deSEC** (un appel PATCH écrit à la main, enregistrement
+  `_acme-challenge…` posé puis retiré). Jeton deSEC et clé du compte ACME
+  **chiffrés** sur le serveur, jamais envoyés au collecteur ni réaffichés,
+  absents de l'audit.
+- Certificat vérifié (même clé, bon nom) puis posé dans la configuration du
+  collecteur (`collecteur.syslog.certificat`, jamais saisi à la main) ; le
+  collecteur redémarre et ouvre l'écoute. Renouvellement automatique
+  30 jours avant l'échéance ; nouvelle clé = nouveau certificat ; échec :
+  message sur la page, nouvel essai toutes les 6 h ; **« Renouveler
+  maintenant »** (code 2FA).
+- Alertes fournies : `CertificatSyslogBientotExpire` (< 14 jours) et
+  `CertificatSyslogRenouvellementEchoue` (groupe `collecteurs`).
+- Testé sans réseau : faux serveur ACME (RFC 8555, le strict nécessaire) et
+  faux deSEC ; démarche complète, renouvellement, échec et attente.
+
+**Coût mesuré** (banc d'essai) : **7 µs par ligne** (lecture, masquage, mise
+en lot), soit ~0,0005 % d'un cœur au rythme actuel (0,6 ligne/s,
+52 500/jour) et 0,35 % à 500 lignes/s. Mémoire : file d'attente de 1 000
+lignes (quelques centaines de Ko en vrai, 8 Mio au pire), lots de 512 Kio,
+file d'envoi de 4 Mio. Aucune écriture disque (sauf la clé, une fois).
+Serveur : un passage par minute sur la table des certificats.
+
+**Menaces** (complète § 23.4)
+- Écoute détournée vers Internet : adresse privée obligatoire (deux
+  contrôles) ; le collecteur ne peut pas écouter ailleurs.
+- Émetteur inconnu ou usurpant un nom : coupé avant le TLS ; le nom vient
+  de l'adresse ; débit et connexions bornés.
+- Message piégé : lecteur borné et fuzzé ; échappement à l'affichage.
+- Vol du jeton deSEC : il reste sur le serveur, chiffré, limité par la règle
+  de jeton deSEC au seul enregistrement du défi.
+- Collecteur compromis : n'a ni jeton deSEC ni compte ACME ; sa clé ne vaut
+  que pour son propre nom.
+- Serveur compromis : pourrait obtenir un certificat pour le nom réglé
+  (comme aujourd'hui avec certbot) ; ne peut pas lire la clé du collecteur.
+
+**À savoir** : le syslog distant des équipements UniFi n'existe souvent qu'en
+UDP sans chiffrement ; ses événements arriveront par le client UniFi natif
+(partie 6). OPNsense et Synology savent envoyer en TLS.
 
 ---
 
