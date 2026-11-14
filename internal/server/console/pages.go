@@ -525,7 +525,7 @@ func (c *Console) postMachine(q *req) {
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
 		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true, "certificat_reglages": true,
 		// SNMP et sondes d'un collecteur (SPEC § 23.15).
-		"snmp": true, "snmp_retirer": true, "sondes": true}
+		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -631,7 +631,7 @@ func (c *Console) postMachine(q *req) {
 		}
 		vers += "#syslog"
 		ok, err = c.postSyslog(q, m, action)
-	case "snmp", "snmp_retirer", "sondes":
+	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")

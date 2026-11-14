@@ -24,6 +24,8 @@ type vueSNMP struct {
 	Cibles      []config.CibleSNMP // mots de passe jamais affichés
 	Sondes      string             // « adresse équipement [nom] » par ligne
 	Prereglages []string
+	UniFi       *config.UniFi // contrôleur UniFi (secrets jamais affichés)
+	UniFiCle    bool          // clé API (sinon compte local)
 }
 
 func (c *Console) snmpDe(ctx context.Context, m flotte.InfoMachine) vueSNMP {
@@ -45,6 +47,12 @@ func (c *Console) snmpDe(ctx context.Context, m flotte.InfoMachine) vueSNMP {
 		lignes = append(lignes, l)
 	}
 	v.Sondes = strings.Join(lignes, "\n")
+	if u := cfg.Collecteur.UniFi; u != nil {
+		copie := *u
+		v.UniFiCle = copie.CleAPI != ""
+		copie.MotDePasse, copie.CleAPI = "", ""
+		v.UniFi = &copie
+	}
 	return v
 }
 
@@ -159,6 +167,72 @@ func (c *Console) postSNMP(q *req, m flotte.InfoMachine, action string) (string,
 			return nil
 		})
 		return "relevé SNMP de « " + machine + " » retiré", err
+	case "unifi":
+		u := config.UniFi{Machine: f("machine"), Adresse: strings.TrimRight(f("adresse"), "/"), Utilisateur: f("utilisateur"),
+			Empreinte: strings.ToLower(strings.ReplaceAll(f("empreinte"), ":", ""))}
+		for _, site := range strings.FieldsFunc(f("sites"), func(r rune) bool { return r == ',' || r == ' ' }) {
+			u.Sites = append(u.Sites, site)
+		}
+		if v := f("intervalle"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return "", errors.New("intervalle : durée attendue (ex. 60s, 2m)")
+			}
+			u.Intervalle = config.Duree(d)
+		}
+		avecCle := f("mode") == "cle"
+		secret := q.r.PostFormValue("secret")
+		err := modifier(func(col map[string]any) error {
+			ancien, _ := col["unifi"].(map[string]any)
+			champ := "mot_de_passe"
+			if avecCle {
+				champ, u.Utilisateur = "cle_api", ""
+			}
+			var valeur string
+			if secret == "" {
+				if ancien == nil {
+					return errors.New("mot de passe ou clé API obligatoire")
+				}
+				valeur, _ = ancien[champ].(string)
+				if valeur == "" {
+					return errors.New("mot de passe ou clé API obligatoire (mode changé)")
+				}
+			} else {
+				chiffre, err := flotte.ChiffrerSecretSNMP(c.opt.Cle, secret)
+				if err != nil {
+					return err
+				}
+				valeur = chiffre
+			}
+			if avecCle {
+				u.CleAPI = valeur
+			} else {
+				u.MotDePasse = valeur
+			}
+			brut, _ := json.Marshal(u)
+			var nouveau map[string]any
+			_ = json.Unmarshal(brut, &nouveau)
+			copie := map[string]any{}
+			for k, v := range col {
+				copie[k] = v
+			}
+			copie["unifi"] = nouveau
+			copie["equipements"] = noms
+			brut, _ = json.Marshal(copie)
+			var cc config.Collecteur
+			if err := json.Unmarshal(brut, &cc); err != nil {
+				return err
+			}
+			if err := cc.Valider(); err != nil {
+				return err
+			}
+			col["unifi"] = nouveau
+			return nil
+		})
+		return "contrôleur UniFi enregistré : relevé par le collecteur à partir de maintenant (unpoller peut être arrêté après comparaison)", err
+	case "unifi_retirer":
+		err := modifier(func(col map[string]any) error { delete(col, "unifi"); return nil })
+		return "relevé UniFi arrêté", err
 	case "sondes":
 		var liste []any
 		for i, ligne := range strings.Split(strings.ReplaceAll(q.r.PostFormValue("sondes"), "\r\n", "\n"), "\n") {

@@ -48,7 +48,7 @@
 </form></details>{{end}}
 </section>{{end}}
 {{if .D.Collecteur}}{{$n := .D.SNMP}}<section class="carte" id="snmp">
-<div class="entete-carte"><div><h2>SNMP v3 et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>
+<div class="entete-carte"><div><h2>SNMP v3, UniFi et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>
 {{if $n.Cibles}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Adresse</th><th>Préréglage</th><th>Utilisateur</th><th>Sécurité</th><th>Intervalle</th><th></th></tr></thead><tbody>
 {{range $n.Cibles}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td><td><code>{{.Adresse}}</code></td><td>{{.Prereglage}}</td><td>{{.Utilisateur}}</td><td><small>{{.Auth}} / {{.Chiffrement}}</small></td><td><small>{{if .Intervalle}}{{.Intervalle}}{{else}}60s{{end}}</small></td>
 <td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}">{{template "code2fa"}}<button class="secondaire petit">Retirer</button></form>{{end}}</td></tr>{{end}}
@@ -70,6 +70,27 @@
 <div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
 <small>Même équipement : le relevé est remplacé (mots de passe gardés s'ils sont laissés vides). Synology : Panneau de configuration › Terminal et SNMP › SNMP v3.</small>
 </form></details>{{end}}
+<h3>Contrôleur UniFi</h3>
+{{if $n.UniFi}}<p>Relevé : <a href="/machines/{{$n.UniFi.Machine}}">{{$n.UniFi.Machine}}</a>, <code>{{$n.UniFi.Adresse}}</code>, {{if $n.UniFiCle}}clé API{{else}}compte <code>{{$n.UniFi.Utilisateur}}</code>{{end}}{{if $n.UniFi.Empreinte}}, certificat épinglé{{end}}{{if $n.UniFi.Sites}}, sites {{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi_retirer">{{template "code2fa"}}<button class="secondaire">Arrêter le relevé UniFi</button></form>{{end}}{{end}}
+{{if and .Admin .D.Equipements}}<details{{if not $n.UniFi}} open{{end}}><summary>{{if $n.UniFi}}Modifier{{else}}Relever un contrôleur UniFi (remplace unpoller){{end}}</summary>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi">
+<div class="ligne">
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option{{if and $n.UniFi (eq $n.UniFi.Machine .Nom)}} selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse <input name="adresse" required size="26" placeholder="https://192.168.1.5" value="{{if $n.UniFi}}{{$n.UniFi.Adresse}}{{end}}"></label>
+<label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
+</div><div class="ligne">
+<label>Accès <select name="mode"><option value="compte">Compte local (lecture seule)</option><option value="cle"{{if $n.UniFiCle}} selected{{end}}>Clé API (UniFi OS)</option></select></label>
+<label>Utilisateur <input name="utilisateur" size="14" autocomplete="off" value="{{if $n.UniFi}}{{$n.UniFi.Utilisateur}}{{end}}"></label>
+<label>Mot de passe ou clé API <input name="secret" type="password" size="20" autocomplete="new-password" placeholder="{{if $n.UniFi}}vide = garder{{end}}"></label>
+</div><div class="ligne">
+<label>Empreinte SHA-256 du certificat (si fait maison) <input name="empreinte" size="50" spellcheck="false" value="{{if $n.UniFi}}{{$n.UniFi.Empreinte}}{{end}}"></label>
+<label>Sites (vide = tous) <input name="sites" size="16" placeholder="default" value="{{if $n.UniFi}}{{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}"></label>
+</div>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+<small>Compte local en <strong>lecture seule</strong> (UniFi : Admins › ajouter, rôle « View Only », accès local seulement). Empreinte, depuis le collecteur : <code>openssl s_client -connect IP:443 &lt;/dev/null 2&gt;/dev/null | openssl x509 -noout -fingerprint -sha256</code> (les « : » sont retirés). Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</small>
+</form></details>{{end}}
+
 <h3>Sondes de certificats</h3>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sondes">
 <label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{$n.Sondes}}</textarea>

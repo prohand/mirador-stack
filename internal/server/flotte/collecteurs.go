@@ -198,6 +198,15 @@ func configCollecteur(ctx context.Context, db *sql.DB, collecteur int64, saisie 
 			return nil, err
 		}
 	}
+	// Contrôleur UniFi d'un équipement détaché : retiré.
+	if brut, ok := m["unifi"]; ok {
+		var u map[string]any
+		if json.Unmarshal(brut, &u) == nil {
+			if n, _ := u["machine"].(string); !contient(noms, n) {
+				delete(m, "unifi")
+			}
+		}
+	}
 	// Cibles SNMP et sondes d'équipements détachés : retirées.
 	rattache := map[string]bool{}
 	for _, n := range noms {
@@ -308,32 +317,57 @@ func dechiffrerSecretsCollecteur(doc []byte, cle []byte) ([]byte, error) {
 	if err := json.Unmarshal(brutC, &c); err != nil {
 		return nil, err
 	}
-	brutS, ok := c["snmp"]
-	if !ok {
-		return doc, nil
-	}
-	var cibles []map[string]any
-	if err := json.Unmarshal(brutS, &cibles); err != nil {
-		return nil, err
-	}
-	for _, cible := range cibles {
-		for _, champ := range champsSecretsSNMP {
-			v, _ := cible[champ].(string)
+	dechiffrer := func(obj map[string]any, champs []string) error {
+		for _, champ := range champs {
+			v, _ := obj[champ].(string)
 			if secrets.EstChiffre(v) {
 				clair, err := secrets.Dechiffrer(cle, UsageSecretSNMP, v)
 				if err != nil {
-					return nil, fmt.Errorf("mot de passe SNMP illisible : %w", err)
+					return fmt.Errorf("mot de passe d'un relevé illisible : %w", err)
 				}
-				cible[champ] = clair
+				obj[champ] = clair
 			}
 		}
+		return nil
 	}
 	var err error
-	if c["snmp"], err = json.Marshal(cibles); err != nil {
-		return nil, err
+	if brutS, ok := c["snmp"]; ok {
+		var cibles []map[string]any
+		if err := json.Unmarshal(brutS, &cibles); err != nil {
+			return nil, err
+		}
+		for _, cible := range cibles {
+			if err := dechiffrer(cible, champsSecretsSNMP); err != nil {
+				return nil, err
+			}
+		}
+		if c["snmp"], err = json.Marshal(cibles); err != nil {
+			return nil, err
+		}
+	}
+	if brutU, ok := c["unifi"]; ok {
+		var u map[string]any
+		if err := json.Unmarshal(brutU, &u); err != nil {
+			return nil, err
+		}
+		if err := dechiffrer(u, []string{"mot_de_passe", "cle_api"}); err != nil {
+			return nil, err
+		}
+		if c["unifi"], err = json.Marshal(u); err != nil {
+			return nil, err
+		}
 	}
 	if d["collecteur"], err = json.Marshal(c); err != nil {
 		return nil, err
 	}
 	return json.Marshal(d)
+}
+
+func contient(l []string, v string) bool {
+	for _, x := range l {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

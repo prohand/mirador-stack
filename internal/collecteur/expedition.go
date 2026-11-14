@@ -13,6 +13,7 @@ import (
 	"mirador-stack/internal/agent/remotewrite"
 	"mirador-stack/internal/collecteur/snmp"
 	"mirador-stack/internal/collecteur/sondes"
+	"mirador-stack/internal/collecteur/unifi"
 )
 
 // Expedition : un lot relevé pour un équipement (SNMP, sonde) est encodé
@@ -29,14 +30,18 @@ func Expedition(file *envoi.File, journal *slog.Logger) func(*metrics.Batch) {
 	}
 }
 
-// TournerReleves : SNMP (une tâche par équipement) et sondes de
-// certificats, jusqu'à l'arrêt de ctx.
+// TournerReleves : SNMP (une tâche par équipement), contrôleur UniFi et
+// sondes de certificats, jusqu'à l'arrêt de ctx.
 func TournerReleves(ctx context.Context, cfg config.Agent, envoyer func(*metrics.Batch), journal *slog.Logger) {
 	var wg sync.WaitGroup
 	for _, c := range cfg.Collecteur.SNMP {
 		r := &snmp.Releveur{Cible: c, Envoyer: envoyer, Journal: journal}
 		wg.Add(1)
 		go func() { defer wg.Done(); r.Tourner(ctx) }()
+	}
+	if u := cfg.Collecteur.UniFi; u != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); unifi.Tourner(ctx, *u, envoyer, journal) }()
 	}
 	if len(cfg.Collecteur.Sondes) > 0 {
 		wg.Add(1)

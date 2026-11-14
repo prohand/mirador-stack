@@ -29,6 +29,67 @@ type Collecteur struct {
 	SNMP []CibleSNMP `json:"snmp,omitempty"`
 	// Sondes : certificats TLS distants lus par le collecteur (partie 5).
 	Sondes []Sonde `json:"sondes,omitempty"`
+	// UniFi : contrôleur UniFi lu en lecture seule (partie 6, SPEC § 23.16).
+	UniFi *UniFi `json:"unifi,omitempty"`
+}
+
+// UniFi : contrôleur UniFi Network (UniFi OS ou logiciel), lu par son API en
+// lecture seule (compte local en lecture seule, ou clé API).
+type UniFi struct {
+	Machine     string `json:"machine"`                // équipement rattaché (instance)
+	Adresse     string `json:"adresse"`                // https://IP-ou-nom-du-LAN[:port]
+	Utilisateur string `json:"utilisateur,omitempty"`  // compte local en lecture seule…
+	MotDePasse  string `json:"mot_de_passe,omitempty"` // … et son mot de passe (chiffré sur le serveur)
+	CleAPI      string `json:"cle_api,omitempty"`      // ou clé API (UniFi OS ; chiffrée sur le serveur)
+	// Empreinte : SHA-256 (hexadécimal) du certificat du contrôleur, pour un
+	// certificat fait maison ; vide = certificat vérifié normalement.
+	Empreinte  string   `json:"empreinte,omitempty"`
+	Sites      []string `json:"sites,omitempty"`      // vide = tous
+	Intervalle Duree    `json:"intervalle,omitempty"` // 30 s à 10 min (défaut 60 s)
+}
+
+var (
+	reEmpreinte = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	reSiteUniFi = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+)
+
+// validerUniFi : adresse https du LAN, un moyen d'authentification.
+func validerUniFi(u *UniFi, connus map[string]bool) error {
+	if u == nil {
+		return nil
+	}
+	if !reNomEquipement.MatchString(u.Machine) || (len(connus) > 0 && !connus[u.Machine]) {
+		return fmt.Errorf("unifi : %q n'est pas un équipement rattaché à ce collecteur", u.Machine)
+	}
+	reste, ok := strings.CutPrefix(u.Adresse, "https://")
+	if !ok || strings.ContainsAny(reste, "/?#@") {
+		return errors.New("unifi : adresse https://hôte[:port] attendue (sans chemin)")
+	}
+	if _, err := hoteDuLAN(reste, true); err != nil {
+		return fmt.Errorf("unifi : %w", err)
+	}
+	switch {
+	case u.CleAPI != "" && (u.Utilisateur != "" || u.MotDePasse != ""):
+		return errors.New("unifi : clé API ou compte, pas les deux")
+	case u.CleAPI != "" && !(strings.HasPrefix(u.CleAPI, PrefixeSecretChiffre) && len(u.CleAPI) <= tailleMaxSecretChiffre ||
+		len(u.CleAPI) >= 16 && len(u.CleAPI) <= 128 && !strings.ContainsAny(u.CleAPI, " \r\n")):
+		return errors.New("unifi : clé API invalide")
+	case u.CleAPI == "" && (!reUtilisateurSNMP.MatchString(u.Utilisateur) || !(strings.HasPrefix(u.MotDePasse, PrefixeSecretChiffre) &&
+		len(u.MotDePasse) <= tailleMaxSecretChiffre || len(u.MotDePasse) >= 1 && len(u.MotDePasse) <= 128)):
+		return errors.New("unifi : compte local (utilisateur et mot de passe) ou clé API obligatoire")
+	case u.Empreinte != "" && !reEmpreinte.MatchString(u.Empreinte):
+		return errors.New("unifi : empreinte SHA-256 en hexadécimal (64 caractères) attendue")
+	case u.Intervalle != 0 && (time.Duration(u.Intervalle) < 30*time.Second || time.Duration(u.Intervalle) > 10*time.Minute):
+		return errors.New("unifi : intervalle de 30 s à 10 min")
+	case len(u.Sites) > 50:
+		return errors.New("unifi : 50 sites au plus")
+	}
+	for _, s := range u.Sites {
+		if !reSiteUniFi.MatchString(s) {
+			return fmt.Errorf("unifi : site %q invalide", s)
+		}
+	}
+	return nil
 }
 
 // CibleSNMP : un équipement relevé en SNMP v3, en lecture seule, avec une
@@ -305,6 +366,9 @@ func (c *Collecteur) Valider() error {
 		connus[e] = true
 	}
 	if err := validerSNMP(c.SNMP, connus); err != nil {
+		return err
+	}
+	if err := validerUniFi(c.UniFi, connus); err != nil {
 		return err
 	}
 	return validerSondes(c.Sondes, connus)

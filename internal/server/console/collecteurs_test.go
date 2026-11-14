@@ -191,3 +191,50 @@ func TestSNMPInterface(t *testing.T) {
 		t.Error("cible SNMP non retirée")
 	}
 }
+
+// Contrôleur UniFi dans l'interface (SPEC § 23.16) : secret chiffré, gardé
+// à la modification, empreinte normalisée, adresse du LAN seulement.
+func TestUniFiInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	csrf := b.csrf(c, "/machines")
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 1), ('unifi', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
+	idU, _ := flotte.IDMachine(ctx, b.c.db, "unifi")
+	_ = flotte.RattacherEquipement(ctx, b.c.db, idC, idU, "admin", time.Now())
+	b.h.avancer(31 * time.Second)
+	emp := strings.Repeat("AB:", 31) + "AB"
+	f := url.Values{"csrf": {csrf}, "action": {"unifi"}, "machine": {"unifi"}, "adresse": {"https://192.168.1.5/"}, "mode": {"compte"},
+		"utilisateur": {"lecture"}, "secret": {"mot-de-passe-unifi"}, "empreinte": {emp}, "sites": {"default"}, "code": {b.code(secret)}}
+	b.post(c, "/machines/collecteur-lan", f)
+	doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC)
+	if !strings.Contains(string(doc), `"adresse":"https://192.168.1.5"`) || strings.Contains(string(doc), "mot-de-passe-unifi") ||
+		!strings.Contains(string(doc), `"empreinte":"`+strings.Repeat("ab", 32)+`"`) {
+		t.Fatalf("UniFi en base : %s", doc)
+	}
+	_, corps, _ := b.get(c, "/machines/collecteur-lan")
+	if !strings.Contains(corps, "compte <code>lecture</code>") || strings.Contains(corps, "mot-de-passe-unifi") {
+		t.Error("page : relevé UniFi absent ou secret affiché")
+	}
+	// Modification sans secret : gardé ; adresse publique refusée.
+	f.Del("code")
+	f.Set("secret", "")
+	f.Set("adresse", "https://unifi.lan")
+	b.post(c, "/machines/collecteur-lan", f)
+	cfg, _ := flotte.ConfigEffective(ctx, b.c.db, idC)
+	if cfg.Collecteur.UniFi == nil || cfg.Collecteur.UniFi.Adresse != "https://unifi.lan" || !strings.HasPrefix(cfg.Collecteur.UniFi.MotDePasse, "chiffre:v1:") {
+		t.Fatalf("modification : %+v", cfg.Collecteur.UniFi)
+	}
+	f.Set("adresse", "https://8.8.8.8")
+	b.post(c, "/machines/collecteur-lan", f)
+	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); cfg.Collecteur.UniFi.Adresse == "https://8.8.8.8" {
+		t.Error("adresse publique acceptée")
+	}
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"unifi_retirer"}})
+	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); cfg.Collecteur.UniFi != nil {
+		t.Error("relevé UniFi non retiré")
+	}
+}

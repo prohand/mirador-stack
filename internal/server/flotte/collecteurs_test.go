@@ -213,8 +213,11 @@ func TestSecretsSNMP(t *testing.T) {
 	_ = CreerEquipement(ctx, b.db, "nas", idC, "admin", t0)
 	mdp, _ := ChiffrerSecretSNMP(b.f.opt.Cle, "auth-tres-secret")
 	cle, _ := ChiffrerSecretSNMP(b.f.opt.Cle, "priv-tres-secret")
+	_ = CreerEquipement(ctx, b.db, "unifi", idC, "admin", t0)
+	cleAPI, _ := ChiffrerSecretSNMP(b.f.opt.Cle, "cle-api-unifi-tres-secrete")
 	doc := `{"collecteur":{"snmp":[{"machine":"nas","adresse":"192.168.1.20","prereglage":"synology","utilisateur":"mirador",` +
-		`"auth":"SHA","mot_de_passe":"` + mdp + `","chiffrement":"AES","cle_chiffrement":"` + cle + `"}]}}`
+		`"auth":"SHA","mot_de_passe":"` + mdp + `","chiffrement":"AES","cle_chiffrement":"` + cle + `"}],` +
+		`"unifi":{"machine":"unifi","adresse":"https://192.168.1.5","cle_api":"` + cleAPI + `"}}}`
 	if err := DefinirConfig(ctx, b.db, "machine:"+itoa(idC), []byte(doc), "admin", t0); err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +226,8 @@ func TestSecretsSNMP(t *testing.T) {
 		t.Fatal("secret en clair en base")
 	}
 	w := b.requete(http.MethodGet, protocole.CheminConfig, tokC, nil, "", protocole.EnteteCapacites, protocole.CapaciteCollecteur)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"mot_de_passe":"auth-tres-secret"`) || w.Header().Get("ETag") != etag {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"mot_de_passe":"auth-tres-secret"`) || w.Header().Get("ETag") != etag ||
+		!strings.Contains(w.Body.String(), `"cle_api":"cle-api-unifi-tres-secrete"`) {
 		t.Fatalf("envoi au collecteur : %d %s", w.Code, w.Body)
 	}
 	// Mauvaise clé du serveur : rien n'est envoyé (le collecteur garde la sienne).

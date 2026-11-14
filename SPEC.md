@@ -3662,7 +3662,7 @@ utilisable pendant la comparaison.
 | 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » — **fait le 14/11** (§ 23.13) |
 | 4 | Syslog TLS + certificat ACME géré dans l'interface — **fait le 14/11** (§ 23.14) |
 | 5 | SNMP v3 (Synology) et sondes de certificats — **fait le 14/11** (§ 23.15) |
-| 6 | Client UniFi natif (unpoller retiré) |
+| 6 | Client UniFi natif (unpoller retiré) — **fait le 14/11** (§ 23.16) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
 
 ### 23.10 Partie 2 faite (14/11) : entrée InfluxDB v2 **[Fait, à tester avec OPNsense]**
@@ -3913,6 +3913,46 @@ l'audit (seule la valeur chiffrée y passe) ; serveur compromis : peut lire
 les mots de passe SNMP (comme toute configuration qu'il envoie) mais pas
 faire écrire le collecteur sur un équipement ; sonde vers un service du LAN
 seulement.
+
+### 23.16 Partie 6 faite (14/11) : client UniFi natif **[Fait, à brancher sur le contrôleur]**
+
+Réponse 3 du 13/11 : client Go natif, unpoller retiré (−26 Mo sur le
+collecteur).
+
+- Lecture seule de l'API « stat » du contrôleur UniFi Network : sites,
+  appareils (`stat/device`), clients (`stat/sta`), santé (`stat/health`).
+  Aucune dépendance ajoutée (HTTP et JSON de la bibliothèque standard).
+- Accès : **compte local en lecture seule** (UniFi OS : `/api/auth/login`
+  puis chemins `/proxy/network/…` ; contrôleur logiciel : `/api/login`,
+  essayé si le premier n'existe pas) ou **clé API** (UniFi OS, en-tête
+  `X-API-KEY`). Secrets chiffrés en base, déchiffrés à l'envoi au
+  collecteur (comme le SNMP).
+- Certificat **vérifié** par défaut ; certificat fait maison : **empreinte
+  SHA-256 épinglée** (vérifiée à chaque connexion, session reprise
+  comprise : `VerifyConnection`, signalé par gosec et corrigé avant la
+  livraison). Pas de proxy, pas de redirection suivie, réponses de 16 Mio
+  au plus ; adresse du LAN seulement.
+- Métriques aux **noms et étiquettes d'unpoller** (`job="unifi"`, `instance`
+  = équipement du contrôleur) : `unpoller_device_info`, `_uptime_seconds`,
+  `_cpu_utilization_ratio`, `_memory_utilization_ratio`,
+  `_temperature_celsius{temp_area}`, `_stations{station_type}`,
+  `_receive/transmit_bytes_total`, `_upgradeable`, ports
+  (`_port_*{port_num, port_name}` : octets, erreurs, rejets, vitesse, PoE),
+  radios (`_radio_channel_utilization_total_ratio{radio}`), clients
+  (`unpoller_client_*{name, mac, wired, essid, ap_name, radio}`),
+  `unpoller_site_disconnected{subsystem}`, plus `up`. Règles UniFi
+  importées (dont `UnifiMuet`) et tableau « UniFi » inchangés. 300
+  appareils, 1 000 clients, 64 ports par appareil au plus.
+- Interface : page du collecteur › *Contrôleur UniFi*.
+
+**Coût mesuré** : 16 µs de traitement par site (3 appareils, 2 clients ;
+quelques centaines de µs pour un site de 50 clients), 5 requêtes HTTPS par
+minute. Remplace unpoller (26 Mo).
+
+**Menaces** : compte en lecture seule (le client ne fait que des GET après
+la connexion) ; contrôleur usurpé sur le LAN : certificat vérifié ou
+épinglé ; secrets chiffrés au repos ; réponse piégée : taille bornée,
+décodage typé, nombres illisibles ignorés, textes nettoyés.
 
 ---
 
