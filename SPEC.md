@@ -3171,6 +3171,21 @@ Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 
 ---
 
+### 20.9 Passkey sur téléphone (correction du 14/11)
+
+Retour : « la passkey ne marche pas sur mobile ». Cause la plus probable,
+corrigée : en connexion **sans mot de passe**, le script demandait le défi
+au serveur **puis** la passkey ; Safari (iPhone, iPad) refuse une demande
+WebAuthn faite après une attente réseau (le clic n'est plus « récent »).
+Le défi est maintenant préparé dès l'affichage de la page de connexion
+(renouvelé toutes les 4 min, valable 5 min, à usage unique) : au clic, la
+passkey est demandée tout de suite. Le message d'erreur affiche aussi le
+nom technique de l'erreur (`NotAllowedError`…) pour diagnostiquer un autre
+cas. Côté serveur, rien à changer : compteur à 0 des passkeys
+synchronisées (iCloud, Google) accepté, formats d'attestation ignorés
+(« none » demandé), origine vérifiée. Vérifié dans Chromium avec un
+authentificateur virtuel (création puis connexion sans mot de passe).
+
 ## 21. Élément par élément, signal « à valider », réglages rangés **[Fait, à valider — demandes du 12/11]**
 
 Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
