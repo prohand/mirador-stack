@@ -37,6 +37,9 @@ type Options struct {
 	DossierAgent    string               // binaires embarqués dans l'image (défaut DossierAgentEmbarque)
 	Journal         *slog.Logger
 	Maintenant      func() time.Time
+	// Cle : clé du serveur ; déchiffre les mots de passe SNMP des collecteurs
+	// au moment de leur envoyer la configuration (SPEC § 23.15).
+	Cle []byte
 }
 
 // Flotte : points d'entrée des machines (hors métriques et logs).

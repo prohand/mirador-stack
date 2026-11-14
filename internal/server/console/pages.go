@@ -413,6 +413,7 @@ type donneesMachine struct {
 	Candidats   []string
 	RelevePar   string
 	Syslog      vueSyslog // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
+	SNMP        vueSNMP   // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -451,6 +452,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Candidats = c.candidatsEquipement(ctx, m.ID)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 		d.Syslog = c.syslogDe(ctx, m)
+		d.SNMP = c.snmpDe(ctx, m)
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
@@ -521,7 +523,9 @@ func (c *Console) postMachine(q *req) {
 		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
 		"rattacher": true, "detacher": true,
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
-		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true, "certificat_reglages": true}
+		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true, "certificat_reglages": true,
+		// SNMP et sondes d'un collecteur (SPEC § 23.15).
+		"snmp": true, "snmp_retirer": true, "sondes": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -627,6 +631,14 @@ func (c *Console) postMachine(q *req) {
 		}
 		vers += "#syslog"
 		ok, err = c.postSyslog(q, m, action)
+	case "snmp", "snmp_retirer", "sondes":
+		m, trouve := c.machine(q)
+		if !trouve || m.Type != "collecteur" {
+			err = errors.New("ce n'est pas un collecteur")
+			break
+		}
+		vers += "#snmp"
+		ok, err = c.postSNMP(q, m, action)
 	case "rattacher", "detacher":
 		// Page du collecteur : l'équipement choisi ; page de l'équipement :
 		// lui-même (détacher).

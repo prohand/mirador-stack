@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // Collecteur : réglages propres à mirador-collector (SPEC § 23.13), reçus
@@ -23,6 +25,145 @@ type Collecteur struct {
 	Equipements []string `json:"equipements,omitempty"`
 	// Syslog : réception syslog TLS sur le LAN (partie 4, SPEC § 23.14).
 	Syslog *Syslog `json:"syslog,omitempty"`
+	// SNMP : équipements relevés en SNMP v3 (partie 5, SPEC § 23.15).
+	SNMP []CibleSNMP `json:"snmp,omitempty"`
+	// Sondes : certificats TLS distants lus par le collecteur (partie 5).
+	Sondes []Sonde `json:"sondes,omitempty"`
+}
+
+// CibleSNMP : un équipement relevé en SNMP v3, en lecture seule, avec une
+// liste d'OID figée dans le code (préréglage). Authentification et
+// chiffrement obligatoires (authPriv).
+type CibleSNMP struct {
+	Machine     string `json:"machine"`              // équipement rattaché (instance)
+	Adresse     string `json:"adresse"`              // IP du LAN[:port] (161 par défaut)
+	Prereglage  string `json:"prereglage"`           // « synology » ou « standard »
+	Utilisateur string `json:"utilisateur"`          // utilisateur SNMP v3 (lecture seule)
+	Auth        string `json:"auth"`                 // SHA, SHA256, SHA512
+	MotDePasse  string `json:"mot_de_passe"`         // authentification (chiffré sur le serveur)
+	Chiffrement string `json:"chiffrement"`          // AES, AES256
+	CleChiffre  string `json:"cle_chiffrement"`      // chiffrement (chiffré sur le serveur)
+	Intervalle  Duree  `json:"intervalle,omitempty"` // 30 s à 10 min (défaut 60 s)
+}
+
+// Sonde : certificat TLS d'un service du LAN (lu sans être validé : seule
+// son échéance compte).
+type Sonde struct {
+	Machine string `json:"machine"`       // équipement rattaché (instance)
+	Adresse string `json:"adresse"`       // hôte:port (IP ou nom du LAN)
+	Nom     string `json:"nom,omitempty"` // nom présenté (SNI) ; défaut : l'hôte
+}
+
+// Bornes SNMP et sondes.
+const (
+	MaxCiblesSNMP          = 50
+	MaxSondes              = 100
+	IntervalleSNMPDefaut   = 60 * time.Second
+	PrefixeSecretChiffre   = "chiffre:v1:" // #nosec G101 -- marque d'un secret encore chiffré, pas un secret
+	tailleMaxSecretChiffre = 512
+)
+
+// Prereglages : listes d'OID connues du collecteur.
+var Prereglages = map[string]bool{"synology": true, "standard": true}
+
+var (
+	reUtilisateurSNMP = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,32}$`)
+	authSNMP          = map[string]bool{"SHA": true, "SHA256": true, "SHA512": true}
+	chiffrementSNMP   = map[string]bool{"AES": true, "AES256": true}
+)
+
+// secretValide : 8 à 64 caractères (SNMP v3), ou valeur encore chiffrée
+// (configuration telle que rangée sur le serveur).
+func secretValide(s string) bool {
+	if strings.HasPrefix(s, PrefixeSecretChiffre) {
+		return len(s) <= tailleMaxSecretChiffre
+	}
+	return len(s) >= 8 && len(s) <= 64 && !strings.ContainsAny(s, "\x00\r\n")
+}
+
+// hoteDuLAN : adresse IP privée (ou nom d'hôte simple) avec port facultatif.
+func hoteDuLAN(adresse string, portDefaut bool) (string, error) {
+	hote, port, err := net.SplitHostPort(adresse)
+	if err != nil {
+		if !portDefaut {
+			return "", errors.New("« hôte:port » attendu")
+		}
+		hote, port = adresse, ""
+	}
+	if port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			return "", errors.New("port invalide")
+		}
+	}
+	if a, err := netip.ParseAddr(hote); err == nil {
+		if !AdressePrivee(a) {
+			return "", errors.New("adresse du LAN attendue")
+		}
+		return hote, nil
+	}
+	if !reHoteLAN.MatchString(hote) {
+		return "", errors.New("adresse IP ou nom d'hôte attendu")
+	}
+	return hote, nil
+}
+
+var reHoteLAN = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)
+
+// validerSNMP : cibles SNMP (équipements connus, authPriv obligatoire).
+func validerSNMP(cibles []CibleSNMP, connus map[string]bool) error {
+	if len(cibles) > MaxCiblesSNMP {
+		return fmt.Errorf("snmp : %d équipements au plus", MaxCiblesSNMP)
+	}
+	vus := map[string]bool{}
+	for _, c := range cibles {
+		quoi := "snmp " + c.Machine
+		switch {
+		case !reNomEquipement.MatchString(c.Machine) || (len(connus) > 0 && !connus[c.Machine]):
+			return fmt.Errorf("%s : n'est pas un équipement rattaché à ce collecteur", quoi)
+		case vus[c.Machine]:
+			return fmt.Errorf("%s : en double", quoi)
+		case !Prereglages[c.Prereglage]:
+			return fmt.Errorf("%s : préréglage inconnu (synology, standard)", quoi)
+		case !reUtilisateurSNMP.MatchString(c.Utilisateur):
+			return fmt.Errorf("%s : utilisateur SNMP invalide", quoi)
+		case !authSNMP[c.Auth] || !chiffrementSNMP[c.Chiffrement]:
+			return fmt.Errorf("%s : authentification (SHA, SHA256, SHA512) et chiffrement (AES, AES256) obligatoires", quoi)
+		case !secretValide(c.MotDePasse) || !secretValide(c.CleChiffre):
+			return fmt.Errorf("%s : mots de passe SNMP de 8 à 64 caractères", quoi)
+		case c.Intervalle != 0 && (time.Duration(c.Intervalle) < 30*time.Second || time.Duration(c.Intervalle) > 10*time.Minute):
+			return fmt.Errorf("%s : intervalle de 30 s à 10 min", quoi)
+		}
+		if _, err := hoteDuLAN(c.Adresse, true); err != nil {
+			return fmt.Errorf("%s : %w", quoi, err)
+		}
+		vus[c.Machine] = true
+	}
+	return nil
+}
+
+// validerSondes : certificats distants (équipements connus, adresse du LAN).
+func validerSondes(sondes []Sonde, connus map[string]bool) error {
+	if len(sondes) > MaxSondes {
+		return fmt.Errorf("sondes : %d au plus", MaxSondes)
+	}
+	vus := map[string]bool{}
+	for _, s := range sondes {
+		if !reNomEquipement.MatchString(s.Machine) || (len(connus) > 0 && !connus[s.Machine]) {
+			return fmt.Errorf("sonde %s : %q n'est pas un équipement rattaché", s.Adresse, s.Machine)
+		}
+		if _, err := hoteDuLAN(s.Adresse, false); err != nil {
+			return fmt.Errorf("sonde %s : %w", s.Adresse, err)
+		}
+		if s.Nom != "" && !reNomDNS.MatchString(s.Nom) {
+			return fmt.Errorf("sonde %s : nom présenté invalide", s.Adresse)
+		}
+		cle := s.Machine + " " + s.Adresse
+		if vus[cle] {
+			return fmt.Errorf("sonde %s en double", s.Adresse)
+		}
+		vus[cle] = true
+	}
+	return nil
 }
 
 // Syslog : écoute syslog TLS du collecteur. Seuls les émetteurs listés sont
@@ -159,7 +300,14 @@ func (c *Collecteur) Valider() error {
 			return err
 		}
 	}
-	return nil
+	connus := map[string]bool{}
+	for _, e := range c.Equipements {
+		connus[e] = true
+	}
+	if err := validerSNMP(c.SNMP, connus); err != nil {
+		return err
+	}
+	return validerSondes(c.Sondes, connus)
 }
 
 // DefautCollecteur : valeurs par défaut de mirador-collector. Il ne relève

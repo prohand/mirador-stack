@@ -3661,7 +3661,7 @@ utilisable pendant la comparaison.
 | 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
 | 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » — **fait le 14/11** (§ 23.13) |
 | 4 | Syslog TLS + certificat ACME géré dans l'interface — **fait le 14/11** (§ 23.14) |
-| 5 | SNMP v3 (Synology) et sondes de certificats |
+| 5 | SNMP v3 (Synology) et sondes de certificats — **fait le 14/11** (§ 23.15) |
 | 6 | Client UniFi natif (unpoller retiré) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
 
@@ -3863,6 +3863,56 @@ Serveur : un passage par minute sur la table des certificats.
 **À savoir** : le syslog distant des équipements UniFi n'existe souvent qu'en
 UDP sans chiffrement ; ses événements arriveront par le client UniFi natif
 (partie 6). OPNsense et Synology savent envoyer en TLS.
+
+### 23.15 Partie 5 faite (14/11) : SNMP v3 et sondes de certificats **[Fait, à vérifier sur le NAS]**
+
+- **SNMP v3** avec `gosnmp` (BSD-2-Clause, § 23.3 ; seule dépendance
+  ajoutée) : **authPriv obligatoire** (SHA/SHA256/SHA512 + AES/AES256),
+  GET et GETBULK seulement, liste d'OID **figée dans le code** :
+  - *standard* : `sysUpTime`, mémoire et CPU UCD-SNMP (`memTotalReal`,
+    `memAvailReal`, `memBuffer`, `memCached`, `ssCpuIdle`), interfaces
+    IF-MIB (`ifHCInOctets`, `ifHCOutOctets`, erreurs et rejets, étiquettes
+    `ifName` et `ifIndex`) ;
+  - *synology* : en plus, SYNOLOGY-SYSTEM/DISK/RAID/UPS/SERVICES/STORAGEIO
+    (`systemStatus`, `temperature`, `powerStatus`, ventilateurs,
+    `modelName`, `version`, `upgradeAvailable`, `cpuUtilization`,
+    `memUtilization`, onduleur, disques par `diskID`, volumes par
+    `raidName`, services par `serviceName`, E/S par `storageIODevice`).
+  Noms et étiquettes de **snmp_exporter** (textes en métrique « info »,
+  valeur 1), `job="snmp"`, `instance` = équipement rattaché, plus `up` et
+  `snmp_scrape_duration_seconds` : les 13 règles Synology importées et le
+  tableau « Synology » marchent sans changement. 2 000 lignes par table au
+  plus ; textes rendus lisibles (UTF-8, 128 caractères).
+- **Sondes de certificats** : poignée de main TLS (certificat lu sans être
+  validé : seule l'échéance compte), toutes les 5 min ;
+  `ssl_cert_not_after_timestamp_seconds`, `probe_success`,
+  `probe_ssl_last_chain_info{subject, issuer}`, `probe_duration_seconds`,
+  `job="certs"`, `path` = adresse : tableau « Certificats TLS » et règle
+  `CertificatIllisible` inchangés.
+- **Secrets** : mots de passe SNMP **chiffrés en base** (`secrets`, usage
+  `collecteur.snmp`), jamais réaffichés (vides à la modification =
+  gardés), déchiffrés seulement à l'envoi de la configuration au
+  collecteur (HTTPS, même ETag) ; secret illisible = rien n'est envoyé. Sur
+  le collecteur : fichier de cache `0600`, utilisateur dédié. Un secret
+  encore chiffré reçu par le collecteur est refusé.
+- Adresses du LAN seulement (IP privée ou nom d'hôte simple) ; cibles et
+  sondes d'un équipement détaché retirées de la configuration.
+- Interface : page du collecteur › *SNMP v3 et sondes de certificats*.
+
+**À vérifier sur le NAS** (les OID `cpuUtilization` et `memUtilization`
+dépendent de la version de DSM) : commande dans `PROGRES.md`.
+
+**Coût mesuré** : 16 µs de traitement par relevé Synology (hors réseau), une
+dizaine d'échanges UDP par minute et par équipement ; sondes : une
+connexion TLS toutes les 5 min par service. Binaire du collecteur : 8,8 Mo
+(+1 Mo avec gosnmp). RAM : quelques dizaines de Ko par relevé.
+
+**Menaces** : comptes SNMP en lecture seule conseillés ; jamais d'écriture
+SNMP (pas de SET dans le code) ; secrets chiffrés au repos et absents de
+l'audit (seule la valeur chiffrée y passe) ; serveur compromis : peut lire
+les mots de passe SNMP (comme toute configuration qu'il envoie) mais pas
+faire écrire le collecteur sur un équipement ; sonde vers un service du LAN
+seulement.
 
 ---
 

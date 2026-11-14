@@ -144,7 +144,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.alertes.DefinirRecepteur(s.aiguille)
 
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal})
-	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal})
+	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle})
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}

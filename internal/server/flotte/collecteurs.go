@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/certsyslog"
+	"mirador-stack/internal/server/secrets"
 )
 
 // Collecteurs (SPEC § 23.13) : une machine de type « collecteur »
@@ -197,6 +198,29 @@ func configCollecteur(ctx context.Context, db *sql.DB, collecteur int64, saisie 
 			return nil, err
 		}
 	}
+	// Cibles SNMP et sondes d'équipements détachés : retirées.
+	rattache := map[string]bool{}
+	for _, n := range noms {
+		rattache[n] = true
+	}
+	for _, cle := range []string{"snmp", "sondes"} {
+		if brut, ok := m[cle]; ok {
+			var liste []map[string]any
+			if json.Unmarshal(brut, &liste) == nil {
+				garde := liste[:0]
+				for _, e := range liste {
+					if n, _ := e["machine"].(string); rattache[n] {
+						garde = append(garde, e)
+					}
+				}
+				if len(garde) == 0 {
+					delete(m, cle)
+				} else if m[cle], err = json.Marshal(garde); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 	delete(m, "equipements")
 	if len(noms) > 0 {
 		brut, err := json.Marshal(noms)
@@ -255,4 +279,61 @@ func Collecteurs(ctx context.Context, db *sql.DB) ([]string, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// UsageSecretSNMP : usage du chiffrement des mots de passe SNMP.
+const UsageSecretSNMP = "collecteur.snmp" // #nosec G101 -- nom d'usage du chiffrement, pas un secret
+
+// champsSecretsSNMP : champs chiffrés d'une cible SNMP.
+var champsSecretsSNMP = []string{"mot_de_passe", "cle_chiffrement"}
+
+// ChiffrerSecretSNMP : mot de passe SNMP chiffré pour la base.
+func ChiffrerSecretSNMP(cle []byte, clair string) (string, error) {
+	return secrets.Chiffrer(cle, UsageSecretSNMP, clair)
+}
+
+// dechiffrerSecretsCollecteur : document envoyé au collecteur, avec les mots
+// de passe SNMP en clair (HTTPS). Un secret illisible fait échouer l'envoi
+// (le collecteur garde sa configuration).
+func dechiffrerSecretsCollecteur(doc []byte, cle []byte) ([]byte, error) {
+	var d map[string]json.RawMessage
+	if err := json.Unmarshal(doc, &d); err != nil {
+		return nil, err
+	}
+	brutC, ok := d["collecteur"]
+	if !ok {
+		return doc, nil
+	}
+	var c map[string]json.RawMessage
+	if err := json.Unmarshal(brutC, &c); err != nil {
+		return nil, err
+	}
+	brutS, ok := c["snmp"]
+	if !ok {
+		return doc, nil
+	}
+	var cibles []map[string]any
+	if err := json.Unmarshal(brutS, &cibles); err != nil {
+		return nil, err
+	}
+	for _, cible := range cibles {
+		for _, champ := range champsSecretsSNMP {
+			v, _ := cible[champ].(string)
+			if secrets.EstChiffre(v) {
+				clair, err := secrets.Dechiffrer(cle, UsageSecretSNMP, v)
+				if err != nil {
+					return nil, fmt.Errorf("mot de passe SNMP illisible : %w", err)
+				}
+				cible[champ] = clair
+			}
+		}
+	}
+	var err error
+	if c["snmp"], err = json.Marshal(cibles); err != nil {
+		return nil, err
+	}
+	if d["collecteur"], err = json.Marshal(c); err != nil {
+		return nil, err
+	}
+	return json.Marshal(d)
 }

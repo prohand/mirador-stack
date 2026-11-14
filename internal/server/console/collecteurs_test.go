@@ -131,3 +131,63 @@ func TestSyslogInterface(t *testing.T) {
 		t.Error("syslog non retiré")
 	}
 }
+
+// SNMP v3 et sondes dans l'interface (SPEC § 23.15) : mots de passe
+// obligatoires puis gardés, chiffrés en base, jamais réaffichés.
+func TestSNMPInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	csrf := b.csrf(c, "/machines")
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 1), ('nas', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
+	idNas, _ := flotte.IDMachine(ctx, b.c.db, "nas")
+	_ = flotte.RattacherEquipement(ctx, b.c.db, idC, idNas, "admin", time.Now())
+	b.h.avancer(31 * time.Second)
+	f := url.Values{"csrf": {csrf}, "action": {"snmp"}, "machine": {"nas"}, "adresse": {"192.168.1.20"}, "prereglage": {"synology"},
+		"utilisateur": {"mirador"}, "auth": {"SHA256"}, "chiffrement": {"AES"}, "code": {b.code(secret)}}
+	b.post(c, "/machines/collecteur-lan", f)
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(doc), "snmp") {
+		t.Fatal("cible sans mots de passe acceptée")
+	}
+	f.Del("code")
+	f.Set("mot_de_passe", "auth-tres-secret")
+	f.Set("cle_chiffrement", "priv-tres-secret")
+	b.post(c, "/machines/collecteur-lan", f)
+	doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC)
+	if !strings.Contains(string(doc), `"utilisateur":"mirador"`) || strings.Contains(string(doc), "tres-secret") || !strings.Contains(string(doc), "chiffre:v1:") {
+		t.Fatalf("mots de passe non chiffrés en base : %s", doc)
+	}
+	_, corps, _ := b.get(c, "/machines/collecteur-lan")
+	if !strings.Contains(corps, `id="snmp"`) || strings.Contains(corps, "tres-secret") || strings.Contains(corps, "chiffre:v1:") {
+		t.Error("page SNMP : bloc absent ou mot de passe affiché")
+	}
+	// Modification sans mots de passe : gardés.
+	f.Set("mot_de_passe", "")
+	f.Set("cle_chiffrement", "")
+	f.Set("adresse", "192.168.1.21:161")
+	b.post(c, "/machines/collecteur-lan", f)
+	doc2, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC)
+	if !strings.Contains(string(doc2), "192.168.1.21:161") || strings.Count(string(doc2), "chiffre:v1:") != 2 {
+		t.Fatalf("modification : %s", doc2)
+	}
+	// Adresse publique refusée.
+	f.Set("adresse", "8.8.8.8")
+	b.post(c, "/machines/collecteur-lan", f)
+	if doc3, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(doc3), "8.8.8.8") {
+		t.Error("adresse publique acceptée")
+	}
+	// Sondes.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"sondes"}, "sondes": {"192.168.1.20:5001 nas\n192.168.1.20:443 nas NAS.lan"}})
+	cfg, _ := flotte.ConfigEffective(ctx, b.c.db, idC)
+	if len(cfg.Collecteur.Sondes) != 2 || cfg.Collecteur.Sondes[1].Nom != "nas.lan" {
+		t.Fatalf("sondes : %+v", cfg.Collecteur.Sondes)
+	}
+	// Retirer.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"snmp_retirer"}, "machine": {"nas"}})
+	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); len(cfg.Collecteur.SNMP) != 0 {
+		t.Error("cible SNMP non retirée")
+	}
+}

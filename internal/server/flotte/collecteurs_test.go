@@ -200,3 +200,35 @@ func TestBattementCSR(t *testing.T) {
 		t.Error("demande d'un agent rangée")
 	}
 }
+
+// Mots de passe SNMP : chiffrés en base, envoyés en clair au seul collecteur
+// (HTTPS), même ETag.
+func TestSecretsSNMP(t *testing.T) {
+	b := nouveauBanc(t)
+	b.f.opt.Cle = []byte("0123456789abcdef0123456789abcdef")
+	tokC, _ := TokenManuel(ctx, b.db, "collecteur-lan", "admin", t0)
+	_, _ = b.db.Exec(`UPDATE machines SET type = 'collecteur' WHERE nom = 'collecteur-lan'`)
+	b.f.opt.Ingestion.Auth().Oublier()
+	idC, _ := IDMachine(ctx, b.db, "collecteur-lan")
+	_ = CreerEquipement(ctx, b.db, "nas", idC, "admin", t0)
+	mdp, _ := ChiffrerSecretSNMP(b.f.opt.Cle, "auth-tres-secret")
+	cle, _ := ChiffrerSecretSNMP(b.f.opt.Cle, "priv-tres-secret")
+	doc := `{"collecteur":{"snmp":[{"machine":"nas","adresse":"192.168.1.20","prereglage":"synology","utilisateur":"mirador",` +
+		`"auth":"SHA","mot_de_passe":"` + mdp + `","chiffrement":"AES","cle_chiffrement":"` + cle + `"}]}}`
+	if err := DefinirConfig(ctx, b.db, "machine:"+itoa(idC), []byte(doc), "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	enBase, etag, _ := ConfigMachine(ctx, b.db, idC)
+	if strings.Contains(string(enBase), "tres-secret") {
+		t.Fatal("secret en clair en base")
+	}
+	w := b.requete(http.MethodGet, protocole.CheminConfig, tokC, nil, "", protocole.EnteteCapacites, protocole.CapaciteCollecteur)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"mot_de_passe":"auth-tres-secret"`) || w.Header().Get("ETag") != etag {
+		t.Fatalf("envoi au collecteur : %d %s", w.Code, w.Body)
+	}
+	// Mauvaise clé du serveur : rien n'est envoyé (le collecteur garde la sienne).
+	b.f.opt.Cle = []byte("ffffffffffffffffffffffffffffffff")
+	if w := b.requete(http.MethodGet, protocole.CheminConfig, tokC, nil, "", protocole.EnteteCapacites, protocole.CapaciteCollecteur); w.Code == http.StatusOK {
+		t.Error("secret illisible : configuration envoyée quand même")
+	}
+}

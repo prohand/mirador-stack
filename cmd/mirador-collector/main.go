@@ -150,8 +150,15 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		}
 		close(sysFini)
 	}()
+	// SNMP v3 et sondes de certificats (partie 5) : lots par équipement.
+	relevesFinis := make(chan struct{})
+	go func() {
+		collecteur.TournerReleves(ctx, cfg, collecteur.Expedition(a.File(), journal), journal)
+		close(relevesFinis)
+	}()
 	a.Tourner(ctx)
 	<-sysFini // dernier lot syslog mis en file
+	<-relevesFinis
 
 	journal.Info("arrêt demandé, envoi des derniers lots")
 	a.Vider(5 * time.Second)

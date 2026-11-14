@@ -57,6 +57,13 @@ Syslog TLS (partie 4), sur la page du collecteur :
    5 min), le collecteur ouvre l'écoute. Sur chaque équipement : syslog en
    TCP + TLS vers le nom du certificat et le port choisi.
 
+SNMP v3 et sondes (partie 5), sur la page du collecteur : choisir
+l'équipement (rattaché), son adresse, le préréglage (*synology* ou
+*standard*), l'utilisateur SNMP v3 et ses deux mots de passe (DSM :
+Panneau de configuration › Terminal et SNMP › SNMP v3, authentification
+SHA et chiffrement AES). Sondes : une ligne « adresse:port équipement »
+par service HTTPS du LAN.
+
 Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
 Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
 

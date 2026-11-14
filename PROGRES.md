@@ -744,7 +744,8 @@ de style de même taille ; objectif serveur inchangé ✅.
 | 2. Entrée InfluxDB (OPNsense) | **fait** (14/11), testé + fuzzing ; à brancher sur OPNsense (`docs/administration-serveur.md`) |
 | 3. `mirador-collector` : squelette, enrôlement (type au jeton), configuration, mise à jour signée par produit, équipements rattachés et contrôlés à l'arrivée, script d'installation | **fait** (14/11), testé (simulations, interface) ; à installer sur le LAN |
 | 4. Syslog TLS (adresse privée, émetteurs filtrés avant le TLS, RFC 5425/5424/3164, fuzzing) + certificat ACME (Let's Encrypt, défi DNS deSEC fait par le serveur, renouvellement, « Renouveler maintenant ») | **fait** (14/11), testé (TLS réel, faux ACME et faux deSEC, interface) ; à brancher sur le LAN |
-| 5 à 7 | à faire (SNMP v3 et sondes, UniFi natif, mesures et retrait d'Alloy) |
+| 5. SNMP v3 (authPriv, OID figés, noms de snmp_exporter) et sondes de certificats ; mots de passe chiffrés en base | **fait** (14/11), testé (NAS simulé, TLS réel, interface) ; OID à vérifier sur le NAS |
+| 6 et 7 | à faire (UniFi natif, mesures et retrait d'Alloy) |
 
 Première mesure sur le nœud Proxmox (13/11, 37 min après le démarrage, à
 refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
@@ -754,6 +755,14 @@ Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
 l'assistant) → 0.2.24 (groupe root) pas suffisant : QEMU protégé par le
 noyau ; 0.2.25 : `CAP_SYS_PTRACE` pour l'assistant (choix du 13/11), script
 relancé : **disques des VM qcow2 mesurés** (vérifié le 13/11).
+
+Mesure partie 5 : 16 µs par relevé Synology (hors réseau), binaire du
+collecteur 8,8 Mo.
+
+À vérifier sur le NAS (lecture seule, depuis le collecteur, utilisateur SNMP
+v3 créé dans DSM) : `snmpwalk -v3 -l authPriv -u UTILISATEUR -a SHA -A
+'MOTDEPASSE' -x AES -X 'CLE' ADRESSE-NAS 1.3.6.1.4.1.6574.1` (les lignes
+`…6574.1.7.1.0` et `…6574.1.7.2.0` = CPU et mémoire ; coller la sortie).
 
 Mesure partie 4 (banc d'essai) : 7 µs par ligne syslog (lecture, masquage,
 mise en lot) ; ~0,0005 % d'un cœur au rythme actuel, 0,35 % à 500 lignes/s ;

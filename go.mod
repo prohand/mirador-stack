@@ -8,6 +8,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aws/aws-sdk-go-v2 v1.47.8
 	github.com/godbus/dbus/v5 v5.2.4
+	github.com/gosnmp/gosnmp v1.47.0
 	github.com/klauspost/compress v1.20.3
 	github.com/pkg/sftp v1.13.12
 	github.com/prometheus/common v0.73.1

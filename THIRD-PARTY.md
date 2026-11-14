@@ -9,6 +9,7 @@ de cette liste.
 |---|---|---|---|---|
 | `github.com/klauspost/compress` | v1.20.3 | BSD-3-Clause (+ parties Apache-2.0 et MIT) | mirador-agent | compression snappy du format *remote write* (et zstd pour les logs) ; plus rapide que les versions de la bibliothèque standard, sans cgo |
 | `github.com/godbus/dbus/v5` | v5.2.4 | BSD-2-Clause | mirador-agent | lecture de l'état des services systemd par D-Bus, sans lancer `systemctl` |
+| `github.com/gosnmp/gosnmp` | v1.47.0 | BSD-2-Clause | mirador-collector | SNMP v3 (sécurité USM : authentification et chiffrement) en lecture seule ; écrire soi-même l'USM serait risqué (SPEC § 23.3) ; aucune dépendance compilée en plus |
 | `golang.org/x/sys` | v0.50.0 | BSD-3-Clause | agent, serveur, mirador-release | appels système (Linux, Windows) |
 | `golang.org/x/term` | v0.48.0 | BSD-3-Clause | mirador-release | saisie de la phrase de passe sans l'afficher (Windows et Linux) |
 | `rsc.io/qr` | v0.2.0 | BSD-3-Clause | mirador-server | QR code de la 2FA (et de l'invitation Olvid) dessiné par le serveur, sans service externe ; ~1 500 lignes, aucune dépendance |

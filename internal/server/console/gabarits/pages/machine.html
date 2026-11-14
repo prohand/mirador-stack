@@ -47,6 +47,36 @@
 <div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
 </form></details>{{end}}
 </section>{{end}}
+{{if .D.Collecteur}}{{$n := .D.SNMP}}<section class="carte" id="snmp">
+<div class="entete-carte"><div><h2>SNMP v3 et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>
+{{if $n.Cibles}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Adresse</th><th>Préréglage</th><th>Utilisateur</th><th>Sécurité</th><th>Intervalle</th><th></th></tr></thead><tbody>
+{{range $n.Cibles}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td><td><code>{{.Adresse}}</code></td><td>{{.Prereglage}}</td><td>{{.Utilisateur}}</td><td><small>{{.Auth}} / {{.Chiffrement}}</small></td><td><small>{{if .Intervalle}}{{.Intervalle}}{{else}}60s{{end}}</small></td>
+<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}">{{template "code2fa"}}<button class="secondaire petit">Retirer</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{end}}
+{{if and .Admin .D.Equipements}}<details{{if not $n.Cibles}} open{{end}}><summary>Ajouter ou modifier un relevé SNMP</summary>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="snmp">
+<div class="ligne">
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse <input name="adresse" required size="18" placeholder="192.168.1.20"></label>
+<label>Préréglage <select name="prereglage">{{range $n.Prereglages}}<option>{{.}}</option>{{end}}</select></label>
+<label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
+</div><div class="ligne">
+<label>Utilisateur SNMP v3 <input name="utilisateur" required size="14" autocomplete="off"></label>
+<label>Authentification <select name="auth"><option>SHA</option><option>SHA256</option><option>SHA512</option></select></label>
+<label>Mot de passe <input name="mot_de_passe" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
+<label>Chiffrement <select name="chiffrement"><option>AES</option><option>AES256</option></select></label>
+<label>Clé de chiffrement <input name="cle_chiffrement" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
+</div>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+<small>Même équipement : le relevé est remplacé (mots de passe gardés s'ils sont laissés vides). Synology : Panneau de configuration › Terminal et SNMP › SNMP v3.</small>
+</form></details>{{end}}
+<h3>Sondes de certificats</h3>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sondes">
+<label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{$n.Sondes}}</textarea>
+<small>Échéance lue toutes les 5 min (certificat non validé : seule l'échéance compte) ; tableau « Certificats TLS » et règles existantes.</small></label>
+{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>
+</section>{{end}}
 {{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
 

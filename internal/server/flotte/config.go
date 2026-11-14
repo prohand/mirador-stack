@@ -195,7 +195,16 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		// il refuserait tout le document à cause d'une clé qu'il ne connaît
 		// pas. On les lui retire.
 		if retirer := clesInconnues(capacitesDe(r)); len(retirer) > 0 {
-			return sansCles(doc, retirer)
+			if doc, etag, err = sansCles(doc, retirer); err != nil {
+				return nil, "", err
+			}
+		}
+		// Collecteur : mots de passe SNMP déchiffrés pour lui seul, à
+		// l'envoi (ils restent chiffrés en base ; même ETag).
+		if m.Type == "collecteur" {
+			if doc, err = dechiffrerSecretsCollecteur(doc, f.opt.Cle); err != nil {
+				return nil, "", err
+			}
 		}
 		return doc, etag, nil
 	}
