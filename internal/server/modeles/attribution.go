@@ -112,6 +112,7 @@ type Effectif struct {
 	Parametres map[string]float64 // tous les paramètres du modèle
 	DuGroupe   bool               // attribué au groupe (pas à la machine elle-même)
 	Surcharges map[string]bool    // paramètres réglés pour cette machine
+	Services   []string           // services systemd attendus (liste du modèle)
 }
 
 // Effectifs : modèles d'une machine = ceux de son groupe + les siens, moins
@@ -156,8 +157,12 @@ func Effectifs(ctx context.Context, db *sql.DB, machine int64, groupe string) ([
 		if !actif {
 			continue
 		}
+		svc, err := Services(ctx, db, m)
+		if err != nil {
+			return nil, err
+		}
 		e := Effectif{Modele: m, Parametres: map[string]float64{}, Surcharges: map[string]bool{},
-			DuGroupe: c.machine == nil}
+			DuGroupe: c.machine == nil, Services: svc}
 		for _, p := range m.Parametres {
 			e.Parametres[p.Nom] = p.Defaut
 			if c.groupe != nil && c.groupe.Etat == EtatActif {
@@ -198,6 +203,13 @@ func Ignores(ctx context.Context, db *sql.DB, machine int64) (map[string]bool, e
 func ConfigEffective(effectifs []Effectif) (map[string]json.RawMessage, error) {
 	out := map[string]json.RawMessage{}
 	for _, e := range effectifs {
+		// Services du modèle : toujours surveillés (même si la machine ne
+		// surveille que les services validés un par un).
+		if len(e.Services) > 0 {
+			if brut, err := json.Marshal(e.Services); err == nil {
+				out["systemd_surveiller"] = reunir(out["systemd_surveiller"], brut)
+			}
+		}
 		if len(e.Modele.Config) == 0 {
 			continue
 		}
@@ -232,4 +244,65 @@ func reunir(avant, apres json.RawMessage) json.RawMessage {
 		return apres
 	}
 	return r
+}
+
+// --- Services des modèles -----------------------------------------------------------
+
+// cleServices : réglage qui remplace la liste de départ d'un modèle.
+func cleServices(modele string) string { return "modeles.services." + modele }
+
+// Services : services attendus d'un modèle (liste modifiée dans
+// l'interface, sinon celle du modèle).
+func Services(ctx context.Context, db *sql.DB, m *Modele) ([]string, error) {
+	var v string
+	err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleServices(m.Nom)).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return m.Services, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var l []string
+	if err := json.Unmarshal([]byte(v), &l); err != nil || ValiderServices(l) != nil {
+		return m.Services, nil // valeur abîmée : liste du modèle
+	}
+	return l, nil
+}
+
+// DefinirServices : nouvelle liste de services d'un modèle (vérifiée, triée,
+// audit). Valable pour toutes les machines qui portent le modèle.
+func DefinirServices(ctx context.Context, db *sql.DB, modele string, services []string, qui string, maintenant time.Time) error {
+	m := Trouver(modele)
+	if m == nil {
+		return fmt.Errorf("modèle %q inconnu", modele)
+	}
+	if err := ValiderServices(services); err != nil {
+		return err
+	}
+	l := append([]string{}, services...)
+	sort.Strings(l)
+	brut, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+	avant, err := Services(ctx, db, m)
+	if err != nil {
+		return err
+	}
+	avantBrut, _ := json.Marshal(avant)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
+	if _, err := tx.ExecContext(ctx, `INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, ?, ?, ?)
+		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`,
+		cleServices(modele), string(brut), maintenant.Unix(), qui); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, 'modele_services', ?, ?, ?, '')`,
+		maintenant.Unix(), qui, modele, string(avantBrut), string(brut)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

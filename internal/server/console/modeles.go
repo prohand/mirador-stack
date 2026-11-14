@@ -35,6 +35,7 @@ type vueModeleAttribue struct {
 	M        *modeles.Modele
 	DuGroupe bool
 	Params   []vueParam
+	Services []string
 }
 
 // vueModeles : bloc « Modèles » de la page d'une machine.
@@ -102,7 +103,7 @@ func (c *Console) vueModelesMachine(ctx context.Context, m flotte.InfoMachine, t
 	ign, _ := modeles.Ignores(ctx, c.db, m.ID)
 	pris := map[string]bool{}
 	for _, e := range effs {
-		va := vueModeleAttribue{M: e.Modele, DuGroupe: e.DuGroupe}
+		va := vueModeleAttribue{M: e.Modele, DuGroupe: e.DuGroupe, Services: e.Services}
 		for _, p := range e.Modele.Parametres {
 			va.Params = append(va.Params, vueParam{Parametre: p, Valeur: e.Parametres[p.Nom], Surcharge: e.Surcharges[p.Nom]})
 		}
@@ -196,11 +197,12 @@ func (c *Console) actionModele(q *req, m flotte.InfoMachine, action string) (ok 
 
 // vueCatalogue : un modèle du catalogue et les groupes qui le portent.
 type vueCatalogue struct {
-	M       *modeles.Modele
-	Groupes []vueGroupeModele
-	Libres  []string // groupes qui ne le portent pas
-	NbMach  int      // machines qui le portent (directement ou par groupe)
-	NbDetec int      // machines où il est détecté sans être attribué
+	M        *modeles.Modele
+	Services []string // services attendus (liste du modèle ou modifiée)
+	Groupes  []vueGroupeModele
+	Libres   []string // groupes qui ne le portent pas
+	NbMach   int      // machines qui le portent (directement ou par groupe)
+	NbDetec  int      // machines où il est détecté sans être attribué
 }
 
 type vueGroupeModele struct {
@@ -220,6 +222,7 @@ func (c *Console) pageModeles(q *req) {
 	var d donneesModeles
 	for _, mod := range modeles.Fournis() {
 		vc := vueCatalogue{M: mod}
+		vc.Services, _ = modeles.Services(ctx, c.db, mod)
 		for _, g := range l.Groupes {
 			as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g))
 			if err != nil {
@@ -280,6 +283,15 @@ func (c *Console) postModeles(q *req) {
 	groupe := strings.TrimSpace(f("groupe"))
 	if err == nil && mod == nil {
 		err = errors.New("modèle inconnu")
+	}
+	// Services attendus du modèle (toutes ses machines) : pas de groupe.
+	if err == nil && f("action") == "services" {
+		err = modeles.DefinirServices(ctx, c.db, mod.Nom, strings.FieldsFunc(f("services"), func(r rune) bool {
+			return r == ',' || r == ' ' || r == '\n' || r == '\r' || r == '\t'
+		}), q.qui(), q.t)
+		c.oublierAValider()
+		c.retour(q, "/modeles#"+url.PathEscape(mod.Nom), err, "services attendus de « "+mod.Titre+" » enregistrés (surveillés sur ses machines sous 5 min)")
+		return
 	}
 	if err == nil {
 		l := c.lireListes(ctx)

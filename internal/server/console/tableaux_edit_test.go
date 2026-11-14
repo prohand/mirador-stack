@@ -505,6 +505,16 @@ func TestModelesInterface(t *testing.T) {
 	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 1 {
 		t.Errorf("après retrait pour la machine : %+v", effs)
 	}
+	// Services attendus du modèle Linux, depuis la page « Modèles ».
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"services"}, "modele": {"linux"},
+		"services": {"nginx.service, ssh.service"}, "code": {b.code(secret)}})
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, id); !strings.Contains(string(doc), `"systemd_surveiller":["nginx.service","ssh.service"]`) {
+		t.Errorf("services du modèle non envoyés : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1"); !strings.Contains(corps, "<code>nginx.service</code>") {
+		t.Error("services du modèle absents de la page de la machine")
+	}
 	// Sans code 2FA : refusé.
 	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_ajouter"}, "modele": {"certificats"}})
 	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 1 {

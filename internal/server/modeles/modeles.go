@@ -43,6 +43,9 @@ type Modele struct {
 	Config      json.RawMessage `json:"config,omitempty"`
 	Parametres  []Parametre     `json:"parametres,omitempty"`
 	Regles      []RegleModele   `json:"regles,omitempty"`
+	// Services : services systemd attendus sur les machines du modèle
+	// (liste de départ ; modifiable dans l'interface, demande du 14/11).
+	Services []string `json:"services,omitempty"`
 }
 
 // Parametre : seuil nommé, réglable par groupe puis par machine.
@@ -67,6 +70,8 @@ type RegleModele struct {
 }
 
 var (
+	// ReService : nom d'unité systemd accepté dans un modèle.
+	ReService      = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]{1,200}\.(service|timer)$`)
 	reNomModele    = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 	reNomParametre = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 	reRefParametre = regexp.MustCompile(`\$([a-z][a-z0-9_]{0,31})`)
@@ -95,6 +100,9 @@ func (m *Modele) Valider() error {
 			return fmt.Errorf("paramètre %s : bornes invalides", p.Nom)
 		}
 		vus[p.Nom] = true
+	}
+	if err := ValiderServices(m.Services); err != nil {
+		return err
 	}
 	if m.Detection != "" {
 		if _, err := alertes.AnalyserExpr(m.Detection); err != nil {
@@ -242,4 +250,25 @@ func Remplacees() map[string][]string {
 		}
 	}
 	return out
+}
+
+// maxServices : services par modèle.
+const maxServices = 100
+
+// ValiderServices : noms d'unités systemd (.service, .timer), sans doublon.
+func ValiderServices(l []string) error {
+	if len(l) > maxServices {
+		return fmt.Errorf("%d services au plus par modèle", maxServices)
+	}
+	vus := map[string]bool{}
+	for _, n := range l {
+		if !ReService.MatchString(n) {
+			return fmt.Errorf("service %q invalide (nom d'unité en .service ou .timer)", n)
+		}
+		if vus[n] {
+			return fmt.Errorf("service %q en double", n)
+		}
+		vus[n] = true
+	}
+	return nil
 }

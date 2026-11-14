@@ -27,5 +27,9 @@
    "expr": "node_docker_container_memory_bytes / node_docker_container_memory_limit_bytes * 100 > $conteneur_memoire_pct",
    "resume": "{{ $labels.name }} utilise {{ $value | humanize }} % de sa limite mémoire sur {{ $labels.instance }}"
   }
+ ],
+ "services": [
+  "containerd.service",
+  "docker.service"
  ]
 }

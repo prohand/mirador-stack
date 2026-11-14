@@ -3816,3 +3816,18 @@ liste des machines. Rien n'est attribué sans validation.
   internes = ~1 + nombre de paramètres par modèle et par machine (Linux :
   6 séries + 5 « remplacée ») ; détection = 7 requêtes instantanées,
   passées par le cache des requêtes de l'interface (1 min).
+
+### 24.7 Services des modèles (demande du 14/11) **[Fait, à valider]**
+
+- Chaque modèle a une liste de services systemd attendus (départ : Docker
+  → `containerd`, `docker` ; Proxmox → `pve-cluster`, `pvedaemon`,
+  `pveproxy`, `pvestatd`), modifiable dans Machines › Modèles (code 2FA,
+  audit `modele_services`, réglage `modeles.services.NOM`). Noms vérifiés
+  (`.service` ou `.timer`), 100 au plus.
+- Sur les machines du modèle : ajoutés à `systemd_surveiller` (surveillés
+  même en validation service par service) ; série interne
+  `mirador_modele_service{instance, modele, name}`.
+- Règle fournie `ServiceDuModeleAbsent` : service attendu que l'agent ne
+  voit pas (pas installé, désinstallé, nom faux) pendant 15 min. Un
+  service en échec ou arrêté reste signalé par les règles des services
+  (pas de doublon).

@@ -125,6 +125,9 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 							ajout("mirador_machine_regle_remplacee", 1, "instance", m.Nom, "regle", r.Remplace)
 						}
 					}
+					for _, svc := range e.Services {
+						ajout("mirador_modele_service", 1, "instance", m.Nom, "modele", e.Modele.Nom, "name", svc)
+					}
 				}
 			}
 		}

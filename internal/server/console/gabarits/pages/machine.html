@@ -88,6 +88,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{if $md.Attribues}}<h3>Appliqués</h3>
 {{range $md.Attribues}}{{$mod := .M}}<details class="modele"><summary><strong>{{$mod.Titre}}</strong>{{if .DuGroupe}} <span class="pastille">groupe {{$md.Groupe}}</span>{{end}} <small>{{len $mod.Regles}} règle(s), {{len .Params}} seuil(s)</small></summary>
 <p><small>{{$mod.Description}}</small></p>
+{{if .Services}}<p><small>Services attendus : {{range $i, $x := .Services}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}} (liste du modèle : <a href="/modeles#{{$mod.Nom}}">Machines › Modèles</a>)</small></p>{{end}}
 {{if .Params}}<form method="post" action="/machines/{{$nom}}" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}">
 <div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>
 <p><small>Champ vide = valeur du groupe ou du modèle (affichée en grisé). Bornes vérifiées.</small></p>

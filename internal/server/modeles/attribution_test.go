@@ -99,6 +99,24 @@ func TestAttribution(t *testing.T) {
 	if n != 6 {
 		t.Errorf("audit : %d lignes", n)
 	}
+	// Services du modèle : liste de départ, puis modifiée ; envoyés dans
+	// systemd_surveiller (réunis avec ceux des autres modèles).
+	if l, _ := Services(ctx, db, Trouver("docker")); len(l) != 2 {
+		t.Errorf("services de départ de docker : %v", l)
+	}
+	if err := DefinirServices(ctx, db, "linux", []string{"ssh.service", "cron.service"}, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	for _, mauvais := range [][]string{{"rm -rf /"}, {"a.service", "a.service"}, {"nginx"}} {
+		if DefinirServices(ctx, db, "linux", mauvais, "admin", t0) == nil {
+			t.Errorf("services %v acceptés", mauvais)
+		}
+	}
+	e2, _ = Effectifs(ctx, db, 2, "web")
+	cfg, _ = ConfigEffective(e2)
+	if string(cfg["systemd_surveiller"]) != `["containerd.service","docker.service","cron.service","ssh.service"]` {
+		t.Errorf("systemd_surveiller : %s", cfg["systemd_surveiller"])
+	}
 }
 
 // Règles des modèles sur des données : seuil par machine, machines sans le
@@ -146,6 +164,28 @@ func TestReglesSurDonnees(t *testing.T) {
 	}
 	if len(ech) != 1 || ech[0].Etiquettes.Get("instance") != "a" || ech[0].Valeur != 25 {
 		t.Errorf("règle du modèle : %v", ech)
+	}
+	// Service attendu par un modèle : absent sur a (aucune série systemd),
+	// présent sur b.
+	ecrireTard := func(v float64, paires ...string) {
+		app := db.Appender(context.Background())
+		for ts := t0.Add(-10 * time.Minute); !ts.After(t0); ts = ts.Add(30 * time.Second) {
+			_, _ = app.Append(0, labels.FromStrings(paires...), ts.UnixMilli(), v)
+		}
+		_ = app.Commit()
+	}
+	for _, i := range []string{"a", "b"} {
+		ecrireTard(1, "__name__", "mirador_modele_service", "instance", i, "modele", "docker", "name", "docker.service")
+	}
+	ecrireTard(0, "__name__", "node_systemd_unit_state", "instance", "b", "name", "docker.service", "state", "failed")
+	for _, r := range alertes.ReglesMirador() {
+		if r.Nom != "ServiceDuModeleAbsent" {
+			continue
+		}
+		ech, err := lect.Instant(context.Background(), r.Expr, t0)
+		if err != nil || len(ech) != 1 || ech[0].Etiquettes.Get("instance") != "a" || ech[0].Etiquettes.Get("name") != "docker.service" {
+			t.Errorf("service absent : %v %v", ech, err)
+		}
 	}
 	// Règle importée (seuil 30 pour l'exemple) : remplacée pour a et b, reste pour c.
 	importee := `node_filesystem_avail_bytes / node_filesystem_size_bytes * 100 < 30`

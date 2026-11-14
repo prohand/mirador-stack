@@ -98,6 +98,20 @@ func ReglesMirador() []Regle {
 			Description: "L'assistant root ne lit pas /etc/pve : trop ancien (relancer le script, ou attendre sa mise " +
 				"à jour automatique), ou erreur (voir root.json, champ « erreurs »). Les tableaux n'ont alors pas les noms.",
 			Note: "SPEC § 23.7"}),
+		// Services attendus par un modèle de surveillance (SPEC § 24.7) : un
+		// service en échec ou arrêté est déjà signalé par les règles des
+		// services ; ici, le service n'existe pas (pas installé, désinstallé,
+		// ou nom faux dans le modèle).
+		m(Regle{Nom: "ServiceDuModeleAbsent", Groupe: "modeles", Intervalle: Duree(5 * time.Minute),
+			Expr: `max by (instance, name, modele) (mirador_modele_service) ` +
+				`unless on (instance, name) node_systemd_unit_state`,
+			Pour:    Duree(15 * time.Minute),
+			Gravite: Avertissement,
+			Resume:  "{{ $labels.name }} (modèle {{ $labels.modele }}) n'existe pas sur {{ $labels.instance }}",
+			Description: "Le modèle attend ce service, mais l'agent ne le voit pas : service pas installé ou " +
+				"désinstallé, ou nom faux dans la liste du modèle (Machines › Modèles). Aussi si la collecte systemd " +
+				"est coupée pour cette machine.",
+			Note: "SPEC § 24.7"}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),

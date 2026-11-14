@@ -2,11 +2,16 @@
 <h1>Modèles de surveillance</h1>
 {{template "onglets-machines" "modeles"}}
 <p>Un modèle dit « cette machine est une machine Linux (ou Docker, Proxmox…), donc on y surveille ceci, avec ces alertes et ces seuils ». Attribuez-le à une machine (sur sa page) ou à un groupe (ici) : toutes les machines du groupe le reçoivent. Les modèles se cumulent ; un seuil se règle pour le groupe ici, et pour une machine sur sa page. Quand un modèle a une règle équivalente à une règle importée, celle-ci se tait pour les machines qui portent le modèle.</p>
+<p><small><strong>Services attendus</strong> d'un modèle : surveillés sur toutes ses machines (même si elles ne surveillent que les services validés un par un), avec une alerte si l'un d'eux n'existe pas sur une machine. Un service en échec ou arrêté est signalé par les règles des services.</small></p>
 {{range .D.Catalogue}}{{$mod := .M}}<section class="carte" id="{{$mod.Nom}}">
 <h2>{{$mod.Titre}}</h2>
 <p>{{$mod.Description}}</p>
 <p><small>{{.NbMach}} machine(s) le portent{{if .NbDetec}} ; <strong>détecté sans être attribué sur {{.NbDetec}} machine(s)</strong> (proposé sur leur page){{end}}.</small></p>
 {{if $mod.Regles}}<details><summary>Règles ({{len $mod.Regles}})</summary><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul></details>{{end}}
+<details><summary>Services attendus : {{if .Services}}{{range $i, $x := .Services}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}{{else}}aucun{{end}}</summary>
+<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services">
+<label>Services (séparés par des virgules) <input name="services" value="{{range $i, $x := .Services}}{{if $i}}, {{end}}{{$x}}{{end}}" size="60" maxlength="4000" placeholder="nginx.service, php8.2-fpm.service" {{if not $.Admin}}disabled{{end}}></label>
+{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form></details>
 {{if .Groupes}}<h3>Groupes</h3>{{range .Groupes}}{{$g := .Groupe}}<form method="post" action="/modeles" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="groupe" value="{{$g}}">
 <p><strong>{{$g}}</strong></p>
 {{if .Params}}<div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>{{end}}
