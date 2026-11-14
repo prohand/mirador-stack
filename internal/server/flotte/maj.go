@@ -20,6 +20,7 @@ import (
 
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/certsyslog"
 )
 
 // formatVersionPubliee : versions « 1.2.3 » seulement (comme l'agent).
@@ -28,15 +29,29 @@ var formatVersionPubliee = regexp.MustCompile(`^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,
 // cleCible : réglage global de la version assignée à toutes les machines.
 const cleCible = "version_agent_cible"
 
-func nomBinaire(version, arch string) string { return "mirador-agent-" + version + "-linux-" + arch }
+// nomBinaire : fichier d'un binaire publié (mirador-agent-1.2.3-linux-amd64).
+func nomBinaire(produit, version, arch string) string {
+	return produit + "-" + version + "-linux-" + arch
+}
+
+// produits : produits publiés (SPEC § 23.13).
+var produits = map[string]bool{protocole.ProduitAgent: true, protocole.ProduitCollecteur: true}
+
+// ProduitDe : binaire qu'une machine utilise, d'après son type.
+func ProduitDe(typeMachine string) string {
+	if typeMachine == "collecteur" {
+		return protocole.ProduitCollecteur
+	}
+	return protocole.ProduitAgent
+}
 
 // Publier enregistre une version signée de l'agent. La signature est vérifiée
 // ici aussi avec les clés publiques réglées dans l'interface (celles que
 // reçoivent les agents à l'installation) : une erreur est vue tout de suite,
 // pas sur 25 machines.
 func Publier(ctx context.Context, db *sql.DB, dossier string, m *protocole.Manifeste, binaire []byte, qui string, maintenant time.Time) error {
-	if !formatVersionPubliee.MatchString(m.Version) || !architectures[m.Architecture] {
-		return fmt.Errorf("version %q ou architecture %q invalide", m.Version, m.Architecture)
+	if !formatVersionPubliee.MatchString(m.Version) || !architectures[m.Architecture] || !produits[m.ProduitEffectif()] {
+		return fmt.Errorf("produit %q, version %q ou architecture %q invalide", m.ProduitEffectif(), m.Version, m.Architecture)
 	}
 	cles, err := clesVerification(ctx, db)
 	if err != nil {
@@ -54,7 +69,7 @@ func Publier(ctx context.Context, db *sql.DB, dossier string, m *protocole.Manif
 	if err := os.MkdirAll(dossier, 0o700); err != nil {
 		return err
 	}
-	chemin := filepath.Join(dossier, nomBinaire(m.Version, m.Architecture))
+	chemin := filepath.Join(dossier, nomBinaire(m.ProduitEffectif(), m.Version, m.Architecture))
 	tmp := chemin + ".tmp"
 	if err := os.WriteFile(tmp, binaire, 0o600); err != nil {
 		return err
@@ -71,13 +86,17 @@ func Publier(ctx context.Context, db *sql.DB, dossier string, m *protocole.Manif
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if _, err := tx.ExecContext(ctx, `INSERT INTO versions_agent(version, architecture, sha256, taille, retour_autorise, signature, publiee_le, publiee_par)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(version, architecture) DO UPDATE SET sha256 = excluded.sha256, taille = excluded.taille,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO versions_binaires(produit, version, architecture, sha256, taille, retour_autorise, signature, publiee_le, publiee_par)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(produit, version, architecture) DO UPDATE SET sha256 = excluded.sha256, taille = excluded.taille,
 		retour_autorise = excluded.retour_autorise, signature = excluded.signature, publiee_le = excluded.publiee_le, publiee_par = excluded.publiee_par`,
-		m.Version, m.Architecture, m.SHA256, m.Taille, retour, m.Signature, maintenant.Unix(), qui); err != nil {
+		m.ProduitEffectif(), m.Version, m.Architecture, m.SHA256, m.Taille, retour, m.Signature, maintenant.Unix(), qui); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, maintenant.Unix(), qui, "version_publiee", m.Version+"/"+m.Architecture, "", m.SHA256, ""); err != nil {
+	objet := m.Version + "/" + m.Architecture
+	if m.Produit != "" {
+		objet = m.Produit + " " + objet
+	}
+	if err := audit(ctx, tx, maintenant.Unix(), qui, "version_publiee", objet, "", m.SHA256, ""); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -91,7 +110,7 @@ func DefinirCible(ctx context.Context, db *sql.DB, machine int64, version, qui s
 			return fmt.Errorf("version %q invalide", version)
 		}
 		var n int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM versions_agent WHERE version = ?`, version).Scan(&n); err != nil {
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM versions_binaires WHERE version = ?`, version).Scan(&n); err != nil {
 			return err
 		}
 		if n == 0 {
@@ -145,11 +164,14 @@ func (f *Flotte) cible(ctx context.Context, machine int64) (version, arch string
 	return version, arch, nil
 }
 
-func (f *Flotte) manifeste(ctx context.Context, version, arch string) (*protocole.Manifeste, error) {
+func (f *Flotte) manifeste(ctx context.Context, produit, version, arch string) (*protocole.Manifeste, error) {
 	m := &protocole.Manifeste{Version: version, Architecture: arch}
+	if produit != protocole.ProduitAgent {
+		m.Produit = produit
+	}
 	var retour int
-	err := f.opt.DB.QueryRowContext(ctx, `SELECT sha256, taille, retour_autorise, signature FROM versions_agent WHERE version = ? AND architecture = ?`,
-		version, arch).Scan(&m.SHA256, &m.Taille, &retour, &m.Signature)
+	err := f.opt.DB.QueryRowContext(ctx, `SELECT sha256, taille, retour_autorise, signature FROM versions_binaires WHERE produit = ? AND version = ? AND architecture = ?`,
+		produit, version, arch).Scan(&m.SHA256, &m.Taille, &retour, &m.Signature)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -173,7 +195,7 @@ func (f *Flotte) maj(w http.ResponseWriter, r *http.Request) {
 	var rep protocole.ReponseMaj
 	fen, _ := LireFenetre(r.Context(), f.opt.DB)
 	if version != "" && version != r.Header.Get(protocole.EnteteVersion) && fen.Contient(f.opt.Maintenant()) {
-		if rep.Manifeste, err = f.manifeste(r.Context(), version, arch); err != nil {
+		if rep.Manifeste, err = f.manifeste(r.Context(), ProduitDe(machine.Type), version, arch); err != nil {
 			erreur(w, http.StatusServiceUnavailable, "base indisponible")
 			return
 		}
@@ -199,12 +221,13 @@ func (f *Flotte) binaire(w http.ResponseWriter, r *http.Request) {
 		erreur(w, http.StatusNotFound, "version non assignée à cette machine")
 		return
 	}
-	m, err := f.manifeste(r.Context(), version, arch)
+	produit := ProduitDe(machine.Type)
+	m, err := f.manifeste(r.Context(), produit, version, arch)
 	if err != nil || m == nil {
 		erreur(w, http.StatusNotFound, "version non publiée")
 		return
 	}
-	fd, err := os.Open(filepath.Join(f.opt.DossierVersions, nomBinaire(version, arch))) // #nosec G304 -- nom fabriqué à partir de valeurs vérifiées
+	fd, err := os.Open(filepath.Join(f.opt.DossierVersions, nomBinaire(produit, version, arch))) // #nosec G304 -- nom fabriqué à partir de valeurs vérifiées
 	if err != nil {
 		erreur(w, http.StatusNotFound, "binaire absent")
 		return
@@ -245,6 +268,13 @@ func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
 		!utf8.ValidString(b.MajEssai+b.MajEchec) || !formatTexteCourt.MatchString(b.MajEssai) || !formatTexteCourt.MatchString(b.MajEchec) {
 		erreur(w, http.StatusBadRequest, "battement invalide")
 		return
+	}
+	// Demande de certificat du syslog (collecteur seulement, SPEC § 23.14) :
+	// vérifiée et rangée ; un agent qui en enverrait une est ignoré.
+	if b.CSRSyslog != "" && m.Type == "collecteur" {
+		if err := certsyslog.NoterCSR(r.Context(), f.opt.DB, m.ID, b.CSRSyslog, f.opt.Maintenant()); err != nil {
+			f.opt.Journal.Warn("demande de certificat du syslog refusée", "collecteur", m.Nom, "erreur", err)
+		}
 	}
 	f.mu.Lock()
 	f.battements[m.ID] = battement{le: f.opt.Maintenant().Unix(), b: b, capacites: capacitesDe(r)}
@@ -397,17 +427,17 @@ func CibleGlobale(ctx context.Context, db *sql.DB) (string, error) {
 	return v, err
 }
 
-// VersionPubliee : une version de l'agent publiée sur le serveur.
+// VersionPubliee : un binaire publié sur le serveur (agent ou collecteur).
 type VersionPubliee struct {
-	Version, Architecture, SHA256, PublieePar string
-	Taille, PublieeLe                         int64
-	RetourAutorise                            bool
+	Produit, Version, Architecture, SHA256, PublieePar string
+	Taille, PublieeLe                                  int64
+	RetourAutorise                                     bool
 }
 
 // ListerVersions : versions publiées, plus récentes d'abord.
 func ListerVersions(ctx context.Context, db *sql.DB) ([]VersionPubliee, error) {
-	rows, err := db.QueryContext(ctx, `SELECT version, architecture, sha256, taille, retour_autorise, publiee_le, publiee_par
-		FROM versions_agent ORDER BY publiee_le DESC LIMIT 100`)
+	rows, err := db.QueryContext(ctx, `SELECT produit, version, architecture, sha256, taille, retour_autorise, publiee_le, publiee_par
+		FROM versions_binaires ORDER BY publiee_le DESC, produit LIMIT 200`)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +446,7 @@ func ListerVersions(ctx context.Context, db *sql.DB) ([]VersionPubliee, error) {
 	for rows.Next() {
 		var v VersionPubliee
 		var r int
-		if err := rows.Scan(&v.Version, &v.Architecture, &v.SHA256, &v.Taille, &r, &v.PublieeLe, &v.PublieePar); err != nil {
+		if err := rows.Scan(&v.Produit, &v.Version, &v.Architecture, &v.SHA256, &v.Taille, &r, &v.PublieeLe, &v.PublieePar); err != nil {
 			return nil, err
 		}
 		v.RetourAutorise = r == 1

@@ -4,6 +4,7 @@
 #   make bench     benchmarks (mémoire et allocations)
 #   make verif     go vet + gofmt + en-têtes et licences des dépendances
 #   make agent     agent : binaires statiques linux/amd64 et linux/arm64 dans dist/
+#   make collecteur  mirador-collector : binaires statiques linux/amd64 et linux/arm64 dans dist/
 #   make serveur   serveur : binaires statiques linux/amd64 et linux/arm64 dans dist/
 #   make release   mirador-release : windows/amd64 (poste de l'utilisateur) et linux/amd64
 #   make propre    supprime le dossier dist/
@@ -19,7 +20,7 @@ LDFLAGS = -s -w -buildid= \
 	-X mirador-stack/internal/version.Version=$(VERSION) \
 	-X mirador-stack/internal/version.Commit=$(COMMIT)
 
-.PHONY: test bench verif agent serveur release propre olvid-pb
+.PHONY: test bench verif agent collecteur serveur release propre olvid-pb
 
 test:
 	go test -race ./...
@@ -37,6 +38,14 @@ agent:
 	for arch in amd64 arm64; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
 			-ldflags "$(LDFLAGS)" -o dist/mirador-agent-linux-$$arch ./cmd/mirador-agent || exit 1; \
+	done
+	cd dist && sha256sum mirador-* > SHA256SUMS
+
+collecteur:
+	@mkdir -p dist
+	for arch in amd64 arm64; do \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
+			-ldflags "$(LDFLAGS)" -o dist/mirador-collector-linux-$$arch ./cmd/mirador-collector || exit 1; \
 	done
 	cd dist && sha256sum mirador-* > SHA256SUMS
 

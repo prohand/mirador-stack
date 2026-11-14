@@ -33,8 +33,10 @@ const (
 	CheminInflux = "/api/agent/v1/influx"
 	// Installation (jeton d'enrôlement dans « Authorization: Bearer ») :
 	CheminInstallation        = "/api/agent/v1/install"        // GET : script d'installation
-	CheminInstallationBinaire = "/api/agent/v1/install/binary" // GET : binaire (?arch=amd64|arm64)
-	CheminCles                = "/api/agent/v1/cles"           // GET : clés publiques de signature (texte)
+	CheminInstallationBinaire = "/api/agent/v1/install/binary" // GET : binaire (?arch=amd64|arm64[&produit=mirador-collector])
+	// CheminInstallationCollecteur : script d'installation de mirador-collector.
+	CheminInstallationCollecteur = "/api/agent/v1/install/collecteur"
+	CheminCles                   = "/api/agent/v1/cles" // GET : clés publiques de signature (texte)
 )
 
 // En-têtes envoyés par l'agent.
@@ -76,6 +78,10 @@ const CapaciteProxmox = "proxmox"
 
 // CapaciteChecks : l'agent sait faire les checks des modèles (SPEC.md § 24.10).
 const CapaciteChecks = "checks"
+
+// CapaciteCollecteur : mirador-collector (clé « collecteur » de la
+// configuration, SPEC § 23.13).
+const CapaciteCollecteur = "collecteur"
 
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
 const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks
@@ -119,11 +125,15 @@ type Battement struct {
 	Demarrage    time.Time `json:"demarrage"`
 	MajEssai     string    `json:"maj_essai,omitempty"` // version en cours d'essai
 	MajEchec     string    `json:"maj_echec,omitempty"` // dernier échec de mise à jour
+	// CSRSyslog : demande de certificat (PEM) du syslog de mirador-collector
+	// (SPEC § 23.14) ; le serveur fait la démarche ACME et renvoie le
+	// certificat dans la configuration.
+	CSRSyslog string `json:"csr_syslog,omitempty"`
 }
 
 // Bornes des messages JSON de l'agent (le serveur refuse au-delà).
 const (
-	TailleMaxDemande   = 4 << 10 // enrôlement, battement
+	TailleMaxDemande   = 8 << 10 // enrôlement, battement (CSR du syslog comprise)
 	DelaiEnrolementDef = 30      // secondes entre deux demandes d'enrôlement
 )
 
@@ -131,6 +141,7 @@ const (
 const (
 	ParametreVersion      = "version"
 	ParametreArchitecture = "arch"
+	ParametreProduit      = "produit" // installation : mirador-agent (défaut) ou mirador-collector
 )
 
 // ReponseMaj : version assignée à cette machine par l'interface.
@@ -138,15 +149,35 @@ type ReponseMaj struct {
 	Manifeste *Manifeste `json:"manifeste,omitempty"` // nil : rester à la version actuelle
 }
 
-// Manifeste : description signée d'une version de mirador-agent, produite par
-// mirador-release sur le poste de l'utilisateur (le serveur ne signe jamais).
+// Produits signés (SPEC § 23.13) : le nom du produit fait partie du message
+// signé, un binaire de l'agent ne peut donc pas être installé comme
+// collecteur, ni l'inverse.
+const (
+	ProduitAgent      = "mirador-agent"
+	ProduitCollecteur = "mirador-collector"
+)
+
+// Manifeste : description signée d'une version de mirador-agent (ou de
+// mirador-collector), produite par mirador-release sur le poste de
+// l'utilisateur (le serveur ne signe jamais).
 type Manifeste struct {
+	// Produit : vide pour mirador-agent (manifestes d'avant l'étape 6, que les
+	// agents déjà installés savent lire), « mirador-collector » sinon.
+	Produit        string `json:"produit,omitempty"`
 	Version        string `json:"version"`         // 1.2.3
 	Architecture   string `json:"architecture"`    // amd64, arm64
 	SHA256         string `json:"sha256"`          // empreinte du binaire, hexadécimal
 	Taille         int64  `json:"taille"`          // octets
 	RetourAutorise bool   `json:"retour_autorise"` // instruction signée : accepter une version plus ancienne
 	Signature      string `json:"signature"`       // Ed25519, base64, sur MessageSigne()
+}
+
+// ProduitEffectif : produit du manifeste (mirador-agent si vide).
+func (m *Manifeste) ProduitEffectif() string {
+	if m.Produit == "" {
+		return ProduitAgent
+	}
+	return m.Produit
 }
 
 // MessageSigne renvoie exactement les octets signés. Tout changement d'un
@@ -156,6 +187,6 @@ func (m *Manifeste) MessageSigne() []byte {
 	if m.RetourAutorise {
 		retour = "oui"
 	}
-	return []byte("mirador-agent\n" + m.Version + "\n" + m.Architecture + "\n" +
+	return []byte(m.ProduitEffectif() + "\n" + m.Version + "\n" + m.Architecture + "\n" +
 		m.SHA256 + "\n" + strconv.FormatInt(m.Taille, 10) + "\n" + retour + "\n")
 }

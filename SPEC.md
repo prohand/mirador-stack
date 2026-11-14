@@ -3171,6 +3171,21 @@ Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 
 ---
 
+### 20.9 Passkey sur téléphone (correction du 14/11)
+
+Retour : « la passkey ne marche pas sur mobile ». Cause la plus probable,
+corrigée : en connexion **sans mot de passe**, le script demandait le défi
+au serveur **puis** la passkey ; Safari (iPhone, iPad) refuse une demande
+WebAuthn faite après une attente réseau (le clic n'est plus « récent »).
+Le défi est maintenant préparé dès l'affichage de la page de connexion
+(renouvelé toutes les 4 min, valable 5 min, à usage unique) : au clic, la
+passkey est demandée tout de suite. Le message d'erreur affiche aussi le
+nom technique de l'erreur (`NotAllowedError`…) pour diagnostiquer un autre
+cas. Côté serveur, rien à changer : compteur à 0 des passkeys
+synchronisées (iCloud, Google) accepté, formats d'attestation ignorés
+(« none » demandé), origine vérifiée. Vérifié dans Chromium avec un
+authentificateur virtuel (création puis connexion sans mot de passe).
+
 ## 21. Élément par élément, signal « à valider », réglages rangés **[Fait, à valider — demandes du 12/11]**
 
 Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
@@ -3659,10 +3674,10 @@ utilisable pendant la comparaison.
 |---|---|
 | 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
 | 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
-| 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » |
-| 4 | Syslog TLS + certificat ACME géré dans l'interface |
-| 5 | SNMP v3 (Synology) et sondes de certificats |
-| 6 | Client UniFi natif (unpoller retiré) |
+| 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » — **fait le 14/11** (§ 23.13) |
+| 4 | Syslog TLS + certificat ACME géré dans l'interface — **fait le 14/11** (§ 23.14) |
+| 5 | SNMP v3 (Synology) et sondes de certificats — **fait le 14/11** (§ 23.15) |
+| 6 | Client UniFi natif (unpoller retiré) — **fait le 14/11** (§ 23.16) |
 | 7 | Mesures, comparaison avec Alloy, retrait d'Alloy sur validation |
 
 ### 23.10 Partie 2 faite (14/11) : entrée InfluxDB v2 **[Fait, à tester avec OPNsense]**
@@ -3719,6 +3734,287 @@ dernière connexion). Une adresse non revue depuis 30 jours redevient
 « nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
 (comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
 Coût : une lecture et une écriture SQLite par connexion réussie.
+
+### 23.13 Partie 3 faite (14/11) : `mirador-collector`, le squelette **[Fait, à tester sur le LAN]**
+
+Choix faits sans question (dans la ligne des § 23.3 à 23.9) :
+
+- **Binaire séparé** `mirador-collector` (l'agent n'ouvre jamais de port),
+  qui **réutilise** le code de l'agent : fichier de configuration (mêmes
+  clés `MIRADOR_*`, valeurs par défaut propres : `DefautCollecteur`),
+  enrôlement, configuration distante (long-poll, ETag), file et envoi
+  remote write, mise à jour signée avec essai et retour arrière. Il ne
+  relève pas la machine où il tourne (un mirador-agent s'en charge si
+  besoin) : pas de systemd, de journal, de Docker ni d'assistant root.
+- **Produit signé** : le manifeste porte `produit` (`mirador-collector`) et
+  le nom du produit est la première ligne du message signé. Un binaire de
+  l'agent ne peut pas être installé comme collecteur, ni l'inverse. Les
+  manifestes de l'agent restent **sans** ce champ (les agents déjà
+  installés savent les lire). `mirador-release signer -produit
+  mirador-collector …` ; la CI signe et publie les deux produits à chaque
+  tag ; l'import GitHub prend le collecteur s'il est publié.
+- **Serveur** : binaires rangés par produit (migration 0019 : table
+  `versions_binaires`, reprise de `versions_agent`) ; un collecteur reçoit
+  le manifeste et le binaire de `mirador-collector` pour la version cible
+  (globale ou propre), un agent ceux de `mirador-agent`. Installation :
+  `…/install/collecteur` (script public) et `…/install/binary?produit=
+  mirador-collector` (avec le jeton) ; binaires du collecteur embarqués
+  dans l'image du serveur.
+- **Type choisi au jeton** : « Ajouter une machine » › Machine : *Agent* ou
+  *Collecteur du LAN* ; la machine créée à l'enrôlement prend le type du
+  jeton, jamais celui qu'elle annoncerait.
+- **Équipements rattachés** (table `equipements_collecteur`, un équipement
+  → un collecteur) : page du collecteur (« Rattacher », « Détacher »),
+  page de l'équipement (« Relevé par »), « Équipement sans agent » ›
+  *Relevé par* un collecteur (pas de token). La liste est posée par le
+  serveur dans la clé `collecteur.equipements` de la configuration du
+  collecteur (une liste saisie à la main est remplacée), envoyée seulement
+  au binaire qui annonce la capacité `collecteur`.
+- **Contrôle à l'arrivée** : un collecteur ne peut envoyer que pour
+  lui-même et ses équipements rattachés (approuvés). Série d'une autre
+  `instance` : refusée et comptée (`SeriesHorsParc`, avertissement dans le
+  journal). Site, type et groupe : ceux de la **fiche de l'équipement**.
+  Étiquette `collecteur` = nom du collecteur (sourdine « collecteur muet »
+  déjà en place). Logs : hôte rattaché gardé, hôte inconnu rangé sous le
+  nom du collecteur (champ `hote_annonce`). Les équipements relevés sont
+  notés « vus » à chaque donnée reçue (sans adresse).
+- **Mesures propres** : `mirador_collecteur_info{version}`,
+  `mirador_collecteur_equipements`, et les métriques internes de l'agent
+  (mêmes noms), `job="mirador-collector"`.
+- **Installation** : `mirador-collector-install.sh` (utilisateur dédié
+  sans droits, `/etc/mirador-collector`, `/var/lib/mirador-collector`,
+  unité systemd durcie sans aucun droit particulier, `MemoryMax=120M`,
+  `GOMEMLIMIT=35MiB`, retour arrière automatique).
+
+**Coût mesuré** (binaire réel, serveur injoignable, 40 s) : **12,5 Mo
+résidents** (4,5 Mo de mémoire propre), moins de 10 ms de CPU (~0 %),
+binaire 7,7 Mo. Objectif < 40 Mio : ✅ (référence actuelle : Alloy +
+unpoller ≈ 180 Mo). Serveur : une lecture SQL par collecteur toutes les
+30 s (liste en cache), une table de plus.
+
+**Menaces** (complète § 23.4) :
+- Collecteur compromis : ne peut parler que pour ses équipements
+  (contrôle serveur, liste en base, rattachement réservé aux admins avec
+  code 2FA et audit) ; ses logs d'hôtes inconnus restent sous son nom.
+- Serveur compromis : peut changer la liste des équipements (n'élargit que
+  ce que le serveur accepte lui-même), jamais faire exécuter quoi que ce
+  soit ; mises à jour signées hors serveur, produit vérifié.
+- Mauvais binaire poussé : produit dans le message signé → refusé.
+- Agent qui s'annoncerait collecteur : le type vient du jeton créé par
+  l'admin ; la capacité seule n'ouvre que la clé `collecteur` de sa
+  configuration, sans droit d'envoi en plus.
+
+### 23.14 Partie 4 faite (14/11) : syslog TLS et certificat ACME **[Fait, à tester sur le LAN]**
+
+**Réception (collecteur)**
+- Réglage par collecteur (page du collecteur › *Syslog TLS*, clé
+  `collecteur.syslog`) : adresse d'écoute (**IP privée** du LAN : port ≥ 1024,
+  6514 conseillé ; jamais `0.0.0.0`, la boucle locale ni une adresse
+  publique : refusé à l'enregistrement et revérifié au démarrage), nom du
+  certificat, **émetteurs** « adresse ou réseau du LAN → équipement
+  rattaché », `filterlog` jeté par défaut.
+- Un émetteur inconnu est coupé **avant** la poignée de main TLS. 32
+  connexions au plus, 4 par adresse, 10 s pour la poignée de main, 5 min
+  sans rien = fermée. TLS 1.2 minimum.
+- Lecteur écrit à la main (trames RFC 5425 « longueur espace message », ou
+  une ligne par message ; formats RFC 5424 et RFC 3164), 8 Kio par message,
+  UTF-8 rendu valide, testé par fuzzing (CI). Le fuzzing a trouvé un défaut
+  avant la livraison (nom du programme qui dépassait 48 octets après
+  remplacement des caractères invalides) : corrigé.
+- L'**hôte vient de l'adresse** de l'émetteur, jamais du message. Heure :
+  celle du message RFC 5424 si elle est plausible (−24 h, +5 min), sinon
+  l'heure de réception. Débit par équipement 500 lignes/s (rafale 1 000),
+  réglable ; au-delà, compté et jeté. Masquage des mots de passe, tokens…
+  comme les logs de l'agent.
+- Envoi : lots (job `syslog`, champs `host`, `ident`, `level`) toutes les
+  2 s ou dès 512 Kio, file de 4 Mio en mémoire (pas de disque), même envoi
+  que les logs de l'agent ; le serveur range chaque ligne sous l'équipement
+  (contrôle de la partie 3).
+- Mesures : `mirador_collecteur_syslog_ecoute`, `_connexions`,
+  `_lignes_total{equipement}`, `_refus_total{motif}` (émetteur inconnu, trop
+  de connexions, TLS, trame, format, débit, filterlog, file pleine),
+  `_certificat_fin_timestamp_seconds`.
+
+**Certificat (serveur)** — réponse 2 du 13/11 (§ 23.8)
+- Le collecteur crée sa clé ECDSA P-256 (`/var/lib/mirador-collector/syslog.key`,
+  0600, ne sort jamais) et joint une **demande (CSR)** à son battement.
+- Le serveur la vérifie (signature, clé, un seul nom) et fait la démarche
+  **ACME** (`golang.org/x/crypto/acme`, déjà dans les dépendances) avec le
+  défi **DNS-01 chez deSEC** (un appel PATCH écrit à la main, enregistrement
+  `_acme-challenge…` posé puis retiré). Jeton deSEC et clé du compte ACME
+  **chiffrés** sur le serveur, jamais envoyés au collecteur ni réaffichés,
+  absents de l'audit.
+- Certificat vérifié (même clé, bon nom) puis posé dans la configuration du
+  collecteur (`collecteur.syslog.certificat`, jamais saisi à la main) ; le
+  collecteur redémarre et ouvre l'écoute. Renouvellement automatique
+  30 jours avant l'échéance ; nouvelle clé = nouveau certificat ; échec :
+  message sur la page, nouvel essai toutes les 6 h ; **« Renouveler
+  maintenant »** (code 2FA).
+- Alertes fournies : `CertificatSyslogBientotExpire` (< 14 jours) et
+  `CertificatSyslogRenouvellementEchoue` (groupe `collecteurs`).
+- Testé sans réseau : faux serveur ACME (RFC 8555, le strict nécessaire) et
+  faux deSEC ; démarche complète, renouvellement, échec et attente.
+
+**Coût mesuré** (banc d'essai) : **7 µs par ligne** (lecture, masquage, mise
+en lot), soit ~0,0005 % d'un cœur au rythme actuel (0,6 ligne/s,
+52 500/jour) et 0,35 % à 500 lignes/s. Mémoire : file d'attente de 1 000
+lignes (quelques centaines de Ko en vrai, 8 Mio au pire), lots de 512 Kio,
+file d'envoi de 4 Mio. Aucune écriture disque (sauf la clé, une fois).
+Serveur : un passage par minute sur la table des certificats.
+
+**Menaces** (complète § 23.4)
+- Écoute détournée vers Internet : adresse privée obligatoire (deux
+  contrôles) ; le collecteur ne peut pas écouter ailleurs.
+- Émetteur inconnu ou usurpant un nom : coupé avant le TLS ; le nom vient
+  de l'adresse ; débit et connexions bornés.
+- Message piégé : lecteur borné et fuzzé ; échappement à l'affichage.
+- Vol du jeton deSEC : il reste sur le serveur, chiffré, limité par la règle
+  de jeton deSEC au seul enregistrement du défi.
+- Collecteur compromis : n'a ni jeton deSEC ni compte ACME ; sa clé ne vaut
+  que pour son propre nom.
+- Serveur compromis : pourrait obtenir un certificat pour le nom réglé
+  (comme aujourd'hui avec certbot) ; ne peut pas lire la clé du collecteur.
+
+**À savoir** : le syslog distant des équipements UniFi n'existe souvent qu'en
+UDP sans chiffrement ; ses événements arriveront par le client UniFi natif
+(partie 6). OPNsense et Synology savent envoyer en TLS.
+
+### 23.15 Partie 5 faite (14/11) : SNMP v3 et sondes de certificats **[Fait, à vérifier sur le NAS]**
+
+- **SNMP v3** avec `gosnmp` (BSD-2-Clause, § 23.3 ; seule dépendance
+  ajoutée) : **authPriv obligatoire** (SHA/SHA256/SHA512 + AES/AES256),
+  GET et GETBULK seulement, liste d'OID **figée dans le code** :
+  - *standard* : `sysUpTime`, mémoire et CPU UCD-SNMP (`memTotalReal`,
+    `memAvailReal`, `memBuffer`, `memCached`, `ssCpuIdle`), interfaces
+    IF-MIB (`ifHCInOctets`, `ifHCOutOctets`, erreurs et rejets, étiquettes
+    `ifName` et `ifIndex`) ;
+  - *synology* : en plus, SYNOLOGY-SYSTEM/DISK/RAID/UPS/SERVICES/STORAGEIO
+    (`systemStatus`, `temperature`, `powerStatus`, ventilateurs,
+    `modelName`, `version`, `upgradeAvailable`, `cpuUtilization`,
+    `memUtilization`, onduleur, disques par `diskID`, volumes par
+    `raidName`, services par `serviceName`, E/S par `storageIODevice`).
+  Noms et étiquettes de **snmp_exporter** (textes en métrique « info »,
+  valeur 1), `job="snmp"`, `instance` = équipement rattaché, plus `up` et
+  `snmp_scrape_duration_seconds` : les 13 règles Synology importées et le
+  tableau « Synology » marchent sans changement. 2 000 lignes par table au
+  plus ; textes rendus lisibles (UTF-8, 128 caractères).
+- **Sondes de certificats** : poignée de main TLS (certificat lu sans être
+  validé : seule l'échéance compte), toutes les 5 min ;
+  `ssl_cert_not_after_timestamp_seconds`, `probe_success`,
+  `probe_ssl_last_chain_info{subject, issuer}`, `probe_duration_seconds`,
+  `job="certs"`, `path` = adresse : tableau « Certificats TLS » et règle
+  `CertificatIllisible` inchangés.
+- **Secrets** : mots de passe SNMP **chiffrés en base** (`secrets`, usage
+  `collecteur.snmp`), jamais réaffichés (vides à la modification =
+  gardés), déchiffrés seulement à l'envoi de la configuration au
+  collecteur (HTTPS, même ETag) ; secret illisible = rien n'est envoyé. Sur
+  le collecteur : fichier de cache `0600`, utilisateur dédié. Un secret
+  encore chiffré reçu par le collecteur est refusé.
+- Adresses du LAN seulement (IP privée ou nom d'hôte simple) ; cibles et
+  sondes d'un équipement détaché retirées de la configuration.
+- Interface : page du collecteur › *SNMP v3 et sondes de certificats*.
+
+**À vérifier sur le NAS** (les OID `cpuUtilization` et `memUtilization`
+dépendent de la version de DSM) : commande dans `PROGRES.md`.
+
+**Coût mesuré** : 16 µs de traitement par relevé Synology (hors réseau), une
+dizaine d'échanges UDP par minute et par équipement ; sondes : une
+connexion TLS toutes les 5 min par service. Binaire du collecteur : 8,8 Mo
+(+1 Mo avec gosnmp). RAM : quelques dizaines de Ko par relevé.
+
+**Menaces** : comptes SNMP en lecture seule conseillés ; jamais d'écriture
+SNMP (pas de SET dans le code) ; secrets chiffrés au repos et absents de
+l'audit (seule la valeur chiffrée y passe) ; serveur compromis : peut lire
+les mots de passe SNMP (comme toute configuration qu'il envoie) mais pas
+faire écrire le collecteur sur un équipement ; sonde vers un service du LAN
+seulement.
+
+### 23.16 Partie 6 faite (14/11) : client UniFi natif **[Fait, à brancher sur le contrôleur]**
+
+Réponse 3 du 13/11 : client Go natif, unpoller retiré (−26 Mo sur le
+collecteur).
+
+- Lecture seule de l'API « stat » du contrôleur UniFi Network : sites,
+  appareils (`stat/device`), clients (`stat/sta`), santé (`stat/health`).
+  Aucune dépendance ajoutée (HTTP et JSON de la bibliothèque standard).
+- Accès : **compte local en lecture seule** (UniFi OS : `/api/auth/login`
+  puis chemins `/proxy/network/…` ; contrôleur logiciel : `/api/login`,
+  essayé si le premier n'existe pas) ou **clé API** (UniFi OS, en-tête
+  `X-API-KEY`). Secrets chiffrés en base, déchiffrés à l'envoi au
+  collecteur (comme le SNMP).
+- Certificat **vérifié** par défaut ; certificat fait maison : **empreinte
+  SHA-256 épinglée** (vérifiée à chaque connexion, session reprise
+  comprise : `VerifyConnection`, signalé par gosec et corrigé avant la
+  livraison). Pas de proxy, pas de redirection suivie, réponses de 16 Mio
+  au plus ; adresse du LAN seulement.
+- Métriques aux **noms et étiquettes d'unpoller** (`job="unifi"`, `instance`
+  = équipement du contrôleur) : `unpoller_device_info`, `_uptime_seconds`,
+  `_cpu_utilization_ratio`, `_memory_utilization_ratio`,
+  `_temperature_celsius{temp_area}`, `_stations{station_type}`,
+  `_receive/transmit_bytes_total`, `_upgradeable`, ports
+  (`_port_*{port_num, port_name}` : octets, erreurs, rejets, vitesse, PoE),
+  radios (`_radio_channel_utilization_total_ratio{radio}`), clients
+  (`unpoller_client_*{name, mac, wired, essid, ap_name, radio}`),
+  `unpoller_site_disconnected{subsystem}`, plus `up`. Règles UniFi
+  importées (dont `UnifiMuet`) et tableau « UniFi » inchangés. 300
+  appareils, 1 000 clients, 64 ports par appareil au plus.
+- Interface : page du collecteur › *Contrôleur UniFi*.
+
+**Coût mesuré** : 16 µs de traitement par site (3 appareils, 2 clients ;
+quelques centaines de µs pour un site de 50 clients), 5 requêtes HTTPS par
+minute. Remplace unpoller (26 Mo).
+
+**Menaces** : compte en lecture seule (le client ne fait que des GET après
+la connexion) ; contrôleur usurpé sur le LAN : certificat vérifié ou
+épinglé ; secrets chiffrés au repos ; réponse piégée : taille bornée,
+décodage typé, nombres illisibles ignorés, textes nettoyés.
+
+### 23.17 Fournisseurs DNS du défi ACME (demande du 14/11) **[Fait, à valider]**
+
+Demande : « rajouter des fournisseurs proposés par ACME », sans délégation
+par CNAME (réponse « 2. Non »).
+
+- Choix dans *Réglages du certificat* : **deSEC** (défaut, comme avant),
+  **Cloudflare**, **OVHcloud**, **Gandi LiveDNS**, **Infomaniak**, **CSC**
+  (Domain Manager, ajouté le 14/11 à la demande). Ce sont
+  des fournisseurs courants des clients ACME (lego, acme.sh) avec une API
+  publique stable et des jetons limitables.
+- Code : interface `FournisseurDNS` (poser / retirer le TXT
+  `_acme-challenge…`), un client HTTPS écrit à la main par fournisseur
+  (`internal/server/certsyslog/dns.go`). **Aucune dépendance ajoutée** :
+  une bibliothèque multi-fournisseurs (lego) ajouterait des dizaines de
+  modules pour 5 appels.
+- Signature OVH : SHA-1 imposé par leur API (`$1$` + SHA-1 de
+  secret+clé consommateur+méthode+URL+corps+heure). Ce n'est pas un choix
+  de chiffrement de mirador (`#nosec` justifié).
+- Identifiants : champs non secrets (point d'accès et clé d'application
+  OVH) en clair dans les réglages ; secrets chiffrés (JSON, usage
+  `certsyslog.dns`), jamais réaffichés ni envoyés au collecteur. Secret
+  laissé vide = gardé si le fournisseur ne change pas ; changer de
+  fournisseur demande ses identifiants. L'ancien jeton deSEC est toujours lu
+  (rien à refaire).
+- Droits conseillés : Cloudflare « Zone › DNS › Modifier » sur la seule
+  zone ; OVH : GET/POST/DELETE sur `/domain/zone/<zone>/*` ; Gandi : jeton
+  d'accès personnel limité au domaine ; Infomaniak : jeton `domain:read`,
+  `dns:write` ; CSC : clé d'API + jeton Bearer, droits GET `/zones` et POST
+  `/zones/edits` sur la zone (API activée par le chargé de compte CSC).
+- CSC : chaque changement est une « modification de zone » publiée par CSC
+  (jusqu'à ~15 min). Le serveur suit son état (`/zones/edits/status/<id>`,
+  toutes les 10 s) puis attend 3 min avant la validation ; démarche bornée
+  à 30 min. Une modification « en attente d'approbation » est signalée
+  (approbation manuelle à retirer pour le compte API). L'adresse d'état est
+  reconstruite sur la base connue : le jeton ne part jamais vers une
+  adresse donnée par une réponse. Premier essai conseillé sur l'annuaire *staging* de
+  Let's Encrypt.
+
+**Coût** : quelques appels HTTPS par certificat (tous les 60 jours) ;
+mémoire et CPU négligeables, binaire du serveur à peine plus gros.
+
+**Menaces** : vol des identifiants DNS → ils restent sur le serveur,
+chiffrés ; conseiller des jetons limités à la zone (le serveur ne peut pas
+vérifier la portée chez le fournisseur). Réponse piégée d'une API : lue au
+plus 1 Mo, décodage typé. Pas de redirection vers une autre adresse
+configurable : seules les adresses officielles sont codées.
 
 ---
 
@@ -4036,3 +4332,37 @@ une requête à chaque changement de thème ; feuille de style de même taille
 obligatoire (formulaire ou en-tête `X-CSRF`) ; valeur parmi `clair`,
 `sombre`, `auto` ; retour après le formulaire limité à un chemin du site
 (`//…`, `https://…`, `\` refusés → « / »).
+
+---
+
+## 26. Aides allégées (demande du 14/11, choix « A b d ») **[Fait, à valider]**
+
+Demande : « épurer dans les réglages et ailleurs ce qui est affiché en tant
+qu'aide ». Maquettes A+B+D et C montrées ; choix : **A + B + D**.
+
+- **A — une ligne** : chaque aide tient en une phrase. Le détail part dans
+  `docs/aide.md` ; un lien « En savoir plus › » y mène (dépôt public, ouvert
+  dans un nouvel onglet).
+- **B — bouton par utilisateur** : « Avec aides / Sans aides » en bas du
+  menu, au-dessus de Jour / Nuit / Auto. Retenu dans le compte (colonne
+  `utilisateurs.sans_aides`, migration 0021), appliqué tout de suite par
+  `mirador.js`, sans JavaScript par le formulaire.
+- **D — relecture** : 143 `<small>` relus. Environ 60 sont des données
+  (dates, états, rôles, valeurs) : inchangés. 81 aides (`class="aide"`)
+  raccourcies ; 3 retirées (cellules « — », renvoi à la SPEC). Durées par
+  défaut écrites simplement (« 30 min », « 7 j », « 1 an » : fonction
+  `dureeC`).
+- **Avertissements toujours affichés** (pas de classe `aide`) : votre
+  adresse et la confirmation sous 2 min, clé publique (machines déjà
+  installées), délier avant de réinstaller, base GéoIP effacée, attribution
+  DB-IP (licence CC BY), bascule InfluxDB, « rien de secret » dans les
+  listes, import (« *** » et ajouts), alertes en double d'une copie de
+  modèle.
+
+**Coût** : une colonne en base, une requête par clic, quelques lignes de
+CSS et de JavaScript ; pages un peu plus légères.
+
+**Menaces** : préférence d'affichage (pas d'audit) ; jeton CSRF obligatoire ;
+valeur `avec` ou `sans` seulement ; retour limité à un chemin du site (même
+contrôle que le thème). Liens de doc : adresse fixe dans le code.
+

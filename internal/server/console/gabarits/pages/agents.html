@@ -8,7 +8,7 @@
 {{if .D.Portees}}<small>Portées réglées : {{range .D.Portees}}<a href="/reglages/agents?portee={{.}}">{{.}}</a> {{end}}</small>{{end}}</form>
 <section class="carte"><h2>{{.D.Portee}}</h2>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="portee" value="{{.D.Portee}}">
-{{range .D.Champs}}<label>{{.Titre}}{{if .Aide}} <small>{{.Aide}}</small>{{end}}
+{{range .D.Champs}}<label>{{.Titre}}{{if .Aide}} <small class="aide">{{.Aide}}</small>{{end}}
 {{if egal .Genre "bool"}}<select name="{{.Nom}}"><option value="">(hérité)</option><option value="oui" {{if egal .Valeur "true"}}selected{{end}}>Oui</option><option value="non" {{if egal .Valeur "false"}}selected{{end}}>Non</option></select>
 {{else if egal .Nom "masquage_perso"}}<textarea name="{{.Nom}}" rows="3" maxlength="3000">{{.Valeur}}</textarea>
 {{else}}<input name="{{.Nom}}" value="{{.Valeur}}" maxlength="1000">{{end}}</label>{{end}}

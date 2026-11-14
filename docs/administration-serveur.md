@@ -27,6 +27,56 @@ Une machine qui change d'adresse reçoit des 403 : elle garde ses données et
 réessaie. `MS machines` montre sa nouvelle adresse (« DERNIÈRE IP ») ; il
 suffit de corriger la liste avec `MS ips`.
 
+## Collecteur du LAN (mirador-collector)
+
+Le collecteur relève les équipements sans agent (Synology, UniFi,
+imprimante…) depuis le LAN (SPEC.md § 23.13). Partie 3 de l'étape 6 : il
+s'installe, s'enrôle, reçoit sa configuration et ses mises à jour ; les
+relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
+
+1. Machines › Ajouter une machine › Machine : **Collecteur du LAN**, nom
+   (ex. `collecteur-lan`), créer le jeton.
+2. Sur une machine Debian/Ubuntu du LAN (un LXC suffit), en root : coller
+   la commande affichée (`…/install/collecteur`, puis
+   `MIRADOR_JETON=… bash mirador-collector-install.sh --serveur …`).
+3. L'approuver dans Machines (badge « Collecteur »).
+4. Page du collecteur › **Équipements relevés** : rattacher les
+   équipements, ou les créer depuis Machines › Équipement sans agent ›
+   *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
+
+Syslog TLS (partie 4), sur la page du collecteur :
+
+1. *Réglages du certificat* (une fois pour tous les collecteurs) :
+   fournisseur DNS (deSEC, Cloudflare, OVHcloud, Gandi, Infomaniak ou CSC), zone
+   (ex. `exemple.org`) et identifiants de l'API, limités au plus juste :
+   - deSEC : jeton avec une règle sur `_acme-challenge.<nom du certificat>` ;
+   - Cloudflare : jeton « Zone › DNS › Modifier » sur cette zone seulement ;
+   - OVHcloud : clés créées sur la page `createToken` de l'API, droits
+     GET/POST/DELETE sur `/domain/zone/<zone>/*` ;
+   - Gandi : jeton d'accès personnel limité au domaine ;
+   - Infomaniak : jeton `domain:read` et `dns:write` ;
+   - CSC (Domain Manager) : clé d'API et jeton Bearer, droits GET `/zones`
+     et POST `/zones/edits` sur la zone ; sans approbation manuelle des
+     modifications. Publication lente : compter jusqu'à 20 min.
+   Premier essai conseillé avec l'annuaire *staging* de Let's Encrypt.
+2. *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
+   `192.168.1.10:6514`), nom du certificat (ex. `syslog.lan.exemple.org`,
+   qui doit pointer vers cette adresse : DNS du LAN ou enregistrement A),
+   émetteurs « adresse équipement ».
+3. Le collecteur envoie sa demande, le serveur obtient le certificat (1 à
+   5 min), le collecteur ouvre l'écoute. Sur chaque équipement : syslog en
+   TCP + TLS vers le nom du certificat et le port choisi.
+
+SNMP v3 et sondes (partie 5), sur la page du collecteur : choisir
+l'équipement (rattaché), son adresse, le préréglage (*synology* ou
+*standard*), l'utilisateur SNMP v3 et ses deux mots de passe (DSM :
+Panneau de configuration › Terminal et SNMP › SNMP v3, authentification
+SHA et chiffrement AES). Sondes : une ligne « adresse:port équipement »
+par service HTTPS du LAN.
+
+Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
+Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
+
 ## OPNsense (Telegraf) vers mirador
 
 OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin

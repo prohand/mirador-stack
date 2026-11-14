@@ -18,6 +18,7 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/base"
+	"mirador-stack/internal/server/certsyslog"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/flotte"
@@ -143,7 +144,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.alertes.DefinirRecepteur(s.aiguille)
 
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal})
-	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal})
+	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle})
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}
@@ -153,13 +154,25 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal}); err != nil {
 		return echec(fmt.Errorf("interface web : %w", err))
 	}
+	// Certificats du syslog des collecteurs (SPEC § 23.14) : démarche ACME
+	// faite par le serveur, nom lu dans la configuration de chaque collecteur.
+	gestCerts := &certsyslog.Gestionnaire{DB: s.db, Journal: journal.With("composant", "certificats"),
+		Emetteur: &certsyslog.ACME{DB: s.db, Cle: cle},
+		NomDe: func(ctx context.Context, machine int64) (string, error) {
+			c, err := flotte.ConfigEffective(ctx, s.db, machine)
+			if err != nil || c.Collecteur == nil || c.Collecteur.Syslog == nil {
+				return "", err
+			}
+			return c.Collecteur.Syslog.NomCertificat, nil
+		},
+		Apres: flotte.SignalerConfig}
 	fond, arret := context.WithCancel(context.Background())
 	s.arretFond, s.finFond = arret, make(chan struct{})
 	go func() {
 		defer close(s.finFond)
 		taches := []func(context.Context){s.flotte.Boucle, s.planif.Boucle, s.alertes.Boucle, s.aiguille.Boucle,
 			s.postier.Boucle, (&interne{s: s}).boucle, s.console.Boucle,
-			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }}
+			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner}
 		fini := make(chan struct{}, len(taches))
 		for _, f := range taches {
 			go func() { f(fond); fini <- struct{}{} }()

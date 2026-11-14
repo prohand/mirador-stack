@@ -29,11 +29,11 @@
 <section class="carte"><h2>Importer</h2>
 <form method="post" action="/tableaux" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier JSON <input type="file" name="fichier" accept=".json,application/json" required></label>
-<small>Export Grafana (« Share › Export ») ou tableau exporté de mirador. Toujours ajouté comme nouveau tableau ; les panneaux de logs sont remplacés par la page Logs.</small>
+<small class="aide">Export Grafana ou mirador ; toujours ajouté comme nouveau tableau.</small>
 <div><button>Importer</button></div></form></section>
 </div>
 {{if or .D.Catalogue .D.PagesProposees}}<section class="carte"><h2>Tableaux proposés par mirador</h2>
-<p><small>Prêts à l'emploi, pas encore installés. « Aperçu » les montre avec vos données ; « Installer » les ajoute à vos tableaux (ensuite modifiables).</small></p>
+<p class="aide"><small class="aide">« Aperçu » avec vos données ; « Installer » pour les ajouter.</small></p>
 <div class="defile"><table><thead><tr><th>Tableau</th><th>Panneaux</th><th></th></tr></thead><tbody>
 {{range .D.Catalogue}}<tr><td>{{.T.Titre}}{{if .T.Description}}<br><small>{{.T.Description}}</small>{{end}}</td><td class="nombre">{{.Nb}}</td>
 <td><div class="ligne"><a class="bouton secondaire" href="/tableaux/{{.T.Nom}}">Aperçu</a>

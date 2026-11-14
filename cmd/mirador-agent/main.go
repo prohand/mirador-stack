@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -44,7 +43,6 @@ import (
 	"mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/agent/racine"
 	"mirador-stack/internal/agent/remotewrite"
-	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/version"
 )
 
@@ -121,13 +119,17 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 
 	// Premier démarrage avec un jeton d'enrôlement : on attend l'approbation
 	// dans l'interface, puis le token définitif est écrit.
-	if aEnroler(cfg) {
+	if distant.AEnroler(cfg) {
 		if *verifier {
 			fmt.Fprintln(sortie, "configuration valide ; enrôlement à faire au démarrage (jeton présent)")
 			return 0
 		}
-		if code := enroler(ctxCollecte, cfg, client, journal, erreurs); code != 0 {
-			return code
+		if err := distant.EnrolerAvecJeton(ctxCollecte, cfg, client, journal); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return 0
+			}
+			journal.Error("enrôlement impossible", "erreur", err)
+			return 1
 		}
 	}
 
@@ -175,42 +177,6 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	if lots, _, _ := a.File().Etat(); lots > 0 {
 		journal.Warn("arrêt avec des lots non envoyés", "lots", lots)
 	}
-	return 0
-}
-
-// aEnroler : serveur mirador configuré, pas encore de token, jeton présent.
-func aEnroler(cfg config.Agent) bool {
-	if cfg.Serveur == "" {
-		return false
-	}
-	if _, err := os.Stat(cfg.FichierToken); err == nil {
-		return false
-	}
-	_, err := os.Stat(cfg.FichierJeton)
-	return err == nil
-}
-
-func enroler(ctx context.Context, cfg config.Agent, client *http.Client, journal *slog.Logger, erreurs io.Writer) int {
-	brut, err := os.ReadFile(cfg.FichierJeton)
-	if err != nil {
-		fmt.Fprintf(erreurs, "jeton d'enrôlement : %v\n", err)
-		return 1
-	}
-	e := distant.Enrolement{URL: cfg.Serveur + protocole.CheminEnrolement, Jeton: strings.TrimSpace(string(brut)),
-		NomPropose: cfg.Nom, SitePropose: cfg.Site, EnvPropose: cfg.Env, FichierToken: cfg.FichierToken, Client: client}
-	journal.Info("enrôlement : demande envoyée, en attente d'approbation dans mirador", "machine", cfg.Nom, "serveur", cfg.Serveur)
-	if err := e.Executer(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return 0
-		}
-		journal.Error("enrôlement impossible", "erreur", err)
-		return 1
-	}
-	// Usage unique : le jeton ne sert plus à rien, on le retire.
-	if err := os.Remove(cfg.FichierJeton); err != nil {
-		journal.Warn("jeton d'enrôlement non supprimé", "erreur", err)
-	}
-	journal.Info("machine approuvée : token reçu et enregistré")
 	return 0
 }
 

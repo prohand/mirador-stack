@@ -15,12 +15,16 @@ ARG COMMIT=
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false \
       -ldflags "-s -w -buildid= -X mirador-stack/internal/version.Version=${VERSION} -X mirador-stack/internal/version.Commit=${COMMIT}" \
       -o /mirador-server ./cmd/mirador-server
-# Binaires de l'agent embarqués (même version) : une machine les télécharge
-# en HTTPS à l'installation, avec son jeton d'enrôlement (SPEC § 18.19).
+# Binaires de l'agent et du collecteur embarqués (même version) : une machine
+# les télécharge en HTTPS à l'installation, avec son jeton d'enrôlement
+# (SPEC § 18.19, § 23.13).
 RUN for arch in amd64 arm64; do \
       CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -buildvcs=false \
         -ldflags "-s -w -buildid= -X mirador-stack/internal/version.Version=${VERSION} -X mirador-stack/internal/version.Commit=${COMMIT}" \
         -o /out/usr/share/mirador/agent/mirador-agent-linux-$arch ./cmd/mirador-agent || exit 1; \
+      CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -buildvcs=false \
+        -ldflags "-s -w -buildid= -X mirador-stack/internal/version.Version=${VERSION} -X mirador-stack/internal/version.Commit=${COMMIT}" \
+        -o /out/usr/share/mirador/agent/mirador-collector-linux-$arch ./cmd/mirador-collector || exit 1; \
     done
 # Dossier des données préparé ici : l'image finale n'a pas de shell pour le créer.
 RUN mkdir -p /out/var/lib/mirador

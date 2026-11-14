@@ -5,6 +5,103 @@
 <p class="bandeau-machine"><span>{{$m.Site}}{{if $m.Env}} · {{$m.Env}}{{end}}{{if $m.Groupe}} · {{$m.Groupe}}{{end}}</span>{{with .D.Identite}}{{if .Noyau}}<span>{{.Noyau}}</span>{{end}}{{if .Coeurs}}<span>{{.Coeurs}}{{if .Memoire}} · {{.Memoire}}{{end}}</span>{{end}}{{if .Allumee}}<span>Allumée depuis {{.Allumee}}</span>{{end}}{{if gt .Paquets 0}}<span class="pastille {{if .PaquetsSecurite}}attention{{end}}">{{.Paquets}} paquet{{if gt .Paquets 1}}s{{end}} à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}</span>{{else if eq .Paquets 0}}<span>Paquets à jour</span>{{end}}{{if .Redemarrage}}<span class="pastille attention">Redémarrage nécessaire</span>{{end}}{{end}}{{if $m.Version}}<span>Agent {{$m.Version}}</span>{{end}}{{with .D.Identite}}{{if .Intervalle}}<span>Métriques toutes les {{.Intervalle}}{{if $.Admin}} · <a href="{{.LienIntervalle}}" title="Intervalle réglable pour cette machine (10 s à 5 min)">changer</a>{{end}}</span>{{end}}{{end}}<span>Vue {{depuisS $m.VuLe}}</span></p>
 </div></div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{if .D.Collecteur}}<section class="carte" id="equipements">
+<div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
+{{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
+{{range .D.Equipements}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if not (egal .Statut "approuvee")}} <span class="pastille attention">{{.Statut}}</span>{{end}}</td><td><small>{{if .Site}}{{.Site}}{{else}}—{{end}} · {{if .Env}}{{.Env}}{{else}}—{{end}} · {{if .Groupe}}{{.Groupe}}{{else}}—{{end}}</small></td><td><small>{{if .VuLe}}{{dateS .VuLe}}{{else}}jamais{{end}}</small></td>
+<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detacher"><input type="hidden" name="equipement" value="{{.Nom}}">{{template "code2fa"}}<button class="secondaire petit">Détacher</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucun équipement rattaché : le collecteur n'envoie que ses propres mesures.</p>{{end}}
+{{if and $.Admin .D.Candidats}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="rattacher">
+<label>Rattacher <select name="equipement">{{range .D.Candidats}}<option>{{.}}</option>{{end}}</select></label>{{template "code2fa"}}<button>Rattacher</button></form>
+<p class="aide"><small class="aide">Équipement absent : le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a>.</small></p>{{end}}
+</section>{{end}}
+{{if .D.Collecteur}}{{$s := .D.Syslog}}<section class="carte" id="syslog">
+<div class="entete-carte"><div><h2>Syslog TLS</h2><p class="sous">Le collecteur reçoit le syslog des équipements sur le LAN (TLS obligatoire), et seulement des émetteurs listés : chaque ligne est rangée sous l'équipement de l'émetteur. Les lignes « filterlog » du pare-feu d'OPNsense sont jetées (et comptées), sauf choix contraire.</p></div></div>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog">
+<div class="ligne">
+<label>Écoute (adresse privée du collecteur : port) <input name="ecoute" value="{{$s.Ecoute}}" required size="22" placeholder="192.168.1.10:6514" {{if not .Admin}}disabled{{end}}></label>
+<label>Nom du certificat <input name="nom_certificat" value="{{$s.Nom}}" required size="30" placeholder="syslog.lan.exemple.org" {{if not .Admin}}disabled{{end}}></label>
+<label class="case"><input type="checkbox" name="garder_filterlog" value="1" {{if $s.GarderFilterlog}}checked{{end}} {{if not .Admin}}disabled{{end}}> Garder « filterlog »</label>
+</div>
+<label class="pile">Émetteurs : « adresse équipement », une ligne par émetteur <textarea name="emetteurs" rows="4" cols="50" spellcheck="false" placeholder="192.168.1.20 nas&#10;192.168.1.1 opnsense" {{if not .Admin}}disabled{{end}}>{{$s.Emetteurs}}</textarea>
+<small class="aide">IP ou réseau du LAN, d'un équipement rattaché. Émetteur inconnu : coupé avant le TLS.</small></label>
+{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>
+{{if and $s.Regle .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog_retirer">{{template "code2fa"}}<button class="secondaire" data-confirmer="Arrêter le syslog de ce collecteur ?">Arrêter le syslog</button></form>{{end}}
+{{if $s.Regle}}<p class="aide"><small class="aide">Sur chaque équipement : syslog <strong>TCP + TLS</strong> vers <code>{{$s.Nom}}</code>, qui doit pointer vers l'adresse privée du collecteur.</small></p>{{end}}
+
+<h3>Certificat du syslog</h3>
+{{if $s.Cert.Certificat}}<p><span class="pastille ok">Obtenu</span> <code>{{$s.Cert.Nom}}</code>, valable jusqu'au <strong>{{dateS $s.Cert.Fin}}</strong> (obtenu le {{dateS $s.Cert.ObtenuLe}}). Renouvelé seul 30 jours avant l'échéance.</p>
+{{else if $s.Cert.CSR}}<p><span class="pastille attention">En attente</span> Demande reçue du collecteur le {{dateS $s.Cert.CSRRecueLe}} ; le serveur fait la démarche (Let's Encrypt, défi DNS).</p>
+{{else if $s.Regle}}<p><span class="pastille attention">En attente</span> Pas encore de demande du collecteur (il l'envoie avec son battement, sous 5 min ; collecteur à jour ?).</p>
+{{else}}<p class="vide">Syslog pas réglé.</p>{{end}}
+{{if $s.Cert.Erreur}}<p class="message erreur">Dernier essai le {{dateS $s.Cert.EssaiLe}} : {{$s.Cert.Erreur}}</p>{{end}}
+{{if and .Admin $s.Cert.CSR}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_renouveler">{{template "code2fa"}}<button class="secondaire">Renouveler maintenant</button></form>{{end}}
+
+{{if .Admin}}<details{{if not $s.JetonEnregistre}} open{{end}}><summary>Réglages du certificat (DNS, ACME) — communs à tous les collecteurs</summary>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_reglages">
+<label>Fournisseur DNS <select name="fournisseur" data-choix-fournisseur>{{range $s.Fournisseurs}}<option value="{{.Nom}}"{{if eq .Nom $s.Fournisseur}} selected{{end}}>{{.Titre}}</option>{{end}}</select></label>
+<label>Zone DNS <input name="domaine" value="{{$s.Domaine}}" required size="24" placeholder="exemple.org"></label>
+{{range $i := $s.Fournisseurs}}<fieldset class="pile" data-fournisseur="{{$i.Nom}}"{{if ne $i.Nom $s.Fournisseur}} hidden disabled{{end}}><legend>{{$i.Titre}}</legend>
+{{range $i.Champs}}<label>{{.Titre}} {{if .Choix}}<select name="dns_{{$i.Nom}}_{{.Nom}}">{{$v := index $s.Parametres .Nom}}{{range .Choix}}<option{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}</select>{{else if .Secret}}<input name="dns_{{$i.Nom}}_{{.Nom}}" type="password" autocomplete="off" size="30" placeholder="{{if and $s.JetonEnregistre (eq $i.Nom $s.Fournisseur)}}déjà enregistré (vide = garder){{end}}">{{else}}<input name="dns_{{$i.Nom}}_{{.Nom}}" size="30" value="{{if eq $i.Nom $s.Fournisseur}}{{index $s.Parametres .Nom}}{{end}}">{{end}}</label>
+{{end}}<small class="aide">{{$i.Aide}}. Chiffré, jamais réaffiché.</small></fieldset>
+{{end}}<label>Annuaire ACME <input name="annuaire" value="{{$s.Annuaire}}" size="50" placeholder="vide = Let's Encrypt"><small class="aide">Premier essai : <code>https://acme-staging-v02.api.letsencrypt.org/directory</code> (sans limite, certificat non reconnu).</small></label>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+</form></details>{{end}}
+</section>{{end}}
+{{if .D.Collecteur}}{{$n := .D.SNMP}}<section class="carte" id="snmp">
+<div class="entete-carte"><div><h2>SNMP v3, UniFi et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>
+{{if $n.Cibles}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Adresse</th><th>Préréglage</th><th>Utilisateur</th><th>Sécurité</th><th>Intervalle</th><th></th></tr></thead><tbody>
+{{range $n.Cibles}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td><td><code>{{.Adresse}}</code></td><td>{{.Prereglage}}</td><td>{{.Utilisateur}}</td><td><small>{{.Auth}} / {{.Chiffrement}}</small></td><td><small>{{if .Intervalle}}{{.Intervalle}}{{else}}60s{{end}}</small></td>
+<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}">{{template "code2fa"}}<button class="secondaire petit">Retirer</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{end}}
+{{if and .Admin .D.Equipements}}<details{{if not $n.Cibles}} open{{end}}><summary>Ajouter ou modifier un relevé SNMP</summary>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="snmp">
+<div class="ligne">
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse <input name="adresse" required size="18" placeholder="192.168.1.20"></label>
+<label>Préréglage <select name="prereglage">{{range $n.Prereglages}}<option>{{.}}</option>{{end}}</select></label>
+<label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
+</div><div class="ligne">
+<label>Utilisateur SNMP v3 <input name="utilisateur" required size="14" autocomplete="off"></label>
+<label>Authentification <select name="auth"><option>SHA</option><option>SHA256</option><option>SHA512</option></select></label>
+<label>Mot de passe <input name="mot_de_passe" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
+<label>Chiffrement <select name="chiffrement"><option>AES</option><option>AES256</option></select></label>
+<label>Clé de chiffrement <input name="cle_chiffrement" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
+</div>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+<small class="aide">Même équipement : relevé remplacé (mots de passe vides = gardés). Synology : Terminal et SNMP › SNMP v3.</small>
+</form></details>{{end}}
+<h3>Contrôleur UniFi</h3>
+{{if $n.UniFi}}<p>Relevé : <a href="/machines/{{$n.UniFi.Machine}}">{{$n.UniFi.Machine}}</a>, <code>{{$n.UniFi.Adresse}}</code>, {{if $n.UniFiCle}}clé API{{else}}compte <code>{{$n.UniFi.Utilisateur}}</code>{{end}}{{if $n.UniFi.Empreinte}}, certificat épinglé{{end}}{{if $n.UniFi.Sites}}, sites {{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi_retirer">{{template "code2fa"}}<button class="secondaire">Arrêter le relevé UniFi</button></form>{{end}}{{end}}
+{{if and .Admin .D.Equipements}}<details{{if not $n.UniFi}} open{{end}}><summary>{{if $n.UniFi}}Modifier{{else}}Relever un contrôleur UniFi (remplace unpoller){{end}}</summary>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi">
+<div class="ligne">
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option{{if and $n.UniFi (eq $n.UniFi.Machine .Nom)}} selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse <input name="adresse" required size="26" placeholder="https://192.168.1.5" value="{{if $n.UniFi}}{{$n.UniFi.Adresse}}{{end}}"></label>
+<label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
+</div><div class="ligne">
+<label>Accès <select name="mode"><option value="compte">Compte local (lecture seule)</option><option value="cle"{{if $n.UniFiCle}} selected{{end}}>Clé API (UniFi OS)</option></select></label>
+<label>Utilisateur <input name="utilisateur" size="14" autocomplete="off" value="{{if $n.UniFi}}{{$n.UniFi.Utilisateur}}{{end}}"></label>
+<label>Mot de passe ou clé API <input name="secret" type="password" size="20" autocomplete="new-password" placeholder="{{if $n.UniFi}}vide = garder{{end}}"></label>
+</div><div class="ligne">
+<label>Empreinte SHA-256 du certificat (si fait maison) <input name="empreinte" size="50" spellcheck="false" value="{{if $n.UniFi}}{{$n.UniFi.Empreinte}}{{end}}"></label>
+<label>Sites (vide = tous) <input name="sites" size="16" placeholder="default" value="{{if $n.UniFi}}{{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}"></label>
+</div>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+<small class="aide">Compte en <strong>lecture seule</strong> (rôle « View Only ») ou clé API. Empreinte du certificat : {{template "plus" "aide.md#unifi"}}</small>
+</form></details>{{end}}
+
+<h3>Sondes de certificats</h3>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sondes">
+<label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{$n.Sondes}}</textarea>
+<small class="aide">Échéance lue toutes les 5 min ; tableau « Certificats TLS ».</small></label>
+{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>
+</section>{{end}}
+{{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
 
 {{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
 <div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
@@ -44,7 +141,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{range $s.Composants}}<tr><td>{{majuscule .Genre}}</td><td><code>{{.Nom}}</code></td><td>{{if .Retire}}<span class="pastille">Retiré</span>{{else}}{{.Detail}}{{end}}</td>
 {{if $.Admin}}<td><select class="petit" name="e.{{.Genre}}.{{.Nom}}" aria-label="{{.Nom}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option><option value="oublier">Oublier (supprimé de la machine)</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
 </tbody></table></div>
-<p><small>Processeur et mémoire sont toujours envoyés avec « Système ». Les disques virtuels (loop, ram, dm-…), les interfaces internes (docker, veth, lo…) et les montages système ne sont jamais listés : réglage dans <a href="/reglages/agents">Configuration des agents</a>.</small></p>
+<p class="aide"><small class="aide">Processeur et mémoire : toujours envoyés. Disques et interfaces internes : jamais listés. {{template "plus" "aide.md#collecte-machine"}}</small></p>
 </details>{{end}}
 {{if $s.CertsSuivis}}<details class="surv-services" id="surv-certificats"><summary>Certificats ({{len $s.Certs}}){{if $s.MotifsAjout}} · {{len $s.MotifsAjout}} chemin(s) ajouté(s){{end}}</summary>
 {{if not $s.Elements}}<p class="message">L'agent de cette machine est trop ancien pour choisir les certificats ici : <a href="/mises-a-jour">le mettre à jour</a>.</p>{{end}}
@@ -54,12 +151,12 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{if $.Admin}}<td><select class="petit" name="c.{{.Chemin}}" aria-label="{{.Chemin}}" {{if not $s.Elements}}disabled title="Agent trop ancien"{{end}}>{{if .Retire}}<option value="">Garder retiré</option><option value="retablir">Rétablir</option><option value="oublier">Oublier (fichier supprimé)</option>{{else}}<option value="">Garder</option><option value="retirer">Retirer</option>{{end}}</select></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{else}}<p><small>Aucun certificat trouvé pour l'instant.</small></p>{{end}}
 <h4>Où chercher</h4>
-<p><small>Toujours cherchés (fichier local de la machine) : <code>/etc/letsencrypt/live/*/cert.pem</code>, <code>/etc/ssl/local/*.crt</code>, <code>/etc/ssl/local/*.pem</code>, <code>/etc/pve/local/pveproxy-ssl.pem</code>, <code>/etc/proxmox-backup/proxy.pem</code>.</small></p>
+<p class="aide"><small class="aide">Toujours cherchés : Let's Encrypt, <code>/etc/ssl/local</code>, Proxmox. {{template "plus" "aide.md#certificats-agent"}}</small></p>
 {{if $s.MotifsAjout}}<div class="defile"><table><thead><tr><th>Chemin ajouté ici</th><th>Sur la machine</th>{{if $.Admin}}<th>Choix</th>{{end}}</tr></thead><tbody>
 {{range $s.MotifsAjout}}<tr><td><code>{{.Motif}}</code></td><td>{{if .Classe}}<span class="pastille {{.Classe}}">{{.Resultat}}</span>{{else}}<span class="sous">{{.Resultat}}</span>{{end}}</td>{{if $.Admin}}<td><select class="petit" name="cm.{{.Motif}}" aria-label="{{.Motif}}" {{if not $s.Elements}}disabled{{end}}><option value="">Garder</option><option value="retirer">Retirer</option></select></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{end}}
 {{if $.Admin}}<label class="surv-ajout">Ajouter des chemins (un par ligne)<textarea name="certificats_nouveaux" rows="2" maxlength="10000" placeholder="/etc/nginx/ssl/*.crt" {{if not $s.Elements}}disabled{{end}}></textarea></label>
-<p><small>Règles : sous <code>/etc</code>, <code>/opt</code>, <code>/srv</code>, <code>/var/lib</code> ou <code>/usr/local</code> ; nom en <code>.pem</code>, <code>.crt</code>, <code>.cer</code> ou <code>.cert</code> ; jamais une clé privée ; 3 jokers <code>*</code> au plus ; 20 chemins. Lu au prochain passage de l'assistant root (15 min au plus). Une machine peut refuser ces chemins avec <code>MIRADOR_CERTIFICATS_DISTANTS=non</code> dans son fichier local.</small></p>{{end}}
+<p class="aide"><small class="aide">Sous <code>/etc</code>, <code>/opt</code>, <code>/srv</code>, <code>/var/lib</code> ou <code>/usr/local</code> ; jamais une clé privée ; 20 chemins. {{template "plus" "aide.md#certificats-agent"}}</small></p>{{end}}
 </details>{{end}}
 
 {{if or $s.Ignores $s.SvcIgnores $s.Absents}}<h3 class="titre-doux">Ignoré ou absent</h3>
@@ -74,7 +171,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 {{template "code2fa"}}<button>Enregistrer les choix</button>
 {{if $s.NbAValider}}<button class="secondaire" name="tout" value="oui">Tout surveiller ({{$s.NbAValider}})</button><button class="secondaire" name="tout" value="non">Tout ignorer</button>{{end}}
 </div>
-<p><small>Les choix partent dans la configuration typée de l'agent, appliquée à sa prochaine demande (5 min au plus) ; aucune commande n'est envoyée. « Retirer » arrête l'envoi et donc les alertes liées ; l'historique reste. Les services sont toujours réglés pour cette machine seule. Chaque changement est inscrit dans le journal d'audit.</small></p>{{end}}
+<p class="aide"><small class="aide">Appliqué à la prochaine demande de l'agent (5 min au plus). « Retirer » arrête l'envoi et les alertes ; l'historique reste.</small></p>{{end}}
 </form>
 </section>{{end}}
 
@@ -88,7 +185,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <td>{{if .Seuils}}<a href="/machines/{{$nom}}/modeles/{{.M.Nom}}">Réglages…</a>{{end}}{{if .AVide}} <span class="pastille attention" title="Aucune adresse, aucun fichier… : rien n'est testé">à remplir</span>{{end}}</td></tr>{{end}}
 </tbody></table>
 {{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-<p><small>Un modèle détecté laissé décoché ne sera plus proposé (on peut toujours le cocher plus tard). Décocher un modèle du groupe le retire pour cette machine seulement.</small></p>{{end}}
+<p class="aide"><small class="aide">Détecté laissé décoché : plus proposé. Décocher un modèle du groupe : retiré pour cette machine seulement.</small></p>{{end}}
 </form>
 </section>{{end}}
 
@@ -114,11 +211,11 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
   <label>Site {{template "choix-liste" (choix "site" $m.Site .D.Listes.Sites)}}</label>
   <label>Type {{template "choix-liste" (choix "env" $m.Env .D.Listes.Types)}} <small><a href="/reglages/sites">Gérer les listes</a></small></label>
   <label>Groupe de configuration {{template "choix-liste" (choix "groupe" $m.Groupe .D.Listes.Groupes)}}</label>
-  <small>Réglages d'agent communs aux machines du groupe (<a href="/reglages/agents">Configuration des agents</a>) ; aussi l'étiquette <code>groupe</code> des données.</small>
+  <small class="aide">Réglages d'agent partagés par le groupe ; aussi l'étiquette <code>groupe</code> des données.</small>
   <button>Enregistrer</button></form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="renommer">
   <h3>Renommer</h3><label>Nouveau nom <input name="nouveau" required maxlength="63"></label>
-  <small>Les données arrivent ensuite sous le nouveau nom. L'historique de l'ancien nom reste rattaché à la machine : graphiques, tableaux et logs l'affichent sous le nouveau nom.{{if .D.NomsAnciens}} Anciens noms : {{range $i, $n := .D.NomsAnciens}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}.{{end}}</small>
+  <small>L'historique de l'ancien nom reste rattaché à la machine.{{if .D.NomsAnciens}} Anciens noms : {{range $i, $n := .D.NomsAnciens}}{{if $i}}, {{end}}<code>{{$n}}</code>{{end}}.{{end}}</small>
   <button data-confirmer="Renommer {{$m.Nom}} ?">Renommer</button></form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ips">
   <h3>Adresses autorisées pour le token</h3>
@@ -130,7 +227,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
   {{if $m.EmpreinteLiee}}<p>Le token est <strong>lié</strong> à la machine (empreinte <code>{{printf "%.8s" $m.EmpreinteLiee}}…</code>). Présenté par une autre machine, il est refusé.{{if and $m.EmpreinteVue (not (egal $m.EmpreinteVue $m.EmpreinteLiee))}} <span class="erreur-texte">La machine envoie maintenant une autre empreinte (<code>{{printf "%.8s" $m.EmpreinteVue}}…</code>) : réinstallée ou clonée ? Délier puis relier si c'est normal.</span>{{end}}</p>
   <input type="hidden" name="lier" value="non">{{template "code2fa"}}<button class="secondaire">Délier</button>
   {{else if $m.EmpreinteVue}}<p>La machine envoie l'empreinte <code>{{printf "%.8s" $m.EmpreinteVue}}…</code> (dérivée de <code>/etc/machine-id</code>). Lié, le token ne marche plus s'il est copié sur une autre machine.</p>
-  <small>À délier avant de réinstaller ou de cloner la machine, ou avant de revenir à un agent plus ancien (qui n'envoie pas d'empreinte) : sinon elle sera refusée.</small>
+  <small>À délier avant de réinstaller, de cloner ou de revenir à un agent plus ancien : sinon elle sera refusée.</small>
   <input type="hidden" name="lier" value="oui">{{template "code2fa"}}<button>Lier</button>
   {{else}}<p><small>Cette machine n'a pas encore envoyé d'empreinte (agent trop ancien, ou <code>/etc/machine-id</code> absent).</small></p>{{end}}</form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">

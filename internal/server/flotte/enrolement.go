@@ -101,8 +101,8 @@ func (f *Flotte) traiter(ctx context.Context, d protocole.DemandeEnrolement, ip 
 		identifiant              string
 		etiq                     Etiquettes
 	)
-	err = tx.QueryRowContext(ctx, `SELECT id, expire_le, utilise_le, machine_id, identifiant, site, env, groupe, nom FROM jetons_enrolement WHERE empreinte = ?`,
-		e[:]).Scan(&idJeton, &expire, &utilise, &machine, &identifiant, &etiq.Site, &etiq.Env, &etiq.Groupe, &etiq.Nom)
+	err = tx.QueryRowContext(ctx, `SELECT id, expire_le, utilise_le, machine_id, identifiant, site, env, groupe, nom, type FROM jetons_enrolement WHERE empreinte = ?`,
+		e[:]).Scan(&idJeton, &expire, &utilise, &machine, &identifiant, &etiq.Site, &etiq.Env, &etiq.Groupe, &etiq.Nom, &etiq.TypeMachine)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return refus(msgJetonInvalide)
@@ -135,8 +135,10 @@ func (f *Flotte) traiter(ctx context.Context, d protocole.DemandeEnrolement, ip 
 		if etiq.Env == "" && formatEtiquette.MatchString(d.EnvPropose) {
 			etiq.Env = d.EnvPropose
 		}
+		// Type choisi à la création du jeton (agent ou collecteur) : jamais
+		// celui que la machine dirait d'elle-même.
 		res, err := tx.ExecContext(ctx, `INSERT INTO machines(nom, type, statut, identifiant, version_agent, architecture, ip_enrolement, cree_le, site, env, groupe)
-			VALUES (?, 'agent', 'en_attente', ?, ?, ?, ?, ?, ?, ?, ?)`, d.NomPropose, d.Identifiant, d.Version, d.Architecture, ip, maintenant.Unix(),
+			VALUES (?, ?, 'en_attente', ?, ?, ?, ?, ?, ?, ?, ?)`, d.NomPropose, etiq.TypeOuDefaut(), d.Identifiant, d.Version, d.Architecture, ip, maintenant.Unix(),
 			etiq.Site, etiq.Env, etiq.Groupe)
 		if err != nil {
 			return rep, false, err

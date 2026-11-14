@@ -16,6 +16,7 @@ import (
 	"mirador-stack/internal/server/auth"
 	"net/http"
 	"path"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -150,6 +151,8 @@ func fonctions() template.FuncMap {
 		"depuisS":  func(s int64) string { return depuis(s * 1000) },
 		"depuisMs": depuis,
 		"duree":    func(d time.Duration) string { return dureeLisible(d) },
+		"dureeC":   dureeCourte,
+		"docs":     func(chemin string) string { return AdresseDocs + chemin },
 		"taille":   tailleLisible,
 		"pct":      func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
 		"egal":     func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
@@ -280,6 +283,37 @@ func dureeLisible(d time.Duration) string {
 		return fmt.Sprintf("%d j", int(d.Hours()/24))
 	}
 }
+
+// dureeCourte : durée réglable affichée simplement (« 30 min », « 12 h »,
+// « 7 j », « 1 an ») ; accepte time.Duration et les types Duree.
+func dureeCourte(v any) string {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Int64 {
+		return fmt.Sprint(v)
+	}
+	d := time.Duration(rv.Int())
+	an, jour := 365*24*time.Hour, 24*time.Hour
+	switch {
+	case d <= 0:
+		return "0"
+	case d%an == 0:
+		if d == an {
+			return "1 an"
+		}
+		return fmt.Sprintf("%d ans", d/an)
+	case d%jour == 0:
+		return fmt.Sprintf("%d j", d/jour)
+	case d%time.Hour == 0:
+		return fmt.Sprintf("%d h", d/time.Hour)
+	case d%time.Minute == 0:
+		return fmt.Sprintf("%d min", d/time.Minute)
+	}
+	return d.String()
+}
+
+// AdresseDocs : documentation en ligne, cible des liens « En savoir plus »
+// des aides (dépôt public du projet).
+const AdresseDocs = "https://github.com/prohand/mirador-stack/blob/main/docs/"
 
 // majusculeDebut : première lettre en majuscule (accents compris : « é » → « É »).
 func majusculeDebut(s string) string {
@@ -423,6 +457,7 @@ type Page struct {
 	Version       string
 	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
 	ThemeChoix    string // choix affiché dans le sélecteur : clair, sombre, auto
+	SansAides     bool   // aides masquées (bouton du menu, SPEC § 26)
 	Chemin        string // page affichée (retour après le choix du thème sans JavaScript)
 	Disposition   string // gauche ou haut (réglage « Interface »)
 	Replie        bool   // menu replié par défaut
@@ -461,6 +496,7 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	if auth.ThemesUtilisateur[q.u.Theme] {
 		p.ThemeChoix = q.u.Theme
 	}
+	p.SansAides = q.u.SansAides
 	if p.ThemeChoix != "auto" {
 		p.Theme = p.ThemeChoix
 	}

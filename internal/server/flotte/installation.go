@@ -18,6 +18,7 @@ import (
 	"time"
 
 	installagent "mirador-stack/deploy/agent"
+	installcollecteur "mirador-stack/deploy/collecteur"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/web"
@@ -34,8 +35,8 @@ import (
 // vérifiée à la publication), sinon celui embarqué dans l'image du serveur
 // (construit avec lui par la CI).
 
-// DossierAgentEmbarque : binaires de l'agent livrés dans l'image du serveur
-// (mirador-agent-linux-amd64, mirador-agent-linux-arm64).
+// DossierAgentEmbarque : binaires livrés dans l'image du serveur
+// (mirador-agent-linux-amd64, …-arm64, mirador-collector-linux-amd64, …).
 const DossierAgentEmbarque = "/usr/share/mirador/agent"
 
 // EnteteSHA256, EnteteVersion : empreinte et version du fichier envoyé (le
@@ -94,17 +95,26 @@ func (f *Flotte) accueillirInstallation(w http.ResponseWriter, r *http.Request) 
 // adresse comme l'enrôlement ; nginx ne laisse passer que les adresses
 // autorisées.
 func (f *Flotte) scriptInstallation(w http.ResponseWriter, r *http.Request) {
+	f.servirScript(w, r, installagent.Script, "mirador-agent-install.sh")
+}
+
+// scriptInstallationCollecteur : même chose pour mirador-collector (SPEC § 23.13).
+func (f *Flotte) scriptInstallationCollecteur(w http.ResponseWriter, r *http.Request) {
+	f.servirScript(w, r, installcollecteur.Script, "mirador-collector-install.sh")
+}
+
+func (f *Flotte) servirScript(w http.ResponseWriter, r *http.Request, script []byte, nom string) {
 	if !f.demandes.Prendre(ingestion.CleLimite(web.AdresseClient(r)), 1, f.opt.Maintenant()) {
 		w.Header().Set("Retry-After", "30")
 		erreur(w, http.StatusTooManyRequests, "trop de demandes")
 		return
 	}
-	h := sha256.Sum256(installagent.Script)
+	h := sha256.Sum256(script)
 	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="mirador-agent-install.sh"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+nom+`"`)
 	w.Header().Set(EnteteSHA256, hex.EncodeToString(h[:]))
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(installagent.Script)
+	_, _ = w.Write(script)
 }
 
 // empreintes des binaires embarqués (calculées une fois par fichier).
@@ -153,21 +163,33 @@ func archConnue(a string) string {
 	return ""
 }
 
+// produitConnu : produit demandé (paramètre « produit ») recopié depuis une
+// constante ; mirador-agent par défaut, vide si inconnu.
+func produitConnu(p string) string {
+	switch p {
+	case "", protocole.ProduitAgent:
+		return protocole.ProduitAgent
+	case protocole.ProduitCollecteur:
+		return protocole.ProduitCollecteur
+	}
+	return ""
+}
+
 // binaireInstallation : chemin, version et empreinte du binaire à servir.
-func (f *Flotte) binaireInstallation(ctx context.Context, arch string) (chemin, version, sha string, err error) {
+func (f *Flotte) binaireInstallation(ctx context.Context, produit, arch string) (chemin, version, sha string, err error) {
 	if v, e := CibleGlobale(ctx, f.opt.DB); e == nil && v != "" {
-		if m, e := f.manifeste(ctx, v, arch); e == nil && m != nil {
-			return filepath.Join(f.opt.DossierVersions, nomBinaire(v, arch)), v, m.SHA256, nil
+		if m, e := f.manifeste(ctx, produit, v, arch); e == nil && m != nil {
+			return filepath.Join(f.opt.DossierVersions, nomBinaire(produit, v, arch)), v, m.SHA256, nil
 		}
 	}
 	dossier := f.opt.DossierAgent
 	if dossier == "" {
 		dossier = DossierAgentEmbarque
 	}
-	chemin = filepath.Join(dossier, "mirador-agent-linux-"+arch)
-	info, err := os.Stat(chemin) // #nosec G703 -- dossier fixe + architecture constante (archConnue)
+	chemin = filepath.Join(dossier, produit+"-linux-"+arch)
+	info, err := os.Stat(chemin) // #nosec G703 -- dossier fixe + produit et architecture constants (produitConnu, archConnue)
 	if err != nil {
-		return "", "", "", errors.New("aucun binaire de l'agent : publier une version (Machines › Mises à jour des agents)")
+		return "", "", "", fmt.Errorf("aucun binaire de %s : publier une version (Machines › Mises à jour des agents)", produit)
 	}
 	sha, err = empreinteDe(chemin, info)
 	return chemin, "embarquée", sha, err
@@ -180,11 +202,12 @@ func (f *Flotte) binaireAInstaller(w http.ResponseWriter, r *http.Request) {
 	// Architecture recopiée depuis une constante : rien de ce que le client
 	// envoie n'entre dans un chemin de fichier.
 	arch := archConnue(r.URL.Query().Get(protocole.ParametreArchitecture))
-	if arch == "" {
-		erreur(w, http.StatusBadRequest, "architecture inconnue (amd64 ou arm64)")
+	produit := produitConnu(r.URL.Query().Get(protocole.ParametreProduit))
+	if arch == "" || produit == "" {
+		erreur(w, http.StatusBadRequest, "architecture (amd64 ou arm64) ou produit inconnu")
 		return
 	}
-	chemin, version, sha, err := f.binaireInstallation(r.Context(), arch)
+	chemin, version, sha, err := f.binaireInstallation(r.Context(), produit, arch)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			f.opt.Journal.Warn("installation : binaire indisponible", "arch", arch, "erreur", err)

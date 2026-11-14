@@ -98,6 +98,25 @@ func ReglesMirador() []Regle {
 			Description: "L'assistant root ne lit pas /etc/pve : trop ancien (relancer le script, ou attendre sa mise " +
 				"à jour automatique), ou erreur (voir root.json, champ « erreurs »). Les tableaux n'ont alors pas les noms.",
 			Note: "SPEC § 23.7"}),
+		// Certificat du syslog d'un collecteur (SPEC § 23.14) : renouvelé
+		// seul 30 jours avant l'échéance ; alerte s'il reste moins de 14 jours
+		// ou si le dernier essai a échoué.
+		m(Regle{Nom: "CertificatSyslogBientotExpire", Groupe: "collecteurs", Intervalle: Duree(15 * time.Minute),
+			Expr:    `(mirador_collecteur_certificat_fin_timestamp_seconds - time()) / 86400 < 14`,
+			Pour:    Duree(time.Hour),
+			Gravite: Avertissement,
+			Resume:  "Le certificat du syslog de {{ $labels.instance }} expire dans {{ $value | humanize }} jours",
+			Description: "Le renouvellement automatique (30 jours avant) n'a pas réussi : voir la page du collecteur " +
+				"(Certificat du syslog), puis « Renouveler maintenant ».",
+			Note: "SPEC § 23.14"}),
+		m(Regle{Nom: "CertificatSyslogRenouvellementEchoue", Groupe: "collecteurs", Intervalle: Duree(15 * time.Minute),
+			Expr:    `mirador_collecteur_certificat_echec == 1`,
+			Pour:    Duree(time.Hour),
+			Gravite: Avertissement,
+			Resume:  "{{ $labels.instance }} : certificat du syslog non obtenu (ACME / deSEC)",
+			Description: "Dernier essai en échec (jeton deSEC, zone, nom du certificat, Let's Encrypt) : le message est sur " +
+				"la page du collecteur. Nouvel essai toutes les 6 h, ou « Renouveler maintenant ».",
+			Note: "SPEC § 23.14"}),
 		// Services attendus par un modèle de surveillance (SPEC § 24.7) : un
 		// service en échec ou arrêté est déjà signalé par les règles des
 		// services ; ici, le service n'existe pas (pas installé, désinstallé,

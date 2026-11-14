@@ -46,9 +46,22 @@ type Agent struct {
 
 // Nouveau prépare l'agent (rien ne tourne encore).
 func Nouveau(cfg config.Agent, token string, journal *slog.Logger) *Agent {
+	return NouveauAvec(cfg, token, journal, Options{Collecteurs: Collecteurs(cfg, journal), Job: "node"})
+}
+
+// Options : ce qui distingue mirador-collector de l'agent (SPEC § 23.13) :
+// ses propres collecteurs (équipements du LAN) et son étiquette « job ».
+type Options struct {
+	Collecteurs []collect.Collecteur
+	Job         string
+}
+
+// NouveauAvec prépare un agent avec ces collecteurs (même boucle de collecte,
+// même file et même envoi que l'agent).
+func NouveauAvec(cfg config.Agent, token string, journal *slog.Logger, opt Options) *Agent {
 	common := []mm.Label{
 		mm.L("instance", cfg.Nom),
-		mm.L("job", "node"),
+		mm.L("job", opt.Job),
 	}
 	// Site et env facultatifs avec mirador-server : il les impose d'après la
 	// fiche de la machine (choisis dans l'interface).
@@ -61,7 +74,7 @@ func Nouveau(cfg config.Agent, token string, journal *slog.Logger) *Agent {
 	a := &Agent{
 		cfg:         cfg,
 		journal:     journal,
-		collecteurs: Collecteurs(cfg, journal),
+		collecteurs: opt.Collecteurs,
 		lot:         mm.NewBatch(1024, common),
 		file:        envoi.NewFile(cfg.TamponMetriques),
 		duree:       make(map[string]time.Duration),

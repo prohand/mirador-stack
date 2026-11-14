@@ -72,8 +72,8 @@ jobs:
         run: go run github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION} -quiet -exclude-generated ./...
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
-      - name: Compilation (agent et serveur linux, mirador-release Windows)
-        run: make agent serveur release
+      - name: Compilation (agent, collecteur et serveur linux, mirador-release Windows)
+        run: make agent collecteur serveur release
       # Binaires et scripts à télécharger depuis la page de l'exécution
       # (onglet « Artifacts ») pour les essais sur une machine.
       - name: Publication des binaires (artefact)
@@ -83,6 +83,7 @@ jobs:
           path: |
             dist/
             deploy/agent/
+            deploy/collecteur/
           retention-days: 30
 
   tests:
@@ -130,6 +131,7 @@ jobs:
             ./internal/server/ingestion:FuzzDecoderRemoteWrite
             ./internal/server/ingestion:FuzzDecoderJsonline
             ./internal/server/ingestion:FuzzDecoderInflux
+            ./internal/collecteur/syslog:FuzzSyslog
             ./internal/server/stockage/journaux:FuzzLireEntete
             ./internal/server/sauvegarde:FuzzLecture
             ./internal/server/alertes:FuzzImporter
@@ -241,13 +243,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Compilation de l'agent (version du tag, sans « v »)
+      - name: Compilation de l'agent et du collecteur (version du tag, sans « v »)
         run: |
           set -eu
           v="${GITHUB_REF_NAME#v}"
-          make agent VERSION="$v"
+          make agent collecteur VERSION="$v"
           for a in amd64 arm64; do
             mv "dist/mirador-agent-linux-$a" "dist/mirador-agent-$v-linux-$a"
+            mv "dist/mirador-collector-linux-$a" "dist/mirador-collector-$v-linux-$a"
           done
       - name: Signature
         env:
@@ -267,6 +270,7 @@ jobs:
           go build -o "$d/mirador-release" ./cmd/mirador-release
           for a in amd64 arm64; do
             "$d/mirador-release" signer -cle "$d/cle.json" -version "$v" -arch "$a" "dist/mirador-agent-$v-linux-$a"
+            "$d/mirador-release" signer -cle "$d/cle.json" -produit mirador-collector -version "$v" -arch "$a" "dist/mirador-collector-$v-linux-$a"
           done
       - name: Ajout à la Release
         env:
@@ -275,7 +279,7 @@ jobs:
           set -eu
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
             || gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes "Version $GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" dist/mirador-agent-* --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/mirador-agent-* dist/mirador-collector-* --clobber
 
   # Tag de version : l'image n'est publiée QUE si les contrôles et les tests
   # sont bons.

@@ -210,6 +210,10 @@ type donneesMachines struct {
 	// Équipement sans agent (OPNsense / Telegraf) tout juste créé : son
 	// token n'est affiché qu'ici, une seule fois.
 	Equipement, TokenEquipement string
+	// Collecteurs : collecteurs approuvés (« Relevé par » d'un équipement) ;
+	// JetonCollecteur : le jeton tout juste créé est pour un collecteur.
+	Collecteurs     []string
+	JetonCollecteur bool
 }
 
 func (c *Console) pageMachines(q *req) {
@@ -239,6 +243,7 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 	}
 	d.Ingestion = lireInterface(q.r.Context(), c.db).Ingestion
 	d.Listes = c.lireListes(q.r.Context())
+	d.Collecteurs, _ = flotte.Collecteurs(q.r.Context(), c.db)
 	return d
 }
 
@@ -269,6 +274,22 @@ func (c *Console) postEquipement(q *req) {
 		if _, e := ingestion.LireIPs(f("ips")); e != nil {
 			err = fmt.Errorf("adresses autorisées : %w", e)
 		}
+	}
+	// Relevé par un collecteur (SPEC § 23.13) : pas de token, l'équipement
+	// est rattaché au collecteur choisi.
+	if par := f("collecteur"); err == nil && par != "" {
+		var idC int64
+		if idC, err = flotte.IDMachine(ctx, c.db, par); err == nil {
+			err = flotte.CreerEquipement(ctx, c.db, nom, idC, q.qui(), q.t)
+		}
+		if err == nil {
+			err = flotte.DefinirEtiquettes(ctx, c.db, nom, f("site"), f("env"), f("groupe"), q.qui(), q.t)
+			if c.opt.Ingestion != nil {
+				c.opt.Ingestion.OublierEquipements()
+			}
+		}
+		c.retour(q, "/machines/"+url.PathEscape(nom), err, "équipement « "+nom+" » créé et rattaché au collecteur "+par)
+		return
 	}
 	if err == nil {
 		token, err = flotte.TokenManuel(ctx, c.db, nom, q.qui(), q.t)
@@ -301,7 +322,8 @@ func (c *Console) postJeton(q *req) {
 			f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
 			if err = c.lireListes(q.r.Context()).verifierChoix(f("site"), f("env"), f("groupe"), "", "", ""); err == nil {
 				j, err = flotte.CreerJetonEtiquettes(q.r.Context(), c.db, time.Duration(d),
-					flotte.Etiquettes{Site: f("site"), Env: f("env"), Groupe: f("groupe"), Nom: strings.ToLower(f("nom"))}, q.qui(), q.t)
+					flotte.Etiquettes{Site: f("site"), Env: f("env"), Groupe: f("groupe"), Nom: strings.ToLower(f("nom")),
+						TypeMachine: f("type_machine")}, q.qui(), q.t)
 			}
 		}
 	}
@@ -314,12 +336,19 @@ func (c *Console) postJeton(q *req) {
 	// recrée rien (le code 2FA ne sert qu'une fois).
 	d := c.donneesMachines(q)
 	d.Jeton = j
+	d.JetonCollecteur = q.r.PostFormValue("type_machine") == "collecteur"
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
 	var options []string
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
+		if d.JetonCollecteur {
+			break // le collecteur ne lit pas les logs de sa machine
+		}
 		options = append(options, "--sans-logs")
 	case "logs":
+		if d.JetonCollecteur {
+			break
+		}
 		options = append(options, "--sans-metriques")
 	}
 	// Mises à jour automatiques signées : décidées sur la machine (option du
@@ -377,6 +406,14 @@ type donneesMachine struct {
 	Agent       bool            // machine avec agent (pas un collecteur)
 	Modeles     vueModeles      // bloc « Modèles » (SPEC § 24)
 	Ingestion   string          // adresse d'ingestion (commande de réinstallation)
+	// Collecteur (SPEC § 23.13) : équipements relevés et machines qu'on peut
+	// lui rattacher ; pour un équipement : le collecteur qui le relève.
+	Collecteur  bool
+	Equipements []flotte.Equipement
+	Candidats   []string
+	RelevePar   string
+	Syslog      vueSyslog // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
+	SNMP        vueSNMP   // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -409,6 +446,16 @@ func (c *Console) pageMachine(q *req) {
 		d.Modeles = c.vueModelesMachine(ctx, m, q.t)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	}
+	if m.Type == "collecteur" {
+		d.Collecteur = true
+		d.Equipements, _ = flotte.EquipementsDe(ctx, c.db, m.ID)
+		d.Candidats = c.candidatsEquipement(ctx, m.ID)
+		d.Ingestion = lireInterface(ctx, c.db).Ingestion
+		d.Syslog = c.syslogDe(ctx, m)
+		d.SNMP = c.snmpDe(ctx, m)
+	} else {
+		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
+	}
 	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
 		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
 		vals, periode, duree, err := lireFiltres(t, v)
@@ -435,6 +482,28 @@ func (c *Console) pageMachine(q *req) {
 	c.rendre(q, "machine", m.Nom, "machines", d)
 }
 
+// candidatsEquipement : machines approuvées qu'on peut rattacher à ce
+// collecteur (ni collecteur, ni déjà rattachées à lui).
+func (c *Console) candidatsEquipement(ctx context.Context, collecteur int64) []string {
+	ms, err := flotte.ListerMachines(ctx, c.db)
+	if err != nil {
+		return nil
+	}
+	deja := map[string]bool{}
+	if eqs, err := flotte.EquipementsDe(ctx, c.db, collecteur); err == nil {
+		for _, q := range eqs {
+			deja[q.Nom] = true
+		}
+	}
+	var out []string
+	for _, m := range ms {
+		if m.Statut == "approuvee" && m.Type != "collecteur" && !deja[m.Nom] {
+			out = append(out, m.Nom)
+		}
+	}
+	return out
+}
+
 // postMachine : toutes les actions sur une machine.
 func (c *Console) postMachine(q *req) {
 	ctx := q.r.Context()
@@ -450,7 +519,13 @@ func (c *Console) postMachine(q *req) {
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
 		"surveillance": true, "empreinte": true,
 		// Modèles : changent la configuration de l'agent et les alertes.
-		"modeles": true}
+		"modeles": true,
+		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
+		"rattacher": true, "detacher": true,
+		// Syslog et certificat d'un collecteur (SPEC § 23.14).
+		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true, "certificat_reglages": true,
+		// SNMP et sondes d'un collecteur (SPEC § 23.15).
+		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -547,6 +622,46 @@ func (c *Console) postMachine(q *req) {
 				ok = "mises à jour bloquées sur cette machine (version " + v + " gardée)"
 			}
 			err = flotte.DefinirCible(ctx, c.db, id, v, q.qui(), q.t)
+		}
+	case "syslog", "syslog_retirer", "certificat_renouveler", "certificat_reglages":
+		m, trouve := c.machine(q)
+		if !trouve || m.Type != "collecteur" {
+			err = errors.New("ce n'est pas un collecteur")
+			break
+		}
+		vers += "#syslog"
+		ok, err = c.postSyslog(q, m, action)
+	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer":
+		m, trouve := c.machine(q)
+		if !trouve || m.Type != "collecteur" {
+			err = errors.New("ce n'est pas un collecteur")
+			break
+		}
+		vers += "#snmp"
+		ok, err = c.postSNMP(q, m, action)
+	case "rattacher", "detacher":
+		// Page du collecteur : l'équipement choisi ; page de l'équipement :
+		// lui-même (détacher).
+		var idC, idE int64
+		eq := strings.TrimSpace(f("equipement"))
+		if eq == "" {
+			eq = nom
+		}
+		if idE, err = flotte.IDMachine(ctx, c.db, eq); err != nil {
+			break
+		}
+		vers += "#equipements"
+		if action == "detacher" {
+			err = flotte.DetacherEquipement(ctx, c.db, idE, q.qui(), q.t)
+			ok = eq + " n'est plus relevé par un collecteur"
+			break
+		}
+		if idC, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
+			err = flotte.RattacherEquipement(ctx, c.db, idC, idE, q.qui(), q.t)
+			ok = eq + " rattaché : le collecteur reçoit sa nouvelle liste tout de suite"
+		}
+		if c.opt.Ingestion != nil {
+			c.opt.Ingestion.OublierEquipements()
 		}
 	case "supprimer":
 		err = flotte.Supprimer(ctx, c.db, nom, q.qui(), q.t)

@@ -37,6 +37,9 @@ type Options struct {
 	DossierAgent    string               // binaires embarqués dans l'image (défaut DossierAgentEmbarque)
 	Journal         *slog.Logger
 	Maintenant      func() time.Time
+	// Cle : clé du serveur ; déchiffre les mots de passe SNMP des collecteurs
+	// au moment de leur envoyer la configuration (SPEC § 23.15).
+	Cle []byte
 }
 
 // Flotte : points d'entrée des machines (hors métriques et logs).
@@ -82,6 +85,7 @@ func (f *Flotte) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET "+protocole.CheminMaj, f.maj)
 	m.HandleFunc("GET "+protocole.CheminBinaire, f.binaire)
 	m.HandleFunc("GET "+protocole.CheminInstallation, f.scriptInstallation)
+	m.HandleFunc("GET "+protocole.CheminInstallationCollecteur, f.scriptInstallationCollecteur)
 	m.HandleFunc("GET "+protocole.CheminInstallationBinaire, f.binaireAInstaller)
 	m.HandleFunc("GET "+protocole.CheminCles, f.cles)
 }

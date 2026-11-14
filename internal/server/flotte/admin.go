@@ -72,9 +72,25 @@ func CreerJeton(ctx context.Context, db *sql.DB, duree time.Duration, qui string
 
 // Etiquettes : site, type (env) et groupe d'une machine ; Nom (jeton) :
 // nom imposé à la future machine (” = celui qu'elle propose).
-type Etiquettes struct{ Site, Env, Groupe, Nom string }
+type Etiquettes struct {
+	Site, Env, Groupe, Nom string
+	// TypeMachine : « agent » (défaut) ou « collecteur » (mirador-collector,
+	// SPEC § 23.13), choisi par l'admin à la création du jeton.
+	TypeMachine string
+}
+
+// TypeOuDefaut : type de la machine (agent si vide).
+func (e Etiquettes) TypeOuDefaut() string {
+	if e.TypeMachine == "" {
+		return "agent"
+	}
+	return e.TypeMachine
+}
 
 func (e Etiquettes) verifier() error {
+	if t := e.TypeOuDefaut(); t != "agent" && t != "collecteur" {
+		return errors.New("type de machine inconnu (agent ou collecteur)")
+	}
 	if e.Nom != "" && !FormatNom.MatchString(e.Nom) {
 		return errors.New("nom de machine invalide (lettres, chiffres, . _ -)")
 	}
@@ -119,8 +135,8 @@ func CreerJetonEtiquettes(ctx context.Context, db *sql.DB, duree time.Duration, 
 			return "", errors.New("un jeton valable existe déjà pour ce nom")
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO jetons_enrolement(empreinte, expire_le, cree_par, cree_le, site, env, groupe, nom) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		em[:], maintenant.Add(duree).Unix(), qui, maintenant.Unix(), e.Site, e.Env, e.Groupe, e.Nom); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO jetons_enrolement(empreinte, expire_le, cree_par, cree_le, site, env, groupe, nom, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		em[:], maintenant.Add(duree).Unix(), qui, maintenant.Unix(), e.Site, e.Env, e.Groupe, e.Nom, e.TypeOuDefaut()); err != nil {
 		return "", err
 	}
 	if err := audit(ctx, tx, maintenant.Unix(), qui, "jeton_cree", "", "", "*** expire "+maintenant.Add(duree).UTC().Format(time.RFC3339), ""); err != nil {

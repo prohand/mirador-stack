@@ -4,14 +4,14 @@
 <h2>Réglages</h2>
 <form method="post" action="/securite" class="pile">
   {{template "csrf" .CSRF}}
-  <label>Session fermée après une inactivité de <input name="inactivite" value="{{.D.S.Inactivite}}" required maxlength="10"> <small>5 min à 8 h, défaut {{.D.Defaut.Inactivite}}</small></label>
-  <label>Durée maximale d'une session <input name="duree_max" value="{{.D.S.DureeMax}}" required maxlength="10"> <small>1 h à 7 j, défaut {{.D.Defaut.DureeMax}}</small></label>
-  <label>Échecs avant verrouillage (par adresse) <input type="number" name="echecs" min="3" max="50" value="{{.D.S.Echecs}}" required> <small>3 à 50, défaut {{.D.Defaut.Echecs}} ; le compte est verrouillé au triple</small></label>
-  <label>Durée du verrouillage <input name="verrou" value="{{.D.S.Verrou}}" required maxlength="10"> <small>1 min à 24 h, défaut {{.D.Defaut.Verrou}}</small></label>
-  <label>Mode administration : plus de code 2FA pendant <input name="mode_admin" value="{{.D.S.ModeAdmin}}" maxlength="10"> <small>après un code juste ; 0 = désactivé (code à chaque action sensible), 1 min à 1 h, défaut {{.D.Defaut.ModeAdmin}}. La sécurité des comptes demande toujours le code.</small></label>
+  <label>Session fermée après une inactivité de <input name="inactivite" value="{{.D.S.Inactivite}}" required maxlength="10"> <small class="aide">5 min à 8 h (défaut {{dureeC .D.Defaut.Inactivite}})</small></label>
+  <label>Durée maximale d'une session <input name="duree_max" value="{{.D.S.DureeMax}}" required maxlength="10"> <small class="aide">1 h à 7 jours (défaut {{dureeC .D.Defaut.DureeMax}})</small></label>
+  <label>Échecs avant verrouillage (par adresse) <input type="number" name="echecs" min="3" max="50" value="{{.D.S.Echecs}}" required> <small class="aide">3 à 50 (défaut {{.D.Defaut.Echecs}}). Le compte est verrouillé au triple.</small></label>
+  <label>Durée du verrouillage <input name="verrou" value="{{.D.S.Verrou}}" required maxlength="10"> <small class="aide">1 min à 24 h (défaut {{dureeC .D.Defaut.Verrou}})</small></label>
+  <label>Mode administration : plus de code 2FA pendant <input name="mode_admin" value="{{.D.S.ModeAdmin}}" maxlength="10"> <small class="aide">0 = code demandé à chaque action (défaut {{dureeC .D.Defaut.ModeAdmin}}). {{template "plus" "aide.md#securite-mode-admin"}}</small></label>
   <label>Adresses autorisées (vide = toutes ; virgules ; préfixes acceptés) <textarea name="ips" rows="3" maxlength="4096">{{.D.S.IPs}}</textarea>
-    <small>Votre adresse : <code>{{.D.MonIP}}</code>. Un changement de cette liste doit être <strong>confirmé dans les 2 minutes</strong>, sinon l'ancienne revient.</small></label>
-  <label class="case"><input type="checkbox" name="passkey_seule" value="1" {{if not .D.S.SansPasskeySeule}}checked{{end}}> Autoriser la connexion par passkey seule (sans mot de passe) <small>L'appareil doit alors vérifier l'utilisateur (code PIN, empreinte, visage). Décochée : la passkey ne remplace que le code 2FA, après le mot de passe.</small></label>
+    <small>Votre adresse : <code>{{.D.MonIP}}</code>. <strong>À confirmer sous 2 min</strong>, sinon l'ancienne liste revient.</small></label>
+  <label class="case"><input type="checkbox" name="passkey_seule" value="1" {{if not .D.S.SansPasskeySeule}}checked{{end}}> Autoriser la connexion par passkey seule (sans mot de passe) <small class="aide">L'appareil demande le code PIN, l'empreinte ou le visage.</small></label>
   {{template "code2fa-toujours"}}
   <div class="ligne"><button>Enregistrer</button> <button name="defaut" value="1" class="secondaire" data-confirmer="Rétablir toutes les valeurs par défaut ?">Rétablir les valeurs par défaut</button></div>
 </form>
@@ -24,6 +24,6 @@
 <tbody>{{range .D.Sessions}}<tr><td>{{.Nom}}</td><td>{{.Adresse}}</td><td>{{date .Creee}}</td><td>{{date .Vue}}</td>
 <td><form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire">Fermer</button></form></td></tr>{{end}}</tbody>
 </table></div>
-<p><small>Sessions gardées en mémoire : un redémarrage du serveur les ferme toutes.</small></p>
+<p class="aide"><small class="aide">Un redémarrage du serveur ferme toutes les sessions.</small></p>
 </section>
 {{end}}

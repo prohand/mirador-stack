@@ -65,7 +65,7 @@
 <form method="post" action="/compte/passkey/preparer" class="ligne">{{template "csrf" .CSRF}}
   <label>Nom (pour la reconnaître) <input name="nom" maxlength="40" placeholder="Téléphone, clé USB…"></label>
   {{template "code2fa-toujours"}}<button>Continuer</button></form>
-<p><small>Le code 2FA reste demandé pour les actions sensibles, et la 2FA par application reste obligatoire : la passkey est un moyen de plus, pas le seul.</small></p>
+<p class="aide"><small class="aide">Un moyen de plus : le code 2FA reste demandé pour les actions sensibles.</small></p>
 {{end}}
 </section>
 {{end}}

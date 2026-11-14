@@ -86,6 +86,10 @@ type Agent struct {
 	Checks       []Check `json:"checks"`
 	ChecksActifs bool    `json:"-"`
 
+	// Collecteur : réglages de mirador-collector (SPEC § 23.13), reçus du
+	// serveur seulement (clé « collecteur » de la configuration distante).
+	Collecteur Collecteur `json:"-"`
+
 	// Tampon mémoire des métriques en attente d'envoi (octets compressés).
 	TamponMetriques int `json:"tampon_metriques"`
 
@@ -302,6 +306,9 @@ func (a *Agent) Valider() error {
 	}
 	if err := ValiderChecks(a.Checks); err != nil {
 		ajoute("checks : %v", err)
+	}
+	if err := a.Collecteur.Valider(); err != nil {
+		ajoute("collecteur : %v", err)
 	}
 	if a.TamponMetriques < tamponMin || a.TamponMetriques > tamponMax {
 		ajoute("MIRADOR_TAMPON_METRIQUES %d hors bornes (%d à %d octets)", a.TamponMetriques, tamponMin, tamponMax)
@@ -585,12 +592,17 @@ func validerDocker(brute string) error {
 // LireFichier lit le fichier local CLE=valeur et renvoie une configuration
 // validée (valeurs par défaut pour les clés absentes).
 func LireFichier(chemin string) (Agent, error) {
+	return LireFichierDepuis(chemin, Defaut())
+}
+
+// LireFichierDepuis : comme LireFichier, à partir d'autres valeurs par défaut.
+func LireFichierDepuis(chemin string, base Agent) (Agent, error) {
 	f, err := os.Open(chemin) // #nosec G304 -- chemin donné par l'administrateur (option -config)
 	if err != nil {
 		return Agent{}, err
 	}
 	defer f.Close()
-	return Lire(f)
+	return LireDepuis(f, base)
 }
 
 // Lire analyse le contenu CLE=valeur.
@@ -598,7 +610,12 @@ func LireFichier(chemin string) (Agent, error) {
 // Format : une clé par ligne, « # » pour les commentaires, guillemets
 // facultatifs autour de la valeur. Une clé inconnue est une erreur.
 func Lire(r io.Reader) (Agent, error) {
-	a := Defaut()
+	return LireDepuis(r, Defaut())
+}
+
+// LireDepuis : comme Lire, à partir d'autres valeurs par défaut
+// (mirador-collector : DefautCollecteur).
+func LireDepuis(r io.Reader, a Agent) (Agent, error) {
 	sc := bufio.NewScanner(r)
 	numero := 0
 	vues := map[string]bool{}

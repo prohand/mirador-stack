@@ -69,6 +69,8 @@ type Auth struct {
 	mu    sync.Mutex
 	cache map[[32]byte]entreeCache
 	vus   map[int64]vu // machine → dernière requête, écrit par lots
+	// vusNoms : équipements relevés par un collecteur → dernière donnée.
+	vusNoms map[string]int64
 }
 
 type vu struct {
@@ -242,10 +244,11 @@ func (a *Auth) Oublier() {
 // par requête).
 func (a *Auth) EcrireVus(ctx context.Context) error {
 	a.mu.Lock()
-	vus := a.vus
+	vus, vusNoms := a.vus, a.vusNoms
 	a.vus = make(map[int64]vu, len(vus))
+	a.vusNoms = nil
 	a.mu.Unlock()
-	if len(vus) == 0 {
+	if len(vus) == 0 && len(vusNoms) == 0 {
 		return nil
 	}
 	tx, err := a.db.BeginTx(ctx, nil)
@@ -264,5 +267,24 @@ func (a *Auth) EcrireVus(ctx context.Context) error {
 			return err
 		}
 	}
+	// Équipements relevés par un collecteur (SPEC § 23.13) : vus aussi,
+	// sans adresse (c'est celle du collecteur).
+	for nom, t := range vusNoms {
+		if _, err := tx.ExecContext(ctx, `UPDATE machines SET vu_le = ? WHERE nom = ? AND type != 'collecteur' AND vu_le <= ?`, t, nom, t); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
+}
+
+// NoterVuEquipement : données reçues (par un collecteur) pour cet équipement.
+func (a *Auth) NoterVuEquipement(nom string, t int64) {
+	a.mu.Lock()
+	if a.vusNoms == nil {
+		a.vusNoms = map[string]int64{}
+	}
+	if len(a.vusNoms) < 5000 {
+		a.vusNoms[nom] = t
+	}
+	a.mu.Unlock()
 }

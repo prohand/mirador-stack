@@ -113,8 +113,8 @@ func DefinirConfig(ctx context.Context, db *sql.DB, portee string, doc []byte, q
 // surveillance, groupe, puis machine : la plus précise l'emporte, clé par
 // clé) et son ETag.
 func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, etag string, err error) {
-	var groupe string
-	if err := db.QueryRowContext(ctx, `SELECT groupe FROM machines WHERE id = ?`, machine).Scan(&groupe); err != nil {
+	var groupe, typeMachine string
+	if err := db.QueryRowContext(ctx, `SELECT groupe, type FROM machines WHERE id = ?`, machine).Scan(&groupe, &typeMachine); err != nil {
 		return nil, "", err
 	}
 	portees := []string{"defaut", "modeles"}
@@ -156,6 +156,13 @@ func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, 
 			fusion[k] = v
 		}
 	}
+	// Collecteur (SPEC § 23.13) : la liste de ses équipements est posée par
+	// le serveur (rattachements de l'interface), jamais saisie à la main.
+	if typeMachine == "collecteur" {
+		if fusion["collecteur"], err = configCollecteur(ctx, db, machine, fusion["collecteur"]); err != nil {
+			return nil, "", err
+		}
+	}
 	if doc, err = json.Marshal(fusion); err != nil {
 		return nil, "", err
 	}
@@ -188,7 +195,16 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		// il refuserait tout le document à cause d'une clé qu'il ne connaît
 		// pas. On les lui retire.
 		if retirer := clesInconnues(capacitesDe(r)); len(retirer) > 0 {
-			return sansCles(doc, retirer)
+			if doc, etag, err = sansCles(doc, retirer); err != nil {
+				return nil, "", err
+			}
+		}
+		// Collecteur : mots de passe SNMP déchiffrés pour lui seul, à
+		// l'envoi (ils restent chiffrés en base ; même ETag).
+		if m.Type == "collecteur" {
+			if doc, err = dechiffrerSecretsCollecteur(doc, f.opt.Cle); err != nil {
+				return nil, "", err
+			}
 		}
 		return doc, etag, nil
 	}

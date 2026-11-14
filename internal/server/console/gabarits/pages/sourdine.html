@@ -30,7 +30,7 @@
 
 <div class="grille">
 <section class="carte"><h2>Inhibitions</h2>
-<p><small>Une alerte « source » active tue les alertes « cible » qui ont les mêmes valeurs pour les étiquettes égales.</small></p>
+<p class="aide"><small class="aide">Source active : les cibles avec les mêmes étiquettes sont réduites au silence.</small></p>
 <table>{{range .D.Inhibitions}}<tr><td><code>{{.Source}}</code> tue <code>{{.Cible}}</code> si égales : {{range .Egales}}{{.}} {{end}}<br><small>{{.Commentaire}}</small></td>
 <td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="inhibitions"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}</table>
 {{if .Admin}}<details><summary>Nouvelle inhibition</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="inhibition">
@@ -40,7 +40,7 @@
 <label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Ajouter</button></form></details>{{end}}
 </section>
 <section class="carte"><h2>Dépendances</h2>
-<p><small>Quand le parent est en panne, les alertes de l'enfant sont mises en sourdine.</small></p>
+<p class="aide"><small class="aide">Quand le parent est en panne, les alertes de l'enfant sont mises en sourdine.</small></p>
 <table>{{range .D.Dependances}}<tr><td><code>{{.Enfant}}</code> dépend de <code>{{.Parent}}</code><br><small>{{.Commentaire}}</small></td>
 <td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="dependances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}</table>
 {{if .Admin}}<details><summary>Nouvelle dépendance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="dependance">
