@@ -709,7 +709,8 @@ free -m
 
 | Partie | État |
 |---|---|
-| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées) | **fait**, testé (données simulées, interface) ; à valider |
+| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; à valider |
+| A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; à valider |
 | B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) | à faire |
 | C. Modèles personnels dans l'interface | à faire |
 

@@ -13,7 +13,7 @@
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
-<body data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}">
+<body data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
 {{template "icones"}}
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">
@@ -45,6 +45,7 @@
     </div>
   </aside>
   <div class="contenu">
+    {{if .ModeAdmin}}<div class="bandeau admin">🔓 Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes). <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}
     {{if .ModeOmbre}}<div class="bandeau ombre">Mode <strong>ombre</strong> : les alertes sont calculées mais <strong>aucune notification ne part</strong>. <a href="/reglages/notifications">Changer</a></div>{{end}}
     {{range .AConfirmer}}<div class="bandeau aconfirmer">
       <span>Changement « {{.Quoi}} » fait par {{.Par}} : <strong>à confirmer avant {{dateS .ExpireLe}}</strong>, sinon l'ancienne valeur revient.</span>

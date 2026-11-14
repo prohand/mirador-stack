@@ -457,3 +457,11 @@ dialog.aller-boite li.vide { padding: 9px 10px; color: var(--pale); }
 form.en-ligne { display: inline; }
 details.modele { border: 1px solid var(--bord-doux); border-radius: var(--rayon); padding: 8px 12px; margin: 8px 0; }
 details.modele > summary { cursor: pointer; }
+
+/* Mode administration (demande du 14/11) : code 2FA déjà donné, champs masqués. */
+body[data-mode-admin] label.code:not(.toujours) { display: none; }
+.bandeau.admin { background: var(--ok-fond); color: var(--texte); }
+table.cases-modeles td { vertical-align: middle; padding: 6px 8px; }
+table.matrice td, table.matrice th { text-align: center; }
+table.matrice td:first-child, table.matrice th:first-child { text-align: left; }
+details.carte.modele > summary { cursor: pointer; }

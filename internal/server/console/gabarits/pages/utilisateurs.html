@@ -22,7 +22,7 @@
       </select></label>
       <label>Rôle <select name="role"><option value="lecture" {{if egal .Role "lecture"}}selected{{end}}>Lecture</option><option value="admin" {{if egal .Role "admin"}}selected{{end}}>Admin</option></select></label>
       <label>Mot de passe (si « nouveau mot de passe ») <input type="password" name="mot_de_passe" maxlength="128" autocomplete="new-password"></label>
-      {{template "code2fa"}}
+      {{template "code2fa-toujours"}}
       <button data-confirmer="Appliquer cette action au compte {{.Nom}} ?">Appliquer</button>
     </form></details>
   </td>
@@ -36,7 +36,7 @@
   <label>Nom <input name="nom" required pattern="[a-z0-9][a-z0-9._\-]{1,31}" maxlength="32"></label>
   <label>Rôle <select name="role"><option value="lecture">Lecture</option><option value="admin">Admin</option></select></label>
   <label>Mot de passe provisoire (12 caractères au moins) <input type="password" name="mot_de_passe" minlength="12" maxlength="128" required autocomplete="new-password"></label>
-  {{template "code2fa"}}
+  {{template "code2fa-toujours"}}
   <button>Créer</button>
 </form>
 </section>

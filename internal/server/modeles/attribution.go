@@ -28,6 +28,7 @@ var rePortee = regexp.MustCompile(`^(machine:[0-9]{1,18}|groupe:[A-Za-z0-9][A-Za
 type Attribution struct {
 	Portee, Modele, Etat string
 	Parametres           map[string]float64
+	ModifiePar           string // « auto » : appliqué automatiquement (détection)
 }
 
 // PorteeMachine, PorteeGroupe : noms des portées.
@@ -36,7 +37,7 @@ func PorteeGroupe(nom string) string { return "groupe:" + nom }
 
 // Lister : attributions d'une portée.
 func Lister(ctx context.Context, db *sql.DB, portee string) ([]Attribution, error) {
-	rows, err := db.QueryContext(ctx, `SELECT portee, modele, etat, parametres FROM modeles_attribues WHERE portee = ? ORDER BY modele`, portee)
+	rows, err := db.QueryContext(ctx, `SELECT portee, modele, etat, parametres, modifie_par FROM modeles_attribues WHERE portee = ? ORDER BY modele`, portee)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func Lister(ctx context.Context, db *sql.DB, portee string) ([]Attribution, erro
 	for rows.Next() {
 		var a Attribution
 		var p string
-		if err := rows.Scan(&a.Portee, &a.Modele, &a.Etat, &p); err != nil {
+		if err := rows.Scan(&a.Portee, &a.Modele, &a.Etat, &p, &a.ModifiePar); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(p), &a.Parametres); err != nil {
@@ -113,6 +114,7 @@ type Effectif struct {
 	DuGroupe   bool               // attribué au groupe (pas à la machine elle-même)
 	Surcharges map[string]bool    // paramètres réglés pour cette machine
 	Services   []string           // services systemd attendus (liste du modèle)
+	Auto       bool               // appliqué automatiquement (détection)
 }
 
 // Effectifs : modèles d'une machine = ceux de son groupe + les siens, moins
@@ -162,7 +164,7 @@ func Effectifs(ctx context.Context, db *sql.DB, machine int64, groupe string) ([
 			return nil, err
 		}
 		e := Effectif{Modele: m, Parametres: map[string]float64{}, Surcharges: map[string]bool{},
-			DuGroupe: c.machine == nil, Services: svc}
+			DuGroupe: c.machine == nil, Services: svc, Auto: c.machine != nil && c.machine.ModifiePar == QuiAuto}
 		for _, p := range m.Parametres {
 			e.Parametres[p.Nom] = p.Defaut
 			if c.groupe != nil && c.groupe.Etat == EtatActif {
@@ -181,6 +183,42 @@ func Effectifs(ctx context.Context, db *sql.DB, machine int64, groupe string) ([
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Modele.Nom < out[j].Modele.Nom })
 	return out, nil
+}
+
+// QuiAuto : auteur noté quand un modèle détecté est appliqué automatiquement.
+const QuiAuto = "auto"
+
+// cleAuto : réglage « appliquer automatiquement les modèles détectés ».
+const cleAuto = "modeles.auto"
+
+// LireAuto : application automatique activée ? (non par défaut).
+func LireAuto(ctx context.Context, db *sql.DB) bool {
+	var v string
+	err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleAuto).Scan(&v)
+	return err == nil && v == "oui"
+}
+
+// DefinirAuto : active ou coupe l'application automatique (audit).
+func DefinirAuto(ctx context.Context, db *sql.DB, actif bool, qui string, maintenant time.Time) error {
+	v := "non"
+	if actif {
+		v = "oui"
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
+	if _, err := tx.ExecContext(ctx, `INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, ?, ?, ?)
+		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`,
+		cleAuto, v, maintenant.Unix(), qui); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, 'modeles_auto', '', '', ?, '')`,
+		maintenant.Unix(), qui, v); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Ignores : modèles qu'une machine a ignorés (pour ne plus les proposer).

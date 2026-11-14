@@ -51,6 +51,7 @@ func (c *Console) routesPages() {
 	c.routesAlertes()
 	c.routesLogs()
 	c.routesModeles()
+	m.HandleFunc("POST /mode-admin/quitter", c.lecture(c.postQuitterModeAdmin))
 	c.routesReglages()
 }
 
@@ -447,21 +448,21 @@ func (c *Console) postMachine(q *req) {
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
 		"surveillance": true, "empreinte": true,
 		// Modèles : changent la configuration de l'agent et les alertes.
-		"modele_ajouter": true, "modele_retirer": true, "modele_parametres": true}
+		"modeles": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
 			return
 		}
 	}
-	if strings.HasPrefix(action, "modele_") {
+	if action == "modeles" {
 		m, trouvee := c.machine(q)
 		if !trouvee {
 			c.retour(q, "/machines", errors.New("machine inconnue"), "")
 			return
 		}
-		ok, err, _ = c.actionModele(q, m, action)
-		c.retour(q, vers+"#modeles", err, ok)
+		n, err := c.enregistrerModelesMachine(q, m)
+		c.retour(q, vers+"#modeles", err, "modèles enregistrés ("+strconv.Itoa(n)+" changement(s)) : configuration envoyée à l'agent, règles actives sous une minute")
 		return
 	}
 	switch action {

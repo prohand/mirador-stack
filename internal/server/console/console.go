@@ -79,6 +79,8 @@ type Console struct {
 	// notification (nil sans canaux ; remplaçable dans les tests).
 	prevenir func(ctx context.Context, groupe, texte string)
 	messages antiRafale
+	// dernierAuto : dernier passage de l'application automatique des modèles.
+	dernierAuto time.Time
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -213,6 +215,11 @@ func (c *Console) Tour(ctx context.Context) {
 		c.securite.Store(&s)
 	}
 	c.leverSiDemande(ctx)
+	// Modèles détectés appliqués automatiquement (réglage), une fois par minute.
+	if t.Sub(c.dernierAuto) >= time.Minute {
+		c.dernierAuto = t
+		c.appliquerAuto(ctx, t)
+	}
 	c.lireNomsAnciens(ctx)
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
@@ -441,9 +448,29 @@ func (c *Console) echecSensible(q *req, raison string) error {
 	return nil
 }
 
-// verifierCode : nouvelle saisie du code 2FA pour une action sensible
-// (brief). Un code ne sert qu'une fois.
+// DureeModeAdmin : durée du mode administration après un code 2FA juste.
+const DureeModeAdmin = 10 * time.Minute
+
+// verifierCode : code 2FA d'une action sensible (brief). Mode administration
+// (demande du 14/11) : sans code saisi, accepté tant que le mode est ouvert
+// (10 min après le dernier code juste, comme le « sudo » de GitHub).
 func (c *Console) verifierCode(q *req) error {
+	if strings.TrimSpace(q.r.PostFormValue("code")) == "" && q.t.Before(q.s.AdminJusqua) {
+		return nil
+	}
+	if err := c.verifierCodeFrais(q); err != nil {
+		return err
+	}
+	jusqua := q.t.Add(DureeModeAdmin)
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = jusqua })
+	q.s.AdminJusqua = jusqua
+	return nil
+}
+
+// verifierCodeFrais : nouvelle saisie du code 2FA, toujours (sécurité des
+// comptes : mots de passe, 2FA, passkeys, utilisateurs). Un code ne sert
+// qu'une fois.
+func (c *Console) verifierCodeFrais(q *req) error {
 	code := q.r.PostFormValue("code")
 	if c.sensibleBloque(q) {
 		return errTropEssais
@@ -472,4 +499,11 @@ func (c *Console) verifierCode(q *req) error {
 		return errors.New("code 2FA faux ou déjà utilisé")
 	}
 	return nil
+}
+
+// postQuitterModeAdmin : ferme le mode administration avant la fin des
+// 10 minutes (le code 2FA est de nouveau demandé).
+func (c *Console) postQuitterModeAdmin(q *req) {
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = time.Time{} })
+	c.retour(q, "/", nil, "mode administration fermé : le code 2FA est de nouveau demandé")
 }

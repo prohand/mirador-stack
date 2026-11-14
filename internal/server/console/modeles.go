@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -14,13 +15,20 @@ import (
 	"mirador-stack/internal/server/modeles"
 )
 
-// Modèles de surveillance dans l'interface (SPEC § 24) : bloc « Modèles » de
-// la page d'une machine (attribués, proposés par la détection, à ajouter),
-// et page « Modèles » (catalogue, attribution aux groupes).
+// Modèles de surveillance dans l'interface (SPEC § 24, version simplifiée du
+// 14/11) :
+//   - page d'une machine : une case par modèle (« ★ détecté », « du groupe »,
+//     « ignoré », « auto ») et un seul bouton « Enregistrer » ; les seuils de
+//     la machine sur une page à part (« Seuils… ») ;
+//   - page « Modèles » : tableau modèles × groupes, application automatique
+//     des modèles détectés, détails repliés (règles, services, seuils du
+//     groupe).
 
 func (c *Console) routesModeles() {
 	c.mux.HandleFunc("GET /modeles", c.lecture(c.pageModeles))
 	c.mux.HandleFunc("POST /modeles", c.admin(c.postModeles))
+	c.mux.HandleFunc("GET /machines/{nom}/modeles/{modele}", c.lecture(c.pageSeuilsMachine))
+	c.mux.HandleFunc("POST /machines/{nom}/modeles/{modele}", c.admin(c.postSeuilsMachine))
 }
 
 // vueParam : un paramètre et sa valeur effective.
@@ -30,21 +38,22 @@ type vueParam struct {
 	Surcharge bool // réglé pour cette portée (sinon hérité)
 }
 
-// vueModeleAttribue : un modèle appliqué.
-type vueModeleAttribue struct {
+// vueCase : une ligne du bloc « Modèles » de la page d'une machine.
+type vueCase struct {
 	M        *modeles.Modele
+	Coche    bool
 	DuGroupe bool
-	Params   []vueParam
-	Services []string
+	Detecte  bool // détecté, ni attribué ni ignoré
+	Ignore   bool
+	Auto     bool // appliqué automatiquement
+	Seuils   bool // modèle appliqué qui a des seuils réglables
 }
 
 // vueModeles : bloc « Modèles » de la page d'une machine.
 type vueModeles struct {
-	Attribues   []vueModeleAttribue
-	Proposes    []*modeles.Modele
-	Disponibles []*modeles.Modele
-	Ignores     []*modeles.Modele
-	Groupe      string
+	Cases    []vueCase
+	Proposes int
+	Groupe   string
 }
 
 // detectes : modèle → instances où sa détection répond (cache du lecteur).
@@ -69,60 +78,166 @@ func (c *Console) detectes(ctx context.Context, t time.Time) map[string]map[stri
 	return out
 }
 
-// modelesProposes : modèles détectés sur la machine, ni attribués ni ignorés.
-func (c *Console) modelesProposes(ctx context.Context, m flotte.InfoMachine, t time.Time) []*modeles.Modele {
+// etatModeles : modèles appliqués, ignorés et proposés d'une machine.
+func (c *Console) etatModeles(ctx context.Context, m flotte.InfoMachine, det map[string]map[string]bool) (actifs map[string]modeles.Effectif, ign map[string]bool, proposes []*modeles.Modele, err error) {
 	effs, err := modeles.Effectifs(ctx, c.db, m.ID, m.Groupe)
 	if err != nil {
-		return nil
+		return nil, nil, nil, err
 	}
-	ign, err := modeles.Ignores(ctx, c.db, m.ID)
-	if err != nil {
-		return nil
+	if ign, err = modeles.Ignores(ctx, c.db, m.ID); err != nil {
+		return nil, nil, nil, err
 	}
-	actifs := map[string]bool{}
+	actifs = map[string]modeles.Effectif{}
 	for _, e := range effs {
-		actifs[e.Modele.Nom] = true
+		actifs[e.Modele.Nom] = e
 	}
-	det := c.detectes(ctx, t)
-	var out []*modeles.Modele
 	for _, mod := range modeles.Fournis() {
-		if det[mod.Nom][m.Nom] && !actifs[mod.Nom] && !ign[mod.Nom] {
-			out = append(out, mod)
+		if _, ok := actifs[mod.Nom]; !ok && det[mod.Nom][m.Nom] && !ign[mod.Nom] {
+			proposes = append(proposes, mod)
 		}
 	}
-	return out
+	return actifs, ign, proposes, nil
 }
 
 // vueModelesMachine : le bloc « Modèles » d'une machine.
 func (c *Console) vueModelesMachine(ctx context.Context, m flotte.InfoMachine, t time.Time) vueModeles {
 	v := vueModeles{Groupe: m.Groupe}
-	effs, err := modeles.Effectifs(ctx, c.db, m.ID, m.Groupe)
+	actifs, ign, proposes, err := c.etatModeles(ctx, m, c.detectes(ctx, t))
 	if err != nil {
 		return v
 	}
-	ign, _ := modeles.Ignores(ctx, c.db, m.ID)
-	pris := map[string]bool{}
-	for _, e := range effs {
-		va := vueModeleAttribue{M: e.Modele, DuGroupe: e.DuGroupe, Services: e.Services}
-		for _, p := range e.Modele.Parametres {
-			va.Params = append(va.Params, vueParam{Parametre: p, Valeur: e.Parametres[p.Nom], Surcharge: e.Surcharges[p.Nom]})
-		}
-		v.Attribues = append(v.Attribues, va)
-		pris[e.Modele.Nom] = true
+	propose := map[string]bool{}
+	for _, p := range proposes {
+		propose[p.Nom] = true
 	}
-	v.Proposes = c.modelesProposes(ctx, m, t)
-	for _, p := range v.Proposes {
-		pris[p.Nom] = true
-	}
+	v.Proposes = len(proposes)
 	for _, mod := range modeles.Fournis() {
-		switch {
-		case ign[mod.Nom]:
-			v.Ignores = append(v.Ignores, mod)
-		case !pris[mod.Nom]:
-			v.Disponibles = append(v.Disponibles, mod)
-		}
+		e, coche := actifs[mod.Nom]
+		v.Cases = append(v.Cases, vueCase{M: mod, Coche: coche, DuGroupe: coche && e.DuGroupe, Detecte: propose[mod.Nom],
+			Ignore: ign[mod.Nom], Auto: coche && e.Auto, Seuils: coche && len(mod.Parametres) > 0})
 	}
 	return v
+}
+
+// enregistrerModelesMachine : cases cochées du bloc « Modèles ». Coché et
+// absent : attribué ; décoché et appliqué : retiré (ignoré pour cette machine
+// s'il vient du groupe) ; détecté et laissé décoché : ignoré (plus proposé).
+func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, error) {
+	ctx := q.r.Context()
+	if err := q.r.ParseForm(); err != nil {
+		return 0, err
+	}
+	coches := map[string]bool{}
+	for _, n := range q.r.PostForm["m"] {
+		coches[n] = true
+	}
+	actifs, ign, proposes, err := c.etatModeles(ctx, m, c.detectes(ctx, q.t))
+	if err != nil {
+		return 0, err
+	}
+	propose := map[string]bool{}
+	for _, p := range proposes {
+		propose[p.Nom] = true
+	}
+	deGroupe := map[string]bool{}
+	if m.Groupe != "" {
+		if as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(m.Groupe)); err == nil {
+			for _, a := range as {
+				deGroupe[a.Modele] = a.Etat == modeles.EtatActif
+			}
+		}
+	}
+	portee := modeles.PorteeMachine(m.ID)
+	changes := 0
+	var errs []error
+	for _, mod := range modeles.Fournis() {
+		_, actif := actifs[mod.Nom]
+		etat := "?"
+		switch {
+		case coches[mod.Nom] && !actif && deGroupe[mod.Nom] && ign[mod.Nom]:
+			etat = "" // retour du modèle du groupe : la ligne « ignoré » est effacée
+		case coches[mod.Nom] && !actif:
+			etat = modeles.EtatActif
+		case !coches[mod.Nom] && actif && deGroupe[mod.Nom]:
+			etat = modeles.EtatIgnore // retiré pour cette machine seulement
+		case !coches[mod.Nom] && actif:
+			etat = "" // ligne de la machine effacée
+		case !coches[mod.Nom] && propose[mod.Nom]:
+			etat = modeles.EtatIgnore // vu et laissé de côté : plus proposé
+		}
+		if etat == "?" {
+			continue
+		}
+		if err := modeles.Definir(ctx, c.db, portee, mod.Nom, etat, nil, q.qui(), q.t); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		changes++
+	}
+	c.oublierAValider()
+	return changes, errors.Join(errs...)
+}
+
+// --- Seuils d'un modèle pour une machine ---------------------------------------------
+
+type donneesSeuils struct {
+	Machine  string
+	M        *modeles.Modele
+	Params   []vueParam
+	Services []string
+	DuGroupe bool
+	Groupe   string
+}
+
+// seuilsMachine : machine et modèle de l'adresse ; le modèle doit être
+// appliqué à la machine.
+func (c *Console) seuilsMachine(q *req) (flotte.InfoMachine, *modeles.Modele, modeles.Effectif, bool) {
+	m, ok := c.machine(q)
+	mod := modeles.Trouver(q.r.PathValue("modele"))
+	if !ok || mod == nil {
+		c.rendreCode(q, http.StatusNotFound, "introuvable", "Introuvable", "machines", nil)
+		return m, nil, modeles.Effectif{}, false
+	}
+	if effs, err := modeles.Effectifs(q.r.Context(), c.db, m.ID, m.Groupe); err == nil {
+		for _, e := range effs {
+			if e.Modele.Nom == mod.Nom {
+				return m, mod, e, true
+			}
+		}
+	}
+	c.retour(q, "/machines/"+url.PathEscape(m.Nom)+"#modeles", errors.New("ce modèle n'est pas appliqué à cette machine"), "")
+	return m, nil, modeles.Effectif{}, false
+}
+
+func (c *Console) pageSeuilsMachine(q *req) {
+	m, mod, e, ok := c.seuilsMachine(q)
+	if !ok {
+		return
+	}
+	d := donneesSeuils{Machine: m.Nom, M: mod, Services: e.Services, DuGroupe: e.DuGroupe, Groupe: m.Groupe}
+	for _, p := range mod.Parametres {
+		d.Params = append(d.Params, vueParam{Parametre: p, Valeur: e.Parametres[p.Nom], Surcharge: e.Surcharges[p.Nom]})
+	}
+	c.rendre(q, "modele-machine", mod.Titre+" — "+m.Nom, "machines", d)
+}
+
+func (c *Console) postSeuilsMachine(q *req) {
+	m, mod, _, ok := c.seuilsMachine(q)
+	if !ok {
+		return
+	}
+	vers := "/machines/" + url.PathEscape(m.Nom) + "/modeles/" + url.PathEscape(mod.Nom)
+	err := c.verifierCode(q)
+	var params map[string]float64
+	if err == nil {
+		params, err = lireParametres(mod, q.r.PostFormValue)
+	}
+	if err == nil {
+		// Modèle venu du groupe : la ligne « actif » de la machine ne sert
+		// qu'à ses seuils (même effet que l'héritage).
+		err = modeles.Definir(q.r.Context(), c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
+	}
+	c.retour(q, vers, err, "seuils de « "+mod.Titre+" » enregistrés pour "+m.Nom+" (pris en compte sous une minute)")
 }
 
 // lireParametres : valeurs saisies « p.<nom> » ; vide = hérité (pas de surcharge).
@@ -142,67 +257,16 @@ func lireParametres(mod *modeles.Modele, f func(string) string) (map[string]floa
 	return out, nil
 }
 
-// actionModele : actions du bloc « Modèles » de la page d'une machine. Faux
-// si l'action n'est pas de ce bloc.
-func (c *Console) actionModele(q *req, m flotte.InfoMachine, action string) (ok string, err error, traitee bool) {
-	ctx := q.r.Context()
-	f := q.r.PostFormValue
-	mod := modeles.Trouver(f("modele"))
-	if !strings.HasPrefix(action, "modele_") {
-		return "", nil, false
-	}
-	if mod == nil {
-		return "", errors.New("modèle inconnu"), true
-	}
-	portee := modeles.PorteeMachine(m.ID)
-	switch action {
-	case "modele_ajouter":
-		err = modeles.Definir(ctx, c.db, portee, mod.Nom, modeles.EtatActif, nil, q.qui(), q.t)
-		ok = "modèle « " + mod.Titre + " » attribué : configuration envoyée à l'agent, règles actives sous une minute"
-	case "modele_ignorer":
-		err = modeles.Definir(ctx, c.db, portee, mod.Nom, modeles.EtatIgnore, nil, q.qui(), q.t)
-		ok = "modèle « " + mod.Titre + " » ignoré pour cette machine (plus proposé)"
-	case "modele_reprendre":
-		err = modeles.Definir(ctx, c.db, portee, mod.Nom, "", nil, q.qui(), q.t)
-		ok = "modèle « " + mod.Titre + " » de nouveau proposé ou hérité du groupe"
-	case "modele_retirer":
-		// Modèle du groupe : ignoré pour cette machine seulement ; sinon la
-		// ligne de la machine est effacée.
-		etat := ""
-		if g := m.Groupe; g != "" {
-			if as, e := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g)); e == nil {
-				for _, a := range as {
-					if a.Modele == mod.Nom && a.Etat == modeles.EtatActif {
-						etat = modeles.EtatIgnore
-					}
-				}
-			}
-		}
-		err = modeles.Definir(ctx, c.db, portee, mod.Nom, etat, nil, q.qui(), q.t)
-		ok = "modèle « " + mod.Titre + " » retiré de cette machine"
-	case "modele_parametres":
-		var params map[string]float64
-		if params, err = lireParametres(mod, f); err == nil {
-			err = modeles.Definir(ctx, c.db, portee, mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
-		}
-		ok = "seuils de « " + mod.Titre + " » enregistrés pour cette machine (pris en compte sous une minute)"
-	default:
-		err = errors.New("action inconnue")
-	}
-	c.oublierAValider()
-	return ok, err, true
-}
-
 // --- Page « Modèles » ------------------------------------------------------------
 
-// vueCatalogue : un modèle du catalogue et les groupes qui le portent.
+// vueCatalogue : un modèle du catalogue.
 type vueCatalogue struct {
 	M        *modeles.Modele
-	Services []string // services attendus (liste du modèle ou modifiée)
-	Groupes  []vueGroupeModele
-	Libres   []string // groupes qui ne le portent pas
-	NbMach   int      // machines qui le portent (directement ou par groupe)
-	NbDetec  int      // machines où il est détecté sans être attribué
+	Services []string
+	Groupes  []vueGroupeModele // groupes qui le portent (seuils du groupe)
+	Cases    []vueCaseGroupe   // une case par groupe (tableau)
+	NbMach   int
+	NbDetec  int
 }
 
 type vueGroupeModele struct {
@@ -210,8 +274,15 @@ type vueGroupeModele struct {
 	Params []vueParam
 }
 
+type vueCaseGroupe struct {
+	Groupe string
+	Coche  bool
+}
+
 type donneesModeles struct {
+	Groupes   []string
 	Catalogue []vueCatalogue
+	Auto      bool
 }
 
 func (c *Console) pageModeles(q *req) {
@@ -219,52 +290,57 @@ func (c *Console) pageModeles(q *req) {
 	l := c.lireListes(ctx)
 	ms, _ := flotte.ListerMachines(ctx, c.db)
 	det := c.detectes(ctx, q.t)
-	var d donneesModeles
+	d := donneesModeles{Groupes: l.Groupes, Auto: modeles.LireAuto(ctx, c.db)}
+	parGroupe := map[string]map[string]modeles.Attribution{}
+	for _, g := range l.Groupes {
+		parGroupe[g] = map[string]modeles.Attribution{}
+		if as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g)); err == nil {
+			for _, a := range as {
+				if a.Etat == modeles.EtatActif {
+					parGroupe[g][a.Modele] = a
+				}
+			}
+		}
+	}
+	effsParMachine := map[int64]map[string]bool{}
+	for _, m := range ms {
+		if m.Statut != "approuvee" {
+			continue
+		}
+		effs, err := modeles.Effectifs(ctx, c.db, m.ID, m.Groupe)
+		if err != nil {
+			continue
+		}
+		effsParMachine[m.ID] = map[string]bool{}
+		for _, e := range effs {
+			effsParMachine[m.ID][e.Modele.Nom] = true
+		}
+	}
 	for _, mod := range modeles.Fournis() {
 		vc := vueCatalogue{M: mod}
 		vc.Services, _ = modeles.Services(ctx, c.db, mod)
 		for _, g := range l.Groupes {
-			as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g))
-			if err != nil {
-				continue
-			}
-			trouve := false
-			for _, a := range as {
-				if a.Modele == mod.Nom && a.Etat == modeles.EtatActif {
-					trouve = true
-					vg := vueGroupeModele{Groupe: g}
-					for _, p := range mod.Parametres {
-						v, sur := p.Defaut, false
-						if x, ok := a.Parametres[p.Nom]; ok {
-							v, sur = x, true
-						}
-						vg.Params = append(vg.Params, vueParam{Parametre: p, Valeur: v, Surcharge: sur})
+			a, porte := parGroupe[g][mod.Nom]
+			vc.Cases = append(vc.Cases, vueCaseGroupe{Groupe: g, Coche: porte})
+			if porte {
+				vg := vueGroupeModele{Groupe: g}
+				for _, p := range mod.Parametres {
+					v, sur := p.Defaut, false
+					if x, ok := a.Parametres[p.Nom]; ok {
+						v, sur = x, true
 					}
-					vc.Groupes = append(vc.Groupes, vg)
+					vg.Params = append(vg.Params, vueParam{Parametre: p, Valeur: v, Surcharge: sur})
 				}
-			}
-			if !trouve {
-				vc.Libres = append(vc.Libres, g)
+				vc.Groupes = append(vc.Groupes, vg)
 			}
 		}
 		for _, m := range ms {
-			if m.Statut != "approuvee" {
-				continue
-			}
-			effs, err := modeles.Effectifs(ctx, c.db, m.ID, m.Groupe)
-			if err != nil {
-				continue
-			}
-			porte := false
-			for _, e := range effs {
-				if e.Modele.Nom == mod.Nom {
-					porte = true
+			if eff, ok := effsParMachine[m.ID]; ok {
+				if eff[mod.Nom] {
+					vc.NbMach++
+				} else if det[mod.Nom][m.Nom] {
+					vc.NbDetec++
 				}
-			}
-			if porte {
-				vc.NbMach++
-			} else if det[mod.Nom][m.Nom] {
-				vc.NbDetec++
 			}
 		}
 		d.Catalogue = append(d.Catalogue, vc)
@@ -272,50 +348,49 @@ func (c *Console) pageModeles(q *req) {
 	c.rendre(q, "modeles", "Modèles de surveillance", "machines", d)
 }
 
-// postModeles : attribution aux groupes (code 2FA : change la configuration
-// des agents et les alertes de toutes les machines du groupe).
+// postModeles : tableau modèles × groupes, application automatique,
+// services et seuils d'un groupe (code 2FA ou mode administration).
 func (c *Console) postModeles(q *req) {
 	ctx := q.r.Context()
 	f := q.r.PostFormValue
 	err := c.verifierCode(q)
 	ok := "fait"
-	mod := modeles.Trouver(f("modele"))
-	groupe := strings.TrimSpace(f("groupe"))
-	if err == nil && mod == nil {
-		err = errors.New("modèle inconnu")
-	}
-	// Services attendus du modèle (toutes ses machines) : pas de groupe.
-	if err == nil && f("action") == "services" {
-		err = modeles.DefinirServices(ctx, c.db, mod.Nom, strings.FieldsFunc(f("services"), func(r rune) bool {
-			return r == ',' || r == ' ' || r == '\n' || r == '\r' || r == '\t'
-		}), q.qui(), q.t)
-		c.oublierAValider()
-		c.retour(q, "/modeles#"+url.PathEscape(mod.Nom), err, "services attendus de « "+mod.Titre+" » enregistrés (surveillés sur ses machines sous 5 min)")
-		return
-	}
+	vers := "/modeles"
 	if err == nil {
-		l := c.lireListes(ctx)
-		found := false
-		for _, g := range l.Groupes {
-			found = found || g == groupe
-		}
-		if !found {
-			err = errors.New("groupe inconnu : le créer d'abord dans Réglages › Sites, types et groupes")
-		}
-	}
-	if err == nil {
-		portee := modeles.PorteeGroupe(groupe)
 		switch f("action") {
-		case "ajouter":
-			err = modeles.Definir(ctx, c.db, portee, mod.Nom, modeles.EtatActif, nil, q.qui(), q.t)
-			ok = "« " + mod.Titre + " » attribué au groupe " + groupe
-		case "retirer":
-			err = modeles.Definir(ctx, c.db, portee, mod.Nom, "", nil, q.qui(), q.t)
-			ok = "« " + mod.Titre + " » retiré du groupe " + groupe
+		case "groupes":
+			var n int
+			n, err = c.enregistrerGroupes(q)
+			ok = strconv.Itoa(n) + " changement(s) enregistré(s) : configuration envoyée aux agents, règles actives sous une minute"
+		case "auto":
+			actif := f("auto") == "oui"
+			err = modeles.DefinirAuto(ctx, c.db, actif, q.qui(), q.t)
+			ok = "application automatique des modèles détectés coupée"
+			if actif {
+				ok = "application automatique activée : les modèles détectés seront appliqués et signalés"
+			}
+		case "services":
+			mod := modeles.Trouver(f("modele"))
+			if mod == nil {
+				err = errors.New("modèle inconnu")
+				break
+			}
+			vers += "#" + url.PathEscape(mod.Nom)
+			err = modeles.DefinirServices(ctx, c.db, mod.Nom, strings.FieldsFunc(f("services"), func(r rune) bool {
+				return r == ',' || r == ' ' || r == '\n' || r == '\r' || r == '\t'
+			}), q.qui(), q.t)
+			ok = "services attendus de « " + mod.Titre + " » enregistrés (surveillés sur ses machines sous 5 min)"
 		case "parametres":
+			mod := modeles.Trouver(f("modele"))
+			groupe := strings.TrimSpace(f("groupe"))
+			if mod == nil || !c.groupeConnu(ctx, groupe) {
+				err = errors.New("modèle ou groupe inconnu")
+				break
+			}
+			vers += "#" + url.PathEscape(mod.Nom)
 			var params map[string]float64
 			if params, err = lireParametres(mod, f); err == nil {
-				err = modeles.Definir(ctx, c.db, portee, mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
+				err = modeles.Definir(ctx, c.db, modeles.PorteeGroupe(groupe), mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
 			}
 			ok = "seuils de « " + mod.Titre + " » enregistrés pour le groupe " + groupe
 		default:
@@ -323,7 +398,56 @@ func (c *Console) postModeles(q *req) {
 		}
 	}
 	c.oublierAValider()
-	c.retour(q, "/modeles#"+url.PathEscape(f("modele")), err, ok)
+	c.retour(q, vers, err, ok)
+}
+
+func (c *Console) groupeConnu(ctx context.Context, g string) bool {
+	for _, x := range c.lireListes(ctx).Groupes {
+		if x == g {
+			return true
+		}
+	}
+	return false
+}
+
+// enregistrerGroupes : cases « a » = « groupe|modèle » cochées.
+func (c *Console) enregistrerGroupes(q *req) (int, error) {
+	ctx := q.r.Context()
+	if err := q.r.ParseForm(); err != nil {
+		return 0, err
+	}
+	coches := map[string]bool{}
+	for _, v := range q.r.PostForm["a"] {
+		coches[v] = true
+	}
+	n := 0
+	var errs []error
+	for _, g := range c.lireListes(ctx).Groupes {
+		as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g))
+		if err != nil {
+			return n, err
+		}
+		actifs := map[string]bool{}
+		for _, a := range as {
+			actifs[a.Modele] = a.Etat == modeles.EtatActif
+		}
+		for _, mod := range modeles.Fournis() {
+			veut := coches[g+"|"+mod.Nom]
+			if veut == actifs[mod.Nom] {
+				continue
+			}
+			etat := ""
+			if veut {
+				etat = modeles.EtatActif
+			}
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeGroupe(g), mod.Nom, etat, nil, q.qui(), q.t); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			n++
+		}
+	}
+	return n, errors.Join(errs...)
 }
 
 // nbModelesProposes : propositions par machine (liste des machines).
@@ -334,25 +458,44 @@ func (c *Console) nbModelesProposes(ctx context.Context, ms []flotte.InfoMachine
 		if m.Statut != "approuvee" {
 			continue
 		}
-		effs, err := modeles.Effectifs(ctx, c.db, m.ID, m.Groupe)
-		if err != nil {
-			continue
-		}
-		ign, err := modeles.Ignores(ctx, c.db, m.ID)
-		if err != nil {
-			continue
-		}
-		actifs := map[string]bool{}
-		for _, e := range effs {
-			actifs[e.Modele.Nom] = true
-		}
-		for nom, vus := range det {
-			if vus[m.Nom] && !actifs[nom] && !ign[nom] {
-				out[m.Nom]++
-			}
+		if _, _, p, err := c.etatModeles(ctx, m, det); err == nil && len(p) > 0 {
+			out[m.Nom] = len(p)
 		}
 	}
 	return out
+}
+
+// appliquerAuto : application automatique des modèles détectés (réglage,
+// non par défaut). Chaque modèle appliqué est signalé par les canaux de
+// notification (un message par machine et par modèle) et reste retirable.
+func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
+	if c.lecteur == nil || !modeles.LireAuto(ctx, c.db) {
+		return
+	}
+	ms, err := flotte.ListerMachines(ctx, c.db)
+	if err != nil {
+		return
+	}
+	det := c.detectes(ctx, t)
+	for _, m := range ms {
+		if m.Statut != "approuvee" || m.Type != "agent" {
+			continue
+		}
+		_, _, proposes, err := c.etatModeles(ctx, m, det)
+		if err != nil {
+			continue
+		}
+		for _, mod := range proposes {
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, modeles.QuiAuto, t); err != nil {
+				c.journal.Warn("modèle non appliqué automatiquement", "machine", m.Nom, "modele", mod.Nom, "erreur", err)
+				continue
+			}
+			c.journal.Info("modèle appliqué automatiquement", "machine", m.Nom, "modele", mod.Nom)
+			c.prevenirSecurite("modele-auto|"+m.Nom+"|"+mod.Nom, "🧩 mirador : modèle « "+mod.Titre+" » appliqué automatiquement à "+m.Nom+
+				" (détecté sur la machine).\nPour le retirer : page de la machine, bloc « Modèles ».", t)
+			c.oublierAValider()
+		}
+	}
 }
 
 // formatSeuil : valeur d'un paramètre pour un champ de formulaire.

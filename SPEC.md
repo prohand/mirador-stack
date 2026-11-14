@@ -3831,3 +3831,27 @@ liste des machines. Rien n'est attribué sans validation.
   voit pas (pas installé, désinstallé, nom faux) pendant 15 min. Un
   service en échec ou arrêté reste signalé par les règles des services
   (pas de doublon).
+
+### 24.8 Interface simplifiée (demande du 14/11 : « plus simple ») **[Fait, à valider]**
+
+1. **Mode administration** : après un code 2FA juste, les actions
+   sensibles passent sans nouveau code pendant 10 min (comme le « sudo » de
+   GitHub) ; bandeau « Mode administration jusqu'à HH:MM » avec « Quitter » ;
+   champs du code masqués. Toujours un code frais pour la sécurité des
+   comptes (mot de passe, 2FA, codes de secours, passkeys, utilisateurs,
+   page Sécurité). Le mode tient dans la session (mémoire) : fermé à la
+   déconnexion et au redémarrage du serveur. Menace : poste laissé ouvert →
+   10 min au plus, sessions courtes inchangées.
+2. **Page de la machine** : une case par modèle (« ★ détecté », « du
+   groupe », « auto », « ignoré »), un seul « Enregistrer » ; un modèle
+   détecté laissé décoché devient « ignoré » (plus proposé) ; décocher un
+   modèle du groupe le retire pour la machine seule. Seuils sur une page à
+   part (`/machines/NOM/modeles/MODELE`, lien « Seuils… »).
+3. **Application automatique** (réglage `modeles.auto`, non par défaut) :
+   une fois par minute, les modèles détectés (ni appliqués ni ignorés) sont
+   appliqués (auteur `auto`, audit), signalés par les canaux de
+   notification (un message par machine et par modèle, au plus une fois par
+   heure) et marqués « auto » ; décochés, ils ne reviennent pas.
+4. **Page « Modèles »** : tableau modèles × groupes avec un seul
+   « Enregistrer », nombre de machines et de détections sans attribution ;
+   détail replié par modèle (règles, services, seuils par groupe).

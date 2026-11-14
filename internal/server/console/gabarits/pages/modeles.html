@@ -1,23 +1,41 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}
 <h1>Modèles de surveillance</h1>
 {{template "onglets-machines" "modeles"}}
-<p>Un modèle dit « cette machine est une machine Linux (ou Docker, Proxmox…), donc on y surveille ceci, avec ces alertes et ces seuils ». Attribuez-le à une machine (sur sa page) ou à un groupe (ici) : toutes les machines du groupe le reçoivent. Les modèles se cumulent ; un seuil se règle pour le groupe ici, et pour une machine sur sa page. Quand un modèle a une règle équivalente à une règle importée, celle-ci se tait pour les machines qui portent le modèle.</p>
-<p><small><strong>Services attendus</strong> d'un modèle : surveillés sur toutes ses machines (même si elles ne surveillent que les services validés un par un), avec une alerte si l'un d'eux n'existe pas sur une machine. Un service en échec ou arrêté est signalé par les règles des services.</small></p>
-{{range .D.Catalogue}}{{$mod := .M}}<section class="carte" id="{{$mod.Nom}}">
-<h2>{{$mod.Titre}}</h2>
+<p>Un modèle dit « cette machine est une machine Linux (ou Docker, Proxmox…), donc on y surveille ceci, avec ces alertes et ces seuils ». Cocher ici les modèles de chaque groupe (toutes ses machines les reçoivent), ou sur la page d'une machine. Quand un modèle a une règle équivalente à une règle importée, celle-ci se tait pour les machines qui portent le modèle.</p>
+
+<section class="carte">
+<h2>Application automatique</h2>
+<form method="post" action="/modeles" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="auto">
+<label class="case"><input type="checkbox" name="auto" value="oui" {{if $d.Auto}}checked{{end}} {{if not $.Admin}}disabled{{end}}> Appliquer automatiquement les modèles détectés sur les machines</label>
+{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form>
+<p><small>Chaque modèle appliqué ainsi est signalé par les canaux de notification et marqué « auto » sur la page de la machine (décocher pour le retirer : il ne revient pas). Désactivé : les modèles détectés sont seulement proposés.</small></p>
+</section>
+
+<section class="carte">
+<h2>Modèles par groupe</h2>
+{{if $d.Groupes}}<form method="post" action="/modeles">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="groupes">
+<div class="defile"><table class="matrice" data-sans-tri><thead><tr><th>Modèle</th>{{range $d.Groupes}}<th>{{.}}</th>{{end}}<th>Machines</th></tr></thead><tbody>
+{{range $d.Catalogue}}{{$mod := .M}}<tr><td><a href="#{{$mod.Nom}}"><strong>{{$mod.Titre}}</strong></a></td>
+{{range .Cases}}<td><input type="checkbox" name="a" value="{{.Groupe}}|{{$mod.Nom}}" aria-label="{{$mod.Titre}} pour le groupe {{.Groupe}}" {{if .Coche}}checked{{end}} {{if not $.Admin}}disabled{{end}}></td>{{end}}
+<td><small>{{.NbMach}}{{if .NbDetec}} · <span class="pastille attention" title="Détecté sans être appliqué">★ {{.NbDetec}}</span>{{end}}</small></td></tr>{{end}}
+</tbody></table></div>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>{{else}}<p class="vide">Aucun groupe : en créer dans <a href="/reglages/sites">Réglages › Sites, types et groupes</a>, ou cocher les modèles sur la page de chaque machine.</p>{{end}}
+</section>
+
+<h2>Détail des modèles</h2>
+<p><small><strong>Services attendus</strong> : surveillés sur toutes les machines du modèle (même si elles ne surveillent que les services validés un par un), avec une alerte si l'un d'eux n'existe pas. Un service en échec ou arrêté est signalé par les règles des services.</small></p>
+{{range $d.Catalogue}}{{$mod := .M}}<details class="carte modele" id="{{$mod.Nom}}"><summary><strong>{{$mod.Titre}}</strong> <small class="sous">{{len $mod.Regles}} règle(s) · {{len $mod.Parametres}} seuil(s) · {{len .Services}} service(s)</small></summary>
 <p>{{$mod.Description}}</p>
-<p><small>{{.NbMach}} machine(s) le portent{{if .NbDetec}} ; <strong>détecté sans être attribué sur {{.NbDetec}} machine(s)</strong> (proposé sur leur page){{end}}.</small></p>
-{{if $mod.Regles}}<details><summary>Règles ({{len $mod.Regles}})</summary><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul></details>{{end}}
-<details><summary>Services attendus : {{if .Services}}{{range $i, $x := .Services}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}{{else}}aucun{{end}}</summary>
+{{if $mod.Regles}}<h3>Règles</h3><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul>{{end}}
+<h3>Services attendus</h3>
 <form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services">
 <label>Services (séparés par des virgules) <input name="services" value="{{range $i, $x := .Services}}{{if $i}}, {{end}}{{$x}}{{end}}" size="60" maxlength="4000" placeholder="nginx.service, php8.2-fpm.service" {{if not $.Admin}}disabled{{end}}></label>
-{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form></details>
-{{if .Groupes}}<h3>Groupes</h3>{{range .Groupes}}{{$g := .Groupe}}<form method="post" action="/modeles" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="groupe" value="{{$g}}">
+{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form>
+{{if and .Groupes $mod.Parametres}}<h3>Seuils par groupe</h3>{{range .Groupes}}{{$g := .Groupe}}<form method="post" action="/modeles" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="groupe" value="{{$g}}"><input type="hidden" name="action" value="parametres">
 <p><strong>{{$g}}</strong></p>
-{{if .Params}}<div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>{{end}}
-{{if $.Admin}}<div class="ligne">{{template "code2fa"}}{{if .Params}}<button name="action" value="parametres">Enregistrer les seuils</button>{{end}}<button name="action" value="retirer" class="secondaire" data-confirmer="Retirer ce modèle du groupe {{$g}} ?">Retirer du groupe</button></div>{{end}}
+<div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer les seuils</button></div>{{end}}
 </form>{{end}}{{end}}
-{{if and $.Admin .Libres}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="ajouter">
-<label>Attribuer au groupe <select name="groupe">{{range .Libres}}<option>{{.}}</option>{{end}}</select></label>{{template "code2fa"}}<button>Attribuer</button></form>{{end}}
-</section>{{end}}
+</details>{{end}}
 {{end}}

@@ -400,6 +400,7 @@ type Page struct {
 	CSRF          string
 	Flash, Alerte string
 	ModeOmbre     bool
+	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
 	AConfirmer    []AConfirmer
 	Version       string
 	Theme         string
@@ -423,6 +424,9 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	p.Flash, p.Alerte = majusculeDebut(p.Flash), majusculeDebut(p.Alerte)
 	if c.opt.Aiguilleur != nil {
 		p.ModeOmbre = c.opt.Aiguilleur.Mode() == "ombre"
+	}
+	if q.t.Before(q.s.AdminJusqua) {
+		p.ModeAdmin = q.s.AdminJusqua.In(fuseau.Load()).Format("15:04")
 	}
 	p.AConfirmer, _ = ListerAConfirmer(q.r.Context(), c.db)
 	p.Olvid = c.olvidActive(q.r.Context())

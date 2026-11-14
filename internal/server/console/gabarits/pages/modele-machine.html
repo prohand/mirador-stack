@@ -1,0 +1,14 @@
+{{define "contenu"}}{{$d := .D}}
+<h1>{{$d.M.Titre}} — <a href="/machines/{{$d.Machine}}#modeles">{{$d.Machine}}</a></h1>
+<section class="carte">
+<p>{{$d.M.Description}}</p>
+{{if $d.DuGroupe}}<p><small>Modèle attribué au groupe <strong>{{$d.Groupe}}</strong> ; les seuils réglés ici ne valent que pour cette machine.</small></p>{{end}}
+<form method="post" class="pile">{{template "csrf" .CSRF}}
+<div class="ligne">{{range $d.Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>
+<p><small>Champ vide = valeur du groupe ou du modèle (affichée en grisé). Bornes vérifiées.</small></p>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>
+{{if $d.Services}}<p><small>Services attendus : {{range $i, $x := $d.Services}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}} (liste du modèle : <a href="/modeles#{{$d.M.Nom}}">Machines › Modèles</a>)</small></p>{{end}}
+{{if $d.M.Regles}}<details><summary>Règles du modèle ({{len $d.M.Regles}})</summary><ul>{{range $d.M.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}</li>{{end}}</ul></details>{{end}}
+</section>
+{{end}}

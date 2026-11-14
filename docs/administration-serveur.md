@@ -68,11 +68,16 @@ Un modèle (Linux, Machine physique, Docker, Proxmox VE, Certificats, ZFS,
 RAID logiciel) applique d'un coup ce qu'il faut surveiller, avec ses alertes
 et ses seuils (SPEC.md § 24).
 
-- Page d'une machine, bloc « Modèles de surveillance » : modèles proposés
-  (détectés par l'agent) à ajouter ou ignorer, modèles appliqués et leurs
-  seuils pour cette machine (champ vide = valeur du groupe ou du modèle).
-- Machines › Modèles : catalogue, attribution à un groupe (toutes ses
-  machines le reçoivent) et seuils du groupe.
+- Page d'une machine, bloc « Modèles de surveillance » : une case par
+  modèle (« ★ détecté » = trouvé par l'agent), un seul « Enregistrer » ;
+  « Seuils… » règle les seuils de cette machine (champ vide = valeur du
+  groupe ou du modèle).
+- Machines › Modèles : tableau modèles × groupes (toutes les machines d'un
+  groupe reçoivent ses modèles), application automatique des modèles
+  détectés (désactivée par défaut), services attendus et seuils par groupe.
+- Mode administration : après un code 2FA juste, plus de code pendant
+  10 min (bandeau en haut, « Quitter » pour le fermer), sauf pour la
+  sécurité des comptes.
 - Quand un modèle a une règle équivalente à une règle importée (ex.
   `LinuxDisqueFaible` et `DisqueFaible`), la règle importée se tait pour les
   machines qui portent le modèle et continue pour les autres. La comparaison

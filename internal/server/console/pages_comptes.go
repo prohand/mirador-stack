@@ -68,7 +68,7 @@ func (c *Console) pageCompte(q *req) {
 func (c *Console) verifierCodeOuSecours(q *req) error {
 	secours := q.r.PostFormValue("secours")
 	if secours == "" {
-		return c.verifierCode(q)
+		return c.verifierCodeFrais(q)
 	}
 	if c.sensibleBloque(q) {
 		return errTropEssais
@@ -94,7 +94,7 @@ func (c *Console) verifierCodeOuSecours(q *req) error {
 // postCodesSecours : dix nouveaux codes (les anciens ne valent plus rien),
 // affichés une seule fois sur la page du compte.
 func (c *Console) postCodesSecours(q *req) {
-	err := c.verifierCode(q)
+	err := c.verifierCodeFrais(q)
 	if err == nil {
 		var codes []string
 		if codes, err = auth.CreerCodesSecours(q.r.Context(), c.db, q.u, q.qui(), q.ip.String(), q.t); err == nil {
@@ -112,7 +112,7 @@ func (c *Console) postPasskeyPreparer(q *req) {
 		if err != nil || !auth.PasskeyPossible(domaine) {
 			return errors.New("les passkeys demandent un nom de domaine en HTTPS (pas une adresse IP)")
 		}
-		if err := c.verifierCode(q); err != nil {
+		if err := c.verifierCodeFrais(q); err != nil {
 			return err
 		}
 		defi, err := auth.NouveauDefiPasskey()
@@ -148,7 +148,7 @@ func (c *Console) postPasskeyEnregistrer(q *req) {
 }
 
 func (c *Console) postPasskeySupprimer(q *req) {
-	err := c.verifierCode(q)
+	err := c.verifierCodeFrais(q)
 	if err == nil {
 		var id int64
 		if id, err = strconv.ParseInt(q.r.PostFormValue("id"), 10, 64); err == nil {
@@ -182,7 +182,7 @@ func (c *Console) postMotDePasse(q *req) {
 			return errors.New("mot de passe actuel ou code 2FA faux")
 		}
 		finir() // avant verifierCode, qui réserve son propre essai
-		if err := c.verifierCode(q); err != nil {
+		if err := c.verifierCodeFrais(q); err != nil {
 			if errors.Is(err, errTropEssais) || errors.Is(err, errSessionFermee) {
 				return err
 			}
@@ -279,7 +279,7 @@ func (c *Console) postUtilisateur(q *req) {
 	// Lu AVANT l'action : après une suppression, le compte n'existe plus
 	// et ses sessions doivent quand même être fermées (revue du 11/11).
 	cible, _ := auth.LireUtilisateur(ctx, c.db, nom)
-	err := c.verifierCode(q)
+	err := c.verifierCodeFrais(q)
 	if err == nil {
 		switch action {
 		case "creer":
@@ -358,7 +358,7 @@ func lireDureeForm(q *req, champ string) (alertes.Duree, error) {
 
 func (c *Console) postSecurite(q *req) {
 	err := func() error {
-		if err := c.verifierCode(q); err != nil {
+		if err := c.verifierCodeFrais(q); err != nil {
 			return err
 		}
 		var s Securite

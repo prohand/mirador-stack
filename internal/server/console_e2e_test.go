@@ -347,7 +347,8 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		t.Error("réduction non annulée")
 	}
 	// Configuration typée d'un agent ; une valeur hors bornes est refusée.
-	// Sans code 2FA : refusé (revue du 11/11).
+	// Sans code 2FA, mode administration fermé : refusé (revue du 11/11).
+	n.faire(http.MethodPost, "/mode-admin/quitter", url.Values{"csrf": {csrf}})
 	n.faire(http.MethodPost, "/reglages/agents", url.Values{"csrf": {csrf}, "portee": {"machine:1"}, "intervalle": {"60s"}, "systemd": {"non"}})
 	var sansCode string
 	_ = s.db.QueryRow(`SELECT valeur FROM reglages WHERE cle = 'config_agent:machine:1'`).Scan(&sansCode)
