@@ -410,3 +410,45 @@ func TestImportGitHubInterface(t *testing.T) {
 		t.Errorf("version non supprimée : %+v", vs)
 	}
 }
+
+// Équipement sans agent (OPNsense / Telegraf) créé depuis l'interface.
+func TestEquipementSansAgent(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/machines")
+	if _, corps, _ := b.get(c, "/machines"); !strings.Contains(corps, `action="/machines/equipement"`) {
+		t.Fatal("formulaire absent")
+	}
+	// Adresse invalide : rien n'est créé.
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"opnsense"}, "ips": {"pas une ip"}, "code": {b.code(secret)}})
+	if _, err := flotte.IDMachine(context.Background(), b.c.db, "opnsense"); err == nil {
+		t.Fatal("machine créée malgré une adresse invalide")
+	}
+	b.h.avancer(31 * time.Second)
+	_, corps, _ := b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"OPNsense"}, "ips": {"203.0.113.7"}, "code": {b.code(secret)}})
+	if !strings.Contains(corps, "/api/agent/v1/influx") || !strings.Contains(corps, "Token de « opnsense »") {
+		t.Fatalf("token et réglages Telegraf non affichés")
+	}
+	ms, _ := flotte.ListerMachines(context.Background(), b.c.db)
+	trouve := false
+	for _, m := range ms {
+		if m.Nom == "opnsense" {
+			trouve = true
+			if m.Statut != "approuvee" || m.IPsAutorisees != "203.0.113.7/32" || m.TokensActifs != 1 {
+				t.Errorf("machine : %+v", m)
+			}
+		}
+	}
+	if !trouve {
+		t.Fatal("machine non créée")
+	}
+	// Même nom : refusé (on ne remplace jamais le token d'une machine en service).
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"opnsense"}, "code": {b.code(secret)}})
+	var n int
+	_ = b.c.db.QueryRow(`SELECT count(*) FROM tokens t JOIN machines m ON m.id = t.machine_id WHERE m.nom = 'opnsense' AND t.revoque_le = 0`).Scan(&n)
+	if n != 1 {
+		t.Errorf("token remplacé : %d actif(s)", n)
+	}
+}

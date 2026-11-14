@@ -3680,6 +3680,12 @@ utilisable pendant la comparaison.
   VictoriaMetrics. Ligne invalide : ignorée et comptée ; aucune ligne
   valable : 400 ; au-delà de 4 Mio décompressés, 20 000 séries ou
   200 000 points : 413.
+- Création depuis l'interface (demande du 14/11) : Machines › « Équipement
+  sans agent » : machine approuvée tout de suite, adresses autorisées,
+  site / type / groupe, token affiché une seule fois avec les réglages de
+  Telegraf ; refusé pour un nom existant (le token d'une machine en
+  service n'est jamais remplacé par ce formulaire) ; code 2FA, audit
+  `token_manuel`.
 - Coût mesuré : pires cas de 4 Mio (champs, tags, lignes, guillemets,
   antislash) traités en 4 à 120 ms ; un envoi normal d'OPNsense (~300
   séries toutes les 30 s) : négligeable. Aucune dépendance ajoutée.
