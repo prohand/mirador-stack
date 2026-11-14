@@ -11,3 +11,6 @@
 # Script d'installation de l'agent (embarqué dans le serveur, § 18.19).
 !deploy/agent/script.go
 !deploy/agent/mirador-agent-install.sh
+# Script d'installation du collecteur (embarqué aussi, § 23.13).
+!deploy/collecteur/script.go
+!deploy/collecteur/mirador-collector-install.sh
