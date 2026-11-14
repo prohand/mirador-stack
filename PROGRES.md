@@ -722,6 +722,17 @@ Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
 60 s (~0,01 % d'un cœur), 1,8 Mo de mémoire temporaire par passage, aucune
 écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
 
+## Design « A bis » et thème par utilisateur (SPEC § 25, 14/11)
+
+| Partie | État |
+|---|---|
+| Maquettes : A épuré, B compact, C doux, D technique, A bis (menu noir) | faites ; choix : **A bis** |
+| Thème Jour / Nuit / Auto par utilisateur, en bas du menu | **fait**, testé ; à valider |
+| Design A bis (feuille de style, menu noir, pastille « mode ombre ») | **fait**, captures jour / nuit / menu replié ; à valider |
+
+Mesure : une colonne en base, une requête par changement de thème, feuille
+de style de même taille ; objectif serveur inchangé ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

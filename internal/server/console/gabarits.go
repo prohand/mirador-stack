@@ -421,7 +421,9 @@ type Page struct {
 	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
 	AConfirmer    []AConfirmer
 	Version       string
-	Theme         string
+	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
+	ThemeChoix    string // choix affiché dans le sélecteur : clair, sombre, auto
+	Chemin        string // page affichée (retour après le choix du thème sans JavaScript)
 	Disposition   string // gauche ou haut (réglage « Interface »)
 	Replie        bool   // menu replié par défaut
 	NbAlertes     int    // alertes actives (compteur du menu)
@@ -448,11 +450,19 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	}
 	p.AConfirmer, _ = ListerAConfirmer(q.r.Context(), c.db)
 	p.Olvid = c.olvidActive(q.r.Context())
+	// Thème : celui choisi par l'utilisateur (sélecteur du menu), sinon
+	// celui du serveur (Réglages › Interface) ; « auto » suit le système.
+	p.Chemin = q.r.URL.RequestURI()
+	p.ThemeChoix = "auto"
 	if r := c.interfaceCourante.Load(); r != nil {
-		if r.Theme != "auto" {
-			p.Theme = r.Theme
-		}
+		p.ThemeChoix = r.Theme
 		p.Disposition, p.Replie = r.Menu, r.MenuReplie
+	}
+	if auth.ThemesUtilisateur[q.u.Theme] {
+		p.ThemeChoix = q.u.Theme
+	}
+	if p.ThemeChoix != "auto" {
+		p.Theme = p.ThemeChoix
 	}
 	if p.Disposition == "" {
 		p.Disposition = "gauche"

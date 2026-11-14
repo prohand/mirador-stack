@@ -28,6 +28,7 @@ type Utilisateur struct {
 	Desactive   bool
 	CreeLe      int64
 	ConnecteLe  int64
+	Theme       string // clair, sombre, auto ; '' = réglage du serveur
 }
 
 // Erreurs.
@@ -65,12 +66,12 @@ func auditer(ctx context.Context, x execer, qui, action, objet, avant, apres, ad
 	return err
 }
 
-const colonnesUtilisateur = `id, nom, role, mot_de_passe, totp, totp_dernier, generation, desactive, cree_le, connecte_le`
+const colonnesUtilisateur = `id, nom, role, mot_de_passe, totp, totp_dernier, generation, desactive, cree_le, connecte_le, theme`
 
 func scannerUtilisateur(sc interface{ Scan(...any) error }) (Utilisateur, error) {
 	var u Utilisateur
 	var d int
-	err := sc.Scan(&u.ID, &u.Nom, &u.Role, &u.MotDePasse, &u.TOTP, &u.TOTPDernier, &u.Generation, &d, &u.CreeLe, &u.ConnecteLe)
+	err := sc.Scan(&u.ID, &u.Nom, &u.Role, &u.MotDePasse, &u.TOTP, &u.TOTPDernier, &u.Generation, &d, &u.CreeLe, &u.ConnecteLe, &u.Theme)
 	u.Desactive = d != 0
 	return u, err
 }
@@ -261,4 +262,17 @@ func NoterPasTOTP(ctx context.Context, db *sql.DB, id, pas int64, t time.Time) (
 	}
 	n, _ := res.RowsAffected()
 	return n == 1, nil
+}
+
+// ThemesUtilisateur : thèmes qu'un utilisateur peut choisir.
+var ThemesUtilisateur = map[string]bool{"clair": true, "sombre": true, "auto": true}
+
+// DefinirTheme : thème de l'interface choisi par un utilisateur (simple
+// préférence d'affichage : pas d'audit).
+func DefinirTheme(ctx context.Context, db *sql.DB, id int64, theme string) error {
+	if !ThemesUtilisateur[theme] {
+		return errors.New("thème inconnu")
+	}
+	_, err := db.ExecContext(ctx, `UPDATE utilisateurs SET theme = ? WHERE id = ?`, theme, id)
+	return err
 }

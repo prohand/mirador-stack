@@ -668,3 +668,35 @@ document.addEventListener("change", function (e) {
   tout();
   document.addEventListener("mirador:fragment", tout);
 })();
+
+// --- Thème par utilisateur (SPEC § 25) ------------------------------------------
+// Sélecteur Jour / Nuit / Auto en bas du menu : le thème change tout de
+// suite, puis le choix est enregistré dans le compte (sans recharger).
+// Menu replié : seul le choix actif est montré, un clic passe au suivant.
+(function () {
+  "use strict";
+  var form = document.querySelector("[data-themes]");
+  if (!form) { return; }
+  var ordre = ["clair", "sombre", "auto"];
+  var boutons = form.querySelectorAll("button[name=theme]");
+  function appliquer(theme) {
+    if (theme === "auto") { document.documentElement.removeAttribute("data-theme"); }
+    else { document.documentElement.setAttribute("data-theme", theme); }
+    boutons.forEach(function (b) { b.setAttribute("aria-checked", b.value === theme ? "true" : "false"); });
+    document.dispatchEvent(new CustomEvent("mirador:theme", { detail: theme }));
+  }
+  form.addEventListener("click", function (e) {
+    var b = e.target.closest("button[name=theme]");
+    if (!b) { return; }
+    e.preventDefault();
+    var theme = b.value;
+    var appli = document.getElementById("appli");
+    if (appli && appli.classList.contains("replie") && b.getAttribute("aria-checked") === "true") {
+      theme = ordre[(ordre.indexOf(theme) + 1) % ordre.length];
+    }
+    appliquer(theme);
+    fetch(form.action, { method: "POST", credentials: "same-origin",
+      headers: { "X-Requested-With": "mirador", "X-CSRF": document.body.getAttribute("data-csrf") || "" },
+      body: new URLSearchParams({ theme: theme }) }).catch(function () { /* gardé pour cette page */ });
+  });
+})();

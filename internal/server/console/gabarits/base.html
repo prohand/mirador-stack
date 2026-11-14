@@ -18,7 +18,7 @@
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">
     <div class="barre-tete">
-      <a class="logo" href="/" title="mirador"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#2F5BEA"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span class="txt">mirador</span></a>
+      <a class="logo" href="/" title="mirador"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#3E63DD"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span class="txt">mirador</span></a>
       <button type="button" class="replier" data-replier aria-label="Replier ou déplier le menu" title="Replier ou déplier le menu"><svg class="icone"><use href="#i-chevron"></use></svg></button>
     </div>
     <button type="button" class="aller" data-aller title="Aller à une machine, un tableau ou une page (Ctrl+K)"><svg class="icone"><use href="#i-loupe"></use></svg><span>Aller à…</span><kbd>Ctrl K</kbd></button>
@@ -43,15 +43,21 @@
         <button type="submit" aria-label="Se déconnecter" title="Se déconnecter"><svg class="icone"><use href="#i-sortir"></use></svg></button>
       </form>
     </div>
+    <form method="post" action="/compte/theme" class="themes" data-themes role="radiogroup" aria-label="Thème de l'interface">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="retour" value="{{.Chemin}}">
+      <button type="submit" name="theme" value="clair" role="radio" aria-checked="{{if eq .ThemeChoix "clair"}}true{{else}}false{{end}}" title="Jour"><svg class="icone"><use href="#i-soleil"></use></svg><span class="txt">Jour</span></button>
+      <button type="submit" name="theme" value="sombre" role="radio" aria-checked="{{if eq .ThemeChoix "sombre"}}true{{else}}false{{end}}" title="Nuit"><svg class="icone"><use href="#i-lune"></use></svg><span class="txt">Nuit</span></button>
+      <button type="submit" name="theme" value="auto" role="radio" aria-checked="{{if eq .ThemeChoix "auto"}}true{{else}}false{{end}}" title="Auto : suit le réglage de l'ordinateur ou du téléphone"><svg class="icone"><use href="#i-ecran"></use></svg><span class="txt">Auto</span></button>
+    </form>
   </aside>
   <div class="contenu">
-    {{if .ModeAdmin}}<div class="bandeau admin">🔓 Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes). <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}
-    {{if .ModeOmbre}}<div class="bandeau ombre">Mode <strong>ombre</strong> : les alertes sont calculées mais <strong>aucune notification ne part</strong>. <a href="/reglages/notifications">Changer</a></div>{{end}}
+    {{if .ModeAdmin}}<div class="bandeau admin"><svg class="icone"><use href="#i-cadenas"></use></svg> Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes). <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}
     {{range .AConfirmer}}<div class="bandeau aconfirmer">
       <span>Changement « {{.Quoi}} » fait par {{.Par}} : <strong>à confirmer avant {{dateS .ExpireLe}}</strong>, sinon l'ancienne valeur revient.</span>
       <form method="post" action="/confirmer" class="enligne"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Confirmer</button></form>
     </div>{{end}}
     <main>
+      {{if .ModeOmbre}}<div class="etat-ombre"><a href="/reglages/notifications" title="Les alertes sont calculées mais aucune notification ne part. Cliquer pour changer.">Mode ombre : aucune notification</a></div>{{end}}
       {{if .Flash}}<p class="message ok" role="status">{{.Flash}}</p>{{end}}
       {{if .Alerte}}<p class="message erreur" role="alert">{{.Alerte}}</p>{{end}}
       {{template "contenu" .}}

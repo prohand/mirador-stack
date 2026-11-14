@@ -3991,3 +3991,48 @@ configuration et mêmes checks qu'en partie B).
 - Un import ne remplace jamais un modèle livré.
 - Les pages échappent tout le texte saisi (gabarits Go) ; le nom du fichier
   exporté vient du nom du modèle (minuscules, chiffres, « - »).
+
+## 25. Design « A bis » et thème par utilisateur **[Fait, à valider — choix du 14/11 : « À bis les deux »]**
+
+Propositions montrées en maquette (A épuré, B compact, C doux, D
+technique, A bis = A avec le menu noir) ; choix : **A bis**, avec le mode
+jour/nuit **par utilisateur**.
+
+### 25.1 Design
+
+- Gris neutres (texte #18181B, fond #F7F7F8 ; nuit : fond #0C0D10, cartes
+  #15161A), **un seul bleu** (#3E63DD, nuit #7C9BFF) ; vert, orange et rouge
+  réservés aux états.
+- **Menu noir** à gauche (#111318), jour comme nuit : page active sur fond
+  gris foncé en blanc, compteurs en orange ou rouge doux, recherche
+  « Aller à… » dans un champ sombre.
+- Une seule police (Inter, déjà embarquée) ; titres plus petits (22 px,
+  graisse 650) ; chiffres alignés (`tabular-nums`).
+- Cartes sans ombre, trait fin, coins de 12 px ; en-têtes de tableau
+  discrets ; onglets en segments ; boutons et champs de 36 px.
+- Mode ombre : la grande bande jaune devient une petite pastille en haut à
+  droite de chaque page (lien vers les réglages des notifications).
+- Rien n'a changé dans les pages elles-mêmes (mêmes gabarits, mêmes
+  formulaires) : seule la feuille de style et le cadre (`base.html`).
+
+### 25.2 Thème par utilisateur
+
+- Sélecteur **Jour / Nuit / Auto** en bas du menu, sous le compte (Auto =
+  réglage de l'ordinateur ou du téléphone). Menu replié : une seule icône
+  qui passe au choix suivant à chaque clic.
+- Le thème change tout de suite (attribut `data-theme`, courbes
+  redessinées), puis le choix est enregistré dans le compte
+  (`POST /compte/theme`, migration 0018 : colonne `theme` des
+  utilisateurs) : le même choix sur tous ses appareils. Sans JavaScript, le
+  formulaire enregistre et revient à la page.
+- Le thème du serveur (Réglages › Interface) reste la valeur des comptes qui
+  n'ont rien choisi.
+
+**Coût** : une colonne en base (lue avec le compte, déjà en cache 10 s),
+une requête à chaque changement de thème ; feuille de style de même taille
+(~40 Ko) ; aucune police de plus (Space Grotesk n'est plus utilisée).
+
+**Menaces** : préférence d'affichage seulement (pas d'audit) ; jeton CSRF
+obligatoire (formulaire ou en-tête `X-CSRF`) ; valeur parmi `clair`,
+`sombre`, `auto` ; retour après le formulaire limité à un chemin du site
+(`//…`, `https://…`, `\` refusés → « / »).
