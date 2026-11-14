@@ -20,7 +20,7 @@ import (
 )
 
 // Fournisseurs DNS du défi DNS-01 (SPEC § 23.17), ceux des clients ACME
-// courants : deSEC, Cloudflare, OVHcloud, Gandi, Infomaniak. Chacun pose
+// courants : deSEC, Cloudflare, OVHcloud, Gandi, Infomaniak, CSC. Chacun pose
 // puis retire un enregistrement TXT par son API (appels HTTPS écrits à la
 // main, aucune dépendance). Les identifiants restent sur le serveur,
 // chiffrés.
@@ -59,6 +59,8 @@ var Fournisseurs = []InfoFournisseur{
 		[]Champ{{Nom: "jeton", Titre: "Jeton d'accès personnel", Secret: true}}},
 	{"infomaniak", "Infomaniak", "jeton d'API avec le droit « domain:read, dns:write »",
 		[]Champ{{Nom: "jeton", Titre: "Jeton d'API", Secret: true}}},
+	{"csc", "CSC (Domain Manager)", "clé d'API et jeton du compte API, droits GET /zones et POST /zones/edits sur la zone ; publication lente (jusqu'à 15 min)",
+		[]Champ{{Nom: "cle_api", Titre: "Clé d'API", Secret: true}, {Nom: "jeton", Titre: "Jeton (Bearer)", Secret: true}}},
 }
 
 // InfoDe : description d'un fournisseur (nil s'il est inconnu).
@@ -80,6 +82,7 @@ var basesDefaut = map[string]string{
 	"ovh-us":     "https://api.us.ovhcloud.com/1.0",
 	"gandi":      "https://api.gandi.net/v5/livedns",
 	"infomaniak": "https://api.infomaniak.com",
+	"csc":        "https://apis.cscglobal.com/dbs/api/v2",
 }
 
 // nouveauFournisseur : client du fournisseur choisi.
@@ -109,6 +112,8 @@ func nouveauFournisseur(nom string, ids map[string]string, zone string, bases ma
 		return &gandi{a: a, base: base("gandi"), jeton: ids["jeton"], zone: zone}, nil
 	case "infomaniak":
 		return &infomaniak{a: a, base: base("infomaniak"), jeton: ids["jeton"], zone: zone, ids: map[string]string{}}, nil
+	case "csc":
+		return &csc{a: a, base: base("csc"), cle: ids["cle_api"], jeton: ids["jeton"], zone: zone}, nil
 	}
 	return nil, fmt.Errorf("fournisseur DNS %q inconnu", nom)
 }
@@ -410,4 +415,88 @@ func (i *infomaniak) Retirer(ctx context.Context, _, valeur string) error {
 		return enrobe("Infomaniak", err)
 	}
 	return enrobe("Infomaniak", i.a.appeler(ctx, http.MethodDelete, i.base+"/1/domain/"+strconv.FormatInt(id, 10)+"/dns/record/"+url.PathEscape(rid), i.entetes(), nil, nil))
+}
+
+// --- CSC (Domain Manager, API v2) ----------------------------------------------------------
+
+// pasCSC : intervalle entre deux lectures de l'état d'une modification
+// (remplacé dans les tests).
+var pasCSC = 10 * time.Second
+
+// csc : chaque changement est une « modification de zone » (POST
+// /zones/edits) que CSC publie ensuite ; on attend qu'elle soit terminée.
+type csc struct {
+	a                      appelant
+	base, cle, jeton, zone string
+}
+
+func (c *csc) entetes() map[string]string {
+	return map[string]string{"apikey": c.cle, "Authorization": "Bearer " + c.jeton}
+}
+
+// AttentePropagation : CSC publie lentement ; délai laissé après la fin de
+// la modification avant de demander la validation à Let's Encrypt.
+func (c *csc) AttentePropagation() time.Duration { return 3 * time.Minute }
+
+func (c *csc) modifier(ctx context.Context, edit map[string]any) error {
+	edit["recordType"] = "TXT"
+	var r struct {
+		Content struct {
+			Status  string `json:"status"`
+			Message string `json:"message"`
+			Links   struct {
+				Self   string `json:"self"`
+				Status string `json:"status"`
+			} `json:"links"`
+		} `json:"content"`
+	}
+	if err := c.a.appeler(ctx, http.MethodPost, c.base+"/zones/edits", c.entetes(),
+		map[string]any{"zoneName": c.zone, "edits": []any{edit}}, &r); err != nil {
+		return err
+	}
+	if r.Content.Status != "SUCCESS" {
+		return fmt.Errorf("modification refusée (%s %s)", r.Content.Status, r.Content.Message)
+	}
+	// Identifiant de la modification : dernier élément du lien renvoyé.
+	// L'adresse d'état est reconstruite sur la base connue : le jeton
+	// n'est jamais envoyé à une adresse donnée par la réponse.
+	lien := r.Content.Links.Status
+	if lien == "" {
+		lien = r.Content.Links.Self
+	}
+	id := lien[strings.LastIndex(lien, "/")+1:]
+	if id == "" || strings.ContainsAny(id, "?#") {
+		return errors.New("identifiant de la modification absent de la réponse")
+	}
+	for {
+		var e struct {
+			Content struct {
+				Status string `json:"status"`
+			} `json:"content"`
+		}
+		if err := c.a.appeler(ctx, http.MethodGet, c.base+"/zones/edits/status/"+url.PathEscape(id), c.entetes(), nil, &e); err != nil {
+			return err
+		}
+		switch e.Content.Status {
+		case "COMPLETED", "COMPLETE":
+			return nil
+		case "FAILED", "PROPAGATING_FAILED", "REJECTED", "CANCELED":
+			return fmt.Errorf("modification %s : %s", id, e.Content.Status)
+		case "AWAITING_APPROVAL":
+			return fmt.Errorf("modification %s en attente d'approbation chez CSC (approbation manuelle à retirer pour ce compte API)", id)
+		}
+		select {
+		case <-time.After(pasCSC):
+		case <-ctx.Done():
+			return fmt.Errorf("modification %s pas terminée : %w", id, ctx.Err())
+		}
+	}
+}
+
+func (c *csc) Poser(ctx context.Context, sousNom, valeur string) error {
+	return enrobe("CSC", c.modifier(ctx, map[string]any{"action": "ADD", "newKey": sousNom, "newValue": valeur, "newTtl": 300}))
+}
+
+func (c *csc) Retirer(ctx context.Context, sousNom, valeur string) error {
+	return enrobe("CSC", c.modifier(ctx, map[string]any{"action": "PURGE", "currentKey": sousNom, "currentValue": valeur}))
 }

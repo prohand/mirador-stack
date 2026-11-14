@@ -159,6 +159,54 @@ func fauxFournisseur(t *testing.T, nom string, z *zoneFausse) *httptest.Server {
 				z.mettre(sous, nil)
 				w.WriteHeader(204)
 			}
+		case "csc":
+			if r.Header.Get("apikey") != "cle-csc" || r.Header.Get("Authorization") != "Bearer jeton-csc" {
+				w.WriteHeader(401)
+				return
+			}
+			switch {
+			case r.Method == "POST" && r.URL.Path == "/zones/edits" && texte("zoneName") == "exemple.org":
+				e, _ := c["edits"].([]any)
+				ed, _ := e[0].(map[string]any)
+				g := func(k string) string { v, _ := ed[k].(string); return v }
+				var id string
+				switch {
+				case g("recordType") != "TXT":
+					w.WriteHeader(400)
+					return
+				case g("action") == "ADD":
+					id = ajouter(g("newKey"), g("newValue"))
+				case g("action") == "PURGE":
+					mu.Lock()
+					for k, sv := range ids {
+						if sv == g("currentKey")+"|"+g("currentValue") {
+							id = k
+						}
+					}
+					mu.Unlock()
+					if !retirer(id) {
+						w.WriteHeader(404)
+						return
+					}
+				}
+				// Lien d'état vers un autre hôte : ne doit jamais être suivi.
+				w.WriteHeader(201)
+				repondre(w, map[string]any{"content": map[string]any{"status": "SUCCESS",
+					"links": map[string]string{"status": "https://ailleurs.invalid/zones/edits/status/e" + id}}})
+			case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/zones/edits/status/e"):
+				// Première lecture : en cours ; ensuite : terminée.
+				mu.Lock()
+				vu := ids["vu"+r.URL.Path] != ""
+				ids["vu"+r.URL.Path] = "x|x"
+				mu.Unlock()
+				etat := "PROCESSING"
+				if vu {
+					etat = "COMPLETED"
+				}
+				repondre(w, map[string]any{"content": map[string]any{"status": etat}})
+			default:
+				w.WriteHeader(404)
+			}
 		case "infomaniak":
 			if r.Header.Get("Authorization") != "Bearer jeton-ik" {
 				w.WriteHeader(401)
@@ -186,6 +234,9 @@ func fauxFournisseur(t *testing.T, nom string, z *zoneFausse) *httptest.Server {
 // identifiants refusés.
 func TestFournisseursDNS(t *testing.T) {
 	ctx := context.Background()
+	avant := pasCSC
+	pasCSC = time.Millisecond
+	t.Cleanup(func() { pasCSC = avant })
 	for _, cas := range []struct {
 		nom, base string
 		ids       map[string]string
@@ -194,6 +245,7 @@ func TestFournisseursDNS(t *testing.T) {
 		{"ovh", "ovh-eu", map[string]string{"point": "ovh-eu", "cle_application": "cle-app", "secret_application": "secret-app", "cle_consommateur": "cle-conso"}},
 		{"gandi", "gandi", map[string]string{"jeton": "jeton-gandi"}},
 		{"infomaniak", "infomaniak", map[string]string{"jeton": "jeton-ik"}},
+		{"csc", "csc", map[string]string{"cle_api": "cle-csc", "jeton": "jeton-csc"}},
 	} {
 		z := &zoneFausse{txt: map[string][]string{}}
 		srv := fauxFournisseur(t, cas.nom, z)
@@ -292,5 +344,26 @@ func TestReglagesFournisseur(t *testing.T) {
 	}
 	if ids, err := vieux.identifiants(cleServeur); err != nil || ids["jeton"] != "ancien-jeton" {
 		t.Fatalf("ancien jeton : %v %v", ids, err)
+	}
+}
+
+// CSC : modification refusée ou en attente d'approbation → erreur claire.
+func TestCSCEchecs(t *testing.T) {
+	avant := pasCSC
+	pasCSC = time.Millisecond
+	t.Cleanup(func() { pasCSC = avant })
+	for etat, attendu := range map[string]string{"FAILED": "FAILED", "AWAITING_APPROVAL": "approbation"} {
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" {
+				_, _ = w.Write([]byte(`{"content":{"status":"SUCCESS","links":{"status":"x/zones/edits/status/e1"}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"content":{"status":"` + etat + `"}}`))
+		}))
+		f, _ := nouveauFournisseur("csc", map[string]string{"cle_api": "a", "jeton": "b"}, "exemple.org", map[string]string{"csc": srv.URL}, srv.Client())
+		if err := f.Poser(context.Background(), "_acme-challenge", "v"); err == nil || !strings.Contains(err.Error(), attendu) {
+			t.Errorf("%s : %v", etat, err)
+		}
+		srv.Close()
 	}
 }

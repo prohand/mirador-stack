@@ -47,14 +47,17 @@ relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
 Syslog TLS (partie 4), sur la page du collecteur :
 
 1. *Réglages du certificat* (une fois pour tous les collecteurs) :
-   fournisseur DNS (deSEC, Cloudflare, OVHcloud, Gandi ou Infomaniak), zone
+   fournisseur DNS (deSEC, Cloudflare, OVHcloud, Gandi, Infomaniak ou CSC), zone
    (ex. `exemple.org`) et identifiants de l'API, limités au plus juste :
    - deSEC : jeton avec une règle sur `_acme-challenge.<nom du certificat>` ;
    - Cloudflare : jeton « Zone › DNS › Modifier » sur cette zone seulement ;
    - OVHcloud : clés créées sur la page `createToken` de l'API, droits
      GET/POST/DELETE sur `/domain/zone/<zone>/*` ;
    - Gandi : jeton d'accès personnel limité au domaine ;
-   - Infomaniak : jeton `domain:read` et `dns:write`.
+   - Infomaniak : jeton `domain:read` et `dns:write` ;
+   - CSC (Domain Manager) : clé d'API et jeton Bearer, droits GET `/zones`
+     et POST `/zones/edits` sur la zone ; sans approbation manuelle des
+     modifications. Publication lente : compter jusqu'à 20 min.
    Premier essai conseillé avec l'annuaire *staging* de Let's Encrypt.
 2. *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
    `192.168.1.10:6514`), nom du certificat (ex. `syslog.lan.exemple.org`,

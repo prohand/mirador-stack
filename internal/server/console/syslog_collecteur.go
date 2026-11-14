@@ -127,7 +127,7 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 		}, q.qui(), q.t)
 		return "syslog arrêté sur ce collecteur", err
 	case "certificat_renouveler":
-		return "renouvellement demandé : fait sous une minute (Let's Encrypt et le défi DNS prennent 1 à 3 min)",
+		return "renouvellement demandé : fait sous une minute (Let's Encrypt et le défi DNS prennent 1 à 3 min, jusqu'à 20 min chez CSC)",
 			certsyslog.Demander(ctx, c.db, m.ID, q.qui(), q.t)
 	case "certificat_reglages":
 		// Champs du fournisseur choisi : « dns_<fournisseur>_<champ> ».

@@ -120,7 +120,7 @@ func (g *Gestionnaire) obtenir(ctx context.Context, machine int64, nom, csrPEM s
 		enregistrerEchec(fmt.Errorf("la demande du collecteur est pour %s, pas pour %s (il en refait une à son redémarrage)", req.DNSNames[0], nom))
 		return
 	}
-	ctxA, fin := context.WithTimeout(ctx, 10*time.Minute)
+	ctxA, fin := context.WithTimeout(ctx, 30*time.Minute) // CSC : publication jusqu'à 15 min
 	defer fin()
 	chaine, err := g.Emetteur.Obtenir(ctxA, nom, req.Raw)
 	if err != nil {

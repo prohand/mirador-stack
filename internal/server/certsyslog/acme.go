@@ -106,6 +106,10 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 		attente := a.Attente
 		if attente == 0 {
 			attente = time.Minute
+			// Fournisseur lent à publier (CSC) : délai plus long.
+			if p, ok := dns.(interface{ AttentePropagation() time.Duration }); ok {
+				attente = p.AttentePropagation()
+			}
 		}
 		select {
 		case <-time.After(attente):

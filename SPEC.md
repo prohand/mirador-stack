@@ -3975,7 +3975,8 @@ Demande : « rajouter des fournisseurs proposés par ACME », sans délégation
 par CNAME (réponse « 2. Non »).
 
 - Choix dans *Réglages du certificat* : **deSEC** (défaut, comme avant),
-  **Cloudflare**, **OVHcloud**, **Gandi LiveDNS**, **Infomaniak**. Ce sont
+  **Cloudflare**, **OVHcloud**, **Gandi LiveDNS**, **Infomaniak**, **CSC**
+  (Domain Manager, ajouté le 14/11 à la demande). Ce sont
   des fournisseurs courants des clients ACME (lego, acme.sh) avec une API
   publique stable et des jetons limitables.
 - Code : interface `FournisseurDNS` (poser / retirer le TXT
@@ -3995,7 +3996,15 @@ par CNAME (réponse « 2. Non »).
 - Droits conseillés : Cloudflare « Zone › DNS › Modifier » sur la seule
   zone ; OVH : GET/POST/DELETE sur `/domain/zone/<zone>/*` ; Gandi : jeton
   d'accès personnel limité au domaine ; Infomaniak : jeton `domain:read`,
-  `dns:write`. Premier essai conseillé sur l'annuaire *staging* de
+  `dns:write` ; CSC : clé d'API + jeton Bearer, droits GET `/zones` et POST
+  `/zones/edits` sur la zone (API activée par le chargé de compte CSC).
+- CSC : chaque changement est une « modification de zone » publiée par CSC
+  (jusqu'à ~15 min). Le serveur suit son état (`/zones/edits/status/<id>`,
+  toutes les 10 s) puis attend 3 min avant la validation ; démarche bornée
+  à 30 min. Une modification « en attente d'approbation » est signalée
+  (approbation manuelle à retirer pour le compte API). L'adresse d'état est
+  reconstruite sur la base connue : le jeton ne part jamais vers une
+  adresse donnée par une réponse. Premier essai conseillé sur l'annuaire *staging* de
   Let's Encrypt.
 
 **Coût** : quelques appels HTTPS par certificat (tous les 60 jours) ;
