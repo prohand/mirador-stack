@@ -53,6 +53,11 @@ func (i InfoMachine) Surveillance() bool {
 	return ACapacite(i.Capacites, protocole.CapaciteSurveillance)
 }
 
+// Checks : l'agent fait les checks des modèles (SPEC § 24.10).
+func (i InfoMachine) Checks() bool {
+	return ACapacite(i.Capacites, protocole.CapaciteChecks)
+}
+
 // Elements : l'agent sait retirer un élément précis et chercher des
 // certificats aux chemins ajoutés dans l'interface (SPEC § 21).
 func (i InfoMachine) Elements() bool {

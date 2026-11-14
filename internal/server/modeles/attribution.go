@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,7 +29,8 @@ var rePortee = regexp.MustCompile(`^(machine:[0-9]{1,18}|groupe:[A-Za-z0-9][A-Za
 type Attribution struct {
 	Portee, Modele, Etat string
 	Parametres           map[string]float64
-	ModifiePar           string // « auto » : appliqué automatiquement (détection)
+	Listes               map[string][]string // listes réglées pour cette portée (partie B)
+	ModifiePar           string              // « auto » : appliqué automatiquement (détection)
 }
 
 // PorteeMachine, PorteeGroupe : noms des portées.
@@ -37,7 +39,7 @@ func PorteeGroupe(nom string) string { return "groupe:" + nom }
 
 // Lister : attributions d'une portée.
 func Lister(ctx context.Context, db *sql.DB, portee string) ([]Attribution, error) {
-	rows, err := db.QueryContext(ctx, `SELECT portee, modele, etat, parametres, modifie_par FROM modeles_attribues WHERE portee = ? ORDER BY modele`, portee)
+	rows, err := db.QueryContext(ctx, `SELECT portee, modele, etat, parametres, listes, modifie_par FROM modeles_attribues WHERE portee = ? ORDER BY modele`, portee)
 	if err != nil {
 		return nil, err
 	}
@@ -45,12 +47,15 @@ func Lister(ctx context.Context, db *sql.DB, portee string) ([]Attribution, erro
 	var out []Attribution
 	for rows.Next() {
 		var a Attribution
-		var p string
-		if err := rows.Scan(&a.Portee, &a.Modele, &a.Etat, &p, &a.ModifiePar); err != nil {
+		var p, l string
+		if err := rows.Scan(&a.Portee, &a.Modele, &a.Etat, &p, &l, &a.ModifiePar); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(p), &a.Parametres); err != nil {
 			a.Parametres = nil // ligne abîmée : défauts du modèle
+		}
+		if err := json.Unmarshal([]byte(l), &a.Listes); err != nil {
+			a.Listes = nil
 		}
 		out = append(out, a)
 	}
@@ -58,9 +63,10 @@ func Lister(ctx context.Context, db *sql.DB, portee string) ([]Attribution, erro
 }
 
 // Definir : attribue (actif), ignore, ou retire (etat vide) un modèle pour
-// une portée, avec ses paramètres (vérifiés : bornes du modèle). Audit dans
-// la même transaction.
-func Definir(ctx context.Context, db *sql.DB, portee, modele, etat string, parametres map[string]float64, qui string, maintenant time.Time) error {
+// une portée, avec ses paramètres (vérifiés : bornes du modèle) et ses
+// listes (vérifiées : format de l'agent ; absente = héritée). Audit dans la
+// même transaction.
+func Definir(ctx context.Context, db *sql.DB, portee, modele, etat string, parametres map[string]float64, listes map[string][]string, qui string, maintenant time.Time) error {
 	if !rePortee.MatchString(portee) {
 		return errors.New("portée invalide")
 	}
@@ -76,12 +82,28 @@ func Definir(ctx context.Context, db *sql.DB, portee, modele, etat string, param
 			return err
 		}
 	}
+	for nom, lignes := range listes {
+		lp := m.Liste(nom)
+		if lp == nil {
+			return fmt.Errorf("liste %q inconnue", nom)
+		}
+		if _, err := lp.LireLignes(strings.Join(lignes, "\n")); err != nil {
+			return err
+		}
+	}
 	brut, err := json.Marshal(parametres)
 	if err != nil {
 		return err
 	}
 	if parametres == nil {
 		brut = []byte("{}")
+	}
+	brutListes, err := json.Marshal(listes)
+	if err != nil {
+		return err
+	}
+	if listes == nil {
+		brutListes = []byte("{}")
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -94,13 +116,18 @@ func Definir(ctx context.Context, db *sql.DB, portee, modele, etat string, param
 		if _, err := tx.ExecContext(ctx, `DELETE FROM modeles_attribues WHERE portee = ? AND modele = ?`, portee, modele); err != nil {
 			return err
 		}
-	} else if _, err := tx.ExecContext(ctx, `INSERT INTO modeles_attribues(portee, modele, etat, parametres, modifie_le, modifie_par)
-		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(portee, modele) DO UPDATE SET etat = excluded.etat, parametres = excluded.parametres,
-		modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`, portee, modele, etat, string(brut), maintenant.Unix(), qui); err != nil {
+	} else if _, err := tx.ExecContext(ctx, `INSERT INTO modeles_attribues(portee, modele, etat, parametres, listes, modifie_le, modifie_par)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(portee, modele) DO UPDATE SET etat = excluded.etat, parametres = excluded.parametres,
+		listes = excluded.listes, modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`,
+		portee, modele, etat, string(brut), string(brutListes), maintenant.Unix(), qui); err != nil {
 		return err
 	}
+	apres := string(brut)
+	if listes != nil {
+		apres += " " + string(brutListes)
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, ?, ?, '', ?, '')`,
-		maintenant.Unix(), qui, action, portee+" "+modele, string(brut)); err != nil {
+		maintenant.Unix(), qui, action, portee+" "+modele, apres); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -110,11 +137,13 @@ func Definir(ctx context.Context, db *sql.DB, portee, modele, etat string, param
 // (machine > groupe > défaut) et d'où il vient.
 type Effectif struct {
 	Modele     *Modele
-	Parametres map[string]float64 // tous les paramètres du modèle
-	DuGroupe   bool               // attribué au groupe (pas à la machine elle-même)
-	Surcharges map[string]bool    // paramètres réglés pour cette machine
-	Services   []string           // services systemd attendus (liste du modèle)
-	Auto       bool               // appliqué automatiquement (détection)
+	Parametres map[string]float64  // tous les paramètres du modèle
+	DuGroupe   bool                // attribué au groupe (pas à la machine elle-même)
+	Surcharges map[string]bool     // paramètres réglés pour cette machine
+	Services   []string            // services systemd attendus (liste du modèle)
+	Listes     map[string][]string // listes effectives (machine > groupe)
+	ListesMach map[string]bool     // listes réglées pour cette machine
+	Auto       bool                // appliqué automatiquement (détection)
 }
 
 // Effectifs : modèles d'une machine = ceux de son groupe + les siens, moins
@@ -164,6 +193,7 @@ func Effectifs(ctx context.Context, db *sql.DB, machine int64, groupe string) ([
 			return nil, err
 		}
 		e := Effectif{Modele: m, Parametres: map[string]float64{}, Surcharges: map[string]bool{},
+			Listes: map[string][]string{}, ListesMach: map[string]bool{},
 			DuGroupe: c.machine == nil, Services: svc, Auto: c.machine != nil && c.machine.ModifiePar == QuiAuto}
 		for _, p := range m.Parametres {
 			e.Parametres[p.Nom] = p.Defaut
@@ -176,6 +206,19 @@ func Effectifs(ctx context.Context, db *sql.DB, machine int64, groupe string) ([
 				if v, ok := c.machine.Parametres[p.Nom]; ok {
 					e.Parametres[p.Nom] = v
 					e.Surcharges[p.Nom] = true
+				}
+			}
+		}
+		for _, l := range m.Listes {
+			if c.groupe != nil && c.groupe.Etat == EtatActif {
+				if v, ok := c.groupe.Listes[l.Nom]; ok {
+					e.Listes[l.Nom] = v
+				}
+			}
+			if c.machine != nil {
+				if v, ok := c.machine.Listes[l.Nom]; ok {
+					e.Listes[l.Nom] = v
+					e.ListesMach[l.Nom] = true
 				}
 			}
 		}
@@ -237,9 +280,17 @@ func Ignores(ctx context.Context, db *sql.DB, machine int64) (map[string]bool, e
 }
 
 // ConfigEffective : configuration apportée par les modèles d'une machine
-// (clé par clé, dans l'ordre des noms ; listes réunies).
+// (clé par clé, dans l'ordre des noms ; listes réunies ; checks tirés des
+// listes des modèles).
 func ConfigEffective(effectifs []Effectif) (map[string]json.RawMessage, error) {
 	out := map[string]json.RawMessage{}
+	if checks, _ := checksEffectifs(effectifs); len(checks) > 0 {
+		brut, err := json.Marshal(checks)
+		if err != nil {
+			return nil, err
+		}
+		out["checks"] = brut
+	}
 	for _, e := range effectifs {
 		// Services du modèle : toujours surveillés (même si la machine ne
 		// surveille que les services validés un par un).

@@ -173,7 +173,7 @@ func TestModelesAuto(t *testing.T) {
 		t.Errorf("message : %q", m)
 	}
 	// Retiré à la main (décoché) : ne revient pas.
-	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "docker", modeles.EtatIgnore, nil, "admin", maintenant)
+	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "docker", modeles.EtatIgnore, nil, nil, "admin", maintenant)
 	b.c.appliquerAuto(ctx, maintenant.Add(time.Minute))
 	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, ""); len(effs) != 0 {
 		t.Errorf("revenu après retrait : %+v", effs)

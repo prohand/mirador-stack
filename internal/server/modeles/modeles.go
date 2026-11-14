@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/server/alertes"
 )
@@ -46,6 +47,19 @@ type Modele struct {
 	// Services : services systemd attendus sur les machines du modèle
 	// (liste de départ ; modifiable dans l'interface, demande du 14/11).
 	Services []string `json:"services,omitempty"`
+	// Listes : adresses, ports, fichiers… à tester par l'agent (partie B,
+	// SPEC § 24.10). Chaque ligne d'une liste devient un check.
+	Listes []ListeParam `json:"listes,omitempty"`
+}
+
+// ListeParam : liste réglable par groupe puis par machine ; chaque ligne
+// devient un check du type indiqué (config.TypesCheck).
+type ListeParam struct {
+	Nom     string `json:"nom"`
+	Titre   string `json:"titre"`
+	Type    string `json:"type"`
+	Exemple string `json:"exemple,omitempty"`
+	Aide    string `json:"aide,omitempty"`
 }
 
 // Parametre : seuil nommé, réglable par groupe puis par machine.
@@ -103,6 +117,12 @@ func (m *Modele) Valider() error {
 	}
 	if err := ValiderServices(m.Services); err != nil {
 		return err
+	}
+	for _, l := range m.Listes {
+		if !reNomParametre.MatchString(l.Nom) || vus[l.Nom] || l.Titre == "" || !config.TypesCheck[l.Type] {
+			return fmt.Errorf("liste %q invalide ou en double", l.Nom)
+		}
+		vus[l.Nom] = true
 	}
 	if m.Detection != "" {
 		if _, err := alertes.AnalyserExpr(m.Detection); err != nil {

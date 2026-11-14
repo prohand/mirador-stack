@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -146,14 +147,29 @@ func fonctions() template.FuncMap {
 			}
 			return t.In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
-		"depuisS":   func(s int64) string { return depuis(s * 1000) },
-		"depuisMs":  depuis,
-		"duree":     func(d time.Duration) string { return dureeLisible(d) },
-		"taille":    tailleLisible,
-		"pct":       func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
-		"egal":      func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
-		"sub":       func(a, b int) int { return a - b },
-		"seuil":     formatSeuil,
+		"depuisS":  func(s int64) string { return depuis(s * 1000) },
+		"depuisMs": depuis,
+		"duree":    func(d time.Duration) string { return dureeLisible(d) },
+		"taille":   tailleLisible,
+		"pct":      func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
+		"egal":     func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
+		"sub":      func(a, b int) int { return a - b },
+		"seuil":    formatSeuil,
+		// dict : paramètres nommés pour un morceau de gabarit (« clé », valeur…).
+		"dict": func(kv ...any) (map[string]any, error) {
+			if len(kv)%2 != 0 {
+				return nil, errors.New("dict : nombre d'arguments impair")
+			}
+			m := make(map[string]any, len(kv)/2)
+			for i := 0; i < len(kv); i += 2 {
+				k, ok := kv[i].(string)
+				if !ok {
+					return nil, errors.New("dict : clé non texte")
+				}
+				m[k] = kv[i+1]
+			}
+			return m, nil
+		},
 		"liste":     func(v ...string) []string { return v },
 		"dansListe": func(s string, l []string) bool { return slices.Contains(l, s) },
 		// choixIcone : données du morceau « choix-icone » (éditeur).

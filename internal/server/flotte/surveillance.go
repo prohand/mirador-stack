@@ -46,6 +46,10 @@ var clesElements = map[string]bool{
 // seulement aux agents qui annoncent la capacité « proxmox ».
 var clesProxmox = map[string]bool{"proxmox_disques": true}
 
+// clesChecks : checks des modèles (SPEC.md § 24.10), envoyés seulement aux
+// agents qui annoncent la capacité « checks ».
+var clesChecks = map[string]bool{"checks": true}
+
 // CleElements dit si une clé demande un agent qui connaît les éléments.
 func CleElements(cle string) bool { return clesElements[cle] }
 
@@ -89,6 +93,11 @@ func clesInconnues(capacites string) map[string]bool {
 	}
 	if !ACapacite(capacites, protocole.CapaciteProxmox) {
 		for k := range clesProxmox {
+			out[k] = true
+		}
+	}
+	if !ACapacite(capacites, protocole.CapaciteChecks) {
+		for k := range clesChecks {
 			out[k] = true
 		}
 	}

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"mirador-stack/internal/agent/checks"
 	"mirador-stack/internal/agent/collect"
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/envoi"
@@ -122,6 +123,10 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 	}
 	if cfg.MisesAJour {
 		liste = append(liste, collect.NewMisesAJour())
+	}
+	// Checks des modèles de surveillance (SPEC.md § 24.10), sauf refus local.
+	if cfg.ChecksActifs && len(cfg.Checks) > 0 {
+		liste = append(liste, checks.Nouveau(cfg.Checks, cfg.RacineProc))
 	}
 	if cfg.Docker != "" && cfg.DockerMetriques {
 		if d, err := collect.NewDocker(cfg.Docker); err == nil {

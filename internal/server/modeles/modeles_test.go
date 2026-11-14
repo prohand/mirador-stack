@@ -9,7 +9,7 @@ import (
 
 func TestModelesFournis(t *testing.T) {
 	ms := Fournis()
-	if len(ms) < 7 {
+	if len(ms) < 12 {
 		t.Fatalf("%d modèles fournis", len(ms))
 	}
 	noms := map[string]bool{}

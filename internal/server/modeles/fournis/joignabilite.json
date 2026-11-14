@@ -1,0 +1,56 @@
+{
+ "version": 1,
+ "nom": "joignabilite",
+ "titre": "Joignabilité",
+ "icone": "reseau",
+ "description": "Équipements joignables depuis la machine (ping, sans droits root) et noms DNS qui doivent se résoudre. Pratique pour surveiller une box, un switch ou une imprimante sans agent.",
+ "listes": [
+  {
+   "nom": "hotes_ping",
+   "titre": "Hôtes à pinguer",
+   "type": "ping",
+   "exemple": "192.0.2.1\nimprimante.lan",
+   "aide": "nom ou adresse ; le noyau doit autoriser le ping sans droits (net.ipv4.ping_group_range, ouvert sur Debian et Ubuntu récents)"
+  },
+  {
+   "nom": "noms_dns",
+   "titre": "Noms DNS à résoudre",
+   "type": "dns",
+   "exemple": "exemple.org\nnas.lan",
+   "aide": "résolus avec les serveurs DNS de la machine"
+  }
+ ],
+ "parametres": [
+  {
+   "nom": "latence_max_ms",
+   "titre": "Ping lent : au-delà de",
+   "unite": "ms",
+   "defaut": 200,
+   "min": 1,
+   "max": 10000
+  }
+ ],
+ "regles": [
+  {
+   "nom": "HoteInjoignable",
+   "pour": "5m",
+   "gravite": "warning",
+   "expr": "mirador_check_ok{modele=\"joignabilite\", type=\"ping\"} == 0",
+   "resume": "{{ $labels.cible }} ne répond pas au ping (depuis {{ $labels.instance }})"
+  },
+  {
+   "nom": "PingLent",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "mirador_check_duree_secondes{modele=\"joignabilite\", type=\"ping\"} * 1000 > $latence_max_ms",
+   "resume": "Ping de {{ $labels.cible }} lent : {{ $value | humanize }} ms (depuis {{ $labels.instance }})"
+  },
+  {
+   "nom": "ResolutionDNSEchouee",
+   "pour": "5m",
+   "gravite": "warning",
+   "expr": "mirador_check_ok{modele=\"joignabilite\", type=\"dns\"} == 0",
+   "resume": "Le nom {{ $labels.cible }} ne se résout pas sur {{ $labels.instance }}"
+  }
+ ]
+}

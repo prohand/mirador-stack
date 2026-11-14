@@ -39,6 +39,66 @@ type vueParam struct {
 	Surcharge bool // réglé pour cette portée (sinon hérité)
 }
 
+// vueListe : une liste d'un modèle (une valeur par ligne) et son contenu.
+type vueListe struct {
+	modeles.ListeParam
+	Texte  string
+	Nb     int
+	Propre bool // réglée pour cette portée (sinon héritée du groupe)
+}
+
+// vuesListes : listes d'un modèle avec leurs lignes.
+func vuesListes(mod *modeles.Modele, valeurs map[string][]string, propres map[string]bool) []vueListe {
+	var out []vueListe
+	for _, l := range mod.Listes {
+		v := valeurs[l.Nom]
+		out = append(out, vueListe{ListeParam: l, Texte: strings.Join(v, "\n"), Nb: len(v), Propre: propres[l.Nom]})
+	}
+	return out
+}
+
+// lireListesModele : listes saisies « l.<nom> » (une valeur par ligne).
+// heritees : listes du groupe ; une liste identique n'est pas enregistrée
+// (elle reste héritée). nil pour un groupe.
+func lireListesModele(mod *modeles.Modele, f func(string) string, heritees map[string][]string) (map[string][]string, error) {
+	out := map[string][]string{}
+	for i := range mod.Listes {
+		l := &mod.Listes[i]
+		lignes, err := l.LireLignes(f("l." + l.Nom))
+		if err != nil {
+			return nil, err
+		}
+		if heritees != nil && strings.Join(lignes, "\n") == strings.Join(heritees[l.Nom], "\n") {
+			continue
+		}
+		if heritees == nil && len(lignes) == 0 {
+			continue
+		}
+		if lignes == nil {
+			lignes = []string{} // liste vidée pour cette machine
+		}
+		out[l.Nom] = lignes
+	}
+	return out, nil
+}
+
+// listesDuGroupe : listes d'un modèle réglées pour un groupe.
+func (c *Console) listesDuGroupe(ctx context.Context, groupe, modele string) map[string][]string {
+	if groupe == "" {
+		return map[string][]string{}
+	}
+	as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(groupe))
+	if err != nil {
+		return map[string][]string{}
+	}
+	for _, a := range as {
+		if a.Modele == modele && a.Etat == modeles.EtatActif && a.Listes != nil {
+			return a.Listes
+		}
+	}
+	return map[string][]string{}
+}
+
 // vueCase : une ligne du bloc « Modèles » de la page d'une machine.
 type vueCase struct {
 	M        *modeles.Modele
@@ -47,7 +107,8 @@ type vueCase struct {
 	Detecte  bool // détecté, ni attribué ni ignoré
 	Ignore   bool
 	Auto     bool // appliqué automatiquement
-	Seuils   bool // modèle appliqué qui a des seuils réglables
+	Seuils   bool // modèle appliqué qui a des seuils ou des listes réglables
+	AVide    bool // modèle appliqué dont toutes les listes sont vides (rien à tester)
 }
 
 // vueModeles : bloc « Modèles » de la page d'une machine.
@@ -114,8 +175,15 @@ func (c *Console) vueModelesMachine(ctx context.Context, m flotte.InfoMachine, t
 	v.Proposes = len(proposes)
 	for _, mod := range modeles.Fournis() {
 		e, coche := actifs[mod.Nom]
+		vide := len(mod.Listes) > 0
+		for _, l := range e.Listes {
+			if len(l) > 0 {
+				vide = false
+			}
+		}
 		v.Cases = append(v.Cases, vueCase{M: mod, Coche: coche, DuGroupe: coche && e.DuGroupe, Detecte: propose[mod.Nom],
-			Ignore: ign[mod.Nom], Auto: coche && e.Auto, Seuils: coche && len(mod.Parametres) > 0})
+			Ignore: ign[mod.Nom], Auto: coche && e.Auto, Seuils: coche && (len(mod.Parametres) > 0 || len(mod.Listes) > 0),
+			AVide: coche && vide})
 	}
 	return v
 }
@@ -169,7 +237,7 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 		if etat == "?" {
 			continue
 		}
-		if err := modeles.Definir(ctx, c.db, portee, mod.Nom, etat, nil, q.qui(), q.t); err != nil {
+		if err := modeles.Definir(ctx, c.db, portee, mod.Nom, etat, nil, nil, q.qui(), q.t); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -185,9 +253,14 @@ type donneesSeuils struct {
 	Machine  string
 	M        *modeles.Modele
 	Params   []vueParam
+	Listes   []vueListe
 	Services []string
 	DuGroupe bool
 	Groupe   string
+	// Checks : checks demandés à l'agent par tous ses modèles, ceux laissés
+	// de côté (au-delà de 50) et agent trop ancien pour les faire.
+	NbChecks, Ecartes int
+	SansChecks        bool
 }
 
 // seuilsMachine : machine et modèle de l'adresse ; le modèle doit être
@@ -215,9 +288,16 @@ func (c *Console) pageSeuilsMachine(q *req) {
 	if !ok {
 		return
 	}
-	d := donneesSeuils{Machine: m.Nom, M: mod, Services: e.Services, DuGroupe: e.DuGroupe, Groupe: m.Groupe}
+	d := donneesSeuils{Machine: m.Nom, M: mod, Services: e.Services, DuGroupe: e.DuGroupe, Groupe: m.Groupe,
+		Listes: vuesListes(mod, e.Listes, e.ListesMach)}
 	for _, p := range mod.Parametres {
 		d.Params = append(d.Params, vueParam{Parametre: p, Valeur: e.Parametres[p.Nom], Surcharge: e.Surcharges[p.Nom]})
+	}
+	if len(mod.Listes) > 0 {
+		if effs, err := modeles.Effectifs(q.r.Context(), c.db, m.ID, m.Groupe); err == nil {
+			d.NbChecks, d.Ecartes = modeles.NombreChecks(effs)
+		}
+		d.SansChecks = m.VuLe > 0 && !m.Checks() // agent déjà vu, trop ancien
 	}
 	c.rendre(q, "modele-machine", mod.Titre+" — "+m.Nom, "machines", d)
 }
@@ -230,15 +310,19 @@ func (c *Console) postSeuilsMachine(q *req) {
 	vers := "/machines/" + url.PathEscape(m.Nom) + "/modeles/" + url.PathEscape(mod.Nom)
 	err := c.verifierCode(q)
 	var params map[string]float64
+	var listes map[string][]string
 	if err == nil {
 		params, err = lireParametres(mod, q.r.PostFormValue)
 	}
 	if err == nil {
-		// Modèle venu du groupe : la ligne « actif » de la machine ne sert
-		// qu'à ses seuils (même effet que l'héritage).
-		err = modeles.Definir(q.r.Context(), c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
+		listes, err = lireListesModele(mod, q.r.PostFormValue, c.listesDuGroupe(q.r.Context(), m.Groupe, mod.Nom))
 	}
-	c.retour(q, vers, err, "seuils de « "+mod.Titre+" » enregistrés pour "+m.Nom+" (pris en compte sous une minute)")
+	if err == nil {
+		// Modèle venu du groupe : la ligne « actif » de la machine ne sert
+		// qu'à ses seuils et listes (même effet que l'héritage).
+		err = modeles.Definir(q.r.Context(), c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, params, listes, q.qui(), q.t)
+	}
+	c.retour(q, vers, err, "réglages de « "+mod.Titre+" » enregistrés pour "+m.Nom+" (pris en compte sous une minute)")
 }
 
 // lireParametres : valeurs saisies « p.<nom> » ; vide = hérité (pas de surcharge).
@@ -274,6 +358,7 @@ type vueCatalogue struct {
 type vueGroupeModele struct {
 	Groupe string
 	Params []vueParam
+	Listes []vueListe
 }
 
 type vueCaseGroupe struct {
@@ -327,7 +412,7 @@ func (c *Console) pageModeles(q *req) {
 			a, porte := parGroupe[g][mod.Nom]
 			vc.Cases = append(vc.Cases, vueCaseGroupe{Groupe: g, Coche: porte})
 			if porte {
-				vg := vueGroupeModele{Groupe: g}
+				vg := vueGroupeModele{Groupe: g, Listes: vuesListes(mod, a.Listes, nil)}
 				for _, p := range mod.Parametres {
 					v, sur := p.Defaut, false
 					if x, ok := a.Parametres[p.Nom]; ok {
@@ -415,10 +500,14 @@ func (c *Console) postModeles(q *req) {
 			}
 			vers += "#" + url.PathEscape(mod.Nom)
 			var params map[string]float64
+			var listes map[string][]string
 			if params, err = lireParametres(mod, f); err == nil {
-				err = modeles.Definir(ctx, c.db, modeles.PorteeGroupe(groupe), mod.Nom, modeles.EtatActif, params, q.qui(), q.t)
+				listes, err = lireListesModele(mod, f, nil)
 			}
-			ok = "seuils de « " + mod.Titre + " » enregistrés pour le groupe " + groupe
+			if err == nil {
+				err = modeles.Definir(ctx, c.db, modeles.PorteeGroupe(groupe), mod.Nom, modeles.EtatActif, params, listes, q.qui(), q.t)
+			}
+			ok = "réglages de « " + mod.Titre + " » enregistrés pour le groupe " + groupe
 		default:
 			err = errors.New("action inconnue")
 		}
@@ -466,7 +555,7 @@ func (c *Console) enregistrerGroupes(q *req) (int, error) {
 			if veut {
 				etat = modeles.EtatActif
 			}
-			if err := modeles.Definir(ctx, c.db, modeles.PorteeGroupe(g), mod.Nom, etat, nil, q.qui(), q.t); err != nil {
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeGroupe(g), mod.Nom, etat, nil, nil, q.qui(), q.t); err != nil {
 				errs = append(errs, err)
 				continue
 			}
@@ -512,7 +601,7 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 			continue
 		}
 		for _, mod := range proposes {
-			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, modeles.QuiAuto, t); err != nil {
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, nil, modeles.QuiAuto, t); err != nil {
 				c.journal.Warn("modèle non appliqué automatiquement", "machine", m.Nom, "modele", mod.Nom, "erreur", err)
 				continue
 			}

@@ -71,6 +71,11 @@ type ConfigDistante struct {
 	// qui annoncent la capacité « proxmox ».
 	ProxmoxDisques *config.Duree `json:"proxmox_disques,omitempty"`
 
+	// Checks des modèles de surveillance (SPEC.md § 24.10) : valeurs typées,
+	// jamais de commande. Envoyés seulement aux agents qui annoncent la
+	// capacité « checks ».
+	Checks *[]config.Check `json:"checks,omitempty"`
+
 	Metriques     *bool     `json:"metriques,omitempty"` // non = logs seulement
 	Journal       *bool     `json:"journal,omitempty"`
 	LogsDocker    *bool     `json:"logs_docker,omitempty"`
@@ -117,6 +122,7 @@ func Appliquer(base config.Agent, d *ConfigDistante) (config.Agent, error) {
 	if d.ProxmoxDisques != nil {
 		a.ProxmoxDisques = time.Duration(*d.ProxmoxDisques)
 	}
+	affecter(&a.Checks, d.Checks)
 	affecter(&a.TamponMetriques, d.TamponMetriques)
 	affecter(&a.TamponLogs, d.TamponLogs)
 	affecter(&a.ExclureMontages, d.ExclureMontages)

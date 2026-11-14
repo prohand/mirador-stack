@@ -176,3 +176,8 @@
 <symbol id="i-puce-sim" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><rect x="10" y="11" width="6" height="6" rx="1"/></symbol>
 <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
 </svg>{{end}}
+
+{{/* Liste d'un modèle (partie B) : une valeur par ligne, chacune devient un test de l'agent. */}}
+{{define "liste-modele"}}{{$l := .L}}<label class="pile liste-modele">{{$l.Titre}}{{if .Machine}}{{if $l.Propre}} <small>(propre à cette machine)</small>{{else}} <small>(du groupe ou vide ; modifier ici la rend propre à cette machine)</small>{{end}}{{end}}
+<textarea name="l.{{$l.Nom}}" rows="{{if gt $l.Nb 3}}{{$l.Nb}}{{else}}3{{end}}" cols="60" maxlength="20000" spellcheck="false" placeholder="{{$l.Exemple}}" {{if not .Admin}}disabled{{end}}>{{$l.Texte}}</textarea>
+<small>Une valeur par ligne{{if $l.Aide}} — {{$l.Aide}}{{end}}. Rien de secret : les valeurs apparaissent dans les mesures.</small></label>{{end}}

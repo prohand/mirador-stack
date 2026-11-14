@@ -537,10 +537,44 @@ func TestModelesInterface(t *testing.T) {
 	if !modeles.LireAuto(ctx, b.c.db) {
 		t.Error("application automatique non enregistrée")
 	}
+	// Partie B : « Serveur web » pour le groupe, adresses du groupe ; la
+	// machine a sa propre liste ; checks envoyés à l'agent.
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}, "a": {"web|docker", "web|serveur-web"}})
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"parametres"}, "modele": {"serveur-web"}, "groupe": {"web"},
+		"l.adresses": {"https://exemple.org/\nhttps://192.0.2.1:8006/ non-verifie"}, "p.temps_max_ms": {"3000"}})
+	if _, corps, _ := b.get(c, "/modeles"); !strings.Contains(corps, `name="l.adresses"`) || !strings.Contains(corps, "https://192.0.2.1:8006/ non-verifie</textarea>") {
+		t.Error("page Modèles : liste du groupe absente")
+	}
+	doc, _, _ = flotte.ConfigMachine(ctx, b.c.db, id)
+	if !strings.Contains(string(doc), `"checks":[{"type":"http","nom":"exemple.org","cible":"https://exemple.org/","modele":"serveur-web"}`) ||
+		!strings.Contains(string(doc), `"verifier_tls":false`) {
+		t.Errorf("checks du groupe non envoyés : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/serveur-web"); !strings.Contains(corps, "du groupe ou vide") || !strings.Contains(corps, "https://exemple.org/") {
+		t.Error("page de la machine : liste héritée absente")
+	}
+	// Liste inchangée : reste héritée ; liste modifiée : propre à la machine.
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"https://exemple.org/\r\nhttps://192.0.2.1:8006/ non-verifie"}})
+	effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web")
+	if len(effs) != 3 || effs[2].Modele.Nom != "serveur-web" || effs[2].ListesMach["adresses"] || len(effs[2].Listes["adresses"]) != 2 {
+		t.Errorf("liste identique au groupe enregistrée pour la machine : %+v", effs)
+	}
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"http://127.0.0.1/ contient=Bienvenue"}})
+	if doc, _, _ = flotte.ConfigMachine(ctx, b.c.db, id); !strings.Contains(string(doc), `"contient":"Bienvenue"`) || strings.Contains(string(doc), "exemple.org") {
+		t.Errorf("liste de la machine non envoyée : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/serveur-web"); !strings.Contains(corps, "propre à cette machine") {
+		t.Error("liste propre non signalée")
+	}
+	// Ligne invalide : refusée, rien de changé.
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"file:///etc/shadow"}})
+	if doc2, _, _ := flotte.ConfigMachine(ctx, b.c.db, id); string(doc2) != string(doc) {
+		t.Error("ligne invalide acceptée")
+	}
 	// Sans code 2FA, mode administration fermé (plus de 10 min) : refusé.
 	b.h.avancer(DureeModeAdmin + time.Minute)
-	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux", "docker", "certificats"}})
-	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 2 {
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux", "docker", "serveur-web", "certificats"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 3 {
 		t.Error("modèle ajouté sans code 2FA")
 	}
 }

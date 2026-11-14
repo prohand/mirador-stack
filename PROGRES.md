@@ -711,8 +711,12 @@ free -m
 |---|---|
 | A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; à valider |
 | A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; à valider |
-| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) | à faire |
+| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; à valider après mise à jour de l'agent |
 | C. Modèles personnels dans l'interface | à faire |
+
+Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
+60 s (~0,01 % d'un cœur), 1,8 Mo de mémoire temporaire par passage, aucune
+écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
 
 ## Étape 6 — avancement (SPEC § 23)
 

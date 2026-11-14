@@ -40,7 +40,7 @@ func TestAttribution(t *testing.T) {
 		{PorteeMachine(1), "docker", EtatIgnore, nil},
 		{PorteeMachine(1), "linux", EtatActif, map[string]float64{"disque_libre_pct": 30}},
 	} {
-		if err := Definir(ctx, db, a.portee, a.modele, a.etat, a.params, "admin", t0); err != nil {
+		if err := Definir(ctx, db, a.portee, a.modele, a.etat, a.params, nil, "admin", t0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -74,21 +74,21 @@ func TestAttribution(t *testing.T) {
 	}
 	// Refus : modèle inconnu, paramètre hors bornes ou inconnu, portée invalide.
 	for _, cas := range []func() error{
-		func() error { return Definir(ctx, db, PorteeMachine(1), "inconnu", EtatActif, nil, "admin", t0) },
+		func() error { return Definir(ctx, db, PorteeMachine(1), "inconnu", EtatActif, nil, nil, "admin", t0) },
 		func() error {
-			return Definir(ctx, db, PorteeMachine(1), "linux", EtatActif, map[string]float64{"cpu_pct": 500}, "admin", t0)
+			return Definir(ctx, db, PorteeMachine(1), "linux", EtatActif, map[string]float64{"cpu_pct": 500}, nil, "admin", t0)
 		},
 		func() error {
-			return Definir(ctx, db, PorteeMachine(1), "linux", EtatActif, map[string]float64{"x": 1}, "admin", t0)
+			return Definir(ctx, db, PorteeMachine(1), "linux", EtatActif, map[string]float64{"x": 1}, nil, "admin", t0)
 		},
-		func() error { return Definir(ctx, db, "tout", "linux", EtatActif, nil, "admin", t0) },
+		func() error { return Definir(ctx, db, "tout", "linux", EtatActif, nil, nil, "admin", t0) },
 	} {
 		if cas() == nil {
 			t.Error("attribution invalide acceptée")
 		}
 	}
 	// Retrait : la ligne de la machine disparaît, l'héritage du groupe revient.
-	if err := Definir(ctx, db, PorteeMachine(1), "docker", "", nil, "admin", t0); err != nil {
+	if err := Definir(ctx, db, PorteeMachine(1), "docker", "", nil, nil, "admin", t0); err != nil {
 		t.Fatal(err)
 	}
 	if e1, _ = Effectifs(ctx, db, 1, "web"); len(e1) != 3 {

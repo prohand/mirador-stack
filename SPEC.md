@@ -3722,7 +3722,7 @@ Coût : une lecture et une écriture SQLite par connexion réussie.
 
 ---
 
-## 24. Modèles de surveillance **[Décidé le 14/11 — partie A faite, à valider]**
+## 24. Modèles de surveillance **[Décidé le 14/11 — parties A et B faites, à valider]**
 
 Demande du 14/11 : « dire : cette machine est une machine Linux, donc tu fais
 ces checks » ; « si je veux les certificats, on les lui attribue depuis
@@ -3872,3 +3872,69 @@ liste des machines. Rien n'est attribué sans validation.
 - **Durée du mode administration** réglable dans Réglages › Sécurité
   (`mode_admin`) : 0 = désactivé (code à chaque action sensible), 1 min à
   1 h, défaut 10 min. Changer ce réglage demande un code frais (sécurité).
+
+### 24.10 Partie B : checks faits par l'agent **[Fait, à valider — « Fais la b », 14/11]**
+
+Un modèle peut avoir des **listes** (adresses, ports, fichiers…) : chaque
+ligne devient un **check** fait par l'agent de la machine, étiqueté avec le
+nom du modèle. Les règles du modèle filtrent sur `modele="…"`.
+
+| Type | Ce que fait l'agent | Mesures (étiquettes `type, nom, modele, cible`) |
+|---|---|---|
+| `http` | GET d'une adresse http(s), sans proxy, 3 redirections au plus, 64 Kio lus au plus ; code 2xx/3xx ; texte attendu (`contient=`) ; certificat vérifié sauf `non-verifie` | `mirador_check_ok`, `_duree_secondes`, `_http_code`, `_certificat_fin_timestamp_seconds` |
+| `tcp` | connexion ouverte puis refermée | `_ok`, `_duree_secondes` |
+| `processus` | processus de ce nom (`/proc/PID/comm`), mémoire résidente totale | `_processus_nombre`, `_processus_memoire_octets` |
+| `fichier` | le fichier, ou le plus récent d'un motif `*` (sauvegardes datées) : date et taille (rien n'est lu dedans) | `_fichier_age_secondes`, `_fichier_taille_octets` |
+| `dossier` | taille et nombre de fichiers (sans suivre les liens), 200 000 entrées au plus, toutes les 15 min | `_dossier_taille_octets`, `_dossier_fichiers`, `_dossier_incomplet` |
+| `dns` | résolution avec les serveurs DNS de la machine | `_dns_adresses` |
+| `ping` | un écho ICMP par socket « datagramme » (sans root : `net.ipv4.ping_group_range`) | `_ok`, `_duree_secondes` |
+
+- **Modèles fournis** (5 de plus, 12 en tout) : *Serveur web* (adresses ;
+  temps max 2000 ms, certificat 14 jours ; détecté si nginx, apache2,
+  httpd, caddy, traefik ou lighttpd tourne), *Sauvegarde* (fichiers,
+  dossiers ; âge max 26 h, taille min 1 Mo ; détecté si borgmatic, restic,
+  rsnapshot, duplicati, urbackup, Proxmox Backup Server ou bacula tourne),
+  *Ports TCP*, *Processus* (nombre min 1), *Joignabilité* (ping, noms DNS ;
+  latence max 200 ms). 13 règles.
+- **Listes** : saisies par groupe (page « Modèles ») et par machine (page
+  « Réglages… » du modèle), une valeur par ligne, `#` = commentaire ; la
+  liste de la machine remplace celle du groupe (même vidée) ; identique à
+  celle du groupe : rien n'est enregistré (reste héritée). Pastille « à
+  remplir » sur la machine quand toutes les listes sont vides. Migration
+  0016 : colonne `listes` dans `modeles_attribues`.
+- **Envoi** : clé `checks` de la configuration distante (liste typée,
+  vérifiée par le code de l'agent : `DisallowUnknownFields`, format de
+  chaque cible). Envoyée seulement aux agents qui annoncent la capacité
+  `checks` ; sinon la page le signale (« agent trop ancien »).
+- **Rythme** : tâche de fond de l'agent, toutes les 60 s (dossiers 15 min),
+  8 checks à la fois au plus, délai 10 s par check (30 s au plus) : un site
+  lent ne retarde pas la collecte.
+
+**Coût** (banc d'essai `BenchmarkPassage`, 40 checks : 10 http, 10 tcp, 10
+processus sur le vrai /proc, 10 fichiers) : **6,5 ms par passage** toutes les
+60 s, soit ~0,01 % d'un cœur ; 1,8 Mo de mémoire temporaire par passage
+(rendue par le ramasse-miettes) ; aucune écriture disque. Le check
+`processus` relit /proc à chaque fois (≈ 1 ms pour 500 processus) : à
+regrouper si beaucoup de checks de ce type. Séries : 2 à 5 par check, 50
+checks au plus par machine. Côté serveur : un calcul de plus à chaque
+configuration assemblée. Objectifs agent (< 30 Mio, < 1 % d'un cœur)
+inchangés ✅.
+
+**Menaces** :
+- Jamais de commande : 7 types fixés dans le code de l'agent, cibles
+  vérifiées (adresse http(s) sans identifiant, hôte:port, chemin absolu sans
+  `..`, nom de processus de 15 caractères).
+- Un serveur compromis pourrait faire **sonder le réseau local** par les
+  agents (ports, adresses) : 50 checks au plus, une requête par minute et
+  par check, résultat réduit à « ok / durée / code » (le contenu des pages
+  n'est jamais renvoyé ; un fichier n'est jamais lu, seules sa date et sa
+  taille). Refus local possible : ligne `MIRADOR_CHECKS=non` dans
+  `/etc/mirador-agent/agent.conf` (fichier de root, le serveur ne peut pas
+  le changer) ; l'agent ignore alors la clé `checks`.
+- Fichiers et dossiers : l'agent ne voit que ce que son utilisateur
+  (`mirador-agent`, sans droits) peut lire.
+- Les cibles apparaissent dans les mesures (étiquette `cible`) : l'interface
+  rappelle de n'y mettre aucun secret ; une adresse avec identifiant est
+  refusée.
+- `non-verifie` : choisi par l'admin pour un certificat maison ; la date de
+  fin reste mesurée et alertée.
