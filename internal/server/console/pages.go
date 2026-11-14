@@ -26,6 +26,7 @@ import (
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
 )
@@ -36,6 +37,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /fragments/accueil", c.lecture(c.fragmentAccueil))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
+	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
 	m.HandleFunc("GET /machines/{nom}", c.lecture(c.pageMachine))
 	m.HandleFunc("POST /machines/{nom}", c.admin(c.postMachine))
 	m.HandleFunc("GET /mises-a-jour", c.lecture(c.pageMisesAJour))
@@ -201,6 +203,9 @@ type donneesMachines struct {
 	Jeton                         string         // jeton tout juste créé (affiché une seule fois)
 	OptionEnvoi                   string         // options du script : « --sans-logs », « --sans-metriques », « --auto-update »
 	Listes                        ListesMachines // sites, types et groupes proposés (Réglages)
+	// Équipement sans agent (OPNsense / Telegraf) tout juste créé : son
+	// token n'est affiché qu'ici, une seule fois.
+	Equipement, TokenEquipement string
 }
 
 func (c *Console) pageMachines(q *req) {
@@ -231,6 +236,55 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 	d.Ingestion = lireInterface(q.r.Context(), c.db).Ingestion
 	d.Listes = c.lireListes(q.r.Context())
 	return d
+}
+
+// postEquipement : équipement sans agent qui envoie au format InfluxDB
+// (OPNsense avec Telegraf, SPEC § 23.10) : machine approuvée tout de suite,
+// token affiché une seule fois. Refusé pour un nom existant : on ne
+// remplace jamais le token d'une machine en service par ce formulaire.
+func (c *Console) postEquipement(q *req) {
+	ctx := q.r.Context()
+	f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
+	nom := strings.ToLower(f("nom"))
+	var token string
+	err := c.verifierCode(q)
+	if err == nil {
+		switch {
+		case !flotte.FormatNom.MatchString(nom):
+			err = errors.New("nom invalide (lettres, chiffres, « . », « _ », « - »)")
+		default:
+			if _, e := flotte.IDMachine(ctx, c.db, nom); !errors.Is(e, flotte.ErrMachineInconnue) {
+				err = fmt.Errorf("la machine %q existe déjà : choisir un autre nom", nom)
+			}
+		}
+	}
+	if err == nil {
+		err = c.lireListes(ctx).verifierChoix(f("site"), f("env"), f("groupe"), "", "", "")
+	}
+	if err == nil {
+		if _, e := ingestion.LireIPs(f("ips")); e != nil {
+			err = fmt.Errorf("adresses autorisées : %w", e)
+		}
+	}
+	if err == nil {
+		token, err = flotte.TokenManuel(ctx, c.db, nom, q.qui(), q.t)
+	}
+	if err == nil {
+		err = errors.Join(flotte.DefinirIPs(ctx, c.db, nom, f("ips"), q.qui(), q.t),
+			flotte.DefinirEtiquettes(ctx, c.db, nom, f("site"), f("env"), f("groupe"), q.qui(), q.t))
+	}
+	if err != nil && token == "" {
+		c.retour(q, "/machines#equipement", err, "")
+		return
+	}
+	d := c.donneesMachines(q)
+	d.Equipement, d.TokenEquipement = nom, token
+	if err != nil {
+		c.flash(q, "", "équipement créé, mais : "+err.Error())
+	} else {
+		c.flash(q, "équipement « "+nom+" » créé : copier son token maintenant, il n'est affiché qu'ici", "")
+	}
+	c.rendre(q, "machines", "Machines", "machines", d)
 }
 
 // postJeton : jeton d'enrôlement à usage unique, affiché une seule fois.

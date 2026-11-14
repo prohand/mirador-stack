@@ -35,7 +35,10 @@ OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin
 `pf_entries`…, étiquette `host`) : le tableau « OPNsense » et les règles
 importées marchent tels quels.
 
-1. Une machine et son token (affiché une seule fois) :
+1. Une machine et son token (affiché une seule fois). Dans l'interface :
+   Machines › « Équipement sans agent (OPNsense / Telegraf) » (nom, site,
+   type, groupe, adresse autorisée, code 2FA) ; la page affiche ensuite le
+   token et les réglages de Telegraf. Ou en ligne de commande :
 
    ```bash
    MS token opnsense
