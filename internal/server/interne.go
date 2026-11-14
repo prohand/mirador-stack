@@ -14,6 +14,7 @@ import (
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
 	"mirador-stack/internal/server/stockage"
@@ -109,6 +110,25 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 			}
 			if m.MajEchec != "" {
 				ajout("mirador_machine_maj_echec", 1, "instance", m.Nom, "version", m.MajEchec)
+			}
+			// Modèles de surveillance (SPEC § 24.2) : seuil effectif de chaque
+			// paramètre (les règles des modèles s'y comparent) et règles
+			// importées remplacées pour cette machine.
+			if effs, err := modeles.Effectifs(ctx, s.db, m.ID, m.Groupe); err == nil {
+				for _, e := range effs {
+					ajout("mirador_machine_modele", 1, "instance", m.Nom, "modele", e.Modele.Nom)
+					for p, v := range e.Parametres {
+						ajout("mirador_modele_parametre", v, "instance", m.Nom, "modele", e.Modele.Nom, "parametre", p)
+					}
+					for _, r := range e.Modele.Regles {
+						if r.Remplace != "" {
+							ajout("mirador_machine_regle_remplacee", 1, "instance", m.Nom, "regle", r.Remplace)
+						}
+					}
+					for _, svc := range e.Services {
+						ajout("mirador_modele_service", 1, "instance", m.Nom, "modele", e.Modele.Nom, "name", svc)
+					}
+				}
 			}
 		}
 	}

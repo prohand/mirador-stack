@@ -1,0 +1,47 @@
+{
+ "version": 1,
+ "nom": "certificats",
+ "titre": "Certificats",
+ "icone": "cadenas",
+ "description": "Certificats TLS de la machine (dossiers standard, et chemins ajoutés sur la page de la machine), avec les délais d'alerte réglables.",
+ "detection": "count by (instance) (ssl_certs_found_total > 0)",
+ "config": {
+  "envoyer_certificats": true
+ },
+ "parametres": [
+  {
+   "nom": "jours_avertissement",
+   "titre": "Avertissement : expire dans moins de",
+   "unite": "jours",
+   "defaut": 21,
+   "min": 1,
+   "max": 365
+  },
+  {
+   "nom": "jours_critique",
+   "titre": "Critique : expire dans moins de",
+   "unite": "jours",
+   "defaut": 7,
+   "min": 1,
+   "max": 365
+  }
+ ],
+ "regles": [
+  {
+   "nom": "CertExpireBientot",
+   "remplace": "CertificatExpireBientot",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "(ssl_cert_not_after_timestamp_seconds - time()) / 86400 < $jours_avertissement",
+   "resume": "Le certificat {{ $labels.cn }} ({{ $labels.path }}) de {{ $labels.instance }} expire dans {{ $value | humanize }} jours"
+  },
+  {
+   "nom": "CertExpireTresBientot",
+   "remplace": "CertificatExpireTresBientot",
+   "pour": "10m",
+   "gravite": "critical",
+   "expr": "(ssl_cert_not_after_timestamp_seconds - time()) / 86400 < $jours_critique",
+   "resume": "Le certificat {{ $labels.cn }} ({{ $labels.path }}) de {{ $labels.instance }} expire dans {{ $value | humanize }} jours"
+  }
+ ]
+}

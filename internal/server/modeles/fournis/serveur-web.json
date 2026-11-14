@@ -1,0 +1,59 @@
+{
+ "version": 1,
+ "nom": "serveur-web",
+ "titre": "Serveur web",
+ "icone": "globe",
+ "description": "Sites et API testés par l'agent de la machine : réponse (code 2xx/3xx), texte attendu, temps de réponse et fin du certificat.",
+ "detection": "count by (instance) (node_systemd_unit_state{name=~\"(nginx|apache2|httpd|caddy|traefik|lighttpd)\\\\.service\", state=\"active\"} == 1)",
+ "listes": [
+  {
+   "nom": "adresses",
+   "titre": "Adresses à tester",
+   "type": "http",
+   "exemple": "https://127.0.0.1/\nhttps://exemple.org/sante contient=ok\nhttps://192.0.2.10:8006/ non-verifie",
+   "aide": "adresse http:// ou https:// ; après l'adresse : « non-verifie » (certificat maison) et/ou « contient=texte attendu »"
+  }
+ ],
+ "parametres": [
+  {
+   "nom": "temps_max_ms",
+   "titre": "Lent : réponse au-delà de",
+   "unite": "ms",
+   "defaut": 2000,
+   "min": 50,
+   "max": 30000
+  },
+  {
+   "nom": "jours_cert",
+   "titre": "Certificat : alerte s'il expire dans moins de",
+   "unite": "jours",
+   "defaut": 14,
+   "min": 1,
+   "max": 365
+  }
+ ],
+ "regles": [
+  {
+   "nom": "WebInjoignable",
+   "pour": "3m",
+   "gravite": "critical",
+   "expr": "mirador_check_ok{modele=\"serveur-web\"} == 0",
+   "resume": "{{ $labels.cible }} ne répond pas correctement (testé depuis {{ $labels.instance }})",
+   "description": "Pas de réponse, code d'erreur (4xx/5xx), texte attendu absent ou certificat refusé."
+  },
+  {
+   "nom": "WebLent",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "mirador_check_duree_secondes{modele=\"serveur-web\", type=\"http\"} * 1000 > $temps_max_ms",
+   "resume": "{{ $labels.cible }} répond lentement ({{ $value | humanize }} ms, testé depuis {{ $labels.instance }})"
+  },
+  {
+   "nom": "WebCertificatExpire",
+   "pour": "1h",
+   "gravite": "warning",
+   "expr": "(mirador_check_certificat_fin_timestamp_seconds{modele=\"serveur-web\"} - time()) / 86400 < $jours_cert",
+   "resume": "Le certificat de {{ $labels.cible }} expire dans {{ $value | humanize }} jours"
+  }
+ ]
+}

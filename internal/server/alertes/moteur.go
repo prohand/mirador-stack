@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -87,6 +88,10 @@ type Options struct {
 	// Limites de chaque évaluation (protection mémoire et CPU).
 	MaxPoints int           // points chargés en même temps : 1 000 000 par défaut (~16 Mo)
 	Delai     time.Duration // 10 s par défaut
+	// Remplacees : règles qu'un modèle de surveillance remplace (SPEC § 24.2)
+	// pour les machines qui le portent. Elles sont évaluées avec
+	// « unless on (instance) mirador_machine_regle_remplacee{regle="…"} ».
+	Remplacees func(regle string) bool
 }
 
 // etatRegle : une règle chargée et son état d'évaluation.
@@ -449,7 +454,7 @@ func (m *Moteur) requete(ctx context.Context, expr string, ts time.Time) ([]resu
 // false si le stockage a échoué.
 func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Evenement, bool) {
 	t0 := time.Now()
-	res, err := m.requete(ctx, r.def.Expr, ts)
+	res, err := m.requete(ctx, m.exprEvaluee(&r.def), ts)
 	duree := time.Since(t0)
 
 	m.mu.Lock()
@@ -723,4 +728,14 @@ func (m *Moteur) DureeCumulee() time.Duration {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.cumul
+}
+
+// exprEvaluee : expression de la règle, sauf pour les machines qui portent un
+// modèle qui la remplace (SPEC § 24.2). Une règle de modèle n'est jamais
+// remplacée.
+func (m *Moteur) exprEvaluee(r *Regle) string {
+	if m.opt.Remplacees == nil || !m.opt.Remplacees(r.Nom) || strings.HasPrefix(r.Origine, "modele:") {
+		return r.Expr
+	}
+	return "(" + r.Expr + `) unless on (instance) mirador_machine_regle_remplacee{regle="` + r.Nom + `"}`
 }

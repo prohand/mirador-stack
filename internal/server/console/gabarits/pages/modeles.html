@@ -1,0 +1,58 @@
+{{define "contenu"}}{{$d := .D}}
+<h1>Modèles de surveillance</h1>
+{{template "onglets-machines" "modeles"}}
+<p>Un modèle dit « cette machine est une machine Linux (ou Docker, Proxmox…), donc on y surveille ceci, avec ces alertes et ces seuils ». Cocher ici les modèles de chaque groupe (toutes ses machines les reçoivent), ou sur la page d'une machine. Quand un modèle a une règle équivalente à une règle importée, celle-ci se tait pour les machines qui portent le modèle.</p>
+
+<section class="carte">
+<h2>Application automatique</h2>
+<form method="post" action="/modeles" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="auto">
+<label class="case"><input type="checkbox" name="auto" value="oui" {{if $d.Auto}}checked{{end}} {{if not $.Admin}}disabled{{end}}> Appliquer automatiquement les modèles détectés sur les machines</label>
+{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form>
+<p><small>Chaque modèle appliqué ainsi est signalé par les canaux de notification et marqué « auto » sur la page de la machine (décocher pour le retirer : il ne revient pas). Désactivé : les modèles détectés sont seulement proposés.</small></p>
+</section>
+
+<section class="carte">
+<h2>Modèles par groupe</h2>
+{{if $d.Groupes}}<form method="post" action="/modeles">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="groupes">
+<div class="defile"><table class="matrice"><thead><tr><th>Modèle</th>{{range $d.Groupes}}<th>{{.}}</th>{{end}}<th>Machines</th></tr></thead><tbody>
+{{range $d.Catalogue}}{{$mod := .M}}<tr><td><a href="#{{$mod.Nom}}"><strong>{{$mod.Titre}}</strong></a>{{if $mod.Perso}} <small>(personnel)</small>{{end}}</td>
+{{range .Cases}}<td><input type="checkbox" name="a" value="{{.Groupe}}|{{$mod.Nom}}" aria-label="{{$mod.Titre}} pour le groupe {{.Groupe}}" {{if .Coche}}checked{{end}} {{if not $.Admin}}disabled{{end}}></td>{{end}}
+<td><small>{{.NbMach}}{{if .NbDetec}} · <span class="pastille attention" title="Détecté sans être appliqué">★ {{.NbDetec}}</span>{{end}}</small></td></tr>{{end}}
+</tbody></table></div>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>{{else}}<p class="vide">Aucun groupe : en créer dans <a href="/reglages/sites">Réglages › Sites, types et groupes</a>, ou cocher les modèles sur la page de chaque machine.</p>{{end}}
+</section>
+
+<section class="carte" id="perso">
+<h2>Modèles personnels</h2>
+<p>Créer un modèle pour une application à soi (adresses, ports, processus, fichiers à tester, seuils, règles), partir d'un modèle livré (« Dupliquer », dans son détail plus bas), ou importer le JSON exporté d'un autre serveur.</p>
+{{if $.Admin}}<p><a class="bouton" href="/modeles/nouveau">Nouveau modèle</a></p>
+<details><summary>Importer un modèle (JSON)</summary>
+<form method="post" action="/modeles/perso" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
+<textarea name="json" rows="8" cols="80" maxlength="65536" spellcheck="false" required placeholder='{"version": 1, "nom": "mon-appli", "titre": "Mon application", …}'></textarea>
+<small>Même format que « Exporter en JSON ». Un modèle personnel du même nom est remplacé ; un modèle livré ne peut pas l'être.</small>
+<div class="ligne">{{template "code2fa"}}<button>Importer</button></div></form></details>{{end}}
+</section>
+
+<h2>Détail des modèles</h2>
+<p><small><strong>Services attendus</strong> : surveillés sur toutes les machines du modèle (même si elles ne surveillent que les services validés un par un), avec une alerte si l'un d'eux n'existe pas. Un service en échec ou arrêté est signalé par les règles des services.</small></p>
+{{range $d.Catalogue}}{{$mod := .M}}<details class="carte modele" id="{{$mod.Nom}}"><summary><strong>{{$mod.Titre}}</strong>{{if $mod.Perso}} <span class="pastille">personnel</span>{{end}} <small class="sous">{{len $mod.Regles}} règle(s) · {{len $mod.Parametres}} seuil(s) · {{len .Services}} service(s){{if $mod.Listes}} · tests de l'agent{{end}}</small>{{if .Suggeres}} <span class="pastille attention">★ {{len .Suggeres}} service(s) suggéré(s)</span>{{end}}</summary>
+<p>{{$mod.Description}}</p>
+<p class="ligne">{{if $mod.Perso}}{{if $.Admin}}<a class="bouton" href="/modeles/perso/{{$mod.Nom}}">Modifier</a>{{else}}<a href="/modeles/perso/{{$mod.Nom}}">Voir le modèle</a>{{end}}{{end}}{{if $.Admin}} <a class="bouton secondaire" href="/modeles/nouveau?depuis={{$mod.Nom}}">Dupliquer</a>{{end}} <a href="/modeles/export/{{$mod.Nom}}">Exporter en JSON</a></p>
+{{if $mod.Regles}}<h3>Règles</h3><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul>{{end}}
+<h3>Services attendus</h3>
+{{if .Suggeres}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services_ajouter">
+<p>★ Vus sur toutes les machines du modèle (et pas sur toutes les autres) : {{range $i, $x := .Suggeres}}{{if $i}}, {{end}}<label class="case"><input type="checkbox" name="s" value="{{$x}}" checked> <code>{{$x}}</code></label>{{end}}</p>
+{{if $.Admin}}{{template "code2fa"}}<button class="secondaire">Ajouter à la liste</button>{{end}}</form>{{end}}
+<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="services">
+<label>Services (séparés par des virgules) <input name="services" value="{{range $i, $x := .Services}}{{if $i}}, {{end}}{{$x}}{{end}}" size="60" maxlength="4000" placeholder="nginx.service, php8.2-fpm.service" {{if not $.Admin}}disabled{{end}}></label>
+{{if $.Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form>
+{{if $mod.Listes}}<p><small>À tester : {{range $i, $l := $mod.Listes}}{{if $i}} ; {{end}}{{$l.Titre}}{{end}}. Les listes se remplissent par groupe (ci-dessous) ou par machine (« Réglages… » sur sa page).</small></p>{{end}}
+{{if and .Groupes (or $mod.Parametres $mod.Listes)}}<h3>Réglages par groupe</h3>{{range .Groupes}}{{$g := .Groupe}}<form method="post" action="/modeles" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="groupe" value="{{$g}}"><input type="hidden" name="action" value="parametres">
+<p><strong>{{$g}}</strong></p>
+{{range .Listes}}{{template "liste-modele" dict "L" . "Admin" $.Admin "Machine" false}}{{end}}
+<div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+</form>{{end}}{{end}}
+</details>{{end}}
+{{end}}

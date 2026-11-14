@@ -14,7 +14,9 @@ import (
 	"mime/multipart"
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -344,7 +346,8 @@ func TestClePubliqueInterface(t *testing.T) {
 	if !strings.Contains(corps, cle) || !strings.Contains(corps, majagent.EmpreinteCle(cle)) {
 		t.Fatal("clé ou empreinte absente de la page")
 	}
-	// Sans code 2FA : refusé.
+	// Sans code 2FA, mode administration fermé (plus de 10 min) : refusé.
+	b.h.avancer(DureeModeAdmin + time.Minute)
 	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {""}})
 	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, cle) {
 		t.Error("clé effacée sans code 2FA")
@@ -450,5 +453,177 @@ func TestEquipementSansAgent(t *testing.T) {
 	_ = b.c.db.QueryRow(`SELECT count(*) FROM tokens t JOIN machines m ON m.id = t.machine_id WHERE m.nom = 'opnsense' AND t.revoque_le = 0`).Scan(&n)
 	if n != 1 {
 		t.Errorf("token remplacé : %d actif(s)", n)
+	}
+}
+
+// Modèles de surveillance (SPEC § 24, version simplifiée du 14/11) : cases
+// à cocher sur la page de la machine, seuils sur leur page, tableau
+// modèles × groupes, services, application automatique.
+func TestModelesInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, groupe, cree_le) VALUES ('web1', 'approuvee', 'agent', 'web', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := flotte.IDMachine(ctx, b.c.db, "web1")
+	csrf := b.csrf(c, "/machines/web1")
+	if _, corps, _ := b.get(c, "/machines/web1"); !strings.Contains(corps, `id="modeles"`) || !strings.Contains(corps, `name="m" value="linux"`) {
+		t.Fatal("bloc Modèles absent")
+	}
+	// Cocher Linux.
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux"}, "code": {b.code(secret)}})
+	effs, _ := modeles.Effectifs(ctx, b.c.db, id, "web")
+	if len(effs) != 1 || effs[0].Modele.Nom != "linux" {
+		t.Fatalf("après coche : %+v", effs)
+	}
+	// Seuils de la machine (mode administration : sans nouveau code).
+	b.post(c, "/machines/web1/modeles/linux", url.Values{"csrf": {csrf}, "p.disque_libre_pct": {"25"}, "p.cpu_pct": {""}})
+	effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web")
+	if effs[0].Parametres["disque_libre_pct"] != 25 || effs[0].Surcharges["cpu_pct"] {
+		t.Fatalf("seuils : %+v", effs)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/linux"); !strings.Contains(corps, `value="25"`) {
+		t.Error("page des seuils : valeur absente")
+	}
+	// Hors bornes : refusé, rien de changé.
+	b.post(c, "/machines/web1/modeles/linux", url.Values{"csrf": {csrf}, "p.disque_libre_pct": {"500"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); effs[0].Parametres["disque_libre_pct"] != 25 {
+		t.Error("seuil hors bornes accepté")
+	}
+	// Configuration de l'agent : clés du modèle présentes.
+	doc, _, err := flotte.ConfigMachine(ctx, b.c.db, id)
+	if err != nil || !strings.Contains(string(doc), `"systemd":true`) {
+		t.Errorf("configuration : %s %v", doc, err)
+	}
+	// Groupe : Docker coché dans le tableau de la page « Modèles ».
+	b.post(c, "/reglages/sites", url.Values{"csrf": {csrf}, "liste": {"groupes"}, "action": {"ajouter"}, "valeur": {"web"}})
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}, "a": {"web|docker"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 2 || effs[0].Modele.Nom != "docker" || !effs[0].DuGroupe {
+		t.Fatalf("après le tableau des groupes : %+v", effs)
+	}
+	if _, corps, _ := b.get(c, "/modeles"); !strings.Contains(corps, `value="web|docker" aria-label="Docker pour le groupe web" checked`) {
+		t.Error("page Modèles : case du groupe non cochée")
+	}
+	// Machine : Docker décoché → retiré pour elle seule (ignoré), le groupe le garde.
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 1 {
+		t.Errorf("après décoche : %+v", effs)
+	}
+	if ign, _ := modeles.Ignores(ctx, b.c.db, id); !ign["docker"] {
+		t.Error("docker du groupe : ignoré pour la machine attendu")
+	}
+	// Recoché : la ligne « ignoré » disparaît, l'héritage revient.
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux", "docker"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 2 || !effs[0].DuGroupe {
+		t.Errorf("après recoche : %+v", effs)
+	}
+	// Services attendus du modèle Linux.
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"services"}, "modele": {"linux"}, "services": {"nginx.service, ssh.service"}})
+	if doc, _, _ := flotte.ConfigMachine(ctx, b.c.db, id); !strings.Contains(string(doc), `"nginx.service","ssh.service"`) {
+		t.Errorf("services du modèle non envoyés : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/linux"); !strings.Contains(corps, "<code>nginx.service</code>") {
+		t.Error("services du modèle absents de la page des seuils")
+	}
+	// Services suggérés cochés : ajoutés à la liste (sans doublon).
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"services_ajouter"}, "modele": {"linux"}, "s": {"chrony.service", "ssh.service"}})
+	if l, _ := modeles.Services(ctx, b.c.db, modeles.Trouver("linux")); strings.Join(l, ",") != "chrony.service,nginx.service,ssh.service" {
+		t.Errorf("services après ajout : %v", l)
+	}
+	// Application automatique : réglage enregistré.
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"auto"}, "auto": {"oui"}})
+	if !modeles.LireAuto(ctx, b.c.db) {
+		t.Error("application automatique non enregistrée")
+	}
+	// Partie B : « Serveur web » pour le groupe, adresses du groupe ; la
+	// machine a sa propre liste ; checks envoyés à l'agent.
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}, "a": {"web|docker", "web|serveur-web"}})
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"parametres"}, "modele": {"serveur-web"}, "groupe": {"web"},
+		"l.adresses": {"https://exemple.org/\nhttps://192.0.2.1:8006/ non-verifie"}, "p.temps_max_ms": {"3000"}})
+	if _, corps, _ := b.get(c, "/modeles"); !strings.Contains(corps, `name="l.adresses"`) || !strings.Contains(corps, "https://192.0.2.1:8006/ non-verifie</textarea>") {
+		t.Error("page Modèles : liste du groupe absente")
+	}
+	doc, _, _ = flotte.ConfigMachine(ctx, b.c.db, id)
+	if !strings.Contains(string(doc), `"checks":[{"type":"http","nom":"exemple.org","cible":"https://exemple.org/","modele":"serveur-web"}`) ||
+		!strings.Contains(string(doc), `"verifier_tls":false`) {
+		t.Errorf("checks du groupe non envoyés : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/serveur-web"); !strings.Contains(corps, "du groupe ou vide") || !strings.Contains(corps, "https://exemple.org/") {
+		t.Error("page de la machine : liste héritée absente")
+	}
+	// Liste inchangée : reste héritée ; liste modifiée : propre à la machine.
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"https://exemple.org/\r\nhttps://192.0.2.1:8006/ non-verifie"}})
+	effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web")
+	if len(effs) != 3 || effs[2].Modele.Nom != "serveur-web" || effs[2].ListesMach["adresses"] || len(effs[2].Listes["adresses"]) != 2 {
+		t.Errorf("liste identique au groupe enregistrée pour la machine : %+v", effs)
+	}
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"http://127.0.0.1/ contient=Bienvenue"}})
+	if doc, _, _ = flotte.ConfigMachine(ctx, b.c.db, id); !strings.Contains(string(doc), `"contient":"Bienvenue"`) || strings.Contains(string(doc), "exemple.org") {
+		t.Errorf("liste de la machine non envoyée : %s", doc)
+	}
+	if _, corps, _ := b.get(c, "/machines/web1/modeles/serveur-web"); !strings.Contains(corps, "propre à cette machine") {
+		t.Error("liste propre non signalée")
+	}
+	// Ligne invalide : refusée, rien de changé.
+	b.post(c, "/machines/web1/modeles/serveur-web", url.Values{"csrf": {csrf}, "l.adresses": {"file:///etc/shadow"}})
+	if doc2, _, _ := flotte.ConfigMachine(ctx, b.c.db, id); string(doc2) != string(doc) {
+		t.Error("ligne invalide acceptée")
+	}
+	// Sans code 2FA, mode administration fermé (plus de 10 min) : refusé.
+	b.h.avancer(DureeModeAdmin + time.Minute)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"linux", "docker", "serveur-web", "certificats"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 3 {
+		t.Error("modèle ajouté sans code 2FA")
+	}
+}
+
+// Mode administration (demande du 14/11) : après un code juste, 10 min sans
+// code ; la sécurité des comptes redemande toujours ; « Quitter » ferme.
+func TestModeAdmin(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/mises-a-jour")
+	cle1, cle2 := strings.Repeat("B", 43)+"=", strings.Repeat("C", 43)+"="
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle1}, "code": {b.code(secret)}})
+	_, corps, _ := b.get(c, "/mises-a-jour")
+	if !strings.Contains(corps, "Mode administration jusqu") || !strings.Contains(corps, "data-mode-admin=") {
+		t.Fatal("bandeau du mode administration absent")
+	}
+	// 5 min plus tard, sans code : accepté.
+	b.h.avancer(5 * time.Minute)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle2}})
+	if _, corps, _ = b.get(c, "/mises-a-jour"); !strings.Contains(corps, cle2) {
+		t.Fatal("mode administration : action sans code refusée")
+	}
+	// Sécurité des comptes : code toujours demandé (ex. nouveaux codes de secours).
+	b.post(c, "/compte/codes-secours", url.Values{"csrf": {csrf}})
+	if _, corps, _ = b.get(c, "/compte"); strings.Contains(corps, `class="codes-secours"`) {
+		t.Error("codes de secours recréés sans code 2FA")
+	}
+	// Durée réglée à 0 (Réglages › Sécurité) : le mode est désactivé.
+	sec := SecuriteDefaut()
+	sec.ModeAdmin = 0
+	b.c.securite.Store(&sec)
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle1}})
+	if _, corps, _ = b.get(c, "/mises-a-jour"); strings.Contains(corps, cle1) {
+		t.Error("mode administration désactivé : action sans code acceptée")
+	}
+	sec = SecuriteDefaut()
+	b.c.securite.Store(&sec)
+	for _, mauvais := range []time.Duration{30 * time.Second, 2 * time.Hour} {
+		s := SecuriteDefaut()
+		s.ModeAdmin = alertes.Duree(mauvais)
+		if s.Valider() == nil {
+			t.Errorf("mode administration %v accepté", mauvais)
+		}
+	}
+	// Quitter : le code est de nouveau demandé.
+	b.post(c, "/mode-admin/quitter", url.Values{"csrf": {csrf}})
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle1}})
+	if _, corps, _ = b.get(c, "/mises-a-jour"); strings.Contains(corps, cle1) || strings.Contains(corps, "Mode administration jusqu") {
+		t.Error("après « Quitter », action sans code acceptée")
 	}
 }

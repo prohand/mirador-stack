@@ -65,6 +65,10 @@ type Session struct {
 	NomPasskey    string
 	// Codes de secours tout juste créés : affichés une seule fois.
 	CodesSecours []string
+	// AdminJusqua : mode administration (demande du 14/11) : après un code
+	// 2FA juste, les actions sensibles passent sans nouveau code jusqu'à
+	// cette heure (sauf la sécurité des comptes, qui redemande toujours).
+	AdminJusqua time.Time
 }
 
 // PrendreDefiPasskey rend le défi en cours s'il est encore valable, et

@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -146,13 +147,31 @@ func fonctions() template.FuncMap {
 			}
 			return t.In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
-		"depuisS":   func(s int64) string { return depuis(s * 1000) },
-		"depuisMs":  depuis,
-		"duree":     func(d time.Duration) string { return dureeLisible(d) },
-		"taille":    tailleLisible,
-		"pct":       func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
-		"egal":      func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
-		"sub":       func(a, b int) int { return a - b },
+		"depuisS":  func(s int64) string { return depuis(s * 1000) },
+		"depuisMs": depuis,
+		"duree":    func(d time.Duration) string { return dureeLisible(d) },
+		"taille":   tailleLisible,
+		"pct":      func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
+		"egal":     func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
+		"sub":      func(a, b int) int { return a - b },
+		"seuil":    formatSeuil,
+		// barres : texte sur plusieurs lignes → une ligne (« | » entre elles).
+		"barres": func(s string) string { return strings.ReplaceAll(s, "\n", " | ") },
+		// dict : paramètres nommés pour un morceau de gabarit (« clé », valeur…).
+		"dict": func(kv ...any) (map[string]any, error) {
+			if len(kv)%2 != 0 {
+				return nil, errors.New("dict : nombre d'arguments impair")
+			}
+			m := make(map[string]any, len(kv)/2)
+			for i := 0; i < len(kv); i += 2 {
+				k, ok := kv[i].(string)
+				if !ok {
+					return nil, errors.New("dict : clé non texte")
+				}
+				m[k] = kv[i+1]
+			}
+			return m, nil
+		},
 		"liste":     func(v ...string) []string { return v },
 		"dansListe": func(s string, l []string) bool { return slices.Contains(l, s) },
 		// choixIcone : données du morceau « choix-icone » (éditeur).
@@ -399,9 +418,12 @@ type Page struct {
 	CSRF          string
 	Flash, Alerte string
 	ModeOmbre     bool
+	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
 	AConfirmer    []AConfirmer
 	Version       string
-	Theme         string
+	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
+	ThemeChoix    string // choix affiché dans le sélecteur : clair, sombre, auto
+	Chemin        string // page affichée (retour après le choix du thème sans JavaScript)
 	Disposition   string // gauche ou haut (réglage « Interface »)
 	Replie        bool   // menu replié par défaut
 	NbAlertes     int    // alertes actives (compteur du menu)
@@ -423,13 +445,24 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	if c.opt.Aiguilleur != nil {
 		p.ModeOmbre = c.opt.Aiguilleur.Mode() == "ombre"
 	}
+	if q.t.Before(q.s.AdminJusqua) {
+		p.ModeAdmin = q.s.AdminJusqua.In(fuseau.Load()).Format("15:04")
+	}
 	p.AConfirmer, _ = ListerAConfirmer(q.r.Context(), c.db)
 	p.Olvid = c.olvidActive(q.r.Context())
+	// Thème : celui choisi par l'utilisateur (sélecteur du menu), sinon
+	// celui du serveur (Réglages › Interface) ; « auto » suit le système.
+	p.Chemin = q.r.URL.RequestURI()
+	p.ThemeChoix = "auto"
 	if r := c.interfaceCourante.Load(); r != nil {
-		if r.Theme != "auto" {
-			p.Theme = r.Theme
-		}
+		p.ThemeChoix = r.Theme
 		p.Disposition, p.Replie = r.Menu, r.MenuReplie
+	}
+	if auth.ThemesUtilisateur[q.u.Theme] {
+		p.ThemeChoix = q.u.Theme
+	}
+	if p.ThemeChoix != "auto" {
+		p.Theme = p.ThemeChoix
 	}
 	if p.Disposition == "" {
 		p.Disposition = "gauche"

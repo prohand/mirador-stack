@@ -1,0 +1,35 @@
+{
+ "version": 1,
+ "nom": "docker",
+ "titre": "Docker",
+ "icone": "machines",
+ "description": "Conteneurs : état, redémarrages, santé, mémoire (proxy de socket en lecture seule), avec le seuil de mémoire réglable.",
+ "detection": "count by (instance) (node_docker_up)",
+ "config": {
+  "docker_metriques": true
+ },
+ "parametres": [
+  {
+   "nom": "conteneur_memoire_pct",
+   "titre": "Mémoire d'un conteneur : alerte au-dessus de (% de sa limite)",
+   "unite": "%",
+   "defaut": 90,
+   "min": 10,
+   "max": 100
+  }
+ ],
+ "regles": [
+  {
+   "nom": "DockerConteneurMemoireSaturee",
+   "remplace": "ConteneurMemoireSaturee",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "node_docker_container_memory_bytes / node_docker_container_memory_limit_bytes * 100 > $conteneur_memoire_pct",
+   "resume": "{{ $labels.name }} utilise {{ $value | humanize }} % de sa limite mémoire sur {{ $labels.instance }}"
+  }
+ ],
+ "services": [
+  "containerd.service",
+  "docker.service"
+ ]
+}

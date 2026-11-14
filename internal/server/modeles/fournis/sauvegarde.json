@@ -1,0 +1,79 @@
+{
+ "version": 1,
+ "nom": "sauvegarde",
+ "titre": "Sauvegarde",
+ "icone": "disque",
+ "description": "Fichiers et dossiers de sauvegarde : présents, récents et d'une taille plausible. Rien n'est lu dans les fichiers : seulement leur date et leur taille.",
+ "detection": "count by (instance) (node_systemd_unit_state{name=~\"(borgmatic|restic|rsnapshot|duplicati|urbackupsrv|proxmox-backup-proxy|bacula-fd)\\\\.(service|timer)\", state=\"active\"} == 1)",
+ "listes": [
+  {
+   "nom": "fichiers",
+   "titre": "Fichiers de sauvegarde",
+   "type": "fichier",
+   "exemple": "/srv/sauvegardes/base-*.sql.gz\n/var/backups/etc.tar.gz",
+   "aide": "chemin absolu ; « * » accepté : le fichier le plus récent est pris (sauvegardes datées)"
+  },
+  {
+   "nom": "dossiers",
+   "titre": "Dossiers de sauvegarde",
+   "type": "dossier",
+   "exemple": "/srv/sauvegardes",
+   "aide": "chemin absolu ; taille et nombre de fichiers mesurés toutes les 15 min"
+  }
+ ],
+ "parametres": [
+  {
+   "nom": "age_max_h",
+   "titre": "Trop ancienne : plus de",
+   "unite": "heures",
+   "defaut": 26,
+   "min": 1,
+   "max": 2160
+  },
+  {
+   "nom": "taille_min_mo",
+   "titre": "Trop petite : moins de",
+   "unite": "Mo",
+   "defaut": 1,
+   "min": 0,
+   "max": 10000000
+  }
+ ],
+ "regles": [
+  {
+   "nom": "SauvegardeIntrouvable",
+   "pour": "15m",
+   "gravite": "critical",
+   "expr": "mirador_check_ok{modele=\"sauvegarde\", type=\"fichier\"} == 0",
+   "resume": "Aucune sauvegarde trouvée : {{ $labels.cible }} sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "SauvegardeAncienne",
+   "pour": "15m",
+   "gravite": "critical",
+   "expr": "mirador_check_fichier_age_secondes{modele=\"sauvegarde\"} / 3600 > $age_max_h",
+   "resume": "La dernière sauvegarde {{ $labels.cible }} de {{ $labels.instance }} date de {{ $value | humanize }} heures"
+  },
+  {
+   "nom": "SauvegardeTropPetite",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "mirador_check_fichier_taille_octets{modele=\"sauvegarde\"} / 1048576 < $taille_min_mo",
+   "resume": "La dernière sauvegarde {{ $labels.cible }} de {{ $labels.instance }} ne fait que {{ $value | humanize }} Mo"
+  },
+  {
+   "nom": "DossierSauvegardeAbsent",
+   "pour": "30m",
+   "gravite": "warning",
+   "expr": "mirador_check_ok{modele=\"sauvegarde\", type=\"dossier\"} == 0",
+   "resume": "Dossier de sauvegarde introuvable : {{ $labels.cible }} sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DossierSauvegardeVide",
+   "pour": "30m",
+   "gravite": "warning",
+   "expr": "mirador_check_dossier_fichiers{modele=\"sauvegarde\"} == 0",
+   "resume": "Le dossier de sauvegarde {{ $labels.cible }} de {{ $labels.instance }} est vide"
+  }
+ ]
+}

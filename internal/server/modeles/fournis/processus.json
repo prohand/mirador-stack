@@ -1,0 +1,35 @@
+{
+ "version": 1,
+ "nom": "processus",
+ "titre": "Processus",
+ "icone": "machines",
+ "description": "Programmes qui doivent tourner sur la machine (hors services systemd : programme lancé à la main, dans un conteneur…), avec leur nombre et leur mémoire.",
+ "listes": [
+  {
+   "nom": "noms",
+   "titre": "Processus attendus",
+   "type": "processus",
+   "exemple": "postgres\nnode",
+   "aide": "nom du processus tel qu'affiché par « ps -e » (15 caractères au plus)"
+  }
+ ],
+ "parametres": [
+  {
+   "nom": "min_instances",
+   "titre": "Alerte en dessous de",
+   "unite": "processus",
+   "defaut": 1,
+   "min": 1,
+   "max": 1000
+  }
+ ],
+ "regles": [
+  {
+   "nom": "ProcessusAbsent",
+   "pour": "3m",
+   "gravite": "critical",
+   "expr": "mirador_check_processus_nombre{modele=\"processus\"} < $min_instances",
+   "resume": "Processus {{ $labels.cible }} : {{ $value }} en cours sur {{ $labels.instance }}"
+  }
+ ]
+}

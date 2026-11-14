@@ -129,6 +129,8 @@
   tout();
   setInterval(tout, 60000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tout(); } });
+  // Thème changé (sélecteur du menu) : courbes redessinées aux nouvelles couleurs.
+  document.addEventListener("mirador:theme", tout);
   if (typeof ResizeObserver !== "undefined") {
     var ro = new ResizeObserver(function (entrees) {
       entrees.forEach(function (e) {

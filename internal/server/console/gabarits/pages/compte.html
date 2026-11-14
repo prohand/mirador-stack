@@ -9,7 +9,7 @@
   <label>Mot de passe actuel <input type="password" name="actuel" required autocomplete="current-password" maxlength="512"></label>
   <label>Nouveau (12 caractères au moins) <input type="password" name="nouveau" minlength="12" maxlength="128" required autocomplete="new-password"></label>
   <label>Nouveau (encore) <input type="password" name="nouveau2" minlength="12" maxlength="128" required autocomplete="new-password"></label>
-  {{template "code2fa"}}
+  {{template "code2fa-toujours"}}
   <button>Changer</button>
 </form>
 </section>
@@ -20,11 +20,11 @@
 <p>Scanner ce nouveau QR code, puis saisir un code de la <strong>nouvelle</strong> 2FA. Tant que ce n'est pas fait, l'ancienne reste valable.</p>
 <p class="centre"><img src="{{.D.QR}}" alt="QR code de la nouvelle 2FA" width="240" height="240"></p>
 <p>Clé : <code class="secret">{{.D.Secret}}</code></p>
-<form method="post" action="/compte/2fa-confirmer" class="pile">{{template "csrf" .CSRF}}{{template "code2fa"}}<button>Enregistrer la nouvelle 2FA</button></form>
+<form method="post" action="/compte/2fa-confirmer" class="pile">{{template "csrf" .CSRF}}{{template "code2fa-toujours"}}<button>Enregistrer la nouvelle 2FA</button></form>
 <form method="post" action="/compte/2fa-abandonner">{{template "csrf" .CSRF}}<button class="secondaire">Abandonner</button></form>
 {{else}}
 <p>Changer de téléphone ou d'application : une nouvelle 2FA est préparée, puis confirmée par un de ses codes.</p>
-<form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}<button>Préparer une nouvelle 2FA</button></form>
+<form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa-toujours"}}<button>Préparer une nouvelle 2FA</button></form>
 <details><summary>Téléphone perdu : préparer la nouvelle 2FA avec un code de secours</summary>
 <form method="post" action="/compte/2fa" class="ligne">{{template "csrf" .CSRF}}
   <label>Code de secours <input name="secours" autocomplete="off" autocapitalize="characters" spellcheck="false" pattern="[A-Za-z0-9 \-]{12,16}" maxlength="16" required placeholder="ABCD-EFGH-JKLM"></label>
@@ -40,7 +40,7 @@
 {{end}}
 <p>Si le téléphone de la 2FA est perdu, un code de secours permet de se connecter, puis de recréer la 2FA.
 {{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> code(s) sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
-<form method="post" action="/compte/codes-secours" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}
+<form method="post" action="/compte/codes-secours" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa-toujours"}}
 <button {{if .D.CodesRestants}}data-confirmer="Créer 10 nouveaux codes ? Les anciens ne marcheront plus."{{end}}>Créer 10 nouveaux codes</button></form>
 </section>
 
@@ -49,7 +49,7 @@
 <p>Une passkey (empreinte, visage, code de l'appareil, clé de sécurité ou gestionnaire de mots de passe) remplace le code 2FA à la connexion, après le mot de passe. Elle ne marche que sur ce site : une fausse page ne peut pas s'en servir.</p>
 {{if .D.Passkeys}}<div class="defile"><table><thead><tr><th>Nom</th><th>Domaine</th><th>Créée</th><th>Dernier usage</th><th></th></tr></thead><tbody>
 {{range .D.Passkeys}}<tr><td>{{.Nom}}</td><td><code>{{.Domaine}}</code></td><td>{{dateS .CreeLe}}</td><td>{{if .UtiliseLe}}{{depuisS .UtiliseLe}}{{else}}Jamais{{end}}</td>
-<td><form method="post" action="/compte/passkey/supprimer" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}">{{template "code2fa"}}<button class="danger petit" data-confirmer="Supprimer la passkey « {{.Nom}} » ?">Supprimer</button></form></td></tr>{{end}}
+<td><form method="post" action="/compte/passkey/supprimer" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}">{{template "code2fa-toujours"}}<button class="danger petit" data-confirmer="Supprimer la passkey « {{.Nom}} » ?">Supprimer</button></form></td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune passkey enregistrée."}}{{end}}
 {{if not .D.PasskeyPossible}}
 <p class="message">Les passkeys demandent un nom de domaine en HTTPS. Cette page est ouverte par <code>{{.D.Domaine}}</code> : les navigateurs refusent une adresse IP.</p>
@@ -64,7 +64,7 @@
 <h3>Ajouter une passkey</h3>
 <form method="post" action="/compte/passkey/preparer" class="ligne">{{template "csrf" .CSRF}}
   <label>Nom (pour la reconnaître) <input name="nom" maxlength="40" placeholder="Téléphone, clé USB…"></label>
-  {{template "code2fa"}}<button>Continuer</button></form>
+  {{template "code2fa-toujours"}}<button>Continuer</button></form>
 <p><small>Le code 2FA reste demandé pour les actions sensibles, et la 2FA par application reste obligatoire : la passkey est un moyen de plus, pas le seul.</small></p>
 {{end}}
 </section>

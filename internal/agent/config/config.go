@@ -80,6 +80,11 @@ type Agent struct {
 	// ProxmoxDisques : nœud Proxmox, disques des VM mesurés par l'assistant
 	// root (relancé par l'agent à ce rythme ; SPEC.md § 23.7). 1 à 15 min.
 	ProxmoxDisques time.Duration `json:"proxmox_disques"`
+	// Checks : contrôles demandés par les modèles de surveillance (SPEC.md
+	// § 24.10). ChecksActifs : refus local (MIRADOR_CHECKS=non, fichier
+	// agent.conf appartenant à root) ; le serveur ne peut pas le changer.
+	Checks       []Check `json:"checks"`
+	ChecksActifs bool    `json:"-"`
 
 	// Tampon mémoire des métriques en attente d'envoi (octets compressés).
 	TamponMetriques int `json:"tampon_metriques"`
@@ -191,6 +196,7 @@ func Defaut() Agent {
 		Intervalle:            30 * time.Second,
 		IntervalleLent:        60 * time.Second,
 		ProxmoxDisques:        5 * time.Minute,
+		ChecksActifs:          true,
 		TamponMetriques:       tamponDefaut,
 		ExclureMontages:       defautMontages,
 		ExclureTypesFS:        defautTypesFS,
@@ -293,6 +299,9 @@ func (a *Agent) Valider() error {
 	}
 	if a.ProxmoxDisques < time.Minute || a.ProxmoxDisques > 15*time.Minute {
 		ajoute("MIRADOR_PROXMOX_DISQUES %s hors bornes (1m à 15m)", a.ProxmoxDisques)
+	}
+	if err := ValiderChecks(a.Checks); err != nil {
+		ajoute("checks : %v", err)
 	}
 	if a.TamponMetriques < tamponMin || a.TamponMetriques > tamponMax {
 		ajoute("MIRADOR_TAMPON_METRIQUES %d hors bornes (%d à %d octets)", a.TamponMetriques, tamponMin, tamponMax)
@@ -669,6 +678,8 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.IntervalleLent, err = time.ParseDuration(valeur)
 	case "MIRADOR_PROXMOX_DISQUES":
 		a.ProxmoxDisques, err = time.ParseDuration(valeur)
+	case "MIRADOR_CHECKS":
+		a.ChecksActifs, err = ouiNon(valeur)
 	case "MIRADOR_TAMPON_METRIQUES":
 		a.TamponMetriques, err = strconv.Atoi(valeur)
 	case "MIRADOR_EXCLURE_MONTAGES":

@@ -3719,3 +3719,320 @@ dernière connexion). Une adresse non revue depuis 30 jours redevient
 « nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
 (comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
 Coût : une lecture et une écriture SQLite par connexion réussie.
+
+---
+
+## 24. Modèles de surveillance **[Décidé le 14/11 — parties A, B et C faites, à valider]**
+
+Demande du 14/11 : « dire : cette machine est une machine Linux, donc tu fais
+ces checks » ; « si je veux les certificats, on les lui attribue depuis
+l'interface » ; détection automatique qui propose les modèles. Réponses :
+modèles **cumulables**, attribuables à une **machine** ou à un **groupe**,
+**seuils réglables par machine**, à faire **avant** la suite de l'étape 6 ;
+une règle de modèle **remplace** la règle importée équivalente pour les
+machines qui portent le modèle.
+
+### 24.1 Ce qu'est un modèle
+
+Un fichier JSON (fournis : `internal/server/modeles/fournis/*.json`, comme les
+tableaux) :
+
+| Champ | Rôle |
+|---|---|
+| `nom`, `titre`, `description`, `icone` | affichage |
+| `detection` | expression PromQL qui renvoie une série par `instance` où le modèle s'applique (ex. `count by (instance) (node_docker_up)`) : sert aux propositions |
+| `config` | clés de la configuration distante des agents (valeurs typées, vérifiées par le code de l'agent ; jamais de commande) |
+| `parametres` | seuils nommés (nombre, unité, défaut, bornes), réglables par groupe puis par machine |
+| `regles` | règles d'alerte ; `$parametre` à droite d'une comparaison ; `remplace` : nom de la règle importée équivalente |
+
+### 24.2 Attribution et assemblage
+
+- Table `modeles_attribues` (portée `machine:ID` ou `groupe:NOM`, modèle,
+  état `actif` ou `ignore`, paramètres). Modèles d'une machine = ceux de son
+  groupe + les siens, moins ceux qu'elle ignore. Paramètres : machine > groupe
+  > défaut du modèle.
+- Configuration des agents : défaut → **modèles** (par ordre de nom) → groupe
+  → machine. Un réglage fait à la main l'emporte toujours sur un modèle.
+- Séries internes écrites chaque minute par le serveur, pour chaque machine
+  approuvée : `mirador_modele_parametre{instance, modele, parametre}` (valeur
+  effective) et `mirador_machine_regle_remplacee{instance, regle}`.
+- Règles d'un modèle : posées une fois au démarrage (origine `modele:NOM`,
+  groupe `modele_NOM`), modifiables ou désactivables dans « Règles » comme
+  les autres. `$p` devient `on(instance) group_left()
+  mirador_modele_parametre{modele="…", parametre="p"}` : la règle ne voit que
+  les machines qui portent le modèle, chacune avec son seuil.
+- Remplacement : une règle importée (`vmalert:…`) nommée dans un `remplace`
+  est évaluée avec `unless on(instance) mirador_machine_regle_remplacee{regle=…}`
+  : elle se tait pour les machines qui portent le modèle, continue pour les
+  autres. Effet sur la comparaison avec vmalert : écart attendu (même
+  problème, nom de règle différent).
+
+### 24.3 Détection et propositions
+
+L'expression `detection` de chaque modèle est évaluée (1 fois par minute au
+plus, en cache) ; un modèle détecté, ni attribué ni ignoré, est **proposé**
+sur la page de la machine (« Ajouter » / « Ignorer ») et compté dans la
+liste des machines. Rien n'est attribué sans validation.
+
+### 24.4 Parties
+
+| Partie | Contenu |
+|---|---|
+| A | serveur : modèles fournis (Linux, Physique, Docker, Proxmox, Certificats, ZFS, RAID logiciel), attribution machine et groupe, paramètres par machine, assemblage, séries internes, règles et remplacement, détection, interface |
+| B | agent : catalogue de checks (HTTP(S), port TCP, processus, fichier récent, taille de dossier, DNS, ping) et modèles « Serveur web », « Sauvegarde » |
+| C | modèles personnels créés ou modifiés dans l'interface |
+
+### 24.5 Coût et menaces
+
+- Coût : une lecture SQL par configuration assemblée ; séries internes
+  ≈ machines × paramètres (une vingtaine par machine) ; détection : 7
+  requêtes instantanées par minute au plus.
+- Menaces : un modèle ne contient que des valeurs typées (vérifiées comme
+  toute configuration d'agent) et des règles PromQL (même lecteur borné que
+  les autres règles) ; attribution réservée aux admins (CSRF, audit) ;
+  paramètres bornés (min, max) ; `$p` seulement après un opérateur de
+  comparaison (vérifié au chargement) ; un modèle ne peut pas rendre une
+  machine muette (rien n'y est désactivé par défaut).
+
+### 24.6 Partie A faite (14/11)
+
+- 7 modèles fournis : Linux (systemd, mises à jour ; seuils CPU 90 %,
+  charge 2 par cœur, mémoire 10 %, disque 15 %, inodes 10 % : ceux des
+  règles importées), Machine physique (températures 80 °C, disques 55 °C,
+  ventilateurs, SMART), Docker (mémoire des conteneurs 90 %), Proxmox VE
+  (invités : CPU 95 %, mémoire des LXC 95 %), Certificats (21 et 7 jours),
+  ZFS, RAID logiciel. 12 règles de modèle ; chacune remplace l'équivalente
+  (importée de vmalert, ou fournie pour Proxmox).
+- Page de la machine, bloc « Modèles de surveillance » : proposés
+  (détectés) avec « Ajouter » / « Ignorer », appliqués (d'où ils viennent,
+  seuils de la machine, « Retirer »), « Ajouter un modèle », ignorés avec
+  « reprendre ». Pastille « N modèle(s) proposé(s) » et colonne « À
+  valider » de la liste des machines. Page « Modèles » (onglet de
+  Machines) : catalogue, règles, machines qui portent ou où le modèle est
+  détecté, attribution aux groupes et seuils du groupe.
+- Code 2FA pour ajouter, retirer, régler les seuils (change la
+  configuration de l'agent et les alertes) ; « Ignorer » sans code.
+- Mesures : configuration assemblée = 2 lectures SQL de plus ; séries
+  internes = ~1 + nombre de paramètres par modèle et par machine (Linux :
+  6 séries + 5 « remplacée ») ; détection = 7 requêtes instantanées,
+  passées par le cache des requêtes de l'interface (1 min).
+
+### 24.7 Services des modèles (demande du 14/11) **[Fait, à valider]**
+
+- Chaque modèle a une liste de services systemd attendus (départ : Docker
+  → `containerd`, `docker` ; Proxmox → `pve-cluster`, `pvedaemon`,
+  `pveproxy`, `pvestatd`), modifiable dans Machines › Modèles (code 2FA,
+  audit `modele_services`, réglage `modeles.services.NOM`). Noms vérifiés
+  (`.service` ou `.timer`), 100 au plus.
+- Sur les machines du modèle : ajoutés à `systemd_surveiller` (surveillés
+  même en validation service par service) ; série interne
+  `mirador_modele_service{instance, modele, name}`.
+- Règle fournie `ServiceDuModeleAbsent` : service attendu que l'agent ne
+  voit pas (pas installé, désinstallé, nom faux) pendant 15 min. Un
+  service en échec ou arrêté reste signalé par les règles des services
+  (pas de doublon).
+
+### 24.8 Interface simplifiée (demande du 14/11 : « plus simple ») **[Fait, à valider]**
+
+1. **Mode administration** : après un code 2FA juste, les actions
+   sensibles passent sans nouveau code pendant 10 min (comme le « sudo » de
+   GitHub) ; bandeau « Mode administration jusqu'à HH:MM » avec « Quitter » ;
+   champs du code masqués. Toujours un code frais pour la sécurité des
+   comptes (mot de passe, 2FA, codes de secours, passkeys, utilisateurs,
+   page Sécurité). Le mode tient dans la session (mémoire) : fermé à la
+   déconnexion et au redémarrage du serveur. Menace : poste laissé ouvert →
+   10 min au plus, sessions courtes inchangées.
+2. **Page de la machine** : une case par modèle (« ★ détecté », « du
+   groupe », « auto », « ignoré »), un seul « Enregistrer » ; un modèle
+   détecté laissé décoché devient « ignoré » (plus proposé) ; décocher un
+   modèle du groupe le retire pour la machine seule. Seuils sur une page à
+   part (`/machines/NOM/modeles/MODELE`, lien « Seuils… »).
+3. **Application automatique** (réglage `modeles.auto`, non par défaut) :
+   une fois par minute, les modèles détectés (ni appliqués ni ignorés) sont
+   appliqués (auteur `auto`, audit), signalés par les canaux de
+   notification (un message par machine et par modèle, au plus une fois par
+   heure) et marqués « auto » ; décochés, ils ne reviennent pas.
+4. **Page « Modèles »** : tableau modèles × groupes avec un seul
+   « Enregistrer », nombre de machines et de détections sans attribution ;
+   détail replié par modèle (règles, services, seuils par groupe).
+
+### 24.9 Retours du 14/11 : 100 modèles, services détectés, durée du mode administration **[Fait, à valider]**
+
+- **Beaucoup de modèles** : le tableau modèles × groupes et la liste des
+  cases d'une machine ont le filtre et le tri communs à tous les tableaux
+  (champ « Filtrer » dès 6 lignes, tri par colonne). Les détails restent
+  repliés. Avec les modèles personnels (partie C), une « famille » (Système,
+  Matériel, Applications, Réseau) pourra ranger la liste si besoin.
+- **Services** : l'agent voit les services de chaque machine (tous, ou les
+  services validés en mode « un par un »). La liste d'un modèle reste
+  choisie par l'admin, mais la page « Modèles » **suggère** les services vus
+  sur **toutes** les machines du modèle et **pas** sur toutes les autres
+  (propres au modèle), hors services de base (systemd-*, ssh, cron, dbus…)
+  et déjà listés, 20 au plus : cases cochées, « Ajouter à la liste ».
+- **Durée du mode administration** réglable dans Réglages › Sécurité
+  (`mode_admin`) : 0 = désactivé (code à chaque action sensible), 1 min à
+  1 h, défaut 10 min. Changer ce réglage demande un code frais (sécurité).
+
+### 24.10 Partie B : checks faits par l'agent **[Fait, à valider — « Fais la b », 14/11]**
+
+Un modèle peut avoir des **listes** (adresses, ports, fichiers…) : chaque
+ligne devient un **check** fait par l'agent de la machine, étiqueté avec le
+nom du modèle. Les règles du modèle filtrent sur `modele="…"`.
+
+| Type | Ce que fait l'agent | Mesures (étiquettes `type, nom, modele, cible`) |
+|---|---|---|
+| `http` | GET d'une adresse http(s), sans proxy, 3 redirections au plus, 64 Kio lus au plus ; code 2xx/3xx ; texte attendu (`contient=`) ; certificat vérifié sauf `non-verifie` | `mirador_check_ok`, `_duree_secondes`, `_http_code`, `_certificat_fin_timestamp_seconds` |
+| `tcp` | connexion ouverte puis refermée | `_ok`, `_duree_secondes` |
+| `processus` | processus de ce nom (`/proc/PID/comm`), mémoire résidente totale | `_processus_nombre`, `_processus_memoire_octets` |
+| `fichier` | le fichier, ou le plus récent d'un motif `*` (sauvegardes datées) : date et taille (rien n'est lu dedans) | `_fichier_age_secondes`, `_fichier_taille_octets` |
+| `dossier` | taille et nombre de fichiers (sans suivre les liens), 200 000 entrées au plus, toutes les 15 min | `_dossier_taille_octets`, `_dossier_fichiers`, `_dossier_incomplet` |
+| `dns` | résolution avec les serveurs DNS de la machine | `_dns_adresses` |
+| `ping` | un écho ICMP par socket « datagramme » (sans root : `net.ipv4.ping_group_range`) | `_ok`, `_duree_secondes` |
+
+- **Modèles fournis** (5 de plus, 12 en tout) : *Serveur web* (adresses ;
+  temps max 2000 ms, certificat 14 jours ; détecté si nginx, apache2,
+  httpd, caddy, traefik ou lighttpd tourne), *Sauvegarde* (fichiers,
+  dossiers ; âge max 26 h, taille min 1 Mo ; détecté si borgmatic, restic,
+  rsnapshot, duplicati, urbackup, Proxmox Backup Server ou bacula tourne),
+  *Ports TCP*, *Processus* (nombre min 1), *Joignabilité* (ping, noms DNS ;
+  latence max 200 ms). 13 règles.
+- **Listes** : saisies par groupe (page « Modèles ») et par machine (page
+  « Réglages… » du modèle), une valeur par ligne, `#` = commentaire ; la
+  liste de la machine remplace celle du groupe (même vidée) ; identique à
+  celle du groupe : rien n'est enregistré (reste héritée). Pastille « à
+  remplir » sur la machine quand toutes les listes sont vides. Migration
+  0016 : colonne `listes` dans `modeles_attribues`.
+- **Envoi** : clé `checks` de la configuration distante (liste typée,
+  vérifiée par le code de l'agent : `DisallowUnknownFields`, format de
+  chaque cible). Envoyée seulement aux agents qui annoncent la capacité
+  `checks` ; sinon la page le signale (« agent trop ancien »).
+- **Rythme** : tâche de fond de l'agent, toutes les 60 s (dossiers 15 min),
+  8 checks à la fois au plus, délai 10 s par check (30 s au plus) : un site
+  lent ne retarde pas la collecte.
+
+**Coût** (banc d'essai `BenchmarkPassage`, 40 checks : 10 http, 10 tcp, 10
+processus sur le vrai /proc, 10 fichiers) : **6,5 ms par passage** toutes les
+60 s, soit ~0,01 % d'un cœur ; 1,8 Mo de mémoire temporaire par passage
+(rendue par le ramasse-miettes) ; aucune écriture disque. Le check
+`processus` relit /proc à chaque fois (≈ 1 ms pour 500 processus) : à
+regrouper si beaucoup de checks de ce type. Séries : 2 à 5 par check, 50
+checks au plus par machine. Côté serveur : un calcul de plus à chaque
+configuration assemblée. Objectifs agent (< 30 Mio, < 1 % d'un cœur)
+inchangés ✅.
+
+**Menaces** :
+- Jamais de commande : 7 types fixés dans le code de l'agent, cibles
+  vérifiées (adresse http(s) sans identifiant, hôte:port, chemin absolu sans
+  `..`, nom de processus de 15 caractères).
+- Un serveur compromis pourrait faire **sonder le réseau local** par les
+  agents (ports, adresses) : 50 checks au plus, une requête par minute et
+  par check, résultat réduit à « ok / durée / code » (le contenu des pages
+  n'est jamais renvoyé ; un fichier n'est jamais lu, seules sa date et sa
+  taille). Refus local possible : ligne `MIRADOR_CHECKS=non` dans
+  `/etc/mirador-agent/agent.conf` (fichier de root, le serveur ne peut pas
+  le changer) ; l'agent ignore alors la clé `checks`.
+- Fichiers et dossiers : l'agent ne voit que ce que son utilisateur
+  (`mirador-agent`, sans droits) peut lire.
+- Les cibles apparaissent dans les mesures (étiquette `cible`) : l'interface
+  rappelle de n'y mettre aucun secret ; une adresse avec identifiant est
+  refusée.
+- `non-verifie` : choisi par l'admin pour un certificat maison ; la date de
+  fin reste mesurée et alertée.
+
+### 24.11 Partie C : modèles personnels **[Fait, à valider — « Fais la partie c », 14/11]**
+
+Choix faits sans question (valeurs par défaut, à corriger si besoin) :
+
+- **Créer** un modèle vide (« Nouveau modèle »), **dupliquer** un modèle
+  livré (règles renommées avec le suffixe « Perso », filtre
+  `modele="…"` des règles réécrit pour la copie), ou **importer** le JSON
+  exporté d'un autre serveur. Tout modèle (livré ou personnel) s'**exporte**
+  en JSON.
+- Un modèle livré ne se modifie pas : il est mis à jour avec mirador. Pour
+  l'adapter : le dupliquer (ne pas porter les deux sur les mêmes machines :
+  alertes en double).
+- **Formulaire** sans JavaScript : titre, description, détection (PromQL),
+  services attendus, tableaux des listes, des seuils et des règles (lignes
+  vides pour ajouter, nom vidé pour retirer) ; configuration des agents en
+  JSON dans « Avancé ». Après une erreur, la page est réaffichée avec la
+  saisie.
+- **Rangement** : table `modeles_perso` (migration 0017), JSON du modèle,
+  relu au démarrage et après chaque changement. Même format et mêmes
+  contrôles que les modèles livrés. Un modèle abîmé, ou dont le nom est pris
+  plus tard par un modèle livré, est laissé de côté (journal du serveur) ;
+  les autres servent.
+- **Règles** : posées à l'enregistrement (origine `modele:NOM`) ; une règle
+  désactivée dans « Règles » le reste ; une règle retirée du modèle est
+  retirée de la base. Le remplacement des règles importées (`remplace`) est
+  pris en compte sans redémarrage (le moteur d'alertes consulte la liste à
+  chaque évaluation).
+- **Suppression** refusée tant que le modèle est attribué (machines ou
+  groupes cités) ; sinon modèle, règles, lignes « ignoré » et liste de
+  services retirés.
+
+**Coût** : un modèle fait 1 à 5 Ko (64 Kio au plus), 200 modèles personnels
+au plus : < 1 Mo en mémoire dans un cas courant (13 Mo au pire). Détection :
+une requête instantanée par minute et par modèle qui en a une (cache du
+lecteur). Moteur d'alertes : une lecture de table en mémoire de plus par
+règle et par évaluation (négligeable). Aucun coût côté agent (mêmes clés de
+configuration et mêmes checks qu'en partie B).
+
+**Menaces** :
+- Réservé aux admins (code 2FA ou mode administration, CSRF, audit
+  `modele_perso` et `modele_perso_supprime` avec le JSON avant/après).
+- Contenu typé seulement : configuration vérifiée par le code de l'agent
+  (jamais de commande), règles et détection par le lecteur PromQL borné,
+  JSON lu avec refus des champs inconnus, tailles bornées (64 Kio, 30
+  seuils, 10 listes, 50 règles, 200 modèles).
+- Un modèle personnel ne peut pas **prendre le nom** d'un modèle livré, ni
+  celui d'une règle existante (sinon il pourrait remplacer
+  `AgentMuet` par une règle qui ne sonne jamais) ; une règle qui filtre
+  les tests d'un autre modèle est refusée (elle ne sonnerait jamais).
+- Un import ne remplace jamais un modèle livré.
+- Les pages échappent tout le texte saisi (gabarits Go) ; le nom du fichier
+  exporté vient du nom du modèle (minuscules, chiffres, « - »).
+
+## 25. Design « A bis » et thème par utilisateur **[Fait, à valider — choix du 14/11 : « À bis les deux »]**
+
+Propositions montrées en maquette (A épuré, B compact, C doux, D
+technique, A bis = A avec le menu noir) ; choix : **A bis**, avec le mode
+jour/nuit **par utilisateur**.
+
+### 25.1 Design
+
+- Gris neutres (texte #18181B, fond #F7F7F8 ; nuit : fond #0C0D10, cartes
+  #15161A), **un seul bleu** (#3E63DD, nuit #7C9BFF) ; vert, orange et rouge
+  réservés aux états.
+- **Menu noir** à gauche (#111318), jour comme nuit : page active sur fond
+  gris foncé en blanc, compteurs en orange ou rouge doux, recherche
+  « Aller à… » dans un champ sombre.
+- Une seule police (Inter, déjà embarquée) ; titres plus petits (22 px,
+  graisse 650) ; chiffres alignés (`tabular-nums`).
+- Cartes sans ombre, trait fin, coins de 12 px ; en-têtes de tableau
+  discrets ; onglets en segments ; boutons et champs de 36 px.
+- Mode ombre : la grande bande jaune devient une petite pastille en haut à
+  droite de chaque page (lien vers les réglages des notifications).
+- Rien n'a changé dans les pages elles-mêmes (mêmes gabarits, mêmes
+  formulaires) : seule la feuille de style et le cadre (`base.html`).
+
+### 25.2 Thème par utilisateur
+
+- Sélecteur **Jour / Nuit / Auto** en bas du menu, sous le compte (Auto =
+  réglage de l'ordinateur ou du téléphone). Menu replié : une seule icône
+  qui passe au choix suivant à chaque clic.
+- Le thème change tout de suite (attribut `data-theme`, courbes
+  redessinées), puis le choix est enregistré dans le compte
+  (`POST /compte/theme`, migration 0018 : colonne `theme` des
+  utilisateurs) : le même choix sur tous ses appareils. Sans JavaScript, le
+  formulaire enregistre et revient à la page.
+- Le thème du serveur (Réglages › Interface) reste la valeur des comptes qui
+  n'ont rien choisi.
+
+**Coût** : une colonne en base (lue avec le compte, déjà en cache 10 s),
+une requête à chaque changement de thème ; feuille de style de même taille
+(~40 Ko) ; aucune police de plus (Space Grotesk n'est plus utilisée).
+
+**Menaces** : préférence d'affichage seulement (pas d'audit) ; jeton CSRF
+obligatoire (formulaire ou en-tête `X-CSRF`) ; valeur parmi `clair`,
+`sombre`, `auto` ; retour après le formulaire limité à un chemin du site
+(`//…`, `https://…`, `\` refusés → « / »).

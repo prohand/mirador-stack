@@ -50,6 +50,10 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /donnees/aller", c.lecture(c.donneesAller))
 	c.routesAlertes()
 	c.routesLogs()
+	c.routesModeles()
+	c.routesModelesPerso()
+	c.routesTheme()
+	m.HandleFunc("POST /mode-admin/quitter", c.lecture(c.postQuitterModeAdmin))
 	c.routesReglages()
 }
 
@@ -371,6 +375,7 @@ type donneesMachine struct {
 	Surv        vueSurveillance // bloc « À surveiller sur cette machine »
 	Identite    identiteMachine // bandeau sous le nom
 	Agent       bool            // machine avec agent (pas un collecteur)
+	Modeles     vueModeles      // bloc « Modèles » (SPEC § 24)
 	Ingestion   string          // adresse d'ingestion (commande de réinstallation)
 }
 
@@ -401,6 +406,7 @@ func (c *Console) pageMachine(q *req) {
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)
+		d.Modeles = c.vueModelesMachine(ctx, m, q.t)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	}
 	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
@@ -442,12 +448,24 @@ func (c *Console) postMachine(q *req) {
 	// « surveillance » change la configuration de l'agent : même règle que la
 	// page « Configuration des agents » (revue de sécurité du 11/11).
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
-		"surveillance": true, "empreinte": true}
+		"surveillance": true, "empreinte": true,
+		// Modèles : changent la configuration de l'agent et les alertes.
+		"modeles": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
 			return
 		}
+	}
+	if action == "modeles" {
+		m, trouvee := c.machine(q)
+		if !trouvee {
+			c.retour(q, "/machines", errors.New("machine inconnue"), "")
+			return
+		}
+		n, err := c.enregistrerModelesMachine(q, m)
+		c.retour(q, vers+"#modeles", err, "modèles enregistrés ("+strconv.Itoa(n)+" changement(s)) : configuration envoyée à l'agent, règles actives sous une minute")
+		return
 	}
 	switch action {
 	case "actualiser":

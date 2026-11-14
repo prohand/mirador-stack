@@ -12,6 +12,8 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 )
 
 // Tableau « Proxmox » (SPEC § 23.7) : chaque requête s'évalue sans erreur
@@ -128,5 +130,72 @@ func TestTableauProxmox(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// Application automatique des modèles détectés (demande du 14/11) : appliqué
+// une fois, signalé, marqué « auto » ; décoché ensuite, il ne revient pas.
+func TestModelesAuto(t *testing.T) {
+	b := nouveauBanc(t)
+	recus := b.ecouter()
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	maintenant := b.h.maintenant()
+	app := db.Appender(context.Background())
+	for ts := maintenant.Add(-5 * time.Minute); !ts.After(maintenant); ts = ts.Add(30 * time.Second) {
+		_, _ = app.Append(0, labels.FromStrings("__name__", "node_docker_up", "instance", "web1"), ts.UnixMilli(), 1)
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('web1', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := flotte.IDMachine(ctx, b.c.db, "web1")
+	// Désactivé : rien n'est appliqué, Docker est proposé.
+	b.c.appliquerAuto(ctx, maintenant)
+	if effs, _ := modeles.Effectifs(ctx, b.c.db, id, ""); len(effs) != 0 {
+		t.Fatalf("appliqué sans le réglage : %+v", effs)
+	}
+	if n := b.c.nbModelesProposes(ctx, []flotte.InfoMachine{{ID: id, Nom: "web1", Statut: "approuvee"}}, maintenant); n["web1"] != 1 {
+		t.Errorf("proposés : %v", n)
+	}
+	_ = modeles.DefinirAuto(ctx, b.c.db, true, "admin", maintenant)
+	b.c.appliquerAuto(ctx, maintenant)
+	effs, _ := modeles.Effectifs(ctx, b.c.db, id, "")
+	if len(effs) != 1 || effs[0].Modele.Nom != "docker" || !effs[0].Auto {
+		t.Fatalf("application automatique : %+v", effs)
+	}
+	if m := attendre(recus); !strings.Contains(m, "Docker") || !strings.Contains(m, "web1") {
+		t.Errorf("message : %q", m)
+	}
+	// Retiré à la main (décoché) : ne revient pas.
+	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "docker", modeles.EtatIgnore, nil, nil, "admin", maintenant)
+	b.c.appliquerAuto(ctx, maintenant.Add(time.Minute))
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, ""); len(effs) != 0 {
+		t.Errorf("revenu après retrait : %+v", effs)
+	}
+}
+
+// Services suggérés pour un modèle : sur toutes ses machines, pas partout,
+// hors services de base et déjà listés.
+func TestSuggererServices(t *testing.T) {
+	ms := []flotte.InfoMachine{{ID: 1, Nom: "a"}, {ID: 2, Nom: "b"}, {ID: 3, Nom: "c"}, {ID: 4, Nom: "muette"}}
+	effs := map[int64]map[string]bool{1: {"docker": true}, 2: {"docker": true}, 3: {}, 4: {"docker": true}}
+	vus := map[string]map[string]bool{
+		"a": {"docker.service": true, "containerd.service": true, "nginx.service": true, "ssh.service": true, "systemd-journald.service": true, "commun.service": true},
+		"b": {"docker.service": true, "containerd.service": true, "ssh.service": true, "commun.service": true},
+		"c": {"ssh.service": true, "commun.service": true},
+	}
+	got := suggererServices("docker", []string{"docker.service"}, ms, effs, vus)
+	if strings.Join(got, ",") != "containerd.service" {
+		t.Errorf("suggérés : %v", got)
+	}
+	// Modèle porté par toutes les machines : rien à suggérer.
+	if got := suggererServices("docker", nil, ms[:2], effs, vus); got != nil {
+		t.Errorf("modèle partout : %v", got)
 	}
 }

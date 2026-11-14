@@ -26,6 +26,10 @@ type Securite struct {
 	// SansPasskeySeule : interdit la connexion par passkey seule (sans mot
 	// de passe). La passkey reste utilisable à la place du code 2FA.
 	SansPasskeySeule bool `json:"sans_passkey_seule,omitempty"`
+	// ModeAdmin : durée du mode administration après un code 2FA juste
+	// (demande du 14/11) ; 0 = désactivé (code à chaque action sensible).
+	// Sans omitempty : 0 doit rester 0 (absent = défaut 10 min).
+	ModeAdmin alertes.Duree `json:"mode_admin"`
 }
 
 // SecuriteDefaut : sessions courtes (brief).
@@ -35,6 +39,7 @@ func SecuriteDefaut() Securite {
 		DureeMax:   alertes.Duree(12 * time.Hour),
 		Echecs:     5,
 		Verrou:     alertes.Duree(15 * time.Minute),
+		ModeAdmin:  alertes.Duree(10 * time.Minute),
 	}
 }
 
@@ -52,6 +57,9 @@ func (s *Securite) Valider() error {
 	}
 	if d := time.Duration(s.Verrou); d < time.Minute || d > 24*time.Hour {
 		errs = append(errs, errors.New("verrouillage : entre 1 min et 24 h"))
+	}
+	if d := time.Duration(s.ModeAdmin); d != 0 && (d < time.Minute || d > time.Hour) {
+		errs = append(errs, errors.New("mode administration : 0 (désactivé) ou entre 1 min et 1 h"))
 	}
 	if len(s.IPs) > 4096 {
 		errs = append(errs, errors.New("liste d'adresses : 4 Kio au plus"))

@@ -1,0 +1,49 @@
+{
+ "version": 1,
+ "nom": "physique",
+ "titre": "Machine physique",
+ "icone": "machines",
+ "description": "Matériel : températures, ventilateurs, état SMART des disques (assistant root), avec les seuils de température réglables.",
+ "detection": "count by (instance) (smartctl_device_smart_status) or count by (instance) (node_hwmon_temp_celsius)",
+ "config": {
+  "temperatures": true,
+  "ventilateurs": true,
+  "envoyer_smart": true
+ },
+ "parametres": [
+  {
+   "nom": "temp_max",
+   "titre": "Température d'un capteur : alerte au-dessus de",
+   "unite": "°C",
+   "defaut": 80,
+   "min": 30,
+   "max": 120
+  },
+  {
+   "nom": "disque_temp_max",
+   "titre": "Température d'un disque : alerte au-dessus de",
+   "unite": "°C",
+   "defaut": 55,
+   "min": 30,
+   "max": 90
+  }
+ ],
+ "regles": [
+  {
+   "nom": "PhysiqueTemperatureElevee",
+   "remplace": "TemperatureElevee",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "node_hwmon_temp_celsius > $temp_max",
+   "resume": "{{ $labels.chip }} / {{ $labels.sensor }} à {{ $value | humanize }} °C sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "PhysiqueDisqueChaud",
+   "remplace": "DisqueChaud",
+   "pour": "20m",
+   "gravite": "warning",
+   "expr": "smartctl_device_temperature{temperature_type=\"current\"} > $disque_temp_max",
+   "resume": "Disque {{ $labels.device }} à {{ $value | humanize }} °C sur {{ $labels.instance }}"
+  }
+ ]
+}

@@ -62,6 +62,45 @@ Pendant la période en parallèle, une seule sortie InfluxDB v2 est possible
 dans l'interface d'OPNsense : basculer vers mirador coupe l'envoi vers
 VictoriaMetrics (règle `OpnsenseMuet` de l'ancienne pile).
 
+## Modèles de surveillance
+
+Un modèle (Linux, Machine physique, Docker, Proxmox VE, Certificats, ZFS,
+RAID logiciel, Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) applique d'un coup ce qu'il faut surveiller, avec ses alertes
+et ses seuils (SPEC.md § 24).
+
+- Page d'une machine, bloc « Modèles de surveillance » : une case par
+  modèle (« ★ détecté » = trouvé par l'agent), un seul « Enregistrer » ;
+  « Réglages… » règle les seuils de cette machine (champ vide = valeur du
+  groupe ou du modèle) et ses listes.
+- Listes (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) :
+  une valeur par ligne (adresse, hôte:port, fichier, nom…), chacune testée
+  par l'agent de la machine chaque minute. Par groupe dans Machines ›
+  Modèles, par machine dans « Réglages… » (la liste de la machine remplace
+  celle du groupe). Pastille « à remplir » si rien n'est à tester. Pour une
+  adresse : `non-verifie` (certificat maison) et `contient=texte` après
+  l'adresse. Pas de secret dans les listes : elles apparaissent dans les
+  mesures. Refus sur une machine : `MIRADOR_CHECKS=non` dans
+  `/etc/mirador-agent/agent.conf`.
+- Machines › Modèles : tableau modèles × groupes (toutes les machines d'un
+  groupe reçoivent ses modèles), application automatique des modèles
+  détectés (désactivée par défaut), services attendus et seuils par groupe.
+- Mode administration : après un code 2FA juste, plus de code pendant
+  10 min (bandeau en haut, « Quitter » pour le fermer), sauf pour la
+  sécurité des comptes.
+- Quand un modèle a une règle équivalente à une règle importée (ex.
+  `LinuxDisqueFaible` et `DisqueFaible`), la règle importée se tait pour les
+  machines qui portent le modèle et continue pour les autres. La comparaison
+  avec vmalert montre alors un écart attendu (nom de règle différent).
+- Un réglage fait à la main (Configuration des agents, ou « À surveiller »
+  sur la machine) l'emporte toujours sur un modèle.
+- Modèles personnels (Machines › Modèles, « Modèles personnels ») :
+  « Nouveau modèle », « Dupliquer » un modèle livré (règles renommées
+  « …Perso »), « Exporter en JSON » / « Importer » pour passer un modèle
+  d'un serveur à l'autre. Un modèle livré ne se modifie pas : le dupliquer.
+  Ne pas porter un modèle et sa copie sur les mêmes machines (alertes en
+  double). Suppression possible une fois retiré de toutes les machines et
+  de tous les groupes.
+
 ## Configuration des agents
 
 Document JSON avec seulement les réglages à changer (mêmes noms que la

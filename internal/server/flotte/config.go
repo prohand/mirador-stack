@@ -20,6 +20,7 @@ import (
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/modeles"
 )
 
 // Portées de la configuration des agents (SPEC § 6.7) : défaut global, puis
@@ -108,20 +109,37 @@ func DefinirConfig(ctx context.Context, db *sql.DB, portee string, doc []byte, q
 	return nil
 }
 
-// ConfigMachine assemble la configuration d'une machine (défaut, puis groupe,
-// puis machine : la plus précise l'emporte, clé par clé) et son ETag.
+// ConfigMachine assemble la configuration d'une machine (défaut, modèles de
+// surveillance, groupe, puis machine : la plus précise l'emporte, clé par
+// clé) et son ETag.
 func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, etag string, err error) {
 	var groupe string
 	if err := db.QueryRowContext(ctx, `SELECT groupe FROM machines WHERE id = ?`, machine).Scan(&groupe); err != nil {
 		return nil, "", err
 	}
-	portees := []string{"defaut"}
+	portees := []string{"defaut", "modeles"}
 	if groupe != "" {
 		portees = append(portees, "groupe:"+groupe)
 	}
 	portees = append(portees, "machine:"+strconv.FormatInt(machine, 10))
 	fusion := map[string]json.RawMessage{}
 	for _, p := range portees {
+		// Modèles de surveillance (SPEC § 24.2) : après le défaut, avant les
+		// réglages faits à la main pour le groupe ou la machine.
+		if p == "modeles" {
+			effs, err := modeles.Effectifs(ctx, db, machine, groupe)
+			if err != nil {
+				return nil, "", err
+			}
+			cm, err := modeles.ConfigEffective(effs)
+			if err != nil {
+				return nil, "", err
+			}
+			for k, v := range cm {
+				fusion[k] = v
+			}
+			continue
+		}
 		var valeur string
 		err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, prefixeConfig+p).Scan(&valeur)
 		if errors.Is(err, sql.ErrNoRows) {

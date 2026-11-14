@@ -1,0 +1,77 @@
+{{define "contenu"}}{{$d := .D}}{{$m := $d.M}}{{$ro := not $.Admin}}
+<h1>{{if $d.Nouveau}}Nouveau modèle{{else}}Modèle personnel « {{$m.Titre}} »{{end}}</h1>
+<p><a href="/modeles">← Modèles de surveillance</a>{{if not $d.Nouveau}} · <a href="/modeles/export/{{$m.Nom}}">Exporter en JSON</a>{{end}}</p>
+{{if $d.Depuis}}<p><small>Copie du modèle livré « {{$d.Depuis}} » : ses règles sont renommées (suffixe « Perso »). Ne pas porter les deux modèles sur les mêmes machines (alertes en double).</small></p>{{end}}
+<form method="post" action="/modeles/perso" class="pile modele-perso">{{template "csrf" .CSRF}}
+<input type="hidden" name="action" value="enregistrer"><input type="hidden" name="depuis" value="{{$d.Depuis}}">
+{{if $d.Nouveau}}<input type="hidden" name="nouveau" value="oui">{{else}}<input type="hidden" name="nom" value="{{$m.Nom}}">{{end}}
+
+<section class="carte pile">
+<h2>Description</h2>
+<div class="ligne">
+{{if $d.Nouveau}}<label>Nom <input name="nom" value="{{$m.Nom}}" required pattern="[a-z][a-z0-9\-]{0,31}" size="20" placeholder="mon-appli" {{if $ro}}disabled{{end}}></label>{{else}}<p>Nom : <code>{{$m.Nom}}</code></p>{{end}}
+<label>Titre <input name="titre" value="{{$m.Titre}}" required maxlength="100" size="30" placeholder="Mon application" {{if $ro}}disabled{{end}}></label>
+</div>
+<label class="pile">Description <textarea name="description" rows="2" cols="70" maxlength="2000" {{if $ro}}disabled{{end}}>{{$m.Description}}</textarea></label>
+<label class="pile">Détection (facultatif) <input name="detection" value="{{$m.Detection}}" size="80" maxlength="2000" spellcheck="false" placeholder='count by (instance) (node_systemd_unit_state{name="mon-appli.service", state="active"} == 1)' {{if $ro}}disabled{{end}}>
+<small>Requête PromQL qui renvoie une série par <code>instance</code> où le modèle s'applique : il y est alors proposé (« ★ détecté »). Vide : jamais proposé.</small></label>
+<label class="pile">Services systemd attendus (facultatif) <input name="services" value="{{$d.Services}}" size="80" maxlength="4000" placeholder="mon-appli.service, redis-server.service" {{if $ro}}disabled{{end}}>
+<small>Séparés par des virgules ; surveillés sur les machines du modèle, alerte si l'un manque.</small></label>
+</section>
+
+<section class="carte pile">
+<h2>Listes à tester par l'agent</h2>
+<p><small>Chaque liste se remplit ensuite par groupe ou par machine (une valeur par ligne) ; chaque ligne devient un test de l'agent, étiqueté <code>modele="{{if $m.Nom}}{{$m.Nom}}{{else}}nom-du-modele{{end}}"</code>. Exemple : séparer les lignes par « | ».</small></p>
+<div class="defile"><table class="formulaire"><thead><tr><th>Nom</th><th>Titre</th><th>Type</th><th>Exemple</th><th>Aide</th></tr></thead><tbody>
+{{range $m.Listes}}{{template "ligne-liste-perso" dict "L" . "D" $d "RO" $ro}}{{end}}
+{{range $d.Vides}}{{template "ligne-liste-perso" dict "L" nil "D" $d "RO" $ro}}{{end}}
+</tbody></table></div>
+<p><small>Types : <code>http</code> (adresse), <code>tcp</code> (hôte:port), <code>processus</code>, <code>fichier</code>, <code>dossier</code>, <code>dns</code>, <code>ping</code>.</small></p>
+</section>
+
+<section class="carte pile">
+<h2>Seuils</h2>
+<p><small>Réglables par groupe puis par machine. Dans une règle : <code>$nom</code> juste après une comparaison (ex. <code>&gt; $temps_max</code>).</small></p>
+<div class="defile"><table class="formulaire"><thead><tr><th>Nom</th><th>Titre</th><th>Unité</th><th>Défaut</th><th>Min</th><th>Max</th></tr></thead><tbody>
+{{range $m.Parametres}}<tr><td><input name="p_nom" value="{{.Nom}}" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" value="{{.Titre}}" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" value="{{.Unite}}" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" value="{{seuil .Defaut}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" value="{{seuil .Min}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" value="{{seuil .Max}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
+{{range $d.Vides}}<tr><td><input name="p_nom" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
+</tbody></table></div>
+<p><small>Pour retirer une ligne : vider son nom.</small></p>
+</section>
+
+<section class="carte pile">
+<h2>Règles d'alerte</h2>
+<p><small>Expression PromQL (même lecteur que la page « Règles »). Mesures des tests : <code>mirador_check_ok</code>, <code>mirador_check_duree_secondes</code>, <code>mirador_check_http_code</code>… avec <code>modele="…"</code>. « Remplace » : nom d'une règle importée qui se tait sur les machines du modèle.</small></p>
+{{range $m.Regles}}{{template "regle-perso" dict "R" . "D" $d "RO" $ro}}{{end}}
+{{range $d.VidesRegles}}{{template "regle-perso" dict "R" nil "D" $d "RO" $ro}}{{end}}
+<p><small>Une règle vide est ajoutée à chaque enregistrement ; pour retirer une règle : vider son nom.</small></p>
+</section>
+
+<details class="carte"><summary>Avancé : configuration des agents (JSON)</summary>
+<label class="pile"><textarea name="config" rows="6" cols="70" maxlength="20000" spellcheck="false" placeholder='{"systemd": true}' {{if $ro}}disabled{{end}}>{{$d.Config}}</textarea>
+<small>Clés de la configuration distante des agents (vérifiées par le code de l'agent ; jamais de commande). Un réglage fait à la main sur un groupe ou une machine l'emporte.</small></label>
+</details>
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer le modèle</button></div>{{end}}
+</form>
+
+{{if and (not $d.Nouveau) $.Admin}}<section class="carte">
+<h2>Supprimer</h2>
+{{if $d.Attribue}}<p>Attribué à : {{range $i, $x := $d.Attribue}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}. Le retirer d'abord (page des machines, ou tableau des groupes).</p>
+{{else}}<form method="post" action="/modeles/perso" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{$m.Nom}}">
+<p>Le modèle et ses règles sont retirés.</p>{{template "code2fa"}}<button class="danger">Supprimer le modèle</button></form>{{end}}
+</section>{{end}}
+{{end}}
+
+{{define "ligne-liste-perso"}}{{$l := .L}}<tr><td><input name="l_nom" value="{{if $l}}{{$l.Nom}}{{end}}" size="12" {{if .RO}}disabled{{end}}></td><td><input name="l_titre" value="{{if $l}}{{$l.Titre}}{{end}}" size="24" {{if .RO}}disabled{{end}}></td>
+<td><select name="l_type" {{if .RO}}disabled{{end}}>{{range .D.TypesCheck}}<option{{if and $l (eq $l.Type .)}} selected{{end}}>{{.}}</option>{{end}}</select></td>
+<td><input name="l_exemple" value="{{if $l}}{{barres $l.Exemple}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td><td><input name="l_aide" value="{{if $l}}{{$l.Aide}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td></tr>{{end}}
+
+{{define "regle-perso"}}{{$r := .R}}<fieldset class="pile regle-perso{{if not $r}} vide{{end}}">{{if not $r}}<legend>Nouvelle règle</legend>{{end}}<div class="ligne">
+<label>Nom <input name="r_nom" value="{{if $r}}{{$r.Nom}}{{end}}" size="24" {{if .RO}}disabled{{end}}></label>
+<label>Gravité <select name="r_gravite" {{if .RO}}disabled{{end}}>{{range .D.Gravites}}<option{{if and $r (eq $r.Gravite .)}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Pendant <input name="r_pour" value="{{if $r}}{{$r.Pour}}{{end}}" size="5" placeholder="5m" {{if .RO}}disabled{{end}}></label>
+<label>Remplace <input name="r_remplace" value="{{if $r}}{{$r.Remplace}}{{end}}" size="20" {{if .RO}}disabled{{end}}></label></div>
+<label class="pile">Expression <textarea name="r_expr" rows="2" cols="80" spellcheck="false" {{if .RO}}disabled{{end}}>{{if $r}}{{$r.Expr}}{{end}}</textarea></label>
+<label class="pile">Résumé <input name="r_resume" value="{{if $r}}{{$r.Resume}}{{end}}" size="80" {{if .RO}}disabled{{end}}></label>
+<input type="hidden" name="r_description" value="{{if $r}}{{$r.Description}}{{end}}">
+</fieldset>{{end}}

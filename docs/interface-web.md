@@ -161,6 +161,10 @@ toutes les sessions (elles sont en mémoire).
 | Configuration des agents | onglet de Machines : par défaut → groupe → machine |
 | Utilisateurs, Sécurité, Audit | comptes, sessions, verrouillage, liste d'adresses, journal d'audit |
 
+Thème : **Jour / Nuit / Auto** en bas du menu (Auto suit l'ordinateur ou le
+téléphone). Le choix est retenu dans le compte de chaque utilisateur ; le
+thème de Réglages › Interface sert aux comptes qui n'ont rien choisi.
+
 ## 7. Olvid depuis l'interface
 
 1. Réglages › Notifications › Olvid › **assistant d'installation**

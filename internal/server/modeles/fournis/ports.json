@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "nom": "ports",
+ "titre": "Ports TCP",
+ "icone": "reseau",
+ "description": "Ports TCP qui doivent accepter les connexions (base de données, SSH d'une autre machine, service maison…). L'agent ouvre la connexion puis la referme aussitôt.",
+ "listes": [
+  {
+   "nom": "cibles",
+   "titre": "Ports à tester",
+   "type": "tcp",
+   "exemple": "127.0.0.1:5432\n192.0.2.20:22",
+   "aide": "hôte:port (adresse IPv6 entre crochets : [2001:db8::1]:443)"
+  }
+ ],
+ "regles": [
+  {
+   "nom": "PortFerme",
+   "pour": "3m",
+   "gravite": "critical",
+   "expr": "mirador_check_ok{modele=\"ports\"} == 0",
+   "resume": "Le port {{ $labels.cible }} refuse les connexions (testé depuis {{ $labels.instance }})"
+  }
+ ]
+}

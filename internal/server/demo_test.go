@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/config"
+	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
 )
@@ -132,6 +133,16 @@ func TestDemoInterface(t *testing.T) {
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
 	_ = s.jx.Ecrire(ctx, lignes)
+	// Modèles de surveillance (SPEC § 24) : Linux pour le groupe « lan »
+	// (disque à 20 %), Machine physique sur pve1 (capteurs à 70 °C) ; Docker,
+	// ZFS et Certificats seront proposés par la détection.
+	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES ('machines.listes',
+		'{"sites":["maison"],"types":["vm"],"groupes":["lan"]}', ?, 'demo') ON CONFLICT(cle) DO NOTHING`, now.Unix())
+	_ = modeles.Definir(ctx, s.db, modeles.PorteeGroupe("lan"), "linux", modeles.EtatActif, map[string]float64{"disque_libre_pct": 20}, nil, "demo", now)
+	var idPve int64
+	_ = s.db.QueryRow(`SELECT id FROM machines WHERE nom = 'pve1'`).Scan(&idPve)
+	_ = modeles.Definir(ctx, s.db, modeles.PorteeMachine(idPve), "physique", modeles.EtatActif, map[string]float64{"temp_max": 70}, nil, "demo", now)
+	_ = modeles.DefinirServices(ctx, s.db, "linux", []string{"cron.service", "ssh.service"}, "demo", now)
 	_ = auth.CreerUtilisateur(ctx, s.db, "admin", auth.RoleAdmin, "une longue phrase de passe", "demo", "", now)
 	secret, _ := auth.NouveauSecretTOTP()
 	ch, _ := secrets.Chiffrer(s.cle, "console.totp", secret)
