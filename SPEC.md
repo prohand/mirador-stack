@@ -4387,5 +4387,12 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   Modèles liste les modèles détectés pas encore cochés et propose de les
   cocher d'un coup (code 2FA ou mode administration, audit).
   L'application automatique (désactivée par défaut) ne change pas.
+- **Passkey Bitwarden sur iPhone (`NotAllowedError`)** : la même passkey
+  marche sur le PC, et Bitwarden iPhone marche sur webauthn.io (qui demande
+  `userVerification: "preferred"`). La connexion sans mot de passe demandait
+  `"required"`, que Bitwarden iPhone semble refuser. Elle demande maintenant
+  `"preferred"` ; la sécurité ne change pas : le serveur refuse toujours une
+  réponse sans le drapeau « utilisateur vérifié » (test
+  `auth/passkey_test.go`). À confirmer sur l'iPhone.
 - Coût : nul (mêmes requêtes que l'affichage existant).
 
