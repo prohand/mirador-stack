@@ -114,18 +114,19 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	} else if n > 0 {
 		journal.Info("règles d'alerte mirador ajoutées", "nombre", n)
 	}
+	// Modèles personnels (SPEC § 24.11) : chargés avant leurs règles ; un
+	// modèle abîmé est laissé de côté (journal), les autres servent.
+	if err := modeles.ChargerPerso(ctx, s.db); err != nil {
+		journal.Warn("modèles personnels", "erreur", err)
+	}
 	// Règles des modèles de surveillance (SPEC § 24) : posées une fois aussi.
 	if n, err := alertes.PoserRegles(ctx, s.db, time.Now(), modeles.Regles()); err != nil {
 		return echec(fmt.Errorf("règles des modèles : %w", err))
 	} else if n > 0 {
 		journal.Info("règles des modèles de surveillance ajoutées", "nombre", n)
 	}
-	remplacees := map[string]bool{}
-	for nom := range modeles.Remplacees() {
-		remplacees[nom] = true
-	}
 	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(),
-		Journal: journal.With("composant", "alertes"), Remplacees: remplacees}); err != nil {
+		Journal: journal.With("composant", "alertes"), Remplacees: modeles.EstRemplacee}); err != nil {
 		return echec(fmt.Errorf("moteur d'alertes : %w", err))
 	}
 	if _, err := notif.PoserDefauts(ctx, s.db, time.Now()); err != nil {

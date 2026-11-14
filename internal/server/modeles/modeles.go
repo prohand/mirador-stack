@@ -50,6 +50,9 @@ type Modele struct {
 	// Listes : adresses, ports, fichiers… à tester par l'agent (partie B,
 	// SPEC § 24.10). Chaque ligne d'une liste devient un check.
 	Listes []ListeParam `json:"listes,omitempty"`
+
+	// Perso : modèle personnel (créé dans l'interface, partie C), pas livré.
+	Perso bool `json:"-"`
 }
 
 // ListeParam : liste réglable par groupe puis par machine ; chaque ligne
@@ -100,6 +103,12 @@ func (m *Modele) Valider() error {
 	if !reNomModele.MatchString(m.Nom) || m.Titre == "" {
 		return errors.New("nom (minuscules, chiffres, « - ») et titre obligatoires")
 	}
+	if len(m.Titre) > 100 || len(m.Description) > 2000 || len(m.Detection) > 2000 {
+		return errors.New("titre (100), description (2000) ou détection (2000 caractères) trop long")
+	}
+	if len(m.Parametres) > maxParametres || len(m.Listes) > maxListes || len(m.Regles) > maxRegles {
+		return fmt.Errorf("%d seuils, %d listes et %d règles au plus", maxParametres, maxListes, maxRegles)
+	}
 	if len(m.Config) > 0 && string(m.Config) != "null" {
 		if _, err := distant.Decoder(bytes.NewReader(m.Config)); err != nil {
 			return fmt.Errorf("configuration : %w", err)
@@ -129,7 +138,12 @@ func (m *Modele) Valider() error {
 			return fmt.Errorf("détection : %w", err)
 		}
 	}
+	regles := map[string]bool{}
 	for _, r := range m.Regles {
+		if regles[r.Nom] {
+			return fmt.Errorf("règle %s en double", r.Nom)
+		}
+		regles[r.Nom] = true
 		if err := verifierRefs(r.Expr, vus); err != nil {
 			return fmt.Errorf("règle %s : %w", r.Nom, err)
 		}
@@ -235,6 +249,13 @@ var fournis = func() map[string]*Modele {
 	return out
 }()
 
+// Bornes d'un modèle (livré ou personnel).
+const (
+	maxParametres = 30
+	maxListes     = 10
+	maxRegles     = 50
+)
+
 // Fournis : modèles livrés, triés par titre.
 func Fournis() []*Modele {
 	out := make([]*Modele, 0, len(fournis))
@@ -245,13 +266,32 @@ func Fournis() []*Modele {
 	return out
 }
 
-// Trouver : modèle par son nom (nil s'il n'existe pas).
-func Trouver(nom string) *Modele { return fournis[nom] }
+// Tous : modèles livrés et personnels, triés par titre.
+func Tous() []*Modele {
+	out := Fournis()
+	muPerso.RLock()
+	for _, m := range perso {
+		out = append(out, m)
+	}
+	muPerso.RUnlock()
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Titre < out[j].Titre })
+	return out
+}
+
+// Trouver : modèle (livré ou personnel) par son nom (nil s'il n'existe pas).
+func Trouver(nom string) *Modele {
+	if m := fournis[nom]; m != nil {
+		return m
+	}
+	muPerso.RLock()
+	defer muPerso.RUnlock()
+	return perso[nom]
+}
 
 // Regles : règles de tous les modèles, à poser au démarrage.
 func Regles() []alertes.Regle {
 	var out []alertes.Regle
-	for _, m := range Fournis() {
+	for _, m := range Tous() {
 		for _, r := range m.Regles {
 			out = append(out, m.RegleAlerte(r))
 		}
@@ -262,7 +302,7 @@ func Regles() []alertes.Regle {
 // Remplacees : règle remplacée → modèles qui la remplacent.
 func Remplacees() map[string][]string {
 	out := map[string][]string{}
-	for _, m := range Fournis() {
+	for _, m := range Tous() {
 		for _, r := range m.Regles {
 			if r.Remplace != "" {
 				out[r.Remplace] = append(out[r.Remplace], m.Nom)

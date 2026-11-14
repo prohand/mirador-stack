@@ -155,6 +155,8 @@ func fonctions() template.FuncMap {
 		"egal":     func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
 		"sub":      func(a, b int) int { return a - b },
 		"seuil":    formatSeuil,
+		// barres : texte sur plusieurs lignes → une ligne (« | » entre elles).
+		"barres": func(s string) string { return strings.ReplaceAll(s, "\n", " | ") },
 		// dict : paramètres nommés pour un morceau de gabarit (« clé », valeur…).
 		"dict": func(kv ...any) (map[string]any, error) {
 			if len(kv)%2 != 0 {

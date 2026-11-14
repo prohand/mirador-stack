@@ -712,7 +712,11 @@ free -m
 | A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; à valider |
 | A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; à valider |
 | B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; à valider après mise à jour de l'agent |
-| C. Modèles personnels dans l'interface | à faire |
+| C. Modèles personnels dans l'interface : créer, dupliquer un modèle livré, modifier, exporter / importer en JSON, supprimer (SPEC § 24.11) | **fait** (14/11), testé (base simulée, interface, rendu vérifié en capture) ; à valider |
+
+Mesure partie C : 1 à 5 Ko par modèle personnel (200 au plus) gardés en
+mémoire par le serveur, une requête de détection par minute et par modèle
+qui en a une ; rien côté agent. Objectif serveur inchangé ✅.
 
 Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
 60 s (~0,01 % d'un cœur), 1,8 Mo de mémoire temporaire par passage, aucune

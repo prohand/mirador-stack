@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log/slog"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/modeles"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -160,6 +161,11 @@ func Nouvelle(ctx context.Context, opt Options) (*Console, error) {
 		return nil, err
 	}
 	c.mux = http.NewServeMux()
+	// Modèles personnels (SPEC § 24.11) : relus ici aussi (le serveur les
+	// charge au démarrage ; un modèle abîmé est signalé, les autres servent).
+	if err := modeles.ChargerPerso(ctx, c.db); err != nil && c.journal != nil {
+		c.journal.Warn("modèles personnels", "erreur", err)
+	}
 	c.routes()
 	return c, nil
 }

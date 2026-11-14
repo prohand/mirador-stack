@@ -121,7 +121,7 @@ type vueModeles struct {
 // detectes : modèle → instances où sa détection répond (cache du lecteur).
 func (c *Console) detectes(ctx context.Context, t time.Time) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
-	for _, m := range modeles.Fournis() {
+	for _, m := range modeles.Tous() {
 		if m.Detection == "" {
 			continue
 		}
@@ -153,7 +153,7 @@ func (c *Console) etatModeles(ctx context.Context, m flotte.InfoMachine, det map
 	for _, e := range effs {
 		actifs[e.Modele.Nom] = e
 	}
-	for _, mod := range modeles.Fournis() {
+	for _, mod := range modeles.Tous() {
 		if _, ok := actifs[mod.Nom]; !ok && det[mod.Nom][m.Nom] && !ign[mod.Nom] {
 			proposes = append(proposes, mod)
 		}
@@ -173,7 +173,7 @@ func (c *Console) vueModelesMachine(ctx context.Context, m flotte.InfoMachine, t
 		propose[p.Nom] = true
 	}
 	v.Proposes = len(proposes)
-	for _, mod := range modeles.Fournis() {
+	for _, mod := range modeles.Tous() {
 		e, coche := actifs[mod.Nom]
 		vide := len(mod.Listes) > 0
 		for _, l := range e.Listes {
@@ -219,7 +219,7 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 	portee := modeles.PorteeMachine(m.ID)
 	changes := 0
 	var errs []error
-	for _, mod := range modeles.Fournis() {
+	for _, mod := range modeles.Tous() {
 		_, actif := actifs[mod.Nom]
 		etat := "?"
 		switch {
@@ -404,7 +404,7 @@ func (c *Console) pageModeles(q *req) {
 		}
 	}
 	servicesVus := c.servicesParMachine(ctx, q.t)
-	for _, mod := range modeles.Fournis() {
+	for _, mod := range modeles.Tous() {
 		vc := vueCatalogue{M: mod}
 		vc.Services, _ = modeles.Services(ctx, c.db, mod)
 		vc.Suggeres = suggererServices(mod.Nom, vc.Services, ms, effsParMachine, servicesVus)
@@ -546,7 +546,7 @@ func (c *Console) enregistrerGroupes(q *req) (int, error) {
 		for _, a := range as {
 			actifs[a.Modele] = a.Etat == modeles.EtatActif
 		}
-		for _, mod := range modeles.Fournis() {
+		for _, mod := range modeles.Tous() {
 			veut := coches[g+"|"+mod.Nom]
 			if veut == actifs[mod.Nom] {
 				continue

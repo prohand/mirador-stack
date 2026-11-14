@@ -51,6 +51,7 @@ func (c *Console) routesPages() {
 	c.routesAlertes()
 	c.routesLogs()
 	c.routesModeles()
+	c.routesModelesPerso()
 	m.HandleFunc("POST /mode-admin/quitter", c.lecture(c.postQuitterModeAdmin))
 	c.routesReglages()
 }

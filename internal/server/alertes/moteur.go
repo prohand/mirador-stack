@@ -91,7 +91,7 @@ type Options struct {
 	// Remplacees : règles qu'un modèle de surveillance remplace (SPEC § 24.2)
 	// pour les machines qui le portent. Elles sont évaluées avec
 	// « unless on (instance) mirador_machine_regle_remplacee{regle="…"} ».
-	Remplacees map[string]bool
+	Remplacees func(regle string) bool
 }
 
 // etatRegle : une règle chargée et son état d'évaluation.
@@ -734,7 +734,7 @@ func (m *Moteur) DureeCumulee() time.Duration {
 // modèle qui la remplace (SPEC § 24.2). Une règle de modèle n'est jamais
 // remplacée.
 func (m *Moteur) exprEvaluee(r *Regle) string {
-	if !m.opt.Remplacees[r.Nom] || strings.HasPrefix(r.Origine, "modele:") {
+	if m.opt.Remplacees == nil || !m.opt.Remplacees(r.Nom) || strings.HasPrefix(r.Origine, "modele:") {
 		return r.Expr
 	}
 	return "(" + r.Expr + `) unless on (instance) mirador_machine_regle_remplacee{regle="` + r.Nom + `"}`

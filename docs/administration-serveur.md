@@ -93,6 +93,13 @@ et ses seuils (SPEC.md § 24).
   avec vmalert montre alors un écart attendu (nom de règle différent).
 - Un réglage fait à la main (Configuration des agents, ou « À surveiller »
   sur la machine) l'emporte toujours sur un modèle.
+- Modèles personnels (Machines › Modèles, « Modèles personnels ») :
+  « Nouveau modèle », « Dupliquer » un modèle livré (règles renommées
+  « …Perso »), « Exporter en JSON » / « Importer » pour passer un modèle
+  d'un serveur à l'autre. Un modèle livré ne se modifie pas : le dupliquer.
+  Ne pas porter un modèle et sa copie sur les mêmes machines (alertes en
+  double). Suppression possible une fois retiré de toutes les machines et
+  de tous les groupes.
 
 ## Configuration des agents
 

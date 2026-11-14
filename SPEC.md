@@ -3722,7 +3722,7 @@ Coût : une lecture et une écriture SQLite par connexion réussie.
 
 ---
 
-## 24. Modèles de surveillance **[Décidé le 14/11 — parties A et B faites, à valider]**
+## 24. Modèles de surveillance **[Décidé le 14/11 — parties A, B et C faites, à valider]**
 
 Demande du 14/11 : « dire : cette machine est une machine Linux, donc tu fais
 ces checks » ; « si je veux les certificats, on les lui attribue depuis
@@ -3938,3 +3938,56 @@ inchangés ✅.
   refusée.
 - `non-verifie` : choisi par l'admin pour un certificat maison ; la date de
   fin reste mesurée et alertée.
+
+### 24.11 Partie C : modèles personnels **[Fait, à valider — « Fais la partie c », 14/11]**
+
+Choix faits sans question (valeurs par défaut, à corriger si besoin) :
+
+- **Créer** un modèle vide (« Nouveau modèle »), **dupliquer** un modèle
+  livré (règles renommées avec le suffixe « Perso », filtre
+  `modele="…"` des règles réécrit pour la copie), ou **importer** le JSON
+  exporté d'un autre serveur. Tout modèle (livré ou personnel) s'**exporte**
+  en JSON.
+- Un modèle livré ne se modifie pas : il est mis à jour avec mirador. Pour
+  l'adapter : le dupliquer (ne pas porter les deux sur les mêmes machines :
+  alertes en double).
+- **Formulaire** sans JavaScript : titre, description, détection (PromQL),
+  services attendus, tableaux des listes, des seuils et des règles (lignes
+  vides pour ajouter, nom vidé pour retirer) ; configuration des agents en
+  JSON dans « Avancé ». Après une erreur, la page est réaffichée avec la
+  saisie.
+- **Rangement** : table `modeles_perso` (migration 0017), JSON du modèle,
+  relu au démarrage et après chaque changement. Même format et mêmes
+  contrôles que les modèles livrés. Un modèle abîmé, ou dont le nom est pris
+  plus tard par un modèle livré, est laissé de côté (journal du serveur) ;
+  les autres servent.
+- **Règles** : posées à l'enregistrement (origine `modele:NOM`) ; une règle
+  désactivée dans « Règles » le reste ; une règle retirée du modèle est
+  retirée de la base. Le remplacement des règles importées (`remplace`) est
+  pris en compte sans redémarrage (le moteur d'alertes consulte la liste à
+  chaque évaluation).
+- **Suppression** refusée tant que le modèle est attribué (machines ou
+  groupes cités) ; sinon modèle, règles, lignes « ignoré » et liste de
+  services retirés.
+
+**Coût** : un modèle fait 1 à 5 Ko (64 Kio au plus), 200 modèles personnels
+au plus : < 1 Mo en mémoire dans un cas courant (13 Mo au pire). Détection :
+une requête instantanée par minute et par modèle qui en a une (cache du
+lecteur). Moteur d'alertes : une lecture de table en mémoire de plus par
+règle et par évaluation (négligeable). Aucun coût côté agent (mêmes clés de
+configuration et mêmes checks qu'en partie B).
+
+**Menaces** :
+- Réservé aux admins (code 2FA ou mode administration, CSRF, audit
+  `modele_perso` et `modele_perso_supprime` avec le JSON avant/après).
+- Contenu typé seulement : configuration vérifiée par le code de l'agent
+  (jamais de commande), règles et détection par le lecteur PromQL borné,
+  JSON lu avec refus des champs inconnus, tailles bornées (64 Kio, 30
+  seuils, 10 listes, 50 règles, 200 modèles).
+- Un modèle personnel ne peut pas **prendre le nom** d'un modèle livré, ni
+  celui d'une règle existante (sinon il pourrait remplacer
+  `MachineMuette` par une règle qui ne sonne jamais) ; une règle qui filtre
+  les tests d'un autre modèle est refusée (elle ne sonnerait jamais).
+- Un import ne remplace jamais un modèle livré.
+- Les pages échappent tout le texte saisi (gabarits Go) ; le nom du fichier
+  exporté vient du nom du modèle (minuscules, chiffres, « - »).

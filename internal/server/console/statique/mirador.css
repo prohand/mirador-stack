@@ -465,3 +465,10 @@ table.cases-modeles td { vertical-align: middle; padding: 6px 8px; }
 table.matrice td, table.matrice th { text-align: center; }
 table.matrice td:first-child, table.matrice th:first-child { text-align: left; }
 details.carte.modele > summary { cursor: pointer; }
+
+/* Modèle personnel (SPEC § 24.11) : formulaire large, règles en blocs. */
+form.pile.modele-perso { max-width: 1100px; }
+form.modele-perso table.formulaire input { max-width: 16em; }
+fieldset.regle-perso { border: 1px solid var(--bord); border-radius: 10px; padding: 12px; margin: 0; min-width: 0; }
+fieldset.regle-perso.vide { border-style: dashed; }
+fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width: 100%; }
