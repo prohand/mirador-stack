@@ -12,6 +12,7 @@ section de cette page.
 - `0` désactive le mode : le code est demandé à chaque action sensible.
 - La sécurité des comptes (mots de passe, 2FA, passkeys, utilisateurs)
   demande **toujours** le code, même en mode administration.
+- Il s'ouvre aussi à la connexion (le second facteur vient d'être donné).
 - Un bandeau en haut de page indique l'heure de fin ; « Quitter » le coupe
   tout de suite.
 

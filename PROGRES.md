@@ -744,6 +744,15 @@ de style de même taille ; objectif serveur inchangé ✅.
 Mesure : une colonne en base, une requête par clic ; objectif serveur
 inchangé ✅.
 
+## Retours du 14/11 au soir (SPEC § 27)
+
+| Retour | État |
+|---|---|
+| Gestionnaire de mots de passe qui remplit « Mode administration » | **corrigé** (libellé et marques « à ignorer ») ; à vérifier chez toi |
+| Mode administration perdu après déconnexion / reconnexion | **corrigé** : ouvert à la connexion |
+| Modèles pas cochés sur les machines déjà en place | **corrigé** : cochés d'office (à enregistrer) + bouton « Les cocher sur ces machines » |
+| Passkey Firefox iOS : `NotAllowedError` | en cours : questions posées |
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

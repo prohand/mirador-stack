@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -370,6 +371,13 @@ type donneesModeles struct {
 	Groupes   []string
 	Catalogue []vueCatalogue
 	Auto      bool
+	Detectes  []vueDetectes // machines avec des modèles détectés pas encore cochés
+}
+
+// vueDetectes : modèles détectés et pas encore appliqués sur une machine.
+type vueDetectes struct {
+	Machine string
+	Modeles []string // titres
 }
 
 func (c *Console) pageModeles(q *req) {
@@ -434,6 +442,18 @@ func (c *Console) pageModeles(q *req) {
 		}
 		d.Catalogue = append(d.Catalogue, vc)
 	}
+	for _, m := range ms {
+		if m.Statut != "approuvee" || m.Type != "agent" {
+			continue
+		}
+		if _, _, proposes, err := c.etatModeles(ctx, m, det); err == nil && len(proposes) > 0 {
+			v := vueDetectes{Machine: m.Nom}
+			for _, p := range proposes {
+				v.Modeles = append(v.Modeles, p.Titre)
+			}
+			d.Detectes = append(d.Detectes, v)
+		}
+	}
 	c.rendre(q, "modeles", "Modèles de surveillance", "machines", d)
 }
 
@@ -451,6 +471,10 @@ func (c *Console) postModeles(q *req) {
 			var n int
 			n, err = c.enregistrerGroupes(q)
 			ok = strconv.Itoa(n) + " changement(s) enregistré(s) : configuration envoyée aux agents, règles actives sous une minute"
+		case "detectes":
+			var n int
+			n, err = c.appliquerDetectes(ctx, q.qui(), q.t)
+			ok = strconv.Itoa(n) + " modèle(s) détecté(s) appliqué(s) : retirables sur la page de chaque machine"
 		case "auto":
 			actif := f("auto") == "oui"
 			err = modeles.DefinirAuto(ctx, c.db, actif, q.qui(), q.t)
@@ -578,6 +602,41 @@ func (c *Console) nbModelesProposes(ctx context.Context, ms []flotte.InfoMachine
 		}
 	}
 	return out
+}
+
+// appliquerDetectes : applique en une fois les modèles détectés et pas
+// encore cochés sur toutes les machines (machines déjà en place avant les
+// modèles). À la demande de l'administrateur (code 2FA) ; les modèles
+// ignorés restent de côté.
+func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time) (int, error) {
+	ms, err := flotte.ListerMachines(ctx, c.db)
+	if err != nil {
+		return 0, err
+	}
+	det := c.detectes(ctx, t)
+	n := 0
+	var errs []error
+	for _, m := range ms {
+		if m.Statut != "approuvee" || m.Type != "agent" {
+			continue
+		}
+		_, _, proposes, err := c.etatModeles(ctx, m, det)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, mod := range proposes {
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, nil, qui, t); err != nil {
+				errs = append(errs, fmt.Errorf("%s / %s : %w", m.Nom, mod.Nom, err))
+				continue
+			}
+			n++
+		}
+	}
+	if n > 0 {
+		c.oublierAValider()
+	}
+	return n, errors.Join(errs...)
 }
 
 // appliquerAuto : application automatique des modèles détectés (réglage,

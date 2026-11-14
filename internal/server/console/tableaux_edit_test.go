@@ -585,6 +585,12 @@ func TestModeAdmin(t *testing.T) {
 	b := nouveauBanc(t)
 	c, secret := b.premierAdmin("admin", mdpAdmin)
 	csrf := b.csrf(c, "/mises-a-jour")
+	// Ouvert dès la connexion (le second facteur vient d'être donné), y
+	// compris après une déconnexion et une reconnexion.
+	if _, corps, _ := b.get(c, "/"); !strings.Contains(corps, "Mode administration jusqu") {
+		t.Fatal("mode administration fermé juste après la connexion")
+	}
+	b.post(c, "/mode-admin/quitter", url.Values{"csrf": {csrf}})
 	cle1, cle2 := strings.Repeat("B", 43)+"=", strings.Repeat("C", 43)+"="
 	b.h.avancer(31 * time.Second)
 	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {cle1}, "code": {b.code(secret)}})

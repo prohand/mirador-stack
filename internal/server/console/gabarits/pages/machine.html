@@ -179,13 +179,13 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <div class="entete-carte"><div><h2>Modèles de surveillance</h2><p class="sous">Cocher ce que cette machine est : chaque modèle applique ce qu'il faut surveiller, avec ses alertes et ses seuils. <a href="/modeles">Catalogue et groupes</a></p></div></div>
 <form method="post" action="/machines/{{$nom}}">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="modeles">
 <table class="cases-modeles"><tbody>
-{{range $md.Cases}}<tr><td><label class="case"><input type="checkbox" name="m" value="{{.M.Nom}}" {{if .Coche}}checked{{end}} {{if not $.Admin}}disabled{{end}}> <strong>{{.M.Titre}}</strong></label></td>
-<td>{{if .DuGroupe}}<span class="pastille">du groupe {{$md.Groupe}}</span>{{end}}{{if .Detecte}}<span class="pastille attention" title="Détecté sur la machine : cocher pour l'appliquer ; laissé décoché, il ne sera plus proposé">★ détecté</span>{{end}}{{if .Auto}}<span class="pastille" title="Appliqué automatiquement (détection)">auto</span>{{end}}{{if .Ignore}}<span class="pastille sous" title="Laissé de côté pour cette machine">ignoré</span>{{end}}</td>
+{{range $md.Cases}}<tr><td><label class="case"><input type="checkbox" name="m" value="{{.M.Nom}}" {{if or .Coche .Detecte}}checked{{end}} {{if not $.Admin}}disabled{{end}}> <strong>{{.M.Titre}}</strong></label></td>
+<td>{{if .DuGroupe}}<span class="pastille">du groupe {{$md.Groupe}}</span>{{end}}{{if .Detecte}}<span class="pastille attention" title="Détecté sur la machine : coché d'office, appliqué à l'enregistrement ; décoché, il ne sera plus proposé">★ détecté · à enregistrer</span>{{end}}{{if .Auto}}<span class="pastille" title="Appliqué automatiquement (détection)">auto</span>{{end}}{{if .Ignore}}<span class="pastille sous" title="Laissé de côté pour cette machine">ignoré</span>{{end}}</td>
 <td><small class="sous">{{.M.Description}}</small></td>
 <td>{{if .Seuils}}<a href="/machines/{{$nom}}/modeles/{{.M.Nom}}">Réglages…</a>{{end}}{{if .AVide}} <span class="pastille attention" title="Aucune adresse, aucun fichier… : rien n'est testé">à remplir</span>{{end}}</td></tr>{{end}}
 </tbody></table>
 {{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-<p class="aide"><small class="aide">Détecté laissé décoché : plus proposé. Décocher un modèle du groupe : retiré pour cette machine seulement.</small></p>{{end}}
+<p class="aide"><small class="aide">Détecté : coché d'office, appliqué à l'enregistrement (décoché : plus proposé). Décocher un modèle du groupe : retiré pour cette machine seulement.</small></p>{{end}}
 </form>
 </section>{{end}}
 

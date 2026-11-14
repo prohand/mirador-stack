@@ -11,6 +11,14 @@
 <p class="aide"><small class="aide">Modèle appliqué : signalé et marqué « auto » (décocher pour le retirer). Désactivé : seulement proposé.</small></p>
 </section>
 
+{{if $d.Detectes}}<section class="carte" id="detectes">
+<h2>Modèles détectés pas encore cochés</h2>
+<ul class="liste-simple">{{range $d.Detectes}}<li><strong>{{.Machine}}</strong> : {{range $i, $t := .Modeles}}{{if $i}}, {{end}}{{$t}}{{end}}</li>{{end}}</ul>
+{{if $.Admin}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detectes">
+{{template "code2fa"}}<button>Les cocher sur ces machines</button></form>{{end}}
+<p class="aide"><small class="aide">Pour les machines déjà en place. Chaque modèle reste retirable sur la page de la machine.</small></p>
+</section>{{end}}
+
 <section class="carte">
 <h2>Modèles par groupe</h2>
 {{if $d.Groupes}}<form method="post" action="/modeles">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="groupes">

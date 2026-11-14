@@ -562,6 +562,11 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	id := c.sessions.Renouveler(s.Empreinte, t, func(x *auth.Session) {
 		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = auth.EtapeComplet, t, "", 0, u.Generation
 		x.DefiPasskey, x.NomPasskey = "", ""
+		// Le second facteur vient d'être donné : le mode administration
+		// s'ouvre (comme après un code juste sur une action sensible).
+		if d := c.dureeModeAdmin(); d > 0 {
+			x.AdminJusqua = t.Add(d)
+		}
 	})
 	if id == "" {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
