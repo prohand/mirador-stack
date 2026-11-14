@@ -165,6 +165,10 @@ Thème : **Jour / Nuit / Auto** en bas du menu (Auto suit l'ordinateur ou le
 téléphone). Le choix est retenu dans le compte de chaque utilisateur ; le
 thème de Réglages › Interface sert aux comptes qui n'ont rien choisi.
 
+Aides : **Avec aides / Sans aides**, juste au-dessus (retenu dans le compte).
+« Sans aides » masque les aides sous les champs ; les avertissements restent.
+Le détail des aides est dans [`aide.md`](aide.md) (liens « En savoir plus »).
+
 ## 7. Olvid depuis l'interface
 
 1. Réglages › Notifications › Olvid › **assistant d'installation**

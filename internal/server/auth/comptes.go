@@ -29,6 +29,7 @@ type Utilisateur struct {
 	CreeLe      int64
 	ConnecteLe  int64
 	Theme       string // clair, sombre, auto ; '' = réglage du serveur
+	SansAides   bool   // aides de l'interface masquées (choix de l'utilisateur)
 }
 
 // Erreurs.
@@ -66,13 +67,13 @@ func auditer(ctx context.Context, x execer, qui, action, objet, avant, apres, ad
 	return err
 }
 
-const colonnesUtilisateur = `id, nom, role, mot_de_passe, totp, totp_dernier, generation, desactive, cree_le, connecte_le, theme`
+const colonnesUtilisateur = `id, nom, role, mot_de_passe, totp, totp_dernier, generation, desactive, cree_le, connecte_le, theme, sans_aides`
 
 func scannerUtilisateur(sc interface{ Scan(...any) error }) (Utilisateur, error) {
 	var u Utilisateur
-	var d int
-	err := sc.Scan(&u.ID, &u.Nom, &u.Role, &u.MotDePasse, &u.TOTP, &u.TOTPDernier, &u.Generation, &d, &u.CreeLe, &u.ConnecteLe, &u.Theme)
-	u.Desactive = d != 0
+	var d, sa int
+	err := sc.Scan(&u.ID, &u.Nom, &u.Role, &u.MotDePasse, &u.TOTP, &u.TOTPDernier, &u.Generation, &d, &u.CreeLe, &u.ConnecteLe, &u.Theme, &sa)
+	u.Desactive, u.SansAides = d != 0, sa != 0
 	return u, err
 }
 
@@ -274,5 +275,16 @@ func DefinirTheme(ctx context.Context, db *sql.DB, id int64, theme string) error
 		return errors.New("thème inconnu")
 	}
 	_, err := db.ExecContext(ctx, `UPDATE utilisateurs SET theme = ? WHERE id = ?`, theme, id)
+	return err
+}
+
+// DefinirAides : aides de l'interface affichées ou masquées (simple
+// préférence d'affichage : pas d'audit).
+func DefinirAides(ctx context.Context, db *sql.DB, id int64, sans bool) error {
+	v := 0
+	if sans {
+		v = 1
+	}
+	_, err := db.ExecContext(ctx, `UPDATE utilisateurs SET sans_aides = ? WHERE id = ?`, v, id)
 	return err
 }

@@ -12,7 +12,7 @@
 <p class="onglets"><a href="/logs?level=err&amp;periode=24h">Erreurs système (24 h)</a><a href="/logs?job=docker&amp;mots=error&amp;periode=24h">« error » dans Docker (24 h)</a><a href="/logs?mots=out%20of%20memory&amp;periode=7d">Manque de mémoire (7 j)</a><a href="/flux-bloques">Flux bloqués</a></p>
 <details class="carte" open><summary><strong>Volume des logs par machine</strong> (lignes reçues par minute, {{.D.Periode}})</summary>
 <div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}"></div></details>
-<p><small>« Mots entiers » est rapide (index) ; « texte contenu » relit tous les blocs de la période (plus lent).</small></p>
+<p class="aide"><small class="aide">« Mots entiers » : rapide. « Texte contenu » : plus lent (relit toute la période).</small></p>
 {{if .D.Cherche}}
 <p>{{.D.NbLignes}} ligne(s) en {{duree .D.Duree}} ({{.D.BlocsLus}} blocs lus){{if .D.Tronque}} — <strong>résultat partiel</strong> : affiner les filtres ou la période{{end}}.</p>
 {{if .D.Lignes}}

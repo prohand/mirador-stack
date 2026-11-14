@@ -24,7 +24,7 @@
 {{range .D.Modeles}}<optgroup label="{{.Categorie}}">{{range .Modeles}}<option value="{{.ID}}">{{.Titre}}</option>{{end}}</optgroup>{{end}}</select></label>
 <label class="case"><input type="checkbox" name="remplacer" value="1" {{if .D.Nouveau}}checked{{end}}> Remplacer tout le panneau (titre, type, unité, couleurs)</label>
 <button name="action" value="modele" class="secondaire" formnovalidate>Insérer</button></div>
-<small>Sinon la requête va dans la première ligne vide. Les filtres du tableau{{if .D.FiltresTab}} ({{range $i, $f := .D.FiltresTab}}{{if $i}}, {{end}}<code>{{$f}}</code>{{end}}){{end}} sont ajoutés tout seuls.</small>
+<small class="aide">Sinon : première ligne vide.{{if .D.FiltresTab}} Filtres du tableau ajoutés : {{range $i, $f := .D.FiltresTab}}{{if $i}}, {{end}}<code>{{$f}}</code>{{end}}.{{end}}</small>
 <details class="assistant" data-assistant data-tableau="{{$t.Nom}}"><summary>Construire une requête sans écrire de PromQL</summary>
 <div class="ligne">
 <label>1. Métrique <select data-a="metrique"><option value="">— choisir —</option>{{range .D.Metriques}}<option value="{{.Nom}}" data-compteur="{{if .Compteur}}1{{end}}">{{if .Description}}{{majuscule .Description}} — {{end}}{{.Nom}}</option>{{end}}</select></label>
@@ -48,15 +48,15 @@
 <div class="aide-ligne" data-aide="{{$i}}" aria-live="polite"></div></td>
 <td><input name="legende{{$i}}" value="{{$r.Legende}}" maxlength="200" placeholder="{{"{{instance}}"}}" aria-label="Légende {{$i}}"></td></tr>{{end}}
 </tbody></table></div>
-<small>Une ligne vide est ignorée ; enregistrer ajoute deux lignes libres (12 requêtes au plus). Variables : <code>$__rate_interval</code>, et les filtres du tableau (<code>instance=~"$instance"</code>). Légende : <code>{{"{{instance}}"}}</code>, <code>{{"{{device}}"}}</code>…</small>
+<small class="aide">Ligne vide ignorée (12 requêtes au plus). Variables : <code>$__rate_interval</code>, <code>instance=~"$instance"</code>. {{template "plus" "aide.md#panneau-requetes"}}</small>
 <div class="grille">
 <label>Seuils de couleur (un par ligne) <textarea name="seuils" rows="4" maxlength="2000" placeholder="ok&#10;80 attention&#10;90 erreur">{{.D.Seuils}}</textarea>
-<small>« couleur » = à partir de tout en bas ; « valeur couleur » = à partir de cette valeur. Couleurs : ok, attention, erreur, info.</small></label>
+<small class="aide">« couleur » = à partir de tout en bas ; « valeur couleur » = à partir de cette valeur. Couleurs : ok, attention, erreur, info.</small></label>
 <label>Textes à la place des valeurs (un par ligne) <textarea name="correspondances" rows="4" maxlength="2000" placeholder="1 = En marche ok&#10;0 = Arrêté erreur&#10;10..20 = Moyen attention">{{.D.Correspondances}}</textarea>
-<small>« valeur = texte [couleur] » ou « de..à = texte [couleur] ».</small></label>
+<small class="aide">« valeur = texte [couleur] » ou « de..à = texte [couleur] ».</small></label>
 </div>
 <label>Colonnes (type Tableau, une par ligne : champ | titre | unité) <textarea name="colonnes" rows="3" maxlength="2000" placeholder="instance | Machine&#10;A | CPU | percent">{{.D.Colonnes}}</textarea>
-<small>Champ = une étiquette (instance, device…) ou l'id d'une requête (A, B…). Vide = toutes les étiquettes puis les requêtes.</small></label>
+<small class="aide">Champ : étiquette ou id de requête (A, B…). Vide = tout.</small></label>
 <label>Étiquettes à masquer (type Tableau, virgules) <input name="masquer" value="{{.D.Masquer}}" maxlength="500"></label>
 <div class="ligne"><button name="action" value="apercu" class="secondaire">Aperçu</button><button name="action" value="enregistrer">Enregistrer le panneau</button>
 <a class="bouton secondaire" href="/tableaux/{{$t.Nom}}/modifier">Annuler</a></div>

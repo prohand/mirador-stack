@@ -1,7 +1,7 @@
 {{define "contenu"}}{{$d := .D}}{{$m := $d.M}}{{$ro := not $.Admin}}
 <h1>{{if $d.Nouveau}}Nouveau modèle{{else}}Modèle personnel « {{$m.Titre}} »{{end}}</h1>
 <p><a href="/modeles">← Modèles de surveillance</a>{{if not $d.Nouveau}} · <a href="/modeles/export/{{$m.Nom}}">Exporter en JSON</a>{{end}}</p>
-{{if $d.Depuis}}<p><small>Copie du modèle livré « {{$d.Depuis}} » : ses règles sont renommées (suffixe « Perso »). Ne pas porter les deux modèles sur les mêmes machines (alertes en double).</small></p>{{end}}
+{{if $d.Depuis}}<p><small>Copie de « {{$d.Depuis}} » (règles suffixées « Perso »). Pas les deux modèles sur les mêmes machines : alertes en double.</small></p>{{end}}
 <form method="post" action="/modeles/perso" class="pile modele-perso">{{template "csrf" .CSRF}}
 <input type="hidden" name="action" value="enregistrer"><input type="hidden" name="depuis" value="{{$d.Depuis}}">
 {{if $d.Nouveau}}<input type="hidden" name="nouveau" value="oui">{{else}}<input type="hidden" name="nom" value="{{$m.Nom}}">{{end}}
@@ -14,42 +14,42 @@
 </div>
 <label class="pile">Description <textarea name="description" rows="2" cols="70" maxlength="2000" {{if $ro}}disabled{{end}}>{{$m.Description}}</textarea></label>
 <label class="pile">Détection (facultatif) <input name="detection" value="{{$m.Detection}}" size="80" maxlength="2000" spellcheck="false" placeholder='count by (instance) (node_systemd_unit_state{name="mon-appli.service", state="active"} == 1)' {{if $ro}}disabled{{end}}>
-<small>Requête PromQL qui renvoie une série par <code>instance</code> où le modèle s'applique : il y est alors proposé (« ★ détecté »). Vide : jamais proposé.</small></label>
+<small class="aide">PromQL : une série par <code>instance</code> où le modèle est proposé (« ★ détecté »). Vide : jamais proposé.</small></label>
 <label class="pile">Services systemd attendus (facultatif) <input name="services" value="{{$d.Services}}" size="80" maxlength="4000" placeholder="mon-appli.service, redis-server.service" {{if $ro}}disabled{{end}}>
-<small>Séparés par des virgules ; surveillés sur les machines du modèle, alerte si l'un manque.</small></label>
+<small class="aide">Séparés par des virgules ; alerte si l'un manque.</small></label>
 </section>
 
 <section class="carte pile">
 <h2>Listes à tester par l'agent</h2>
-<p><small>Chaque liste se remplit ensuite par groupe ou par machine (une valeur par ligne) ; chaque ligne devient un test de l'agent, étiqueté <code>modele="{{if $m.Nom}}{{$m.Nom}}{{else}}nom-du-modele{{end}}"</code>. Exemple : séparer les lignes par « | ».</small></p>
+<p class="aide"><small class="aide">Remplies par groupe ou par machine, une valeur par ligne ; chaque ligne devient un test de l'agent. {{template "plus" "aide.md#modele-listes"}}</small></p>
 <div class="defile"><table class="formulaire"><thead><tr><th>Nom</th><th>Titre</th><th>Type</th><th>Exemple</th><th>Aide</th></tr></thead><tbody>
 {{range $m.Listes}}{{template "ligne-liste-perso" dict "L" . "D" $d "RO" $ro}}{{end}}
 {{range $d.Vides}}{{template "ligne-liste-perso" dict "L" nil "D" $d "RO" $ro}}{{end}}
 </tbody></table></div>
-<p><small>Types : <code>http</code> (adresse), <code>tcp</code> (hôte:port), <code>processus</code>, <code>fichier</code>, <code>dossier</code>, <code>dns</code>, <code>ping</code>.</small></p>
+<p class="aide"><small class="aide">Types : <code>http</code> (adresse), <code>tcp</code> (hôte:port), <code>processus</code>, <code>fichier</code>, <code>dossier</code>, <code>dns</code>, <code>ping</code>.</small></p>
 </section>
 
 <section class="carte pile">
 <h2>Seuils</h2>
-<p><small>Réglables par groupe puis par machine. Dans une règle : <code>$nom</code> juste après une comparaison (ex. <code>&gt; $temps_max</code>).</small></p>
+<p class="aide"><small class="aide">Réglables par groupe puis par machine. Dans une règle : <code>&gt; $nom</code>.</small></p>
 <div class="defile"><table class="formulaire"><thead><tr><th>Nom</th><th>Titre</th><th>Unité</th><th>Défaut</th><th>Min</th><th>Max</th></tr></thead><tbody>
 {{range $m.Parametres}}<tr><td><input name="p_nom" value="{{.Nom}}" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" value="{{.Titre}}" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" value="{{.Unite}}" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" value="{{seuil .Defaut}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" value="{{seuil .Min}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" value="{{seuil .Max}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
 {{range $d.Vides}}<tr><td><input name="p_nom" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
 </tbody></table></div>
-<p><small>Pour retirer une ligne : vider son nom.</small></p>
+<p class="aide"><small class="aide">Vider le nom pour retirer la ligne.</small></p>
 </section>
 
 <section class="carte pile">
 <h2>Règles d'alerte</h2>
-<p><small>Expression PromQL (même lecteur que la page « Règles »). Mesures des tests : <code>mirador_check_ok</code>, <code>mirador_check_duree_secondes</code>, <code>mirador_check_http_code</code>… avec <code>modele="…"</code>. « Remplace » : nom d'une règle importée qui se tait sur les machines du modèle.</small></p>
+<p class="aide"><small class="aide">PromQL sur les mesures des tests (<code>mirador_check_ok</code>…). {{template "plus" "aide.md#modele-regles"}}</small></p>
 {{range $m.Regles}}{{template "regle-perso" dict "R" . "D" $d "RO" $ro}}{{end}}
 {{range $d.VidesRegles}}{{template "regle-perso" dict "R" nil "D" $d "RO" $ro}}{{end}}
-<p><small>Une règle vide est ajoutée à chaque enregistrement ; pour retirer une règle : vider son nom.</small></p>
+<p class="aide"><small class="aide">Vider le nom pour retirer la règle.</small></p>
 </section>
 
 <details class="carte"><summary>Avancé : configuration des agents (JSON)</summary>
 <label class="pile"><textarea name="config" rows="6" cols="70" maxlength="20000" spellcheck="false" placeholder='{"systemd": true}' {{if $ro}}disabled{{end}}>{{$d.Config}}</textarea>
-<small>Clés de la configuration distante des agents (vérifiées par le code de l'agent ; jamais de commande). Un réglage fait à la main sur un groupe ou une machine l'emporte.</small></label>
+<small class="aide">Clés de la configuration des agents (jamais de commande). Un réglage fait à la main l'emporte.</small></label>
 </details>
 {{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer le modèle</button></div>{{end}}
 </form>

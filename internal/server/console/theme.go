@@ -16,6 +16,26 @@ import (
 
 func (c *Console) routesTheme() {
 	c.mux.HandleFunc("POST /compte/theme", c.lecture(c.postTheme))
+	c.mux.HandleFunc("POST /compte/aides", c.lecture(c.postAides))
+}
+
+// postAides : bouton « Avec aides / Sans aides » du menu (SPEC § 26).
+func (c *Console) postAides(q *req) {
+	v := q.r.PostFormValue("aides")
+	if v != "avec" && v != "sans" {
+		http.Error(q.w, "choix inconnu", http.StatusBadRequest)
+		return
+	}
+	if err := auth.DefinirAides(q.r.Context(), c.db, q.u.ID, v == "sans"); err != nil {
+		http.Error(q.w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c.oublierComptes()
+	if q.r.Header.Get("X-Requested-With") == "mirador" {
+		q.w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(q.w, q.r, retourLocal(q.r.PostFormValue("retour")), http.StatusSeeOther)
 }
 
 func (c *Console) postTheme(q *req) {

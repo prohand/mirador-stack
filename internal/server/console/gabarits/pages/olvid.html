@@ -28,6 +28,6 @@
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="discussion">
 {{range .D.Discussions}}<label class="case"><input type="radio" name="id" value="{{.ID}}" {{if egal .ID $.D.DiscussionAct}}checked{{end}}> {{.Titre}} <small>(n° {{.ID}})</small></label>{{end}}
 {{if .Admin}}{{template "code2fa"}}<button>Choisir</button>{{end}}</form>{{else}}<p class="vide">Aucune discussion.</p>{{end}}
-<p><small>Ensuite : « Tester Olvid » dans Réglages › Notifications.</small></p></section>
+<p class="aide"><small class="aide">Ensuite : « Tester Olvid » dans Réglages › Notifications.</small></p></section>
 </div>
 {{end}}

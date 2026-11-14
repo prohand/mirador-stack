@@ -6,7 +6,7 @@
 <section class="carte" id="cle"><h2>Clé publique de signature</h2>
 {{if .D.Cles}}<p>{{range .D.Cles}}<code>{{.Valeur}}</code> — empreinte <strong><code>{{.Empreinte}}</code></strong><br>{{end}}</p>
 {{else}}<p class="message erreur">Aucune clé : les agents installés n'accepteront aucune mise à jour, et aucune version ne peut être publiée.</p>{{end}}
-<p><small>Clé <strong>publique</strong> affichée par <code>mirador-release cle</code> sur ton poste (la clé privée n'en sort jamais). Le script d'installation la récupère ici et l'écrit sur la machine dans un fichier root (<code>/etc/mirador-agent/cles-publiques.txt</code>) que l'agent ne peut pas modifier. La changer ici ne touche <strong>pas</strong> les machines déjà installées : pour elles, relancer le script avec <code>--cle-publique</code>. Deux clés au plus (l'actuelle et la suivante, pour changer de clé).</small></p>
+<p><small>Clé <strong>publique</strong> (<code>mirador-release cle</code>). La changer ne touche <strong>pas</strong> les machines installées : relancer le script avec <code>--cle-publique</code>. {{template "plus" "aide.md#cle-publique"}}</small></p>
 {{if .Admin}}<form method="post" action="/mises-a-jour#cle" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cles">
 <label>Clé(s) publique(s), une par ligne <textarea name="cles" rows="2" maxlength="200" spellcheck="false">{{range $i, $k := .D.Cles}}{{if $i}}
 {{end}}{{$k.Valeur}}{{end}}</textarea></label>
@@ -24,7 +24,7 @@
 <form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="depot">
 <label>Dépôt GitHub <input name="depot" value="{{.D.Depot}}" required maxlength="140" size="28" placeholder="propriétaire/nom"></label>
 {{template "code2fa"}}<button>Enregistrer</button></form>
-<p><small>Une version n'est acceptée que si elle est signée par une des clés publiques réglées ci-dessus : changer de dépôt sans changer de clé ne fait rien accepter de plus.</small></p></details>{{end}}
+<p class="aide"><small class="aide">Seules les versions signées par ces clés sont acceptées, quel que soit le dépôt.</small></p></details>{{end}}
 </section>
 
 <div class="grille">
@@ -48,8 +48,8 @@
 {{if .D.Versions}}<div class="defile"><table><thead><tr><th>Version</th><th>Programme</th><th>Arch.</th><th>Taille</th><th>SHA-256</th><th>Retour arrière signé</th><th>Publiée</th></tr></thead><tbody>
 {{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{if egal .Produit "mirador-collector"}}Collecteur{{else}}Agent{{end}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
-<p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
-<p><small>Gardées sur le serveur : la cible, les versions installées ou à l'essai sur une machine, les {{.D.Garder}} plus récentes et celles importées depuis moins de 24 h, pour les architectures du parc. Les autres sont supprimées chaque jour (réimportables depuis GitHub) : les sauvegardes restent petites.</small></p>
+<p class="aide"><small class="aide">Retour arrière : seulement avec un manifeste signé « retour autorisé ».</small></p>
+<p class="aide"><small class="aide">Gardées : la cible, les versions en service et les {{.D.Garder}} plus récentes. Les autres sont supprimées chaque jour (réimportables).</small></p>
 {{if .Admin}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="versions_gardees">
 <label>Versions récentes gardées <input type="number" name="nombre" min="1" max="10" value="{{.D.Garder}}" required></label>
 {{template "code2fa"}}<button>Enregistrer</button></form>{{end}}

@@ -13,7 +13,7 @@
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
-<body data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
+<body{{if .SansAides}} class="sans-aides"{{end}} data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
 {{template "icones"}}
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">
@@ -43,6 +43,11 @@
         <button type="submit" aria-label="Se déconnecter" title="Se déconnecter"><svg class="icone"><use href="#i-sortir"></use></svg></button>
       </form>
     </div>
+    <form method="post" action="/compte/aides" class="bascule-aides" data-aides role="radiogroup" aria-label="Aides de l'interface">
+      <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="retour" value="{{.Chemin}}">
+      <button type="submit" name="aides" value="avec" role="radio" aria-checked="{{if .SansAides}}false{{else}}true{{end}}" title="Aides affichées sous les champs"><svg class="icone"><use href="#i-aide"></use></svg><span class="txt">Avec aides</span></button>
+      <button type="submit" name="aides" value="sans" role="radio" aria-checked="{{if .SansAides}}true{{else}}false{{end}}" title="Aides masquées (les avertissements restent)"><svg class="icone"><use href="#i-aide-non"></use></svg><span class="txt">Sans aides</span></button>
+    </form>
     <form method="post" action="/compte/theme" class="themes" data-themes role="radiogroup" aria-label="Thème de l'interface">
       <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="retour" value="{{.Chemin}}">
       <button type="submit" name="theme" value="clair" role="radio" aria-checked="{{if eq .ThemeChoix "clair"}}true{{else}}false{{end}}" title="Jour"><svg class="icone"><use href="#i-soleil"></use></svg><span class="txt">Jour</span></button>

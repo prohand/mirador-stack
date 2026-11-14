@@ -123,6 +123,8 @@
 <symbol id="i-soleil" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
 <symbol id="i-lune" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
 <symbol id="i-ecran" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></symbol>
+<symbol id="i-aide" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/></symbol>
+<symbol id="i-aide-non" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></symbol>
 <symbol id="i-loupe" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
 <symbol id="i-alertes" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></symbol>
 <symbol id="i-logs" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
@@ -182,4 +184,5 @@
 {{/* Liste d'un modèle (partie B) : une valeur par ligne, chacune devient un test de l'agent. */}}
 {{define "liste-modele"}}{{$l := .L}}<label class="pile liste-modele">{{$l.Titre}}{{if .Machine}}{{if $l.Propre}} <small>(propre à cette machine)</small>{{else}} <small>(du groupe ou vide ; modifier ici la rend propre à cette machine)</small>{{end}}{{end}}
 <textarea name="l.{{$l.Nom}}" rows="{{if gt $l.Nb 3}}{{$l.Nb}}{{else}}3{{end}}" cols="60" maxlength="20000" spellcheck="false" placeholder="{{$l.Exemple}}" {{if not .Admin}}disabled{{end}}>{{$l.Texte}}</textarea>
-<small>Une valeur par ligne{{if $l.Aide}} — {{$l.Aide}}{{end}}. Rien de secret : les valeurs apparaissent dans les mesures.</small></label>{{end}}
+<small>Une valeur par ligne{{if $l.Aide}} — {{$l.Aide}}{{end}}. Rien de secret : visible dans les mesures.</small></label>{{end}}
+{{define "plus"}}<a class="aide-plus" href="{{docs .}}" target="_blank" rel="noopener noreferrer">En savoir plus ›</a>{{end}}

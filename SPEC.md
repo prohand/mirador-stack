@@ -4332,3 +4332,37 @@ une requête à chaque changement de thème ; feuille de style de même taille
 obligatoire (formulaire ou en-tête `X-CSRF`) ; valeur parmi `clair`,
 `sombre`, `auto` ; retour après le formulaire limité à un chemin du site
 (`//…`, `https://…`, `\` refusés → « / »).
+
+---
+
+## 26. Aides allégées (demande du 14/11, choix « A b d ») **[Fait, à valider]**
+
+Demande : « épurer dans les réglages et ailleurs ce qui est affiché en tant
+qu'aide ». Maquettes A+B+D et C montrées ; choix : **A + B + D**.
+
+- **A — une ligne** : chaque aide tient en une phrase. Le détail part dans
+  `docs/aide.md` ; un lien « En savoir plus › » y mène (dépôt public, ouvert
+  dans un nouvel onglet).
+- **B — bouton par utilisateur** : « Avec aides / Sans aides » en bas du
+  menu, au-dessus de Jour / Nuit / Auto. Retenu dans le compte (colonne
+  `utilisateurs.sans_aides`, migration 0021), appliqué tout de suite par
+  `mirador.js`, sans JavaScript par le formulaire.
+- **D — relecture** : 143 `<small>` relus. Environ 60 sont des données
+  (dates, états, rôles, valeurs) : inchangés. 81 aides (`class="aide"`)
+  raccourcies ; 3 retirées (cellules « — », renvoi à la SPEC). Durées par
+  défaut écrites simplement (« 30 min », « 7 j », « 1 an » : fonction
+  `dureeC`).
+- **Avertissements toujours affichés** (pas de classe `aide`) : votre
+  adresse et la confirmation sous 2 min, clé publique (machines déjà
+  installées), délier avant de réinstaller, base GéoIP effacée, attribution
+  DB-IP (licence CC BY), bascule InfluxDB, « rien de secret » dans les
+  listes, import (« *** » et ajouts), alertes en double d'une copie de
+  modèle.
+
+**Coût** : une colonne en base, une requête par clic, quelques lignes de
+CSS et de JavaScript ; pages un peu plus légères.
+
+**Menaces** : préférence d'affichage (pas d'audit) ; jeton CSRF obligatoire ;
+valeur `avec` ou `sans` seulement ; retour limité à un chemin du site (même
+contrôle que le thème). Liens de doc : adresse fixe dans le code.
+

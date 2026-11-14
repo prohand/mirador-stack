@@ -713,3 +713,29 @@ document.addEventListener("change", function (e) {
     f.disabled = !actif;
   });
 });
+
+// --- Aides affichées / masquées (SPEC § 26) ---------------------------------------
+// Bouton « Avec aides / Sans aides » en bas du menu : la page change tout de
+// suite, puis le choix est enregistré dans le compte (sans recharger).
+// Menu replié : seul le choix actif est montré, un clic passe à l'autre.
+(function () {
+  "use strict";
+  var form = document.querySelector("[data-aides]");
+  if (!form) { return; }
+  var boutons = form.querySelectorAll("button[name=aides]");
+  form.addEventListener("click", function (e) {
+    var b = e.target.closest("button[name=aides]");
+    if (!b) { return; }
+    e.preventDefault();
+    var choix = b.value;
+    var appli = document.getElementById("appli");
+    if (appli && appli.classList.contains("replie") && b.getAttribute("aria-checked") === "true") {
+      choix = choix === "avec" ? "sans" : "avec";
+    }
+    document.body.classList.toggle("sans-aides", choix === "sans");
+    boutons.forEach(function (x) { x.setAttribute("aria-checked", x.value === choix ? "true" : "false"); });
+    fetch(form.action, { method: "POST", credentials: "same-origin",
+      headers: { "X-Requested-With": "mirador", "X-CSRF": document.body.getAttribute("data-csrf") || "" },
+      body: new URLSearchParams({ aides: choix }) }).catch(function () { /* gardé pour cette page */ });
+  });
+})();

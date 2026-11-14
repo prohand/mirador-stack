@@ -7,7 +7,7 @@
 {{range .D.Etat}}<tr><td>{{majuscule .Nom}}</td><td>{{.Role}}</td><td><span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}">{{if .EnPanne}}En panne depuis {{date .Depuis}}{{else}}OK{{end}}</span></td><td>{{date .Verifie}}</td><td>{{.Erreur}}</td></tr>{{end}}
 </tbody></table>{{else}}<p class="vide">Aucun canal actif.</p>{{end}}
 <p>{{with .D.R.Canaux.Heartbeat}}{{if and (not .Actif) (not .URL)}}Heartbeat : non configuré{{else}}Heartbeat {{.NomService}} : {{if not .Actif}}désactivé{{else if $.D.HbErr}}<span class="erreur">{{$.D.HbErr}}</span>{{else if $.D.HbOK.IsZero}}pas encore envoyé{{else}}dernier envoi réussi {{date $.D.HbOK}}{{end}}{{end}}{{else}}Heartbeat : non configuré{{end}} · File d'attente (tous canaux en panne) : {{.D.File}} message(s)</p>
-{{if .Admin}}{{if .D.Testables}}<form method="post" class="ligne">{{template "csrf" .CSRF}}{{range .D.Testables}}<button name="action" value="tester:{{.}}" class="secondaire">Tester {{majuscule .}}</button>{{end}}</form>{{else}}<p><small>Les boutons « Tester » apparaissent pour les canaux configurés et actifs (plus bas).</small></p>{{end}}{{end}}
+{{if .Admin}}{{if .D.Testables}}<form method="post" class="ligne">{{template "csrf" .CSRF}}{{range .D.Testables}}<button name="action" value="tester:{{.}}" class="secondaire">Tester {{majuscule .}}</button>{{end}}</form>{{else}}<p class="aide"><small class="aide">« Tester » : pour les canaux actifs (plus bas).</small></p>{{end}}{{end}}
 {{if .D.Tests}}<h3>Derniers tests</h3><div class="defile"><table><thead><tr><th>Canal</th><th>Demandé</th><th>Résultat</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>{{range .D.Tests}}<tr><td>{{majuscule .Canal}}</td><td>{{dateMs .Demande}}</td><td>{{if .Fait}}<span class="pastille {{if egal .Statut "ok"}}ok{{else}}erreur{{end}}">{{majuscule .Statut}}</span> {{.Erreur}}{{else}}En attente{{end}}</td>
 {{if $.Admin}}<td><form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="test-effacer" class="secondaire petit" title="Effacer cette ligne">Effacer</button></form></td>{{end}}</tr>{{end}}</tbody></table></div>
 {{if .Admin}}<form method="post">{{template "csrf" .CSRF}}<button name="action" value="tests-effacer" class="secondaire petit" data-confirmer="Effacer tous les tests terminés ?">Effacer tous les tests terminés</button></form>{{end}}{{end}}
@@ -18,14 +18,14 @@
 <label>Mode <select name="mode"><option value="ombre" {{if egal $r.Mode "ombre"}}selected{{end}}>Ombre : tout est calculé, rien n'est envoyé</option><option value="actif" {{if egal $r.Mode "actif"}}selected{{end}}>Actif : les notifications partent</option></select></label>
 <label>Adresse de l'interface (lien direct dans les messages) <input name="lien" value="{{$r.Lien}}" placeholder="https://console.example.org" maxlength="200"></label>
 <label>Fuseau des heures dans les messages <input name="fuseau" value="{{$r.Fuseau}}" maxlength="64" required></label>
-<label>Regrouper par (étiquettes) <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small>Défaut : alertname, instance</small></label>
+<label>Regrouper par (étiquettes) <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small class="aide">Défaut : alertname, instance</small></label>
 <label>Règles qui veulent dire « machine en panne » (dépendances) <input name="regles_panne" value="{{range $i, $e := $r.ReglesPanne}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
 </section>
 <section class="carte"><h2>Routage par gravité</h2><div class="defile"><table><thead><tr><th>Gravité</th><th>Attente avant le 1er message</th><th>Écart entre deux messages</th><th>Rappel (0 = jamais)</th><th>Son</th></tr></thead><tbody>
 {{range $g := (liste "critical" "warning" "info")}}{{$ro := index $r.Routes $g}}<tr><td>{{template "gravite" $g}}</td>
 <td><input name="attente_{{$g}}" value="{{$ro.Attente}}" size="6" maxlength="10"></td><td><input name="intervalle_{{$g}}" value="{{$ro.Intervalle}}" size="6" maxlength="10"></td>
 <td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
-</tbody></table></div><small>Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h.</small></section>
+</tbody></table></div><small class="aide">Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h.</small></section>
 <section class="carte"><h2>Principal, secours, bascule</h2>
 <p>Les alertes partent sur <strong>un seul canal</strong> : le principal. S'il tombe en panne, elles partent sur le secours (avec un message « canal principal en panne »), puis reviennent sur le principal quand il remarche.</p>
 <div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option {{if egal . $c.Principal}}selected{{end}}>{{.}}</option>{{end}}</select></label>
@@ -49,7 +49,7 @@
 <label>Clé client du bot {{if $c.Olvid.Cle}}<small>(enregistrée)</small>{{end}} {{template "secret" "olvid_cle"}}</label>
 <label>Numéro de discussion <input name="olvid_discussion" value="{{$c.Olvid.Discussion}}" inputmode="numeric" maxlength="20"></label>
 <label>Attente de la confirmation d'envoi <input name="olvid_confirmation" value="{{$c.Olvid.Confirmation}}" size="6" maxlength="10"></label>
-<small>Première installation : <a href="/reglages/olvid/installer">assistant d'installation Olvid</a>. Invitations, contacts et choix de la discussion : page Olvid (une fois activé).</small>
+<small class="aide">Première installation : <a href="/reglages/olvid/installer">assistant Olvid</a>.</small>
 </section>
 <section class="carte"><h2>ntfy</h2>
 <label class="case"><input type="checkbox" name="ntfy_actif" value="1" {{if $c.Ntfy.Actif}}checked{{end}}> Actif</label>
@@ -70,7 +70,7 @@
 <label>Adresse (secrète) {{if $c.Heartbeat.URL}}<small>(enregistrée)</small>{{end}} {{template "secret" "hb_url"}}</label>
 <label>Intervalle <input name="hb_intervalle" value="{{$c.Heartbeat.Intervalle}}" size="6" maxlength="10"></label>
 <details><summary>Forme de l'adresse selon le service</summary><ul>{{range .D.ServicesHB}}<li><strong>{{.Nom}}</strong> : <code>{{.Exemple}}</code></li>{{end}}</ul></details>
-<small>Un simple GET à chaque intervalle. Indépendant des canaux : s'arrête si le serveur ne peut plus évaluer ses règles (le service externe vous prévient alors). Service sur votre réseau local (Uptime Kuma…) : cocher « Autoriser … une adresse privée » plus haut.</small>
+<small class="aide">Un GET à chaque intervalle ; s'arrête si le serveur ne peut plus évaluer ses règles. {{template "plus" "aide.md#heartbeat"}}</small>
 {{if and .Admin $c.Heartbeat.URL}}<div><button name="action" value="tester-heartbeat" class="secondaire" formnovalidate>Tester le heartbeat</button></div>{{end}}
 </section>
 {{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button>

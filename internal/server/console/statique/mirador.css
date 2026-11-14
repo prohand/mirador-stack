@@ -490,6 +490,22 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .appli.menu-haut .themes { margin: 0; }
 @media (max-width: 899px) { .themes { display: none; } .appli.ouvert .themes { display: grid; width: 100%; } }
 
+/* --- Aides (SPEC § 26) : bouton « Avec aides / Sans aides » du menu ------- */
+/* « Sans aides » masque les aides (class="aide") ; les avertissements
+   (sans cette classe) restent affichés. */
+.sans-aides .aide { display: none !important; }
+.aide-plus { margin-left: 6px; white-space: nowrap; }
+.bascule-aides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; margin: 10px 0 0; padding: 3px; border-radius: 10px; background: var(--menu-champ); }
+.bascule-aides button { min-height: 30px; padding: 0 4px; border: 0; border-radius: 8px; background: transparent; color: var(--menu-pale); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.bascule-aides button .icone { width: 14px; height: 14px; }
+.bascule-aides button:hover { color: var(--menu-texte); filter: none; }
+.bascule-aides button[aria-checked="true"] { background: var(--menu-seg); color: var(--menu-texte); }
+.bascule-aides + .themes { margin-top: 6px; }
+.appli.replie .bascule-aides { grid-template-columns: 1fr; width: 44px; }
+.appli.replie .bascule-aides button:not([aria-checked="true"]) { display: none; }
+.appli.menu-haut .bascule-aides { margin: 0; }
+@media (max-width: 899px) { .bascule-aides { display: none; } .appli.ouvert .bascule-aides { display: grid; width: 100%; } }
+
 /* --- Mode ombre : pastille discrète en haut de la page ----------------------- */
 .etat-ombre { display: flex; justify-content: flex-end; margin: -10px 0 8px; }
 .etat-ombre a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; text-decoration: none; background: var(--attention-fond); color: var(--attention); }

@@ -733,6 +733,17 @@ Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
 Mesure : une colonne en base, une requête par changement de thème, feuille
 de style de même taille ; objectif serveur inchangé ✅.
 
+## Aides allégées (SPEC § 26, 14/11, choix « A b d »)
+
+| Partie | État |
+|---|---|
+| Maquettes A+B+D et C | faites ; choix : **A + B + D** |
+| Bouton « Avec aides / Sans aides » par utilisateur | **fait**, testé ; à valider |
+| 143 aides relues : 81 raccourcies (« En savoir plus » vers `docs/aide.md`), 3 retirées, avertissements gardés | **fait**, captures avant / après ; à valider |
+
+Mesure : une colonne en base, une requête par clic ; objectif serveur
+inchangé ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

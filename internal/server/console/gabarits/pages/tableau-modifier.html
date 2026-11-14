@@ -6,7 +6,7 @@
 {{if egal .D.Origine "modifie"}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{$t.Nom}}"><button name="action" value="retablir" class="secondaire" data-confirmer="Remettre ce tableau tel que fourni ? Vos modifications seront perdues.">Rétablir l'original</button></form>{{end}}</div></div>
 
 <section class="carte"><h2>Disposition</h2>
-<p><small>Glisser-déposer les panneaux (d'une rangée à l'autre aussi) et les rangées par leur poignée ⠿ : la disposition s'enregistre au lâcher. La largeur se choisit sur chaque panneau.</small></p>
+<p class="aide"><small class="aide">Glisser-déposer panneaux et rangées (poignée ⠿) : enregistré au lâcher.</small></p>
 <form method="post" id="form-ordre">{{template "csrf" .CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="action" value="ordre"><input type="hidden" name="ordre" value=""></form>
 <div class="editeur" data-editeur>
 {{range .D.Rangees}}{{$ri := .Index}}<div class="ed-rangee" data-rangee="{{$ri}}">
@@ -46,6 +46,6 @@
 {{template "choix-icone" (choixIcone $t.Icone $t.Teinte .D.Icones .D.Teintes)}}
 <label>Période par défaut <select name="periode">{{$p := $t.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}{{if not (dansListe $p .D.Periodes)}}<option selected>{{$p}}</option>{{end}}</select></label>
 <label>Filtres (un par ligne : nom | titre | label_values(SÉLECTEUR, ÉTIQUETTE)) <textarea name="variables" rows="4" maxlength="4000">{{.D.Variables}}</textarea></label>
-<small>Ex. <code>instance | Machine | label_values(node_uname_info, instance)</code>. Dans les requêtes : <code>instance=~"$instance"</code> (vide = toutes).</small>
+<small class="aide">Ex. <code>instance | Machine | label_values(node_uname_info, instance)</code>. Dans les requêtes : <code>instance=~"$instance"</code> (vide = toutes).</small>
 <div><button name="action" value="proprietes">Enregistrer</button></div></form></section>
 {{end}}
