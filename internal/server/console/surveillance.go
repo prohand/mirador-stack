@@ -688,6 +688,10 @@ func (c *Console) aValider(ctx context.Context, t time.Time) map[string]int {
 				out[nom] = n
 			}
 		}
+		// Modèles de surveillance détectés, ni attribués ni ignorés (SPEC § 24.3).
+		for nom, n := range c.nbModelesProposes(ctx, approuvees, t) {
+			out[nom] += n
+		}
 	}
 	c.cacheValider.parMachine, c.cacheValider.expire = out, t.Add(time.Minute)
 	return out

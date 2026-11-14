@@ -1,0 +1,11 @@
+{
+ "version": 1,
+ "nom": "raid",
+ "titre": "RAID logiciel",
+ "icone": "disque",
+ "description": "État des grappes RAID logiciel (mdadm) ; alerte « grappe dégradée » fournie par mirador.",
+ "detection": "count by (instance) (mirador_agent_detecte{genre=\"mdraid\"}) or count by (instance) (node_md_degraded)",
+ "config": {
+  "mdraid": true
+ }
+}

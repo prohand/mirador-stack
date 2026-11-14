@@ -1,0 +1,44 @@
+{
+ "version": 1,
+ "nom": "proxmox",
+ "titre": "Proxmox VE",
+ "icone": "machines",
+ "description": "Nœud Proxmox : invités (VM et LXC) lus dans les cgroups, avec les seuils CPU et mémoire des invités réglables.",
+ "detection": "count by (instance) (mirador_pve_invite_en_marche) or count by (instance) (mirador_pve_invite_info)",
+ "parametres": [
+  {
+   "nom": "invite_cpu_pct",
+   "titre": "CPU d'un invité : alerte au-dessus de (% de ses cœurs)",
+   "unite": "%",
+   "defaut": 95,
+   "min": 10,
+   "max": 100
+  },
+  {
+   "nom": "conteneur_memoire_pct",
+   "titre": "Mémoire d'un LXC : alerte au-dessus de (% configurée)",
+   "unite": "%",
+   "defaut": 95,
+   "min": 10,
+   "max": 100
+  }
+ ],
+ "regles": [
+  {
+   "nom": "PveInviteCpuSature",
+   "remplace": "ProxmoxInviteCpuSature",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) / max by (instance, id, type) (mirador_pve_invite_coeurs) * on (instance, id) group_left (nom) mirador_pve_invite_info * 100 > $invite_cpu_pct",
+   "resume": "{{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanize }} % de ses cœurs"
+  },
+  {
+   "nom": "PveConteneurMemoireSaturee",
+   "remplace": "ProxmoxConteneurMemoireSaturee",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "max by (instance, id, type) (mirador_pve_invite_memoire_octets{type=\"lxc\"}) / max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type=\"lxc\"}) * on (instance, id) group_left (nom) mirador_pve_invite_info * 100 > $conteneur_memoire_pct",
+   "resume": "Le conteneur {{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanize }} % de sa mémoire"
+  }
+ ]
+}

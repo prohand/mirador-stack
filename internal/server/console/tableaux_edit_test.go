@@ -15,6 +15,7 @@ import (
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -450,5 +451,63 @@ func TestEquipementSansAgent(t *testing.T) {
 	_ = b.c.db.QueryRow(`SELECT count(*) FROM tokens t JOIN machines m ON m.id = t.machine_id WHERE m.nom = 'opnsense' AND t.revoque_le = 0`).Scan(&n)
 	if n != 1 {
 		t.Errorf("token remplacé : %d actif(s)", n)
+	}
+}
+
+// Modèles de surveillance (SPEC § 24) : attribution depuis la page d'une
+// machine (seuils propres) et depuis la page « Modèles » (groupe).
+func TestModelesInterface(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, groupe, cree_le) VALUES ('web1', 'approuvee', 'agent', 'web', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := flotte.IDMachine(ctx, b.c.db, "web1")
+	csrf := b.csrf(c, "/machines/web1")
+	if _, corps, _ := b.get(c, "/machines/web1"); !strings.Contains(corps, `id="modeles"`) || !strings.Contains(corps, `value="linux"`) {
+		t.Fatal("bloc Modèles absent")
+	}
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_ajouter"}, "modele": {"linux"}, "code": {b.code(secret)}})
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_parametres"}, "modele": {"linux"},
+		"p.disque_libre_pct": {"25"}, "p.cpu_pct": {""}, "code": {b.code(secret)}})
+	effs, _ := modeles.Effectifs(ctx, b.c.db, id, "web")
+	if len(effs) != 1 || effs[0].Parametres["disque_libre_pct"] != 25 || effs[0].Surcharges["cpu_pct"] {
+		t.Fatalf("après attribution : %+v", effs)
+	}
+	// Seuil hors bornes : refusé, rien de changé.
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_parametres"}, "modele": {"linux"},
+		"p.disque_libre_pct": {"500"}, "code": {b.code(secret)}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); effs[0].Parametres["disque_libre_pct"] != 25 {
+		t.Error("seuil hors bornes accepté")
+	}
+	// Configuration de l'agent : clés du modèle présentes.
+	doc, _, err := flotte.ConfigMachine(ctx, b.c.db, id)
+	if err != nil || !strings.Contains(string(doc), `"systemd":true`) {
+		t.Errorf("configuration : %s %v", doc, err)
+	}
+	// Groupe : Docker attribué depuis la page « Modèles ».
+	b.post(c, "/reglages/sites", url.Values{"csrf": {csrf}, "liste": {"groupes"}, "action": {"ajouter"}, "valeur": {"web"}})
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"ajouter"}, "modele": {"docker"}, "groupe": {"web"}, "code": {b.code(secret)}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 2 || effs[0].Modele.Nom != "docker" || !effs[0].DuGroupe {
+		t.Fatalf("après attribution au groupe : %+v", effs)
+	}
+	if _, corps, _ := b.get(c, "/modeles"); !strings.Contains(corps, "Retirer du groupe") {
+		t.Error("page Modèles : groupe absent")
+	}
+	// Retirer un modèle du groupe pour cette machine seulement.
+	b.h.avancer(31 * time.Second)
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_retirer"}, "modele": {"docker"}, "code": {b.code(secret)}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 1 {
+		t.Errorf("après retrait pour la machine : %+v", effs)
+	}
+	// Sans code 2FA : refusé.
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modele_ajouter"}, "modele": {"certificats"}})
+	if effs, _ = modeles.Effectifs(ctx, b.c.db, id, "web"); len(effs) != 1 {
+		t.Error("modèle ajouté sans code 2FA")
 	}
 }

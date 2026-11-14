@@ -3719,3 +3719,100 @@ dernière connexion). Une adresse non revue depuis 30 jours redevient
 « nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
 (comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
 Coût : une lecture et une écriture SQLite par connexion réussie.
+
+---
+
+## 24. Modèles de surveillance **[Décidé le 14/11 — partie A faite, à valider]**
+
+Demande du 14/11 : « dire : cette machine est une machine Linux, donc tu fais
+ces checks » ; « si je veux les certificats, on les lui attribue depuis
+l'interface » ; détection automatique qui propose les modèles. Réponses :
+modèles **cumulables**, attribuables à une **machine** ou à un **groupe**,
+**seuils réglables par machine**, à faire **avant** la suite de l'étape 6 ;
+une règle de modèle **remplace** la règle importée équivalente pour les
+machines qui portent le modèle.
+
+### 24.1 Ce qu'est un modèle
+
+Un fichier JSON (fournis : `internal/server/modeles/fournis/*.json`, comme les
+tableaux) :
+
+| Champ | Rôle |
+|---|---|
+| `nom`, `titre`, `description`, `icone` | affichage |
+| `detection` | expression PromQL qui renvoie une série par `instance` où le modèle s'applique (ex. `count by (instance) (node_docker_up)`) : sert aux propositions |
+| `config` | clés de la configuration distante des agents (valeurs typées, vérifiées par le code de l'agent ; jamais de commande) |
+| `parametres` | seuils nommés (nombre, unité, défaut, bornes), réglables par groupe puis par machine |
+| `regles` | règles d'alerte ; `$parametre` à droite d'une comparaison ; `remplace` : nom de la règle importée équivalente |
+
+### 24.2 Attribution et assemblage
+
+- Table `modeles_attribues` (portée `machine:ID` ou `groupe:NOM`, modèle,
+  état `actif` ou `ignore`, paramètres). Modèles d'une machine = ceux de son
+  groupe + les siens, moins ceux qu'elle ignore. Paramètres : machine > groupe
+  > défaut du modèle.
+- Configuration des agents : défaut → **modèles** (par ordre de nom) → groupe
+  → machine. Un réglage fait à la main l'emporte toujours sur un modèle.
+- Séries internes écrites chaque minute par le serveur, pour chaque machine
+  approuvée : `mirador_modele_parametre{instance, modele, parametre}` (valeur
+  effective) et `mirador_machine_regle_remplacee{instance, regle}`.
+- Règles d'un modèle : posées une fois au démarrage (origine `modele:NOM`,
+  groupe `modele_NOM`), modifiables ou désactivables dans « Règles » comme
+  les autres. `$p` devient `on(instance) group_left()
+  mirador_modele_parametre{modele="…", parametre="p"}` : la règle ne voit que
+  les machines qui portent le modèle, chacune avec son seuil.
+- Remplacement : une règle importée (`vmalert:…`) nommée dans un `remplace`
+  est évaluée avec `unless on(instance) mirador_machine_regle_remplacee{regle=…}`
+  : elle se tait pour les machines qui portent le modèle, continue pour les
+  autres. Effet sur la comparaison avec vmalert : écart attendu (même
+  problème, nom de règle différent).
+
+### 24.3 Détection et propositions
+
+L'expression `detection` de chaque modèle est évaluée (1 fois par minute au
+plus, en cache) ; un modèle détecté, ni attribué ni ignoré, est **proposé**
+sur la page de la machine (« Ajouter » / « Ignorer ») et compté dans la
+liste des machines. Rien n'est attribué sans validation.
+
+### 24.4 Parties
+
+| Partie | Contenu |
+|---|---|
+| A | serveur : modèles fournis (Linux, Physique, Docker, Proxmox, Certificats, ZFS, RAID logiciel), attribution machine et groupe, paramètres par machine, assemblage, séries internes, règles et remplacement, détection, interface |
+| B | agent : catalogue de checks (HTTP(S), port TCP, processus, fichier récent, taille de dossier, DNS, ping) et modèles « Serveur web », « Sauvegarde » |
+| C | modèles personnels créés ou modifiés dans l'interface |
+
+### 24.5 Coût et menaces
+
+- Coût : une lecture SQL par configuration assemblée ; séries internes
+  ≈ machines × paramètres (une vingtaine par machine) ; détection : 7
+  requêtes instantanées par minute au plus.
+- Menaces : un modèle ne contient que des valeurs typées (vérifiées comme
+  toute configuration d'agent) et des règles PromQL (même lecteur borné que
+  les autres règles) ; attribution réservée aux admins (CSRF, audit) ;
+  paramètres bornés (min, max) ; `$p` seulement après un opérateur de
+  comparaison (vérifié au chargement) ; un modèle ne peut pas rendre une
+  machine muette (rien n'y est désactivé par défaut).
+
+### 24.6 Partie A faite (14/11)
+
+- 7 modèles fournis : Linux (systemd, mises à jour ; seuils CPU 90 %,
+  charge 2 par cœur, mémoire 10 %, disque 15 %, inodes 10 % : ceux des
+  règles importées), Machine physique (températures 80 °C, disques 55 °C,
+  ventilateurs, SMART), Docker (mémoire des conteneurs 90 %), Proxmox VE
+  (invités : CPU 95 %, mémoire des LXC 95 %), Certificats (21 et 7 jours),
+  ZFS, RAID logiciel. 12 règles de modèle ; chacune remplace l'équivalente
+  (importée de vmalert, ou fournie pour Proxmox).
+- Page de la machine, bloc « Modèles de surveillance » : proposés
+  (détectés) avec « Ajouter » / « Ignorer », appliqués (d'où ils viennent,
+  seuils de la machine, « Retirer »), « Ajouter un modèle », ignorés avec
+  « reprendre ». Pastille « N modèle(s) proposé(s) » et colonne « À
+  valider » de la liste des machines. Page « Modèles » (onglet de
+  Machines) : catalogue, règles, machines qui portent ou où le modèle est
+  détecté, attribution aux groupes et seuils du groupe.
+- Code 2FA pour ajouter, retirer, régler les seuils (change la
+  configuration de l'agent et les alertes) ; « Ignorer » sans code.
+- Mesures : configuration assemblée = 2 lectures SQL de plus ; séries
+  internes = ~1 + nombre de paramètres par modèle et par machine (Linux :
+  6 séries + 5 « remplacée ») ; détection = 7 requêtes instantanées,
+  passées par le cache des requêtes de l'interface (1 min).

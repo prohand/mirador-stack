@@ -151,6 +151,12 @@ const cleDefautsPoses = "alertes.defauts_poses"
 
 // PoserDefauts ajoute les règles mirador jamais posées (une seule fois chacune).
 func PoserDefauts(ctx context.Context, db *sql.DB, maintenant time.Time) (int, error) {
+	return PoserRegles(ctx, db, maintenant, ReglesMirador())
+}
+
+// PoserRegles ajoute les règles fournies (mirador, modèles de surveillance)
+// jamais posées : une règle supprimée par l'utilisateur ne revient pas.
+func PoserRegles(ctx context.Context, db *sql.DB, maintenant time.Time, fournies []Regle) (int, error) {
 	poses := map[string]bool{}
 	var v string
 	err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleDefautsPoses).Scan(&v)
@@ -175,7 +181,7 @@ func PoserDefauts(ctx context.Context, db *sql.DB, maintenant time.Time) (int, e
 		deja[r.Nom] = true
 	}
 	var nouvelles []Regle
-	for _, r := range ReglesMirador() {
+	for _, r := range fournies {
 		if !poses[r.Nom] && !deja[r.Nom] {
 			nouvelles = append(nouvelles, r)
 		}

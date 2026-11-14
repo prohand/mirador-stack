@@ -528,3 +528,21 @@ func TestImportVlogs(t *testing.T) {
 		t.Error("raison de syslog_lignes_24h absente")
 	}
 }
+
+// Règle remplacée par un modèle (SPEC § 24.2) : expression complétée, sauf
+// pour une règle de modèle ou une règle non remplacée.
+func TestExprRemplacee(t *testing.T) {
+	m := &Moteur{opt: Options{Remplacees: map[string]bool{"DisqueFaible": true}}}
+	r := Regle{Nom: "DisqueFaible", Expr: "x < 15", Origine: "vmalert:system.yml"}
+	if e := m.exprEvaluee(&r); e != `(x < 15) unless on (instance) mirador_machine_regle_remplacee{regle="DisqueFaible"}` {
+		t.Errorf("remplacée : %s", e)
+	}
+	r.Origine = "modele:linux"
+	if e := m.exprEvaluee(&r); e != "x < 15" {
+		t.Errorf("règle de modèle : %s", e)
+	}
+	r = Regle{Nom: "Autre", Expr: "y", Origine: "vmalert:system.yml"}
+	if e := m.exprEvaluee(&r); e != "y" {
+		t.Errorf("non remplacée : %s", e)
+	}
+}

@@ -1,0 +1,18 @@
+{{define "contenu"}}
+<h1>Modèles de surveillance</h1>
+{{template "onglets-machines" "modeles"}}
+<p>Un modèle dit « cette machine est une machine Linux (ou Docker, Proxmox…), donc on y surveille ceci, avec ces alertes et ces seuils ». Attribuez-le à une machine (sur sa page) ou à un groupe (ici) : toutes les machines du groupe le reçoivent. Les modèles se cumulent ; un seuil se règle pour le groupe ici, et pour une machine sur sa page. Quand un modèle a une règle équivalente à une règle importée, celle-ci se tait pour les machines qui portent le modèle.</p>
+{{range .D.Catalogue}}{{$mod := .M}}<section class="carte" id="{{$mod.Nom}}">
+<h2>{{$mod.Titre}}</h2>
+<p>{{$mod.Description}}</p>
+<p><small>{{.NbMach}} machine(s) le portent{{if .NbDetec}} ; <strong>détecté sans être attribué sur {{.NbDetec}} machine(s)</strong> (proposé sur leur page){{end}}.</small></p>
+{{if $mod.Regles}}<details><summary>Règles ({{len $mod.Regles}})</summary><ul>{{range $mod.Regles}}<li><strong>{{.Nom}}</strong> ({{.Gravite}}{{if .Pour}}, pendant {{.Pour}}{{end}}){{if .Remplace}} — remplace <code>{{.Remplace}}</code>{{end}}<br><code>{{.Expr}}</code></li>{{end}}</ul></details>{{end}}
+{{if .Groupes}}<h3>Groupes</h3>{{range .Groupes}}{{$g := .Groupe}}<form method="post" action="/modeles" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="groupe" value="{{$g}}">
+<p><strong>{{$g}}</strong></p>
+{{if .Params}}<div class="ligne">{{range .Params}}<label>{{.Titre}}{{if .Unite}} ({{.Unite}}){{end}} <input name="p.{{.Nom}}" {{if .Surcharge}}value="{{seuil .Valeur}}"{{end}} placeholder="{{seuil .Valeur}}" size="6" inputmode="decimal" {{if not $.Admin}}disabled{{end}}></label>{{end}}</div>{{end}}
+{{if $.Admin}}<div class="ligne">{{template "code2fa"}}{{if .Params}}<button name="action" value="parametres">Enregistrer les seuils</button>{{end}}<button name="action" value="retirer" class="secondaire" data-confirmer="Retirer ce modèle du groupe {{$g}} ?">Retirer du groupe</button></div>{{end}}
+</form>{{end}}{{end}}
+{{if and $.Admin .Libres}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{$mod.Nom}}"><input type="hidden" name="action" value="ajouter">
+<label>Attribuer au groupe <select name="groupe">{{range .Libres}}<option>{{.}}</option>{{end}}</select></label>{{template "code2fa"}}<button>Attribuer</button></form>{{end}}
+</section>{{end}}
+{{end}}

@@ -62,6 +62,24 @@ Pendant la période en parallèle, une seule sortie InfluxDB v2 est possible
 dans l'interface d'OPNsense : basculer vers mirador coupe l'envoi vers
 VictoriaMetrics (règle `OpnsenseMuet` de l'ancienne pile).
 
+## Modèles de surveillance
+
+Un modèle (Linux, Machine physique, Docker, Proxmox VE, Certificats, ZFS,
+RAID logiciel) applique d'un coup ce qu'il faut surveiller, avec ses alertes
+et ses seuils (SPEC.md § 24).
+
+- Page d'une machine, bloc « Modèles de surveillance » : modèles proposés
+  (détectés par l'agent) à ajouter ou ignorer, modèles appliqués et leurs
+  seuils pour cette machine (champ vide = valeur du groupe ou du modèle).
+- Machines › Modèles : catalogue, attribution à un groupe (toutes ses
+  machines le reçoivent) et seuils du groupe.
+- Quand un modèle a une règle équivalente à une règle importée (ex.
+  `LinuxDisqueFaible` et `DisqueFaible`), la règle importée se tait pour les
+  machines qui portent le modèle et continue pour les autres. La comparaison
+  avec vmalert montre alors un écart attendu (nom de règle différent).
+- Un réglage fait à la main (Configuration des agents, ou « À surveiller »
+  sur la machine) l'emporte toujours sur un modèle.
+
 ## Configuration des agents
 
 Document JSON avec seulement les réglages à changer (mêmes noms que la

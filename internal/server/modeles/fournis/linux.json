@@ -1,0 +1,95 @@
+{
+ "version": 1,
+ "nom": "linux",
+ "titre": "Linux",
+ "icone": "machines",
+ "description": "Socle de toute machine Linux : services systemd, mises à jour en attente, et seuils CPU, charge, mémoire, disque et inodes réglables par machine.",
+ "detection": "count by (instance) (node_uname_info)",
+ "config": {
+  "systemd": true,
+  "mises_a_jour": true
+ },
+ "parametres": [
+  {
+   "nom": "cpu_pct",
+   "titre": "CPU : alerte au-dessus de",
+   "unite": "%",
+   "defaut": 90,
+   "min": 10,
+   "max": 100
+  },
+  {
+   "nom": "charge_par_coeur",
+   "titre": "Charge (load 5 min) par cœur : alerte au-dessus de",
+   "defaut": 2,
+   "min": 0.5,
+   "max": 50
+  },
+  {
+   "nom": "memoire_libre_pct",
+   "titre": "Mémoire disponible : alerte en dessous de",
+   "unite": "%",
+   "defaut": 10,
+   "min": 1,
+   "max": 90
+  },
+  {
+   "nom": "disque_libre_pct",
+   "titre": "Espace disque libre : alerte en dessous de",
+   "unite": "%",
+   "defaut": 15,
+   "min": 1,
+   "max": 90
+  },
+  {
+   "nom": "inodes_libres_pct",
+   "titre": "Inodes libres : alerte en dessous de",
+   "unite": "%",
+   "defaut": 10,
+   "min": 1,
+   "max": 90
+  }
+ ],
+ "regles": [
+  {
+   "nom": "LinuxCpuEleve",
+   "remplace": "CpuEleve",
+   "pour": "1m",
+   "gravite": "warning",
+   "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100) > $cpu_pct",
+   "resume": "CPU à {{ $value | humanize }} % sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxChargeElevee",
+   "remplace": "LoadAverageEleve",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "node_load5 / on (instance) count by (instance) (node_cpu_seconds_total{mode=\"idle\"}) > $charge_par_coeur",
+   "resume": "Charge de {{ $value | humanize }} par cœur sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxMemoireFaible",
+   "remplace": "MemoireFaible",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < $memoire_libre_pct",
+   "resume": "Plus que {{ $value | humanize }} % de mémoire disponible sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxDisqueFaible",
+   "remplace": "DisqueFaible",
+   "pour": "5m",
+   "gravite": "warning",
+   "expr": "node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes * 100 < $disque_libre_pct",
+   "resume": "{{ $labels.mountpoint }} : plus que {{ $value | humanize }} % libre sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxInodesFaibles",
+   "remplace": "InodesFaibles",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "node_filesystem_files_free{fstype!~\"tmpfs|overlay\"} / node_filesystem_files * 100 < $inodes_libres_pct",
+   "resume": "{{ $labels.mountpoint }} : plus que {{ $value | humanize }} % d'inodes libres sur {{ $labels.instance }}"
+  }
+ ]
+}

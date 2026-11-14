@@ -705,6 +705,14 @@ free -m
 ```
 
 
+## Modèles de surveillance (SPEC § 24, demande du 14/11, avant la suite de l'étape 6)
+
+| Partie | État |
+|---|---|
+| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées) | **fait**, testé (données simulées, interface) ; à valider |
+| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) | à faire |
+| C. Modèles personnels dans l'interface | à faire |
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

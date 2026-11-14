@@ -23,6 +23,7 @@ import (
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/geoip"
 	"mirador-stack/internal/server/ingestion"
+	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
 	"mirador-stack/internal/server/stockage/journaux"
@@ -113,8 +114,18 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	} else if n > 0 {
 		journal.Info("règles d'alerte mirador ajoutées", "nombre", n)
 	}
+	// Règles des modèles de surveillance (SPEC § 24) : posées une fois aussi.
+	if n, err := alertes.PoserRegles(ctx, s.db, time.Now(), modeles.Regles()); err != nil {
+		return echec(fmt.Errorf("règles des modèles : %w", err))
+	} else if n > 0 {
+		journal.Info("règles des modèles de surveillance ajoutées", "nombre", n)
+	}
+	remplacees := map[string]bool{}
+	for nom := range modeles.Remplacees() {
+		remplacees[nom] = true
+	}
 	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(),
-		Journal: journal.With("composant", "alertes")}); err != nil {
+		Journal: journal.With("composant", "alertes"), Remplacees: remplacees}); err != nil {
 		return echec(fmt.Errorf("moteur d'alertes : %w", err))
 	}
 	if _, err := notif.PoserDefauts(ctx, s.db, time.Now()); err != nil {

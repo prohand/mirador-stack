@@ -1,0 +1,11 @@
+{
+ "version": 1,
+ "nom": "zfs",
+ "titre": "ZFS",
+ "icone": "disque",
+ "description": "État des pools ZFS (alerte « pool dégradé » fournie par mirador).",
+ "detection": "count by (instance) (mirador_agent_detecte{genre=\"zfs\"}) or count by (instance) (node_zfs_zpool_state)",
+ "config": {
+  "zfs": true
+ }
+}

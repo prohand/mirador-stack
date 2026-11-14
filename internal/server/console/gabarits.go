@@ -153,6 +153,7 @@ func fonctions() template.FuncMap {
 		"pct":       func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
 		"egal":      func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
 		"sub":       func(a, b int) int { return a - b },
+		"seuil":     formatSeuil,
 		"liste":     func(v ...string) []string { return v },
 		"dansListe": func(s string, l []string) bool { return slices.Contains(l, s) },
 		// choixIcone : données du morceau « choix-icone » (éditeur).

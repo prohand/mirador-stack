@@ -452,3 +452,8 @@ dialog.aller-boite li.vide { padding: 9px 10px; color: var(--pale); }
 /* --- Filtre des séries d'un graphique -------------------------------------------------- */
 .filtre-series { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
 .filtre-series input { width: 180px; min-height: 30px; padding: 2px 10px; font-size: 13px; }
+
+/* Modèles de surveillance (SPEC § 24) */
+form.en-ligne { display: inline; }
+details.modele { border: 1px solid var(--bord-doux); border-radius: var(--rayon); padding: 8px 12px; margin: 8px 0; }
+details.modele > summary { cursor: pointer; }
