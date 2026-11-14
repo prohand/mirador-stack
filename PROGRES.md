@@ -742,7 +742,8 @@ de style de même taille ; objectif serveur inchangé ✅.
 | 1a. Proxmox dans l'agent : invités lus dans les cgroups, liste et noms par l'assistant root ; disques des VM (volumes ZFS/LVM, ou assistant root au rythme réglé pour les qcow2) | **fait**, chemins vérifiés sur un nœud Proxmox 9.2 ; agent à installer sur le nœud |
 | 1b. Tableau « Proxmox VE » et 3 règles fournies | **fait** ; 13/11 : agent 0.2.23 sur un nœud Proxmox 9.2, assistant au format 3, invités nommés dans le tableau ; disque des VM qcow2 et mesure 24 h à confirmer |
 | 2. Entrée InfluxDB (OPNsense) | **fait** (14/11), testé + fuzzing ; à brancher sur OPNsense (`docs/administration-serveur.md`) |
-| 3 à 7 | à faire |
+| 3. `mirador-collector` : squelette, enrôlement (type au jeton), configuration, mise à jour signée par produit, équipements rattachés et contrôlés à l'arrivée, script d'installation | **fait** (14/11), testé (simulations, interface) ; à installer sur le LAN |
+| 4 à 7 | à faire (syslog TLS + ACME, SNMP v3 et sondes, UniFi natif, mesures et retrait d'Alloy) |
 
 Première mesure sur le nœud Proxmox (13/11, 37 min après le démarrage, à
 refaire sur 24 h) : agent **21 Mo** résidents (14 Mo de mémoire propre ; les
@@ -752,6 +753,11 @@ Disques des VM qcow2 : lecture de /proc/<pid>/io refusée (groupe de
 l'assistant) → 0.2.24 (groupe root) pas suffisant : QEMU protégé par le
 noyau ; 0.2.25 : `CAP_SYS_PTRACE` pour l'assistant (choix du 13/11), script
 relancé : **disques des VM qcow2 mesurés** (vérifié le 13/11).
+
+Mesure partie 3 (binaire réel, au repos, 40 s) : collecteur **12,5 Mo**
+résidents (4,5 Mo de mémoire propre), < 10 ms de CPU, binaire 7,7 Mo.
+Objectif collecteur (< 40 Mio, < 1 % d'un cœur) ✅ ; référence Alloy +
+unpoller ≈ 180 Mo.
 
 Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune

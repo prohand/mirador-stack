@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"mirador-stack/internal/protocole"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -85,7 +86,10 @@ func DefinirGarderVersions(ctx context.Context, db *sql.DB, n int, qui string, m
 
 // reFichierVersion : binaires rangés par Publier (nomBinaire) et fichiers
 // temporaires laissés par une écriture interrompue.
-var reFichierVersion = regexp.MustCompile(`^mirador-agent-([0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5})-linux-(amd64|arm64)(\.tmp)?$`)
+var reFichierVersion = regexp.MustCompile(`^mirador-(agent|collector)-([0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5})-linux-(amd64|arm64)(\.tmp)?$`)
+
+// publiee : un binaire publié.
+type publiee struct{ Produit, Version, Arch string }
 
 // versionsEnService : versions dont une machine a besoin, à ne jamais supprimer.
 func versionsEnService(ctx context.Context, db *sql.DB) (map[string]bool, error) {
@@ -135,38 +139,38 @@ func ArchitecturesParc(ctx context.Context, db *sql.DB) (map[string]bool, error)
 // DelaiNouvelleVersion : une version publiée depuis moins longtemps est gardée.
 const DelaiNouvelleVersion = 24 * time.Hour
 
-// versionsPubliees : (version, architecture) en base.
-func versionsPubliees(ctx context.Context, db *sql.DB) ([][2]string, error) {
+// versionsPubliees : binaires (produit, version, architecture) en base.
+func versionsPubliees(ctx context.Context, db *sql.DB) ([]publiee, error) {
 	return versionsPublieesDepuis(ctx, db, 0)
 }
 
 // versionsPublieesDepuis : celles publiées à partir de « depuis » (secondes Unix).
-func versionsPublieesDepuis(ctx context.Context, db *sql.DB, depuis int64) ([][2]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT version, architecture FROM versions_agent WHERE publiee_le >= ?`, depuis)
+func versionsPublieesDepuis(ctx context.Context, db *sql.DB, depuis int64) ([]publiee, error) {
+	rows, err := db.QueryContext(ctx, `SELECT produit, version, architecture FROM versions_binaires WHERE publiee_le >= ?`, depuis)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out [][2]string
+	var out []publiee
 	for rows.Next() {
-		var v, a string
-		if err := rows.Scan(&v, &a); err != nil {
+		var p publiee
+		if err := rows.Scan(&p.Produit, &p.Version, &p.Arch); err != nil {
 			return nil, err
 		}
-		out = append(out, [2]string{v, a})
+		out = append(out, p)
 	}
 	return out, rows.Err()
 }
 
 // recentes : les n versions les plus récentes (numéro de version, pas date
 // d'import : réimporter une vieille version ne la rend pas « récente »).
-func recentes(publiees [][2]string, n int) map[string]bool {
+func recentes(publiees []publiee, n int) map[string]bool {
 	vu := map[string]bool{}
 	var vs []string
 	for _, p := range publiees {
-		if !vu[p[0]] {
-			vu[p[0]] = true
-			vs = append(vs, p[0])
+		if !vu[p.Version] {
+			vu[p.Version] = true
+			vs = append(vs, p.Version)
 		}
 	}
 	sort.Slice(vs, func(i, j int) bool {
@@ -205,27 +209,26 @@ func NettoyerVersions(ctx context.Context, db *sql.DB, dossier, qui string, main
 		return nil, err
 	}
 	for _, p := range nouvelles {
-		recent[p[0]] = true
+		recent[p.Version] = true
 	}
 	var faites []string
 	var errs []error
 	for _, p := range publiees {
-		version, arch := p[0], p[1]
-		utile := enService[version] || recent[version]
-		if utile && (len(parc) == 0 || parc[arch]) {
+		utile := enService[p.Version] || recent[p.Version]
+		if utile && (len(parc) == 0 || parc[p.Arch]) {
 			continue
 		}
-		if err := supprimer(ctx, db, dossier, version, arch, qui, maintenant); err != nil {
+		if err := supprimer(ctx, db, dossier, p, qui, maintenant); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		faites = append(faites, version+"/"+arch)
+		faites = append(faites, p.nom())
 	}
 	// Fichiers sans ligne en base (écriture interrompue, base restaurée…).
 	connus := map[string]bool{}
 	if publiees, err = versionsPubliees(ctx, db); err == nil {
 		for _, p := range publiees {
-			connus[nomBinaire(p[0], p[1])] = true
+			connus[nomBinaire(p.Produit, p.Version, p.Arch)] = true
 		}
 		entrees, _ := os.ReadDir(dossier)
 		for _, e := range entrees {
@@ -258,9 +261,9 @@ func SupprimerVersion(ctx context.Context, db *sql.DB, dossier, version, qui str
 	}
 	trouvee := false
 	for _, p := range publiees {
-		if p[0] == version {
+		if p.Version == version {
 			trouvee = true
-			if err := supprimer(ctx, db, dossier, p[0], p[1], qui, maintenant); err != nil {
+			if err := supprimer(ctx, db, dossier, p, qui, maintenant); err != nil {
 				return err
 			}
 		}
@@ -273,26 +276,34 @@ func SupprimerVersion(ctx context.Context, db *sql.DB, dossier, version, qui str
 
 // supprimer : ligne en base (avec audit) puis fichier. Si le fichier ne
 // peut pas être effacé, il sera repris comme orphelin au passage suivant.
-func supprimer(ctx context.Context, db *sql.DB, dossier, version, arch, qui string, maintenant time.Time) error {
-	if !formatVersionPubliee.MatchString(version) || !architectures[arch] {
-		return fmt.Errorf("version %q ou architecture %q invalide", version, arch)
+func supprimer(ctx context.Context, db *sql.DB, dossier string, p publiee, qui string, maintenant time.Time) error {
+	if !formatVersionPubliee.MatchString(p.Version) || !architectures[p.Arch] || !produits[p.Produit] {
+		return fmt.Errorf("binaire %q invalide", p.nom())
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if _, err := tx.ExecContext(ctx, `DELETE FROM versions_agent WHERE version = ? AND architecture = ?`, version, arch); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM versions_binaires WHERE produit = ? AND version = ? AND architecture = ?`, p.Produit, p.Version, p.Arch); err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, maintenant.Unix(), qui, "version_supprimee", version+"/"+arch, "", "", ""); err != nil {
+	if err := audit(ctx, tx, maintenant.Unix(), qui, "version_supprimee", p.nom(), "", "", ""); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if err := os.Remove(filepath.Join(dossier, nomBinaire(version, arch))); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(filepath.Join(dossier, nomBinaire(p.Produit, p.Version, p.Arch))); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
+}
+
+// nom : « 1.2.3/amd64 » pour l'agent, « mirador-collector 1.2.3/amd64 » sinon.
+func (p publiee) nom() string {
+	if p.Produit == protocole.ProduitAgent {
+		return p.Version + "/" + p.Arch
+	}
+	return p.Produit + " " + p.Version + "/" + p.Arch
 }

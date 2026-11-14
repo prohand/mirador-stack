@@ -50,6 +50,10 @@ var clesProxmox = map[string]bool{"proxmox_disques": true}
 // agents qui annoncent la capacité « checks ».
 var clesChecks = map[string]bool{"checks": true}
 
+// clesCollecteur : réglages de mirador-collector (SPEC § 23.13), envoyés
+// seulement à un binaire qui annonce la capacité « collecteur ».
+var clesCollecteur = map[string]bool{"collecteur": true}
+
 // CleElements dit si une clé demande un agent qui connaît les éléments.
 func CleElements(cle string) bool { return clesElements[cle] }
 
@@ -98,6 +102,11 @@ func clesInconnues(capacites string) map[string]bool {
 	}
 	if !ACapacite(capacites, protocole.CapaciteChecks) {
 		for k := range clesChecks {
+			out[k] = true
+		}
+	}
+	if !ACapacite(capacites, protocole.CapaciteCollecteur) {
+		for k := range clesCollecteur {
 			out[k] = true
 		}
 	}

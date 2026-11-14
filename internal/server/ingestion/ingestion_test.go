@@ -201,13 +201,48 @@ func TestNomImpose(t *testing.T) {
 	if s.Valeur("instance") != "pc" || s.Labels[0].Nom != "__name__" || s.Labels[1].Nom != "instance" || s.Labels[2].Nom != "zone" {
 		t.Fatalf("étiquettes : %+v", s.Labels)
 	}
-	// Collecteur : garde l'instance de l'équipement, son nom va dans « collecteur ».
+	// Collecteur : un équipement non rattaché est refusé (compté).
 	if c := b.metriques(tokenCollecteur, requeteSimple(reception.UnixMilli(), [2]string{"instance", "nas"})); c != http.StatusNoContent {
 		t.Fatal(c)
 	}
+	if len(b.mem.Series) != 2 || b.g.Compteurs.SeriesHorsParc.Load() != 1 {
+		t.Fatalf("équipement non rattaché accepté : %d séries", len(b.mem.Series))
+	}
+	// Rattaché : son instance est gardée, avec les étiquettes de sa fiche ;
+	// le nom du collecteur va dans « collecteur ».
+	if _, err := b.db.Exec(`INSERT INTO machines(id, nom, statut, type, site, groupe, cree_le) VALUES (9, 'nas', 'approuvee', 'agent', 'garage', 'stockage', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.db.Exec(`INSERT INTO equipements_collecteur(machine_id, collecteur_id, rattache_le) VALUES (9, 4, 1)`); err != nil {
+		t.Fatal(err)
+	}
+	b.g.OublierEquipements()
+	if c := b.metriques(tokenCollecteur, requeteSimple(reception.UnixMilli(), [2]string{"instance", "nas"}, [2]string{"site", "faux"})); c != http.StatusNoContent {
+		t.Fatal(c)
+	}
 	s = b.mem.Series[2]
-	if s.Valeur("instance") != "nas" || s.Valeur("collecteur") != "collecteur-lan" {
+	if s.Valeur("instance") != "nas" || s.Valeur("collecteur") != "collecteur-lan" || s.Valeur("site") != "garage" || s.Valeur("groupe") != "stockage" {
 		t.Fatalf("collecteur : %+v", s.Labels)
+	}
+	// Ses propres mesures (sans instance) : à son nom.
+	if c := b.metriques(tokenCollecteur, requeteSimple(reception.UnixMilli(), [2]string{"job", "collecteur"})); c != http.StatusNoContent {
+		t.Fatal(c)
+	}
+	if s = b.mem.Series[3]; s.Valeur("instance") != "collecteur-lan" {
+		t.Fatalf("collecteur, mesures propres : %+v", s.Labels)
+	}
+	// Logs : hôte rattaché gardé, hôte inconnu rangé sous le collecteur.
+	if w := b.envoyer(protocole.CheminLogs, tokenCollecteur, "gzip", lotLogs(1, "nas", reception)); w.Code != http.StatusNoContent {
+		t.Fatal(w.Code)
+	}
+	if w := b.envoyer(protocole.CheminLogs, tokenCollecteur, "gzip", lotLogs(1, "inconnu", reception)); w.Code != http.StatusNoContent {
+		t.Fatal(w.Code)
+	}
+	if l := b.mem.Lignes[0]; l.Champs["host"] != "nas" || l.Champs["site"] != "garage" || l.Champs["collecteur"] != "collecteur-lan" {
+		t.Fatalf("log rattaché : %+v", l.Champs)
+	}
+	if l := b.mem.Lignes[1]; l.Champs["host"] != "collecteur-lan" || l.Champs["hote_annonce"] != "inconnu" {
+		t.Fatalf("log d'un hôte inconnu : %+v", l.Champs)
 	}
 }
 
@@ -503,7 +538,8 @@ func TestLireIPs(t *testing.T) {
 }
 
 // Site et type (env) de la fiche machine : imposés aux métriques et aux
-// logs d'un agent ; vides = ceux de l'agent gardés ; jamais pour un collecteur.
+// logs d'un agent ; vides = ceux de l'agent gardés. Collecteur : ceux de sa
+// fiche pour ses propres mesures (ceux de chaque équipement sinon).
 func TestSiteEnvImposes(t *testing.T) {
 	b := nouveauBanc(t, nil)
 	corps := requeteSimple(reception.UnixMilli(), [2]string{"site", "ancien"}, [2]string{"env", "vm"})
@@ -526,8 +562,8 @@ func TestSiteEnvImposes(t *testing.T) {
 	if c := b.metriques(tokenCollecteur, corps); c != http.StatusNoContent {
 		t.Fatal(c)
 	}
-	if s := b.mem.Series[2]; s.Valeur("site") != "ancien" {
-		t.Fatalf("collecteur modifié : %+v", s.Labels)
+	if s := b.mem.Series[2]; s.Valeur("site") != "maison" || s.Valeur("instance") != "collecteur-lan" {
+		t.Fatalf("collecteur, mesures propres : %+v", s.Labels)
 	}
 	if w := b.envoyer(protocole.CheminLogs, tokenPC, "gzip", lotLogs(1, "pc", reception)); w.Code != http.StatusNoContent {
 		t.Fatal(w.Code)

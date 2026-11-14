@@ -106,6 +106,7 @@ func (o *Options) completer() {
 type Compteurs struct {
 	Requetes, Refus400, Refus401, Refus403, Refus413, Refus429, Refus503 atomic.Uint64
 	Series, Points, SeriesIgnorees, SeriesRefusees, PointsFuturs         atomic.Uint64
+	SeriesHorsParc                                                       atomic.Uint64 // collecteur : équipement non rattaché
 	Lignes, LignesIgnorees, LignesRefusees                               atomic.Uint64
 	HorlogeCorrigee, HorlogeRefusee                                      atomic.Uint64
 }
@@ -128,6 +129,8 @@ type Ingestion struct {
 	lignesHote map[string]uint64
 	enCours    map[int64]int       // requêtes en cours par machine (2 au plus)
 	avertis    map[int64]time.Time // dernier avertissement de quota (journal)
+
+	equipements cacheEquipements // équipements rattachés à chaque collecteur
 }
 
 // Nouvelle prépare l'ingestion.
@@ -414,17 +417,6 @@ func (g *Ingestion) horloge(r *http.Request, m Machine, maintenant time.Time) (D
 	return dec, d, true
 }
 
-// imposeNom : un agent ne peut parler que pour lui-même. Un collecteur
-// (étape 6) envoie pour plusieurs équipements : son nom est alors donné
-// dans une étiquette à part (la liste des équipements autorisés viendra
-// avec l'étape 6).
-func imposeNom(m Machine) (etiquette string) {
-	if m.Type == "collecteur" {
-		return "collecteur"
-	}
-	return ""
-}
-
 func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 	m, liberer, ok := g.Accueillir(w, r)
 	if !ok {
@@ -468,8 +460,12 @@ func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 // imposés, quotas, écriture, puis 204.
 func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, series []stockage.Serie, dec Decision, d time.Duration, maintenant time.Time) {
 	limiteFutur := maintenant.Add(g.opt.Horloge.Maximum).UnixMilli()
-	etiquette := imposeNom(m)
-	points, futurs := 0, 0
+	var eqs map[string]Equipement
+	if m.Type == "collecteur" {
+		eqs = g.equipementsDe(r.Context(), m.ID, maintenant)
+	}
+	points, futurs, horsParc := 0, 0, 0
+	vusEq := map[string]bool{} // équipements pour lesquels des points sont arrivés
 	for i := range series {
 		s := &series[i]
 		if dec == HeureCorrige {
@@ -487,23 +483,25 @@ func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, se
 			gardes = append(gardes, p)
 		}
 		s.Points = gardes
-		points += len(gardes)
-		if etiquette == "" {
-			s.Remplacer("instance", m.Nom)
-			// Site et type choisis dans l'interface (agent seulement : un
-			// collecteur envoie pour d'autres appareils, avec leurs étiquettes).
-			if m.Site != "" {
-				s.Remplacer("site", m.Site)
-			}
-			if m.Env != "" {
-				s.Remplacer("env", m.Env)
-			}
-			if m.Groupe != "" {
-				s.Remplacer("groupe", m.Groupe)
-			}
-		} else {
-			s.Remplacer(etiquette, m.Nom)
+		// Nom imposé : la machine elle-même, ou (collecteur) un équipement
+		// qui lui est rattaché ; sinon la série est écartée et comptée.
+		eq, ok := etiqueterSerie(m, eqs, s)
+		if !ok {
+			horsParc++
+			s.Points = s.Points[:0]
+			continue
 		}
+		if eq != "" && len(s.Points) > 0 {
+			vusEq[eq] = true
+		}
+		points += len(s.Points)
+	}
+	for eq := range vusEq {
+		g.auth.NoterVuEquipement(eq, maintenant.Unix())
+	}
+	if horsParc > 0 {
+		g.Compteurs.SeriesHorsParc.Add(uint64(horsParc)) // #nosec G115 -- compteur ≥ 0
+		g.avertirQuota(m, "séries d'un équipement non rattaché à ce collecteur", horsParc)
 	}
 	series = sansSeriesVides(series)
 	series, refusees := g.quotas.Filtrer(m.ID, series, maintenant)
@@ -576,7 +574,10 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limiteFutur := maintenant.Add(g.opt.Horloge.Maximum).UnixMilli()
-	etiquette := imposeNom(m)
+	var eqs map[string]Equipement
+	if m.Type == "collecteur" {
+		eqs = g.equipementsDe(r.Context(), m.ID, maintenant)
+	}
 	for i := range lignes {
 		l := &lignes[i]
 		if dec == HeureCorrige {
@@ -585,20 +586,7 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 		if l.T <= 0 || l.T > limiteFutur {
 			l.T = maintenant.UnixMilli() // un log reste utile : heure de réception
 		}
-		if etiquette == "" {
-			l.Champs["host"] = m.Nom
-			if m.Site != "" {
-				l.Champs["site"] = m.Site
-			}
-			if m.Env != "" {
-				l.Champs["env"] = m.Env
-			}
-			if m.Groupe != "" {
-				l.Champs["groupe"] = m.Groupe
-			}
-		} else {
-			l.Champs[etiquette] = m.Nom
-		}
+		etiqueterLigne(m, eqs, l.Champs)
 	}
 	if len(lignes) > 0 {
 		if err := g.opt.Logs.Ecrire(r.Context(), lignes); err != nil {

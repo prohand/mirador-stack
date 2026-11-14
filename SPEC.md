@@ -3659,7 +3659,7 @@ utilisable pendant la comparaison.
 |---|---|
 | 1 | Proxmox dans l'agent (cgroups, assistant root pour la liste des invités), tableau et règles réécrits |
 | 2 | Serveur : entrée InfluxDB pour OPNsense (Telegraf) — **fait le 14/11** (§ 23.10) |
-| 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » |
+| 3 | `mirador-collector` : squelette, enrôlement, configuration, mise à jour, page « Collecteurs » — **fait le 14/11** (§ 23.13) |
 | 4 | Syslog TLS + certificat ACME géré dans l'interface |
 | 5 | SNMP v3 (Synology) et sondes de certificats |
 | 6 | Client UniFi natif (unpoller retiré) |
@@ -3719,6 +3719,75 @@ dernière connexion). Une adresse non revue depuis 30 jours redevient
 « nouvelle » et est effacée. Si la base ne répond pas, la mémoire sert
 (comme avant). Le verrouillage des comptes n'est pas changé (mémoire).
 Coût : une lecture et une écriture SQLite par connexion réussie.
+
+### 23.13 Partie 3 faite (14/11) : `mirador-collector`, le squelette **[Fait, à tester sur le LAN]**
+
+Choix faits sans question (dans la ligne des § 23.3 à 23.9) :
+
+- **Binaire séparé** `mirador-collector` (l'agent n'ouvre jamais de port),
+  qui **réutilise** le code de l'agent : fichier de configuration (mêmes
+  clés `MIRADOR_*`, valeurs par défaut propres : `DefautCollecteur`),
+  enrôlement, configuration distante (long-poll, ETag), file et envoi
+  remote write, mise à jour signée avec essai et retour arrière. Il ne
+  relève pas la machine où il tourne (un mirador-agent s'en charge si
+  besoin) : pas de systemd, de journal, de Docker ni d'assistant root.
+- **Produit signé** : le manifeste porte `produit` (`mirador-collector`) et
+  le nom du produit est la première ligne du message signé. Un binaire de
+  l'agent ne peut pas être installé comme collecteur, ni l'inverse. Les
+  manifestes de l'agent restent **sans** ce champ (les agents déjà
+  installés savent les lire). `mirador-release signer -produit
+  mirador-collector …` ; la CI signe et publie les deux produits à chaque
+  tag ; l'import GitHub prend le collecteur s'il est publié.
+- **Serveur** : binaires rangés par produit (migration 0019 : table
+  `versions_binaires`, reprise de `versions_agent`) ; un collecteur reçoit
+  le manifeste et le binaire de `mirador-collector` pour la version cible
+  (globale ou propre), un agent ceux de `mirador-agent`. Installation :
+  `…/install/collecteur` (script public) et `…/install/binary?produit=
+  mirador-collector` (avec le jeton) ; binaires du collecteur embarqués
+  dans l'image du serveur.
+- **Type choisi au jeton** : « Ajouter une machine » › Machine : *Agent* ou
+  *Collecteur du LAN* ; la machine créée à l'enrôlement prend le type du
+  jeton, jamais celui qu'elle annoncerait.
+- **Équipements rattachés** (table `equipements_collecteur`, un équipement
+  → un collecteur) : page du collecteur (« Rattacher », « Détacher »),
+  page de l'équipement (« Relevé par »), « Équipement sans agent » ›
+  *Relevé par* un collecteur (pas de token). La liste est posée par le
+  serveur dans la clé `collecteur.equipements` de la configuration du
+  collecteur (une liste saisie à la main est remplacée), envoyée seulement
+  au binaire qui annonce la capacité `collecteur`.
+- **Contrôle à l'arrivée** : un collecteur ne peut envoyer que pour
+  lui-même et ses équipements rattachés (approuvés). Série d'une autre
+  `instance` : refusée et comptée (`SeriesHorsParc`, avertissement dans le
+  journal). Site, type et groupe : ceux de la **fiche de l'équipement**.
+  Étiquette `collecteur` = nom du collecteur (sourdine « collecteur muet »
+  déjà en place). Logs : hôte rattaché gardé, hôte inconnu rangé sous le
+  nom du collecteur (champ `hote_annonce`). Les équipements relevés sont
+  notés « vus » à chaque donnée reçue (sans adresse).
+- **Mesures propres** : `mirador_collecteur_info{version}`,
+  `mirador_collecteur_equipements`, et les métriques internes de l'agent
+  (mêmes noms), `job="mirador-collector"`.
+- **Installation** : `mirador-collector-install.sh` (utilisateur dédié
+  sans droits, `/etc/mirador-collector`, `/var/lib/mirador-collector`,
+  unité systemd durcie sans aucun droit particulier, `MemoryMax=120M`,
+  `GOMEMLIMIT=35MiB`, retour arrière automatique).
+
+**Coût mesuré** (binaire réel, serveur injoignable, 40 s) : **12,5 Mo
+résidents** (4,5 Mo de mémoire propre), moins de 10 ms de CPU (~0 %),
+binaire 7,7 Mo. Objectif < 40 Mio : ✅ (référence actuelle : Alloy +
+unpoller ≈ 180 Mo). Serveur : une lecture SQL par collecteur toutes les
+30 s (liste en cache), une table de plus.
+
+**Menaces** (complète § 23.4) :
+- Collecteur compromis : ne peut parler que pour ses équipements
+  (contrôle serveur, liste en base, rattachement réservé aux admins avec
+  code 2FA et audit) ; ses logs d'hôtes inconnus restent sous son nom.
+- Serveur compromis : peut changer la liste des équipements (n'élargit que
+  ce que le serveur accepte lui-même), jamais faire exécuter quoi que ce
+  soit ; mises à jour signées hors serveur, produit vérifié.
+- Mauvais binaire poussé : produit dans le message signé → refusé.
+- Agent qui s'annoncerait collecteur : le type vient du jeton créé par
+  l'admin ; la capacité seule n'ouvre que la clé `collecteur` de sa
+  configuration, sans droit d'envoi en plus.
 
 ---
 

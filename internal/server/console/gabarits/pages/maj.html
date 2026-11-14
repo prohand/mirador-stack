@@ -45,8 +45,8 @@
 </div>
 
 <section class="carte"><h2>Versions publiées</h2>
-{{if .D.Versions}}<div class="defile"><table><thead><tr><th>Version</th><th>Arch.</th><th>Taille</th><th>SHA-256</th><th>Retour arrière signé</th><th>Publiée</th></tr></thead><tbody>
-{{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
+{{if .D.Versions}}<div class="defile"><table><thead><tr><th>Version</th><th>Programme</th><th>Arch.</th><th>Taille</th><th>SHA-256</th><th>Retour arrière signé</th><th>Publiée</th></tr></thead><tbody>
+{{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{if egal .Produit "mirador-collector"}}Collecteur{{else}}Agent{{end}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
 <p><small>Revenir à une version précédente : seulement avec un manifeste signé « retour autorisé » (anti-retour arrière de l'agent).</small></p>
 <p><small>Gardées sur le serveur : la cible, les versions installées ou à l'essai sur une machine, les {{.D.Garder}} plus récentes et celles importées depuis moins de 24 h, pour les architectures du parc. Les autres sont supprimées chaque jour (réimportables depuis GitHub) : les sauvegardes restent petites.</small></p>

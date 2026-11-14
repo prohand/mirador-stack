@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"mirador-stack/internal/protocole"
 	"os"
 	"runtime"
 	"strings"
@@ -94,7 +95,7 @@ func TestSignatureAccepteeParLAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	binaire := executable(t)
-	m, err := Signer(priv, binaire, "1.2.3", runtime.GOARCH, false)
+	m, err := Signer(priv, binaire, protocole.ProduitAgent, "1.2.3", runtime.GOARCH, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,19 +116,49 @@ func TestSignatureAccepteeParLAgent(t *testing.T) {
 	if err := majagent.VerifierManifeste(m, "2.0.0", f.Publique); err == nil {
 		t.Error("version plus ancienne acceptée sans autorisation")
 	}
-	m2, _ := Signer(priv, binaire, "1.2.3", runtime.GOARCH, true)
+	m2, _ := Signer(priv, binaire, protocole.ProduitAgent, "1.2.3", runtime.GOARCH, true)
 	if err := majagent.VerifierManifeste(m2, "2.0.0", f.Publique); err != nil {
 		t.Errorf("retour arrière autorisé refusé : %v", err)
 	}
 	// Mauvais fichiers.
 	autre := map[string]string{"amd64": "arm64", "arm64": "amd64"}[runtime.GOARCH]
-	if _, err := Signer(priv, binaire, "1.2.3", autre, false); err == nil || !strings.Contains(err.Error(), "pas pour") {
+	if _, err := Signer(priv, binaire, protocole.ProduitAgent, "1.2.3", autre, false); err == nil || !strings.Contains(err.Error(), "pas pour") {
 		t.Errorf("mauvaise architecture : %v", err)
 	}
-	if _, err := Signer(priv, []byte("#!/bin/sh\necho"), "1.2.3", "amd64", false); err == nil {
+	if _, err := Signer(priv, []byte("#!/bin/sh\necho"), protocole.ProduitAgent, "1.2.3", "amd64", false); err == nil {
 		t.Error("script signé")
 	}
-	if _, err := Signer(priv, binaire, "v1", runtime.GOARCH, false); err == nil {
+	if _, err := Signer(priv, binaire, protocole.ProduitAgent, "v1", runtime.GOARCH, false); err == nil {
 		t.Error("version mal formée acceptée")
+	}
+	// Produits (SPEC § 23.13) : le manifeste de l'agent reste sans champ
+	// « produit » (agents déjà installés) ; celui du collecteur le porte et
+	// n'est accepté que par le collecteur, et inversement.
+	if m.Produit != "" {
+		t.Errorf("manifeste de l'agent avec un produit : %q", m.Produit)
+	}
+	mc, err := Signer(priv, binaire, protocole.ProduitCollecteur, "1.2.3", runtime.GOARCH, false)
+	if err != nil || mc.Produit != protocole.ProduitCollecteur {
+		t.Fatalf("collecteur : %+v %v", mc, err)
+	}
+	if err := majagent.VerifierManifeste(mc, "1.0.0", f.Publique); err == nil {
+		t.Error("manifeste du collecteur accepté par l'agent")
+	}
+	majagent.ProduitCourant = protocole.ProduitCollecteur
+	defer func() { majagent.ProduitCourant = protocole.ProduitAgent }()
+	if err := majagent.VerifierManifeste(mc, "1.0.0", f.Publique); err != nil {
+		t.Errorf("manifeste du collecteur refusé par le collecteur : %v", err)
+	}
+	if err := majagent.VerifierManifeste(m, "1.0.0", f.Publique); err == nil {
+		t.Error("manifeste de l'agent accepté par le collecteur")
+	}
+	// Produit changé après coup : signature fausse.
+	falsifie := *m
+	falsifie.Produit = protocole.ProduitCollecteur
+	if err := majagent.VerifierManifeste(&falsifie, "1.0.0", f.Publique); err == nil {
+		t.Error("produit changé sans casser la signature")
+	}
+	if _, err := Signer(priv, binaire, "autre", "1.2.3", runtime.GOARCH, false); err == nil {
+		t.Error("produit inconnu signé")
 	}
 }

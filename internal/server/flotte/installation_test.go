@@ -13,6 +13,7 @@ import (
 	"time"
 
 	installagent "mirador-stack/deploy/agent"
+	installcollecteur "mirador-stack/deploy/collecteur"
 	"mirador-stack/internal/protocole"
 )
 
@@ -56,12 +57,27 @@ func TestInstallationParTelechargement(t *testing.T) {
 		w.Header().Get(EnteteVersion) != "embarquée" {
 		t.Fatalf("binaire embarqué : %d %q", w.Code, w.Header())
 	}
+	// Collecteur (SPEC § 23.13) : son script, et son binaire avec
+	// « produit=mirador-collector » (produit piégé refusé).
+	contenuC := []byte("collecteur embarqué amd64")
+	_ = os.WriteFile(filepath.Join(embarque, "mirador-collector-linux-amd64"), contenuC, 0o600)
+	if w := b.requete(http.MethodGet, protocole.CheminInstallationCollecteur, "", nil, ""); w.Code != http.StatusOK ||
+		!strings.Contains(w.Body.String(), "mirador-collector-install.sh") || w.Body.Len() != len(installcollecteur.Script) {
+		t.Fatalf("script du collecteur : %d", w.Code)
+	}
+	if w := b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64&produit=../agent", jeton, nil, ""); w.Code != http.StatusBadRequest {
+		t.Fatalf("produit piégé : %d", w.Code)
+	}
+	if w := b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64&produit=mirador-collector", jeton, nil, ""); w.Code != http.StatusOK ||
+		w.Body.String() != string(contenuC) {
+		t.Fatalf("binaire du collecteur : %d %q", w.Code, w.Body.String())
+	}
 	// Version globale publiée : elle passe avant.
 	publie := []byte("binaire publié 1.2.0")
 	hp := sha256.Sum256(publie)
 	_ = os.MkdirAll(b.f.opt.DossierVersions, 0o750)
-	_ = os.WriteFile(filepath.Join(b.f.opt.DossierVersions, nomBinaire("1.2.0", "amd64")), publie, 0o600)
-	_, _ = b.db.Exec(`INSERT INTO versions_agent(version, architecture, sha256, taille, signature, publiee_le) VALUES ('1.2.0', 'amd64', ?, ?, 'x', 1)`,
+	_ = os.WriteFile(filepath.Join(b.f.opt.DossierVersions, nomBinaire(protocole.ProduitAgent, "1.2.0", "amd64")), publie, 0o600)
+	_, _ = b.db.Exec(`INSERT INTO versions_binaires(produit, version, architecture, sha256, taille, signature, publiee_le) VALUES ('mirador-agent', '1.2.0', 'amd64', ?, ?, 'x', 1)`,
 		hex.EncodeToString(hp[:]), len(publie))
 	_, _ = b.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, '"1.2.0"', 1, 'test')`, cleCible)
 	w = b.requete(http.MethodGet, protocole.CheminInstallationBinaire+"?arch=amd64", jeton, nil, "")

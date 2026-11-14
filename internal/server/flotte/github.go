@@ -24,6 +24,7 @@ import (
 // chaque tag « vX.Y.Z », la CI compile l'agent, le signe avec la clé gardée
 // dans les secrets GitHub et ajoute à la Release :
 //   mirador-agent-X.Y.Z-linux-ARCH et mirador-agent-X.Y.Z-linux-ARCH.manifeste.json
+//   (et de même mirador-collector-…, facultatif)
 // L'interface importe ces fichiers ; le serveur vérifie la signature avec
 // les clés publiques réglées (il n'a jamais la clé privée). Le dépôt source
 // est un réglage : un fork règle le sien (et sa propre clé).
@@ -121,53 +122,28 @@ func ImporterGitHub(ctx context.Context, db *sql.DB, dossier string, src SourceG
 	}
 	var faites []string
 	var erreurs []error
-	for _, arch := range []string{"amd64", "arm64"} {
-		if len(src.Architectures) > 0 && !src.Architectures[arch] {
-			continue // architecture absente du parc
+	// Agent puis collecteur (SPEC § 23.13) : le collecteur est facultatif
+	// (versions d'avant l'étape 6, ou pas encore publié pour ce tag).
+	for _, produit := range []string{protocole.ProduitAgent, protocole.ProduitCollecteur} {
+		for _, arch := range []string{"amd64", "arm64"} {
+			if len(src.Architectures) > 0 && !src.Architectures[arch] {
+				continue // architecture absente du parc
+			}
+			fait, err := importerUn(ctx, db, dossier, src, depot, produit, version, arch, qui, maintenant)
+			if err != nil {
+				if errors.Is(err, errSansCle) {
+					return faites, err
+				}
+				erreurs = append(erreurs, err)
+			}
+			if fait {
+				nom := arch
+				if produit != protocole.ProduitAgent {
+					nom = "collecteur " + arch
+				}
+				faites = append(faites, nom)
+			}
 		}
-		nom := "mirador-agent-" + version + "-linux-" + arch
-		base := src.Base + "/" + depot + "/releases/download/" + url.PathEscape("v"+version) + "/"
-		brutM, err := telechargerGitHub(ctx, src.Client, base+nom+".manifeste.json", 64<<10)
-		if errors.Is(err, errAbsent) {
-			continue // architecture non publiée
-		}
-		if err != nil {
-			erreurs = append(erreurs, fmt.Errorf("%s : manifeste : %w", arch, err))
-			continue
-		}
-		var man protocole.Manifeste
-		dec := json.NewDecoder(bytes.NewReader(brutM))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&man); err != nil {
-			erreurs = append(erreurs, fmt.Errorf("%s : manifeste illisible : %w", arch, err))
-			continue
-		}
-		if man.Version != version || man.Architecture != arch {
-			erreurs = append(erreurs, fmt.Errorf("%s : manifeste pour %s/%s", arch, man.Version, man.Architecture))
-			continue
-		}
-		// Signature vérifiée AVANT de télécharger le binaire (comme l'agent).
-		cles, err := clesVerification(ctx, db)
-		if err != nil {
-			return faites, err
-		}
-		if cles == "" {
-			return faites, errors.New("aucune clé publique réglée : la saisir d'abord (Clé publique de signature)")
-		}
-		if err := majagent.VerifierSignature(&man, cles); err != nil {
-			erreurs = append(erreurs, fmt.Errorf("%s : %w (version signée par une autre clé ?)", arch, err))
-			continue
-		}
-		bin, err := telechargerGitHub(ctx, src.Client, base+nom, majagent.TailleMax)
-		if err != nil {
-			erreurs = append(erreurs, fmt.Errorf("%s : binaire : %w", arch, err))
-			continue
-		}
-		if err := Publier(ctx, db, dossier, &man, bin, qui, maintenant); err != nil {
-			erreurs = append(erreurs, fmt.Errorf("%s : %w", arch, err))
-			continue
-		}
-		faites = append(faites, arch)
 	}
 	if len(faites) == 0 && len(erreurs) == 0 {
 		return nil, fmt.Errorf("aucune version signée v%s dans les Releases de %s (CI pas finie, ou clé de signature absente des secrets GitHub ?)", version, depot)
@@ -175,7 +151,56 @@ func ImporterGitHub(ctx context.Context, db *sql.DB, dossier string, src SourceG
 	return faites, errors.Join(erreurs...)
 }
 
-var errAbsent = errors.New("absent")
+var (
+	errAbsent  = errors.New("absent")
+	errSansCle = errors.New("aucune clé publique réglée : la saisir d'abord (Clé publique de signature)")
+)
+
+// importerUn : manifeste signé puis binaire d'un produit et d'une
+// architecture. Absent de la Release : (false, nil).
+func importerUn(ctx context.Context, db *sql.DB, dossier string, src SourceGitHub, depot, produit, version, arch, qui string, maintenant time.Time) (bool, error) {
+	nom := nomBinaire(produit, version, arch)
+	quoi := arch
+	if produit != protocole.ProduitAgent {
+		quoi = produit + " " + arch
+	}
+	base := src.Base + "/" + depot + "/releases/download/" + url.PathEscape("v"+version) + "/"
+	brutM, err := telechargerGitHub(ctx, src.Client, base+nom+".manifeste.json", 64<<10)
+	if errors.Is(err, errAbsent) {
+		return false, nil // non publié pour ce tag
+	}
+	if err != nil {
+		return false, fmt.Errorf("%s : manifeste : %w", quoi, err)
+	}
+	var man protocole.Manifeste
+	dec := json.NewDecoder(bytes.NewReader(brutM))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&man); err != nil {
+		return false, fmt.Errorf("%s : manifeste illisible : %w", quoi, err)
+	}
+	if man.Version != version || man.Architecture != arch || man.ProduitEffectif() != produit {
+		return false, fmt.Errorf("%s : manifeste pour %s %s/%s", quoi, man.ProduitEffectif(), man.Version, man.Architecture)
+	}
+	// Signature vérifiée AVANT de télécharger le binaire (comme l'agent).
+	cles, err := clesVerification(ctx, db)
+	if err != nil {
+		return false, err
+	}
+	if cles == "" {
+		return false, errSansCle
+	}
+	if err := majagent.VerifierSignature(&man, cles); err != nil {
+		return false, fmt.Errorf("%s : %w (version signée par une autre clé ?)", quoi, err)
+	}
+	bin, err := telechargerGitHub(ctx, src.Client, base+nom, majagent.TailleMax)
+	if err != nil {
+		return false, fmt.Errorf("%s : binaire : %w", quoi, err)
+	}
+	if err := Publier(ctx, db, dossier, &man, bin, qui, maintenant); err != nil {
+		return false, fmt.Errorf("%s : %w", quoi, err)
+	}
+	return true, nil
+}
 
 func telechargerGitHub(ctx context.Context, client *http.Client, adresse string, max int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, adresse, nil)

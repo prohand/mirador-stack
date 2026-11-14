@@ -172,7 +172,10 @@ const TailleMax = 64 << 20
 // Signer fabrique le manifeste signé d'un binaire. Le binaire doit être un
 // exécutable Linux de l'architecture annoncée (évite de signer le mauvais
 // fichier).
-func Signer(priv ed25519.PrivateKey, binaire []byte, version, arch string, retourAutorise bool) (*protocole.Manifeste, error) {
+func Signer(priv ed25519.PrivateKey, binaire []byte, produit, version, arch string, retourAutorise bool) (*protocole.Manifeste, error) {
+	if produit != protocole.ProduitAgent && produit != protocole.ProduitCollecteur {
+		return nil, fmt.Errorf("produit %q inconnu (%s ou %s)", produit, protocole.ProduitAgent, protocole.ProduitCollecteur)
+	}
 	if !formatVersion.MatchString(version) {
 		return nil, fmt.Errorf("version %q invalide (attendu 1.2.3)", version)
 	}
@@ -191,7 +194,10 @@ func Signer(priv ed25519.PrivateKey, binaire []byte, version, arch string, retou
 		return nil, fmt.Errorf("exécutable pour %s, pas pour %s", e.Machine, arch)
 	}
 	h := sha256.Sum256(binaire)
-	m := &protocole.Manifeste{Version: version, Architecture: arch, SHA256: hex.EncodeToString(h[:]),
+	if produit == protocole.ProduitAgent {
+		produit = "" // manifestes de l'agent : sans champ (agents déjà installés)
+	}
+	m := &protocole.Manifeste{Produit: produit, Version: version, Architecture: arch, SHA256: hex.EncodeToString(h[:]),
 		Taille: int64(len(binaire)), RetourAutorise: retourAutorise}
 	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
 	return m, nil

@@ -65,7 +65,7 @@ func TestNettoyerVersions(t *testing.T) {
 	publiees, _ := versionsPubliees(ctx, b.db)
 	var reste []string
 	for _, p := range publiees {
-		reste = append(reste, p[0]+"/"+p[1])
+		reste = append(reste, p.Version+"/"+p.Arch)
 	}
 	sort.Strings(reste)
 	attendu := "0.2.10/amd64 0.2.11/amd64 0.2.18/amd64 0.2.19/amd64 0.2.20/amd64 0.2.9/amd64"

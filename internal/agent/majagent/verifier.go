@@ -71,11 +71,19 @@ func cles(brut string) ([]ed25519.PublicKey, error) {
 	return out, nil
 }
 
+// ProduitCourant : produit de ce binaire (mirador-agent ; mirador-collector
+// le change au démarrage). Sert à vérifier les manifestes et à nommer les
+// binaires installés.
+var ProduitCourant = protocole.ProduitAgent
+
 // VerifierManifeste contrôle la signature et la cohérence du manifeste, AVANT
 // tout téléchargement du binaire.
 func VerifierManifeste(m *protocole.Manifeste, versionActuelle, clesIntegrees string) error {
 	if err := VerifierSignature(m, clesIntegrees); err != nil {
 		return err
+	}
+	if m.ProduitEffectif() != ProduitCourant {
+		return fmt.Errorf("manifeste de %s, pas de %s", m.ProduitEffectif(), ProduitCourant)
 	}
 	if m.Architecture != runtime.GOARCH {
 		return ErrArchitecture

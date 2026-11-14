@@ -27,6 +27,26 @@ Une machine qui change d'adresse reçoit des 403 : elle garde ses données et
 réessaie. `MS machines` montre sa nouvelle adresse (« DERNIÈRE IP ») ; il
 suffit de corriger la liste avec `MS ips`.
 
+## Collecteur du LAN (mirador-collector)
+
+Le collecteur relève les équipements sans agent (Synology, UniFi,
+imprimante…) depuis le LAN (SPEC.md § 23.13). Partie 3 de l'étape 6 : il
+s'installe, s'enrôle, reçoit sa configuration et ses mises à jour ; les
+relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
+
+1. Machines › Ajouter une machine › Machine : **Collecteur du LAN**, nom
+   (ex. `collecteur-lan`), créer le jeton.
+2. Sur une machine Debian/Ubuntu du LAN (un LXC suffit), en root : coller
+   la commande affichée (`…/install/collecteur`, puis
+   `MIRADOR_JETON=… bash mirador-collector-install.sh --serveur …`).
+3. L'approuver dans Machines (badge « Collecteur »).
+4. Page du collecteur › **Équipements relevés** : rattacher les
+   équipements, ou les créer depuis Machines › Équipement sans agent ›
+   *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
+
+Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
+Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
+
 ## OPNsense (Telegraf) vers mirador
 
 OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin

@@ -76,7 +76,7 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 	if err := VerifierBinaire(m, binaire); err != nil {
 		return err
 	}
-	nom := "mirador-agent-" + m.Version
+	nom := ProduitCourant + "-" + m.Version
 	final := filepath.Join(i.Dossier, nom)
 
 	tmp, err := os.CreateTemp(i.Dossier, ".telechargement-*")
@@ -185,14 +185,14 @@ func (i *Installateur) RetourArriere(raison string) error {
 	if e == nil || e.Precedent == "" || e.Precedent == "." {
 		return errors.New("aucune version précédente connue")
 	}
-	if !strings.HasPrefix(e.Precedent, "mirador-agent-") || strings.ContainsAny(e.Precedent, "/\\") {
+	if !strings.HasPrefix(e.Precedent, ProduitCourant+"-") || strings.ContainsAny(e.Precedent, "/\\") {
 		return fmt.Errorf("nom de version précédente invalide %q", e.Precedent)
 	}
 	if err := i.basculer(e.Precedent); err != nil {
 		return err
 	}
 	_ = i.ecrireJSON("echec.json", map[string]string{
-		"version": strings.TrimPrefix(e.Nouveau, "mirador-agent-"), "raison": raison,
+		"version": strings.TrimPrefix(e.Nouveau, ProduitCourant+"-"), "raison": raison,
 		"date": i.maintenant().UTC().Format(time.RFC3339),
 	})
 	return os.Remove(filepath.Join(i.Dossier, "essai.json"))
@@ -222,7 +222,7 @@ func (i *Installateur) nettoyer(garder ...string) {
 		ok[g+suffixeManifeste] = true
 	}
 	for _, e := range entrees {
-		if strings.HasPrefix(e.Name(), "mirador-agent-") && !ok[e.Name()] {
+		if strings.HasPrefix(e.Name(), ProduitCourant+"-") && !ok[e.Name()] {
 			_ = os.Remove(filepath.Join(i.Dossier, e.Name()))
 		}
 	}

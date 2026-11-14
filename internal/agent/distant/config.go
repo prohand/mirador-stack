@@ -75,6 +75,8 @@ type ConfigDistante struct {
 	// jamais de commande. Envoyés seulement aux agents qui annoncent la
 	// capacité « checks ».
 	Checks *[]config.Check `json:"checks,omitempty"`
+	// Collecteur : réglages de mirador-collector (capacité « collecteur »).
+	Collecteur *config.Collecteur `json:"collecteur,omitempty"`
 
 	Metriques     *bool     `json:"metriques,omitempty"` // non = logs seulement
 	Journal       *bool     `json:"journal,omitempty"`
@@ -123,6 +125,7 @@ func Appliquer(base config.Agent, d *ConfigDistante) (config.Agent, error) {
 		a.ProxmoxDisques = time.Duration(*d.ProxmoxDisques)
 	}
 	affecter(&a.Checks, d.Checks)
+	affecter(&a.Collecteur, d.Collecteur)
 	affecter(&a.TamponMetriques, d.TamponMetriques)
 	affecter(&a.TamponLogs, d.TamponLogs)
 	affecter(&a.ExclureMontages, d.ExclureMontages)
@@ -205,7 +208,7 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	req.Header.Set("Authorization", "Bearer "+r.Token)
 	req.Header.Set(protocole.EnteteProtocole, "1")
 	req.Header.Set(protocole.EnteteVersion, version.Version)
-	req.Header.Set(protocole.EnteteCapacites, protocole.Capacites)
+	req.Header.Set(protocole.EnteteCapacites, Capacites)
 	if r.Empreinte != "" {
 		req.Header.Set(protocole.EnteteEmpreinte, r.Empreinte)
 	}
@@ -245,3 +248,7 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	r.etag = resp.Header.Get("ETag")
 	return c, nil
 }
+
+// Capacites : capacités annoncées au serveur (en-tête X-Mirador-Capacites) ;
+// mirador-collector annonce les siennes au démarrage.
+var Capacites = protocole.Capacites

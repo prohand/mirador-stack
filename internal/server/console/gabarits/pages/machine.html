@@ -5,6 +5,18 @@
 <p class="bandeau-machine"><span>{{$m.Site}}{{if $m.Env}} · {{$m.Env}}{{end}}{{if $m.Groupe}} · {{$m.Groupe}}{{end}}</span>{{with .D.Identite}}{{if .Noyau}}<span>{{.Noyau}}</span>{{end}}{{if .Coeurs}}<span>{{.Coeurs}}{{if .Memoire}} · {{.Memoire}}{{end}}</span>{{end}}{{if .Allumee}}<span>Allumée depuis {{.Allumee}}</span>{{end}}{{if gt .Paquets 0}}<span class="pastille {{if .PaquetsSecurite}}attention{{end}}">{{.Paquets}} paquet{{if gt .Paquets 1}}s{{end}} à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}</span>{{else if eq .Paquets 0}}<span>Paquets à jour</span>{{end}}{{if .Redemarrage}}<span class="pastille attention">Redémarrage nécessaire</span>{{end}}{{end}}{{if $m.Version}}<span>Agent {{$m.Version}}</span>{{end}}{{with .D.Identite}}{{if .Intervalle}}<span>Métriques toutes les {{.Intervalle}}{{if $.Admin}} · <a href="{{.LienIntervalle}}" title="Intervalle réglable pour cette machine (10 s à 5 min)">changer</a>{{end}}</span>{{end}}{{end}}<span>Vue {{depuisS $m.VuLe}}</span></p>
 </div></div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{if .D.Collecteur}}<section class="carte" id="equipements">
+<div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
+{{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
+{{range .D.Equipements}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if not (egal .Statut "approuvee")}} <span class="pastille attention">{{.Statut}}</span>{{end}}</td><td><small>{{if .Site}}{{.Site}}{{else}}—{{end}} · {{if .Env}}{{.Env}}{{else}}—{{end}} · {{if .Groupe}}{{.Groupe}}{{else}}—{{end}}</small></td><td><small>{{if .VuLe}}{{dateS .VuLe}}{{else}}jamais{{end}}</small></td>
+<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detacher"><input type="hidden" name="equipement" value="{{.Nom}}">{{template "code2fa"}}<button class="secondaire petit">Détacher</button></form>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucun équipement rattaché : le collecteur n'envoie que ses propres mesures.</p>{{end}}
+{{if and $.Admin .D.Candidats}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="rattacher">
+<label>Rattacher <select name="equipement">{{range .D.Candidats}}<option>{{.}}</option>{{end}}</select></label>{{template "code2fa"}}<button>Rattacher</button></form>
+<p><small>Un équipement qui n'existe pas encore : le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a> (« Relevé par » ce collecteur).</small></p>{{end}}
+</section>{{end}}
+{{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
 
 {{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
 <div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>

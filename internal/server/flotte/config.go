@@ -113,8 +113,8 @@ func DefinirConfig(ctx context.Context, db *sql.DB, portee string, doc []byte, q
 // surveillance, groupe, puis machine : la plus précise l'emporte, clé par
 // clé) et son ETag.
 func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, etag string, err error) {
-	var groupe string
-	if err := db.QueryRowContext(ctx, `SELECT groupe FROM machines WHERE id = ?`, machine).Scan(&groupe); err != nil {
+	var groupe, typeMachine string
+	if err := db.QueryRowContext(ctx, `SELECT groupe, type FROM machines WHERE id = ?`, machine).Scan(&groupe, &typeMachine); err != nil {
 		return nil, "", err
 	}
 	portees := []string{"defaut", "modeles"}
@@ -154,6 +154,13 @@ func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, 
 		}
 		for k, v := range m {
 			fusion[k] = v
+		}
+	}
+	// Collecteur (SPEC § 23.13) : la liste de ses équipements est posée par
+	// le serveur (rattachements de l'interface), jamais saisie à la main.
+	if typeMachine == "collecteur" {
+		if fusion["collecteur"], err = configCollecteur(ctx, db, machine, fusion["collecteur"]); err != nil {
+			return nil, "", err
 		}
 	}
 	if doc, err = json.Marshal(fusion); err != nil {

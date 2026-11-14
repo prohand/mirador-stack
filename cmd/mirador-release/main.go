@@ -71,7 +71,7 @@ func lirePhraseClavier(invite string) ([]byte, error) {
 const aide = `mirador-release : signature des versions de mirador-agent
 
   cle [-sortie FICHIER]                                   créer la clé de signature
-  signer -cle FICHIER -version X.Y.Z -arch amd64|arm64 [-retour-autorise] BINAIRE
+  signer -cle FICHIER -version X.Y.Z -arch amd64|arm64 [-produit mirador-collector] [-retour-autorise] BINAIRE
   verifier -publique CLE MANIFESTE BINAIRE
   -version`
 
@@ -90,6 +90,7 @@ func lancer(args []string, sortie, erreurs io.Writer, phrase lirePhrase) int {
 	fichierCle := fs.String("cle", "cle-mirador.json", "fichier de clé")
 	ver := fs.String("version", "", "version (1.2.3)")
 	arch := fs.String("arch", "amd64", "architecture (amd64, arm64)")
+	produit := fs.String("produit", protocole.ProduitAgent, "produit signé : mirador-agent ou mirador-collector")
 	retour := fs.Bool("retour-autorise", false, "autoriser l'installation par-dessus une version plus récente (retour arrière)")
 	publique := fs.String("publique", "", "clé publique (base64)")
 	if err := fs.Parse(args[1:]); err != nil {
@@ -104,7 +105,7 @@ func lancer(args []string, sortie, erreurs io.Writer, phrase lirePhrase) int {
 			err = errors.New("un binaire attendu")
 			break
 		}
-		err = signer(*fichierCle, fs.Arg(0), *ver, *arch, *retour, sortie, phrase)
+		err = signer(*fichierCle, fs.Arg(0), *produit, *ver, *arch, *retour, sortie, phrase)
 	case "verifier":
 		if fs.NArg() != 2 {
 			err = errors.New("un manifeste et un binaire attendus")
@@ -161,7 +162,7 @@ func creerCle(chemin string, sortie io.Writer, phrase lirePhrase) error {
 	return nil
 }
 
-func signer(cheminCle, cheminBinaire, ver, arch string, retour bool, sortie io.Writer, phrase lirePhrase) error {
+func signer(cheminCle, cheminBinaire, produit, ver, arch string, retour bool, sortie io.Writer, phrase lirePhrase) error {
 	brutCle, err := os.ReadFile(cheminCle) // #nosec G304 G703 -- chemin choisi par l'utilisateur
 	if err != nil {
 		return err
@@ -178,7 +179,7 @@ func signer(cheminCle, cheminBinaire, ver, arch string, retour bool, sortie io.W
 	if err != nil {
 		return err
 	}
-	m, err := release.Signer(priv, binaire, ver, arch, retour)
+	m, err := release.Signer(priv, binaire, produit, ver, arch, retour)
 	release.Effacer(priv)
 	if err != nil {
 		return err
@@ -191,7 +192,7 @@ func signer(cheminCle, cheminBinaire, ver, arch string, retour bool, sortie io.W
 	if err := os.WriteFile(chemin, append(brut, '\n'), 0o644); err != nil { // #nosec G306 G703 -- manifeste public
 		return err
 	}
-	fmt.Fprintf(sortie, "Manifeste écrit : %s\n  version %s, %s, %d octets, SHA-256 %s", chemin, m.Version, m.Architecture, m.Taille, m.SHA256)
+	fmt.Fprintf(sortie, "Manifeste écrit : %s\n  %s, version %s, %s, %d octets, SHA-256 %s", chemin, m.ProduitEffectif(), m.Version, m.Architecture, m.Taille, m.SHA256)
 	if m.RetourAutorise {
 		fmt.Fprint(sortie, "\n  RETOUR ARRIÈRE AUTORISÉ : les agents plus récents l'accepteront aussi")
 	}
@@ -217,6 +218,6 @@ func verifier(cheminManifeste, cheminBinaire, publique string, sortie io.Writer)
 	if err := release.Verifier(&m, binaire, publique); err != nil {
 		return err
 	}
-	fmt.Fprintf(sortie, "OK : version %s (%s) signée par cette clé.\n", m.Version, m.Architecture)
+	fmt.Fprintf(sortie, "OK : %s version %s (%s) signée par cette clé.\n", m.ProduitEffectif(), m.Version, m.Architecture)
 	return nil
 }
