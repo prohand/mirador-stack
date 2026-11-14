@@ -3986,7 +3986,7 @@ configuration et mêmes checks qu'en partie B).
   seuils, 10 listes, 50 règles, 200 modèles).
 - Un modèle personnel ne peut pas **prendre le nom** d'un modèle livré, ni
   celui d'une règle existante (sinon il pourrait remplacer
-  `MachineMuette` par une règle qui ne sonne jamais) ; une règle qui filtre
+  `AgentMuet` par une règle qui ne sonne jamais) ; une règle qui filtre
   les tests d'un autre modèle est refusée (elle ne sonnerait jamais).
 - Un import ne remplace jamais un modèle livré.
 - Les pages échappent tout le texte saisi (gabarits Go) ; le nom du fichier
