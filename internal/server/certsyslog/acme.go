@@ -14,7 +14,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,54 +24,6 @@ import (
 	"mirador-stack/internal/server/secrets"
 )
 
-// --- deSEC (défi DNS-01) --------------------------------------------------------
-
-// BaseDeSEC : API de deSEC.
-const BaseDeSEC = "https://desec.io/api/v1"
-
-// DeSEC : enregistrements TXT du défi, par l'API de deSEC (un seul appel
-// HTTPS, écrit à la main).
-type DeSEC struct {
-	Base, Jeton, Domaine string
-	Client               *http.Client
-}
-
-// poser : enregistrement TXT (valeurs vides = supprimé).
-func (d DeSEC) poser(ctx context.Context, sousNom string, valeurs []string) error {
-	enregistrements := make([]string, 0, len(valeurs))
-	for _, v := range valeurs {
-		enregistrements = append(enregistrements, `"`+v+`"`)
-	}
-	corps, err := json.Marshal([]map[string]any{{"subname": sousNom, "type": "TXT", "ttl": 3600, "records": enregistrements}})
-	if err != nil {
-		return err
-	}
-	base := d.Base
-	if base == "" {
-		base = BaseDeSEC
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, base+"/domains/"+url.PathEscape(d.Domaine)+"/rrsets/", bytes.NewReader(corps))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Token "+d.Jeton)
-	req.Header.Set("Content-Type", "application/json")
-	client := d.Client
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("deSEC : %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
-		return fmt.Errorf("deSEC : réponse %d (%s)", resp.StatusCode, strings.TrimSpace(string(detail)))
-	}
-	return nil
-}
-
 // --- ACME ---------------------------------------------------------------------------
 
 // Emetteur : obtient un certificat pour une CSR (ACME en vrai, faux dans
@@ -81,14 +32,18 @@ type Emetteur interface {
 	Obtenir(ctx context.Context, nom string, csrDER []byte) (chainePEM string, err error)
 }
 
-// ACME : démarche ACME avec le défi DNS-01 chez deSEC.
+// ACME : démarche ACME avec le défi DNS-01 chez le fournisseur DNS choisi.
 type ACME struct {
 	DB     *sql.DB
-	Cle    []byte // clé du serveur (secrets chiffrés)
-	DeSEC  DeSEC  // Base et Client ; jeton et zone lus dans les réglages
-	Client *http.Client
+	Cle    []byte       // clé du serveur (secrets chiffrés)
+	Client *http.Client // vers l'annuaire ACME
+	// BasesDNS, ClientDNS : adresses des API DNS et client HTTP (tests ;
+	// vides = vraies API). Fournisseur, zone et identifiants sont lus
+	// dans les réglages.
+	BasesDNS  map[string]string
+	ClientDNS *http.Client
 	// Attente : délai entre la pose du TXT et la demande de validation
-	// (propagation chez deSEC ; 60 s par défaut).
+	// (propagation chez le fournisseur ; 60 s par défaut).
 	Attente time.Duration
 }
 
@@ -99,12 +54,13 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if err != nil {
 		return "", err
 	}
-	if r.JetonChiffre == "" {
-		return "", errors.New("jeton deSEC pas encore saisi (page du collecteur › Certificat)")
-	}
-	jeton, err := secrets.Dechiffrer(a.Cle, UsageJeton, r.JetonChiffre)
+	ids, err := r.identifiants(a.Cle)
 	if err != nil {
-		return "", fmt.Errorf("jeton deSEC illisible : %w", err)
+		return "", err
+	}
+	dns, err := nouveauFournisseur(r.FournisseurEffectif(), ids, r.Domaine, a.BasesDNS, a.ClientDNS)
+	if err != nil {
+		return "", err
 	}
 	sousNom, err := nomDansDomaine(nom, r.Domaine)
 	if err != nil {
@@ -122,8 +78,6 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if err != nil {
 		return "", fmt.Errorf("commande ACME : %w", err)
 	}
-	dns := a.DeSEC
-	dns.Jeton, dns.Domaine = jeton, r.Domaine
 	for _, u := range commande.AuthzURLs {
 		z, err := c.GetAuthorization(ctx, u)
 		if err != nil {
@@ -145,10 +99,10 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 		if err != nil {
 			return "", err
 		}
-		if err := dns.poser(ctx, sousNom, []string{valeur}); err != nil {
+		if err := dns.Poser(ctx, sousNom, valeur); err != nil {
 			return "", err
 		}
-		defer func() { _ = dns.poser(context.WithoutCancel(ctx), sousNom, nil) }() // nettoyage
+		defer func() { _ = dns.Retirer(context.WithoutCancel(ctx), sousNom, valeur) }() // nettoyage
 		attente := a.Attente
 		if attente == 0 {
 			attente = time.Minute
@@ -206,18 +160,31 @@ func (a *ACME) compte(ctx context.Context, r *Reglages) (*ecdsa.PrivateKey, erro
 	return cle, ecrireReglages(ctx, a.DB, *r, "", time.Now())
 }
 
-// DefinirReglages : zone deSEC, annuaire et (s'il est donné) jeton deSEC,
-// chiffré. Jeton vide = garder l'actuel.
-func DefinirReglages(ctx context.Context, db *sql.DB, cle []byte, domaine, annuaire, jeton, qui string, maintenant time.Time) error {
+// Saisie : réglages du certificat saisis dans l'interface.
+type Saisie struct {
+	Fournisseur, Domaine, Annuaire string
+	// Identifiants : champs du fournisseur (secret vide = garder l'actuel,
+	// si le fournisseur ne change pas).
+	Identifiants map[string]string
+}
+
+// DefinirReglages : fournisseur DNS, zone, annuaire et identifiants
+// (secrets chiffrés, jamais réaffichés).
+func DefinirReglages(ctx context.Context, db *sql.DB, cle []byte, s Saisie, qui string, maintenant time.Time) error {
 	r, err := LireReglages(ctx, db)
 	if err != nil {
 		return err
 	}
-	domaine = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domaine), "."))
-	if _, err := nomDansDomaine(domaine, domaine); err != nil || len(domaine) > 253 || strings.ContainsAny(domaine, " /") {
-		return errors.New("zone deSEC invalide (ex. exemple.org)")
+	info := InfoDe(s.Fournisseur)
+	if info == nil {
+		return errors.New("fournisseur DNS inconnu")
 	}
-	if annuaire = strings.TrimSpace(annuaire); annuaire != "" {
+	domaine := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s.Domaine), "."))
+	if _, err := nomDansDomaine(domaine, domaine); err != nil || len(domaine) > 253 || strings.ContainsAny(domaine, " /") {
+		return errors.New("zone DNS invalide (ex. exemple.org)")
+	}
+	annuaire := strings.TrimSpace(s.Annuaire)
+	if annuaire != "" {
 		u, err := url.Parse(annuaire)
 		if err != nil || u.Scheme != "https" || u.Host == "" {
 			return errors.New("annuaire ACME : adresse https:// attendue")
@@ -226,14 +193,50 @@ func DefinirReglages(ctx context.Context, db *sql.DB, cle []byte, domaine, annua
 	if annuaire != r.Annuaire {
 		r.CompteChiffre = "" // nouvel annuaire : nouveau compte
 	}
-	r.Domaine, r.Annuaire = domaine, annuaire
-	if jeton = strings.TrimSpace(jeton); jeton != "" {
-		if len(jeton) > 200 || strings.ContainsAny(jeton, " \r\n\t") {
-			return errors.New("jeton deSEC invalide")
-		}
-		if r.JetonChiffre, err = secrets.Chiffrer(cle, UsageJeton, jeton); err != nil {
-			return err
+	// Identifiants : ceux déjà rangés servent si le fournisseur ne change pas.
+	anciens := map[string]string{}
+	if r.FournisseurEffectif() == info.Nom {
+		if anciens, err = r.identifiants(cle); err != nil {
+			anciens = map[string]string{}
 		}
 	}
+	params, secretsClairs := map[string]string{}, map[string]string{}
+	for _, ch := range info.Champs {
+		v := strings.TrimSpace(s.Identifiants[ch.Nom])
+		if v == "" {
+			v = anciens[ch.Nom]
+		}
+		switch {
+		case v == "":
+			return fmt.Errorf("%s : « %s » obligatoire", info.Titre, ch.Titre)
+		case len(v) > 300 || strings.ContainsAny(v, " \r\n\t\"'"):
+			return fmt.Errorf("%s : « %s » invalide", info.Titre, ch.Titre)
+		case ch.Choix != nil && !contient(ch.Choix, v):
+			return fmt.Errorf("%s : « %s » inconnu", info.Titre, ch.Titre)
+		}
+		if ch.Secret {
+			secretsClairs[ch.Nom] = v
+		} else {
+			params[ch.Nom] = v
+		}
+	}
+	brut, err := json.Marshal(secretsClairs)
+	if err != nil {
+		return err
+	}
+	if r.IdentifiantsChiffre, err = secrets.Chiffrer(cle, UsageIdentifiants, string(brut)); err != nil {
+		return err
+	}
+	r.Fournisseur, r.Parametres, r.JetonChiffre = info.Nom, params, ""
+	r.Domaine, r.Annuaire = domaine, annuaire
 	return ecrireReglages(ctx, db, r, qui, maintenant)
+}
+
+func contient(liste []string, v string) bool {
+	for _, x := range liste {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

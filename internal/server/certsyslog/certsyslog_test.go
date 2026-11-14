@@ -195,14 +195,15 @@ func TestDemarcheACME(t *testing.T) {
 	defer desec.Close()
 	faux := nouveauFauxACME(t, func() string { mu.Lock(); defer mu.Unlock(); return txt })
 
-	if err := DefinirReglages(ctx, db, cleServeur, "pas une zone", "", "x", "admin", time.Now()); err == nil {
+	if err := DefinirReglages(ctx, db, cleServeur, Saisie{Fournisseur: "desec", Domaine: "pas une zone", Identifiants: map[string]string{"jeton": "x"}}, "admin", time.Now()); err == nil {
 		t.Error("zone invalide acceptée")
 	}
-	if err := DefinirReglages(ctx, db, cleServeur, "exemple.org", faux.srv.URL+"/dir", "jeton-desec-secret", "admin", time.Now()); err != nil {
+	if err := DefinirReglages(ctx, db, cleServeur, Saisie{Fournisseur: "desec", Domaine: "exemple.org", Annuaire: faux.srv.URL + "/dir",
+		Identifiants: map[string]string{"jeton": "jeton-desec-secret"}}, "admin", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	r, _ := LireReglages(ctx, db)
-	if strings.Contains(r.JetonChiffre, "jeton-desec-secret") || r.JetonChiffre == "" {
+	if strings.Contains(r.IdentifiantsChiffre, "jeton-desec-secret") || r.IdentifiantsChiffre == "" {
 		t.Fatal("jeton deSEC non chiffré")
 	}
 	var audit string
@@ -218,7 +219,7 @@ func TestDemarcheACME(t *testing.T) {
 		t.Fatal(err)
 	}
 	nouveaux := 0
-	g := &Gestionnaire{DB: db, Emetteur: &ACME{DB: db, Cle: cleServeur, DeSEC: DeSEC{Base: desec.URL, Client: desec.Client()}, Client: faux.srv.Client(), Attente: time.Millisecond},
+	g := &Gestionnaire{DB: db, Emetteur: &ACME{DB: db, Cle: cleServeur, BasesDNS: map[string]string{"desec": desec.URL}, ClientDNS: desec.Client(), Client: faux.srv.Client(), Attente: time.Millisecond},
 		NomDe: func(context.Context, int64) (string, error) { return "syslog.lan.exemple.org", nil }, Apres: func() { nouveaux++ }}
 	g.Passer(ctx)
 	e, _ := LireEtat(ctx, db, 7)

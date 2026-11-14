@@ -13,7 +13,7 @@ ta validation** (SPEC.md § 23.9). Rien n'est coupé par mirador lui-même.
    ce collecteur) : NAS, contrôleur UniFi, etc. Les noms doivent être
    **ceux d'aujourd'hui** (étiquette `instance` des tableaux et des règles).
 4. Page du collecteur : SNMP (NAS), contrôleur UniFi, sondes de certificats,
-   puis syslog TLS (réglages deSEC d'abord).
+   puis syslog TLS (réglages du certificat d'abord).
 
 ## 2. Comparer (quelques jours)
 

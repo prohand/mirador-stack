@@ -3969,6 +3969,44 @@ la connexion) ; contrôleur usurpé sur le LAN : certificat vérifié ou
 épinglé ; secrets chiffrés au repos ; réponse piégée : taille bornée,
 décodage typé, nombres illisibles ignorés, textes nettoyés.
 
+### 23.17 Fournisseurs DNS du défi ACME (demande du 14/11) **[Fait, à valider]**
+
+Demande : « rajouter des fournisseurs proposés par ACME », sans délégation
+par CNAME (réponse « 2. Non »).
+
+- Choix dans *Réglages du certificat* : **deSEC** (défaut, comme avant),
+  **Cloudflare**, **OVHcloud**, **Gandi LiveDNS**, **Infomaniak**. Ce sont
+  des fournisseurs courants des clients ACME (lego, acme.sh) avec une API
+  publique stable et des jetons limitables.
+- Code : interface `FournisseurDNS` (poser / retirer le TXT
+  `_acme-challenge…`), un client HTTPS écrit à la main par fournisseur
+  (`internal/server/certsyslog/dns.go`). **Aucune dépendance ajoutée** :
+  une bibliothèque multi-fournisseurs (lego) ajouterait des dizaines de
+  modules pour 5 appels.
+- Signature OVH : SHA-1 imposé par leur API (`$1$` + SHA-1 de
+  secret+clé consommateur+méthode+URL+corps+heure). Ce n'est pas un choix
+  de chiffrement de mirador (`#nosec` justifié).
+- Identifiants : champs non secrets (point d'accès et clé d'application
+  OVH) en clair dans les réglages ; secrets chiffrés (JSON, usage
+  `certsyslog.dns`), jamais réaffichés ni envoyés au collecteur. Secret
+  laissé vide = gardé si le fournisseur ne change pas ; changer de
+  fournisseur demande ses identifiants. L'ancien jeton deSEC est toujours lu
+  (rien à refaire).
+- Droits conseillés : Cloudflare « Zone › DNS › Modifier » sur la seule
+  zone ; OVH : GET/POST/DELETE sur `/domain/zone/<zone>/*` ; Gandi : jeton
+  d'accès personnel limité au domaine ; Infomaniak : jeton `domain:read`,
+  `dns:write`. Premier essai conseillé sur l'annuaire *staging* de
+  Let's Encrypt.
+
+**Coût** : quelques appels HTTPS par certificat (tous les 60 jours) ;
+mémoire et CPU négligeables, binaire du serveur à peine plus gros.
+
+**Menaces** : vol des identifiants DNS → ils restent sur le serveur,
+chiffrés ; conseiller des jetons limités à la zone (le serveur ne peut pas
+vérifier la portée chez le fournisseur). Réponse piégée d'une API : lue au
+plus 1 Mo, décodage typé. Pas de redirection vers une autre adresse
+configurable : seules les adresses officielles sont codées.
+
 ---
 
 ## 24. Modèles de surveillance **[Décidé le 14/11 — parties A, B et C faites, à valider]**

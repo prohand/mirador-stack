@@ -17,7 +17,7 @@ import (
 
 // Syslog TLS d'un collecteur dans l'interface (SPEC § 23.14) : réglages
 // (adresse d'écoute, nom du certificat, émetteurs), état du certificat,
-// « Renouveler maintenant », réglages deSEC / ACME (communs à tous les
+// « Renouveler maintenant », réglages DNS / ACME (communs à tous les
 // collecteurs).
 
 // vueSyslog : bloc « Syslog TLS » de la page d'un collecteur.
@@ -29,7 +29,10 @@ type vueSyslog struct {
 	Cert            certsyslog.Etat
 	Domaine         string
 	Annuaire        string
-	JetonEnregistre bool
+	JetonEnregistre bool // identifiants DNS déjà rangés
+	Fournisseur     string
+	Parametres      map[string]string // champs non secrets enregistrés
+	Fournisseurs    []certsyslog.InfoFournisseur
 }
 
 // syslogDe : réglages actuels (configuration du collecteur) et certificat.
@@ -46,8 +49,13 @@ func (c *Console) syslogDe(ctx context.Context, m flotte.InfoMachine) vueSyslog 
 	}
 	v.Cert, _ = certsyslog.LireEtat(ctx, c.db, m.ID)
 	if r, err := certsyslog.LireReglages(ctx, c.db); err == nil {
-		v.Domaine, v.Annuaire, v.JetonEnregistre = r.Domaine, r.Annuaire, r.JetonChiffre != ""
+		v.Domaine, v.Annuaire, v.JetonEnregistre = r.Domaine, r.Annuaire, r.IdentifiantsEnregistres()
+		v.Fournisseur, v.Parametres = r.FournisseurEffectif(), r.Parametres
 	}
+	if v.Fournisseur == "" {
+		v.Fournisseur = "desec"
+	}
+	v.Fournisseurs = certsyslog.Fournisseurs
 	return v
 }
 
@@ -122,8 +130,15 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 		return "renouvellement demandé : fait sous une minute (Let's Encrypt et le défi DNS prennent 1 à 3 min)",
 			certsyslog.Demander(ctx, c.db, m.ID, q.qui(), q.t)
 	case "certificat_reglages":
-		err := certsyslog.DefinirReglages(ctx, c.db, c.opt.Cle, f("domaine"), f("annuaire"), q.r.PostFormValue("jeton"), q.qui(), q.t)
-		return "réglages du certificat enregistrés (le jeton n'est jamais réaffiché)", err
+		// Champs du fournisseur choisi : « dns_<fournisseur>_<champ> ».
+		s := certsyslog.Saisie{Fournisseur: f("fournisseur"), Domaine: f("domaine"), Annuaire: f("annuaire"), Identifiants: map[string]string{}}
+		if info := certsyslog.InfoDe(s.Fournisseur); info != nil {
+			for _, ch := range info.Champs {
+				s.Identifiants[ch.Nom] = q.r.PostFormValue("dns_" + info.Nom + "_" + ch.Nom)
+			}
+		}
+		err := certsyslog.DefinirReglages(ctx, c.db, c.opt.Cle, s, q.qui(), q.t)
+		return "réglages du certificat enregistrés (les secrets ne sont jamais réaffichés)", err
 	}
 	return "", errors.New("action inconnue")
 }

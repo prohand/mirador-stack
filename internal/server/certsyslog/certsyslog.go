@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"mirador-stack/internal/server/secrets"
 )
 
 // Bornes et rythmes.
@@ -123,15 +125,16 @@ func Demander(ctx context.Context, db *sql.DB, machine int64, qui string, mainte
 	return tx.Commit()
 }
 
-// --- Réglages (deSEC, ACME) -----------------------------------------------------
+// --- Réglages (fournisseur DNS, ACME) -----------------------------------------------------
 
-// cleReglages : réglage JSON (le jeton deSEC y est chiffré).
+// cleReglages : réglage JSON (les identifiants DNS y sont chiffrés).
 const cleReglages = "certsyslog.reglages"
 
 // UsageJeton, UsageCompte : usages du chiffrement (internal/server/secrets).
 const (
-	UsageJeton  = "certsyslog.desec"
-	UsageCompte = "certsyslog.compte"
+	UsageJeton        = "certsyslog.desec" // ancien jeton deSEC (avant le choix du fournisseur)
+	UsageIdentifiants = "certsyslog.dns"
+	UsageCompte       = "certsyslog.compte"
 )
 
 // AnnuaireLetsEncrypt : annuaire ACME par défaut.
@@ -139,12 +142,20 @@ const AnnuaireLetsEncrypt = "https://acme-v02.api.letsencrypt.org/directory"
 
 // Reglages : démarche ACME.
 type Reglages struct {
-	// Domaine : zone gérée chez deSEC (ex. exemple.org) ; le nom du
-	// certificat doit en faire partie.
+	// Fournisseur : fournisseur DNS du défi (vide = deSEC).
+	Fournisseur string `json:"fournisseur,omitempty"`
+	// Domaine : zone DNS gérée chez le fournisseur (ex. exemple.org) ; le
+	// nom du certificat doit en faire partie.
 	Domaine string `json:"domaine"`
 	// Annuaire ACME (défaut : Let's Encrypt).
 	Annuaire string `json:"annuaire,omitempty"`
-	// JetonChiffre : jeton deSEC chiffré (jamais réaffiché).
+	// Parametres : champs non secrets du fournisseur (point d'accès OVH…).
+	Parametres map[string]string `json:"parametres,omitempty"`
+	// IdentifiantsChiffre : champs secrets du fournisseur (JSON chiffré,
+	// jamais réaffiché).
+	IdentifiantsChiffre string `json:"identifiants_chiffre,omitempty"`
+	// JetonChiffre : ancien jeton deSEC chiffré (réglages d'avant le choix
+	// du fournisseur ; repris tel quel).
 	JetonChiffre string `json:"jeton_chiffre,omitempty"`
 	// CompteChiffre : clé du compte ACME (PEM chiffré), créée au premier usage.
 	CompteChiffre string `json:"compte_chiffre,omitempty"`
@@ -156,6 +167,50 @@ func (r Reglages) AnnuaireEffectif() string {
 		return AnnuaireLetsEncrypt
 	}
 	return r.Annuaire
+}
+
+// FournisseurEffectif : fournisseur DNS (deSEC si vide).
+func (r Reglages) FournisseurEffectif() string {
+	if r.Fournisseur == "" {
+		return "desec"
+	}
+	return r.Fournisseur
+}
+
+// IdentifiantsEnregistres : des identifiants sont déjà rangés.
+func (r Reglages) IdentifiantsEnregistres() bool {
+	return r.IdentifiantsChiffre != "" || r.JetonChiffre != ""
+}
+
+// identifiants : champs du fournisseur, secrets déchiffrés.
+func (r Reglages) identifiants(cle []byte) (map[string]string, error) {
+	ids := map[string]string{}
+	for k, v := range r.Parametres {
+		ids[k] = v
+	}
+	switch {
+	case r.IdentifiantsChiffre != "":
+		clair, err := secrets.Dechiffrer(cle, UsageIdentifiants, r.IdentifiantsChiffre)
+		if err != nil {
+			return nil, fmt.Errorf("identifiants DNS illisibles : %w", err)
+		}
+		var s map[string]string
+		if err := json.Unmarshal([]byte(clair), &s); err != nil {
+			return nil, fmt.Errorf("identifiants DNS illisibles : %w", err)
+		}
+		for k, v := range s {
+			ids[k] = v
+		}
+	case r.JetonChiffre != "":
+		jeton, err := secrets.Dechiffrer(cle, UsageJeton, r.JetonChiffre)
+		if err != nil {
+			return nil, fmt.Errorf("jeton deSEC illisible : %w", err)
+		}
+		ids["jeton"] = jeton
+	default:
+		return nil, errors.New("identifiants du fournisseur DNS pas encore saisis (page du collecteur › Certificat)")
+	}
+	return ids, nil
 }
 
 // LireReglages : réglages enregistrés (zéro si rien).
@@ -190,20 +245,20 @@ func ecrireReglages(ctx context.Context, db *sql.DB, r Reglages, qui string, mai
 	}
 	if qui != "" {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, 'certsyslog_reglages', ?, '', ?, '')`,
-			maintenant.Unix(), qui, r.Domaine, "annuaire "+r.AnnuaireEffectif()+", jeton ***"); err != nil {
+			maintenant.Unix(), qui, r.Domaine, "fournisseur "+r.FournisseurEffectif()+", annuaire "+r.AnnuaireEffectif()+", identifiants ***"); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-// nomDansDomaine : le nom du certificat appartient à la zone deSEC ; renvoie
+// nomDansDomaine : le nom du certificat appartient à la zone DNS ; renvoie
 // le sous-nom de l'enregistrement du défi (« _acme-challenge.syslog.lan »).
 func nomDansDomaine(nom, domaine string) (string, error) {
 	nom, domaine = strings.ToLower(nom), strings.ToLower(strings.TrimSuffix(domaine, "."))
 	switch {
 	case domaine == "":
-		return "", errors.New("zone deSEC pas réglée")
+		return "", errors.New("zone DNS pas réglée")
 	case nom == domaine:
 		return "_acme-challenge", nil
 	case strings.HasSuffix(nom, "."+domaine):

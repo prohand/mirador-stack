@@ -104,11 +104,21 @@ func TestSyslogInterface(t *testing.T) {
 	if _, corps, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `id="syslog"`) || !strings.Contains(corps, "Pas encore de demande du collecteur") {
 		t.Error("état du certificat absent")
 	}
-	// Réglages deSEC : jeton chiffré, jamais réaffiché.
-	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "domaine": {"exemple.org"}, "jeton": {"jeton-desec-tres-secret"}})
+	// Réglages DNS (deSEC) : jeton chiffré, jamais réaffiché.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "fournisseur": {"desec"},
+		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}})
 	_, corps, _ := b.get(c, "/machines/collecteur-lan")
 	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") {
 		t.Error("jeton deSEC réaffiché ou non enregistré")
+	}
+	// Autre fournisseur (OVHcloud) : clé d'application réaffichée, secrets non.
+	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "fournisseur": {"ovh"},
+		"domaine": {"exemple.org"}, "dns_ovh_point": {"ovh-eu"}, "dns_ovh_cle_application": {"cle-app-visible"},
+		"dns_ovh_secret_application": {"secret-app-cache"}, "dns_ovh_cle_consommateur": {"cle-conso-cachee"}})
+	_, corps, _ = b.get(c, "/machines/collecteur-lan")
+	if !strings.Contains(corps, `value="ovh" selected`) || !strings.Contains(corps, "cle-app-visible") ||
+		strings.Contains(corps, "secret-app-cache") || strings.Contains(corps, "cle-conso-cachee") {
+		t.Error("réglages OVHcloud mal enregistrés ou secrets réaffichés")
 	}
 	// Certificat obtenu (simulé) : posé dans la configuration du collecteur.
 	if _, err := b.c.db.Exec(`INSERT INTO certificats_syslog(machine_id, nom, csr, certificat, fin, obtenu_le) VALUES (?, 'syslog.lan.exemple.org', 'x', 'CHAINE-PEM', 4102444800, 1)`, idC); err != nil {

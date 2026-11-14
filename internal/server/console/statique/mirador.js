@@ -4,6 +4,7 @@
 //  - data-rafraichir="URL" sur un élément : son contenu HTML est rechargé
 //    toutes les data-intervalle secondes (défaut 30), en pause quand
 //    l'onglet est caché (aucune requête inutile) ;
+//  - data-choix-fournisseur : montre les champs du fournisseur DNS choisi ;
 //  - graphiques : voir graphes.js.
 "use strict";
 
@@ -700,3 +701,15 @@ document.addEventListener("change", function (e) {
       body: new URLSearchParams({ theme: theme }) }).catch(function () { /* gardé pour cette page */ });
   });
 })();
+
+// Réglages du certificat : seuls les champs du fournisseur DNS choisi sont
+// montrés et envoyés (les autres sont désactivés).
+document.addEventListener("change", function (e) {
+  var choix = e.target.closest("[data-choix-fournisseur]");
+  if (!choix) { return; }
+  choix.form.querySelectorAll("[data-fournisseur]").forEach(function (f) {
+    var actif = f.getAttribute("data-fournisseur") === choix.value;
+    f.hidden = !actif;
+    f.disabled = !actif;
+  });
+});
