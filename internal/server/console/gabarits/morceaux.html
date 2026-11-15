@@ -48,6 +48,7 @@
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
 </div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{template "liste-attente" .D.Attente}}
 <section class="carte" data-parc>
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
@@ -208,4 +209,9 @@
 <td>{{template "action-alerte" (dict "Admin" $.Admin "CSRF" $.CSRF "A" . "Retour" $v.Retour)}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
 {{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
+{{template "liste-attente" $v.Attente}}
 </div>{{end}}
+{{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
+<div class="defile"><table><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
+{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
+</tbody></table></div></details>{{end}}{{end}}

@@ -94,7 +94,7 @@ func TestAuditLisible(t *testing.T) {
 	}
 	_, corps, _ := b.get(c, "/audit")
 	for _, attendu := range []string{"Règle CpuEleve créée ou modifiée", `href="/regles/modifier/CpuEleve"`, "pour : <del>5m</del> → <ins>10m</ins>",
-		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui", "action(s) automatique(s) masquée(s)"} {
+		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui · ", "action(s) automatique(s) masquée(s)"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("audit : %q absent", attendu)
 		}
@@ -176,5 +176,26 @@ func TestFriseAlertes(t *testing.T) {
 	}
 	if _, corps, _ = b.get(c, "/alertes?hp=7j"); !strings.Contains(corps, `class="frise-graduations g7"`) || !strings.Contains(frise(corps), "Ancienne") {
 		t.Error("frise 7 jours")
+	}
+}
+
+// Condition « en attente » (pas encore une alerte) : hors des compteurs et
+// de la liste des alertes, dans un bloc à part avec le temps restant.
+func TestAlertesEnAttente(t *testing.T) {
+	actives, attente := separerAttente([]resumeAlerte{
+		{ID: 1, Regle: "CpuEleve", Gravite: "warning", Etat: "active"},
+		{ID: 2, Regle: "MisesAJourSecuriteEnAttente", Gravite: "warning", Etat: "en_attente", Machine: "pbs", Reste: "dans 28 h 43"},
+	})
+	if len(actives) != 1 || len(attente) != 1 || attente[0].ID != 2 {
+		t.Fatalf("séparation : %v / %v", actives, attente)
+	}
+	b := nouveauBanc(t)
+	w := httptest.NewRecorder()
+	b.c.pages.executer(w, http.StatusOK, "alertes-fragment", Page{D: donneesEnCours{Vue: "machine", Attente: attente}})
+	corps := w.Body.String()
+	for _, attendu := range []string{"Aucune alerte en cours.", "En attente</strong> (1)", "MisesAJourSecuriteEnAttente", "dans 28 h 43", `data-nb-alertes="0"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("bloc en attente : %q absent", attendu)
+		}
 	}
 }

@@ -4494,7 +4494,9 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   Réglages) ;
 - **seulement ce qui a changé** (documents JSON aplatis et comparés clé par
   clé, 8 lignes au plus) ; le JSON complet reste dans « Détail » ;
-- lignes groupées par jour ; liens vers la règle, le modèle, la machine,
+- lignes groupées par jour, séparation bien marquée (bandeau de couleur
+  avec « Aujourd'hui · dimanche 15/11 », « Hier · … » ou la date, retour du
+  15/11) ; liens vers la règle, le modèle, la machine,
   les utilisateurs ;
 - filtres : catégorie, qui, période (24 h, 7 j, 30 j, tout), recherche,
   actions automatiques (mirador, auto, agents ; masquées par défaut, leur
@@ -4514,6 +4516,14 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   modèle » ou « Régler la règle » ;
 - lecture : une requête SQL par affichage (alertes qui chevauchent la
   période, 5 000 au plus), SVG en attributs (pas de style en ligne : CSP).
+
+**Conditions « en attente »** (retour du 15/11 : « les alertes semblent mal
+calculées ») : une règle avec un délai (ex. MisesAJourSecuriteEnAttente,
+72 h) a une condition vraie avant d'être une alerte. Elle n'était pas
+comptée (juste) mais apparaissait dans « Alertes en cours » (trompeur).
+Elle est maintenant dans un bloc à part « En attente » (vue d'ensemble,
+page Alertes, page de la machine), avec « deviendra une alerte dans … si
+elle dure » ; la pastille « N alerte(s) » de la machine ne la compte plus.
 
 **Coût** : page Alertes : une requête de plage par alerte en cours (30 au
 plus) toutes les 30 s quand la page est ouverte ; audit : mêmes requêtes

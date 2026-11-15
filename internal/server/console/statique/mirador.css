@@ -514,7 +514,11 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 /* --- Journal d'audit (SPEC § 28) ------------------------------------------- */
 .filtres-audit { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .filtres-audit .case { padding-bottom: 8px; }
-.jour-audit th { padding-top: 18px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--pale); background: transparent; }
+/* Séparation des jours bien marquée : bandeau plein, trait au-dessus. */
+.jour-audit th { padding: 10px 12px; font-size: 13.5px; font-weight: 700; color: var(--titres); background: var(--accent-fond);
+  box-shadow: inset 4px 0 0 var(--accent); border-top: 2px solid var(--bord); border-bottom: 1px solid var(--bord); text-transform: none; letter-spacing: 0; }
+.table-audit tbody tr.jour-audit:first-child th { border-top: 0; }
+.jour-audit + .ligne-audit td { padding-top: 12px; }
 .ligne-audit td { vertical-align: top; }
 .ligne-audit .phrase { font-weight: 500; }
 .cat-audit { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap;
