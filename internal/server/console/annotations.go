@@ -148,9 +148,14 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 
 // Prévision des disques (SPEC § 31) : jours avant d'être plein, d'après la
 // pente de la place libre sur 7 jours ; seulement si moins de 30 jours.
-// Pente sur tous les points des 7 jours (une sous-requête « [7d:1h] » ne
-// rend rien avec le stockage de mirador) ; résultat gardé 10 minutes.
-const exprPleinDans = `(node_filesystem_avail_bytes{%s} / (-deriv(node_filesystem_avail_bytes{%s}[7d]) > 0)) / 86400`
+// Deux requêtes, divisées ici : la place libre actuelle (base brute) et la
+// pente sur 7 jours. Une requête qui remonte à plus de 7 jours est servie
+// par la base agrégée (un point par 5 min, en retard sur la brute) : la
+// place libre « actuelle » y manquerait. Résultat gardé 10 minutes.
+const (
+	exprLibreDisque = `node_filesystem_avail_bytes{%s}`
+	exprPenteDisque = `-deriv(node_filesystem_avail_bytes{%s}[7d]) > 0` // octets perdus par seconde
+)
 
 // filtreDisques : systèmes de fichiers réels (comme les barres d'occupation).
 const filtreDisques = `instance=~"$instance", fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"`
@@ -177,12 +182,25 @@ func (c *Console) previsionsDisques(ctx context.Context, filtre string, t time.T
 	}
 	c.prevDisques.mu.Unlock()
 	out := map[string]float64{}
-	ech, err := c.instant(ctx, fmt.Sprintf(exprPleinDans, filtre, filtre), t)
+	cle := func(e alertes.Echantillon) string {
+		return e.Etiquettes.Get("instance") + "|" + e.Etiquettes.Get("mountpoint")
+	}
+	pentes, err := c.instant(ctx, fmt.Sprintf(exprPenteDisque, filtre), t)
 	if err != nil {
 		return out
 	}
-	for _, e := range ech {
-		out[e.Etiquettes.Get("instance")+"|"+e.Etiquettes.Get("mountpoint")] = e.Valeur
+	libres, err := c.instant(ctx, fmt.Sprintf(exprLibreDisque, filtre), t)
+	if err != nil {
+		return out
+	}
+	libre := map[string]float64{}
+	for _, e := range libres {
+		libre[cle(e)] = e.Valeur
+	}
+	for _, e := range pentes {
+		if l, ok := libre[cle(e)]; ok && e.Valeur > 0 {
+			out[cle(e)] = l / e.Valeur / 86400
+		}
 	}
 	c.prevDisques.mu.Lock()
 	if c.prevDisques.tout == nil || len(c.prevDisques.tout) > 100 {

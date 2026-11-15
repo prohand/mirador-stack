@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
@@ -189,5 +190,42 @@ func TestComparaisonEtEmpile(t *testing.T) {
 		if !strings.Contains(js, attendu) {
 			t.Errorf("répartition de la mémoire : %q absent de %s", attendu, js[strings.Index(js, `"series"`):min(len(js), strings.Index(js, `"series"`)+600)])
 		}
+	}
+}
+
+// Régression : une requête sur 7 jours est servie par la base agrégée (en
+// retard) ; la place libre actuelle doit venir de la base brute, sinon
+// « plein dans » n'apparaît jamais.
+func TestPrevisionDeuxBases(t *testing.T) {
+	ouvrir := func() *tsdb.DB {
+		db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = db.Close() })
+		return db
+	}
+	brut, agrege := ouvrir(), ouvrir()
+	m := time.Now()
+	ecrire := func(db *tsdb.DB, debut, fin time.Time, pas time.Duration) {
+		app := db.Appender(context.Background())
+		for ts := debut; !ts.After(fin); ts = ts.Add(pas) {
+			libre := 34e9 + 2e9*m.Sub(ts).Hours()/24 // 2 Go perdus par jour
+			_, _ = app.Append(0, labels.FromStrings("__name__", "node_filesystem_avail_bytes", "instance", "web1", "mountpoint", "/data", "fstype", "ext4"), ts.UnixMilli(), libre)
+		}
+		_ = app.Commit()
+	}
+	ecrire(brut, m.Add(-2*time.Hour), m, 30*time.Second)                          // brute : récente seulement
+	ecrire(agrege, m.Add(-8*24*time.Hour), m.Add(-20*time.Minute), 5*time.Minute) // agrégée : 20 min de retard
+	// Comme metriques.Interroger : limite calculée au moment de la lecture.
+	c := &Console{lecteur: alertes.NouveauLecteur(storage.QueryableFunc(func(mint, maxt int64) (storage.Querier, error) {
+		if mint >= time.Now().Add(-7*24*time.Hour).UnixMilli() {
+			return brut.Querier(mint, maxt)
+		}
+		return agrege.Querier(mint, maxt)
+	}), nil), cache: cacheRequetes{tout: map[string]entreeRequete{}}}
+	p := c.previsionsDisques(context.Background(), `instance="web1"`, m)
+	if j := p["web1|/data"]; j < 16.5 || j > 17.5 {
+		t.Errorf("plein dans %v j, 17 attendus (%v)", j, p)
 	}
 }
