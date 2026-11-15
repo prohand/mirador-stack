@@ -57,10 +57,14 @@
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden && (!defiPret || Date.now() - defiPret.le > DUREE_DEFI_PRET)) { preparerDefi(); }
   });
+  // userVerification « preferred » et pas « required » : certains
+  // gestionnaires sur iPhone (Bitwarden) échouent avec « required ». La
+  // sécurité ne change pas : le serveur refuse une réponse sans le drapeau
+  // « utilisateur vérifié » (code PIN, empreinte, visage).
   function demanderSeule(form, j) {
     form.elements.defi.value = j.defi;
     return navigator.credentials.get({ publicKey: {
-      challenge: versOctets(j.defi), rpId: j.domaine, userVerification: "required", timeout: 120000
+      challenge: versOctets(j.defi), rpId: j.domaine, userVerification: "preferred", timeout: 120000
     } });
   }
 
@@ -95,7 +99,7 @@
     } else if (d("passkey") === "seule") {
       // Sans mot de passe : le défi est demandé au serveur, la clé choisit
       // le compte, et l'appareil doit vérifier l'utilisateur (code PIN,
-      // empreinte, visage).
+      // empreinte, visage) : contrôlé par le serveur.
       var obtenue;
       if (defiPret && Date.now() - defiPret.le < DUREE_DEFI_PRET) {
         // Défi déjà là : la passkey est demandée pendant le clic même.

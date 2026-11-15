@@ -137,10 +137,17 @@ func (c *Console) postModelePerso(q *req) {
 	switch f("action") {
 	case "supprimer":
 		nom := f("nom")
-		err := modeles.SupprimerPerso(ctx, c.db, nom, q.qui(), q.t)
+		ms, avant, err := c.photoModeles(ctx)
+		if err == nil {
+			err = modeles.SupprimerPerso(ctx, c.db, nom, q.qui(), q.t)
+		}
 		if err != nil {
 			c.retour(q, "/modeles/perso/"+url.PathEscape(nom), err, "")
 			return
+		}
+		// Les métriques suivent les modèles (SPEC § 27).
+		if err := c.suivreTous(ctx, ms, avant, q.qui(), q.t); err != nil {
+			c.journal.Warn("métriques des modèles non réglées", "erreur", err)
 		}
 		c.oublierAValider()
 		c.retour(q, "/modeles", nil, "modèle « "+nom+" » supprimé (et ses règles)")

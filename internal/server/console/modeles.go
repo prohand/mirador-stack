@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -216,6 +217,10 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 			}
 		}
 	}
+	avant := map[string]*modeles.Modele{}
+	for n, e := range actifs {
+		avant[n] = e.Modele
+	}
 	portee := modeles.PorteeMachine(m.ID)
 	changes := 0
 	var errs []error
@@ -242,6 +247,12 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 			continue
 		}
 		changes++
+	}
+	if changes > 0 {
+		// Les métriques suivent les modèles (SPEC § 27).
+		if err := c.suivreModeles(ctx, m, avant, q.qui(), q.t); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	c.oublierAValider()
 	return changes, errors.Join(errs...)
@@ -370,6 +381,13 @@ type donneesModeles struct {
 	Groupes   []string
 	Catalogue []vueCatalogue
 	Auto      bool
+	Detectes  []vueDetectes // machines avec des modèles détectés pas encore cochés
+}
+
+// vueDetectes : modèles détectés et pas encore appliqués sur une machine.
+type vueDetectes struct {
+	Machine string
+	Modeles []string // titres
 }
 
 func (c *Console) pageModeles(q *req) {
@@ -434,6 +452,18 @@ func (c *Console) pageModeles(q *req) {
 		}
 		d.Catalogue = append(d.Catalogue, vc)
 	}
+	for _, m := range ms {
+		if m.Statut != "approuvee" || m.Type != "agent" {
+			continue
+		}
+		if _, _, proposes, err := c.etatModeles(ctx, m, det); err == nil && len(proposes) > 0 {
+			v := vueDetectes{Machine: m.Nom}
+			for _, p := range proposes {
+				v.Modeles = append(v.Modeles, p.Titre)
+			}
+			d.Detectes = append(d.Detectes, v)
+		}
+	}
 	c.rendre(q, "modeles", "Modèles de surveillance", "machines", d)
 }
 
@@ -451,6 +481,10 @@ func (c *Console) postModeles(q *req) {
 			var n int
 			n, err = c.enregistrerGroupes(q)
 			ok = strconv.Itoa(n) + " changement(s) enregistré(s) : configuration envoyée aux agents, règles actives sous une minute"
+		case "detectes":
+			var n int
+			n, err = c.appliquerDetectes(ctx, q.qui(), q.t)
+			ok = strconv.Itoa(n) + " modèle(s) détecté(s) appliqué(s) : retirables sur la page de chaque machine"
 		case "auto":
 			actif := f("auto") == "oui"
 			err = modeles.DefinirAuto(ctx, c.db, actif, q.qui(), q.t)
@@ -535,8 +569,20 @@ func (c *Console) enregistrerGroupes(q *req) (int, error) {
 	for _, v := range q.r.PostForm["a"] {
 		coches[v] = true
 	}
+	ms, avant, err := c.photoModeles(ctx)
+	if err != nil {
+		return 0, err
+	}
 	n := 0
 	var errs []error
+	defer func() {
+		// Les métriques suivent les modèles (SPEC § 27).
+		if n > 0 {
+			if err := c.suivreTous(ctx, ms, avant, q.qui(), q.t); err != nil {
+				c.journal.Warn("métriques des modèles non réglées", "erreur", err)
+			}
+		}
+	}()
 	for _, g := range c.lireListes(ctx).Groupes {
 		as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g))
 		if err != nil {
@@ -580,6 +626,42 @@ func (c *Console) nbModelesProposes(ctx context.Context, ms []flotte.InfoMachine
 	return out
 }
 
+// appliquerDetectes : applique en une fois les modèles détectés et pas
+// encore cochés sur toutes les machines (machines déjà en place avant les
+// modèles). À la demande de l'administrateur (code 2FA) ; les modèles
+// ignorés restent de côté.
+func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time) (int, error) {
+	ms, avant, err := c.photoModeles(ctx)
+	if err != nil {
+		return 0, err
+	}
+	det := c.detectes(ctx, t)
+	n := 0
+	var errs []error
+	for _, m := range ms {
+		if m.Statut != "approuvee" || m.Type != "agent" {
+			continue
+		}
+		_, _, proposes, err := c.etatModeles(ctx, m, det)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, mod := range proposes {
+			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, nil, qui, t); err != nil {
+				errs = append(errs, fmt.Errorf("%s / %s : %w", m.Nom, mod.Nom, err))
+				continue
+			}
+			n++
+		}
+	}
+	if n > 0 {
+		errs = append(errs, c.suivreTous(ctx, ms, avant, qui, t))
+		c.oublierAValider()
+	}
+	return n, errors.Join(errs...)
+}
+
 // appliquerAuto : application automatique des modèles détectés (réglage,
 // non par défaut). Chaque modèle appliqué est signalé par les canaux de
 // notification (un message par machine et par modèle) et reste retirable.
@@ -587,10 +669,15 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 	if c.lecteur == nil || !modeles.LireAuto(ctx, c.db) {
 		return
 	}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err := c.suivreTous(ctx, ms, avant, modeles.QuiAuto, t); err != nil {
+			c.journal.Warn("métriques des modèles non réglées", "erreur", err)
+		}
+	}()
 	det := c.detectes(ctx, t)
 	for _, m := range ms {
 		if m.Statut != "approuvee" || m.Type != "agent" {

@@ -143,6 +143,25 @@ func ConfigEffective(ctx context.Context, db *sql.DB, machine int64) (*distant.C
 	return distant.Decoder(bytes.NewReader(doc))
 }
 
+// LireConfigPortee : configuration réglée pour une portée (vide si rien).
+func LireConfigPortee(ctx context.Context, db *sql.DB, portee string) (map[string]any, error) {
+	if err := ValiderPortee(portee); err != nil {
+		return nil, err
+	}
+	var valeur string
+	err := db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, prefixeConfig+portee).Scan(&valeur)
+	if err == sql.ErrNoRows {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]any{}
+	dec := json.NewDecoder(strings.NewReader(valeur))
+	dec.UseNumber()
+	return m, dec.Decode(&m)
+}
+
 // ModifierConfig lit la configuration d'une portée, laisse « changer » la
 // modifier clé par clé (nil = retirer la clé), puis l'enregistre avec les
 // mêmes contrôles et la même ligne d'audit que DefinirConfig.

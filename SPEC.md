@@ -4366,3 +4366,43 @@ CSS et de JavaScript ; pages un peu plus légères.
 valeur `avec` ou `sans` seulement ; retour limité à un chemin du site (même
 contrôle que le thème). Liens de doc : adresse fixe dans le code.
 
+---
+
+## 27. Retours du 14/11 au soir **[Fait, à valider]**
+
+- **Champ « Mode administration » rempli par le gestionnaire de mots de
+  passe** : le libellé contenait « code 2FA », pris pour un champ de code à
+  usage unique. Libellé : « Durée du mode administration », sans « code »
+  ni « 2FA » autour ; `autocomplete="off"` et marques « à ignorer »
+  (Bitwarden, LastPass, 1Password).
+- **Mode administration après une reconnexion** : il était lié à la
+  session, donc fermé par la déconnexion. Il s'ouvre maintenant à la
+  connexion, puisque le second facteur (code, passkey ou code de secours)
+  vient d'être donné, et le bandeau s'affiche. Même durée réglée ; 0 = pas
+  de mode administration. Menace : aucune nouvelle, la connexion vaut un
+  code juste ; « Quitter » le ferme toujours.
+- **Modèles des machines déjà en place** : un modèle détecté est coché
+  d'office sur la page de la machine (« ★ détecté · à enregistrer ») et
+  appliqué à l'enregistrement ; décoché, il n'est plus proposé. La page
+  Modèles liste les modèles détectés pas encore cochés et propose de les
+  cocher d'un coup (code 2FA ou mode administration, audit).
+  L'application automatique (désactivée par défaut) ne change pas.
+- **Le modèle gère la surveillance et les métriques** (demande : « il
+  faudrait que cela soit enlevé dans tous les cas ») : décocher un modèle
+  (machine, groupe, ou suppression d'un modèle personnel) arrête ses
+  alertes **et** coupe pour la machine les relevés qu'il allume (clés
+  `docker_metriques`, `systemd`, `mises_a_jour`, `temperatures`… mises à
+  `false` dans la configuration de la machine), même s'ils étaient réglés
+  avant les modèles. Une clé allumée par un autre modèle encore porté reste
+  allumée. Recocher le modèle lève la coupure : il rallume ses relevés. Les
+  tests de l'agent (listes) partent avec le modèle ; l'historique reste.
+  Chaque changement de configuration passe par l'audit habituel.
+- **Passkey Bitwarden sur iPhone (`NotAllowedError`)** : la même passkey
+  marche sur le PC, et Bitwarden iPhone marche sur webauthn.io (qui demande
+  `userVerification: "preferred"`). La connexion sans mot de passe demandait
+  `"required"`, que Bitwarden iPhone semble refuser. Elle demande maintenant
+  `"preferred"` ; la sécurité ne change pas : le serveur refuse toujours une
+  réponse sans le drapeau « utilisateur vérifié » (test
+  `auth/passkey_test.go`). À confirmer sur l'iPhone.
+- Coût : nul (mêmes requêtes que l'affichage existant).
+
