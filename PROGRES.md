@@ -751,6 +751,7 @@ inchangé ✅.
 | Gestionnaire de mots de passe qui remplit « Mode administration » | **corrigé** (libellé et marques « à ignorer ») ; à vérifier chez toi |
 | Mode administration perdu après déconnexion / reconnexion | **corrigé** : ouvert à la connexion |
 | Modèles pas cochés sur les machines déjà en place | **corrigé** : cochés d'office (à enregistrer) + bouton « Les cocher sur ces machines » |
+| Retirer un modèle doit aussi arrêter ses métriques | **fait** : décoché → alertes et relevés du modèle coupés pour la machine ; recoché → rallumés |
 | Passkey Bitwarden sur iPhone : `NotAllowedError` | **corrigé (à confirmer)** : demande « preferred », vérification de l'utilisateur contrôlée par le serveur |
 
 ## Étape 6 — avancement (SPEC § 23)

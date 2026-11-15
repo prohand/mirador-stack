@@ -217,6 +217,10 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 			}
 		}
 	}
+	avant := map[string]*modeles.Modele{}
+	for n, e := range actifs {
+		avant[n] = e.Modele
+	}
 	portee := modeles.PorteeMachine(m.ID)
 	changes := 0
 	var errs []error
@@ -243,6 +247,12 @@ func (c *Console) enregistrerModelesMachine(q *req, m flotte.InfoMachine) (int, 
 			continue
 		}
 		changes++
+	}
+	if changes > 0 {
+		// Les métriques suivent les modèles (SPEC § 27).
+		if err := c.suivreModeles(ctx, m, avant, q.qui(), q.t); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	c.oublierAValider()
 	return changes, errors.Join(errs...)
@@ -559,8 +569,20 @@ func (c *Console) enregistrerGroupes(q *req) (int, error) {
 	for _, v := range q.r.PostForm["a"] {
 		coches[v] = true
 	}
+	ms, avant, err := c.photoModeles(ctx)
+	if err != nil {
+		return 0, err
+	}
 	n := 0
 	var errs []error
+	defer func() {
+		// Les métriques suivent les modèles (SPEC § 27).
+		if n > 0 {
+			if err := c.suivreTous(ctx, ms, avant, q.qui(), q.t); err != nil {
+				c.journal.Warn("métriques des modèles non réglées", "erreur", err)
+			}
+		}
+	}()
 	for _, g := range c.lireListes(ctx).Groupes {
 		as, err := modeles.Lister(ctx, c.db, modeles.PorteeGroupe(g))
 		if err != nil {
@@ -609,7 +631,7 @@ func (c *Console) nbModelesProposes(ctx context.Context, ms []flotte.InfoMachine
 // modèles). À la demande de l'administrateur (code 2FA) ; les modèles
 // ignorés restent de côté.
 func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time) (int, error) {
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -634,6 +656,7 @@ func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time
 		}
 	}
 	if n > 0 {
+		errs = append(errs, c.suivreTous(ctx, ms, avant, qui, t))
 		c.oublierAValider()
 	}
 	return n, errors.Join(errs...)
@@ -646,10 +669,15 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 	if c.lecteur == nil || !modeles.LireAuto(ctx, c.db) {
 		return
 	}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err := c.suivreTous(ctx, ms, avant, modeles.QuiAuto, t); err != nil {
+			c.journal.Warn("métriques des modèles non réglées", "erreur", err)
+		}
+	}()
 	det := c.detectes(ctx, t)
 	for _, m := range ms {
 		if m.Statut != "approuvee" || m.Type != "agent" {

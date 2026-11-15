@@ -185,7 +185,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <td>{{if .Seuils}}<a href="/machines/{{$nom}}/modeles/{{.M.Nom}}">Réglages…</a>{{end}}{{if .AVide}} <span class="pastille attention" title="Aucune adresse, aucun fichier… : rien n'est testé">à remplir</span>{{end}}</td></tr>{{end}}
 </tbody></table>
 {{if $.Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-<p class="aide"><small class="aide">Détecté : coché d'office, appliqué à l'enregistrement (décoché : plus proposé). Décocher un modèle du groupe : retiré pour cette machine seulement.</small></p>{{end}}
+<p class="aide"><small class="aide">Décocher un modèle arrête ses alertes et ses métriques (pour cette machine seulement s'il vient du groupe). Détecté : coché d'office, appliqué à l'enregistrement.</small></p>{{end}}
 </form>
 </section>{{end}}
 

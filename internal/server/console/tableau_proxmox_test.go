@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/tsdb"
 
+	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
@@ -241,5 +243,50 @@ func TestModelesDetectesExistants(t *testing.T) {
 	}
 	if _, corps, _ = b.get(c, "/modeles"); strings.Contains(corps, `id="detectes"`) {
 		t.Error("liste encore affichée après application")
+	}
+}
+
+// Le modèle gère aussi les métriques (retour du 14/11) : décoché, il coupe
+// ce qu'il faisait relever, même réglé avant les modèles ; recoché, il le
+// rallume. Pareil par groupe.
+func TestModelesGerentMetriques(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, groupe, cree_le) VALUES ('web1', 'approuvee', 'agent', 'lan', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := flotte.IDMachine(ctx, b.c.db, "web1")
+	portee := "machine:" + strconv.FormatInt(id, 10)
+	// Réglé à la main avant les modèles.
+	if err := flotte.DefinirConfig(ctx, b.c.db, portee, []byte(`{"docker_metriques":true,"systemd":true}`), "admin", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "docker", modeles.EtatActif, nil, nil, "admin", time.Now())
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/machines/web1")
+	lire := func() map[string]any { m, _ := flotte.LireConfigPortee(ctx, b.c.db, portee); return m }
+	effectif := func() *distant.ConfigDistante { cfg, _ := flotte.ConfigEffective(ctx, b.c.db, id); return cfg }
+	// Décoché sur la machine : docker_metriques coupé, systemd (pas du modèle) gardé.
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}})
+	if m := lire(); m["docker_metriques"] != false || m["systemd"] != true {
+		t.Fatalf("après retrait du modèle : %v", m)
+	}
+	if cfg := effectif(); cfg.DockerMetriques == nil || *cfg.DockerMetriques {
+		t.Error("métriques Docker encore relevées après retrait du modèle")
+	}
+	// Recoché : la coupure est levée, le modèle rallume.
+	b.post(c, "/machines/web1", url.Values{"csrf": {csrf}, "action": {"modeles"}, "m": {"docker"}})
+	if _, ok := lire()["docker_metriques"]; ok {
+		t.Errorf("coupure pas levée : %v", lire())
+	}
+	if cfg := effectif(); cfg.DockerMetriques == nil || !*cfg.DockerMetriques {
+		t.Error("métriques Docker pas rallumées par le modèle")
+	}
+	// Par groupe : Linux coché puis décoché pour « lan » → systemd coupé.
+	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "docker", "", nil, nil, "admin", time.Now())
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}, "a": {"lan|linux"}})
+	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}})
+	if m := lire(); m["systemd"] != false || m["mises_a_jour"] != false {
+		t.Errorf("après retrait du modèle du groupe : %v", m)
 	}
 }

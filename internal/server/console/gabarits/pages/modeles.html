@@ -16,7 +16,7 @@
 <ul class="liste-simple">{{range $d.Detectes}}<li><strong>{{.Machine}}</strong> : {{range $i, $t := .Modeles}}{{if $i}}, {{end}}{{$t}}{{end}}</li>{{end}}</ul>
 {{if $.Admin}}<form method="post" action="/modeles" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detectes">
 {{template "code2fa"}}<button>Les cocher sur ces machines</button></form>{{end}}
-<p class="aide"><small class="aide">Pour les machines déjà en place. Chaque modèle reste retirable sur la page de la machine.</small></p>
+<p class="aide"><small class="aide">Pour les machines déjà en place. Un modèle décoché ensuite arrête ses alertes et ses métriques.</small></p>
 </section>{{end}}
 
 <section class="carte">
