@@ -431,6 +431,7 @@ type donneesMachine struct {
 	M           vueMachine
 	Alertes     []resumeAlerte
 	Attente     []resumeAlerte // conditions pas encore des alertes
+	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -475,6 +476,7 @@ func (c *Console) pageMachine(q *req) {
 	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(m.Nom))
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
+		d.Maintenant = c.enCeMoment(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)

@@ -4534,3 +4534,46 @@ avant/après) ; actions d'alerte réservées aux administrateurs, jeton
 CSRF ; retour après action limité à un chemin du site ; SVG construit de
 nombres et de couleurs fixes ; export CSV protégé contre les formules.
 
+---
+
+## 29. Page d'une machine et graphiques (maquette validée le 15/11) **[Fait, à valider]**
+
+**Page d'une machine** — ordre : en-tête, alertes en cours et en attente,
+**En ce moment**, graphiques, **Surveillance et modèles** (repliable, ouvert
+d'office s'il y a quelque chose à valider ou un modèle détecté), détails,
+modifier.
+- **En ce moment** : CPU, mémoire, disque le plus plein (point de montage et
+  place libre), swap, charge par cœur, durée depuis le démarrage. Couleur
+  selon le seuil du modèle Linux de la machine (ses valeurs par défaut s'il
+  n'est pas porté) : vert, orange à 80 % du seuil, rouge au seuil.
+  Quelques requêtes instantanées par affichage.
+- Sommaire (sections, surveillance, logs) et **boutons de période**.
+- Graphiques sur **2 colonnes** (1 sur téléphone) ; panneaux sans données
+  regroupés en une ligne « Pas de données sur la période : … » ; sections
+  repliées retenues dans le navigateur.
+- **Seuil du modèle sur la courbe** (pointillé rouge) : champ
+  `seuil_modele` d'un panneau (modèle, paramètre, `inverse` pour « % libre »,
+  `facteur` d'unité) ; la valeur vient des seuils effectifs de la machine
+  (`seuil` dans le JSON de la courbe, seulement pour une seule machine).
+  Serveurs Linux : CPU, charge, mémoire, trafic. Un seuil plus de 2 fois
+  au-dessus des valeurs n'est pas tracé (il écraserait la courbe).
+
+**Graphiques, partout** :
+- légende en français (« Heure : 15 nov. 10:18 »), pastilles cliquables
+  pour masquer une courbe ; axe des temps en français ;
+- aire légère sous une courbe seule, trait plus épais ;
+- axe depuis zéro ; 0 à 100 % fixe pour les pourcentages ; libellés de
+  l'axe jamais coupés ;
+- **survol synchronisé** entre les courbes de la page ;
+- **zoom** en glissant (le rechargement automatique attend alors) ;
+  double-clic pour revenir.
+
+**Accents** des titres et descriptions des tableaux fournis (« Mémoire
+utilisée », « Réseau », « Unités en échec »…).
+
+**Coût** : navigateur seulement pour les graphiques ; page machine : 7 à 8
+requêtes instantanées de plus.
+
+**Menaces** : aucune nouvelle donnée ; nom de machine contrôlé avant d'entrer
+dans une requête ; pas de style en ligne (CSP).
+

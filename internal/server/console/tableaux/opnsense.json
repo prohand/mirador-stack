@@ -17,12 +17,12 @@
   ],
   "rangees": [
     {
-      "titre": "Etat",
+      "titre": "État",
       "panneaux": [
         {
           "type": "chiffre",
-          "titre": "Derniere remontee",
-          "description": "Anciennete de la derniere metrique recue de Telegraf. Au-dela de 5 minutes, OPNsense n'envoie plus rien (Telegraf arrete, lien coupe, token refuse).",
+          "titre": "Dernière remontée",
+          "description": "Ancienneté de la dernière métrique reçue de Telegraf. Au-delà de 5 minutes, OPNsense n'envoie plus rien (Telegraf arrêté, lien coupe, token refusé).",
           "unite": "s",
           "decimales": 0,
           "seuils": [
@@ -49,7 +49,7 @@
         {
           "type": "chiffre",
           "titre": "En service depuis",
-          "description": "Temps ecoule depuis le dernier demarrage d'OPNsense.",
+          "description": "Temps écoulé depuis le dernier démarrage d'OPNsense.",
           "unite": "dtdurations",
           "decimales": 0,
           "requetes": [
@@ -62,7 +62,7 @@
         {
           "type": "chiffre",
           "titre": "CPU",
-          "description": "Utilisation du processeur, tous coeurs confondus.",
+          "description": "Utilisation du processeur, tous cœurs confondus.",
           "unite": "percent",
           "decimales": 0,
           "seuils": [
@@ -88,8 +88,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Memoire",
-          "description": "Memoire utilisee.",
+          "titre": "Mémoire",
+          "description": "Mémoire utilisée.",
           "unite": "percent",
           "decimales": 0,
           "seuils": [
@@ -115,8 +115,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Charge / coeurs",
-          "description": "Charge moyenne sur 5 minutes rapportee au nombre de coeurs. 100 % = coeurs tous occupes.",
+          "titre": "Charge / cœurs",
+          "description": "Charge moyenne sur 5 minutes rapportée au nombre de cœurs. 100 % = cœurs tous occupés.",
           "unite": "percentunit",
           "decimales": 0,
           "seuils": [
@@ -170,7 +170,7 @@
         {
           "type": "chiffre",
           "titre": "Swap",
-          "description": "Swap utilise. Un pare-feu ne devrait presque jamais swapper.",
+          "description": "Swap utilisé. Un pare-feu ne devrait presque jamais swapper.",
           "unite": "percent",
           "decimales": 0,
           "seuils": [
@@ -196,8 +196,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Etats pf",
-          "description": "Nombre de connexions suivies par le pare-feu (table d'etats pf).",
+          "titre": "États pf",
+          "description": "Nombre de connexions suivies par le pare-feu (table d'états pf).",
           "unite": "short",
           "decimales": 0,
           "requetes": [
@@ -210,12 +210,12 @@
       ]
     },
     {
-      "titre": "Systeme",
+      "titre": "Système",
       "panneaux": [
         {
           "type": "courbe",
           "titre": "Processeur",
-          "description": "Repartition du temps processeur. Les interruptions montent avec le trafic reseau.",
+          "description": "Répartition du temps processeur. Les interruptions montent avec le trafic réseau.",
           "unite": "percent",
           "requetes": [
             {
@@ -237,8 +237,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Memoire et swap",
-          "description": "Memoire et swap utilises.",
+          "titre": "Mémoire et swap",
+          "description": "Mémoire et swap utilisés.",
           "unite": "percent",
           "requetes": [
             {
@@ -256,7 +256,7 @@
         {
           "type": "courbe",
           "titre": "Charge",
-          "description": "Charge moyenne. La serie « coeurs » sert de repere.",
+          "description": "Charge moyenne. La série « cœurs » sert de repère.",
           "unite": "short",
           "requetes": [
             {
@@ -320,12 +320,12 @@
       ]
     },
     {
-      "titre": "Reseau",
+      "titre": "Réseau",
       "panneaux": [
         {
           "type": "courbe",
           "titre": "Trafic par interface",
-          "description": "Debit par interface physique ou virtuelle (au-dessus : entrant, en dessous : sortant). Les noms sont ceux de FreeBSD (igb0, vtnet0...), visibles dans Interfaces > Affectations.",
+          "description": "Débit par interface physique ou virtuelle (au-dessus : entrant, en dessous : sortant). Les noms sont ceux de FreeBSD (igb0, vtnet0...), visibles dans Interfaces > Affectations.",
           "unite": "bps",
           "requetes": [
             {
@@ -361,7 +361,7 @@
         {
           "type": "courbe",
           "titre": "Erreurs et pertes",
-          "description": "Erreurs et paquets perdus par interface. Doit rester a zero ; une valeur durable signale un cable, une negociation de vitesse ou une saturation.",
+          "description": "Erreurs et paquets perdus par interface. Doit rester à zéro ; une valeur durable signale un câble, une négociation de vitesse ou une saturation.",
           "unite": "pps",
           "requetes": [
             {
@@ -383,7 +383,7 @@
       "panneaux": [
         {
           "type": "courbe",
-          "titre": "Table d'etats",
+          "titre": "Table d'états",
           "description": "Connexions suivies par pf. Une hausse brutale peut signaler un scan ou une attaque.",
           "unite": "short",
           "requetes": [
@@ -396,8 +396,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Creations et suppressions d'etats",
-          "description": "Nouvelles connexions par seconde (au-dessus) et connexions terminees (en dessous).",
+          "titre": "Créations et suppressions d'états",
+          "description": "Nouvelles connexions par seconde (au-dessus) et connexions terminées (en dessous).",
           "unite": "ops",
           "requetes": [
             {
@@ -414,8 +414,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Regles et recherches",
-          "description": "Activite du moteur de filtrage, par seconde.",
+          "titre": "Règles et recherches",
+          "description": "Activité du moteur de filtrage, par seconde.",
           "unite": "ops",
           "requetes": [
             {
@@ -438,7 +438,7 @@
         {
           "type": "courbe",
           "titre": "Latence vers les cibles de ping",
-          "description": "Temps de reponse moyen vers les adresses declarees dans Telegraf > Input > Ping. Vide si ce test n'est pas active.",
+          "description": "Temps de réponse moyen vers les adresses déclarées dans Telegraf > Input > Ping. Vide si ce test n'est pas active.",
           "unite": "ms",
           "requetes": [
             {
@@ -451,7 +451,7 @@
         {
           "type": "courbe",
           "titre": "Perte de paquets",
-          "description": "Pourcentage de pings sans reponse. Vide si le test n'est pas active.",
+          "description": "Pourcentage de pings sans réponse. Vide si le test n'est pas active.",
           "unite": "percent",
           "requetes": [
             {
@@ -463,8 +463,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Unbound : requetes DNS",
-          "description": "Requetes DNS recues par Unbound et part servie par le cache. Vide si l'input Unbound n'est pas active dans Telegraf.",
+          "titre": "Unbound : requêtes DNS",
+          "description": "Requêtes DNS reçues par Unbound et part servie par le cache. Vide si l'input Unbound n'est pas active dans Telegraf.",
           "unite": "reqps",
           "requetes": [
             {

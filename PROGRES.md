@@ -772,6 +772,18 @@ inchangé ✅.
 Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
 (page ouverte seulement) ; objectif serveur inchangé ✅.
 
+## Page d'une machine et graphiques (SPEC § 29, 15/11)
+
+| Partie | État |
+|---|---|
+| Maquette (recommandations, ordre de la page) | validée |
+| En ce moment, ordre, sommaire, périodes, 2 colonnes, vides regroupés, replis retenus | **fait**, testé ; à valider |
+| Graphiques : légende française cliquable, aire, échelle, survol synchronisé, zoom, seuil du modèle | **fait** ; à valider |
+| Accents des tableaux fournis | **fait** |
+
+Mesure : 7 à 8 requêtes instantanées de plus par affichage d'une machine ;
+objectif serveur inchangé ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

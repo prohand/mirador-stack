@@ -6,23 +6,23 @@
   "variables": [
     {
       "nom": "device",
-      "titre": "Equipement",
+      "titre": "Équipement",
       "requete": "label_values(unpoller_device_info, name)"
     },
     {
       "nom": "essid",
-      "titre": "Reseau Wi-Fi",
+      "titre": "Réseau Wi-Fi",
       "requete": "label_values(unpoller_client_uptime_seconds{wired=\"false\"}, essid)"
     }
   ],
   "rangees": [
     {
-      "titre": "Etat",
+      "titre": "État",
       "panneaux": [
         {
           "type": "chiffre",
-          "titre": "Derniere collecte",
-          "description": "Anciennete des dernieres donnees lues sur le controleur par unpoller (toutes les 60 s). Au-dela de 5 minutes : unpoller arrete, controleur injoignable ou compte refuse.",
+          "titre": "Dernière collecte",
+          "description": "Ancienneté des dernières données lues sur le contrôleur par unpoller (toutes les 60 s). Au-delà de 5 minutes : unpoller arrêté, contrôleur injoignable ou compte refusé.",
           "unite": "s",
           "decimales": 0,
           "seuils": [
@@ -48,8 +48,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Equipements",
-          "description": "Bornes, switchs et passerelles adoptes par le controleur.",
+          "titre": "Équipements",
+          "description": "Bornes, switchs et passerelles adoptés par le contrôleur.",
           "unite": "short",
           "decimales": 0,
           "requetes": [
@@ -61,8 +61,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Deconnectes",
-          "description": "Equipements adoptes que le controleur ne joint plus.",
+          "titre": "Déconnectés",
+          "description": "Équipements adoptés que le contrôleur ne joint plus.",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -85,7 +85,7 @@
         {
           "type": "chiffre",
           "titre": "Clients Wi-Fi",
-          "description": "Appareils connectes en Wi-Fi.",
+          "description": "Appareils connectés en Wi-Fi.",
           "unite": "short",
           "decimales": 0,
           "requetes": [
@@ -98,7 +98,7 @@
         {
           "type": "chiffre",
           "titre": "Clients filaires",
-          "description": "Appareils connectes par cable a un switch UniFi.",
+          "description": "Appareils connectés par câble à un switch UniFi.",
           "unite": "short",
           "decimales": 0,
           "requetes": [
@@ -110,8 +110,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Mises a jour",
-          "description": "Equipements pour lesquels un nouveau firmware est disponible.",
+          "titre": "Mises à jour",
+          "description": "Équipements pour lesquels un nouveau firmware est disponible.",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -134,7 +134,7 @@
         {
           "type": "chiffre",
           "titre": "Satisfaction Wi-Fi",
-          "description": "Note de qualite moyenne calculee par UniFi pour les clients Wi-Fi (signal, debit, pertes).",
+          "description": "Note de qualité moyenne calculée par UniFi pour les clients Wi-Fi (signal, débit, pertes).",
           "unite": "percentunit",
           "decimales": 0,
           "seuils": [
@@ -161,7 +161,7 @@
         {
           "type": "chiffre",
           "titre": "Signal le plus faible",
-          "description": "Client Wi-Fi le plus mal capte. Sous -80 dBm, la connexion devient instable.",
+          "description": "Client Wi-Fi le plus mal capté. Sous -80 dBm, la connexion devient instable.",
           "unite": "dBm",
           "decimales": 0,
           "seuils": [
@@ -188,12 +188,12 @@
       ]
     },
     {
-      "titre": "Equipements",
+      "titre": "Équipements",
       "panneaux": [
         {
           "type": "tableau",
-          "titre": "Equipements",
-          "description": "Etat de chaque equipement UniFi. « Mise a jour » = 1 si un firmware plus recent est disponible.",
+          "titre": "Équipements",
+          "description": "État de chaque équipement UniFi. « Mise à jour » = 1 si un firmware plus récent est disponible.",
           "requetes": [
             {
               "id": "A",
@@ -223,7 +223,7 @@
           "colonnes": [
             {
               "champ": "name",
-              "titre": "Equipement"
+              "titre": "Équipement"
             },
             {
               "champ": "type",
@@ -231,7 +231,7 @@
             },
             {
               "champ": "model",
-              "titre": "Modele"
+              "titre": "Modèle"
             },
             {
               "champ": "ip",
@@ -268,7 +268,7 @@
             },
             {
               "champ": "D",
-              "titre": "Memoire",
+              "titre": "Mémoire",
               "unite": "percentunit",
               "decimales": 0,
               "seuils": [
@@ -294,7 +294,7 @@
             },
             {
               "champ": "F",
-              "titre": "Mise a jour",
+              "titre": "Mise à jour",
               "unite": "short",
               "decimales": 0,
               "seuils": [
@@ -322,7 +322,7 @@
         {
           "type": "courbe",
           "titre": "Processeur",
-          "description": "Utilisation du processeur par equipement.",
+          "description": "Utilisation du processeur par équipement.",
           "unite": "percentunit",
           "requetes": [
             {
@@ -334,8 +334,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Memoire",
-          "description": "Memoire utilisee par equipement.",
+          "titre": "Mémoire",
+          "description": "Mémoire utilisée par équipement.",
           "unite": "percentunit",
           "requetes": [
             {
@@ -347,8 +347,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Temperature",
-          "description": "Sondes de temperature, pour les modeles qui en ont (souvent les switchs).",
+          "titre": "Température",
+          "description": "Sondes de température, pour les modèles qui en ont (souvent les switchs).",
           "unite": "celsius",
           "requetes": [
             {
@@ -366,7 +366,7 @@
         {
           "type": "courbe",
           "titre": "Clients par borne",
-          "description": "Appareils connectes a chaque borne.",
+          "description": "Appareils connectés à chaque borne.",
           "unite": "short",
           "requetes": [
             {
@@ -378,8 +378,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Clients par reseau",
-          "description": "Appareils connectes par nom de reseau Wi-Fi (SSID).",
+          "titre": "Clients par réseau",
+          "description": "Appareils connectés par nom de réseau Wi-Fi (SSID).",
           "unite": "short",
           "requetes": [
             {
@@ -392,7 +392,7 @@
         {
           "type": "courbe",
           "titre": "Occupation des canaux",
-          "description": "Part du temps ou le canal est occupe (par la borne, ses clients et les reseaux voisins). Au-dela de 50 %, les debits baissent ; un changement de canal peut aider. ng = 2,4 GHz, na = 5 GHz, 6e = 6 GHz.",
+          "description": "Part du temps où le canal est occupé (par la borne, ses clients et les réseaux voisins). Au-delà de 50 %, les débits baissent ; un changement de canal peut aider. ng = 2,4 GHz, na = 5 GHz, 6e = 6 GHz.",
           "unite": "percentunit",
           "requetes": [
             {
@@ -405,7 +405,7 @@
         {
           "type": "tableau",
           "titre": "Clients Wi-Fi au signal le plus faible",
-          "description": "Les 15 clients les plus mal captes. Un appareil fixe mal capte gagnerait a etre rapproche d'une borne, ou relie par cable.",
+          "description": "Les 15 clients les plus mal captés. Un appareil fixe mal capté gagnerait à être rapproché d'une borne, ou relié par câble.",
           "requetes": [
             {
               "id": "A",
@@ -427,7 +427,7 @@
             },
             {
               "champ": "essid",
-              "titre": "Reseau"
+              "titre": "Réseau"
             },
             {
               "champ": "radio",
@@ -468,7 +468,7 @@
         {
           "type": "courbe",
           "titre": "Satisfaction par borne",
-          "description": "Note de qualite moyenne des clients de chaque borne.",
+          "description": "Note de qualité moyenne des clients de chaque borne.",
           "unite": "percentunit",
           "requetes": [
             {
@@ -485,8 +485,8 @@
       "panneaux": [
         {
           "type": "courbe",
-          "titre": "Trafic par equipement",
-          "description": "Debit traite par chaque equipement (au-dessus : recu, en dessous : envoye).",
+          "titre": "Trafic par équipement",
+          "description": "Débit traité par chaque équipement (au-dessus : reçu, en dessous : envoyé).",
           "unite": "bps",
           "requetes": [
             {
@@ -504,7 +504,7 @@
         {
           "type": "courbe",
           "titre": "Clients les plus gourmands",
-          "description": "Les 10 appareils qui echangent le plus de donnees, tous sens confondus.",
+          "description": "Les 10 appareils qui échangent le plus de données, tous sens confondus.",
           "unite": "bps",
           "requetes": [
             {
@@ -522,7 +522,7 @@
         {
           "type": "courbe",
           "titre": "Trafic par port (les 10 plus charges)",
-          "description": "Ports actifs les plus charges, entrees et sorties additionnees.",
+          "description": "Ports actifs les plus charges, entrées et sorties additionnées.",
           "unite": "bps",
           "requetes": [
             {
@@ -548,7 +548,7 @@
         {
           "type": "courbe",
           "titre": "Erreurs et pertes par port",
-          "description": "Seuls les ports en erreur apparaissent. Une valeur durable signale un cable abime ou une negociation de vitesse ratee.",
+          "description": "Seuls les ports en erreur apparaissent. Une valeur durable signale un câble abîmé ou une négociation de vitesse ratée.",
           "unite": "pps",
           "requetes": [
             {
@@ -560,8 +560,8 @@
         },
         {
           "type": "tableau",
-          "titre": "Vitesse negociee des ports actifs",
-          "description": "Un port a 100 Mb/s ou 10 Mb/s au lieu de 1 Gb/s trahit souvent un cable defectueux.",
+          "titre": "Vitesse négociée des ports actifs",
+          "description": "Un port à 100 Mb/s ou 10 Mb/s au lieu de 1 Gb/s trahit souvent un câble défectueux.",
           "requetes": [
             {
               "id": "A",

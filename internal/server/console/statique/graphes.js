@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Courbes des tableaux : chaque <div data-courbe="URL"> reçoit ses données
-// en JSON ({unite, x[], series[{nom, v[]}]}) et les dessine avec uPlot
+// en JSON ({unite, x[], series[{nom, v[]}], seuil?}) et les dessine avec uPlot
 // (MIT, embarqué : statique/uplot/). Rechargement toutes les 60 s, seulement
 // si l'onglet est visible ; redimensionnement automatique (téléphone).
 "use strict";
@@ -41,8 +41,46 @@
     return getComputedStyle(document.body).getPropertyValue(nom).trim() || "#888";
   }
 
+  // Dates en français (légende au survol, axe des temps).
+  var MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  var JOURS = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+  function deux(n) { return (n < 10 ? "0" : "") + n; }
+  function dateFr(t) {
+    var d = new Date(t * 1000);
+    return d.getDate() + " " + MOIS[d.getMonth()] + " " + deux(d.getHours()) + ":" + deux(d.getMinutes());
+  }
+  function axeTemps(u, vals) {
+    var ecart = (u.scales.x.max || 0) - (u.scales.x.min || 0);
+    return vals.map(function (v) {
+      var d = new Date(v * 1000);
+      if (ecart > 2 * 86400) { return JOURS[d.getDay()] + " " + d.getDate(); }
+      return deux(d.getHours()) + ":" + deux(d.getMinutes());
+    });
+  }
+
+  // Panneaux sans données regroupés en une ligne (page d'une machine :
+  // conteneur data-regrouper-vides), SPEC § 29.
+  function regrouperVides() {
+    document.querySelectorAll("[data-regrouper-vides] .panneaux").forEach(function (pan) {
+      var vides = Array.prototype.filter.call(pan.children, function (c) { return c.classList.contains("panneau-vide"); });
+      var ligne = pan.querySelector(".sans-donnees");
+      if (!vides.length) { if (ligne) { ligne.remove(); } return; }
+      if (!ligne) { ligne = document.createElement("p"); ligne.className = "sans-donnees"; pan.appendChild(ligne); }
+      ligne.textContent = "Pas de données sur la période : " + vides.map(function (c) {
+        var h = c.querySelector("h2, h3");
+        return h ? h.textContent.trim() : "";
+      }).filter(Boolean).join(", ") + ".";
+    });
+  }
+  function marquerVide(el, vide) {
+    var carte = el.closest(".carte");
+    if (carte && carte.closest("[data-regrouper-vides]")) { carte.classList.toggle("panneau-vide", vide); regrouperVides(); }
+  }
+
   function dessiner(el) {
-    if (document.hidden || el.enCours) { return; }
+    // Zoom en cours (glisser sur la courbe) : pas de rechargement qui le
+    // perdrait ; double-clic pour revenir.
+    if (document.hidden || el.enCours || el.zoom) { return; }
     el.enCours = true;
     // data-courbe="apercu" : données déjà dans la page (aperçu de l'éditeur
     // de tableaux, panneau pas encore enregistré), dans data-json.
@@ -61,31 +99,85 @@
           if (el.u) { el.u.destroy(); el.u = null; }
           el.textContent = d.erreur || "aucune donnée sur la période";
           el.classList.add("vide");
+          marquerVide(el, true);
           return;
         }
         el.classList.remove("vide");
+        marquerVide(el, false);
         var donnees = [d.x];
-        var series = [{}];
+        var seule = d.series.length === 1;
+        var series = [{ label: "Heure", value: function (u, v) { return v === null || v === undefined ? "—" : dateFr(v); } }];
         d.series.forEach(function (s, i) {
+          var c = palette[i % palette.length];
           donnees.push(s.v);
-          series.push({ label: s.nom, stroke: palette[i % palette.length], width: 1.25, spanGaps: false,
+          series.push({ label: s.nom, stroke: c, width: 1.75, spanGaps: false, fill: seule ? c + "22" : undefined,
             value: function (u, v) { return formater(v, d.unite); } });
         });
-        var texte = couleurVar("--doux"), grille = couleurVar("--bord");
+        var seuil = typeof d.seuil === "number" ? d.seuil : null;
+        // Seuil loin au-dessus des valeurs (ex. 800 Mbit/s pour un trafic de
+        // 2 Mbit/s) : pas tracé, il écraserait la courbe.
+        if (seuil !== null && d.unite !== "percent" && d.unite !== "percentunit") {
+          var maxi = 0;
+          d.series.forEach(function (s) { s.v.forEach(function (v) { if (v !== null && Math.abs(v) > maxi) { maxi = Math.abs(v); } }); });
+          if (seuil > 2 * maxi) { seuil = null; }
+        }
+        var texte = couleurVar("--doux"), grille = couleurVar("--bord"), rouge = couleurVar("--erreur");
+        // Échelle : 0 à 100 % fixe pour les pourcentages ; le seuil reste visible.
+        var plafond = d.unite === "percent" ? 100 : d.unite === "percentunit" ? 1 : null;
+        var hauteur = el.closest("[data-regrouper-vides]") ? 200 : 220;
         var opts = {
-          width: Math.max(el.clientWidth, 200), height: 220, series: series,
+          width: Math.max(el.clientWidth, 200), height: hauteur, series: series,
           legend: { show: d.series.length <= 12, live: true },
-          cursor: { points: { show: false } },
-          scales: { x: { time: true } },
+          cursor: { points: { show: false }, sync: { key: "mirador" }, drag: { x: true, y: false } },
+          scales: { x: { time: true }, y: { range: function (u, mn, mx) {
+            var haut = Math.max(mx, plafond === null ? mx : plafond, seuil === null ? mx : seuil * 1.1);
+            var bas = Math.min(mn, 0); // depuis zéro : pas de petite variation grossie
+            if (haut === bas) { haut = bas + 1; }
+            return [bas, haut];
+          } } },
           axes: [
-            { stroke: texte, grid: { stroke: grille, width: 1 }, ticks: { stroke: grille } },
-            { stroke: texte, grid: { stroke: grille, width: 1 }, ticks: { stroke: grille }, size: 72,
+            { stroke: texte, grid: { stroke: grille, width: 1 }, ticks: { stroke: grille }, values: axeTemps },
+            { stroke: texte, grid: { stroke: grille, width: 1 }, ticks: { stroke: grille },
+              // Largeur selon le plus long libellé (« 800,0 Mbit/s » entier).
+              size: function (u, vals) {
+                var n = 0;
+                (vals || []).forEach(function (v) { n = Math.max(n, String(v).length); });
+                return Math.max(48, n * 7 + 18);
+              },
               values: function (u, vals) { return vals.map(function (v) { return formater(v, d.unite); }); } }
-          ]
+          ],
+          hooks: {
+            setSelect: [function (u) { if (u.select.width > 0) { el.zoom = true; } }],
+            draw: [function (u) {
+              if (seuil === null) { return; }
+              var y = u.valToPos(seuil, "y", true), ctx = u.ctx;
+              ctx.save();
+              ctx.setLineDash([6, 4]);
+              ctx.strokeStyle = rouge;
+              ctx.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+              ctx.beginPath();
+              ctx.moveTo(u.bbox.left, y);
+              ctx.lineTo(u.bbox.left + u.bbox.width, y);
+              ctx.stroke();
+              ctx.restore();
+            }]
+          }
         };
         if (el.u) { el.u.destroy(); }
         el.textContent = "";
         el.u = new uPlot(opts, donnees, el);
+        if (!el.ecouteZoom) {
+          el.ecouteZoom = true;
+          el.addEventListener("dblclick", function () { el.zoom = false; });
+        }
+        if (!el.indice && el.parentNode) {
+          el.indice = document.createElement("p");
+          el.indice.className = "indice-courbe";
+          el.parentNode.insertBefore(el.indice, el.nextSibling);
+        }
+        if (el.indice) {
+          el.indice.textContent = "Glisser pour zoomer · double-clic pour revenir" + (seuil !== null ? " · pointillé rouge : seuil du modèle" : "");
+        }
         filtrer(el, d.series.length);
         if (d.erreur) {
           var p = document.createElement("small");
@@ -125,7 +217,7 @@
     if (el.filtre) { appliquerFiltre(el); }
   }
 
-  function tout() { document.querySelectorAll("[data-courbe]").forEach(dessiner); }
+  function tout() { regrouperVides(); document.querySelectorAll("[data-courbe]").forEach(dessiner); }
   tout();
   setInterval(tout, 60000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tout(); } });
@@ -135,7 +227,7 @@
     var ro = new ResizeObserver(function (entrees) {
       entrees.forEach(function (e) {
         var u = e.target.u;
-        if (u && Math.abs(u.width - e.target.clientWidth) > 8) { u.setSize({ width: Math.max(e.target.clientWidth, 200), height: 220 }); }
+        if (u && Math.abs(u.width - e.target.clientWidth) > 8) { u.setSize({ width: Math.max(e.target.clientWidth, 200), height: u.height }); }
       });
     });
     document.querySelectorAll("[data-courbe]").forEach(function (el) { ro.observe(el); });

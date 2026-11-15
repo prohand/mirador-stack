@@ -135,7 +135,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	pages := map[string][]string{
 		"/":                    {"Vue d'ensemble", "vm-test", "en attente d'approbation"},
 		"/machines":            {"vm-test", "nouvelle", "192.0.2.4"},
-		"/machines/vm-test":    {"vm-test", "data-courbe=", "Occupation des systemes de fichiers"},
+		"/machines/vm-test":    {"vm-test", "data-courbe=", "Occupation des systèmes de fichiers"},
 		"/mises-a-jour":        {"Versions publiées"},
 		"/tableaux":            {"Serveurs Linux", "Proxmox"},
 		"/fragments/accueil":   {"machines"},

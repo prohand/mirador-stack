@@ -2,7 +2,7 @@
 {{define "code2fa-toujours"}}<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
-{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}">
+{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}{{if and (egal .P.Type "barres") (not .Barres) (not .Erreur)}} panneau-vide{{end}}">
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
 {{if .P.Description}}<p><small>{{.P.Description}}</small></p>{{end}}
 {{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>
@@ -13,7 +13,7 @@
 <tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{end}}
 </section>{{end}}
-{{define "rangees"}}{{range .}}<details class="rangee" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
+{{define "rangees"}}{{range .}}<details class="rangee" id="{{ancre .Titre}}" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
 <div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
 {{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
 {{define "liste-alertes"}}{{if .}}<div data-alertes>

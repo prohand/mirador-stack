@@ -43,6 +43,14 @@ type Tableau struct {
 	Teinte string `json:"teinte,omitempty"`
 }
 
+// SeuilModele : paramètre d'un modèle, converti dans l'unité du panneau.
+type SeuilModele struct {
+	Modele    string  `json:"modele"`
+	Parametre string  `json:"parametre"`
+	Inverse   bool    `json:"inverse,omitempty"` // 100 - valeur (« % libre » → « % utilisé »)
+	Facteur   float64 `json:"facteur,omitempty"` // multiplié (ex. Mbit/s → bit/s : 1000000)
+}
+
 // Variable : un filtre (liste de valeurs d'une étiquette).
 type Variable struct {
 	Nom     string `json:"nom"`
@@ -77,6 +85,9 @@ type Panneau struct {
 	// la vue d'ensemble) ; vide = pas d'icône.
 	Icone  string `json:"icone,omitempty"`
 	Teinte string `json:"teinte,omitempty"`
+	// SeuilModele : seuil d'un modèle de surveillance tracé en pointillé sur
+	// la courbe d'une machine (SPEC § 29) ; nil = pas de seuil.
+	SeuilModele *SeuilModele `json:"seuil_modele,omitempty"`
 }
 
 // iconesPanneaux : icônes proposées (dessinées dans morceaux.html).
