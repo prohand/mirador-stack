@@ -44,6 +44,21 @@
    "gravite": "warning",
    "expr": "smartctl_device_temperature{temperature_type=\"current\"} > $disque_temp_max",
    "resume": "Disque {{ $labels.device }} à {{ $value | humanize }} °C sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "PhysiqueSmartEnEchec",
+   "remplace": "SmartEnEchec",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "smartctl_device_smart_status == 0",
+   "resume": "SMART en échec : {{ $labels.device }} sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "PhysiqueSecteursRealloues",
+   "remplace": "SecteursRealloues",
+   "gravite": "warning",
+   "expr": "increase(smartctl_device_attribute{attribute_name=\"Reallocated_Sector_Ct\", attribute_value_type=\"raw\"}[24h]) > 0",
+   "resume": "Nouveaux secteurs réalloués sur {{ $labels.device }} ({{ $labels.instance }})"
   }
  ]
 }

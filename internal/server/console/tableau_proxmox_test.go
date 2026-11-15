@@ -197,6 +197,16 @@ func TestSuggererServices(t *testing.T) {
 	if strings.Join(got, ",") != "containerd.service" {
 		t.Errorf("suggérés : %v", got)
 	}
+	// Strict : actif aussi sur une machine sans le modèle → pas propre au
+	// modèle ; service de distribution → jamais suggéré.
+	vus2 := map[string]map[string]bool{
+		"a": {"docker.service": true, "outil.service": true, "ModemManager.service": true},
+		"b": {"docker.service": true, "outil.service": true, "ModemManager.service": true},
+		"c": {"outil.service": true},
+	}
+	if got := suggererServices("docker", nil, ms, effs, vus2); strings.Join(got, ",") != "docker.service" {
+		t.Errorf("suggérés (strict) : %v", got)
+	}
 	// Modèle porté par toutes les machines : rien à suggérer.
 	if got := suggererServices("docker", nil, ms[:2], effs, vus); got != nil {
 		t.Errorf("modèle partout : %v", got)

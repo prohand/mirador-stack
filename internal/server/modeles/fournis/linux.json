@@ -90,6 +90,69 @@
    "gravite": "warning",
    "expr": "node_filesystem_files_free{fstype!~\"tmpfs|overlay\"} / node_filesystem_files * 100 < $inodes_libres_pct",
    "resume": "{{ $labels.mountpoint }} : plus que {{ $value | humanize }} % d'inodes libres sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxServiceEnEchec",
+   "remplace": "ServiceSystemdEnEchec",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "node_systemd_unit_state{state=\"failed\", name!=\"fwupd-refresh.service\"} == 1",
+   "resume": "Service {{ $labels.name }} en échec sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxServiceAutoArrete",
+   "remplace": "ServiceAutomatiqueArrete",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "node_systemd_unit_enabled_active == 0",
+   "resume": "Service {{ $labels.name }} (démarrage automatique) arrêté sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxServiceEnBoucle",
+   "remplace": "ServiceRedemarreEnBoucle",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "increase(node_systemd_service_restart_total[1h]) > 5",
+   "resume": "Service {{ $labels.name }} redémarré {{ $value | humanize }} fois en 1 h sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxSwapIntensif",
+   "remplace": "SwapIntensif",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "rate(node_vmstat_pswpin[10m]) + rate(node_vmstat_pswpout[10m]) > 100",
+   "resume": "Échanges intensifs avec le swap sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxDisqueBientotPlein",
+   "remplace": "DisqueSaturationPrevue",
+   "pour": "1h",
+   "gravite": "warning",
+   "expr": "predict_linear(node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"}[12h], 4*24*3600) < 0 and node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.30",
+   "resume": "{{ $labels.mountpoint }} sera plein sous 4 jours sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxIoDisqueSature",
+   "remplace": "IoDisqueSature",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "rate(node_disk_io_time_seconds_total[5m]) > 0.9",
+   "resume": "Disque {{ $labels.device }} occupé à plus de 90 % sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxErreursReseau",
+   "remplace": "ErreursReseau",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "rate(node_network_receive_errs_total[10m]) + rate(node_network_transmit_errs_total[10m]) > 1",
+   "resume": "Erreurs réseau sur {{ $labels.device }} ({{ $labels.instance }})"
+  },
+  {
+   "nom": "LinuxRedemarre",
+   "remplace": "RedemarrageInattendu",
+   "gravite": "info",
+   "expr": "node_time_seconds - node_boot_time_seconds < 300",
+   "resume": "{{ $labels.instance }} vient de redémarrer"
   }
  ]
 }

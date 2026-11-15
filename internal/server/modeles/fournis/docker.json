@@ -3,7 +3,7 @@
  "nom": "docker",
  "titre": "Docker",
  "icone": "machines",
- "description": "Conteneurs : état, redémarrages, santé, mémoire (proxy de socket en lecture seule), avec le seuil de mémoire réglable.",
+ "description": "Conteneurs : démon Docker joignable, conteneurs arrêtés, redémarrages en boucle, santé, tués par manque de mémoire, mémoire (proxy de socket en lecture seule), avec des seuils réglables.",
  "detection": "count by (instance) (node_docker_up)",
  "config": {
   "docker_metriques": true
@@ -16,6 +16,14 @@
    "defaut": 90,
    "min": 10,
    "max": 100
+  },
+  {
+   "nom": "conteneur_redemarrages",
+   "titre": "Redémarrages d'un conteneur en 30 min : alerte au-dessus de",
+   "unite": "",
+   "defaut": 3,
+   "min": 1,
+   "max": 50
   }
  ],
  "regles": [
@@ -26,6 +34,44 @@
    "gravite": "warning",
    "expr": "node_docker_container_memory_bytes / node_docker_container_memory_limit_bytes * 100 > $conteneur_memoire_pct",
    "resume": "{{ $labels.name }} utilise {{ $value | humanize }} % de sa limite mémoire sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DockerDemonInjoignable",
+   "remplace": "DockerInjoignable",
+   "pour": "3m",
+   "gravite": "critical",
+   "expr": "node_docker_up == 0",
+   "resume": "Docker ne répond pas sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DockerConteneurArrete",
+   "remplace": "ConteneurArrete",
+   "pour": "3m",
+   "gravite": "critical",
+   "expr": "node_docker_container_running{restart_policy=~\"always|unless-stopped\"} == 0",
+   "resume": "Conteneur {{ $labels.name }} arrêté sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DockerConteneurEnBoucle",
+   "remplace": "ConteneurRedemarreEnBoucle",
+   "gravite": "warning",
+   "expr": "increase(node_docker_container_restart_count[30m]) > $conteneur_redemarrages",
+   "resume": "Conteneur {{ $labels.name }} redémarré {{ $value | humanize }} fois en 30 min sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DockerConteneurNonSain",
+   "remplace": "ConteneurNonSain",
+   "pour": "5m",
+   "gravite": "warning",
+   "expr": "node_docker_container_healthy == 0",
+   "resume": "Conteneur {{ $labels.name }} pas en bonne santé (healthcheck) sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "DockerConteneurTueOOM",
+   "remplace": "ConteneurTueParOOM",
+   "gravite": "warning",
+   "expr": "node_docker_container_oom_killed == 1",
+   "resume": "Conteneur {{ $labels.name }} tué par manque de mémoire sur {{ $labels.instance }}"
   }
  ],
  "services": [

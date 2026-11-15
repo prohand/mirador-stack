@@ -752,7 +752,10 @@ inchangé ✅.
 | Mode administration perdu après déconnexion / reconnexion | **corrigé** : ouvert à la connexion |
 | Modèles pas cochés sur les machines déjà en place | **corrigé** : cochés d'office (à enregistrer) + bouton « Les cocher sur ces machines » |
 | Retirer un modèle doit aussi arrêter ses métriques | **fait** : décoché → alertes et relevés du modèle coupés pour la machine ; recoché → rallumés |
-| Passkey Bitwarden sur iPhone : `NotAllowedError` | **corrigé (à confirmer)** : demande « preferred », vérification de l'utilisateur contrôlée par le serveur |
+| Passkey Bitwarden sur iPhone | **confirmé** par toi le 15/11 ✅ |
+| Règles manquantes dans les modèles | **fait** : 19 règles ajoutées (Docker, Linux, physique, certificats, ZFS, RAID), remplacent les règles importées sur les machines du modèle |
+| Services suggérés absurdes (cochés d'office) | **corrigé** : actifs, propres au modèle, hors services de distribution, non cochés |
+| Passkey Bitwarden sur iPhone : `NotAllowedError` | **corrigé** : demande « preferred », vérification de l'utilisateur contrôlée par le serveur |
 
 ## Étape 6 — avancement (SPEC § 23)
 

@@ -4397,6 +4397,26 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   allumée. Recocher le modèle lève la coupure : il rallume ses relevés. Les
   tests de l'agent (listes) partent avec le modèle ; l'historique reste.
   Chaque changement de configuration passe par l'audit habituel.
+- **Règles complètes dans les modèles** (« il manque des règles ») : chaque
+  modèle livré porte maintenant les règles de son domaine ; chacune
+  remplace, sur les machines du modèle, la règle importée ou fournie
+  équivalente (pas d'alerte en double ; les machines sans le modèle gardent
+  l'ancienne règle). 19 règles ajoutées :
+  - Docker (6) : démon injoignable, conteneur arrêté, redémarrages en
+    boucle (seuil réglable), pas en bonne santé, tué par manque de mémoire,
+    mémoire ;
+  - Linux (13) : + services en échec, service automatique arrêté, service
+    en boucle, swap intensif, disque bientôt plein, I/O saturée, erreurs
+    réseau, redémarrage ;
+  - Machine physique (4) : + SMART en échec, secteurs réalloués ;
+  - Certificats (4) : + collecte muette, certificats illisibles ;
+  - ZFS (1) : pool dégradé ; RAID logiciel (1) : grappe dégradée.
+- **Services attendus** : services systemd qui doivent exister et tourner
+  sur toutes les machines du modèle (ex. `docker.service`). Suggestions
+  corrigées : seulement les services **actifs** (plus les « oneshot » du
+  démarrage), présents sur toutes les machines du modèle et sur **aucune**
+  autre, hors services de distribution (liste étendue) ; 10 au plus ;
+  **plus cochés d'office** ; affichés en liste.
 - **Passkey Bitwarden sur iPhone (`NotAllowedError`)** : la même passkey
   marche sur le PC, et Bitwarden iPhone marche sur webauthn.io (qui demande
   `userVerification: "preferred"`). La connexion sans mot de passe demandait

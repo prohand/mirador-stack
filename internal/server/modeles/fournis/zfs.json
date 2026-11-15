@@ -3,9 +3,19 @@
  "nom": "zfs",
  "titre": "ZFS",
  "icone": "disque",
- "description": "État des pools ZFS (alerte « pool dégradé » fournie par mirador).",
+ "description": "État des pools ZFS : alerte si un pool n'est plus ONLINE.",
  "detection": "count by (instance) (mirador_agent_detecte{genre=\"zfs\"}) or count by (instance) (node_zfs_zpool_state)",
  "config": {
   "zfs": true
- }
+ },
+ "regles": [
+  {
+   "nom": "ZfsPoolDegrade",
+   "remplace": "PoolZfsDegrade",
+   "pour": "2m",
+   "gravite": "critical",
+   "expr": "node_zfs_zpool_state{state=\"online\"} == 0",
+   "resume": "Le pool ZFS {{ $labels.zpool }} de {{ $labels.instance }} n'est plus ONLINE"
+  }
+ ]
 }
