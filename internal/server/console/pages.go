@@ -428,6 +428,12 @@ func (c *Console) postJeton(q *req) {
 	d.JetonCollecteur = q.r.PostFormValue("type_machine") == "collecteur"
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
 	var options []string
+	// Nom choisi : repris dans la commande, pour que le journal de la machine
+	// porte le même nom que l'interface (sinon : son nom d'hôte). Déjà
+	// vérifié (lettres, chiffres, « . », « _ », « - ») : sûr dans la commande.
+	if nom := strings.ToLower(strings.TrimSpace(q.r.PostFormValue("nom"))); nom != "" && flotte.FormatNom.MatchString(nom) {
+		options = append(options, "--nom", nom)
+	}
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
 		if d.JetonCollecteur {
@@ -548,7 +554,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Equipements, _ = flotte.EquipementsDe(ctx, c.db, m.ID)
 		d.Candidats = c.candidatsEquipement(ctx, m.ID)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
-		d.Syslog = c.syslogDe(ctx, m)
+		d.Syslog = c.syslogAvecAvancement(ctx, m, q.t)
 		d.SNMP = c.snmpDe(ctx, m)
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
@@ -628,7 +634,7 @@ func (c *Console) postMachine(q *req) {
 		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
 		"rattacher": true, "detacher": true,
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
-		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true, "certificat_reglages": true,
+		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true,
 		// SNMP et sondes d'un collecteur (SPEC § 23.15).
 		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true}
 	if sensible[action] {
@@ -728,7 +734,7 @@ func (c *Console) postMachine(q *req) {
 			}
 			err = flotte.DefinirCible(ctx, c.db, id, v, q.qui(), q.t)
 		}
-	case "syslog", "syslog_retirer", "certificat_renouveler", "certificat_reglages":
+	case "syslog", "syslog_retirer", "certificat_renouveler":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")

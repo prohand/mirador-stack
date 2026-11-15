@@ -32,24 +32,11 @@
 {{if and $s.Regle .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog_retirer">{{template "code2fa"}}<button class="secondaire" data-confirmer="Arrêter le syslog de ce collecteur ?">Arrêter le syslog</button></form>{{end}}
 {{if $s.Regle}}<p class="aide"><small class="aide">Sur chaque équipement : syslog <strong>TCP + TLS</strong> vers <code>{{$s.Nom}}</code>, qui doit pointer vers l'adresse privée du collecteur.</small></p>{{end}}
 
-<h3>Certificat du syslog</h3>
-{{if $s.Cert.Certificat}}<p><span class="pastille ok">Obtenu</span> <code>{{$s.Cert.Nom}}</code>, valable jusqu'au <strong>{{dateS $s.Cert.Fin}}</strong> (obtenu le {{dateS $s.Cert.ObtenuLe}}). Renouvelé seul 30 jours avant l'échéance.</p>
-{{else if $s.Cert.CSR}}<p><span class="pastille attention">En attente</span> Demande reçue du collecteur le {{dateS $s.Cert.CSRRecueLe}} ; le serveur fait la démarche (Let's Encrypt, défi DNS).</p>
-{{else if $s.Regle}}<p><span class="pastille attention">En attente</span> Pas encore de demande du collecteur (il l'envoie avec son battement, sous 5 min ; collecteur à jour ?).</p>
-{{else}}<p class="vide">Syslog pas réglé.</p>{{end}}
-{{if $s.Cert.Erreur}}<p class="message erreur">Dernier essai le {{dateS $s.Cert.EssaiLe}} : {{$s.Cert.Erreur}}</p>{{end}}
+<h3 id="certificat">Certificat du syslog</h3>
+{{if not $s.ReglagesFaits}}<p class="message attention">Compte DNS pas encore réglé (une fois pour tous les collecteurs) : <a href="/reglages/certificats">Réglages › Certificats</a>.</p>{{end}}
+{{template "avancement-certificat" $s.Avancement}}
 {{if and .Admin $s.Cert.CSR}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_renouveler">{{template "code2fa"}}<button class="secondaire">Renouveler maintenant</button></form>{{end}}
-
-{{if .Admin}}<details{{if not $s.JetonEnregistre}} open{{end}}><summary>Réglages du certificat (DNS, ACME) — communs à tous les collecteurs</summary>
-<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_reglages">
-<label>Fournisseur DNS <select name="fournisseur" data-choix-fournisseur>{{range $s.Fournisseurs}}<option value="{{.Nom}}"{{if eq .Nom $s.Fournisseur}} selected{{end}}>{{.Titre}}</option>{{end}}</select></label>
-<label>Zone DNS <input name="domaine" value="{{$s.Domaine}}" required size="24" placeholder="exemple.org"></label>
-{{range $i := $s.Fournisseurs}}<fieldset class="pile" data-fournisseur="{{$i.Nom}}"{{if ne $i.Nom $s.Fournisseur}} hidden disabled{{end}}><legend>{{$i.Titre}}</legend>
-{{range $i.Champs}}<label>{{.Titre}} {{if .Choix}}<select name="dns_{{$i.Nom}}_{{.Nom}}">{{$v := index $s.Parametres .Nom}}{{range .Choix}}<option{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}</select>{{else if .Secret}}<input name="dns_{{$i.Nom}}_{{.Nom}}" type="password" autocomplete="off" size="30" placeholder="{{if and $s.JetonEnregistre (eq $i.Nom $s.Fournisseur)}}déjà enregistré (vide = garder){{end}}">{{else}}<input name="dns_{{$i.Nom}}_{{.Nom}}" size="30" value="{{if eq $i.Nom $s.Fournisseur}}{{index $s.Parametres .Nom}}{{end}}">{{end}}</label>
-{{end}}<small class="aide">{{$i.Aide}}. Chiffré, jamais réaffiché.</small></fieldset>
-{{end}}<label>Annuaire ACME <input name="annuaire" value="{{$s.Annuaire}}" size="50" placeholder="vide = Let's Encrypt"><small class="aide">Premier essai : <code>https://acme-staging-v02.api.letsencrypt.org/directory</code> (sans limite, certificat non reconnu).</small></label>
-<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-</form></details>{{end}}
+<p class="aide"><small class="aide"><a href="/reglages/certificats">Réglages des certificats ›</a> compte DNS et Let's Encrypt, communs à tous les collecteurs.</small></p>
 </section>{{end}}
 {{if .D.Collecteur}}{{$n := .D.SNMP}}<section class="carte" id="snmp">
 <div class="entete-carte"><div><h2>SNMP v3, UniFi et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>

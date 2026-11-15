@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"mirador-stack/internal/server/auth"
@@ -273,6 +274,79 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	}
 	if code, _, _ = n.faire(http.MethodGet, "/logs?host=%22%3E%3Cscript%3E", nil); code != 200 {
 		t.Errorf("filtre invalide : %d", code)
+	}
+	// Nouvelle page Logs (SPEC § 33) : niveau « err et plus grave »,
+	// exclusion, pastilles, histogramme, détail, messages regroupés,
+	// contexte, direct, export, recherches enregistrées.
+	code, corps, _ = n.faire(http.MethodGet, "/logs?level=err%2B&periode=1h", nil)
+	if code != 200 || !strings.Contains(corps, "connexion refus") || strings.Contains(corps, "même ligne") ||
+		!strings.Contains(corps, `<b>niveau</b> err et plus grave`) || !strings.Contains(corps, `class="logs-histo"`) ||
+		!strings.Contains(corps, `<span class="logs-stat err"><b>1</b> erreur(s)</span>`) || !strings.Contains(corps, `class="logs-ligne-log err"`) {
+		t.Errorf("niveau err+ : %d", code)
+	}
+	if _, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&sans=unit%3Acron.service&periode=1h", nil); strings.Contains(corps, "même ligne") ||
+		!strings.Contains(corps, `<b>sans unité</b> cron.service`) {
+		t.Error("exclusion")
+	}
+	_, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&q=refus%C3%A9e&periode=1h", nil)
+	if !strings.Contains(corps, "connexion <mark>refusée</mark>") || !strings.Contains(corps, "＋ filtrer") || !strings.Contains(corps, "Voir autour") ||
+		!strings.Contains(corps, `data-copier-json="{&#34;champs&#34;:`) || strings.Contains(corps, "<script>alert") {
+		t.Error("surlignage, détail ou échappement")
+	}
+	_, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&periode=1h&vue=groupes", nil)
+	if !strings.Contains(corps, `Messages regroupés <small>`) || !strings.Contains(corps, "INPUT-DROP: IN=eth0 OUT= MAC=") ||
+		!strings.Contains(corps, `<span class="var">IP</span>`) || !strings.Contains(corps, "Ces lignes") {
+		t.Error("messages regroupés")
+	}
+	cle := regexp.MustCompile(`motif=([0-9a-f]{12})`).FindStringSubmatch(corps)
+	if cle == nil {
+		t.Fatal("lien d'un message type absent")
+	}
+	if _, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&periode=1h&motif="+cle[1], nil); !strings.Contains(corps, "<b>message type</b>") {
+		t.Error("filtre par message type")
+	}
+	if _, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&periode=1h", nil); !strings.Contains(corps, "Voir autour") {
+		t.Error("lien « Voir autour » absent")
+	}
+	refus := regexp.MustCompile(`/logs\?autour=(\d+)&amp;host=vm-test`).FindStringSubmatch(corps)
+	if refus == nil {
+		t.Fatal("lien de contexte absent")
+	}
+	if code, corps, _ = n.faire(http.MethodGet, "/logs?autour="+refus[1]+"&host=vm-test", nil); code != 200 || !strings.Contains(corps, "Autour de ") ||
+		!strings.Contains(corps, "logs-ligne-log") || !strings.Contains(corps, " cible") {
+		t.Errorf("contexte : %d", code)
+	}
+	code, corps, _ = n.faire(http.MethodGet, "/logs/direct?host=vm-test&periode=1h&depuis=0", nil)
+	if code != 200 || !strings.Contains(corps, `"msg":"connexion refusée \u003cscript\u003ealert(1)\u003c/script\u003e"`) {
+		t.Errorf("direct : %d %.300s", code, corps)
+	}
+	code, corps, ent := n.faire(http.MethodGet, "/logs/export?format=csv&host=vm-test&periode=1h", nil)
+	if code != 200 || !strings.HasPrefix(corps, "\ufeffHeure;Machine;") || !strings.Contains(corps, "connexion refusée") || !strings.Contains(ent.Get("Content-Disposition"), ".csv") {
+		t.Errorf("export CSV : %d", code)
+	}
+	if _, corps, _ = n.faire(http.MethodGet, "/logs/export?format=txt&host=vm-test&periode=1h", nil); !strings.Contains(corps, " vm-test journal/err connexion refusée") {
+		t.Error("export texte")
+	}
+	_, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&periode=1h", nil)
+	csrf = reCSRFe2e.FindStringSubmatch(corps)[1]
+	n.faire(http.MethodPost, "/logs/recherches", url.Values{"csrf": {csrf}, "action": {"ajouter"}, "nom": {"SSH refusé"},
+		"requete": {"host=vm-test&level=err%2B&periode=24h&inconnu=x"}})
+	var req string
+	_ = s.db.QueryRow(`SELECT requete FROM recherches_logs WHERE nom = 'SSH refusé'`).Scan(&req)
+	if req != "host=vm-test&level=err%2B&periode=24h" {
+		t.Errorf("recherche enregistrée : %q", req)
+	}
+	_, corps, _ = n.faire(http.MethodGet, "/logs", nil)
+	if !strings.Contains(corps, `<a class="perso" href="/logs?host=vm-test&amp;level=err%2B&amp;periode=24h">SSH refusé</a>`) {
+		t.Error("recherche enregistrée absente des raccourcis")
+	}
+	var id int64
+	_ = s.db.QueryRow(`SELECT id FROM recherches_logs WHERE nom = 'SSH refusé'`).Scan(&id)
+	n.faire(http.MethodPost, "/logs/recherches", url.Values{"csrf": {csrf}, "action": {"supprimer"}, "id": {fmt.Sprint(id)}})
+	var nb int
+	_ = s.db.QueryRow(`SELECT count(*) FROM recherches_logs`).Scan(&nb)
+	if nb != 0 {
+		t.Error("recherche non supprimée")
 	}
 
 	// --- Réglages ---

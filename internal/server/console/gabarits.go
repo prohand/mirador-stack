@@ -136,6 +136,14 @@ func fonctions() template.FuncMap {
 			}
 			return time.Unix(s, 0).In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
+		// heureLog : « 23:52 » aujourd'hui, sinon « 14/11 23:52 » (page Logs).
+		"heureLog": func(ms int64) string {
+			t := time.UnixMilli(ms).In(fuseau.Load())
+			if t.Format("2006-01-02") == time.Now().In(fuseau.Load()).Format("2006-01-02") {
+				return t.Format("15:04")
+			}
+			return t.Format("02/01 15:04")
+		},
 		"dateMs": func(ms int64) string {
 			if ms <= 0 {
 				return "—"
@@ -200,10 +208,9 @@ func fonctions() template.FuncMap {
 		"choix": func(nom, actuel string, valeurs []string) map[string]any {
 			return map[string]any{"Nom": nom, "Actuel": actuel, "Valeurs": valeurs}
 		},
-		"ecart":    func(a, b time.Time) time.Duration { return b.Sub(a) },
-		"lienLogs": lienLogs,
-		"drapeau":  drapeau,
-		"somme":    func(a, b int64) int64 { return a + b },
+		"ecart":   func(a, b time.Time) time.Duration { return b.Sub(a) },
+		"drapeau": drapeau,
+		"somme":   func(a, b int64) int64 { return a + b },
 		"enGo": func(n int64) string {
 			return strings.Replace(fmt.Sprintf("%.1f", float64(n)/(1<<30)), ".", ",", 1)
 		},
@@ -451,6 +458,7 @@ var sectionsReglages = []sectionReglages{
 	{Cle: "olvid", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
 	{Cle: "conservation", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
 	{Cle: "sauvegardes", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
+	{Cle: "certificats", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
 	{Cle: "sites", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
 	{Cle: "interface", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau horaire, thème, menu, mode debug temporaire"},
 	{Cle: "export", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},

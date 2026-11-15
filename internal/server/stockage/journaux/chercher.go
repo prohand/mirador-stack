@@ -26,9 +26,11 @@ type Requete struct {
 	// Variantes : autres valeurs acceptées pour un champ de Champs (ex.
 	// anciens noms d'une machine renommée : son historique).
 	Variantes map[string][]string
-	Mots      string // mots entiers, tous présents, casse ignorée (rapide : filtre de Bloom)
-	Contient  string // morceau de texte, casse ignorée (lit tous les blocs de la période)
-	Limite    int    // lignes renvoyées (défaut 500)
+	// Exclus : valeurs refusées par champ (« − exclure » de la page Logs).
+	Exclus   map[string][]string
+	Mots     string // mots entiers, tous présents, casse ignorée (rapide : filtre de Bloom)
+	Contient string // morceau de texte, casse ignorée (lit tous les blocs de la période)
+	Limite   int    // lignes renvoyées (défaut 500)
 }
 
 // Resultat : lignes les plus récentes d'abord.
@@ -251,6 +253,12 @@ func (f *filtre) blocPossible(e *entete) bool {
 			return false // champ indexé, aucune valeur acceptée dans le bloc
 		}
 	}
+	for nom, exclus := range f.r.Exclus {
+		// Toutes les valeurs du bloc sont exclues : rien à y trouver.
+		if vals, connu := e.index[nom]; connu && len(vals) > 0 && !slices.ContainsFunc(vals, func(x string) bool { return !slices.Contains(exclus, x) }) {
+			return false
+		}
+	}
 	for _, w := range f.mots {
 		if !peutContenir(e.bloomK, e.bloom, w) {
 			return false
@@ -265,6 +273,11 @@ func (f *filtre) garde(l *stockage.Ligne) bool {
 	}
 	for nom, v := range f.r.Champs {
 		if x := l.Champs[nom]; x != v && !slices.Contains(f.r.Variantes[nom], x) {
+			return false
+		}
+	}
+	for nom, exclus := range f.r.Exclus {
+		if slices.Contains(exclus, l.Champs[nom]) {
 			return false
 		}
 	}

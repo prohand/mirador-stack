@@ -4730,3 +4730,90 @@ la vue d'ensemble) ; un écran mural garde une session ouverte : utiliser
 un compte en **lecture seule** pour lui (la session expire comme les
 autres) ; pas de formulaire ni d'action sur la page ; nom de machine
 vérifié avant d'entrer dans une requête.
+
+## 32. Certificats : réglage général et avancement (demande du 15/11) **[Fait, à valider]**
+
+- **Réglages › Certificats** (nouvelle page) : le compte DNS et
+  Let's Encrypt (fournisseur, zone, jeton, annuaire), **communs à tous les
+  collecteurs**, quittent la page du collecteur. La page liste aussi tous
+  les collecteurs : nom du certificat, « où en est-on », fin, bouton
+  « Renouveler », et l'avancement pas à pas.
+- **Page du collecteur** : seulement ce qui est à lui (écoute, nom du
+  certificat, émetteurs), l'avancement, « Renouveler maintenant », un lien
+  vers Réglages › Certificats et un message si le compte DNS n'est pas réglé.
+- **Avancement** (6 pas) : compte DNS réglé → syslog réglé sur le
+  collecteur → demande du collecteur reçue → Let's Encrypt (étape en
+  cours parmi 6 : compte, commande, TXT posé, attente de publication
+  « jusqu'à HH:MM », vérification, signature) → certificat obtenu →
+  installé sur le collecteur, écoute ouverte (confirmé par ses mesures
+  `mirador_collecteur_syslog_ecoute` et la fin du certificat chargé). En
+  échec : l'étape fautive, le message et l'heure du nouvel essai.
+  La page se recharge seule toutes les 15 s tant qu'une étape avance (pas
+  pendant la saisie d'un champ).
+- Migration 0023 : colonnes `etape`, `etape_le`, `etape_jusqua` ; la
+  démarche ACME note chaque étape (contexte de suivi), effacées une fois le
+  certificat obtenu, gardées en cas d'échec.
+- La commande d'installation affichée reprend le nom choisi (`--nom`).
+- **Publication DNS vérifiée** (demande du 16/11) : après la pose du TXT,
+  le serveur interroge directement les serveurs DNS qui font autorité pour
+  la zone (6 au plus), toutes les 10 s, et demande la vérification à
+  Let's Encrypt dès que l'enregistrement est visible partout (« visible sur
+  1/2 serveurs DNS » dans l'avancement). Le délai réglé dans Réglages ›
+  Certificats devient un **maximum** (défaut 3 min, CSC 20 min ; 10 s à
+  30 min). Serveurs DNS injoignables depuis le serveur (port 53 sortant
+  fermé) : attente fixe comme avant (1 min, CSC 3 min), dite dans
+  l'avancement.
+
+**Coût** : une écriture SQLite par étape (6 par certificat, tous les
+60 jours) ; 2 petites requêtes de mesures par collecteur à l'affichage des
+pages. Rechargement seulement pendant une démarche.
+
+**Menaces** : mêmes droits qu'avant (lecture pour voir, admin + code 2FA
+pour régler et renouveler) ; secrets DNS toujours chiffrés et jamais
+réaffichés ; « Renouveler » vérifie que la cible est bien un collecteur ;
+messages d'erreur ACME tronqués à 500 caractères et affichés en texte.
+
+## 33. Page Logs refaite (maquette validée le 16/11) **[Fait, à valider]**
+
+- **Filtres rangés** : machine, niveau (dont « err et plus grave » et
+  « warning et plus grave »), période, un champ « Rechercher » (mots
+  entiers ; `"texte exact"` entre guillemets) ; le reste dans « Plus de
+  filtres ». Filtres actifs en **pastilles** retirables (bleu : inclus,
+  rouge : exclu). Anciennes adresses (`mots=`, `contient=`) toujours lues.
+- **Exclusion** (« − exclure ») faite par le moteur de logs (nouveau
+  champ `Exclus` de la requête) : la limite de lignes reste juste ; un
+  bloc dont toutes les valeurs sont exclues n'est pas lu.
+- **Raccourcis** : les 4 fournis et les **recherches enregistrées** de
+  chaque utilisateur (★, 30 au plus, migration 0024 ; paramètres connus
+  seulement, revérifiés ; préférence personnelle sans code 2FA).
+- **Histogramme** des lignes trouvées (60 tranches, erreurs en rouge,
+  avertissements en orange, SVG sans style en ligne) ; glisser = zoom
+  (`de`, `a` dans l'adresse).
+- **Lignes compactes** : heure seule, séparateur par jour, erreurs et
+  avertissements teintés, mots cherchés surlignés, répétitions repliées.
+  **Détail au clic** : tous les champs avec « ＋ filtrer / － exclure »,
+  « Voir autour », copier la ligne, copier en JSON, copier le lien.
+- **Messages regroupés** : IP, nombres, identifiants, hexadécimal
+  remplacés (`IP`, `N`, `UUID`, `HEX`) ; tri plus fréquents / rares /
+  erreurs ; « Ces lignes » filtre sur le message type.
+- **Contexte** (« Voir autour ») : 20 lignes avant et après sur la même
+  machine (toutes sources, ±1 h), « 20 de plus ».
+- **Mode direct** : `/logs/direct` toutes les 5 s, lignes ajoutées en haut
+  (construites avec `textContent`), pause au survol ou ligne ouverte,
+  arrêt seul après 30 min.
+- **Export** CSV (« ; », BOM, cellules commençant par = + - @ protégées)
+  ou texte, 10 000 lignes au plus. « Charger plus ancien » pour la suite.
+- La courbe « volume par machine » reste sur la page de chaque machine.
+
+**Coût** : une recherche lit 2 000 lignes au plus (au lieu de 300 à 2 000)
+pour l'histogramme et les regroupements ; calcul mesuré **44 ms et 4 Mio
+passagers** pour 2 000 lignes. Mode direct : une petite recherche (15 min
+au plus) toutes les 5 s par onglet actif, 30 min au plus. Toujours
+2 recherches en même temps au plus.
+
+**Menaces** : contenu des logs toujours échappé (gabarits, JSON,
+`textContent`) ; valeurs des filtres et exclusions vérifiées (mêmes
+caractères permis qu'avant, 10 exclusions au plus) ; recherches
+enregistrées réduites aux paramètres connus et liées à leur utilisateur
+(suppression vérifiée) ; formulaires avec jeton CSRF ; export protégé
+contre les formules de tableur.

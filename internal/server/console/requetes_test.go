@@ -148,9 +148,8 @@ func TestVolumeLogs(t *testing.T) {
 	if code, _, _ := b.get(c, "/donnees/volume-logs?periode=6h&instance=pc"); code != http.StatusOK {
 		t.Errorf("volume : %d", code)
 	}
-	if _, corps, _ := b.get(c, "/logs"); !strings.Contains(corps, "/donnees/volume-logs?periode=") {
-		t.Error("courbe absente de la page Logs")
-	}
+	// Courbe de volume : sur la page d'une machine (la page Logs montre
+	// l'histogramme des lignes trouvées, SPEC § 33).
 }
 
 // Revue de sécurité du 11/11 : code 2FA d'une action sensible essayé avec

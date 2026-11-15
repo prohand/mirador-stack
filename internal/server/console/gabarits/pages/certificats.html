@@ -1,0 +1,32 @@
+{{define "contenu"}}{{$r := .D.R}}
+<h1>Certificats</h1>
+{{template "onglets-reglages" (onglet $ "certificats")}}
+<section class="carte"><h2>Certificats des collecteurs</h2>
+<p class="sous">Chaque collecteur a son propre certificat pour le syslog TLS (clé privée restée sur le collecteur). Le serveur fait le défi DNS chez ton fournisseur avec le compte ci-dessous, et les renouvelle seul 30 jours avant l'échéance.</p>
+{{if .D.Lignes}}<div class="defile"><table><thead><tr><th>Collecteur</th><th>Certificat</th><th>Où en est-on</th><th>Fin</th><th></th></tr></thead><tbody>
+{{range .D.Lignes}}<tr><td><a href="/machines/{{.Collecteur}}#certificat">{{.Collecteur}}</a></td><td>{{if .Nom}}<code>{{.Nom}}</code>{{else}}—{{end}}</td>
+<td><span class="pastille {{.Avancement.Classe}}">{{.Avancement.Resume}}</span>{{if .Erreur}}<br><small class="erreur-texte">{{.Erreur}}</small>{{end}}</td>
+<td>{{if .Fin}}{{dateS .Fin}}{{else}}—{{end}}</td>
+<td>{{if and $.Admin .Renouveler}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="renouveler"><input type="hidden" name="collecteur" value="{{.Collecteur}}">{{template "code2fa"}}<button class="secondaire petit">Renouveler</button></form>{{end}}</td></tr>
+<tr class="ligne-detail"><td colspan="5"><details{{if .Avancement.EnCours}} open{{end}}><summary>Avancement pas à pas</summary>{{template "avancement-certificat" .Avancement}}</details></td></tr>{{end}}
+</tbody></table></div>
+{{else}}<p class="vide">Aucun collecteur approuvé. <a href="/machines#ajouter">Ajouter un collecteur</a></p>{{end}}
+</section>
+
+<section class="carte" id="compte-dns"><h2>Compte DNS et Let's Encrypt</h2>
+<p class="sous">Communs à tous les collecteurs. Tous les noms de certificat doivent être dans cette zone (ex. <code>syslog.lan.{{if $r.Domaine}}{{$r.Domaine}}{{else}}exemple.org{{end}}</code>). Jeton limité au plus juste ; chiffré sur le serveur, jamais réaffiché.</p>
+{{if $r.Faits}}<p><span class="pastille ok">Réglé</span> zone <code>{{$r.Domaine}}</code>{{if $r.Annuaire}}, annuaire <code>{{$r.Annuaire}}</code>{{else}}, Let's Encrypt (production){{end}}, publication DNS vérifiée{{if $r.AttenteMax}} ({{$r.AttenteMax}} s au plus){{end}}.</p>{{else}}<p><span class="pastille attention">À faire</span> sans ce réglage, aucun certificat ne peut être obtenu.</p>{{end}}
+{{if .Admin}}<details{{if not $r.Faits}} open{{end}}><summary>{{if $r.Faits}}Modifier{{else}}Régler{{end}} le compte DNS</summary>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="reglages">
+<label>Fournisseur DNS <select name="fournisseur" data-choix-fournisseur>{{range $r.Fournisseurs}}<option value="{{.Nom}}"{{if eq .Nom $r.Fournisseur}} selected{{end}}>{{.Titre}}</option>{{end}}</select></label>
+<label>Zone DNS <input name="domaine" value="{{$r.Domaine}}" required size="24" placeholder="exemple.org"></label>
+{{range $i := $r.Fournisseurs}}<fieldset class="pile" data-fournisseur="{{$i.Nom}}"{{if ne $i.Nom $r.Fournisseur}} hidden disabled{{end}}><legend>{{$i.Titre}}</legend>
+{{range $i.Champs}}<label>{{.Titre}} {{if .Choix}}<select name="dns_{{$i.Nom}}_{{.Nom}}">{{$v := index $r.Parametres .Nom}}{{range .Choix}}<option{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}</select>{{else if .Secret}}<input name="dns_{{$i.Nom}}_{{.Nom}}" type="password" autocomplete="off" size="30" placeholder="{{if and $r.JetonEnregistre (eq $i.Nom $r.Fournisseur)}}déjà enregistré (vide = garder){{end}}">{{else}}<input name="dns_{{$i.Nom}}_{{.Nom}}" size="30" value="{{if eq $i.Nom $r.Fournisseur}}{{index $r.Parametres .Nom}}{{end}}">{{end}}</label>
+{{end}}<small class="aide">{{$i.Aide}}. Chiffré, jamais réaffiché.</small></fieldset>
+{{end}}<label>Attente maximale de la publication DNS <select name="attente_max">{{range $r.ChoixAttente}}<option value="{{.Secondes}}"{{if eq .Secondes $r.AttenteMax}} selected{{end}}>{{.Titre}}</option>{{end}}</select>
+<small class="aide">Le serveur interroge les serveurs DNS de la zone toutes les 10 s et demande la vérification dès que l'enregistrement est visible partout ; ce délai n'est qu'un maximum. Si ces serveurs sont injoignables depuis le serveur mirador : attente fixe (1 min, CSC : 3 min).</small></label>
+<label>Annuaire ACME <input name="annuaire" value="{{$r.Annuaire}}" size="50" placeholder="vide = Let's Encrypt"><small class="aide">Premier essai : <code>https://acme-staging-v02.api.letsencrypt.org/directory</code> (sans limite, certificat non reconnu).</small></label>
+<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
+</form></details>{{end}}
+</section>
+{{end}}

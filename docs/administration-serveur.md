@@ -44,9 +44,10 @@ relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
    équipements, ou les créer depuis Machines › Équipement sans agent ›
    *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
 
-Syslog TLS (partie 4), sur la page du collecteur :
+Syslog TLS (partie 4) :
 
-1. *Réglages du certificat* (une fois pour tous les collecteurs) :
+1. **Réglages › Certificats** › *Compte DNS et Let's Encrypt* (une fois
+   pour tous les collecteurs) :
    fournisseur DNS (deSEC, Cloudflare, OVHcloud, Gandi, Infomaniak ou CSC), zone
    (ex. `exemple.org`) et identifiants de l'API, limités au plus juste :
    - deSEC : jeton avec une règle sur `_acme-challenge.<nom du certificat>` ;
@@ -59,12 +60,19 @@ Syslog TLS (partie 4), sur la page du collecteur :
      et POST `/zones/edits` sur la zone ; sans approbation manuelle des
      modifications. Publication lente : compter jusqu'à 20 min.
    Premier essai conseillé avec l'annuaire *staging* de Let's Encrypt.
-2. *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
+   *Attente maximale de la publication DNS* : le serveur vérifie lui-même
+   que l'enregistrement est publié (serveurs DNS de la zone, port 53
+   sortant) et n'attend que le temps nécessaire ; ce réglage n'est qu'un
+   maximum.
+2. Page du collecteur › *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
    `192.168.1.10:6514`), nom du certificat (ex. `syslog.lan.exemple.org`,
    qui doit pointer vers cette adresse : DNS du LAN ou enregistrement A),
    émetteurs « adresse équipement ».
 3. Le collecteur envoie sa demande, le serveur obtient le certificat (1 à
-   5 min), le collecteur ouvre l'écoute. Sur chaque équipement : syslog en
+   5 min), le collecteur ouvre l'écoute. L'**avancement pas à pas** (compte
+   DNS, demande reçue, étape Let's Encrypt en cours, certificat obtenu,
+   écoute ouverte) s'affiche sur la page du collecteur et dans Réglages ›
+   Certificats ; la page se recharge seule tant qu'une étape avance. Sur chaque équipement : syslog en
    TCP + TLS vers le nom du certificat et le port choisi.
 
 SNMP v3 et sondes (partie 5), sur la page du collecteur : choisir

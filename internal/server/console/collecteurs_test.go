@@ -22,7 +22,8 @@ func TestCollecteurInterface(t *testing.T) {
 	b.h.avancer(31 * time.Second)
 	_, corps, _ := b.post(c, "/machines/jeton", url.Values{"csrf": {csrf}, "type_machine": {"collecteur"}, "nom": {"collecteur-lan"},
 		"duree": {"1h"}, "maj_auto": {"1"}, "code": {b.code(secret)}})
-	if !strings.Contains(corps, "/api/agent/v1/install/collecteur -o mirador-collector-install.sh") || !strings.Contains(corps, "--auto-update") {
+	if !strings.Contains(corps, "/api/agent/v1/install/collecteur -o mirador-collector-install.sh") || !strings.Contains(corps, "--auto-update") ||
+		!strings.Contains(corps, "--serveur https://ADRESSE-INGESTION --nom collecteur-lan --auto-update") {
 		t.Fatal("commande d'installation du collecteur absente")
 	}
 	// Collecteur approuvé (simulé) et une machine ordinaire.
@@ -101,21 +102,27 @@ func TestSyslogInterface(t *testing.T) {
 	if err != nil || cfg.Collecteur == nil || cfg.Collecteur.Syslog == nil || len(cfg.Collecteur.Syslog.Emetteurs) != 2 || cfg.Collecteur.Syslog.Certificat != "" {
 		t.Fatalf("syslog enregistré : %+v %v", cfg.Collecteur, err)
 	}
-	if _, corps, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `id="syslog"`) || !strings.Contains(corps, "Pas encore de demande du collecteur") {
-		t.Error("état du certificat absent")
+	// Avancement (SPEC § 32) : compte DNS à régler, demande attendue.
+	if _, corps, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `id="syslog"`) ||
+		!strings.Contains(corps, `href="/reglages/certificats">Réglages › Certificats</a>`) ||
+		!strings.Contains(corps, `<li class="av-fait"><span class="av-puce" aria-hidden="true"></span><div><strong>Syslog du collecteur</strong>`) ||
+		!strings.Contains(corps, `<li class="av-encours"><span class="av-puce" aria-hidden="true"></span><div><strong>Demande du collecteur</strong>`) ||
+		!strings.Contains(corps, `data-recharger="15"`) || strings.Contains(corps, "dns_desec_jeton") {
+		t.Error("avancement du certificat absent, ou réglages DNS encore sur la page du collecteur")
 	}
-	// Réglages DNS (deSEC) : jeton chiffré, jamais réaffiché.
-	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "fournisseur": {"desec"},
-		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}})
-	_, corps, _ := b.get(c, "/machines/collecteur-lan")
-	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") {
+	// Réglages DNS (deSEC) dans Réglages › Certificats : jeton chiffré, jamais réaffiché.
+	b.post(c, "/reglages/certificats", url.Values{"csrf": {csrf}, "action": {"reglages"}, "fournisseur": {"desec"},
+		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}, "attente_max": {"300"}})
+	_, corps, _ := b.get(c, "/reglages/certificats")
+	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") || !strings.Contains(corps, "zone <code>exemple.org</code>") ||
+		!strings.Contains(corps, `<option value="300" selected>5 min</option>`) || !strings.Contains(corps, "(300 s au plus)") {
 		t.Error("jeton deSEC réaffiché ou non enregistré")
 	}
 	// Autre fournisseur (OVHcloud) : clé d'application réaffichée, secrets non.
-	b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {csrf}, "action": {"certificat_reglages"}, "fournisseur": {"ovh"},
+	b.post(c, "/reglages/certificats", url.Values{"csrf": {csrf}, "action": {"reglages"}, "fournisseur": {"ovh"},
 		"domaine": {"exemple.org"}, "dns_ovh_point": {"ovh-eu"}, "dns_ovh_cle_application": {"cle-app-visible"},
 		"dns_ovh_secret_application": {"secret-app-cache"}, "dns_ovh_cle_consommateur": {"cle-conso-cachee"}})
-	_, corps, _ = b.get(c, "/machines/collecteur-lan")
+	_, corps, _ = b.get(c, "/reglages/certificats")
 	if !strings.Contains(corps, `value="ovh" selected`) || !strings.Contains(corps, "cle-app-visible") ||
 		strings.Contains(corps, "secret-app-cache") || strings.Contains(corps, "cle-conso-cachee") {
 		t.Error("réglages OVHcloud mal enregistrés ou secrets réaffichés")
@@ -127,9 +134,23 @@ func TestSyslogInterface(t *testing.T) {
 	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); cfg.Collecteur.Syslog.Certificat != "CHAINE-PEM" {
 		t.Errorf("certificat non posé : %q", cfg.Collecteur.Syslog.Certificat)
 	}
-	if _, corps, _ = b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, "Obtenu") {
+	if _, corps, _ = b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `<li class="av-fait"><span class="av-puce" aria-hidden="true"></span><div><strong>Certificat</strong>`) ||
+		!strings.Contains(corps, "valable jusqu&#39;au 01/01/2100") {
 		t.Error("certificat obtenu non affiché")
 	}
+	// Démarche en cours : étape et fin de l'attente DNS ; puis échec.
+	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = 'propagation', etape_info = 'visible sur 1/2 serveurs DNS', etape_le = ?, etape_jusqua = ? WHERE machine_id = ?`,
+		b.h.maintenant().Unix(), b.h.maintenant().Add(time.Minute).Unix(), idC)
+	if _, corps, _ = b.get(c, "/reglages/certificats"); !strings.Contains(corps, "Let&#39;s Encrypt : attente de la publication DNS (4/6)") ||
+		!strings.Contains(corps, "visible sur 1/2 serveurs DNS · au plus jusqu&#39;à "+b.h.maintenant().Add(time.Minute).In(fuseau.Load()).Format("15:04")) {
+		t.Errorf("étape en cours absente : %s", section(corps, "Certificats des collecteurs"))
+	}
+	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = 'validation', erreur = 'ACME : défi refusé', essai_le = ? WHERE machine_id = ?`, b.h.maintenant().Unix(), idC)
+	if _, corps, _ = b.get(c, "/machines/collecteur-lan"); !strings.Contains(corps, `<li class="av-erreur"><span class="av-puce" aria-hidden="true"></span><div><strong>Let&#39;s Encrypt : vérification par Let&#39;s Encrypt</strong>`) ||
+		!strings.Contains(corps, "nouvel essai seul vers") {
+		t.Error("échec et son étape absents")
+	}
+	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = '', erreur = '' WHERE machine_id = ?`, idC)
 	// Équipement détaché : ses émetteurs disparaissent de la configuration.
 	_ = flotte.DetacherEquipement(ctx, b.c.db, idNas, "admin", time.Now())
 	if cfg, err = flotte.ConfigEffective(ctx, b.c.db, idC); err != nil || len(cfg.Collecteur.Syslog.Emetteurs) != 0 {

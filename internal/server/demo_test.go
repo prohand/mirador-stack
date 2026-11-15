@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/certsyslog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,6 +148,16 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Collecteur du LAN, certificat du syslog en cours (avancement, SPEC § 32) ;
+	// compte DNS fictif (jamais utilisé : la démarche est simulée).
+	_ = certsyslog.DefinirReglages(ctx, s.db, s.cle, certsyslog.Saisie{Fournisseur: "desec", Domaine: "exemple.org",
+		Identifiants: map[string]string{"jeton": "jeton-de-demo"}}, "demo", now)
+	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le, version_agent) VALUES ('collecteur-lan', 'approuvee', 'collecteur', ?, ?, '0.3.0')`,
+		now.Unix()-3600, now.Unix())
+	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) SELECT 'config_agent:machine:' || id,
+		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
+	_, _ = s.db.Exec(`INSERT INTO certificats_syslog(machine_id, csr, csr_recue_le, etape, etape_le, etape_jusqua)
+		SELECT id, 'demande', ?, 'propagation', ?, ? FROM machines WHERE nom = 'collecteur-lan'`, now.Add(-2*time.Minute).Unix(), now.Add(-30*time.Second).Unix(), now.Add(30*time.Second).Unix())
 	// Alerte passée et changement sur pve1 : bandes et traits des courbes (SPEC § 31).
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin, resume, valeur_max)
 		VALUES ('ChargeElevee', '{"alertname":"ChargeElevee","instance":"pve1","severity":"warning"}', 'warning', 'resolue', ?, ?, ?, 'Charge élevée sur pve1', 4)`,
@@ -157,6 +168,24 @@ func TestDemoInterface(t *testing.T) {
 	for k := 0; k < 60; k++ {
 		lignes = append(lignes, stockage.Ligne{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), Msg: fmt.Sprintf("Accepted publickey for admin from 192.0.2.%d port 5%03d ssh2", k%7, k),
 			Champs: map[string]string{"host": machines[k%5], "job": "journal", "unit": "ssh.service", "level": "info"}})
+	}
+	// Page Logs (SPEC § 33) : avertissements et erreurs répartis sur 6 h.
+	for k := 0; k < 40; k++ {
+		ts := now.Add(-time.Duration(k*9+3) * time.Minute).UnixMilli()
+		switch {
+		case k%5 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("request to backend failed, retrying in 2 s (attempt %d/5)", k%4+1),
+				Champs: map[string]string{"host": "vm-docker", "job": "docker", "container": "appli", "level": "warning"}})
+		case k%7 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("error: PAM: Authentication failure for illegal user admin from 198.51.100.%d", k),
+				Champs: map[string]string{"host": "srv-test", "job": "journal", "unit": "ssh.service", "level": "err"}})
+		case k%3 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: "authentication failed for user root@pam from 192.0.2.44",
+				Champs: map[string]string{"host": "pve1", "job": "journal", "unit": "pvedaemon", "level": "warning"}})
+		default:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("Started Session %d of User root.", 100+k),
+				Champs: map[string]string{"host": machines[k%5], "job": "journal", "unit": "systemd-logind.service", "level": "info"}})
+		}
 	}
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
