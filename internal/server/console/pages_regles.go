@@ -47,6 +47,9 @@ type donneesRegles struct {
 	Modeles  []modeleRegle
 	Rapport  *alertes.Rapport
 	Compteur map[string]int
+	// Couvertes : règles importées remplacées par un modèle (SPEC § 27).
+	Couvertes   []regleCouverte
+	NbCouvertes int
 }
 
 func (c *Console) pageRegles(q *req) {
@@ -75,6 +78,14 @@ func (c *Console) pageRegles(q *req) {
 		d.Noms = append(d.Noms, g)
 	}
 	sort.Strings(d.Noms)
+	if c.lecteur != nil {
+		d.Couvertes, _ = c.reglesCouvertes(q.r.Context(), q.t)
+		for _, r := range d.Couvertes {
+			if r.Couverte {
+				d.NbCouvertes++
+			}
+		}
+	}
 	c.rendre(q, "regles", "Règles d'alerte", "regles", d)
 }
 
@@ -353,6 +364,10 @@ func (c *Console) postActionRegle(q *req) {
 		if err = c.verifierCode(q); err == nil {
 			err = alertes.Supprimer(q.r.Context(), c.db, nom, q.qui(), q.t)
 			ok = nom + " supprimée"
+		}
+	case "retirer_couvertes":
+		if err = c.verifierCode(q); err == nil {
+			ok, err = c.retirerCouvertes(q)
 		}
 	default:
 		err = errors.New("action inconnue")

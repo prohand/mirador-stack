@@ -1,0 +1,136 @@
+{
+ "version": 1,
+ "nom": "synology",
+ "titre": "NAS Synology",
+ "icone": "disque",
+ "description": "NAS Synology lu en SNMP v3 (collecteur) : système, alimentation, ventilateurs, volumes RAID, disques, place, températures, onduleur, mises à jour de DSM.",
+ "detection": "count by (instance) (systemStatus{job=\"snmp\"})",
+ "auto": true,
+ "regles": [
+  {
+   "nom": "NasInjoignable",
+   "remplace": "SynologyInjoignable",
+   "pour": "10m",
+   "gravite": "critical",
+   "expr": "up{job=\"snmp\"} == 0",
+   "resume": "NAS {{ $labels.instance }} injoignable en SNMP",
+   "description": "NAS eteint, service SNMP arrete, mot de passe SNMP ou adresse incorrects.",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "NasSystemeEnPanne",
+   "remplace": "SynologySystemeEnPanne",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "systemStatus{job=\"snmp\"} != 1",
+   "resume": "DSM signale un etat systeme en panne sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasAlimentationEnPanne",
+   "remplace": "SynologyAlimentationEnPanne",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "powerStatus{job=\"snmp\"} != 1",
+   "resume": "Alimentation en panne sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasVentilateurHS",
+   "remplace": "SynologyVentilateurHS",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "max by (instance) ({__name__=~\"systemFanStatus|cpuFanStatus\", job=\"snmp\"}) != 1",
+   "resume": "Ventilateur en panne sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasVolumeDegrade",
+   "remplace": "SynologyVolumeDegrade",
+   "pour": "2m",
+   "gravite": "critical",
+   "expr": "raidStatus{job=\"snmp\"} == 11 or raidStatus{job=\"snmp\"} == 12",
+   "resume": "{{ $labels.raidName }} degrade ou en panne sur {{ $labels.instance }}",
+   "description": "Redondance perdue : un disque manque ou est en panne. Remplacer le disque au plus vite."
+  },
+  {
+   "nom": "NasVolumeEnReparation",
+   "remplace": "SynologyVolumeEnReparation",
+   "gravite": "warning",
+   "expr": "raidStatus{job=\"snmp\"} == 2",
+   "resume": "{{ $labels.raidName }} en reconstruction sur {{ $labels.instance }}",
+   "description": "Reconstruction du RAID en cours : performances reduites, ne pas toucher aux autres disques."
+  },
+  {
+   "nom": "NasDisqueAvertissement",
+   "remplace": "SynologyDisqueAvertissement",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "diskHealthStatus{job=\"snmp\"} == 2",
+   "resume": "{{ $labels.diskID }} en avertissement sur {{ $labels.instance }}",
+   "description": "DSM juge la sante du disque degradee (analyse SMART). Prevoir son remplacement."
+  },
+  {
+   "nom": "NasDisqueCritique",
+   "remplace": "SynologyDisqueCritique",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "diskHealthStatus{job=\"snmp\"} >= 3 or diskStatus{job=\"snmp\"} >= 4",
+   "resume": "{{ $labels.diskID }} critique ou en panne sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasNouveauxSecteursDefectueux",
+   "remplace": "SynologyNouveauxSecteursDefectueux",
+   "gravite": "warning",
+   "expr": "increase(diskBadSector{job=\"snmp\"}[1d]) > 0",
+   "resume": "{{ $labels.diskID }} : {{ $value | humanize }} nouveaux secteurs defectueux en 24 h sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasVolumePresquePlein",
+   "remplace": "SynologyVolumePresquePlein",
+   "pour": "30m",
+   "gravite": "warning",
+   "expr": "1 - raidFreeSize{job=\"snmp\"} / (raidTotalSize{job=\"snmp\"} > 0) > 0.90",
+   "resume": "{{ $labels.raidName }} rempli a {{ $value | humanizePercentage }} sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasVolumePlein",
+   "remplace": "SynologyVolumePlein",
+   "pour": "10m",
+   "gravite": "critical",
+   "expr": "1 - raidFreeSize{job=\"snmp\"} / (raidTotalSize{job=\"snmp\"} > 0) > 0.97",
+   "resume": "{{ $labels.raidName }} plein a {{ $value | humanizePercentage }} sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasTemperatureElevee",
+   "remplace": "SynologyTemperatureElevee",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "temperature{job=\"snmp\"} > 60",
+   "resume": "NAS {{ $labels.instance }} a {{ $value }} degres"
+  },
+  {
+   "nom": "NasDisqueChaud",
+   "remplace": "SynologyDisqueChaud",
+   "pour": "20m",
+   "gravite": "warning",
+   "expr": "diskTemperature{job=\"snmp\"} > 55",
+   "resume": "{{ $labels.diskID }} a {{ $value }} degres sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "NasOnduleurSurBatterie",
+   "remplace": "SynologyOnduleurSurBatterie",
+   "pour": "1m",
+   "gravite": "critical",
+   "expr": "upsInfoStatus{job=\"snmp\", upsInfoStatus=~\"OB.*\"} == 1",
+   "resume": "Coupure de courant : l'onduleur du NAS {{ $labels.instance }} est sur batterie"
+  },
+  {
+   "nom": "NasMiseAJourDSM",
+   "remplace": "SynologyMiseAJourDSM",
+   "pour": "1d",
+   "gravite": "info",
+   "expr": "upgradeAvailable{job=\"snmp\"} == 1",
+   "resume": "Mise a jour DSM disponible sur {{ $labels.instance }}"
+  }
+ ]
+}

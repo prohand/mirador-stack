@@ -3,9 +3,19 @@
  "nom": "raid",
  "titre": "RAID logiciel",
  "icone": "disque",
- "description": "État des grappes RAID logiciel (mdadm) ; alerte « grappe dégradée » fournie par mirador.",
+ "description": "État des grappes RAID logiciel (mdadm) : alerte si un disque manque.",
  "detection": "count by (instance) (mirador_agent_detecte{genre=\"mdraid\"}) or count by (instance) (node_md_degraded)",
  "config": {
   "mdraid": true
- }
+ },
+ "regles": [
+  {
+   "nom": "RaidGrappeDegradee",
+   "remplace": "RaidLogicielDegrade",
+   "pour": "2m",
+   "gravite": "critical",
+   "expr": "node_md_degraded > 0",
+   "resume": "La grappe RAID {{ $labels.device }} de {{ $labels.instance }} a {{ $value | humanize }} disque(s) manquant(s)"
+  }
+ ]
 }

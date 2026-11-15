@@ -197,6 +197,16 @@ func TestSuggererServices(t *testing.T) {
 	if strings.Join(got, ",") != "containerd.service" {
 		t.Errorf("suggérés : %v", got)
 	}
+	// Strict : actif aussi sur une machine sans le modèle → pas propre au
+	// modèle ; service de distribution → jamais suggéré.
+	vus2 := map[string]map[string]bool{
+		"a": {"docker.service": true, "outil.service": true, "ModemManager.service": true},
+		"b": {"docker.service": true, "outil.service": true, "ModemManager.service": true},
+		"c": {"outil.service": true},
+	}
+	if got := suggererServices("docker", nil, ms, effs, vus2); strings.Join(got, ",") != "docker.service" {
+		t.Errorf("suggérés (strict) : %v", got)
+	}
 	// Modèle porté par toutes les machines : rien à suggérer.
 	if got := suggererServices("docker", nil, ms[:2], effs, vus); got != nil {
 		t.Errorf("modèle partout : %v", got)
@@ -288,5 +298,56 @@ func TestModelesGerentMetriques(t *testing.T) {
 	b.post(c, "/modeles", url.Values{"csrf": {csrf}, "action": {"groupes"}})
 	if m := lire(); m["systemd"] != false || m["mises_a_jour"] != false {
 		t.Errorf("après retrait du modèle du groupe : %v", m)
+	}
+}
+
+// Modèles d'équipement (choix du 15/11 : « auto ») : appliqués dès la
+// détection, même sans l'application automatique générale ; règle importée
+// remplacée listée, puis retirée quand elle ne sert plus.
+func TestModelesEquipementEtReglesCouvertes(t *testing.T) {
+	b := nouveauBanc(t)
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	maintenant := b.h.maintenant()
+	app := db.Appender(context.Background())
+	for ts := maintenant.Add(-5 * time.Minute); !ts.After(maintenant); ts = ts.Add(30 * time.Second) {
+		_, _ = app.Append(0, labels.FromStrings("__name__", "systemStatus", "instance", "nas1", "job", "snmp"), ts.UnixMilli(), 1)
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('nas1', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := alertes.Enregistrer(ctx, b.c.db, []alertes.Regle{{Nom: "SynologyInjoignable", Groupe: "synology", Intervalle: alertes.Duree(time.Minute),
+		Expr: `up{job="snmp"} == 0`, Gravite: alertes.Critique, Active: true, Origine: "vmalert:equipements.yml"}}, "admin", maintenant); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	// Avant : détecté, pas porté → la règle importée sert encore.
+	if _, corps, _ := b.get(c, "/regles"); !strings.Contains(corps, `id="couvertes"`) || !strings.Contains(corps, "sert encore") || !strings.Contains(corps, "<code>nas1</code>") {
+		t.Fatal("règle importée remplacée : état « sert encore » absent")
+	}
+	// Application automatique générale coupée : le modèle d'équipement est appliqué quand même.
+	b.c.appliquerAuto(ctx, maintenant)
+	id, _ := flotte.IDMachine(ctx, b.c.db, "nas1")
+	effs, _ := modeles.Effectifs(ctx, b.c.db, id, "")
+	if len(effs) != 1 || effs[0].Modele.Nom != "synology" || !effs[0].Auto {
+		t.Fatalf("modèle d'équipement non appliqué : %+v", effs)
+	}
+	_, corps, _ := b.get(c, "/regles")
+	if !strings.Contains(corps, "ne sert plus") || !strings.Contains(corps, "Retirer les 1 règle(s)") {
+		t.Fatal("règle couverte pas proposée au retrait")
+	}
+	csrf := b.csrf(c, "/regles")
+	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"retirer_couvertes"}})
+	rs, _ := alertes.ListerRegles(ctx, b.c.db)
+	for _, r := range rs {
+		if r.Nom == "SynologyInjoignable" {
+			t.Fatal("règle importée couverte pas retirée")
+		}
 	}
 }

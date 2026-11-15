@@ -66,3 +66,30 @@ func TestExprEtRefs(t *testing.T) {
 		}
 	}
 }
+
+// Règle sans seuil : limitée aux machines du modèle ; étiquettes contrôlées ;
+// modèles d'équipement appliqués automatiquement.
+func TestRegleSansSeuilEtEquipements(t *testing.T) {
+	d := Trouver("docker")
+	var arrete RegleModele
+	for _, r := range d.Regles {
+		if r.Nom == "DockerConteneurArrete" {
+			arrete = r
+		}
+	}
+	if !strings.Contains(d.ExprRegle(arrete), `and on (instance) mirador_machine_modele{modele="docker"}`) {
+		t.Errorf("règle sans seuil non limitée : %s", d.ExprRegle(arrete))
+	}
+	for _, n := range []string{"synology", "opnsense", "unifi"} {
+		m := Trouver(n)
+		if m == nil || !m.Auto || len(m.Regles) == 0 || m.Detection == "" {
+			t.Errorf("modèle d'équipement %s incomplet", n)
+		}
+	}
+	m := *Trouver("unifi")
+	m.Regles = append([]RegleModele(nil), m.Regles...)
+	m.Regles[0].Etiquettes = map[string]string{"severity": "x"}
+	if m.Valider() == nil {
+		t.Error("étiquette severity acceptée")
+	}
+}

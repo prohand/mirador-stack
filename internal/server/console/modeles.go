@@ -666,9 +666,12 @@ func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time
 // non par défaut). Chaque modèle appliqué est signalé par les canaux de
 // notification (un message par machine et par modèle) et reste retirable.
 func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
-	if c.lecteur == nil || !modeles.LireAuto(ctx, c.db) {
+	if c.lecteur == nil {
 		return
 	}
+	// Réglage général (modèles des machines) ; les modèles d'équipement
+	// (Auto : Synology, OPNsense, UniFi) sont appliqués dans tous les cas.
+	general := modeles.LireAuto(ctx, c.db)
 	ms, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return
@@ -680,14 +683,14 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 	}()
 	det := c.detectes(ctx, t)
 	for _, m := range ms {
-		if m.Statut != "approuvee" || m.Type != "agent" {
-			continue
-		}
 		_, _, proposes, err := c.etatModeles(ctx, m, det)
 		if err != nil {
 			continue
 		}
 		for _, mod := range proposes {
+			if !mod.Auto && !general {
+				continue
+			}
 			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, nil, modeles.QuiAuto, t); err != nil {
 				c.journal.Warn("modèle non appliqué automatiquement", "machine", m.Nom, "modele", mod.Nom, "erreur", err)
 				continue
@@ -707,7 +710,9 @@ func formatSeuil(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) 
 // série node_systemd_unit_state par service chargé et suivi).
 func (c *Console) servicesParMachine(ctx context.Context, t time.Time) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
-	ech, err := c.instant(ctx, `max by (instance, name) (node_systemd_unit_state{state="failed", name=~".+\\.service"})`, t)
+	// Services actifs seulement : les services « oneshot » du démarrage
+	// (dmesg, grub…, cloud-init) ne sont pas des services à attendre.
+	ech, err := c.instant(ctx, `max by (instance, name) (node_systemd_unit_state{state="active", name=~".+\\.service"} == 1)`, t)
 	if err != nil {
 		return out
 	}
@@ -723,14 +728,20 @@ func (c *Console) servicesParMachine(ctx context.Context, t time.Time) map[strin
 
 // servicesSysteme : services de base, jamais suggérés.
 var servicesSysteme = []string{"systemd-", "user@", "getty@", "serial-getty@", "dbus", "polkit", "rsyslog", "cron", "ssh",
-	"networking", "ifup@", "apparmor", "e2scrub", "fstrim", "logrotate", "man-db", "apt-daily", "unattended-upgrades", "qemu-guest-agent"}
+	"networking", "ifup@", "apparmor", "e2scrub", "fstrim", "logrotate", "man-db", "apt-daily", "unattended-upgrades", "qemu-guest-agent",
+	// Services de distribution (Ubuntu, Debian…) : jamais propres à un modèle.
+	"ModemManager", "NetworkManager", "apport", "cloud-", "dmesg", "finalrd", "fwupd", "grub-", "plymouth", "snapd", "multipathd",
+	"udisks2", "upower", "thermald", "irqbalance", "lvm2", "open-iscsi", "iscsid", "packagekit", "motd-news", "ua-", "ubuntu-",
+	"pollinate", "secureboot-", "keyboard-setup", "console-setup", "setvtrgb", "kmod", "blk-availability", "chrony", "ntp",
+	"open-vm-tools", "vgauth", "rtkit", "accounts-daemon", "avahi", "bluetooth", "cups", "wpa_supplicant", "lxd-", "sysstat",
+	"atd", "anacron", "postfix", "exim", "rpcbind", "nfs-", "smartmontools", "mdmonitor", "zfs-", "netplan", "resolvconf"}
 
 // maxSuggestions : services suggérés par modèle.
-const maxSuggestions = 20
+const maxSuggestions = 10
 
-// suggererServices : services vus sur TOUTES les machines du modèle et pas
-// sur toutes les autres machines (sinon ce n'est pas propre au modèle), hors
-// services de base et déjà listés.
+// suggererServices : services actifs sur TOUTES les machines du modèle et
+// sur AUCUNE autre (sinon ce n'est pas propre au modèle), hors services de
+// base ou de distribution et déjà listés.
 func suggererServices(modele string, deja []string, ms []flotte.InfoMachine, effs map[int64]map[string]bool, vus map[string]map[string]bool) []string {
 	var avec, sans []string
 	for _, m := range ms {
@@ -770,9 +781,9 @@ func suggererServices(modele string, deja []string, ms []flotte.InfoMachine, eff
 		for _, m := range avec[1:] {
 			partout = partout && vus[m][n]
 		}
-		ailleurs := true
+		ailleurs := false
 		for _, m := range sans {
-			ailleurs = ailleurs && vus[m][n]
+			ailleurs = ailleurs || vus[m][n]
 		}
 		if partout && !ailleurs {
 			out = append(out, n)
