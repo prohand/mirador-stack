@@ -1,9 +1,23 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}
 <h1>Journal d'audit</h1>
-<form method="get" class="ligne filtres"><label>Qui <input name="qui" value="{{.D.Qui}}" maxlength="100" placeholder="web:admin"></label><label>Action (début) <input name="action" value="{{.D.Action}}" maxlength="60"></label><button>Filtrer</button></form>
-{{if .D.Lignes}}<div class="defile"><table><thead><tr><th>Quand</th><th>Qui</th><th>Adresse</th><th>Action</th><th>Objet</th><th>Avant / après</th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td>{{dateS .Le}}</td><td>{{.Qui}}</td><td>{{.Adresse}}</td><td>{{.Action}}</td><td>{{.Objet}}</td><td>{{if or .Avant .Apres}}<details><summary>Voir</summary>{{if .Avant}}<p><small>Avant</small></p><pre>{{.Avant}}</pre>{{end}}<p><small>Après</small></p><pre>{{.Apres}}</pre></details>{{end}}</td></tr>{{end}}
+<section class="carte"><form method="get" class="filtres-audit">
+<label>Catégorie <select name="categorie"><option value="">Toutes</option>{{range $d.Categories}}<option value="{{.Cle}}"{{if eq .Cle $d.F.Categorie}} selected{{end}}>{{.Titre}}</option>{{end}}</select></label>
+<label>Qui <select name="qui"><option value="">Tout le monde</option>{{range $d.Quis}}<option{{if eq . $d.F.Qui}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Période <select name="periode">{{range $p := (liste "24h" "7j" "30j" "tout")}}<option value="{{$p}}"{{if eq $p $d.F.Periode}} selected{{end}}>{{if eq $p "24h"}}24 h{{else if eq $p "7j"}}7 jours{{else if eq $p "30j"}}30 jours{{else}}Tout{{end}}</option>{{end}}</select></label>
+<label>Recherche <input name="q" value="{{$d.F.Recherche}}" maxlength="100" size="22" placeholder="machine, règle, modèle…"></label>
+<label class="case"><input type="checkbox" name="auto" value="1"{{if $d.F.Auto}} checked{{end}}> Montrer les actions automatiques</label>
+<label class="case"><input type="checkbox" name="sensibles" value="1"{{if $d.F.Sensibles}} checked{{end}}> Sensibles seulement</label>
+<button>Filtrer</button>
+</form></section>
+{{if $d.Lignes}}<div class="defile"><table class="table-audit"><thead><tr><th>Heure</th><th>Catégorie</th><th>Ce qui a été fait</th><th>Qui</th><th></th></tr></thead><tbody>
+{{range $d.Lignes}}{{if .Jour}}<tr class="jour-audit"><th colspan="5">{{.Jour}}</th></tr>{{end}}
+<tr class="ligne-audit"><td class="nombre">{{.Heure}}</td><td><span class="cat-audit {{.Cat.Cle}}">{{.Cat.Titre}}</span></td>
+<td><span class="phrase">{{if .Lien}}<a href="{{.Lien}}">{{.Phrase}}</a>{{else}}{{.Phrase}}{{end}}</span>{{if .Sensible}} <span class="pastille erreur">sensible</span>{{end}}
+{{if .Changes}}<div class="diff-audit">{{range .Changes}}<div>{{if .Cle}}{{.Cle}} : {{end}}{{if .Avant}}<del>{{.Avant}}</del>{{end}}{{if and .Avant .Apres}} → {{end}}{{if .Apres}}<ins>{{.Apres}}</ins>{{end}}</div>{{end}}</div>{{end}}</td>
+<td class="qui-audit">{{.Qui}}{{if .Adresse}} · {{.Adresse}}{{end}}</td>
+<td>{{if or .Avant .Apres}}<details class="detail-audit"><summary>Détail</summary>{{if .Avant}}<p><small>Avant</small></p><pre>{{.Avant}}</pre>{{end}}{{if .Apres}}<p><small>Après</small></p><pre>{{.Apres}}</pre>{{end}}</details>{{end}}</td></tr>{{end}}
 </tbody></table></div>
-{{if .D.Suivant}}<p><a href="/audit?avant={{.D.Suivant}}&amp;qui={{.D.Qui}}&amp;action={{.D.Action}}">Plus anciennes →</a></p>{{end}}
-{{else}}{{template "vide" "Aucune ligne."}}{{end}}
+{{if $d.Suivant}}<p><a href="/audit?avant={{$d.Suivant}}&amp;{{$d.Requete}}">Plus anciennes →</a></p>{{end}}
+{{else}}{{template "vide" "Aucune ligne pour ces filtres."}}{{end}}
+<p class="bas-audit">{{if $d.Masquees}}{{$d.Masquees}} action(s) automatique(s) masquée(s) (mirador, modèles détectés, agents) · {{end}}<a href="/audit.csv?{{$d.Requete}}">Exporter en CSV</a></p>
 {{end}}

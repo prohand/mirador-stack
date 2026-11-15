@@ -4465,3 +4465,50 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   `auth/passkey_test.go`). À confirmer sur l'iPhone.
 - Coût : nul (mêmes requêtes que l'affichage existant).
 
+---
+
+## 28. Pages Alertes et Audit lisibles (maquettes validées le 15/11) **[Fait, à valider]**
+
+**Alertes** (recommandations 1, 2, 3, 4, 6) :
+- 4 tuiles : critiques, avertissements, infos, « nouvelles depuis ta
+  dernière visite » (heure de la visite précédente gardée dans le
+  navigateur, rien sur le serveur) ;
+- alertes en cours **groupées par machine** (ou par règle, ou en liste) ;
+- sur chaque ligne : **Acquitter**, **Silence** (1 h, 4 h, 24 h ; même
+  sélecteur que le silence en un clic), **Graphique** (fiche de l'alerte) ;
+- **mini-courbe des 6 dernières heures** avec le seuil en pointillé : la
+  partie gauche de la comparaison de la règle (en passant « and/unless »
+  des règles de modèle) est relue sur 6 h au pas de 5 min, la série qui
+  correspond aux étiquettes de l'alerte est tracée ; la partie droite donne
+  le seuil (nombre, ou seuil de la machine pour une règle de modèle). Pas de
+  courbe pour une règle qui n'est pas une simple comparaison (« a or b »).
+  30 courbes au plus par affichage ;
+- fiche d'une alerte : courbe sur 24 h ;
+- bloc rechargé toutes les 30 s (fragment), nombre d'alertes dans le titre
+  de l'onglet.
+
+**Audit** (recommandations 1, 2, 3, 4, 6, 7, plus 5 et 8) :
+- actions en **français** (dictionnaire des codes ; code inconnu affiché
+  lisiblement), rangées en **catégories** de couleur (Sécurité, Comptes,
+  Machines, Modèles, Règles, Alertes, Notifications, Mises à jour,
+  Réglages) ;
+- **seulement ce qui a changé** (documents JSON aplatis et comparés clé par
+  clé, 8 lignes au plus) ; le JSON complet reste dans « Détail » ;
+- lignes groupées par jour ; liens vers la règle, le modèle, la machine,
+  les utilisateurs ;
+- filtres : catégorie, qui, période (24 h, 7 j, 30 j, tout), recherche,
+  actions automatiques (mirador, auto, agents ; masquées par défaut, leur
+  nombre est affiché), **sensibles seulement** (pastille « sensible » : 2FA,
+  passkeys, comptes, adresses autorisées, clés publiques, dépôt, export…) ;
+- **export CSV** de la vue filtrée (10 000 lignes au plus ; cellules
+  commençant par = + - @ préfixées pour qu'un tableur n'exécute rien).
+
+**Coût** : page Alertes : une requête de plage par alerte en cours (30 au
+plus) toutes les 30 s quand la page est ouverte ; audit : mêmes requêtes
+qu'avant, filtres en SQL.
+
+**Menaces** : aucune nouvelle donnée affichée (l'audit montrait déjà
+avant/après) ; actions d'alerte réservées aux administrateurs, jeton
+CSRF ; retour après action limité à un chemin du site ; SVG construit de
+nombres et de couleurs fixes ; export CSV protégé contre les formules.
+

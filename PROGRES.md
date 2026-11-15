@@ -759,6 +759,17 @@ inchangé ✅.
 | Règles de modèle gérées par le modèle seul | **fait** : remises à jour au démarrage (choix « désactivée » gardé) ; page Règles : désactiver seulement, modification et suppression renvoyées au modèle |
 | Passkey Bitwarden sur iPhone : `NotAllowedError` | **corrigé** : demande « preferred », vérification de l'utilisateur contrôlée par le serveur |
 
+## Pages Alertes et Audit (SPEC § 28, 15/11)
+
+| Partie | État |
+|---|---|
+| Maquettes (recommandations) | validées (« Oui code ») |
+| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; à valider |
+| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; à valider |
+
+Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
+(page ouverte seulement) ; objectif serveur inchangé ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

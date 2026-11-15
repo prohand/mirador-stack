@@ -1,7 +1,9 @@
 {{define "contenu"}}
 <h1>Alertes</h1>
 {{template "onglets-alertes" "alertes"}}
-<section class="carte"><h2>En cours ({{len .D.EnCours}})</h2>{{template "liste-alertes" .D.EnCours}}</section>
+<div class="barre-alertes"><span class="segment">{{range $x := (liste "machine" "regle" "liste")}}<a href="/alertes?vue={{$x}}"{{if eq $x $.D.Vue.Vue}} class="actif"{{end}}>{{if eq $x "machine"}}Par machine{{else if eq $x "regle"}}Par règle{{else}}Liste{{end}}</a>{{end}}</span>
+<span class="maj">Mis à jour toutes les 30 s</span></div>
+<div data-rafraichir="/fragments/alertes?vue={{.D.Vue.Vue}}" data-intervalle="30">{{template "alertes-en-cours" (dict "D" .D.Vue "Admin" .Admin "CSRF" .CSRF)}}</div>
 <section class="carte"><h2>Historique</h2>
 <form method="get" class="ligne filtres">
   <label>Règle <input name="regle" value="{{.D.Filtre.Regle}}" maxlength="64"></label>

@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 func (c *Console) routesAlertes() {
 	m := c.mux
 	m.HandleFunc("GET /alertes", c.lecture(c.pageAlertes))
+	m.HandleFunc("GET /fragments/alertes", c.lecture(c.fragmentAlertes))
 	m.HandleFunc("GET /alertes/{id}", c.lecture(c.pageAlerte))
 	m.HandleFunc("POST /alertes/{id}", c.admin(c.postAlerte))
 	m.HandleFunc("GET /sourdine", c.lecture(c.pageSourdine))
@@ -41,6 +43,7 @@ type ligneHistorique struct {
 
 type donneesAlertes struct {
 	EnCours    []resumeAlerte
+	Vue        donneesEnCours // bloc « en cours » (SPEC § 28)
 	Historique []ligneHistorique
 	Filtre     alertes.Filtre
 	Suivant    int64
@@ -51,7 +54,7 @@ func (c *Console) pageAlertes(q *req) {
 	v := q.r.URL.Query()
 	f := alertes.Filtre{Regle: v.Get("regle"), Machine: v.Get("machine"), Gravite: v.Get("gravite"), Limite: 100}
 	f.Avant, _ = strconv.ParseInt(v.Get("avant"), 10, 64)
-	d := donneesAlertes{EnCours: c.alertesEnCours(""), Filtre: f}
+	d := donneesAlertes{Vue: c.enCoursVue(q.r.Context(), v.Get("vue"), q.t), Filtre: f}
 	hs, err := alertes.HistoriqueFiltre(q.r.Context(), c.db, f)
 	if err != nil {
 		c.flash(q, "", err.Error())
@@ -80,7 +83,8 @@ type donneesAlerte struct {
 	Etiquettes []etiquette
 	Sourdine   string
 	EnCours    bool
-	Selecteur  string // pour le silence en un clic
+	Selecteur  string        // pour le silence en un clic
+	Courbe     template.HTML // valeur suivie sur 24 h et seuil (SPEC § 28)
 }
 
 func (c *Console) pageAlerte(q *req) {
@@ -91,6 +95,19 @@ func (c *Console) pageAlerte(q *req) {
 		return
 	}
 	d := donneesAlerte{A: a, Machine: a.Machine(), EnCours: a.Etat != "resolue", Selecteur: selecteurSilence(&a)}
+	if c.lecteur != nil {
+		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
+			for _, r := range rs {
+				if r.Nom == a.Regle {
+					fin := q.t
+					if !d.EnCours && !a.Fin.IsZero() {
+						fin = a.Fin.Add(2 * time.Hour)
+					}
+					d.Courbe = c.courbeAlerte(q.r.Context(), r.Expr, a.Etiquettes, a.Gravite, fin, 24*time.Hour, 720, 160)
+				}
+			}
+		}
+	}
 	a.Etiquettes.Range(func(l labels.Label) { d.Etiquettes = append(d.Etiquettes, etiquette{l.Name, l.Value}) })
 	if c.opt.Aiguilleur != nil && d.EnCours {
 		for _, e := range c.opt.Alertes.EnCours() {
@@ -140,6 +157,9 @@ func (c *Console) postAlerte(q *req) {
 		}
 	default:
 		err = errors.New("action inconnue")
+	}
+	if r := q.r.PostFormValue("retour"); r != "" {
+		vers = retourLocal(r)
 	}
 	c.retour(q, vers, err, ok)
 }

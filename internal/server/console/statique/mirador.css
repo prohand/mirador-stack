@@ -510,3 +510,58 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .etat-ombre { display: flex; justify-content: flex-end; margin: -10px 0 8px; }
 .etat-ombre a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; text-decoration: none; background: var(--attention-fond); color: var(--attention); }
 .etat-ombre a::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* --- Journal d'audit (SPEC § 28) ------------------------------------------- */
+.filtres-audit { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.filtres-audit .case { padding-bottom: 8px; }
+.jour-audit th { padding-top: 18px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--pale); background: transparent; }
+.ligne-audit td { vertical-align: top; }
+.ligne-audit .phrase { font-weight: 500; }
+.cat-audit { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  background: var(--survol); color: var(--doux); }
+.cat-audit.securite { background: var(--erreur-fond); color: var(--erreur); }
+.cat-audit.comptes { background: color-mix(in srgb, #db2777 15%, transparent); color: #db2777; }
+.cat-audit.machines, .cat-audit.maj { background: var(--info-fond); color: var(--info); }
+.cat-audit.modeles { background: color-mix(in srgb, #7c3aed 15%, transparent); color: #8b5cf6; }
+.cat-audit.regles, .cat-audit.alertes { background: var(--attention-fond); color: var(--attention); }
+.cat-audit.notif { background: var(--ok-fond); color: var(--ok); }
+.diff-audit { margin-top: 3px; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--doux); }
+.diff-audit del { background: var(--erreur-fond); color: var(--erreur); padding: 0 3px; border-radius: 3px; }
+.diff-audit ins { background: var(--ok-fond); color: var(--ok); text-decoration: none; padding: 0 3px; border-radius: 3px; }
+.qui-audit { font-size: 12.5px; color: var(--pale); white-space: nowrap; }
+.detail-audit pre { max-width: 520px; max-height: 300px; overflow: auto; font-size: 12px; }
+.bas-audit { font-size: 12.5px; color: var(--pale); }
+
+/* --- Alertes (SPEC § 28) ---------------------------------------------------- */
+.resume-alertes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.resume-alertes .tuile { padding: 14px 16px; border-radius: var(--rayon, 12px); background: var(--carte); border: 1px solid var(--bord-doux); text-decoration: none; color: inherit; }
+.resume-alertes .tuile small { color: var(--pale); }
+.resume-alertes .tuile b { display: block; font-size: 28px; line-height: 1.1; margin-top: 4px; color: var(--titres); }
+.resume-alertes .tuile.critique { border-left: 4px solid var(--erreur); }
+.resume-alertes .tuile.avert { border-left: 4px solid var(--attention); }
+.resume-alertes .tuile.info { border-left: 4px solid var(--info); }
+.barre-alertes { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.segment { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--survol); gap: 2px; }
+.segment a { padding: 5px 12px; border-radius: 8px; font-size: 13px; color: var(--doux); text-decoration: none; }
+.segment a.actif { background: var(--carte); color: var(--texte); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.barre-alertes .maj { font-size: 12px; color: var(--pale); }
+.groupe-alertes > summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.groupe-alertes > summary .nb { margin-left: auto; font-size: 13px; color: var(--pale); font-weight: 400; }
+.ligne-alerte td { vertical-align: middle; }
+.ligne-alerte .titre { font-weight: 600; }
+.ligne-alerte .resume { display: block; font-size: 12.5px; color: var(--pale); margin-top: 2px; }
+tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after { content: "nouvelle"; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--info-fond); color: var(--info); }
+.actions-alerte { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.actions-alerte .petit, .actions-alerte .bouton.petit { padding: 4px 10px; font-size: 12.5px; min-height: 0; }
+.menu-silence > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; padding: 4px 10px; font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--bord-champ); border-radius: 8px; background: var(--carte); color: var(--texte); }
+.menu-silence > summary:hover { background: var(--survol); }
+.menu-silence > summary::-webkit-details-marker { display: none; }
+/* Durées affichées sous le bouton (pas de menu flottant : le cadre du
+   tableau le couperait). */
+.menu-silence .menu { display: flex; gap: 4px; margin-top: 4px; }
+.menu-silence .menu button { padding: 3px 8px; font-size: 12px; min-height: 0; border: 1px solid var(--bord-champ); border-radius: 6px; background: var(--survol); color: var(--texte); text-decoration: none; }
+.courbe-alerte { display: block; }
+.courbe-alerte .seuil { stroke: var(--pale); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.courbe-grande .courbe-alerte { width: 100%; height: 160px; }
+@media (max-width: 899px) { .table-alertes th:nth-child(3), .table-alertes td:nth-child(3) { display: none; } }

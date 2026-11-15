@@ -186,3 +186,26 @@
 <textarea name="l.{{$l.Nom}}" rows="{{if gt $l.Nb 3}}{{$l.Nb}}{{else}}3{{end}}" cols="60" maxlength="20000" spellcheck="false" placeholder="{{$l.Exemple}}" {{if not .Admin}}disabled{{end}}>{{$l.Texte}}</textarea>
 <small>Une valeur par ligne{{if $l.Aide}} — {{$l.Aide}}{{end}}. Rien de secret : visible dans les mesures.</small></label>{{end}}
 {{define "plus"}}<a class="aide-plus" href="{{docs .}}" target="_blank" rel="noopener noreferrer">En savoir plus ›</a>{{end}}
+{{define "action-alerte"}}{{/* . = {Page, Alerte, Retour} via dict */}}<div class="actions-alerte">
+{{if and .Admin (not .A.Acquittee)}}<form method="post" action="/alertes/{{.A.ID}}" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter"><input type="hidden" name="retour" value="{{.Retour}}"><button class="secondaire petit">Acquitter</button></form>{{end}}
+{{if .Admin}}<details class="menu-silence"><summary>Silence ▾</summary><form method="post" action="/alertes/{{.A.ID}}" class="menu">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence"><input type="hidden" name="retour" value="{{.Retour}}">
+<button name="duree" value="1h">1 h</button><button name="duree" value="4h">4 h</button><button name="duree" value="24h">24 h</button></form></details>{{end}}
+<a class="bouton secondaire petit" href="/alertes/{{.A.ID}}#graphique">Graphique</a></div>{{end}}
+{{define "alertes-en-cours"}}{{$v := .D}}<div data-nb-alertes="{{$v.Total}}">
+<div class="resume-alertes">
+ <a class="tuile critique" href="/alertes?vue={{$v.Vue}}"><small>Critiques</small><b>{{$v.Critiques}}</b></a>
+ <a class="tuile avert" href="/alertes?vue={{$v.Vue}}"><small>Avertissements</small><b>{{$v.Avertissements}}</b></a>
+ <a class="tuile info" href="/alertes?vue={{$v.Vue}}"><small>Infos</small><b>{{$v.Infos}}</b></a>
+ <span class="tuile"><small>Nouvelles depuis ta dernière visite</small><b data-nb-nouvelles>0</b></span>
+</div>
+{{if eq $v.Vue "liste"}}<section class="carte">{{template "liste-alertes" $v.Liste}}</section>
+{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary><strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong>{{range $g.Gravites}} {{template "gravite" .}}{{end}}<span class="nb">{{len $g.Alertes}} alerte(s)</span></summary>
+<div class="defile"><table class="table-alertes"><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
+{{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
+<td><a class="titre" href="/alertes/{{.ID}}">{{.Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>
+{{if eq .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td>
+<td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{depuisMs .Depuis}}</td>
+<td>{{template "action-alerte" (dict "Admin" $.Admin "CSRF" $.CSRF "A" . "Retour" $v.Retour)}}</td></tr>{{end}}
+</tbody></table></div></details>{{end}}
+{{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
+</div>{{end}}

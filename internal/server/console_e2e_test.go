@@ -384,7 +384,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	}
 	// Journal d'audit : les actions de l'interface y sont, sans secret.
 	_, corps, _ = n.faire(http.MethodGet, "/audit", nil)
-	if !strings.Contains(corps, "web:admin") || !strings.Contains(corps, "reglages_notifications") || strings.Contains(corps, "AAAAAAAAAAAA") {
+	if !strings.Contains(corps, "web:admin") || !strings.Contains(corps, "Réglages des notifications changés") || strings.Contains(corps, "AAAAAAAAAAAA") {
 		t.Error("audit incomplet ou avec un secret")
 	}
 	// Olvid pas activé : ni onglet ni page (renvoi vers Notifications).
