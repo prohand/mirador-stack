@@ -1238,7 +1238,10 @@ version précédente. Le serveur voit l'échec dans le battement suivant.
 - Binaires de test : publiés par la CI (artefact de l'exécution), avec
   `SHA256SUMS` ; depuis le 15/11, seulement pour un push sur `main`, gardés
   **3 jours** (42 Mo par envoi : 90 % des 0,5 Go de stockage Actions du mois
-  étaient pris par les artefacts gardés 30 jours).
+  étaient pris par les artefacts gardés 30 jours). Le workflow `nettoyage`
+  (chaque lundi, à la demande, et une fois à sa fusion) supprime tous les
+  artefacts sauf le dernier binaire de `main`, avec le jeton de l'exécution
+  (droit « actions » seulement, commande `gh`, aucune action tierce).
 - Guide pas à pas : `docs/installation-agent.md`. Mesures sur la machine :
   `deploy/agent/mesurer.sh` (lecture seule, compare à Alloy).
 
