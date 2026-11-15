@@ -91,7 +91,7 @@ type ligneChaleur struct {
 
 type vueChaleur struct {
 	Titre  string
-	Heures []string // libellé toutes les 3 heures, vide sinon
+	Heures []string // un libellé toutes les 3 heures (8 en tout)
 	Lignes []ligneChaleur
 }
 
@@ -153,12 +153,8 @@ func (c *Console) chaleurParc(ctx context.Context, ms []flotte.InfoMachine, t ti
 	var vues []vueChaleur
 	for _, ex := range exprsChaleur {
 		v := vueChaleur{Titre: ex.titre}
-		for h := 0; h < 24; h++ {
-			lib := ""
-			if h%3 == 0 {
-				lib = debut.Add(time.Duration(h-1)*time.Hour).In(fuseau.Load()).Format("15") + " h"
-			}
-			v.Heures = append(v.Heures, lib)
+		for h := 0; h < 24; h += 3 {
+			v.Heures = append(v.Heures, debut.Add(time.Duration(h-1)*time.Hour).In(fuseau.Load()).Format("15")+" h")
 		}
 		courbes, _, err := c.lecteur.Plage(ctx, ex.expr, debut, fin, time.Hour)
 		if err != nil {

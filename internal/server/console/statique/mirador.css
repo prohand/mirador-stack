@@ -638,11 +638,15 @@ body.avec-plein-ecran::before { content: ""; position: fixed; inset: 0; z-index:
 @media print { .outils-courbe { display: none; } }
 /* Les plus gourmands (SPEC § 31). */
 .gourmands { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.gourmands td.nombre { white-space: nowrap; }
 .gourmands h3 { margin: 4px 0 6px; font-size: 13px; color: var(--doux); }
 /* Carte de chaleur du parc (SPEC § 31) : teintes de l'accent, du calme au saturé. */
 .chaleurs { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr)); }
 .chaleur h3 { margin: 4px 0 6px; font-size: 13px; color: var(--doux); }
-.table-chaleur { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 11px; }
+.table-chaleur { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 11px; table-layout: fixed; }
+.table-chaleur .ch-col-nom { width: 96px; }
+.table-chaleur tbody th { overflow: hidden; text-overflow: ellipsis; }
+.table-chaleur thead th:last-child { width: 38px; text-align: right; }
 .table-chaleur th { font-weight: 400; color: var(--pale); text-align: left; white-space: nowrap; padding: 0 4px 0 0; }
 .table-chaleur thead th { font-size: 10px; }
 .table-chaleur tbody th a { color: var(--texte); }

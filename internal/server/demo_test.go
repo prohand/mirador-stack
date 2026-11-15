@@ -65,6 +65,13 @@ func TestDemoInterface(t *testing.T) {
 		mk("node_cpu_seconds_total", func(k int) float64 { return float64(k)*(26-2*ph) - 90*math.Sin(float64(k)/30+ph) }, "cpu", "0", "mode", "idle")
 		mk("node_memory_MemAvailable_bytes", func(k int) float64 { return float64(8<<30) * (0.62 - 0.09*ph + 0.06*math.Sin(float64(k)/90)) })
 		mk("node_memory_MemTotal_bytes", func(int) float64 { return 8 << 30 })
+		// CPU par mode et répartition de la mémoire (aires empilées, SPEC § 31).
+		for j, mode := range []string{"user", "system", "iowait"} {
+			part := []float64{3, 1.2, 0.4}[j]
+			mk("node_cpu_seconds_total", func(k int) float64 { return float64(k)*part*(1+ph/4) + 20*math.Sin(float64(k)/40+ph+float64(j)) }, "cpu", "0", "mode", mode)
+		}
+		mk("node_memory_Cached_bytes", func(k int) float64 { return float64(8<<30) * (0.25 + 0.03*math.Sin(float64(k)/120)) })
+		mk("node_memory_Buffers_bytes", func(int) float64 { return 200 << 20 })
 		mk("node_load5", func(k int) float64 { return 0.2 + 0.1*math.Sin(float64(k)/30+ph) })
 		mk("node_time_seconds", func(k int) float64 { return float64(now.Unix()) })
 		mk("node_boot_time_seconds", func(k int) float64 {

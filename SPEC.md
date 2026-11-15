@@ -4640,14 +4640,15 @@ Livrées en trois fois. Maquettes de 1, 7 et 9 validées le 15/11.
 | Ajout | Coût |
 |---|---|
 | Annotations | 3 petites requêtes PromQL + 2 lectures SQLite par machine et période, gardées 30 s (toutes les courbes d'une page les partagent) |
-| Prévision des disques | 2 requêtes, dont une sur 7 jours : au plus **44 ms, 28 Mio passagers** pour 50 systèmes de fichiers (mesuré sur points bruts ; la base agrégée en a 5 fois moins) ; gardée **10 min** |
+| Prévision des disques | 2 requêtes, dont une sur 7 jours : au plus **44 ms, 28 Mio passagers** pour 50 systèmes de fichiers (mesuré sur points bruts ; la base agrégée en a 5 fois moins) ; gardée **10 min** (1 min si rien à prévoir) |
 | Navigateur | dessin sur le même canevas uPlot, pas de bibliothèque en plus |
 
-**Piège évité** : une requête qui remonte à plus de 7 jours est servie par
-la base **agrégée** (un point par 5 min, en retard sur la brute). La place
-libre « actuelle » et la pente sont donc lues par **deux requêtes** (place
-libre : base brute ; pente sur 7 jours : base agrégée, moins de points) et
-divisées dans le serveur. Test de non-régression avec deux bases.
+**Piège évité** : une lecture qui remonte à plus de 7 jours est servie par
+la base **agrégée** (un point par 5 min, en retard, vide au début). La
+pente est donc calculée sur **7 jours moins 1 heure** (`[167h]`, reste
+dans la base brute), et la place libre actuelle lue à part puis divisée
+dans le serveur (juste aussi si la conservation brute est réglée plus
+courte). Test de non-régression avec deux bases.
 
 **Menaces** : lecture seule ; nom de machine vérifié (mêmes caractères
 permis que les filtres) avant d'entrer dans une requête ; requêtes SQL

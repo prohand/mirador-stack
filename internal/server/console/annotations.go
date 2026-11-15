@@ -148,13 +148,14 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 
 // Prévision des disques (SPEC § 31) : jours avant d'être plein, d'après la
 // pente de la place libre sur 7 jours ; seulement si moins de 30 jours.
-// Deux requêtes, divisées ici : la place libre actuelle (base brute) et la
-// pente sur 7 jours. Une requête qui remonte à plus de 7 jours est servie
-// par la base agrégée (un point par 5 min, en retard sur la brute) : la
-// place libre « actuelle » y manquerait. Résultat gardé 10 minutes.
+// Pente sur 7 jours moins 1 heure (167 h) : la lecture reste dans la base
+// brute (gardée 7 jours par défaut). Au-delà de 7 jours, elle passerait sur
+// la base agrégée (un point par 5 min, en retard, vide au début). La place
+// libre actuelle est lue à part (base brute) et divisée ici : juste même si
+// la conservation brute est réglée plus courte. Résultat gardé 10 minutes.
 const (
 	exprLibreDisque = `node_filesystem_avail_bytes{%s}`
-	exprPenteDisque = `-deriv(node_filesystem_avail_bytes{%s}[7d]) > 0` // octets perdus par seconde
+	exprPenteDisque = `-deriv(node_filesystem_avail_bytes{%s}[167h]) > 0` // octets perdus par seconde
 )
 
 // filtreDisques : systèmes de fichiers réels (comme les barres d'occupation).
