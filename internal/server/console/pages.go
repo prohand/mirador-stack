@@ -35,6 +35,7 @@ import (
 func (c *Console) routesPages() {
 	m := c.mux
 	m.HandleFunc("GET /fragments/accueil", c.lecture(c.fragmentAccueil))
+	m.HandleFunc("GET /mur", c.lecture(c.pageMur))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
@@ -141,6 +142,7 @@ type donneesAccueil struct {
 	Plafond                      int64 // plafond total de stockage (réglage « Conservation »)
 	PctStockage                  int
 	Depuis                       int64
+	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -218,6 +220,9 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	d.Parc = c.parc(q, toutes)
 	for _, l := range d.Parc {
 		d.Nouveautes += l.Nouveautes
+	}
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		d.Chaleur = c.chaleurParc(ctx, ms, q.t)
 	}
 	return d
 }
@@ -484,6 +489,7 @@ type donneesMachine struct {
 	Attente     []resumeAlerte // conditions pas encore des alertes
 	Prises      []resumeAlerte // prises en charge (SPEC § 30)
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -530,6 +536,7 @@ func (c *Console) pageMachine(q *req) {
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)
+		d.Gourmands = c.gourmands(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)

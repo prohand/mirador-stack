@@ -422,6 +422,10 @@ type jsonCourbe struct {
 	Seuil *float64 `json:"seuil,omitempty"`
 	// Annotations : alertes et événements de la machine affichée, SPEC § 31.
 	Annotations *annotationsCourbe `json:"annotations,omitempty"`
+	// Empile : aires empilées ; Precedent : la seule courbe, 7 jours plus
+	// tôt, sur les mêmes instants (comparaison, SPEC § 31).
+	Empile    bool       `json:"empile,omitempty"`
+	Precedent []*float64 `json:"precedent,omitempty"`
 }
 
 const seriesParCourbeMax = 50
@@ -451,6 +455,14 @@ func (c *Console) donneesCourbe(q *req) {
 	}
 	donnees := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t)
 	donnees.Seuil = c.seuilModele(q.r.Context(), p.SeuilModele, vals["instance"])
+	donnees.Empile = p.Empile
+	// Semaine dernière : même période décalée de 7 jours (une seule courbe).
+	if q.r.URL.Query().Get("comparer") == "1" && len(donnees.Series) == 1 && !p.Empile && d <= 7*24*time.Hour {
+		avant := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t.Add(-7*24*time.Hour))
+		if len(avant.Series) == 1 && len(avant.Series[0].V) == len(donnees.X) {
+			donnees.Precedent = avant.Series[0].V
+		}
+	}
 	if n := len(donnees.X); n > 1 && q.r.URL.Query().Get("annoter") == "1" {
 		fin := time.Unix(donnees.X[n-1], 0).Add(pasPour(d))
 		if fin.After(q.t) {

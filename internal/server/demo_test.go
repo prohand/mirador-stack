@@ -52,7 +52,9 @@ func TestDemoInterface(t *testing.T) {
 			for j := 0; j+1 < len(etq); j += 2 {
 				sr.Remplacer(etq[j], etq[j+1])
 			}
-			for k := 0; k < 720; k++ {
+			// 6 h de données, plus 30 min « en avance » : la page garde des
+			// valeurs actuelles le temps des captures.
+			for k := 0; k < 780; k++ {
 				sr.Points = append(sr.Points, stockage.Point{T: now.Add(time.Duration(k-719) * 30 * time.Second).UnixMilli(), V: f(k)})
 			}
 			series = append(series, sr)

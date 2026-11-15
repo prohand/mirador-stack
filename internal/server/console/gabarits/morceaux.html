@@ -67,6 +67,7 @@
       <details class="colonnes"><summary class="bouton secondaire">Colonnes</summary><div class="menu-colonnes">
         {{range $c, $t := colonnesParc}}<label class="case"><input type="checkbox" data-colonne="{{$c}}" checked> {{$t}}</label>{{end}}</div></details>
       {{if .D.LienLinux}}<a href="/tableaux/serveurs-linux">Tableau « Serveurs Linux » →</a>{{end}}
+      <a href="/mur" title="Vue pour un écran au mur : grands caractères, sans menu, rechargée toutes les 30 s">Écran mural ↗</a>
     </div></div>
   {{if .D.Parc}}<div class="defile"><table class="parc">
   <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-majs masque-tel" data-tri="majs">Mises à jour</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
@@ -84,6 +85,11 @@
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
 </section>
+{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé.</small></p>
+<div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur"><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur">
+<thead><tr><th></th>{{range .Heures}}<th>{{.}}</th>{{end}}<th>max</th></tr></thead>
+<tbody>{{range .Lignes}}<tr><th><a href="/machines/{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div></div>{{end}}</div>
+<p class="legende-chaleur"><span class="ch-0"></span> &lt; 20 % <span class="ch-1"></span> 20 % <span class="ch-2"></span> 40 % <span class="ch-3"></span> 60 % <span class="ch-4"></span> 75 % <span class="ch-5"></span> ≥ 90 % <span class="ch-vide"></span> pas de données</p></section>{{end}}
 <div class="grille">
   <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>
   <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>

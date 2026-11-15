@@ -140,3 +140,54 @@ func extrait(s, motif string) string {
 	}
 	return s[max(0, i-200):min(len(s), i+400)]
 }
+
+// Semaine dernière (une seule courbe) et aires empilées (SPEC § 31).
+func TestComparaisonEtEmpile(t *testing.T) {
+	b := nouveauBanc(t)
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := b.h.maintenant()
+	app := db.Appender(context.Background())
+	k := 0.0
+	for ts := m.Add(-8 * 24 * time.Hour); !ts.After(m); ts = ts.Add(time.Minute) {
+		k += 60
+		ajout := func(v float64, l ...string) {
+			_, _ = app.Append(0, labels.FromStrings(append([]string{"instance", "web1"}, l...)...), ts.UnixMilli(), v)
+		}
+		ajout(k*0.9, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "idle")
+		ajout(k*0.07, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "user")
+		ajout(k*0.03, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "system")
+		ajout(8e9, "__name__", "node_memory_MemTotal_bytes")
+		ajout(5e9, "__name__", "node_memory_MemAvailable_bytes")
+		ajout(3e9, "__name__", "node_memory_Cached_bytes")
+		ajout(1e8, "__name__", "node_memory_Buffers_bytes")
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	base := "/donnees/courbe?instance=web1&periode=6h&tableau=serveurs-linux&panneau="
+	_, js, _ := b.get(c, base+"1.0&comparer=1")
+	if !strings.Contains(js, `"precedent":[`) {
+		t.Errorf("semaine dernière absente : %.300s", js)
+	}
+	_, js, _ = b.get(c, base+"1.0")
+	if strings.Contains(js, "precedent") {
+		t.Error("semaine dernière sans la demander")
+	}
+	// CPU par mode : empilé, une courbe par mode (hors idle).
+	_, js, _ = b.get(c, base+"1.3&comparer=1")
+	if !strings.Contains(js, `"empile":true`) || !strings.Contains(js, `"nom":"user"`) || !strings.Contains(js, `"nom":"system"`) ||
+		strings.Contains(js, `"nom":"idle"`) || strings.Contains(js, "precedent") {
+		t.Errorf("CPU par mode : %.400s", js)
+	}
+	// Mémoire : utilisée 3 Go + cache 3,1 Go + libre 1,9 Go = 8 Go.
+	_, js, _ = b.get(c, base+"1.4")
+	for _, attendu := range []string{`"nom":"Utilisée","v":[3000000000,`, `"nom":"Cache","v":[3100000000,`, `"nom":"Libre","v":[1900000000,`} {
+		if !strings.Contains(js, attendu) {
+			t.Errorf("répartition de la mémoire : %q absent de %s", attendu, js[strings.Index(js, `"series"`):min(len(js), strings.Index(js, `"series"`)+600)])
+		}
+	}
+}

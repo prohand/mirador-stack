@@ -798,13 +798,18 @@ objectif serveur inchangé ✅.
 | Partie | État |
 |---|---|
 | Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; à valider |
-| Livraison 2 : semaine dernière, plein écran, empilé, export, lien | à faire |
-| Livraison 3 : gourmands, carte de chaleur, écran mural | à faire |
+| Livraison 2 : semaine dernière, plein écran, empilé, export, zoom dans l'adresse | **fait**, testé ; à valider |
+| Livraison 3 : plus gourmands (conteneurs), carte de chaleur 24 h, écran mural | **fait**, testé ; à valider (processus non relevés par l'agent) |
 
 Mesure (livraison 1) : prévision des disques **44 ms et 28 Mio passagers**
 pour 50 systèmes de fichiers sur 7 jours, une fois par 10 min (cache) ;
 annotations : 3 petites requêtes par page machine, gardées 30 s. Pas de
 mémoire permanente notable (caches bornés à 500 et 100 entrées).
+Livraison 2 : « −7 j » double la requête d'une courbe, seulement au clic ;
+2 courbes empilées de plus par page machine ; le reste dans le navigateur.
+Livraison 3 : carte de chaleur **46 ms et 26 Mio passagers** pour
+50 machines, une fois par 5 min ; plus gourmands : 3 petites requêtes par
+page machine.
 
 ## Étape 6 — avancement (SPEC § 23)
 

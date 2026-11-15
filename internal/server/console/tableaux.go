@@ -91,6 +91,9 @@ type Panneau struct {
 	// PrevisionDisque : barres de systèmes de fichiers avec « plein dans
 	// X j » (pente sur 7 jours, affiché sous 30 jours), SPEC § 31.
 	PrevisionDisque bool `json:"prevision_disque,omitempty"`
+	// Empile : courbes en aires empilées (CPU par mode, répartition de la
+	// mémoire), SPEC § 31.
+	Empile bool `json:"empile,omitempty"`
 }
 
 // iconesPanneaux : icônes proposées (dessinées dans morceaux.html).

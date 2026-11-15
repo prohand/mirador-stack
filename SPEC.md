@@ -4608,7 +4608,7 @@ audit de chaque prise en charge, reprise et échéance ; durée bornée aux
 choix proposés (24 h au plus depuis l'interface).
 
 
-## 31. Métriques et graphiques : 11 améliorations (demande du 15/11) **[En cours]**
+## 31. Métriques et graphiques : 11 améliorations (demande du 15/11) **[Fait, à valider]**
 
 Livrées en trois fois. Maquettes de 1, 7 et 9 validées le 15/11.
 
@@ -4652,12 +4652,72 @@ paramétrées ; noms d'événements écrits en texte (`textContent`), jamais en
 HTML. Les phrases de l'audit montrées au survol sont celles de la page
 Audit, réservée aux mêmes comptes.
 
-### 31.2 Livraison 2 (à faire)
+### 31.2 Livraison 2 **[Fait, à valider]**
 
-Comparaison avec la semaine dernière, plein écran, aires empilées
-(CPU par mode, mémoire), export PNG/CSV, période et zoom dans l'adresse.
+Petite barre d'outils en haut à droite de chaque courbe :
 
-### 31.3 Livraison 3 (à faire)
+- **« −7 j »** (courbe seule) : la même période **il y a 7 jours** en
+  pointillé gris (paramètre `comparer=1` : une seconde requête sur la
+  période décalée, mêmes instants). Pas pour les aires empilées ni au-delà
+  de 7 jours de période.
+- **« ⤢ » Agrandir** : la carte passe en plein écran, Échap pour revenir.
+- **PNG** : image de la courbe avec titre et période (canevas copié dans
+  le navigateur, rien côté serveur).
+- **CSV** : valeurs de la période pour un tableur français (« ; » entre
+  colonnes, virgule décimale, UTF-8 avec BOM), fait dans le navigateur.
 
-Les plus gourmands (conteneurs, processus), carte de chaleur du parc sur
-24 h, mode écran mural.
+Et :
+
+- **Aires empilées** (option de panneau `empile`) : deux courbes ajoutées à
+  « Ressources » : **CPU par mode** (user, system, iowait, steal… en % de
+  la machine) et **Répartition de la mémoire** (utilisée, cache, libre ; le
+  haut de la pile = mémoire totale). La légende montre la valeur propre de
+  chaque part. Cache = min(Cached + Buffers, MemAvailable) : pas de
+  nouvelle métrique dans l'agent.
+- **Zoom partagé et dans l'adresse** : glisser sur une courbe zoome
+  **toutes** les courbes de la page et écrit `de=…&a=…` dans l'adresse
+  (`history.replaceState`) ; le lien copié rouvre la même vue ; double-clic
+  pour revenir. La période était déjà dans l'adresse (`periode=`).
+
+**Coût** : « −7 j » double la requête de la courbe concernée, seulement
+quand on clique ; les deux courbes empilées ajoutent 2 requêtes par page
+machine (environ 1 ms chacune sur une machine) ; plein écran, PNG, CSV et
+zoom : navigateur seulement.
+
+**Menaces** : rien de nouveau côté serveur hors `comparer` (même
+contrôle des filtres) ; noms des fichiers exportés nettoyés (lettres,
+chiffres, tirets) ; cellules CSV entre guillemets si besoin ; les valeurs
+`de` et `a` de l'adresse sont lues comme des nombres entiers seulement.
+
+### 31.3 Livraison 3 **[Fait, à valider]**
+
+- **Les plus gourmands** (page machine, sous « En ce moment ») : les
+  5 conteneurs Docker qui prennent le plus de **processeur** (part de toute
+  la machine, sur 5 min) et de **mémoire** (octets et part de la mémoire de
+  la machine). Carte absente sans conteneurs. Les **processus** ne sont pas
+  relevés par l'agent : les ajouter demanderait de lire `/proc/*/stat` à
+  chaque passage (plus de CPU sur chaque machine) ; pas fait sans accord.
+- **Le parc sur 24 h** (vue d'ensemble, sous le parc) : carte de chaleur,
+  une ligne par machine, une case par heure, **processeur** et **mémoire**
+  côte à côte ; 6 teintes (< 20 %, 20, 40, 60, 75, ≥ 90 %), valeur au survol,
+  plus forte heure en bout de ligne ; 100 machines au plus.
+- **Écran mural** (`/mur`, lien « Écran mural ↗ » au-dessus du parc) :
+  sans menu, thème sombre, grands caractères ; compteurs (critiques,
+  avertissements, muettes, machines), 8 alertes en cours au plus (ou « Tout
+  va bien »), une tuile par machine (état, CPU, mémoire, disque, « plein
+  dans X j ») ; rechargé toutes les 30 s (`<meta http-equiv="refresh">`,
+  pas de script).
+
+**Coût** :
+
+| Ajout | Coût |
+|---|---|
+| Plus gourmands | 3 petites requêtes par page machine (cache commun de 20 s) |
+| Carte de chaleur | 2 requêtes sur 24 h, pas d'une heure : **46 ms, 26 Mio passagers** pour 50 machines (4 cœurs, 8 modes) ; gardée **5 min** |
+| Écran mural | les mêmes données que la vue d'ensemble, une fois toutes les 30 s par écran |
+
+**Menaces** : lecture seule, réservé aux comptes connectés (même droit que
+la vue d'ensemble) ; un écran mural garde une session ouverte : utiliser
+un compte en **lecture seule** pour lui (la session expire comme les
+autres) ; pas de formulaire ni d'action sur la page ; nom de machine
+vérifié avant d'entrer dans une requête.
