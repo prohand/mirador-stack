@@ -35,6 +35,7 @@ import (
 func (c *Console) routesPages() {
 	m := c.mux
 	m.HandleFunc("GET /fragments/accueil", c.lecture(c.fragmentAccueil))
+	m.HandleFunc("GET /mur", c.lecture(c.pageMur))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
@@ -141,6 +142,7 @@ type donneesAccueil struct {
 	Plafond                      int64 // plafond total de stockage (réglage « Conservation »)
 	PctStockage                  int
 	Depuis                       int64
+	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -218,6 +220,9 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	d.Parc = c.parc(q, toutes)
 	for _, l := range d.Parc {
 		d.Nouveautes += l.Nouveautes
+	}
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		d.Chaleur = c.chaleurParc(ctx, ms, q.t)
 	}
 	return d
 }
@@ -484,6 +489,7 @@ type donneesMachine struct {
 	Attente     []resumeAlerte // conditions pas encore des alertes
 	Prises      []resumeAlerte // prises en charge (SPEC § 30)
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -530,6 +536,7 @@ func (c *Console) pageMachine(q *req) {
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)
+		d.Gourmands = c.gourmands(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)
@@ -558,6 +565,14 @@ func (c *Console) pageMachine(q *req) {
 				}
 			}
 			d.Rangees = c.evaluerTableau(ctx, t, vals, periode, duree, q.t, garder)
+			// Courbes de la machine : avec ses alertes et événements (SPEC § 31).
+			for ri := range d.Rangees {
+				for pi := range d.Rangees[ri].Panneaux {
+					if vp := &d.Rangees[ri].Panneaux[pi]; vp.Courbe != "" {
+						vp.Courbe += "&annoter=1"
+					}
+				}
+			}
 		}
 	}
 	if vs, err := flotte.ListerVersions(ctx, c.db); err == nil {
@@ -990,6 +1005,8 @@ type ligneParc struct {
 	PctCPU, PctMemoire, PctDisque int
 	ClasseCPU, ClasseMemoire      string
 	ClasseDisque                  string
+	PleinDans                     string // « plein dans 12 j » : disque le plus pressé (SPEC § 31)
+	PleinUrgent                   bool   // moins de 7 jours
 	Alertes                       int    // alertes actives hors sourdine
 	ClasseAlertes                 string // gravité la plus forte
 	Nouveautes                    int    // éléments détectés « à valider »
@@ -1059,6 +1076,7 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	}
 	cpu, mem, disque := valeurs(exprCPU), valeurs(exprMemoire), valeurs(exprDisque)
 	paquets, securite, redemarrage := valeurs(exprPaquets), valeurs(exprPaquetsSecurite), valeurs(exprRedemarrage)
+	plein := pleinDansMachine(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t))
 	courbes := c.etincelles(ctx, q.t)
 	nouveautes := c.nouveautes(ctx, ms, q.t)
 	pct := func(m map[string]float64, nom string) string {
@@ -1077,6 +1095,9 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		l.PctCPU, l.ClasseCPU = barre(cpu, m.Nom)
 		l.PctMemoire, l.ClasseMemoire = barre(mem, m.Nom)
 		l.PctDisque, l.ClasseDisque = barre(disque, m.Nom)
+		if j, ok := plein[m.Nom]; ok {
+			l.PleinDans, l.PleinUrgent = pleinDans(j), j < 7
+		}
 		l.Alertes, l.Nouveautes = nombre[m.Nom], nouveautes[m.Nom]
 		l.Paquets, l.PaquetsSecurite = -1, 0
 		if v, ok := paquets[m.Nom]; ok {

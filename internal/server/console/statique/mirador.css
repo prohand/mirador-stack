@@ -618,3 +618,70 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .prises-alertes { opacity: .85; }
 .prises-alertes td { color: var(--doux); }
 .prises-alertes .resume { display: block; font-size: 12.5px; color: var(--pale); }
+/* Âge des données et annotations des courbes (SPEC § 31). */
+.age-donnees { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
+  color: var(--ok); background: var(--ok-fond); white-space: nowrap; vertical-align: middle; }
+.age-donnees.age-vieux { color: var(--attention); background: var(--attention-fond); }
+.survol-annotation { margin: 2px 0 0; font-size: 12px; color: var(--texte); min-height: 1em; }
+.plein-dans { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px;
+  color: var(--attention); background: var(--attention-fond); white-space: nowrap; }
+.plein-dans.plein-urgent { color: var(--erreur); background: var(--erreur-fond); }
+/* Outils des courbes : semaine dernière, agrandir, export (SPEC § 31). */
+.outils-courbe { float: right; display: flex; gap: 4px; margin: -2px 0 0 8px; }
+.outil-courbe { padding: 1px 7px; min-height: 0; font-size: 11.5px; line-height: 18px; border: 1px solid var(--bord);
+  border-radius: 6px; background: transparent; color: var(--doux); cursor: pointer; }
+.outil-courbe:hover { background: var(--survol); color: var(--texte); }
+.outil-courbe.actif { background: var(--accent-fond); color: var(--accent-texte); border-color: var(--accent); }
+.carte.plein-ecran { position: fixed; inset: 16px; z-index: 60; overflow: auto; margin: 0; max-width: none;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .35); }
+body.avec-plein-ecran::before { content: ""; position: fixed; inset: 0; z-index: 59; background: rgba(0, 0, 0, .45); }
+@media print { .outils-courbe { display: none; } }
+/* Les plus gourmands (SPEC § 31). */
+.gourmands { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.gourmands td.nombre { white-space: nowrap; }
+.gourmands h3 { margin: 4px 0 6px; font-size: 13px; color: var(--doux); }
+/* Carte de chaleur du parc (SPEC § 31) : teintes de l'accent, du calme au saturé. */
+.chaleurs { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr)); }
+.chaleur h3 { margin: 4px 0 6px; font-size: 13px; color: var(--doux); }
+.table-chaleur { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 11px; table-layout: fixed; }
+.table-chaleur .ch-col-nom { width: 96px; }
+.table-chaleur tbody th { overflow: hidden; text-overflow: ellipsis; }
+.table-chaleur thead th:last-child { width: 38px; text-align: right; }
+.table-chaleur th { font-weight: 400; color: var(--pale); text-align: left; white-space: nowrap; padding: 0 4px 0 0; }
+.table-chaleur thead th { font-size: 10px; }
+.table-chaleur tbody th a { color: var(--texte); }
+.table-chaleur td { height: 18px; min-width: 10px; border-radius: 3px; padding: 0; }
+.table-chaleur td.ch-max { background: none; color: var(--doux); text-align: right; white-space: nowrap; padding-left: 4px; min-width: 34px; }
+.ch-vide { background: var(--bord-doux); }
+.ch-0 { background: #DCE6FD; } .ch-1 { background: #AFC4F7; } .ch-2 { background: #7C9BF0; }
+.ch-3 { background: #F2B65A; } .ch-4 { background: #E5793A; } .ch-5 { background: #C4321F; }
+:root[data-theme="sombre"] .ch-0 { background: #1C2442; } :root[data-theme="sombre"] .ch-1 { background: #26357A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .ch-0 { background: #1C2442; } :root:not([data-theme="clair"]) .ch-1 { background: #26357A; } }
+.legende-chaleur { margin: 8px 0 0; font-size: 11.5px; color: var(--pale); }
+.legende-chaleur span { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 2px 0 8px; }
+/* Écran mural (SPEC § 31) : sans menu, grands caractères, thème sombre. */
+body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 32px; margin: 0; min-height: 100vh; box-sizing: border-box; }
+.mur-tete { display: flex; align-items: baseline; gap: 24px; margin-bottom: 20px; }
+.mur-logo { font-size: 22px; font-weight: 600; }
+.mur-heure { font-size: 18px; color: var(--doux); } .mur-heure b { font-size: 34px; color: var(--texte); margin-right: 6px; }
+.mur-sortir { margin-left: auto; font-size: 13px; color: var(--pale); }
+.mur-compteurs { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; }
+.mur-compteur { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px 20px; }
+.mur-compteur b { display: block; font-size: 54px; line-height: 1.1; }
+.mur-compteur span { font-size: 18px; color: var(--doux); }
+.mur-compteur.erreur b { color: var(--erreur); } .mur-compteur.attention b { color: var(--attention); } .mur-compteur.ok b { color: var(--ok); }
+.mur-alertes, .mur-calme { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; }
+.mur-alertes h2 { margin: 0 0 8px; font-size: 18px; color: var(--doux); }
+.mur-alertes ul { list-style: none; margin: 0; padding: 0; }
+.mur-alertes li { font-size: 22px; padding: 8px 0 8px 14px; border-left: 5px solid var(--info); margin-bottom: 6px; }
+.mur-alertes li.g-critical { border-color: var(--erreur); } .mur-alertes li.g-warning { border-color: var(--attention); }
+.mur-alertes li small { color: var(--pale); font-size: 15px; margin-left: 8px; }
+.mur-calme { display: flex; align-items: baseline; gap: 14px; } .mur-calme b { font-size: 30px; color: var(--ok); } .mur-calme span { font-size: 18px; color: var(--doux); }
+.mur-machines { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.mur-machine { background: var(--carte); border: 1px solid var(--bord); border-left: 6px solid var(--ok); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+.mur-machine b { font-size: 20px; } .mur-etat { font-size: 15px; color: var(--doux); } .mur-mesures { font-size: 14px; color: var(--pale); }
+.mur-machine .plein-dans { align-self: flex-start; margin: 2px 0 0; }
+.mur-machine.etat-erreur { border-left-color: var(--erreur); } .mur-machine.etat-attention { border-left-color: var(--attention); }
+.mur-machine.etat-muette { border-left-color: var(--pale); opacity: .8; }
+.mur-pied { margin-top: 18px; font-size: 12px; color: var(--pale); }
+@media (max-width: 700px) { .mur-compteurs { grid-template-columns: repeat(2, 1fr); } body.ecran-mural { padding: 16px; } }

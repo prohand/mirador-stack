@@ -108,6 +108,9 @@
 {{if .D.Maintenant}}<section class="carte" id="maintenant"><h2>En ce moment</h2><div class="resume-machine">
 {{range .D.Maintenant}}<div class="jauge-machine"><small>{{.Titre}}</small><b>{{.Valeur}}</b>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</div>{{end}}
 </div></section>{{end}}
+{{with .D.Gourmands}}<section class="carte" id="gourmands"><h2>Les plus gourmands</h2><p><small>Conteneurs Docker, en ce moment (processeur : part de toute la machine). Les processus ne sont pas relevés par l'agent.</small></p>
+<div class="gourmands">{{if .CPU}}<div><h3>Processeur</h3><table class="barres">{{range .CPU}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}
+{{if .Memoire}}<div><h3>Mémoire</h3><table class="barres">{{range .Memoire}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}</div></section>{{end}}
 {{if .D.Rangees}}
 <nav class="sommaire-machine">{{range .D.Rangees}}<a href="#{{ancre .Titre}}">{{.Titre}}</a>{{end}}{{if .D.Agent}}<a href="#surveillance-modeles">Surveillance et modèles</a>{{end}}<a href="/logs?host={{$m.Nom}}">Logs</a>
 <span class="segment periode">{{$p := .D.Periode}}{{range .D.Periodes}}<a href="/machines/{{$m.Nom}}?periode={{.}}#graphiques"{{if egal . $p}} class="actif"{{end}}>{{periodeFr .}}</a>{{end}}</span></nav>

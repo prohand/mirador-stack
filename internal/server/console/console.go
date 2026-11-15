@@ -107,6 +107,9 @@ type Console struct {
 	etincellesCache  map[string]string
 	etincellesExpire time.Time
 	cache            cacheRequetes
+	annot            cacheAnnotations // alertes et événements des courbes d'une machine (SPEC § 31)
+	prevDisques      cachePrevisions  // « plein dans X j » des disques (SPEC § 31)
+	chaleur          cacheChaleur     // carte de chaleur du parc sur 24 h (SPEC § 31)
 }
 
 type compteCache struct {

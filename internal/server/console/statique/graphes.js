@@ -77,6 +77,203 @@
     if (carte && carte.closest("[data-regrouper-vides]")) { carte.classList.toggle("panneau-vide", vide); regrouperVides(); }
   }
 
+  // Âge des données (SPEC § 31) : pastille dans le titre de la carte,
+  // verte « il y a 25 s », orange au-delà de 5 minutes.
+  function texteAge(sec) {
+    if (sec < 60) { return Math.max(0, Math.round(sec)) + " s"; }
+    if (sec < 3600) { return Math.round(sec / 60) + " min"; }
+    if (sec < 172800) { return Math.round(sec / 3600) + " h"; }
+    return Math.round(sec / 86400) + " j";
+  }
+  function majAge(el) {
+    var carte = el.closest(".carte"), titre = carte && carte.querySelector("h2, h3");
+    if (!titre) { return; }
+    var p = titre.querySelector(".age-donnees");
+    if (!el.derniere) { if (p) { p.remove(); } return; }
+    var age = Date.now() / 1000 - el.derniere, vieux = age > 300;
+    // Sans heure de la machine (tableaux), seulement si les données manquent.
+    if (!vieux && !el.ageSur) { if (p) { p.remove(); } return; }
+    if (!p) { p = document.createElement("span"); titre.appendChild(p); }
+    p.className = "age-donnees" + (vieux ? " age-vieux" : "");
+    p.textContent = (vieux ? "dernière donnée il y a " : "il y a ") + texteAge(age);
+    p.title = "Heure de la dernière donnée reçue : " + dateFr(el.derniere);
+  }
+  function derniereX(d) {
+    var t = 0;
+    d.series.forEach(function (s) {
+      for (var i = s.v.length - 1; i >= 0; i--) { if (s.v[i] !== null) { t = Math.max(t, d.x[i]); break; } }
+    });
+    return t;
+  }
+
+  // Alertes (bandes) et événements (traits pointillés) d'une machine, SPEC § 31.
+  function couleurGravite(g) {
+    return couleurVar(g === "critical" || g === "critique" ? "--erreur" : g === "warning" || g === "attention" ? "--attention" : "--info");
+  }
+  function dessinerBandes(u, an) {
+    if (!an || !an.alertes) { return; }
+    var ctx = u.ctx, haut = u.bbox.top, h = u.bbox.height;
+    ctx.save();
+    an.alertes.forEach(function (a) {
+      var x0 = Math.max(u.valToPos(a.debut, "x", true), u.bbox.left);
+      var x1 = Math.min(u.valToPos(a.fin, "x", true), u.bbox.left + u.bbox.width);
+      if (x1 <= x0) { return; }
+      ctx.globalAlpha = 0.13;
+      ctx.fillStyle = couleurGravite(a.gravite);
+      ctx.fillRect(x0, haut, Math.max(x1 - x0, 2), h);
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(x0, haut, Math.max(x1 - x0, 2), 3 * (window.devicePixelRatio || 1));
+    });
+    ctx.restore();
+  }
+  function dessinerEvenements(u, an) {
+    if (!an || !an.evenements) { return; }
+    var ctx = u.ctx, r = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.setLineDash([3 * r, 3 * r]);
+    ctx.strokeStyle = couleurVar("--pale");
+    ctx.lineWidth = r;
+    an.evenements.forEach(function (e) {
+      var x = u.valToPos(e.t, "x", true);
+      if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) { return; }
+      ctx.beginPath();
+      ctx.moveTo(x, u.bbox.top);
+      ctx.lineTo(x, u.bbox.top + u.bbox.height);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+  // Survol : nom de l'alerte ou de l'événement sous le curseur.
+  function survolAnnotations(el, u, an) {
+    if (!el.survol) { return; }
+    var noms = [];
+    if (an && u.cursor.left >= 0) {
+      var t = u.posToVal(u.cursor.left, "x");
+      (an.evenements || []).forEach(function (e) {
+        if (Math.abs(u.valToPos(e.t, "x") - u.cursor.left) <= 6) { noms.push("┆ " + e.nom + " · " + dateFr(e.t)); }
+      });
+      (an.alertes || []).forEach(function (a) {
+        if (t >= a.debut && t <= a.fin) { noms.push("▮ " + a.nom + " · " + dateFr(a.debut) + " → " + dateFr(a.fin)); }
+      });
+    }
+    el.survol.textContent = noms.join("   ");
+    el.survol.hidden = noms.length === 0;
+  }
+
+  // Zoom partagé par toutes les courbes de la page et gardé dans l'adresse
+  // (« de » et « a », secondes Unix) : un lien copié montre la même vue.
+  function zoomAdresse() {
+    var q = new URLSearchParams(window.location.search), de = parseInt(q.get("de"), 10), a = parseInt(q.get("a"), 10);
+    return de > 0 && a > de ? { de: de, a: a } : null;
+  }
+  function ecrireAdresse(de, a) {
+    var q = new URLSearchParams(window.location.search);
+    if (de) { q.set("de", String(de)); q.set("a", String(a)); } else { q.delete("de"); q.delete("a"); }
+    var s = q.toString();
+    window.history.replaceState(null, "", window.location.pathname + (s ? "?" + s : "") + window.location.hash);
+  }
+  function zoomerTout(source, de, a) {
+    ecrireAdresse(de, a);
+    document.querySelectorAll("[data-courbe]").forEach(function (el) {
+      if (el !== source && el.u) { el.zoom = true; el.u.setScale("x", { min: de, max: a }); }
+    });
+  }
+  function dezoomerTout() {
+    ecrireAdresse(null);
+    document.querySelectorAll("[data-courbe]").forEach(function (el) {
+      if (el.u && el.zoom) { el.zoom = false; el.u.setScale("x", { min: el.u.data[0][0], max: el.u.data[0][el.u.data[0].length - 1] }); }
+    });
+  }
+
+  // Barre d'outils de la carte (SPEC § 31) : semaine dernière, agrandir,
+  // export PNG et CSV.
+  function bouton(texte, titre, action) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "outil-courbe";
+    b.textContent = texte;
+    b.title = titre;
+    b.setAttribute("aria-label", titre);
+    b.addEventListener("click", action);
+    return b;
+  }
+  function outils(el, d) {
+    var carte = el.closest(".carte");
+    if (!carte || el.getAttribute("data-courbe") === "apercu") { return; }
+    if (!el.barreOutils) {
+      var barre = document.createElement("div");
+      barre.className = "outils-courbe";
+      el.btnComparer = bouton("−7 j", "Comparer avec la même période il y a 7 jours", function () {
+        el.comparer = !el.comparer;
+        el.btnComparer.classList.toggle("actif", el.comparer);
+        el.btnComparer.setAttribute("aria-pressed", el.comparer ? "true" : "false");
+        var z = el.zoom; el.zoom = false; dessiner(el); el.zoom = z;
+      });
+      barre.appendChild(el.btnComparer);
+      barre.appendChild(bouton("⤢", "Agrandir (Échap pour revenir)", function () { pleinEcran(el); }));
+      barre.appendChild(bouton("PNG", "Enregistrer l'image de la courbe", function () { exporterPNG(el); }));
+      barre.appendChild(bouton("CSV", "Enregistrer les valeurs (tableur)", function () { exporterCSV(el); }));
+      carte.insertBefore(barre, carte.firstChild);
+      el.barreOutils = barre;
+    }
+    // Comparaison : pour une seule courbe, pas pour les aires empilées.
+    el.btnComparer.hidden = !(d.series.length === 1 && !d.empile);
+  }
+  function pleinEcran(el) {
+    var carte = el.closest(".carte"), ouvert = !carte.classList.contains("plein-ecran");
+    carte.classList.toggle("plein-ecran", ouvert);
+    document.body.classList.toggle("avec-plein-ecran", ouvert);
+    if (el.u) { el.u.setSize({ width: Math.max(el.clientWidth, 200), height: ouvert ? Math.max(window.innerHeight - 260, 260) : (el.closest("[data-regrouper-vides]") ? 200 : 220) }); }
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") { return; }
+    var c = document.querySelector(".carte.plein-ecran [data-courbe]");
+    if (c) { pleinEcran(c); }
+  });
+  function nomFichier(el, ext) {
+    var carte = el.closest(".carte"), h = carte && carte.querySelector("h2, h3");
+    var titre = (h ? h.firstChild.textContent : "courbe").trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    var t = new Date();
+    return (titre || "courbe") + "-" + t.getFullYear() + deux(t.getMonth() + 1) + deux(t.getDate()) + "-" + deux(t.getHours()) + deux(t.getMinutes()) + "." + ext;
+  }
+  function telecharger(blob, nom) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nom;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function exporterPNG(el) {
+    if (!el.u) { return; }
+    var src = el.u.ctx.canvas, c = document.createElement("canvas"), r = window.devicePixelRatio || 1;
+    var carte = el.closest(".carte"), h = carte && carte.querySelector("h2, h3"), titre = h ? h.firstChild.textContent.trim() : "";
+    var haut = Math.round(36 * r);
+    c.width = src.width; c.height = src.height + haut;
+    var ctx = c.getContext("2d");
+    ctx.fillStyle = couleurVar("--carte"); ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = couleurVar("--texte"); ctx.font = (15 * r) + "px sans-serif";
+    ctx.fillText(titre + " · " + dateFr(el.u.scales.x.min) + " → " + dateFr(el.u.scales.x.max), 8 * r, 24 * r);
+    ctx.drawImage(src, 0, haut);
+    c.toBlob(function (b) { if (b) { telecharger(b, nomFichier(el, "png")); } }, "image/png");
+  }
+  // CSV pour un tableur français : « ; » entre colonnes, virgule décimale.
+  function exporterCSV(el) {
+    var d = el.donnees;
+    if (!d) { return; }
+    var cellule = function (t) { t = String(t); return /[";\n]/.test(t) ? "\"" + t.replace(/"/g, "\"\"") + "\"" : t; };
+    var lignes = [["Heure"].concat(d.series.map(function (s) { return cellule(s.nom); })).concat(d.precedent ? ["Il y a 7 jours"] : []).join(";")];
+    d.x.forEach(function (t, k) {
+      var dt = new Date(t * 1000);
+      var l = [dt.getFullYear() + "-" + deux(dt.getMonth() + 1) + "-" + deux(dt.getDate()) + " " + deux(dt.getHours()) + ":" + deux(dt.getMinutes()) + ":" + deux(dt.getSeconds())];
+      d.series.forEach(function (s) { l.push(s.v[k] === null ? "" : String(s.v[k]).replace(".", ",")); });
+      if (d.precedent) { l.push(d.precedent[k] === null ? "" : String(d.precedent[k]).replace(".", ",")); }
+      lignes.push(l.join(";"));
+    });
+    telecharger(new Blob(["\ufeff" + lignes.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), nomFichier(el, "csv"));
+  }
+
   function dessiner(el) {
     // Zoom en cours (glisser sur la courbe) : pas de rechargement qui le
     // perdrait ; double-clic pour revenir.
@@ -85,6 +282,7 @@
     // data-courbe="apercu" : données déjà dans la page (aperçu de l'éditeur
     // de tableaux, panneau pas encore enregistré), dans data-json.
     var source = el.getAttribute("data-courbe");
+    if (el.comparer && source !== "apercu") { source += "&comparer=1"; }
     var donneesPretes = source === "apercu"
       ? Promise.resolve(JSON.parse(el.getAttribute("data-json") || "{}"))
       : fetch(source, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
@@ -107,12 +305,35 @@
         var donnees = [d.x];
         var seule = d.series.length === 1;
         var series = [{ label: "Heure", value: function (u, v) { return v === null || v === undefined ? "—" : dateFr(v); } }];
+        // Aires empilées (SPEC § 31) : chaque courbe posée sur la précédente ;
+        // la légende montre la valeur propre de chaque courbe.
+        var empile = !!d.empile && d.series.length > 1, cumul = null, bandes = [];
         d.series.forEach(function (s, i) {
-          var c = palette[i % palette.length];
-          donnees.push(s.v);
-          series.push({ label: s.nom, stroke: c, width: 1.75, spanGaps: false, fill: seule ? c + "22" : undefined,
-            value: function (u, v) { return formater(v, d.unite); } });
+          var c = palette[i % palette.length], v = s.v;
+          if (empile) {
+            cumul = v.map(function (x, k) {
+              var bas = cumul ? cumul[k] : 0;
+              return x === null ? bas : (bas === null ? 0 : bas) + x;
+            });
+            v = cumul;
+            if (i > 0) { bandes.push({ series: [i + 1, i], fill: c + "55" }); }
+          }
+          donnees.push(v);
+          series.push({ label: s.nom, stroke: c, width: empile ? 1 : 1.75, spanGaps: false,
+            fill: empile ? (i === 0 ? c + "55" : undefined) : (seule ? c + "22" : undefined),
+            value: function (u, x, si, k) { return formater(k === null || k === undefined ? x : s.v[k], d.unite); } });
         });
+        // Semaine dernière : même période 7 jours plus tôt, en pointillé gris.
+        if (d.precedent && seule) {
+          donnees.push(d.precedent);
+          series.push({ label: "Il y a 7 jours", stroke: couleurVar("--pale"), width: 1.25, dash: [5, 4], spanGaps: false,
+            value: function (u, v) { return formater(v, d.unite); } });
+        }
+        el.donnees = d;
+        var an = d.annotations || null;
+        el.ageSur = !!(an && an.derniere);
+        el.derniere = el.ageSur ? an.derniere : derniereX(d);
+        majAge(el);
         var seuil = typeof d.seuil === "number" ? d.seuil : null;
         // Seuil loin au-dessus des valeurs (ex. 800 Mbit/s pour un trafic de
         // 2 Mbit/s) : pas tracé, il écraserait la courbe.
@@ -124,10 +345,11 @@
         var texte = couleurVar("--doux"), grille = couleurVar("--bord"), rouge = couleurVar("--erreur");
         // Échelle : 0 à 100 % fixe pour les pourcentages ; le seuil reste visible.
         var plafond = d.unite === "percent" ? 100 : d.unite === "percentunit" ? 1 : null;
-        var hauteur = el.closest("[data-regrouper-vides]") ? 200 : 220;
+        var hauteur = el.closest(".plein-ecran") ? Math.max(window.innerHeight - 260, 260) : el.closest("[data-regrouper-vides]") ? 200 : 220;
         var opts = {
           width: Math.max(el.clientWidth, 200), height: hauteur, series: series,
           legend: { show: d.series.length <= 12, live: true },
+          bands: bandes,
           cursor: { points: { show: false }, sync: { key: "mirador" }, drag: { x: true, y: false } },
           scales: { x: { time: true }, y: { range: function (u, mn, mx) {
             var haut = Math.max(mx, plafond === null ? mx : plafond, seuil === null ? mx : seuil * 1.1);
@@ -147,8 +369,17 @@
               values: function (u, vals) { return vals.map(function (v) { return formater(v, d.unite); }); } }
           ],
           hooks: {
-            setSelect: [function (u) { if (u.select.width > 0) { el.zoom = true; } }],
+            setSelect: [function (u) {
+              if (u.select.width > 0) {
+                el.zoom = true;
+                var de = Math.round(u.posToVal(u.select.left, "x")), a = Math.round(u.posToVal(u.select.left + u.select.width, "x"));
+                zoomerTout(el, de, a);
+              }
+            }],
+            setCursor: [function (u) { survolAnnotations(el, u, an); }],
+            drawClear: [function (u) { dessinerBandes(u, an); }],
             draw: [function (u) {
+              dessinerEvenements(u, an);
               if (seuil === null) { return; }
               var y = u.valToPos(seuil, "y", true), ctx = u.ctx;
               ctx.save();
@@ -168,17 +399,32 @@
         el.u = new uPlot(opts, donnees, el);
         if (!el.ecouteZoom) {
           el.ecouteZoom = true;
-          el.addEventListener("dblclick", function () { el.zoom = false; });
+          el.addEventListener("dblclick", function () { dezoomerTout(); });
         }
         if (!el.indice && el.parentNode) {
           el.indice = document.createElement("p");
           el.indice.className = "indice-courbe";
           el.parentNode.insertBefore(el.indice, el.nextSibling);
         }
+        var avecAn = an && ((an.alertes && an.alertes.length) || (an.evenements && an.evenements.length));
+        if (avecAn && !el.survol && el.parentNode) {
+          el.survol = document.createElement("p");
+          el.survol.className = "survol-annotation";
+          el.survol.hidden = true;
+          el.parentNode.insertBefore(el.survol, el.nextSibling);
+        }
         if (el.indice) {
-          el.indice.textContent = "Glisser pour zoomer · double-clic pour revenir" + (seuil !== null ? " · pointillé rouge : seuil du modèle" : "");
+          el.indice.textContent = "Glisser : zoom · double-clic : retour" + (seuil !== null ? " · rouge : seuil du modèle" : "") +
+            (avecAn ? " · bandes : alertes · traits gris : événements (survoler)" : "");
         }
         filtrer(el, d.series.length);
+        outils(el, d);
+        // Zoom donné par l'adresse (lien partagé) : appliqué au premier dessin.
+        var z = zoomAdresse();
+        if (z && z.de >= d.x[0] && z.a <= d.x[d.x.length - 1] + 3600) {
+          el.zoom = true;
+          el.u.setScale("x", { min: z.de, max: z.a });
+        }
         if (d.erreur) {
           var p = document.createElement("small");
           p.textContent = d.erreur;
@@ -220,6 +466,8 @@
   function tout() { regrouperVides(); document.querySelectorAll("[data-courbe]").forEach(dessiner); }
   tout();
   setInterval(tout, 60000);
+  // Pastilles d'âge tenues à jour entre deux rechargements.
+  setInterval(function () { document.querySelectorAll("[data-courbe]").forEach(majAge); }, 15000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tout(); } });
   // Thème changé (sélecteur du menu) : courbes redessinées aux nouvelles couleurs.
   document.addEventListener("mirador:theme", tout);

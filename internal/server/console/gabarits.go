@@ -372,6 +372,7 @@ func chargerGabarits() (*gabarits, error) {
 		{"gabarits/base.html", "gabarits/pages"},
 		{"gabarits/seule.html", "gabarits/connexion"},
 		{"gabarits/fragment.html", "gabarits/fragments"},
+		{"gabarits/ecran.html", "gabarits/ecran"}, // écran mural (SPEC § 31)
 	} {
 		entrees, err := fs.ReadDir(fichiers, cadre.dossier)
 		if err != nil {

@@ -484,6 +484,44 @@
         },
         {
           "type": "courbe",
+          "titre": "CPU par mode",
+          "description": "user : programmes · system : noyau · iowait : attente des disques · steal : pris par l'hyperviseur",
+          "unite": "percent",
+          "empile": true,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "100 * sum by (mode) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode!=\"idle\"}[$__rate_interval])) / ignoring(mode) group_left count(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"})",
+              "legende": "{{mode}}"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
+          "titre": "Répartition de la mémoire",
+          "description": "Utilisée, cache du système (rendu si besoin) et libre ; le total est la mémoire de la machine",
+          "unite": "bytes",
+          "empile": true,
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "sum(node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"})",
+              "legende": "Utilisée"
+            },
+            {
+              "id": "B",
+              "expr": "sum(((node_memory_Cached_bytes{instance=~\"$instance\"} + node_memory_Buffers_bytes{instance=~\"$instance\"}) < node_memory_MemAvailable_bytes{instance=~\"$instance\"} * 1) or node_memory_MemAvailable_bytes{instance=~\"$instance\"} * 1)",
+              "legende": "Cache"
+            },
+            {
+              "id": "C",
+              "expr": "sum(node_memory_MemAvailable_bytes{instance=~\"$instance\"}) - sum(((node_memory_Cached_bytes{instance=~\"$instance\"} + node_memory_Buffers_bytes{instance=~\"$instance\"}) < node_memory_MemAvailable_bytes{instance=~\"$instance\"} * 1) or node_memory_MemAvailable_bytes{instance=~\"$instance\"} * 1)",
+              "legende": "Libre"
+            }
+          ]
+        },
+        {
+          "type": "courbe",
           "titre": "Swap utilisé",
           "description": "Mémoire déplacée sur le disque ; une hausse durable ralentit la machine",
           "unite": "bytes",
@@ -503,7 +541,8 @@
         {
           "type": "barres",
           "titre": "Occupation des systèmes de fichiers",
-          "description": "Place utilisée par point de montage",
+          "description": "Place utilisée par point de montage ; « plein dans X j » d'après la pente des 7 derniers jours (sous 30 jours).",
+          "prevision_disque": true,
           "unite": "percent",
           "decimales": 0,
           "seuils": [

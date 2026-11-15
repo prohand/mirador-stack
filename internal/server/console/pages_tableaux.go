@@ -75,6 +75,8 @@ type vueValeur struct {
 type vueBarre struct {
 	Nom, Texte, Couleur string
 	Valeur, Max         float64
+	Prevision           string // « plein dans 18 j » (SPEC § 31), vide sinon
+	Urgent              bool   // plein dans moins de 7 jours
 }
 
 type vuePanneau struct {
@@ -211,6 +213,10 @@ func (c *Console) remplirPanneau(ctx context.Context, vp *vuePanneau, vals map[s
 	p := vp.P
 	switch p.Type {
 	case PanneauChiffre, PanneauBarres:
+		var prev map[string]float64
+		if p.Type == PanneauBarres && p.PrevisionDisque {
+			prev = c.previsionsDisques(ctx, substituer(filtreDisques, vals, pas, d), t)
+		}
 		for _, rq := range p.Requetes {
 			ech, err := c.instant(ctx, substituer(rq.Expr, vals, pas, d), t)
 			if err != nil {
@@ -233,7 +239,11 @@ func (c *Console) remplirPanneau(ctx context.Context, vp *vuePanneau, vals map[s
 					v.Legende = nom
 					vp.Chiffres = append(vp.Chiffres, v)
 				} else {
-					vp.Barres = append(vp.Barres, vueBarre{Nom: nom, Texte: v.Texte, Couleur: v.Couleur, Valeur: math.Max(0, e.Valeur), Max: max})
+					b := vueBarre{Nom: nom, Texte: v.Texte, Couleur: v.Couleur, Valeur: math.Max(0, e.Valeur), Max: max}
+					if j, ok := prev[e.Etiquettes.Get("instance")+"|"+e.Etiquettes.Get("mountpoint")]; ok {
+						b.Prevision, b.Urgent = pleinDans(j), j < 7
+					}
+					vp.Barres = append(vp.Barres, b)
 				}
 			}
 		}
@@ -410,6 +420,12 @@ type jsonCourbe struct {
 	Erreur string      `json:"erreur,omitempty"`
 	// Seuil : seuil du modèle pour la machine affichée (pointillé), SPEC § 29.
 	Seuil *float64 `json:"seuil,omitempty"`
+	// Annotations : alertes et événements de la machine affichée, SPEC § 31.
+	Annotations *annotationsCourbe `json:"annotations,omitempty"`
+	// Empile : aires empilées ; Precedent : la seule courbe, 7 jours plus
+	// tôt, sur les mêmes instants (comparaison, SPEC § 31).
+	Empile    bool       `json:"empile,omitempty"`
+	Precedent []*float64 `json:"precedent,omitempty"`
 }
 
 const seriesParCourbeMax = 50
@@ -439,6 +455,21 @@ func (c *Console) donneesCourbe(q *req) {
 	}
 	donnees := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t)
 	donnees.Seuil = c.seuilModele(q.r.Context(), p.SeuilModele, vals["instance"])
+	donnees.Empile = p.Empile
+	// Semaine dernière : même période décalée de 7 jours (une seule courbe).
+	if q.r.URL.Query().Get("comparer") == "1" && len(donnees.Series) == 1 && !p.Empile && d <= 7*24*time.Hour {
+		avant := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t.Add(-7*24*time.Hour))
+		if len(avant.Series) == 1 && len(avant.Series[0].V) == len(donnees.X) {
+			donnees.Precedent = avant.Series[0].V
+		}
+	}
+	if n := len(donnees.X); n > 1 && q.r.URL.Query().Get("annoter") == "1" {
+		fin := time.Unix(donnees.X[n-1], 0).Add(pasPour(d))
+		if fin.After(q.t) {
+			fin = q.t
+		}
+		donnees.Annotations = c.annotationsMachine(q.r.Context(), vals["instance"], time.Unix(donnees.X[0], 0), fin)
+	}
 	ecrireCourbe(q, donnees)
 }
 
