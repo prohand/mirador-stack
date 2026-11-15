@@ -739,3 +739,39 @@ document.addEventListener("change", function (e) {
       body: new URLSearchParams({ aides: choix }) }).catch(function () { /* gardé pour cette page */ });
   });
 })();
+
+// --- Alertes (SPEC § 28) ------------------------------------------------------
+// « Nouvelles depuis ta dernière visite » (heure de la visite précédente
+// gardée dans ce navigateur), nombre d'alertes dans le titre de l'onglet,
+// refait après chaque rechargement du bloc ; menu « Silence » refermé au
+// clic ailleurs.
+(function () {
+  "use strict";
+  if (!document.querySelector("[data-nb-alertes]")) { return; }
+  var CLE = "mirador.alertes.vu", vu = 0, titre = document.title.replace(/^\(\d+\) /, "");
+  try { vu = parseInt(window.localStorage.getItem(CLE) || "0", 10) || 0; } catch (e) { vu = 0; }
+  function marquer() {
+    var z = document.querySelector("[data-nb-alertes]");
+    if (!z) { return; }
+    var n = 0;
+    z.querySelectorAll("tr[data-depuis]").forEach(function (tr) {
+      var nouvelle = vu > 0 && parseInt(tr.getAttribute("data-depuis"), 10) > vu;
+      tr.classList.toggle("nouvelle", nouvelle);
+      if (nouvelle) { n++; }
+    });
+    var c = z.querySelector("[data-nb-nouvelles]");
+    if (c) { c.textContent = String(n); }
+    var t = parseInt(z.getAttribute("data-nb-alertes") || "0", 10);
+    document.title = (t > 0 ? "(" + t + ") " : "") + titre;
+  }
+  marquer();
+  document.addEventListener("mirador:fragment", marquer);
+  function noter() { try { window.localStorage.setItem(CLE, String(Date.now())); } catch (e) { /* navigateur sans stockage */ } }
+  window.addEventListener("pagehide", noter);
+  document.addEventListener("visibilitychange", function () { if (document.hidden) { noter(); } });
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.menu-silence[open]").forEach(function (d) {
+      if (!d.contains(e.target)) { d.removeAttribute("open"); }
+    });
+  });
+})();

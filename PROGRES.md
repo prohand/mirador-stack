@@ -756,7 +756,19 @@ inchangé ✅.
 | Règles manquantes dans les modèles | **fait** : 19 règles ajoutées (Docker, Linux, physique, certificats, ZFS, RAID), remplacent les règles importées sur les machines du modèle |
 | Services suggérés absurdes (cochés d'office) | **corrigé** : actifs, propres au modèle, hors services de distribution, non cochés |
 | Règles liées aux modèles (choix « 1. Oui, 2. auto ») | **fait** : règles sans seuil limitées au modèle ; Linux + pare-feu, trafic ; modèles NAS Synology, OPNsense, UniFi appliqués à la détection ; page Règles : retirer les règles importées qui ne servent plus |
+| Règles de modèle gérées par le modèle seul | **fait** : remises à jour au démarrage (choix « désactivée » gardé) ; page Règles : désactiver seulement, modification et suppression renvoyées au modèle |
 | Passkey Bitwarden sur iPhone : `NotAllowedError` | **corrigé** : demande « preferred », vérification de l'utilisateur contrôlée par le serveur |
+
+## Pages Alertes et Audit (SPEC § 28, 15/11)
+
+| Partie | État |
+|---|---|
+| Maquettes (recommandations) | validées (« Oui code ») |
+| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; à valider |
+| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; à valider |
+
+Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
+(page ouverte seulement) ; objectif serveur inchangé ✅.
 
 ## Étape 6 — avancement (SPEC § 23)
 

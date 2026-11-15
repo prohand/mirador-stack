@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 )
 
 func (c *Console) routesRegles() {
@@ -36,6 +38,26 @@ func (c *Console) routesRegles() {
 type ligneRegle struct {
 	R     alertes.Regle
 	Sante alertes.SanteRegle
+	// Modele : modèle qui gère la règle (SPEC § 27) ; elle ne se modifie
+	// alors que dans le modèle (ici : activer ou désactiver).
+	Modele *modeles.Modele
+	Lien   string // page du modèle
+}
+
+// modeleDeRegle : modèle qui gère une règle (nil : règle libre).
+func modeleDeRegle(r alertes.Regle) (*modeles.Modele, string) {
+	nom, ok := strings.CutPrefix(r.Origine, "modele:")
+	if !ok {
+		return nil, ""
+	}
+	m := modeles.Trouver(nom)
+	if m == nil {
+		return nil, ""
+	}
+	if m.Perso {
+		return m, "/modeles/perso/" + url.PathEscape(m.Nom)
+	}
+	return m, "/modeles#" + url.PathEscape(m.Nom)
 }
 
 type donneesRegles struct {
@@ -72,7 +94,9 @@ func (c *Console) pageRegles(q *req) {
 		if sante[r.Nom].Erreur != "" {
 			d.Erreurs++
 		}
-		d.Groupes[r.Groupe] = append(d.Groupes[r.Groupe], ligneRegle{R: r, Sante: sante[r.Nom]})
+		l := ligneRegle{R: r, Sante: sante[r.Nom]}
+		l.Modele, l.Lien = modeleDeRegle(r)
+		d.Groupes[r.Groupe] = append(d.Groupes[r.Groupe], l)
 	}
 	for g := range d.Groupes {
 		d.Noms = append(d.Noms, g)
@@ -270,6 +294,10 @@ func (c *Console) pageModifierRegle(q *req) {
 	}
 	for _, r := range rs {
 		if r.Nom == q.r.PathValue("nom") {
+			if m, lien := modeleDeRegle(r); m != nil {
+				c.retour(q, lien, nil, "règle gérée par le modèle « "+m.Titre+" » : elle se règle dans le modèle")
+				return
+			}
 			c.rendre(q, "regle", r.Nom, "regles", donneesFormRegle{R: r, Etiq: texteEtiquettes(r.Etiquettes)})
 			return
 		}
@@ -334,6 +362,9 @@ func (c *Console) postEnregistrerRegle(q *req) {
 		c.rendre(q, "regle", r.Nom, "regles", d)
 		return
 	}
+	if c.regleDeModele(q, r.Nom) {
+		return
+	}
 	if d.Nouvelle {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, x := range rs {
@@ -361,6 +392,9 @@ func (c *Console) postActionRegle(q *req) {
 		err = alertes.Activer(q.r.Context(), c.db, nom, false, q.qui(), q.t)
 		ok = nom + " désactivée"
 	case "supprimer":
+		if c.regleDeModele(q, nom) {
+			return
+		}
 		if err = c.verifierCode(q); err == nil {
 			err = alertes.Supprimer(q.r.Context(), c.db, nom, q.qui(), q.t)
 			ok = nom + " supprimée"
@@ -553,4 +587,23 @@ func (c *Console) lireAuditID(q *req, condition string, args []any, limite int) 
 		out = append(out, l)
 	}
 	return out, rows.Err()
+}
+
+// regleDeModele : refuse (et renvoie vers le modèle) une modification ou une
+// suppression d'une règle gérée par un modèle. Vrai si refusé.
+func (c *Console) regleDeModele(q *req, nom string) bool {
+	rs, err := alertes.ListerRegles(q.r.Context(), c.db)
+	if err != nil {
+		return false
+	}
+	for _, r := range rs {
+		if r.Nom != nom {
+			continue
+		}
+		if m, lien := modeleDeRegle(r); m != nil {
+			c.retour(q, lien, errors.New("règle gérée par le modèle « "+m.Titre+" » : la changer dans le modèle (copie personnelle pour un modèle livré)"), "")
+			return true
+		}
+	}
+	return false
 }

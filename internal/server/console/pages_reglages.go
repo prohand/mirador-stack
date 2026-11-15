@@ -43,6 +43,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("GET /reglages/olvid/installer", c.admin(c.pageInstallerOlvid))
 	m.HandleFunc("POST /reglages/olvid/installer", c.admin(c.postInstallerOlvid))
 	m.HandleFunc("GET /audit", c.lecture(c.pageAudit))
+	m.HandleFunc("GET /audit.csv", c.lecture(c.csvAudit))
 	m.HandleFunc("GET /reglages/export.yaml", c.admin(c.exportConfiguration))
 	m.HandleFunc("POST /reglages/importer", c.admin(c.postImporterConfiguration))
 }
@@ -798,38 +799,3 @@ func (c *Console) postInterface(q *req) {
 }
 
 // --- Journal d'audit ----------------------------------------------------------------------
-
-type donneesAudit struct {
-	Lignes      []ligneAudit
-	Qui, Action string
-	Avant       int64
-	Suivant     int64
-}
-
-func (c *Console) pageAudit(q *req) {
-	v := q.r.URL.Query()
-	d := donneesAudit{Qui: v.Get("qui"), Action: v.Get("action")}
-	d.Avant, _ = strconv.ParseInt(v.Get("avant"), 10, 64)
-	cond, args := "1 = 1", []any{}
-	if d.Qui != "" {
-		cond += " AND qui = ?"
-		args = append(args, d.Qui)
-	}
-	if d.Action != "" {
-		cond += " AND action LIKE ?"
-		args = append(args, strings.ReplaceAll(d.Action, "%", "")+"%")
-	}
-	if d.Avant > 0 {
-		cond += " AND id < ?"
-		args = append(args, d.Avant)
-	}
-	ls, err := c.lireAuditID(q, cond, args, 200)
-	if err != nil {
-		c.flash(q, "", err.Error())
-	}
-	d.Lignes = ls
-	if len(ls) == 200 {
-		d.Suivant = ls[len(ls)-1].ID
-	}
-	c.rendre(q, "audit", "Journal d'audit", "audit", d)
-}
