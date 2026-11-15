@@ -66,6 +66,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if err != nil {
 		return "", err
 	}
+	suivre(ctx, EtapeCompte, time.Time{})
 	compte, err := a.compte(ctx, &r)
 	if err != nil {
 		return "", err
@@ -74,6 +75,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if _, err := c.Register(ctx, &acme.Account{}, acme.AcceptTOS); err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
 		return "", fmt.Errorf("compte ACME : %w", err)
 	}
+	suivre(ctx, EtapeCommande, time.Time{})
 	commande, err := c.AuthorizeOrder(ctx, acme.DomainIDs(nom))
 	if err != nil {
 		return "", fmt.Errorf("commande ACME : %w", err)
@@ -99,6 +101,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 		if err != nil {
 			return "", err
 		}
+		suivre(ctx, EtapeDNS, time.Time{})
 		if err := dns.Poser(ctx, sousNom, valeur); err != nil {
 			return "", err
 		}
@@ -111,11 +114,13 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 				attente = p.AttentePropagation()
 			}
 		}
+		suivre(ctx, EtapePropagation, time.Now().Add(attente))
 		select {
 		case <-time.After(attente):
 		case <-ctx.Done():
 			return "", ctx.Err()
 		}
+		suivre(ctx, EtapeValidation, time.Time{})
 		if _, err := c.Accept(ctx, defi); err != nil {
 			return "", fmt.Errorf("ACME : défi refusé : %w", err)
 		}
@@ -126,6 +131,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if commande, err = c.WaitOrder(ctx, commande.URI); err != nil {
 		return "", fmt.Errorf("ACME : commande : %w", err)
 	}
+	suivre(ctx, EtapeEmission, time.Time{})
 	ders, _, err := c.CreateCertFromOrder(ctx, commande, csrDER, true)
 	if err != nil {
 		return "", fmt.Errorf("ACME : certificat : %w", err)

@@ -223,8 +223,25 @@ func TestDemarcheACME(t *testing.T) {
 		NomDe: func(context.Context, int64) (string, error) { return "syslog.lan.exemple.org", nil }, Apres: func() { nouveaux++ }}
 	g.Passer(ctx)
 	e, _ := LireEtat(ctx, db, 7)
-	if e.Erreur != "" || e.Certificat == "" || e.Nom != "syslog.lan.exemple.org" || nouveaux != 1 {
+	if e.Erreur != "" || e.Certificat == "" || e.Nom != "syslog.lan.exemple.org" || nouveaux != 1 || e.Etape != "" {
 		t.Fatalf("après la démarche : %+v", e)
+	}
+	// Avancement (SPEC § 32) : les six étapes, dans l'ordre, avec la fin
+	// prévue de l'attente DNS.
+	var etapes []string
+	var finAttente time.Time
+	req, _ := LireCSR(csr)
+	acmeSeul := &ACME{DB: db, Cle: cleServeur, BasesDNS: map[string]string{"desec": desec.URL}, ClientDNS: desec.Client(), Client: faux.srv.Client(), Attente: time.Millisecond}
+	if _, err := acmeSeul.Obtenir(AvecSuivi(ctx, func(etape string, jusqua time.Time) {
+		etapes = append(etapes, etape)
+		if etape == EtapePropagation {
+			finAttente = jusqua
+		}
+	}), "syslog.lan.exemple.org", req.Raw); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(etapes, ",") != "compte,commande,dns,propagation,validation,emission" || finAttente.IsZero() {
+		t.Errorf("étapes : %v (fin d'attente %v)", etapes, finAttente)
 	}
 	bloc, _ := pem.Decode([]byte(e.Certificat))
 	cert, _ := x509.ParseCertificate(bloc.Bytes)
@@ -258,8 +275,8 @@ func TestDemarcheACME(t *testing.T) {
 	faux.mu.Unlock()
 	g.Maintenant = func() time.Time { return time.Now().Add(3 * time.Second) }
 	g.Passer(ctx)
-	if e, _ = LireEtat(ctx, db, 7); e.Erreur == "" {
-		t.Fatal("échec non enregistré")
+	if e, _ = LireEtat(ctx, db, 7); e.Erreur == "" || e.Etape != EtapeValidation || e.EtapeLe == 0 {
+		t.Fatalf("échec non enregistré, ou sans son étape : %+v", e)
 	}
 	essai := e.EssaiLe
 	g.Maintenant = func() time.Time { return time.Now().Add(time.Hour) }

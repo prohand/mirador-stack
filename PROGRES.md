@@ -811,6 +811,16 @@ Livraison 3 : carte de chaleur **46 ms et 26 Mio passagers** pour
 50 machines, une fois par 5 min ; plus gourmands : 3 petites requêtes par
 page machine.
 
+## Certificats : réglage général et avancement (SPEC § 32, 15/11)
+
+| Partie | État |
+|---|---|
+| Réglages › Certificats (compte DNS commun, liste des collecteurs, Renouveler) | **fait**, testé ; à valider |
+| Avancement pas à pas (6 pas, étape Let's Encrypt en cours, écoute confirmée par les mesures) | **fait**, testé ; à valider |
+| `--nom` dans la commande d'installation | **fait**, testé |
+
+Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

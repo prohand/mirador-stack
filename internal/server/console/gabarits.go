@@ -451,6 +451,7 @@ var sectionsReglages = []sectionReglages{
 	{Cle: "olvid", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
 	{Cle: "conservation", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
 	{Cle: "sauvegardes", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
+	{Cle: "certificats", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
 	{Cle: "sites", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
 	{Cle: "interface", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau horaire, thème, menu, mode debug temporaire"},
 	{Cle: "export", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},

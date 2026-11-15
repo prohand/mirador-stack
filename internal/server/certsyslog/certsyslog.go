@@ -88,19 +88,59 @@ type Etat struct {
 	Erreur                 string
 	DemandeLe              int64 // « Renouveler maintenant »
 	Certificat             string
+	// Etape : étape de la démarche en cours, ou celle de l'échec (vide =
+	// pas de démarche) ; EtapeLe : début ; EtapeJusqua : fin d'une attente.
+	Etape                string
+	EtapeLe, EtapeJusqua int64
 }
 
 // LireEtat : état du certificat d'un collecteur (zéro si rien).
 func LireEtat(ctx context.Context, db *sql.DB, machine int64) (Etat, error) {
 	var e Etat
 	var csr string
-	err := db.QueryRowContext(ctx, `SELECT nom, csr, csr_recue_le, certificat, fin, obtenu_le, essai_le, erreur, demande_le
-		FROM certificats_syslog WHERE machine_id = ?`, machine).Scan(&e.Nom, &csr, &e.CSRRecueLe, &e.Certificat, &e.Fin, &e.ObtenuLe, &e.EssaiLe, &e.Erreur, &e.DemandeLe)
+	err := db.QueryRowContext(ctx, `SELECT nom, csr, csr_recue_le, certificat, fin, obtenu_le, essai_le, erreur, demande_le,
+		etape, etape_le, etape_jusqua FROM certificats_syslog WHERE machine_id = ?`, machine).Scan(&e.Nom, &csr, &e.CSRRecueLe,
+		&e.Certificat, &e.Fin, &e.ObtenuLe, &e.EssaiLe, &e.Erreur, &e.DemandeLe, &e.Etape, &e.EtapeLe, &e.EtapeJusqua)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Etat{}, nil
 	}
 	e.CSR = csr != ""
 	return e, err
+}
+
+// CertificatCollecteur : un collecteur approuvé et l'état de son certificat
+// (page Réglages › Certificats).
+type CertificatCollecteur struct {
+	ID   int64
+	Nom  string // nom du collecteur
+	Etat Etat
+}
+
+// ListerCollecteurs : tous les collecteurs approuvés, par nom, avec l'état
+// de leur certificat (zéro sans demande).
+func ListerCollecteurs(ctx context.Context, db *sql.DB) ([]CertificatCollecteur, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, nom FROM machines WHERE type = 'collecteur' AND statut = 'approuvee' ORDER BY nom`)
+	if err != nil {
+		return nil, err
+	}
+	var out []CertificatCollecteur
+	for rows.Next() {
+		var c CertificatCollecteur
+		if err := rows.Scan(&c.ID, &c.Nom); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].Etat, err = LireEtat(ctx, db, out[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // Demander : « Renouveler maintenant » (fait au prochain passage, sous une

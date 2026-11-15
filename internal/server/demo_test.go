@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/certsyslog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,6 +148,16 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Collecteur du LAN, certificat du syslog en cours (avancement, SPEC § 32) ;
+	// compte DNS fictif (jamais utilisé : la démarche est simulée).
+	_ = certsyslog.DefinirReglages(ctx, s.db, s.cle, certsyslog.Saisie{Fournisseur: "desec", Domaine: "exemple.org",
+		Identifiants: map[string]string{"jeton": "jeton-de-demo"}}, "demo", now)
+	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le, version_agent) VALUES ('collecteur-lan', 'approuvee', 'collecteur', ?, ?, '0.3.0')`,
+		now.Unix()-3600, now.Unix())
+	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) SELECT 'config_agent:machine:' || id,
+		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
+	_, _ = s.db.Exec(`INSERT INTO certificats_syslog(machine_id, csr, csr_recue_le, etape, etape_le, etape_jusqua)
+		SELECT id, 'demande', ?, 'propagation', ?, ? FROM machines WHERE nom = 'collecteur-lan'`, now.Add(-2*time.Minute).Unix(), now.Add(-30*time.Second).Unix(), now.Add(30*time.Second).Unix())
 	// Alerte passée et changement sur pve1 : bandes et traits des courbes (SPEC § 31).
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin, resume, valeur_max)
 		VALUES ('ChargeElevee', '{"alertname":"ChargeElevee","instance":"pve1","severity":"warning"}', 'warning', 'resolue', ?, ?, ?, 'Charge élevée sur pve1', 4)`,

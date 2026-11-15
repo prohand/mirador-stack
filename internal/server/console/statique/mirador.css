@@ -685,3 +685,22 @@ body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 3
 .mur-machine.etat-muette { border-left-color: var(--pale); opacity: .8; }
 .mur-pied { margin-top: 18px; font-size: 12px; color: var(--pale); }
 @media (max-width: 700px) { .mur-compteurs { grid-template-columns: repeat(2, 1fr); } body.ecran-mural { padding: 16px; } }
+/* Avancement de la création d'un certificat (SPEC § 32). */
+.avancement { list-style: none; margin: 8px 0 12px; padding: 0; }
+.avancement li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; position: relative; }
+.avancement li:not(:last-child)::after { content: ""; position: absolute; left: 10px; top: 28px; bottom: -6px; width: 2px; background: var(--bord); }
+.avancement li > div { display: flex; flex-direction: column; gap: 2px; }
+.avancement small { color: var(--pale); }
+.av-puce { flex: 0 0 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; border: 2px solid var(--bord); color: var(--pale); background: var(--carte); z-index: 1; }
+.av-fait .av-puce { background: var(--ok); border-color: var(--ok); color: var(--carte); }
+.av-fait .av-puce::before { content: "✓"; }
+.av-encours .av-puce { border-color: var(--attention); color: var(--attention); }
+.av-encours .av-puce::before { content: "…"; }
+.av-erreur .av-puce { background: var(--erreur); border-color: var(--erreur); color: var(--carte); }
+.av-erreur .av-puce::before { content: "✕"; }
+.av-erreur strong, .av-erreur small { color: var(--erreur); }
+.av-afaire strong { color: var(--pale); font-weight: 500; }
+.masque-visuel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+tr.ligne-detail td { border-top: 0; padding-top: 0; }
+tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer; }

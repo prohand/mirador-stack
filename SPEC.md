@@ -4730,3 +4730,36 @@ la vue d'ensemble) ; un écran mural garde une session ouverte : utiliser
 un compte en **lecture seule** pour lui (la session expire comme les
 autres) ; pas de formulaire ni d'action sur la page ; nom de machine
 vérifié avant d'entrer dans une requête.
+
+## 32. Certificats : réglage général et avancement (demande du 15/11) **[Fait, à valider]**
+
+- **Réglages › Certificats** (nouvelle page) : le compte DNS et
+  Let's Encrypt (fournisseur, zone, jeton, annuaire), **communs à tous les
+  collecteurs**, quittent la page du collecteur. La page liste aussi tous
+  les collecteurs : nom du certificat, « où en est-on », fin, bouton
+  « Renouveler », et l'avancement pas à pas.
+- **Page du collecteur** : seulement ce qui est à lui (écoute, nom du
+  certificat, émetteurs), l'avancement, « Renouveler maintenant », un lien
+  vers Réglages › Certificats et un message si le compte DNS n'est pas réglé.
+- **Avancement** (6 pas) : compte DNS réglé → syslog réglé sur le
+  collecteur → demande du collecteur reçue → Let's Encrypt (étape en
+  cours parmi 6 : compte, commande, TXT posé, attente de publication
+  « jusqu'à HH:MM », vérification, signature) → certificat obtenu →
+  installé sur le collecteur, écoute ouverte (confirmé par ses mesures
+  `mirador_collecteur_syslog_ecoute` et la fin du certificat chargé). En
+  échec : l'étape fautive, le message et l'heure du nouvel essai.
+  La page se recharge seule toutes les 15 s tant qu'une étape avance (pas
+  pendant la saisie d'un champ).
+- Migration 0023 : colonnes `etape`, `etape_le`, `etape_jusqua` ; la
+  démarche ACME note chaque étape (contexte de suivi), effacées une fois le
+  certificat obtenu, gardées en cas d'échec.
+- La commande d'installation affichée reprend le nom choisi (`--nom`).
+
+**Coût** : une écriture SQLite par étape (6 par certificat, tous les
+60 jours) ; 2 petites requêtes de mesures par collecteur à l'affichage des
+pages. Rechargement seulement pendant une démarche.
+
+**Menaces** : mêmes droits qu'avant (lecture pour voir, admin + code 2FA
+pour régler et renouveler) ; secrets DNS toujours chiffrés et jamais
+réaffichés ; « Renouveler » vérifie que la cible est bien un collecteur ;
+messages d'erreur ACME tronqués à 500 caractères et affichés en texte.

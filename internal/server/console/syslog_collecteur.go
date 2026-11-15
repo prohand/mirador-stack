@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/server/certsyslog"
@@ -16,9 +17,9 @@ import (
 )
 
 // Syslog TLS d'un collecteur dans l'interface (SPEC § 23.14) : réglages
-// (adresse d'écoute, nom du certificat, émetteurs), état du certificat,
-// « Renouveler maintenant », réglages DNS / ACME (communs à tous les
-// collecteurs).
+// (adresse d'écoute, nom du certificat, émetteurs), avancement du
+// certificat, « Renouveler maintenant ». Le compte DNS et Let's Encrypt,
+// communs à tous les collecteurs, sont dans Réglages › Certificats (§ 32).
 
 // vueSyslog : bloc « Syslog TLS » de la page d'un collecteur.
 type vueSyslog struct {
@@ -27,12 +28,8 @@ type vueSyslog struct {
 	Emetteurs       string // une ligne par émetteur : « adresse équipement »
 	GarderFilterlog bool
 	Cert            certsyslog.Etat
-	Domaine         string
-	Annuaire        string
-	JetonEnregistre bool // identifiants DNS déjà rangés
-	Fournisseur     string
-	Parametres      map[string]string // champs non secrets enregistrés
-	Fournisseurs    []certsyslog.InfoFournisseur
+	ReglagesFaits   bool       // compte DNS réglé (Réglages › Certificats)
+	Avancement      avancement // de la configuration à l'écoute ouverte (SPEC § 32)
 }
 
 // syslogDe : réglages actuels (configuration du collecteur) et certificat.
@@ -48,14 +45,15 @@ func (c *Console) syslogDe(ctx context.Context, m flotte.InfoMachine) vueSyslog 
 		v.Emetteurs = strings.Join(lignes, "\n")
 	}
 	v.Cert, _ = certsyslog.LireEtat(ctx, c.db, m.ID)
-	if r, err := certsyslog.LireReglages(ctx, c.db); err == nil {
-		v.Domaine, v.Annuaire, v.JetonEnregistre = r.Domaine, r.Annuaire, r.IdentifiantsEnregistres()
-		v.Fournisseur, v.Parametres = r.FournisseurEffectif(), r.Parametres
-	}
-	if v.Fournisseur == "" {
-		v.Fournisseur = "desec"
-	}
-	v.Fournisseurs = certsyslog.Fournisseurs
+	return v
+}
+
+// syslogAvecAvancement : réglages, certificat et avancement (page du collecteur).
+func (c *Console) syslogAvecAvancement(ctx context.Context, m flotte.InfoMachine, t time.Time) vueSyslog {
+	v := c.syslogDe(ctx, m)
+	r := lireReglagesCertificats(ctx, c)
+	v.ReglagesFaits = r.Faits()
+	v.Avancement = c.avancementCertificat(ctx, m.Nom, v, r, t)
 	return v
 }
 
@@ -129,16 +127,6 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 	case "certificat_renouveler":
 		return "renouvellement demandé : fait sous une minute (Let's Encrypt et le défi DNS prennent 1 à 3 min, jusqu'à 20 min chez CSC)",
 			certsyslog.Demander(ctx, c.db, m.ID, q.qui(), q.t)
-	case "certificat_reglages":
-		// Champs du fournisseur choisi : « dns_<fournisseur>_<champ> ».
-		s := certsyslog.Saisie{Fournisseur: f("fournisseur"), Domaine: f("domaine"), Annuaire: f("annuaire"), Identifiants: map[string]string{}}
-		if info := certsyslog.InfoDe(s.Fournisseur); info != nil {
-			for _, ch := range info.Champs {
-				s.Identifiants[ch.Nom] = q.r.PostFormValue("dns_" + info.Nom + "_" + ch.Nom)
-			}
-		}
-		err := certsyslog.DefinirReglages(ctx, c.db, c.opt.Cle, s, q.qui(), q.t)
-		return "réglages du certificat enregistrés (les secrets ne sont jamais réaffichés)", err
 	}
 	return "", errors.New("action inconnue")
 }

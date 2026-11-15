@@ -794,3 +794,17 @@ document.addEventListener("change", function (e) {
     });
   });
 })();
+
+// Rechargement automatique (SPEC § 32) : [data-recharger="15"] tant qu'une
+// étape avance (création d'un certificat), sauf si on est en train de
+// remplir un champ.
+(function () {
+  var el = document.querySelector("[data-recharger]");
+  if (!el) { return; }
+  var s = Math.max(5, parseInt(el.getAttribute("data-recharger"), 10) || 15);
+  setInterval(function () {
+    var a = document.activeElement;
+    if (document.hidden || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) { return; }
+    window.location.reload();
+  }, s * 1000);
+})();
