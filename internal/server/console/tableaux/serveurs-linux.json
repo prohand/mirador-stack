@@ -11,7 +11,7 @@
     },
     {
       "nom": "env",
-      "titre": "Role",
+      "titre": "Rôle",
       "requete": "label_values(node_uname_info{site=~\"$site\", site!=\"proxmox\", env!=\"hyperviseur\"}, env)"
     },
     {
@@ -41,7 +41,7 @@
         {
           "type": "chiffre",
           "titre": "Muettes",
-          "description": "Machines sans metrique depuis plus de 5 minutes, sur les dernieres 24 heures. Au-dela, une machine arretee disparait du compteur.",
+          "description": "Machines sans métrique depuis plus de 5 minutes, sur les dernières 24 heures. Au-delà, une machine arrêtée disparait du compteur.",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -65,7 +65,7 @@
         },
         {
           "type": "chiffre",
-          "titre": "Services en echec",
+          "titre": "Services en échec",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -89,8 +89,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Services auto arretes",
-          "description": "Services actives au demarrage qui ne tournent pas (obs-systemd.sh).",
+          "titre": "Services auto arrêtés",
+          "description": "Services actives au démarrage qui ne tournent pas (obs-systemd.sh).",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -114,7 +114,7 @@
         },
         {
           "type": "chiffre",
-          "titre": "Conteneurs arretes",
+          "titre": "Conteneurs arrêtés",
           "description": "Conteneurs en always ou unless-stopped qui ne tournent pas.",
           "unite": "short",
           "decimales": 0,
@@ -140,7 +140,7 @@
         {
           "type": "chiffre",
           "titre": "INPUT pas en DROP",
-          "description": "Machines surveillees dont la politique INPUT n'est pas DROP.",
+          "description": "Machines surveillées dont la politique INPUT n'est pas DROP.",
           "unite": "short",
           "decimales": 0,
           "seuils": [
@@ -188,8 +188,8 @@
         },
         {
           "type": "tableau",
-          "titre": "Etat du parc",
-          "description": "Une ligne par machine. Pare-feu et Docker sont vides quand ils ne sont pas surveilles sur la machine.",
+          "titre": "État du parc",
+          "description": "Une ligne par machine. Pare-feu et Docker sont vides quand ils ne sont pas surveillés sur la machine.",
           "requetes": [
             {
               "id": "A",
@@ -239,7 +239,7 @@
             },
             {
               "champ": "A",
-              "titre": "Derniere donnee",
+              "titre": "Dernière donnée",
               "unite": "s",
               "decimales": 0,
               "seuils": [
@@ -319,7 +319,7 @@
             },
             {
               "champ": "E",
-              "titre": "Charge / coeur",
+              "titre": "Charge / cœur",
               "unite": "none",
               "decimales": 2,
               "seuils": [
@@ -354,7 +354,7 @@
             },
             {
               "champ": "G",
-              "titre": "Svc echec",
+              "titre": "Svc échec",
               "unite": "short",
               "decimales": 0,
               "seuils": [
@@ -370,7 +370,7 @@
             },
             {
               "champ": "H",
-              "titre": "Svc arretes",
+              "titre": "Svc arrêtés",
               "unite": "short",
               "decimales": 0,
               "seuils": [
@@ -441,12 +441,16 @@
               "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
               "legende": "{{instance}}"
             }
-          ]
+          ],
+          "seuil_modele": {
+            "modele": "linux",
+            "parametre": "cpu_pct"
+          }
         },
         {
           "type": "courbe",
-          "titre": "Charge par coeur (load 5 min)",
-          "description": "Au-dela de 1, des processus attendent le processeur.",
+          "titre": "Charge par cœur (load 5 min)",
+          "description": "Au-delà de 1, des processus attendent le processeur.",
           "unite": "none",
           "requetes": [
             {
@@ -454,11 +458,15 @@
               "expr": "max by (instance) (node_load5{instance=~\"$instance\"}) / count by (instance) (node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"})",
               "legende": "{{instance}}"
             }
-          ]
+          ],
+          "seuil_modele": {
+            "modele": "linux",
+            "parametre": "charge_par_coeur"
+          }
         },
         {
           "type": "courbe",
-          "titre": "Memoire utilisee",
+          "titre": "Mémoire utilisée",
           "description": "Mémoire occupée, sans le cache du système",
           "unite": "percent",
           "requetes": [
@@ -467,11 +475,16 @@
               "expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})",
               "legende": "{{instance}}"
             }
-          ]
+          ],
+          "seuil_modele": {
+            "modele": "linux",
+            "parametre": "memoire_libre_pct",
+            "inverse": true
+          }
         },
         {
           "type": "courbe",
-          "titre": "Swap utilise",
+          "titre": "Swap utilisé",
           "description": "Mémoire déplacée sur le disque ; une hausse durable ralentit la machine",
           "unite": "bytes",
           "requetes": [
@@ -489,7 +502,7 @@
       "panneaux": [
         {
           "type": "barres",
-          "titre": "Occupation des systemes de fichiers",
+          "titre": "Occupation des systèmes de fichiers",
           "description": "Place utilisée par point de montage",
           "unite": "percent",
           "decimales": 0,
@@ -518,7 +531,7 @@
         {
           "type": "courbe",
           "titre": "Saturation des disques",
-          "description": "Part du temps ou le disque est occupe. Durablement au-dessus de 90 %, il sature.",
+          "description": "Part du temps où le disque est occupé. Durablement au-dessus de 90 %, il sature.",
           "unite": "percent",
           "requetes": [
             {
@@ -530,8 +543,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Debit disque",
-          "description": "Lectures au-dessus de zero, ecritures en dessous.",
+          "titre": "Débit disque",
+          "description": "Lectures au-dessus de zéro, écritures en dessous.",
           "unite": "Bps",
           "requetes": [
             {
@@ -549,12 +562,12 @@
       ]
     },
     {
-      "titre": "Reseau",
+      "titre": "Réseau",
       "panneaux": [
         {
           "type": "courbe",
           "titre": "Trafic",
-          "description": "Entrant au-dessus de zero, sortant en dessous.",
+          "description": "Entrant au-dessus de zéro, sortant en dessous.",
           "unite": "bps",
           "requetes": [
             {
@@ -567,7 +580,12 @@
               "expr": "-sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\"$instance\", device!~\"lo|veth.*|docker.*|br-.*|virbr.*|tap.*|fw.*\"}[$__rate_interval])) * 8",
               "legende": "{{instance}} sortant"
             }
-          ]
+          ],
+          "seuil_modele": {
+            "modele": "linux",
+            "parametre": "trafic_mbits",
+            "facteur": 1000000
+          }
         },
         {
           "type": "courbe",
@@ -590,11 +608,11 @@
       ]
     },
     {
-      "titre": "Services et securite",
+      "titre": "Services et sécurité",
       "panneaux": [
         {
           "type": "tableau",
-          "titre": "Unites en echec",
+          "titre": "Unités en échec",
           "description": "Liste vide = tout va bien.",
           "requetes": [
             {
@@ -605,7 +623,7 @@
           "colonnes": [
             {
               "champ": "name",
-              "titre": "Unite"
+              "titre": "Unité"
             },
             {
               "champ": "instance",
@@ -629,7 +647,7 @@
         },
         {
           "type": "tableau",
-          "titre": "Actives au demarrage, arretes",
+          "titre": "Actives au démarrage, arrêtés",
           "description": "Liste vide = tout va bien. Faux positif : ajouter le service dans /etc/obs-systemd-ignore sur la machine.",
           "requetes": [
             {
@@ -663,7 +681,7 @@
         {
           "type": "tableau",
           "titre": "Pare-feu : INPUT en DROP",
-          "description": "Machines ou le controle du pare-feu est actif : toujours sur les VPS, sur les VM seulement si INPUT etait deja en DROP a l'installation.",
+          "description": "Machines où le contrôle du pare-feu est actif : toujours sur les VPS, sur les VM seulement si INPUT était déjà en DROP à l'installation.",
           "requetes": [
             {
               "id": "A",
@@ -699,8 +717,8 @@
       "panneaux": [
         {
           "type": "tableau",
-          "titre": "Etat des conteneurs",
-          "description": "Un conteneur arrete n'est anormal qu'avec une politique always ou unless-stopped.",
+          "titre": "État des conteneurs",
+          "description": "Un conteneur arrêté n'est anormal qu'avec une politique always ou unless-stopped.",
           "requetes": [
             {
               "id": "A",
@@ -718,11 +736,11 @@
             },
             {
               "champ": "state",
-              "titre": "Etat"
+              "titre": "État"
             },
             {
               "champ": "restart_policy",
-              "titre": "Redemarrage"
+              "titre": "Redémarrage"
             },
             {
               "champ": "A",
@@ -752,7 +770,7 @@
         {
           "type": "tableau",
           "titre": "Consommation des conteneurs",
-          "description": "CPU exprime en pourcentage d'un coeur : peut depasser 100 %. Sante vide = pas de healthcheck.",
+          "description": "CPU exprime en pourcentage d'un cœur : peut dépasser 100 %. Santé vide = pas de healthcheck.",
           "requetes": [
             {
               "id": "A",
@@ -802,13 +820,13 @@
             },
             {
               "champ": "B",
-              "titre": "Memoire",
+              "titre": "Mémoire",
               "unite": "bytes",
               "decimales": 0
             },
             {
               "champ": "C",
-              "titre": "Redemarrages",
+              "titre": "Redémarrages",
               "unite": "short",
               "decimales": 0,
               "seuils": [
@@ -828,7 +846,7 @@
             },
             {
               "champ": "D",
-              "titre": "Sante",
+              "titre": "Santé",
               "correspondances": [
                 {
                   "valeur": "0",
@@ -854,7 +872,7 @@
         {
           "type": "courbe",
           "titre": "CPU par conteneur (top 10)",
-          "description": "Pourcentage d'un coeur. Resolution d'une minute.",
+          "description": "Pourcentage d'un cœur. Résolution d'une minute.",
           "unite": "percent",
           "requetes": [
             {
@@ -866,7 +884,7 @@
         },
         {
           "type": "courbe",
-          "titre": "Memoire par conteneur (top 10)",
+          "titre": "Mémoire par conteneur (top 10)",
           "description": "Mémoire réellement occupée, sans le cache des fichiers",
           "unite": "bytes",
           "requetes": [

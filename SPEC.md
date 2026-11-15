@@ -4494,7 +4494,9 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   Réglages) ;
 - **seulement ce qui a changé** (documents JSON aplatis et comparés clé par
   clé, 8 lignes au plus) ; le JSON complet reste dans « Détail » ;
-- lignes groupées par jour ; liens vers la règle, le modèle, la machine,
+- lignes groupées par jour, séparation bien marquée (bandeau de couleur
+  avec « Aujourd'hui · dimanche 15/11 », « Hier · … » ou la date, retour du
+  15/11) ; liens vers la règle, le modèle, la machine,
   les utilisateurs ;
 - filtres : catégorie, qui, période (24 h, 7 j, 30 j, tout), recherche,
   actions automatiques (mirador, auto, agents ; masquées par défaut, leur
@@ -4515,6 +4517,14 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
 - lecture : une requête SQL par affichage (alertes qui chevauchent la
   période, 5 000 au plus), SVG en attributs (pas de style en ligne : CSP).
 
+**Conditions « en attente »** (retour du 15/11 : « les alertes semblent mal
+calculées ») : une règle avec un délai (ex. MisesAJourSecuriteEnAttente,
+72 h) a une condition vraie avant d'être une alerte. Elle n'était pas
+comptée (juste) mais apparaissait dans « Alertes en cours » (trompeur).
+Elle est maintenant dans un bloc à part « En attente » (vue d'ensemble,
+page Alertes, page de la machine), avec « deviendra une alerte dans … si
+elle dure » ; la pastille « N alerte(s) » de la machine ne la compte plus.
+
 **Coût** : page Alertes : une requête de plage par alerte en cours (30 au
 plus) toutes les 30 s quand la page est ouverte ; audit : mêmes requêtes
 qu'avant, filtres en SQL.
@@ -4523,4 +4533,47 @@ qu'avant, filtres en SQL.
 avant/après) ; actions d'alerte réservées aux administrateurs, jeton
 CSRF ; retour après action limité à un chemin du site ; SVG construit de
 nombres et de couleurs fixes ; export CSV protégé contre les formules.
+
+---
+
+## 29. Page d'une machine et graphiques (maquette validée le 15/11) **[Fait, à valider]**
+
+**Page d'une machine** — ordre : en-tête, alertes en cours et en attente,
+**En ce moment**, graphiques, **Surveillance et modèles** (repliable, ouvert
+d'office s'il y a quelque chose à valider ou un modèle détecté), détails,
+modifier.
+- **En ce moment** : CPU, mémoire, disque le plus plein (point de montage et
+  place libre), swap, charge par cœur, durée depuis le démarrage. Couleur
+  selon le seuil du modèle Linux de la machine (ses valeurs par défaut s'il
+  n'est pas porté) : vert, orange à 80 % du seuil, rouge au seuil.
+  Quelques requêtes instantanées par affichage.
+- Sommaire (sections, surveillance, logs) et **boutons de période**.
+- Graphiques sur **2 colonnes** (1 sur téléphone) ; panneaux sans données
+  regroupés en une ligne « Pas de données sur la période : … » ; sections
+  repliées retenues dans le navigateur.
+- **Seuil du modèle sur la courbe** (pointillé rouge) : champ
+  `seuil_modele` d'un panneau (modèle, paramètre, `inverse` pour « % libre »,
+  `facteur` d'unité) ; la valeur vient des seuils effectifs de la machine
+  (`seuil` dans le JSON de la courbe, seulement pour une seule machine).
+  Serveurs Linux : CPU, charge, mémoire, trafic. Un seuil plus de 2 fois
+  au-dessus des valeurs n'est pas tracé (il écraserait la courbe).
+
+**Graphiques, partout** :
+- légende en français (« Heure : 15 nov. 10:18 »), pastilles cliquables
+  pour masquer une courbe ; axe des temps en français ;
+- aire légère sous une courbe seule, trait plus épais ;
+- axe depuis zéro ; 0 à 100 % fixe pour les pourcentages ; libellés de
+  l'axe jamais coupés ;
+- **survol synchronisé** entre les courbes de la page ;
+- **zoom** en glissant (le rechargement automatique attend alors) ;
+  double-clic pour revenir.
+
+**Accents** des titres et descriptions des tableaux fournis (« Mémoire
+utilisée », « Réseau », « Unités en échec »…).
+
+**Coût** : navigateur seulement pour les graphiques ; page machine : 7 à 8
+requêtes instantanées de plus.
+
+**Menaces** : aucune nouvelle donnée ; nom de machine contrôlé avant d'entrer
+dans une requête ; pas de style en ligne (CSP).
 

@@ -514,7 +514,11 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 /* --- Journal d'audit (SPEC § 28) ------------------------------------------- */
 .filtres-audit { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .filtres-audit .case { padding-bottom: 8px; }
-.jour-audit th { padding-top: 18px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--pale); background: transparent; }
+/* Séparation des jours bien marquée : bandeau plein, trait au-dessus. */
+.jour-audit th { padding: 10px 12px; font-size: 13.5px; font-weight: 700; color: var(--titres); background: var(--accent-fond);
+  box-shadow: inset 4px 0 0 var(--accent); border-top: 2px solid var(--bord); border-bottom: 1px solid var(--bord); text-transform: none; letter-spacing: 0; }
+.table-audit tbody tr.jour-audit:first-child th { border-top: 0; }
+.jour-audit + .ligne-audit td { padding-top: 12px; }
 .ligne-audit td { vertical-align: top; }
 .ligne-audit .phrase { font-weight: 500; }
 .cat-audit { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap;
@@ -582,3 +586,30 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .frise-barres rect.g-warning { fill: var(--attention); }
 .frise-barres a:hover rect { opacity: .75; }
 @media (max-width: 899px) { .frise-ligne { grid-template-columns: 90px 1fr; } }
+
+/* --- Page d'une machine et graphiques (SPEC § 29) ---------------------------- */
+.resume-machine { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.jauge-machine { padding: 12px 14px; border: 1px solid var(--bord-doux); border-radius: 12px; background: var(--carte); }
+.jauge-machine small { display: block; color: var(--pale); }
+.jauge-machine b { display: block; font-size: 22px; color: var(--titres); line-height: 1.25; }
+.jauge-machine .jauge { height: 6px; margin-top: 8px; }
+.jauge-machine .jauge i { height: 6px; }
+.jauge-machine .detail { display: block; margin-top: 4px; font-size: 11.5px; color: var(--pale); }
+.sommaire-machine { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 6px; }
+.sommaire-machine > a { padding: 4px 12px; border-radius: 999px; background: var(--survol); color: var(--texte); text-decoration: none; font-size: 13px; }
+.sommaire-machine .periode { margin-left: auto; }
+#graphiques .panneaux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+#graphiques .panneaux > * { grid-column: auto; width: auto; margin: 0; }
+#graphiques .panneaux > .panneau-tableau, #graphiques .panneaux > .panneau-barres { grid-column: auto; }
+#graphiques .panneau-vide { display: none; }
+#graphiques .sans-donnees { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--pale); }
+@media (max-width: 899px) { #graphiques .panneaux { grid-template-columns: 1fr; } }
+.section-surveillance > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.section-surveillance > summary h2 { margin: 0; }
+.section-surveillance > .carte { box-shadow: none; border: 0; padding: 0; margin: 14px 0 0; }
+/* Légende des courbes : pastilles cliquables (masquer / afficher une courbe). */
+.uplot .u-legend { text-align: left; margin-top: 4px; font-size: 12.5px; }
+.uplot .u-legend tr.u-series { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 999px; background: var(--survol); cursor: pointer; }
+.uplot .u-legend tr.u-series:first-child { background: transparent; cursor: default; }
+.uplot .u-legend tr.u-series.u-off { opacity: .45; }
+.indice-courbe { margin: 2px 0 0; font-size: 11.5px; color: var(--pale); }

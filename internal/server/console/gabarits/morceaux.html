@@ -2,7 +2,7 @@
 {{define "code2fa-toujours"}}<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
-{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}">
+{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}{{if and (egal .P.Type "barres") (not .Barres) (not .Erreur)}} panneau-vide{{end}}">
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
 {{if .P.Description}}<p><small>{{.P.Description}}</small></p>{{end}}
 {{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>
@@ -13,7 +13,7 @@
 <tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{end}}
 </section>{{end}}
-{{define "rangees"}}{{range .}}<details class="rangee" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
+{{define "rangees"}}{{range .}}<details class="rangee" id="{{ancre .Titre}}" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
 <div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
 {{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
 {{define "liste-alertes"}}{{if .}}<div data-alertes>
@@ -48,6 +48,7 @@
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
 </div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{template "liste-attente" .D.Attente}}
 <section class="carte" data-parc>
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
@@ -208,4 +209,9 @@
 <td>{{template "action-alerte" (dict "Admin" $.Admin "CSRF" $.CSRF "A" . "Retour" $v.Retour)}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
 {{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
+{{template "liste-attente" $v.Attente}}
 </div>{{end}}
+{{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
+<div class="defile"><table><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
+{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
+</tbody></table></div></details>{{end}}{{end}}

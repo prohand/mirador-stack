@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/modeles"
 )
 
 // --- Cache des requêtes ----------------------------------------------------------
@@ -407,6 +408,8 @@ type jsonCourbe struct {
 	X      []int64     `json:"x"` // secondes Unix
 	Series []jsonSerie `json:"series"`
 	Erreur string      `json:"erreur,omitempty"`
+	// Seuil : seuil du modèle pour la machine affichée (pointillé), SPEC § 29.
+	Seuil *float64 `json:"seuil,omitempty"`
 }
 
 const seriesParCourbeMax = 50
@@ -434,7 +437,43 @@ func (c *Console) donneesCourbe(q *req) {
 		_ = json.NewEncoder(w).Encode(jsonCourbe{Erreur: err.Error()})
 		return
 	}
-	ecrireCourbe(q, c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t))
+	donnees := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t)
+	donnees.Seuil = c.seuilModele(q.r.Context(), p.SeuilModele, vals["instance"])
+	ecrireCourbe(q, donnees)
+}
+
+// seuilModele : seuil du modèle pour une seule machine qui le porte (nil
+// sinon : plusieurs machines, ou modèle pas porté).
+func (c *Console) seuilModele(ctx context.Context, s *SeuilModele, instance string) *float64 {
+	if s == nil || instance == "" || strings.ContainsAny(instance, "|*.()[]") {
+		return nil
+	}
+	var id int64
+	var groupe string
+	if err := c.db.QueryRowContext(ctx, `SELECT id, groupe FROM machines WHERE nom = ?`, instance).Scan(&id, &groupe); err != nil {
+		return nil
+	}
+	effs, err := modeles.Effectifs(ctx, c.db, id, groupe)
+	if err != nil {
+		return nil
+	}
+	for _, e := range effs {
+		if e.Modele.Nom != s.Modele {
+			continue
+		}
+		v, ok := e.Parametres[s.Parametre]
+		if !ok {
+			return nil
+		}
+		if s.Inverse {
+			v = 100 - v
+		}
+		if s.Facteur != 0 {
+			v *= s.Facteur
+		}
+		return &v
+	}
+	return nil
 }
 
 // ecrireCourbe : JSON d'une courbe (gzip si accepté : des nombres en JSON,

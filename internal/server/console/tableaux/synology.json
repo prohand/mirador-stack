@@ -12,12 +12,12 @@
   ],
   "rangees": [
     {
-      "titre": "Etat",
+      "titre": "État",
       "panneaux": [
         {
           "type": "chiffre",
           "titre": "Joignable",
-          "description": "Le collecteur obtient-il une reponse SNMP ? « Non » : NAS eteint, SNMP desactive, mot de passe ou adresse incorrects.",
+          "description": "Le collecteur obtient-il une réponse SNMP ? « Non » : NAS éteint, SNMP désactivé, mot de passe ou adresse incorrects.",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -41,8 +41,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Systeme",
-          "description": "Etat general signale par DSM (pire valeur de tous les NAS affiches).",
+          "titre": "Système",
+          "description": "État général signale par DSM (pire valeur de tous les NAS affichés).",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -67,7 +67,7 @@
         {
           "type": "chiffre",
           "titre": "Alimentation",
-          "description": "Etat de l'alimentation.",
+          "description": "État de l'alimentation.",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -92,7 +92,7 @@
         {
           "type": "chiffre",
           "titre": "Ventilateurs",
-          "description": "Ventilateurs systeme et processeur.",
+          "description": "Ventilateurs système et processeur.",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -117,7 +117,7 @@
         {
           "type": "chiffre",
           "titre": "Volumes",
-          "description": "Etat des groupes de stockage (RAID). « Degrade » : un disque manque ou est en panne, la redondance est perdue. « Operation en cours » : reconstruction, extension, verification...",
+          "description": "État des groupes de stockage (RAID). « Dégradé » : un disque manque ou est en panne, la redondance est perdue. « Opération en cours » : reconstruction, extension, vérification...",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -163,8 +163,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Sante des disques",
-          "description": "Pire etat de sante parmi tous les disques (analyse SMART de DSM).",
+          "titre": "Santé des disques",
+          "description": "Pire état de sante parmi tous les disques (analyse SMART de DSM).",
           "unite": "none",
           "decimales": 0,
           "correspondances": [
@@ -198,8 +198,8 @@
         },
         {
           "type": "chiffre",
-          "titre": "Temperature",
-          "description": "Temperature du NAS la plus elevee.",
+          "titre": "Température",
+          "description": "Température du NAS la plus élevée.",
           "unite": "celsius",
           "decimales": 0,
           "seuils": [
@@ -225,7 +225,7 @@
         },
         {
           "type": "chiffre",
-          "titre": "Mise a jour DSM",
+          "titre": "Mise à jour DSM",
           "description": "Une nouvelle version de DSM est-elle disponible ?",
           "unite": "none",
           "decimales": 0,
@@ -261,7 +261,7 @@
         {
           "type": "tableau",
           "titre": "NAS",
-          "description": "Un NAS par ligne. « En service depuis » compte depuis le dernier demarrage du service SNMP du NAS.",
+          "description": "Un NAS par ligne. « En service depuis » compte depuis le dernier démarrage du service SNMP du NAS.",
           "requetes": [
             {
               "id": "A",
@@ -303,7 +303,7 @@
             },
             {
               "champ": "modelName",
-              "titre": "Modele"
+              "titre": "Modèle"
             },
             {
               "champ": "version",
@@ -336,7 +336,7 @@
             },
             {
               "champ": "E",
-              "titre": "Memoire",
+              "titre": "Mémoire",
               "unite": "percent",
               "decimales": 0,
               "seuils": [
@@ -356,7 +356,7 @@
             },
             {
               "champ": "F",
-              "titre": "Temperature",
+              "titre": "Température",
               "unite": "celsius",
               "decimales": 0,
               "seuils": [
@@ -376,7 +376,7 @@
             },
             {
               "champ": "G",
-              "titre": "Systeme",
+              "titre": "Système",
               "correspondances": [
                 {
                   "valeur": "1",
@@ -392,7 +392,7 @@
             },
             {
               "champ": "H",
-              "titre": "Mise a jour DSM",
+              "titre": "Mise à jour DSM",
               "correspondances": [
                 {
                   "valeur": "1",
@@ -442,8 +442,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Memoire",
-          "description": "Memoire utilisee.",
+          "titre": "Mémoire",
+          "description": "Mémoire utilisée.",
           "unite": "percent",
           "requetes": [
             {
@@ -455,8 +455,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Temperature du NAS",
-          "description": "Temperature interne de chaque NAS.",
+          "titre": "Température du NAS",
+          "description": "Température interne de chaque NAS.",
           "unite": "celsius",
           "requetes": [
             {
@@ -474,7 +474,7 @@
         {
           "type": "tableau",
           "titre": "Volumes",
-          "description": "Groupes de stockage et volumes. La ligne « Storage Pool » correspond au groupe RAID, « Volume » a l'espace de fichiers.",
+          "description": "Groupes de stockage et volumes. La ligne « Storage Pool » correspond au groupe RAID, « Volume » à l'espace de fichiers.",
           "requetes": [
             {
               "id": "A",
@@ -508,7 +508,7 @@
             },
             {
               "champ": "A",
-              "titre": "Etat",
+              "titre": "État",
               "correspondances": [
                 {
                   "valeur": "1",
@@ -591,7 +591,7 @@
         {
           "type": "courbe",
           "titre": "Occupation des volumes",
-          "description": "Evolution du remplissage. Une pente reguliere annonce la date de saturation.",
+          "description": "Évolution du remplissage. Une pente régulière annonce la date de saturation.",
           "unite": "percentunit",
           "requetes": [
             {
@@ -604,7 +604,7 @@
         {
           "type": "tableau",
           "titre": "Disques",
-          "description": "Etat de chaque disque. Des secteurs defectueux qui augmentent annoncent une panne : prevoir le remplacement. La duree de vie restante n'existe que pour les SSD.",
+          "description": "État de chaque disque. Des secteurs défectueux qui augmentent annoncent une panne : prévoir le remplacement. La durée de vie restante n'existe que pour les SSD.",
           "requetes": [
             {
               "id": "A",
@@ -646,11 +646,11 @@
             },
             {
               "champ": "diskModel",
-              "titre": "Modele"
+              "titre": "Modèle"
             },
             {
               "champ": "B",
-              "titre": "Etat",
+              "titre": "État",
               "correspondances": [
                 {
                   "valeur": "1",
@@ -681,7 +681,7 @@
             },
             {
               "champ": "C",
-              "titre": "Sante",
+              "titre": "Santé",
               "correspondances": [
                 {
                   "valeur": "1",
@@ -707,7 +707,7 @@
             },
             {
               "champ": "D",
-              "titre": "Temperature",
+              "titre": "Température",
               "unite": "celsius",
               "decimales": 0,
               "seuils": [
@@ -727,7 +727,7 @@
             },
             {
               "champ": "E",
-              "titre": "Secteurs defectueux",
+              "titre": "Secteurs défectueux",
               "unite": "short",
               "decimales": 0,
               "seuils": [
@@ -759,7 +759,7 @@
             },
             {
               "champ": "G",
-              "titre": "Duree de vie restante",
+              "titre": "Durée de vie restante",
               "unite": "percent",
               "decimales": 0,
               "seuils": [
@@ -790,8 +790,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Temperature des disques",
-          "description": "Au-dela de 50 degres de facon durable, la duree de vie des disques baisse.",
+          "titre": "Température des disques",
+          "description": "Au-delà de 50 degrés de façon durable, la durée de vie des disques baisse.",
           "unite": "celsius",
           "requetes": [
             {
@@ -803,8 +803,8 @@
         },
         {
           "type": "courbe",
-          "titre": "Lectures et ecritures par disque",
-          "description": "Debit par disque physique (au-dessus : lecture, en dessous : ecriture).",
+          "titre": "Lectures et écritures par disque",
+          "description": "Débit par disque physique (au-dessus : lecture, en dessous : écriture).",
           "unite": "Bps",
           "requetes": [
             {
@@ -822,7 +822,7 @@
         {
           "type": "courbe",
           "titre": "Charge des disques",
-          "description": "Pourcentage du temps ou chaque disque est occupe. Proche de 100 % en continu : le disque limite les performances.",
+          "description": "Pourcentage du temps où chaque disque est occupé. Proche de 100 % en continu : le disque limite les performances.",
           "unite": "percent",
           "requetes": [
             {
@@ -835,12 +835,12 @@
       ]
     },
     {
-      "titre": "Reseau et services",
+      "titre": "Réseau et services",
       "panneaux": [
         {
           "type": "courbe",
-          "titre": "Trafic reseau",
-          "description": "Debit par interface reseau du NAS (au-dessus : entrant, en dessous : sortant).",
+          "titre": "Trafic réseau",
+          "description": "Débit par interface réseau du NAS (au-dessus : entrant, en dessous : sortant).",
           "unite": "bps",
           "requetes": [
             {
@@ -857,7 +857,7 @@
         },
         {
           "type": "courbe",
-          "titre": "Erreurs reseau",
+          "titre": "Erreurs réseau",
           "description": "Seules les interfaces en erreur apparaissent.",
           "unite": "pps",
           "requetes": [
@@ -870,7 +870,7 @@
         },
         {
           "type": "courbe",
-          "titre": "Utilisateurs connectes",
+          "titre": "Utilisateurs connectés",
           "description": "Sessions ouvertes par service (partages SMB, NFS, AFP, FTP...).",
           "unite": "short",
           "requetes": [
@@ -888,7 +888,7 @@
       "panneaux": [
         {
           "type": "chiffre",
-          "titre": "Etat de l'onduleur",
+          "titre": "État de l'onduleur",
           "description": "OL = sur secteur, OB = sur batterie, LB = batterie faible, CHRG = en charge.",
           "unite": "none",
           "decimales": 0,
@@ -930,7 +930,7 @@
         {
           "type": "chiffre",
           "titre": "Autonomie",
-          "description": "Autonomie estimee sur batterie avec la charge actuelle.",
+          "description": "Autonomie estimée sur batterie avec la charge actuelle.",
           "unite": "s",
           "decimales": 0,
           "seuils": [
@@ -957,7 +957,7 @@
         {
           "type": "chiffre",
           "titre": "Charge de l'onduleur",
-          "description": "Puissance demandee par rapport a la capacite de l'onduleur.",
+          "description": "Puissance demandée par rapport à la capacité de l'onduleur.",
           "unite": "percent",
           "decimales": 0,
           "seuils": [

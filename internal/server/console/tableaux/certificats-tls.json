@@ -28,7 +28,7 @@
         {
           "type": "chiffre",
           "titre": "Expires",
-          "description": "Certificats dont la date de fin est deja passee.",
+          "description": "Certificats dont la date de fin est déjà passée.",
           "unite": "short",
           "seuils": [
             {
@@ -92,7 +92,7 @@
         },
         {
           "type": "chiffre",
-          "titre": "Echeance la plus proche",
+          "titre": "Échéance la plus proche",
           "unite": "d",
           "decimales": 1,
           "seuils": [
@@ -127,12 +127,12 @@
       ]
     },
     {
-      "titre": "Detail par certificat",
+      "titre": "Détail par certificat",
       "panneaux": [
         {
           "type": "tableau",
           "titre": "Inventaire",
-          "description": "Trie par echeance croissante. Le chemin permet de retrouver le fichier sur la machine.",
+          "description": "Trie par échéance croissante. Le chemin permet de retrouver le fichier sur la machine.",
           "requetes": [
             {
               "id": "A",
@@ -183,7 +183,7 @@
             },
             {
               "champ": "issuer",
-              "titre": "Emetteur"
+              "titre": "Émetteur"
             },
             {
               "champ": "instance",
@@ -240,8 +240,8 @@
       "panneaux": [
         {
           "type": "courbe",
-          "titre": "Evolution des echeances",
-          "description": "Chaque renouvellement produit une remontee brutale. Une courbe qui descend sans jamais remonter signale un renouvellement automatique qui ne fonctionne plus.",
+          "titre": "Évolution des échéances",
+          "description": "Chaque renouvellement produit une remontée brutale. Une courbe qui descend sans jamais remonter signale un renouvellement automatique qui ne fonctionne plus.",
           "unite": "d",
           "seuils": [
             {
@@ -263,8 +263,8 @@
         },
         {
           "type": "tableau",
-          "titre": "Etat de la collecte par machine",
-          "description": "Machines remontant des metriques node. 'Certificats' a 0 signale un script qui tourne sans rien trouver ; une machine absente de la liste n'execute pas obs-certs.sh.",
+          "titre": "État de la collecte par machine",
+          "description": "Machines remontant des métriques node. 'Certificats' à 0 signale un script qui tourne sans rien trouver ; une machine absente de la liste n'exécute pas obs-certs.sh.",
           "requetes": [
             {
               "id": "A",

@@ -152,12 +152,16 @@ func fonctions() template.FuncMap {
 		"depuisMs": depuis,
 		"duree":    func(d time.Duration) string { return dureeLisible(d) },
 		"dureeC":   dureeCourte,
-		"docs":     func(chemin string) string { return AdresseDocs + chemin },
-		"taille":   tailleLisible,
-		"pct":      func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
-		"egal":     func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
-		"sub":      func(a, b int) int { return a - b },
-		"seuil":    formatSeuil,
+		"ancre":    ancre,
+		"periodeFr": func(p string) string { // « 7d » → « 7 j », « 6h » → « 6 h »
+			return strings.NewReplacer("d", " j", "h", " h", "w", " sem.").Replace(p)
+		},
+		"docs":   func(chemin string) string { return AdresseDocs + chemin },
+		"taille": tailleLisible,
+		"pct":    func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
+		"egal":   func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
+		"sub":    func(a, b int) int { return a - b },
+		"seuil":  formatSeuil,
 		// barres : texte sur plusieurs lignes → une ligne (« | » entre elles).
 		"barres": func(s string) string { return strings.ReplaceAll(s, "\n", " | ") },
 		// dict : paramètres nommés pour un morceau de gabarit (« clé », valeur…).
@@ -309,6 +313,24 @@ func dureeCourte(v any) string {
 		return fmt.Sprintf("%d min", d/time.Minute)
 	}
 	return d.String()
+}
+
+// ancre : identifiant HTML tiré d'un titre (« Réseau » → « reseau »).
+func ancre(titre string) string {
+	r := strings.NewReplacer("à", "a", "â", "a", "ä", "a", "é", "e", "è", "e", "ê", "e", "ë", "e", "î", "i", "ï", "i",
+		"ô", "o", "ö", "o", "ù", "u", "û", "u", "ü", "u", "ç", "c", "œ", "oe")
+	var b strings.Builder
+	tiret := false
+	for _, c := range r.Replace(strings.ToLower(titre)) {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			b.WriteRune(c)
+			tiret = false
+		} else if !tiret && b.Len() > 0 {
+			b.WriteByte('-')
+			tiret = true
+		}
+	}
+	return "r-" + strings.TrimSuffix(b.String(), "-")
 }
 
 // AdresseDocs : documentation en ligne, cible des liens « En savoir plus »

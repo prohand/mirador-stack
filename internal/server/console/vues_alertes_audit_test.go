@@ -14,6 +14,8 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/modeles"
 )
 
 // Partie gauche (valeur suivie) et droite (seuil) d'une règle, y compris
@@ -94,7 +96,7 @@ func TestAuditLisible(t *testing.T) {
 	}
 	_, corps, _ := b.get(c, "/audit")
 	for _, attendu := range []string{"Règle CpuEleve créée ou modifiée", `href="/regles/modifier/CpuEleve"`, "pour : <del>5m</del> → <ins>10m</ins>",
-		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui", "action(s) automatique(s) masquée(s)"} {
+		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui · ", "action(s) automatique(s) masquée(s)"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("audit : %q absent", attendu)
 		}
@@ -176,5 +178,80 @@ func TestFriseAlertes(t *testing.T) {
 	}
 	if _, corps, _ = b.get(c, "/alertes?hp=7j"); !strings.Contains(corps, `class="frise-graduations g7"`) || !strings.Contains(frise(corps), "Ancienne") {
 		t.Error("frise 7 jours")
+	}
+}
+
+// Condition « en attente » (pas encore une alerte) : hors des compteurs et
+// de la liste des alertes, dans un bloc à part avec le temps restant.
+func TestAlertesEnAttente(t *testing.T) {
+	actives, attente := separerAttente([]resumeAlerte{
+		{ID: 1, Regle: "CpuEleve", Gravite: "warning", Etat: "active"},
+		{ID: 2, Regle: "MisesAJourSecuriteEnAttente", Gravite: "warning", Etat: "en_attente", Machine: "pbs", Reste: "dans 28 h 43"},
+	})
+	if len(actives) != 1 || len(attente) != 1 || attente[0].ID != 2 {
+		t.Fatalf("séparation : %v / %v", actives, attente)
+	}
+	b := nouveauBanc(t)
+	w := httptest.NewRecorder()
+	b.c.pages.executer(w, http.StatusOK, "alertes-fragment", Page{D: donneesEnCours{Vue: "machine", Attente: attente}})
+	corps := w.Body.String()
+	for _, attendu := range []string{"Aucune alerte en cours.", "En attente</strong> (1)", "MisesAJourSecuriteEnAttente", "dans 28 h 43", `data-nb-alertes="0"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("bloc en attente : %q absent", attendu)
+		}
+	}
+}
+
+// Page d'une machine (SPEC § 29) : « En ce moment » avec les seuils du
+// modèle, graphiques avant la surveillance, seuil du modèle dans la courbe.
+func TestPageMachineRessources(t *testing.T) {
+	b := nouveauBanc(t)
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := b.h.maintenant()
+	app := db.Appender(context.Background())
+	for k, ts := 0, m.Add(-30*time.Minute); !ts.After(m); k, ts = k+1, ts.Add(30*time.Second) {
+		ajout := func(v float64, l ...string) {
+			_, _ = app.Append(0, labels.FromStrings(append([]string{"instance", "web1"}, l...)...), ts.UnixMilli(), v)
+		}
+		ajout(float64(k)*30*0.05, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "idle") // 5 % d'inactivité → 95 % utilisé
+		ajout(8e9, "__name__", "node_memory_MemTotal_bytes")
+		ajout(4e9, "__name__", "node_memory_MemAvailable_bytes")
+		ajout(100e9, "__name__", "node_filesystem_size_bytes", "mountpoint", "/", "fstype", "ext4")
+		ajout(20e9, "__name__", "node_filesystem_avail_bytes", "mountpoint", "/", "fstype", "ext4")
+		ajout(0, "__name__", "node_memory_SwapTotal_bytes")
+		ajout(0.5, "__name__", "node_load5")
+		ajout(float64(m.Unix()), "__name__", "node_time_seconds")
+		ajout(float64(m.Add(-5*24*time.Hour).Unix()), "__name__", "node_boot_time_seconds")
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le) VALUES ('web1', 'approuvee', 'agent', 1, ?)`, m.Unix()); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := flotte.IDMachine(ctx, b.c.db, "web1")
+	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "linux", modeles.EtatActif, map[string]float64{"cpu_pct": 80}, nil, "admin", m)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(c, "/machines/web1")
+	for _, attendu := range []string{`id="maintenant"`, "<small>CPU</small><b>95 %</b>", `class="jauge erreur"`, "seuil 80 %",
+		"<small>Mémoire</small><b>50 %</b>", "<small>Disque le plus plein</small><b>80 %</b>", "pas de swap", "<small>Démarrée depuis</small><b>5 j</b>",
+		`data-regrouper-vides`, `href="#surveillance-modeles"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("page machine : %q absent", attendu)
+		}
+	}
+	if g, s := strings.Index(corps, `id="graphiques"`), strings.Index(corps, `id="surveillance-modeles"`); g < 0 || s < 0 || g > s {
+		t.Error("graphiques pas avant la surveillance")
+	}
+	_, js, _ := b.get(c, "/donnees/courbe?instance=web1&panneau=1.0&periode=6h&tableau=serveurs-linux")
+	if !strings.Contains(js, `"seuil":80`) {
+		t.Errorf("seuil du modèle absent de la courbe : %.300s", js)
+	}
+	if ancre("Services et sécurité") != "r-services-et-securite" {
+		t.Errorf("ancre : %s", ancre("Services et sécurité"))
 	}
 }

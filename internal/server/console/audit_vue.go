@@ -378,17 +378,19 @@ func (c *Console) pageAudit(q *req) {
 	c.rendre(q, "audit", "Journal d'audit", "audit", d)
 }
 
-// libelleJour : « Aujourd'hui », « Hier » ou la date.
+// libelleJour : « Aujourd'hui · samedi 15/11 », « Hier · … » ou
+// « jeudi 13/11/2026 ».
 func libelleJour(t, maintenant time.Time) string {
 	m := maintenant.In(t.Location())
+	jour := [...]string{"dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"}[t.Weekday()]
 	a, b := t.Format("2006-01-02"), m.Format("2006-01-02")
 	switch {
 	case a == b:
-		return "Aujourd'hui"
+		return "Aujourd'hui · " + jour + " " + t.Format("02/01")
 	case a == m.AddDate(0, 0, -1).Format("2006-01-02"):
-		return "Hier"
+		return "Hier · " + jour + " " + t.Format("02/01")
 	}
-	return t.Format("02/01/2006")
+	return jour + " " + t.Format("02/01/2006")
 }
 
 // csvAudit : la vue filtrée en CSV (10 000 lignes au plus).

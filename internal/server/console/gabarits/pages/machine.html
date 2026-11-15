@@ -5,6 +5,7 @@
 <p class="bandeau-machine"><span>{{$m.Site}}{{if $m.Env}} · {{$m.Env}}{{end}}{{if $m.Groupe}} · {{$m.Groupe}}{{end}}</span>{{with .D.Identite}}{{if .Noyau}}<span>{{.Noyau}}</span>{{end}}{{if .Coeurs}}<span>{{.Coeurs}}{{if .Memoire}} · {{.Memoire}}{{end}}</span>{{end}}{{if .Allumee}}<span>Allumée depuis {{.Allumee}}</span>{{end}}{{if gt .Paquets 0}}<span class="pastille {{if .PaquetsSecurite}}attention{{end}}">{{.Paquets}} paquet{{if gt .Paquets 1}}s{{end}} à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}</span>{{else if eq .Paquets 0}}<span>Paquets à jour</span>{{end}}{{if .Redemarrage}}<span class="pastille attention">Redémarrage nécessaire</span>{{end}}{{end}}{{if $m.Version}}<span>Agent {{$m.Version}}</span>{{end}}{{with .D.Identite}}{{if .Intervalle}}<span>Métriques toutes les {{.Intervalle}}{{if $.Admin}} · <a href="{{.LienIntervalle}}" title="Intervalle réglable pour cette machine (10 s à 5 min)">changer</a>{{end}}</span>{{end}}{{end}}<span>Vue {{depuisS $m.VuLe}}</span></p>
 </div></div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{template "liste-attente" .D.Attente}}
 {{if .D.Collecteur}}<section class="carte" id="equipements">
 <div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
 {{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
@@ -103,6 +104,18 @@
 {{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
 
+{{if .D.Maintenant}}<section class="carte" id="maintenant"><h2>En ce moment</h2><div class="resume-machine">
+{{range .D.Maintenant}}<div class="jauge-machine"><small>{{.Titre}}</small><b>{{.Valeur}}</b>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}</div>{{end}}
+</div></section>{{end}}
+{{if .D.Rangees}}
+<nav class="sommaire-machine">{{range .D.Rangees}}<a href="#{{ancre .Titre}}">{{.Titre}}</a>{{end}}{{if .D.Agent}}<a href="#surveillance-modeles">Surveillance et modèles</a>{{end}}<a href="/logs?host={{$m.Nom}}">Logs</a>
+<span class="segment periode">{{$p := .D.Periode}}{{range .D.Periodes}}<a href="/machines/{{$m.Nom}}?periode={{.}}#graphiques"{{if egal . $p}} class="actif"{{end}}>{{periodeFr .}}</a>{{end}}</span></nav>
+<div id="graphiques" data-regrouper-vides data-memoire-replie="machine">{{template "rangees" .D.Rangees}}</div>{{end}}
+<section class="carte"><h2>Volume des logs (lignes reçues par minute, {{.D.Periode}})</h2>
+<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}&amp;instance={{.D.M.Nom}}"></div>
+<p><small><a href="/logs?host={{.D.M.Nom}}&amp;periode={{.D.Periode}}">Voir les logs de {{.D.M.Nom}}</a></small></p></section>
+
+{{if .D.Agent}}<details class="carte section-surveillance" id="surveillance-modeles"{{if or .D.Surv.NbAValider .D.Modeles.Proposes}} open{{end}}><summary><h2>Surveillance et modèles</h2>{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}} à valider</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}} modèle(s) détecté(s)</span>{{end}}</summary>{{end}}
 {{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
 <div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
 <div class="compteurs">{{if $s.NbAValider}}<span class="pastille attention">{{$s.NbAValider}} à valider</span>{{end}}<span class="pastille ok">{{$s.NbSurveilles}} surveillé(s)</span>{{if $s.NbIgnores}}<span class="pastille">{{$s.NbIgnores}} ignoré(s)</span>{{end}}
@@ -188,6 +201,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <p class="aide"><small class="aide">Décocher un modèle arrête ses alertes et ses métriques (pour cette machine seulement s'il vient du groupe). Détecté : coché d'office, appliqué à l'enregistrement.</small></p>{{end}}
 </form>
 </section>{{end}}
+{{if .D.Agent}}</details>{{end}}
 
 <details class="carte"><summary><strong>Détails de la machine</strong></summary>
 <table>
@@ -244,12 +258,4 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
   <label class="case"><input type="checkbox" name="historique" value="1"> Effacer aussi l'historique des métriques</label>
   {{template "code2fa"}}<button class="danger" data-confirmer="Supprimer {{$m.Nom}} ? C'est définitif.">Supprimer la machine</button></form>
 </details>{{end}}
-
-{{if .D.Rangees}}
-<form method="get" class="ligne filtres"><label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label><button>Afficher</button>
-<a href="/logs?host={{$m.Nom}}">Logs de la machine</a></form>
-{{template "rangees" .D.Rangees}}{{end}}
-<section class="carte"><h2>Volume des logs (lignes reçues par minute, {{.D.Periode}})</h2>
-<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}&amp;instance={{.D.M.Nom}}"></div>
-<p><small><a href="/logs?host={{.D.M.Nom}}&amp;periode={{.D.Periode}}">Voir les logs de {{.D.M.Nom}}</a></small></p></section>
 {{end}}

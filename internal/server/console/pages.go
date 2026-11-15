@@ -65,6 +65,22 @@ type resumeAlerte struct {
 	Depuis                                int64
 	Acquittee                             bool
 	Sourdine                              string
+	// Reste : condition « en attente » (vraie, mais pas depuis assez
+	// longtemps) : temps avant qu'elle devienne une alerte si elle dure.
+	Reste string
+}
+
+// separerAttente : alertes déclenchées d'un côté, conditions encore « en
+// attente » (pas encore des alertes, ni comptées ni notifiées) de l'autre.
+func separerAttente(rs []resumeAlerte) (actives, attente []resumeAlerte) {
+	for _, r := range rs {
+		if r.Etat == "en_attente" {
+			attente = append(attente, r)
+		} else {
+			actives = append(actives, r)
+		}
+	}
+	return actives, attente
 }
 
 type donneesAccueil struct {
@@ -73,6 +89,7 @@ type donneesAccueil struct {
 	Critiques, Avertissements    int
 	Infos, Actives               int // Actives : alertes actives hors sourdine
 	Alertes                      []resumeAlerte
+	Attente                      []resumeAlerte // conditions pas encore des alertes
 	Canaux                       []notif.EtatCanal
 	Mode                         string
 	DerniereSauvegarde           sauvegarde.Execution
@@ -113,7 +130,7 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 			}
 		}
 	}
-	d.Alertes = c.alertesEnCours("")
+	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(""))
 	for _, a := range d.Alertes {
 		if a.Etat != "active" || a.Sourdine != "" {
 			continue
@@ -169,12 +186,28 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 		return nil
 	}
 	var out []resumeAlerte
+	var pour map[string]time.Duration // délais des règles, lus si une condition est en attente
 	for _, a := range c.opt.Alertes.EnCours() {
 		if machine != "" && a.Machine() != machine {
 			continue
 		}
 		r := resumeAlerte{ID: a.ID, Regle: a.Regle, Gravite: a.Gravite, Machine: a.Machine(), Resume: a.Resume,
 			Etat: a.Etat, Depuis: a.Debut.UnixMilli(), Acquittee: !a.AcquitteeLe.IsZero()}
+		if a.Etat == "en_attente" {
+			if pour == nil {
+				pour = map[string]time.Duration{}
+				if rs, err := alertes.ListerRegles(context.Background(), c.db); err == nil {
+					for _, x := range rs {
+						pour[x.Nom] = time.Duration(x.Pour)
+					}
+				}
+			}
+			if reste := time.Until(a.Debut.Add(pour[a.Regle])); reste > time.Minute {
+				r.Reste = "dans " + dureeLisible(reste)
+			} else {
+				r.Reste = "bientôt"
+			}
+		}
 		if c.opt.Aiguilleur != nil {
 			r.Sourdine = c.opt.Aiguilleur.RaisonSourdine(&a)
 		}
@@ -397,6 +430,8 @@ type donneesMachine struct {
 	NomsAnciens []string // historique rattaché à la machine
 	M           vueMachine
 	Alertes     []resumeAlerte
+	Attente     []resumeAlerte // conditions pas encore des alertes
+	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -437,9 +472,11 @@ func (c *Console) pageMachine(q *req) {
 	}
 	ctx := q.r.Context()
 	d := donneesMachine{Listes: c.lireListes(q.r.Context()), M: vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette},
-		Alertes: c.alertesEnCours(m.Nom), Periodes: periodesProposees}
+		Periodes: periodesProposees}
+	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(m.Nom))
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
+		d.Maintenant = c.enCeMoment(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)

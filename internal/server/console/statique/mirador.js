@@ -775,3 +775,22 @@ document.addEventListener("change", function (e) {
     });
   });
 })();
+
+// --- Page d'une machine (SPEC § 29) -------------------------------------------
+// Sections de graphiques repliées : retenues dans ce navigateur
+// (data-memoire-replie = nom de la page).
+(function () {
+  "use strict";
+  var zone = document.querySelector("[data-memoire-replie]");
+  if (!zone) { return; }
+  var cle = "mirador.replie." + zone.getAttribute("data-memoire-replie");
+  var replies = {};
+  try { replies = JSON.parse(window.localStorage.getItem(cle) || "{}") || {}; } catch (e) { replies = {}; }
+  zone.querySelectorAll("details.rangee").forEach(function (d) {
+    if (replies[d.id]) { d.removeAttribute("open"); }
+    d.addEventListener("toggle", function () {
+      if (d.open) { delete replies[d.id]; } else { replies[d.id] = 1; }
+      try { window.localStorage.setItem(cle, JSON.stringify(replies)); } catch (e) { /* navigateur sans stockage */ }
+    });
+  });
+})();

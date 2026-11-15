@@ -42,7 +42,8 @@ type donneesEnCours struct {
 	Total                            int
 	Groupes                          []groupeAlertes
 	Liste                            []resumeAlerte
-	Retour                           string // page après une action sur une ligne
+	Attente                          []resumeAlerte // pas encore des alertes
+	Retour                           string         // page après une action sur une ligne
 }
 
 // maxCourbes : mini-courbes calculées par affichage (coût borné).
@@ -59,7 +60,8 @@ func vueAlertesValide(v string) string {
 func (c *Console) enCoursVue(ctx context.Context, vue string, t time.Time) donneesEnCours {
 	d := donneesEnCours{Vue: vueAlertesValide(vue)}
 	d.Retour = "/alertes?vue=" + url.QueryEscape(d.Vue)
-	rs := c.alertesEnCours("")
+	rs, attente := separerAttente(c.alertesEnCours(""))
+	d.Attente = attente
 	d.Total = len(rs)
 	for _, r := range rs {
 		switch r.Gravite {
