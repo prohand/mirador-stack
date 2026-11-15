@@ -118,8 +118,12 @@ func TestDemoInterface(t *testing.T) {
 		}
 		if m == "vm-docker" {
 			mk("node_docker_up", un)
-			for _, ct := range []string{"traefik", "postgres", "appli"} {
+			for j, ct := range []string{"traefik", "postgres", "appli"} {
 				mk("node_docker_container_running", un, "name", ct)
+				// Plus gourmands (SPEC § 31) : postgres en tête.
+				part := []float64{0.05, 0.35, 0.15}[j]
+				mk("node_docker_container_cpu_seconds_total", func(k int) float64 { return float64(k) * 30 * part }, "name", ct)
+				mk("node_docker_container_memory_bytes", func(int) float64 { return part * 6 * (1 << 30) }, "name", ct)
 			}
 			mk("mirador_logs_docker_streams", func(int) float64 { return 3 })
 		}
