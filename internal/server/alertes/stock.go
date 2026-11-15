@@ -121,6 +121,13 @@ func Enregistrer(ctx context.Context, db *sql.DB, regles []Regle, qui string, ma
 		if avant == string(def) {
 			continue
 		}
+		// Règle d'un modèle (SPEC § 27) : seul le modèle la change (même
+		// origine) ; un import ou une autre source ne l'écrase pas.
+		if avant != "" {
+			if ancienne, err := lireDefinition(avant); err == nil && strings.HasPrefix(ancienne.Origine, "modele:") && ancienne.Origine != r.Origine {
+				return 0, fmt.Errorf("règle %s : gérée par le %s, à changer dans le modèle", r.Nom, strings.Replace(ancienne.Origine, "modele:", "modèle ", 1))
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO regles(nom, definition, modifie_le, modifie_par) VALUES (?, ?, ?, ?)
 			ON CONFLICT(nom) DO UPDATE SET definition = excluded.definition, modifie_le = excluded.modifie_le,
 			modifie_par = excluded.modifie_par`, r.Nom, string(def), maintenant.Unix(), qui); err != nil {

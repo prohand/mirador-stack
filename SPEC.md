@@ -4440,6 +4440,22 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   Restent générales : Watchdog, AgentMuet, les « … muet » (OPNsense,
   Proxmox, UniFi, Syslog) et CertificatIllisible (sondes du collecteur).
   Coût : quelques requêtes de détection en plus par minute (une par modèle).
+- **Une seule source pour les règles d'un modèle : le modèle** (choix du
+  15/11) :
+  - au démarrage, `modeles.Synchroniser` remet à jour les règles des
+    modèles livrés (une amélioration d'une version arrive seule), garde le
+    choix « active / désactivée », et retire les règles d'un modèle livré
+    qui n'existent plus (ou d'un modèle disparu) ; remplace la pose unique
+    d'avant ;
+  - page Règles : une règle de modèle est marquée « modèle X » (lien vers
+    le modèle) ; elle se **désactive** ou se **réactive** ici, mais ne se
+    modifie ni ne se supprime (renvoi au modèle ; copie personnelle pour un
+    modèle livré) ;
+  - côté serveur : `alertes.Enregistrer` refuse d'écraser une règle de
+    modèle depuis une autre source (import YAML, formulaire) ; les
+    modèles personnels gardent leurs règles à jour à leur enregistrement.
+  Menace : aucune nouvelle (mêmes contrôles et audit). Coût : une
+  comparaison des règles au démarrage.
 - **Passkey Bitwarden sur iPhone (`NotAllowedError`)** : la même passkey
   marche sur le PC, et Bitwarden iPhone marche sur webauthn.io (qui demande
   `userVerification: "preferred"`). La connexion sans mot de passe demandait

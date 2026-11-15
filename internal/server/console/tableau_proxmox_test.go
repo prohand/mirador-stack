@@ -4,6 +4,7 @@ package console
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -349,5 +350,39 @@ func TestModelesEquipementEtReglesCouvertes(t *testing.T) {
 		if r.Nom == "SynologyInjoignable" {
 			t.Fatal("règle importée couverte pas retirée")
 		}
+	}
+}
+
+// Page Règles (SPEC § 27) : une règle de modèle est marquée, ne se modifie
+// ni ne se supprime ici (renvoi au modèle) ; elle se désactive.
+func TestReglesDeModele(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	if _, err := modeles.Synchroniser(ctx, b.c.db, "mirador", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(c, "/regles")
+	if !strings.Contains(corps, `href="/modeles#docker"`) || strings.Contains(corps, `href="/regles/modifier/DockerConteneurArrete"`) {
+		t.Fatal("règle de modèle pas marquée ou encore modifiable depuis la page Règles")
+	}
+	if code, _, ent := b.get(c, "/regles/modifier/DockerConteneurArrete"); code != http.StatusSeeOther || ent.Get("Location") != "/modeles#docker" {
+		t.Errorf("modification : %d %q", code, ent.Get("Location"))
+	}
+	csrf := b.csrf(c, "/regles")
+	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"supprimer"}, "nom": {"DockerConteneurArrete"}})
+	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"desactiver"}, "nom": {"DockerConteneurArrete"}})
+	rs, _ := alertes.ListerRegles(ctx, b.c.db)
+	trouve := false
+	for _, r := range rs {
+		if r.Nom == "DockerConteneurArrete" {
+			trouve = true
+			if r.Active {
+				t.Error("désactivation refusée")
+			}
+		}
+	}
+	if !trouve {
+		t.Error("règle de modèle supprimée depuis la page Règles")
 	}
 }

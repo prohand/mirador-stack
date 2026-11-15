@@ -120,11 +120,12 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	if err := modeles.ChargerPerso(ctx, s.db); err != nil {
 		journal.Warn("modèles personnels", "erreur", err)
 	}
-	// Règles des modèles de surveillance (SPEC § 24) : posées une fois aussi.
-	if n, err := alertes.PoserRegles(ctx, s.db, time.Now(), modeles.Regles()); err != nil {
+	// Règles des modèles de surveillance (SPEC § 24, § 27) : gérées par les
+	// modèles, remises à jour à chaque démarrage (choix « active » gardé).
+	if n, err := modeles.Synchroniser(ctx, s.db, "mirador", time.Now()); err != nil {
 		return echec(fmt.Errorf("règles des modèles : %w", err))
 	} else if n > 0 {
-		journal.Info("règles des modèles de surveillance ajoutées", "nombre", n)
+		journal.Info("règles des modèles de surveillance mises à jour", "nombre", n)
 	}
 	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(),
 		Journal: journal.With("composant", "alertes"), Remplacees: modeles.EstRemplacee}); err != nil {

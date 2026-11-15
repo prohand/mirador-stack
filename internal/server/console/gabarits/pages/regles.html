@@ -13,7 +13,7 @@
 </details>{{end}}
 {{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{$g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>
 <div class="defile"><table><thead><tr><th>Nom</th><th>Gravité</th><th>Pendant</th><th>Active</th><th>Dernière évaluation</th><th>En alerte</th><th></th></tr></thead><tbody>
-{{range index $.D.Groupes $g}}<tr><td><a href="/regles/modifier/{{.R.Nom}}">{{.R.Nom}}</a>{{if .Sante.Erreur}}<br><small class="erreur">{{.Sante.Erreur}}</small>{{end}}</td>
+{{range index $.D.Groupes $g}}<tr><td>{{if .Modele}}{{.R.Nom}} <a class="pastille" href="{{.Lien}}" title="Règle gérée par le modèle : seuils et expression se règlent dans le modèle">modèle {{.Modele.Titre}}</a>{{else}}<a href="/regles/modifier/{{.R.Nom}}">{{.R.Nom}}</a>{{end}}{{if .Sante.Erreur}}<br><small class="erreur">{{.Sante.Erreur}}</small>{{end}}</td>
 <td>{{template "gravite" .R.Gravite}}</td><td>{{.R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
 <td>{{if not .Sante.Derniere.IsZero}}{{date .Sante.Derniere}} ({{duree .Sante.Duree}}){{end}}</td><td class="nombre">{{.Sante.EnAlerte}}</td>
 <td>{{if $.Admin}}<form method="post" action="/regles/action" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.R.Nom}}">
