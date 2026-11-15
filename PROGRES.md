@@ -766,6 +766,7 @@ inchangé ✅.
 | Maquettes (recommandations) | validées (« Oui code ») |
 | Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; à valider |
 | Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; à valider |
+| Historique : frise 24 h / 7 jours, règles les plus bruyantes | **fait**, testé ; à valider |
 
 Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
 (page ouverte seulement) ; objectif serveur inchangé ✅.

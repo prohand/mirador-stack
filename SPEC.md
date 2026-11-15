@@ -4503,6 +4503,18 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
 - **export CSV** de la vue filtrée (10 000 lignes au plus ; cellules
   commençant par = + - @ préfixées pour qu'un tableur n'exécute rien).
 
+**Historique des alertes** (recommandations 7 et 8, demandées le 15/11) :
+- **frise** sur 24 h (graduations toutes les 3 h) ou 7 jours (une par
+  jour) : une ligne par machine (les 25 qui ont eu le plus d'alertes), une
+  barre par alerte, du passage en alerte à la fin (ou maintenant), couleur
+  de la gravité, infobulle (règle, heure, durée), clic → fiche de l'alerte ;
+  nom de la machine → historique filtré ;
+- **les plus bruyantes** : 10 règles qui ont sonné le plus souvent sur la
+  période (fois, machines, durée totale), lien « Régler les seuils du
+  modèle » ou « Régler la règle » ;
+- lecture : une requête SQL par affichage (alertes qui chevauchent la
+  période, 5 000 au plus), SVG en attributs (pas de style en ligne : CSP).
+
 **Coût** : page Alertes : une requête de plage par alerte en cours (30 au
 plus) toutes les 30 s quand la page est ouverte ; audit : mêmes requêtes
 qu'avant, filtres en SQL.

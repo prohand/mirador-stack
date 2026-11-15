@@ -267,6 +267,20 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 	}
 	q += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, f.Limite)
+	return lireAlertes(ctx, db, q, args...)
+}
+
+// HistoriquePeriode : alertes passées en alerte qui chevauchent la période
+// (en cours comprises), dans l'ordre de leur passage en alerte ; limite au
+// plus (frise de la page Alertes, SPEC § 28).
+func HistoriquePeriode(ctx context.Context, db *sql.DB, debut, fin time.Time, limite int) ([]Alerte, error) {
+	q := `SELECT id, regle, etiquettes, gravite, etat, debut, active_le, fin, valeur_debut, valeur_max, valeur, resume,
+		acquittee_le, acquittee_par, commentaire, description FROM alertes
+		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le LIMIT ?`
+	return lireAlertes(ctx, db, q, fin.UnixMilli(), debut.UnixMilli(), limite)
+}
+
+func lireAlertes(ctx context.Context, db *sql.DB, q string, args ...any) ([]Alerte, error) {
 	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err

@@ -44,6 +44,7 @@ type ligneHistorique struct {
 type donneesAlertes struct {
 	EnCours    []resumeAlerte
 	Vue        donneesEnCours // bloc « en cours » (SPEC § 28)
+	Frise      donneesFrise   // frise et règles bruyantes (SPEC § 28)
 	Historique []ligneHistorique
 	Filtre     alertes.Filtre
 	Suivant    int64
@@ -54,7 +55,7 @@ func (c *Console) pageAlertes(q *req) {
 	v := q.r.URL.Query()
 	f := alertes.Filtre{Regle: v.Get("regle"), Machine: v.Get("machine"), Gravite: v.Get("gravite"), Limite: 100}
 	f.Avant, _ = strconv.ParseInt(v.Get("avant"), 10, 64)
-	d := donneesAlertes{Vue: c.enCoursVue(q.r.Context(), v.Get("vue"), q.t), Filtre: f}
+	d := donneesAlertes{Vue: c.enCoursVue(q.r.Context(), v.Get("vue"), q.t), Frise: c.frise(q.r.Context(), v.Get("hp"), q.t), Filtre: f}
 	hs, err := alertes.HistoriqueFiltre(q.r.Context(), c.db, f)
 	if err != nil {
 		c.flash(q, "", err.Error())
