@@ -565,3 +565,20 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .courbe-alerte .seuil { stroke: var(--pale); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .courbe-grande .courbe-alerte { width: 100%; height: 160px; }
 @media (max-width: 899px) { .table-alertes th:nth-child(3), .table-alertes td:nth-child(3) { display: none; } }
+
+/* --- Frise de l'historique des alertes (SPEC § 28) --------------------------- */
+.frise { margin: 4px 0 18px; }
+.frise-ligne { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--bord-doux); }
+.frise-tete { border-bottom: 0; }
+.frise-nom { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frise-nom small { color: var(--pale); }
+.frise-graduations { display: grid; font-size: 11.5px; color: var(--pale); }
+.frise-graduations.g8 { grid-template-columns: repeat(8, 1fr); }
+.frise-graduations.g7 { grid-template-columns: repeat(7, 1fr); }
+.frise-barres { display: block; width: 100%; height: 16px; background: var(--survol); border-radius: 4px; }
+.frise-barres .grille { stroke: var(--bord); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.frise-barres rect { fill: var(--info); }
+.frise-barres rect.g-critical { fill: var(--erreur); }
+.frise-barres rect.g-warning { fill: var(--attention); }
+.frise-barres a:hover rect { opacity: .75; }
+@media (max-width: 899px) { .frise-ligne { grid-template-columns: 90px 1fr; } }

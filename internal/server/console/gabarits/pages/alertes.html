@@ -4,7 +4,23 @@
 <div class="barre-alertes"><span class="segment">{{range $x := (liste "machine" "regle" "liste")}}<a href="/alertes?vue={{$x}}"{{if eq $x $.D.Vue.Vue}} class="actif"{{end}}>{{if eq $x "machine"}}Par machine{{else if eq $x "regle"}}Par règle{{else}}Liste{{end}}</a>{{end}}</span>
 <span class="maj">Mis à jour toutes les 30 s</span></div>
 <div data-rafraichir="/fragments/alertes?vue={{.D.Vue.Vue}}" data-intervalle="30">{{template "alertes-en-cours" (dict "D" .D.Vue "Admin" .Admin "CSRF" .CSRF)}}</div>
-<section class="carte"><h2>Historique</h2>
+{{$f := .D.Frise}}<section class="carte" id="frise"><div class="barre-alertes"><h2>Historique</h2>
+<span class="segment"><a href="/alertes?vue={{.D.Vue.Vue}}&amp;hp=24h#frise"{{if eq $f.Periode "24h"}} class="actif"{{end}}>24 h</a><a href="/alertes?vue={{.D.Vue.Vue}}&amp;hp=7j#frise"{{if eq $f.Periode "7j"}} class="actif"{{end}}>7 jours</a></span></div>
+{{if $f.Lignes}}<div class="frise">
+<div class="frise-ligne frise-tete"><span></span><div class="frise-graduations g{{len $f.Graduations}}">{{range $f.Graduations}}<span>{{.}}</span>{{end}}</div></div>
+{{range $f.Lignes}}<div class="frise-ligne"><span class="frise-nom">{{if .Lien}}<a href="{{.Lien}}#liste-historique">{{.Machine}}</a>{{else}}{{.Machine}}{{end}} <small>{{.Nb}}</small></span>
+<svg class="frise-barres" viewBox="0 0 1000 16" preserveAspectRatio="none" role="img" aria-label="Alertes de {{.Machine}}">{{range $f.Grille}}<line x1="{{printf "%.1f" .}}" y1="0" x2="{{printf "%.1f" .}}" y2="16" class="grille"/>{{end}}
+{{range .Barres}}<a href="/alertes/{{.ID}}"><rect x="{{printf "%.1f" .X}}" y="3" width="{{printf "%.1f" .L}}" height="10" rx="2" class="g-{{.Classe}}"><title>{{.Titre}}</title></rect></a>{{end}}</svg></div>{{end}}
+{{if $f.Coupee}}<p class="maj">Les {{len $f.Lignes}} machines qui ont eu le plus d'alertes.</p>{{end}}
+</div>
+<h3>Les plus bruyantes</h3>
+<div class="defile"><table><thead><tr><th>Règle</th><th class="nombre">Fois</th><th class="nombre">Machines</th><th class="nombre">Durée totale</th><th>Pour moins de bruit</th></tr></thead><tbody>
+{{range $f.Bruyantes}}<tr><td><a href="{{.LienHistorique}}#liste-historique">{{.Regle}}</a></td><td class="nombre">{{.Fois}}</td><td class="nombre">{{.Machines}}</td><td class="nombre">{{duree .Duree}}</td>
+<td>{{if .LienRegler}}<a href="{{.LienRegler}}">Régler {{.Regler}}</a>{{end}}</td></tr>{{end}}
+</tbody></table></div>
+{{else}}<p class="vide">Aucune alerte sur la période.</p>{{end}}
+</section>
+<section class="carte" id="liste-historique"><h2>Toutes les alertes passées</h2>
 <form method="get" class="ligne filtres">
   <label>Règle <input name="regle" value="{{.D.Filtre.Regle}}" maxlength="64"></label>
   <label>Machine <input name="machine" value="{{.D.Filtre.Machine}}" maxlength="128"></label>

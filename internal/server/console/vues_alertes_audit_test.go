@@ -137,3 +137,44 @@ func TestGabaritAlertesEnCours(t *testing.T) {
 		t.Error("« Acquitter » proposé sur une alerte déjà acquittée")
 	}
 }
+
+// Frise 24 h / 7 jours et règles les plus bruyantes.
+func TestFriseAlertes(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	m := b.h.maintenant()
+	ms := func(d time.Duration) int64 { return m.Add(-d).UnixMilli() }
+	for _, a := range [][]any{
+		// regle, instance, gravité, état, active_le, fin
+		{"CpuEleve", "web1", "warning", "resolue", ms(5 * time.Hour), ms(4 * time.Hour)},
+		{"CpuEleve", "web1", "warning", "resolue", ms(3 * time.Hour), ms(2 * time.Hour)},
+		{"CpuEleve", "web2", "warning", "resolue", ms(90 * time.Minute), ms(80 * time.Minute)},
+		{"DisqueFaible", "nas", "critical", "active", ms(30 * time.Hour), int64(0)},
+		{"Ancienne", "web1", "info", "resolue", ms(72 * time.Hour), ms(71 * time.Hour)},
+	} {
+		if _, err := b.c.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			a[0], `{"alertname":"`+a[0].(string)+`","instance":"`+a[1].(string)+`"}`, a[2], a[3], a[4], a[4], a[5]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := alertes.Enregistrer(context.Background(), b.c.db, []alertes.Regle{{Nom: "CpuEleve", Groupe: "hote", Intervalle: alertes.Duree(time.Minute),
+		Expr: "up == 0", Gravite: alertes.Avertissement, Active: true, Origine: "vmalert:system.yml"}}, "admin", m); err != nil {
+		t.Fatal(err)
+	}
+	_, corps, _ := b.get(c, "/alertes?hp=24h")
+	for _, attendu := range []string{`class="frise-graduations g8"`, `href="/alertes?machine=web1#liste-historique">web1</a> <small>2</small>`,
+		`class="g-critical"`, `x="0.0"`, `href="/regles/modifier/CpuEleve">Régler la règle</a>`, "<td class=\"nombre\">3</td><td class=\"nombre\">2</td>"} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("frise 24 h : %q absent", attendu)
+		}
+	}
+	frise := func(s string) string {
+		return s[strings.Index(s, `id="frise"`):strings.Index(s, `id="liste-historique"`)]
+	}
+	if strings.Contains(frise(corps), "Ancienne") {
+		t.Error("alerte hors période sur la frise 24 h")
+	}
+	if _, corps, _ = b.get(c, "/alertes?hp=7j"); !strings.Contains(corps, `class="frise-graduations g7"`) || !strings.Contains(frise(corps), "Ancienne") {
+		t.Error("frise 7 jours")
+	}
+}
