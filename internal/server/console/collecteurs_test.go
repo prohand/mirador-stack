@@ -22,7 +22,8 @@ func TestCollecteurInterface(t *testing.T) {
 	b.h.avancer(31 * time.Second)
 	_, corps, _ := b.post(c, "/machines/jeton", url.Values{"csrf": {csrf}, "type_machine": {"collecteur"}, "nom": {"collecteur-lan"},
 		"duree": {"1h"}, "maj_auto": {"1"}, "code": {b.code(secret)}})
-	if !strings.Contains(corps, "/api/agent/v1/install/collecteur -o mirador-collector-install.sh") || !strings.Contains(corps, "--auto-update") {
+	if !strings.Contains(corps, "/api/agent/v1/install/collecteur -o mirador-collector-install.sh") || !strings.Contains(corps, "--auto-update") ||
+		!strings.Contains(corps, "--serveur https://ADRESSE-INGESTION --nom collecteur-lan --auto-update") {
 		t.Fatal("commande d'installation du collecteur absente")
 	}
 	// Collecteur approuvé (simulé) et une machine ordinaire.

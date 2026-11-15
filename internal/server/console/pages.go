@@ -428,6 +428,12 @@ func (c *Console) postJeton(q *req) {
 	d.JetonCollecteur = q.r.PostFormValue("type_machine") == "collecteur"
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
 	var options []string
+	// Nom choisi : repris dans la commande, pour que le journal de la machine
+	// porte le même nom que l'interface (sinon : son nom d'hôte). Déjà
+	// vérifié (lettres, chiffres, « . », « _ », « - ») : sûr dans la commande.
+	if nom := strings.ToLower(strings.TrimSpace(q.r.PostFormValue("nom"))); nom != "" && flotte.FormatNom.MatchString(nom) {
+		options = append(options, "--nom", nom)
+	}
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
 		if d.JetonCollecteur {
