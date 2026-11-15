@@ -68,6 +68,45 @@ type resumeAlerte struct {
 	// Reste : condition « en attente » (vraie, mais pas depuis assez
 	// longtemps) : temps avant qu'elle devienne une alerte si elle dure.
 	Reste string
+	// Prise en charge (SPEC § 30), lue en base (le moteur ne la connaît
+	// pas) : par qui, quand, jusqu'à quand (vide = jusqu'à la fin).
+	AcquitteePar, AcquitteeLe, AcquitteeJusqua string
+}
+
+// separerPrises : alertes à traiter d'un côté, prises en charge de l'autre.
+func separerPrises(rs []resumeAlerte) (aTraiter, prises []resumeAlerte) {
+	for _, r := range rs {
+		if r.Acquittee {
+			prises = append(prises, r)
+		} else {
+			aTraiter = append(aTraiter, r)
+		}
+	}
+	return aTraiter, prises
+}
+
+// infoPrise : prise en charge d'une alerte en cours.
+type infoPrise struct {
+	Par        string
+	Le, Jusqua int64 // millisecondes ; Jusqua 0 = jusqu'à la fin
+}
+
+// prisesEnCharge : alertes en cours acquittées, lues en base (une requête).
+func (c *Console) prisesEnCharge(ctx context.Context) map[int64]infoPrise {
+	out := map[int64]infoPrise{}
+	rows, err := c.db.QueryContext(ctx, `SELECT id, acquittee_par, acquittee_le, acquittee_jusqua FROM alertes WHERE etat != 'resolue' AND acquittee_le > 0`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var p infoPrise
+		if rows.Scan(&id, &p.Par, &p.Le, &p.Jusqua) == nil {
+			out[id] = p
+		}
+	}
+	return out
 }
 
 // separerAttente : alertes déclenchées d'un côté, conditions encore « en
@@ -90,6 +129,7 @@ type donneesAccueil struct {
 	Infos, Actives               int // Actives : alertes actives hors sourdine
 	Alertes                      []resumeAlerte
 	Attente                      []resumeAlerte // conditions pas encore des alertes
+	Prises                       []resumeAlerte // prises en charge (acquittées), SPEC § 30
 	Canaux                       []notif.EtatCanal
 	Mode                         string
 	DerniereSauvegarde           sauvegarde.Execution
@@ -131,6 +171,8 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 		}
 	}
 	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(""))
+	toutes := d.Alertes // la couleur d'une machine compte aussi ses alertes prises en charge
+	d.Alertes, d.Prises = separerPrises(d.Alertes)
 	for _, a := range d.Alertes {
 		if a.Etat != "active" || a.Sourdine != "" {
 			continue
@@ -173,7 +215,7 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 		}
 	}
 	d.Actives = d.Critiques + d.Avertissements + d.Infos
-	d.Parc = c.parc(q, d.Alertes)
+	d.Parc = c.parc(q, toutes)
 	for _, l := range d.Parc {
 		d.Nouveautes += l.Nouveautes
 	}
@@ -187,12 +229,21 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 	}
 	var out []resumeAlerte
 	var pour map[string]time.Duration // délais des règles, lus si une condition est en attente
+	prises := c.prisesEnCharge(context.Background())
+	loc := fuseau.Load()
 	for _, a := range c.opt.Alertes.EnCours() {
 		if machine != "" && a.Machine() != machine {
 			continue
 		}
 		r := resumeAlerte{ID: a.ID, Regle: a.Regle, Gravite: a.Gravite, Machine: a.Machine(), Resume: a.Resume,
-			Etat: a.Etat, Depuis: a.Debut.UnixMilli(), Acquittee: !a.AcquitteeLe.IsZero()}
+			Etat: a.Etat, Depuis: a.Debut.UnixMilli()}
+		if p, ok := prises[a.ID]; ok {
+			r.Acquittee, r.AcquitteePar = true, p.Par
+			r.AcquitteeLe = time.UnixMilli(p.Le).In(loc).Format("15:04")
+			if p.Jusqua > 0 {
+				r.AcquitteeJusqua = time.UnixMilli(p.Jusqua).In(loc).Format("02/01 15:04")
+			}
+		}
 		if a.Etat == "en_attente" {
 			if pour == nil {
 				pour = map[string]time.Duration{}
@@ -431,6 +482,7 @@ type donneesMachine struct {
 	M           vueMachine
 	Alertes     []resumeAlerte
 	Attente     []resumeAlerte // conditions pas encore des alertes
+	Prises      []resumeAlerte // prises en charge (SPEC § 30)
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Rangees     []vueRangee
 	Periode     string
@@ -474,6 +526,7 @@ func (c *Console) pageMachine(q *req) {
 	d := donneesMachine{Listes: c.lireListes(q.r.Context()), M: vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette},
 		Periodes: periodesProposees}
 	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(m.Nom))
+	d.Alertes, d.Prises = separerPrises(d.Alertes)
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)

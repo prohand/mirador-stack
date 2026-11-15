@@ -159,15 +159,102 @@ func TestRegroupementEtRappels(t *testing.T) {
 	if _, err := b.db.Exec(`INSERT INTO alertes(id, regle, etiquettes, gravite, etat, debut) VALUES (3, 'AgentMuet', '{}', 'critical', 'active', 0)`); err != nil {
 		t.Fatal(err)
 	}
-	if err := Acquitter(context.Background(), b.db, 3, "moi", "je regarde", b.horloge); err != nil {
+	if err := Acquitter(context.Background(), b.db, 3, "moi", "je regarde", time.Time{}, b.horloge); err != nil {
 		t.Fatal(err)
 	}
-	if err := Acquitter(context.Background(), b.db, 99, "moi", "", b.horloge); err == nil {
+	if err := Acquitter(context.Background(), b.db, 99, "moi", "", time.Time{}, b.horloge); err == nil {
 		t.Error("acquittement d'une alerte inconnue accepté")
 	}
 	for _, x := range b.avancer(2*time.Hour + time.Minute) {
 		if x.Gravite == alertes.Critique {
 			t.Fatalf("rappel après acquittement : %+v", x)
+		}
+	}
+}
+
+// Prise en charge pour une durée (SPEC § 30) : pas de rappel pendant la
+// durée ; à la fin, levée et rappel tout de suite ; « Reprendre » la lève.
+func TestAcquittementDuree(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	a := alerte(5, "CpuEleve", alertes.Critique, "pc1", b.horloge)
+	b.debut(a)
+	if m := b.avancer(time.Minute); len(m) != 1 {
+		t.Fatalf("premier envoi : %+v", m)
+	}
+	if _, err := b.db.Exec(`INSERT INTO alertes(id, regle, etiquettes, gravite, etat, debut) VALUES (5, 'CpuEleve', '{}', 'critical', 'active', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Acquitter(ctx, b.db, 5, "moi", "", b.horloge.Add(-time.Minute), b.horloge); err == nil {
+		t.Error("fin de prise en charge passée acceptée")
+	}
+	if err := Acquitter(ctx, b.db, 5, "moi", "je regarde", b.horloge.Add(30*time.Minute), b.horloge); err != nil {
+		t.Fatal(err)
+	}
+	if m := b.avancer(20 * time.Minute); len(m) != 0 {
+		t.Fatalf("rappel pendant la prise en charge : %+v", m)
+	}
+	m := b.avancer(11 * time.Minute)
+	if len(m) != 1 || m[0].Type != TypeRappel || len(m[0].Actives) != 1 || m[0].Actives[0].ID != 5 {
+		t.Fatalf("pas de rappel à la fin de la prise en charge : %+v", m)
+	}
+	var ack int64
+	_ = b.db.QueryRow(`SELECT acquittee_le FROM alertes WHERE id = 5`).Scan(&ack)
+	if ack != 0 {
+		t.Error("prise en charge pas levée à son échéance")
+	}
+	// Reprendre : lève une prise en charge « jusqu'à la fin ».
+	_ = Acquitter(ctx, b.db, 5, "moi", "", time.Time{}, b.horloge)
+	if err := Reprendre(ctx, b.db, 5, "moi", b.horloge); err != nil {
+		t.Fatal(err)
+	}
+	if err := Reprendre(ctx, b.db, 5, "moi", b.horloge); err == nil {
+		t.Error("reprise d'une alerte pas prise en charge acceptée")
+	}
+}
+
+// Escalade (SPEC § 30) : alerte toujours pas prise en charge après le délai
+// de sa gravité : un message marqué « escalade », une seule fois ; prise en
+// charge à temps : pas d'escalade.
+func TestEscalade(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	r, _ := LireReglages(ctx, b.db)
+	ro := r.Routes[alertes.Critique]
+	ro.Escalade = alertes.Duree(15 * time.Minute)
+	r.Routes[alertes.Critique] = ro
+	if err := EcrireReglages(ctx, b.db, r, cleTest, "test", b.horloge); err != nil {
+		t.Fatal(err)
+	}
+	a := alerte(7, "CpuEleve", alertes.Critique, "pc1", b.horloge)
+	a.ActiveLe = b.horloge
+	b.debut(a)
+	if m := b.avancer(time.Minute); len(m) != 1 || m[0].Escalade {
+		t.Fatalf("premier envoi : %+v", m)
+	}
+	m := b.avancer(15 * time.Minute)
+	if len(m) != 1 || !m[0].Escalade || m[0].Actives[0].ID != 7 || !strings.Contains(Texte(m[0], Mise{}), "Escalade") {
+		t.Fatalf("pas d'escalade : %+v", m)
+	}
+	for _, x := range b.avancer(30 * time.Minute) {
+		if x.Escalade {
+			t.Fatal("escalade envoyée deux fois")
+		}
+	}
+	// Prise en charge à temps : pas d'escalade.
+	a2 := alerte(8, "DisqueFaible", alertes.Critique, "pc2", b.horloge)
+	a2.ActiveLe = b.horloge
+	b.debut(a2)
+	b.avancer(time.Minute)
+	if _, err := b.db.Exec(`INSERT INTO alertes(id, regle, etiquettes, gravite, etat, debut) VALUES (8, 'DisqueFaible', '{}', 'critical', 'active', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Acquitter(ctx, b.db, 8, "moi", "", time.Time{}, b.horloge); err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range b.avancer(20 * time.Minute) {
+		if x.Escalade {
+			t.Fatalf("escalade d'une alerte prise en charge : %+v", x)
 		}
 	}
 }

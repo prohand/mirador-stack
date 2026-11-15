@@ -28,6 +28,9 @@ type Route struct {
 	Intervalle alertes.Duree `json:"intervalle"` // group_interval : écart mini entre deux messages d'un groupe
 	Rappel     alertes.Duree `json:"rappel"`     // repeat_interval ; 0 = jamais
 	Son        bool          `json:"son"`        // notification avec son (Telegram)
+	// Escalade (SPEC § 30) : une alerte toujours pas prise en charge après
+	// ce délai part aussi sur le canal de secours (une fois) ; 0 = coupée.
+	Escalade alertes.Duree `json:"escalade,omitempty"`
 }
 
 // Reglages des notifications (clé « notifications » de la table reglages).

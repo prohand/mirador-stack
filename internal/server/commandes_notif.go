@@ -159,7 +159,7 @@ func commandeNotif(ctx context.Context, db *sql.DB, donnees string, cle func() (
 	case "acquitter":
 		id, err := numero()
 		if err == nil {
-			err = notif.Acquitter(ctx, db, id, qui, o.commentaire, t)
+			err = notif.Acquitter(ctx, db, id, qui, o.commentaire, time.Time{}, t) // jusqu'à la fin de l'alerte
 		}
 		return true, false, err
 	case "envois":

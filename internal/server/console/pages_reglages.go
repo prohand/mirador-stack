@@ -226,7 +226,7 @@ func (c *Console) postNotifications(q *req) {
 			r.ReglesPanne = f.liste("regles_panne")
 			for _, g := range []string{alertes.Critique, alertes.Avertissement, alertes.Info} {
 				r.Routes[g] = notif.Route{Attente: f.duree("attente_"+g, &errs), Intervalle: f.duree("intervalle_"+g, &errs),
-					Rappel: f.duree("rappel_"+g, &errs), Son: f.coche("son_" + g)}
+					Rappel: f.duree("rappel_"+g, &errs), Son: f.coche("son_" + g), Escalade: f.duree("escalade_"+g, &errs)}
 			}
 			cn := &r.Canaux
 			cn.Principal, cn.Secours = f.texte("principal"), f.texte("secours")

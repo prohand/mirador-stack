@@ -442,7 +442,7 @@ func TestAcquittementTelegram(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if par != "telegram:42 (@moi)" || ack4 != 0 || retires != 1 || len(reponses) != 2 ||
-		!strings.Contains(reponses[0], "n° 3 acquittée") || !strings.Contains(reponses[1], "pas autorisé") {
+		!strings.Contains(reponses[0], "n° 3 prise en charge pour 4 h") || !strings.Contains(reponses[1], "pas autorisé") {
 		t.Fatalf("acquittements : par=%q ack4=%d retirés=%d réponses=%v", par, ack4, retires, reponses)
 	}
 	// Bouton demandé sans identifiant numérique du groupe : refusé.

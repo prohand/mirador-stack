@@ -193,6 +193,7 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 	p.mu.Unlock()
 	loc, _ := time.LoadLocation(r.Fuseau)
 	envoye := false
+	recus := map[string]bool{}
 	for _, nom := range noms {
 		p.mu.Lock()
 		e := p.etats[nom]
@@ -218,7 +219,7 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		}
 		p.noter(ctx, nom, err, false)
 		if err == nil {
-			envoye = true
+			envoye, recus[nom] = true, true
 			if !tous {
 				break
 			}
@@ -226,6 +227,27 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 	}
 	if !envoye && enFile {
 		p.mettreEnFile(ctx, m)
+	}
+	// Escalade (SPEC § 30) : aussi sur le canal de secours, s'il est réglé
+	// et qu'il n'a pas déjà reçu ce message.
+	if m.Escalade && r.Canaux.Secours != "" && r.Canaux.Secours != principal && !recus[r.Canaux.Secours] {
+		p.mu.Lock()
+		e, ok := p.etats[r.Canaux.Secours]
+		p.mu.Unlock()
+		if ok && e.canal != nil {
+			ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
+			err := e.canal.Envoyer(ctxE, m, Mise{Fuseau: loc, Lien: r.Lien})
+			annuler()
+			statut, msgErr := "ok", ""
+			if err != nil {
+				statut, msgErr = "echec", err.Error()
+			}
+			if errNote := NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: r.Canaux.Secours, Groupe: m.Groupe, Gravite: m.Gravite,
+				Type: m.Type, Nb: m.Nb(), Statut: statut, Secours: true, Erreur: msgErr, Texte: Texte(m, Mise{Fuseau: loc, Lien: r.Lien})}); errNote != nil {
+				p.opt.Journal.Error("historique des envois", "erreur", errNote)
+			}
+			p.noter(ctx, r.Canaux.Secours, err, false)
+		}
 	}
 	return envoye
 }
@@ -561,12 +583,13 @@ func (p *Postier) lireClics(ctx context.Context, t time.Time) {
 		if cb.De.Username != "" {
 			qui += " (@" + cb.De.Username + ")"
 		}
-		if err := Acquitter(ctx, p.opt.DB, id, qui, "depuis Telegram", p.opt.Maintenant()); err != nil {
+		maintenant := p.opt.Maintenant()
+		if err := Acquitter(ctx, p.opt.DB, id, qui, "depuis Telegram", maintenant.Add(DureeAcquittement), maintenant); err != nil {
 			tg.repondreClic(ctxL, cb.ID, "Alerte déjà finie ou inconnue.", 0, 0, false)
 			continue
 		}
 		p.opt.Journal.Info("alerte acquittée depuis Telegram", "alerte", id, "qui", qui)
-		tg.repondreClic(ctxL, cb.ID, fmt.Sprintf("Alerte n° %d acquittée : plus de rappel.", id), cb.Message.Chat.ID, cb.Message.ID, true)
+		tg.repondreClic(ctxL, cb.ID, fmt.Sprintf("Alerte n° %d prise en charge pour %s : rappel ensuite si elle dure.", id, fmt.Sprintf("%.0f h", DureeAcquittement.Hours())), cb.Message.Chat.ID, cb.Message.ID, true)
 	}
 }
 
