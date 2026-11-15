@@ -1,27 +1,71 @@
-{{define "contenu"}}
-<h1>Logs</h1>
-<form method="get" class="ligne filtres">
-  {{range .D.Champs}}{{$v := .Valeur}}<label>{{.Titre}} <select name="{{.Nom}}"><option value="">(tous)</option>{{range .Choix}}<option{{if egal . $v}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
-  <label>Mots entiers (tous) <input name="mots" value="{{.D.Mots}}" maxlength="200" placeholder="error timeout"></label>
-  <label>Texte contenu <input name="contient" value="{{.D.Contient}}" maxlength="200" placeholder="plus lent"></label>
-  <label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-  <label>Lignes <select name="limite">{{$l := .D.Limite}}{{range $x := (liste "100" "300" "1000" "2000")}}<option {{if egal $x $l}}selected{{end}}>{{$x}}</option>{{end}}</select></label>
-  <label class="case"><input type="checkbox" name="replier" value="non" {{if not .D.Replier}}checked{{end}}> Ne pas replier les répétitions</label>
-  <button>Chercher</button>
+{{define "contenu"}}{{$d := .D}}
+<div class="logs-tete"><h1>Logs</h1>
+{{if not $d.Autour}}<button type="button" class="logs-direct" data-logs-direct="/logs/direct?{{$d.Requete}}" aria-pressed="false" title="Nouvelles lignes toutes les 5 s"><i aria-hidden="true"></i><span>Direct</span></button>
+<details class="logs-menu"><summary>★ Enregistrer la recherche</summary>
+<form method="post" action="/logs/recherches" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter"><input type="hidden" name="requete" value="{{$d.Requete}}">
+<label>Nom <input name="nom" required maxlength="60" placeholder="SSH refusé"></label><button>Enregistrer</button></form></details>
+<details class="logs-menu"><summary>Exporter ▾</summary>
+<p class="pile"><a href="/logs/export?format=csv&amp;{{$d.Requete}}">CSV (tableur)</a><a href="/logs/export?format=txt&amp;{{$d.Requete}}">Texte brut</a><small class="aide">10 000 lignes au plus.</small></p></details>{{end}}
+</div>
+
+{{with $d.Autour}}
+<section class="carte"><div class="logs-ctx-tete"><h2>Autour de {{.Heure}} sur {{.Host}}</h2>
+<a class="bouton secondaire" href="{{.LienPlusAvant}}">20 de plus avant</a><a class="bouton secondaire" href="{{.LienPlusApres}}">20 de plus après</a><a class="bouton secondaire" href="{{.LienRetour}}">✕ Revenir à la recherche</a></div>
+<p class="aide"><small class="aide">Toutes les sources de la machine (journal, Docker, syslog), sans les filtres de la recherche ; {{.Avant}} lignes avant, {{.Apres}} après.</small></p>
+{{if .Lignes}}{{template "lignes-logs" .Lignes}}{{else}}{{template "vide" "Aucune ligne autour."}}{{end}}</section>
+{{else}}
+<section class="carte"><form method="get" action="/logs" class="logs-filtres">
+<div class="logs-ligne">
+<label>Machine <select name="host"><option value="">(toutes)</option>{{$v := $d.Machine.Valeur}}{{range $d.Machine.Choix}}<option{{if egal . $v}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Niveau <select name="level">{{$n := $d.Niveau.Valeur}}<option value="">(tous)</option><option value="err+"{{if egal $n "err+"}} selected{{end}}>err et plus grave</option><option value="warning+"{{if egal $n "warning+"}} selected{{end}}>warning et plus grave</option>{{range $d.Niveau.Choix}}<option{{if egal . $n}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Période <select name="periode">{{if $d.Perso}}<option value="{{$d.Periode}}" selected>{{$d.PeriodePerso}}</option>{{end}}{{$p := $d.Periode}}{{range $d.Periodes}}<option{{if and (egal . $p) (not $d.Perso)}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label class="logs-recherche">Rechercher <input name="q" value="{{$d.Recherche}}" maxlength="200" placeholder="mots entiers, ou &quot;texte exact&quot;" autocomplete="off"></label>
+<button>Chercher</button></div>
+<details class="logs-plus"{{if $d.PlusOuvert}} open{{end}}><summary>Plus de filtres <small>(source, unité, conteneur, site, type, groupe, lignes)</small></summary>
+<div class="logs-ligne">{{range $d.Autres}}{{$v := .Valeur}}<label>{{.Titre}} <select name="{{.Nom}}"><option value="">(tous)</option>{{range .Choix}}<option{{if egal . $v}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
+<label>Lignes affichées <select name="limite">{{$l := $d.Limite}}{{range $x := (liste "100" "300" "1000")}}<option{{if egal $x (printf "%d" $l)}} selected{{end}}>{{$x}}</option>{{end}}</select></label>
+<label class="case"><input type="checkbox" name="replier" value="non" {{if not $d.Replier}}checked{{end}}> Ne pas replier les répétitions</label></div></details>
+{{if $d.Pastilles}}<div class="logs-pastilles"><span>Filtres :</span>{{range $d.Pastilles}}<a class="logs-pastille{{if .Exclu}} exclu{{end}}" href="{{.Lien}}" title="Retirer ce filtre"><b>{{.Titre}}</b> {{.Valeur}} <span aria-hidden="true">✕</span></a>{{end}}<a href="{{$d.LienEffacer}}">Tout effacer</a></div>{{end}}
+<div class="logs-raccourcis"><span>Raccourcis :</span>{{range $d.Raccourcis}}<a class="{{if .Perso}}perso{{end}}" href="{{.Lien}}">{{.Nom}}</a>{{if .Perso}}<button form="suppr-{{.ID}}" class="logs-suppr" title="Supprimer « {{.Nom}} »" aria-label="Supprimer « {{.Nom}} »">✕</button>{{end}}{{end}}</div>
 </form>
-<p class="onglets"><a href="/logs?level=err&amp;periode=24h">Erreurs système (24 h)</a><a href="/logs?job=docker&amp;mots=error&amp;periode=24h">« error » dans Docker (24 h)</a><a href="/logs?mots=out%20of%20memory&amp;periode=7d">Manque de mémoire (7 j)</a><a href="/flux-bloques">Flux bloqués</a></p>
-<details class="carte" open><summary><strong>Volume des logs par machine</strong> (lignes reçues par minute, {{.D.Periode}})</summary>
-<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}"></div></details>
-<p class="aide"><small class="aide">« Mots entiers » : rapide. « Texte contenu » : plus lent (relit toute la période).</small></p>
-{{if .D.Cherche}}
-<p>{{.D.NbLignes}} ligne(s) en {{duree .D.Duree}} ({{.D.BlocsLus}} blocs lus){{if .D.Tronque}} — <strong>résultat partiel</strong> : affiner les filtres ou la période{{end}}.</p>
-{{if .D.Lignes}}
-<details class="carte"><summary>Palmarès des lignes trouvées</summary><div class="grille">
-{{range $k, $cs := .D.Palmares}}{{if $cs}}<div><h3>{{$k}}</h3><table>{{range $cs}}<tr><td><a href="{{lienLogs $k .Nom $.D.Periode}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></div>{{end}}{{end}}
-</div></details>
-<div class="defile"><table class="logs"><thead><tr><th>Heure</th><th>Machine</th><th>Source</th><th>Niveau</th><th>Unité / conteneur</th><th>Message</th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td class="mono">{{dateMs .T}}</td><td>{{.Host}}</td><td>{{.Job}}</td><td>{{if .Niveau}}<span class="pastille {{if or (egal .Niveau "err") (egal .Niveau "crit") (egal .Niveau "error")}}erreur{{else if egal .Niveau "warning"}}attention{{end}}">{{.Niveau}}</span>{{end}}</td><td>{{.Origine}}</td>
-<td class="message-log">{{.Msg}}{{if gt .Repetitions 1}} <span class="pastille">× {{.Repetitions}}</span>{{end}}</td></tr>{{end}}
+{{range $d.Raccourcis}}{{if .Perso}}<form id="suppr-{{.ID}}" method="post" action="/logs/recherches" hidden>{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="id" value="{{.ID}}"></form>{{end}}{{end}}
+</section>
+
+{{if $d.Cherche}}
+<section class="carte"><div class="logs-histo-tete"><h2>Lignes trouvées dans le temps</h2>
+<span class="logs-stat"><b>{{$d.NbTrouvees}}{{if $d.Tronque}}+{{end}}</b> ligne(s)</span>{{if $d.Erreurs}}<span class="logs-stat err"><b>{{$d.Erreurs}}</b> erreur(s)</span>{{end}}{{if $d.Avertis}}<span class="logs-stat warn"><b>{{$d.Avertis}}</b> avertissement(s)</span>{{end}}<span class="logs-stat">en {{$d.DureeTexte}} · {{$d.BlocsLus}} bloc(s) lu(s)</span></div>
+{{with $d.Histo}}<svg class="logs-histo" viewBox="0 0 1000 90" preserveAspectRatio="none" data-zoom-logs data-debut="{{.Debut}}" data-fin="{{.Fin}}" role="img" aria-label="Histogramme des lignes trouvées">
+{{range .Barres}}<g><title>{{.Titre}}</title><rect class="h-autre" x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .YAutre}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .HAutre}}"></rect><rect class="h-avert" x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .YAvert}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .HAvert}}"></rect><rect class="h-erreur" x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .YErreur}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .HErreur}}"></rect><rect class="h-zone" x="{{printf "%.1f" .X}}" y="0" width="{{printf "%.1f" .L}}" height="90"></rect></g>{{end}}
+<rect class="h-selection" x="0" y="0" width="0" height="90"></rect></svg>
+<div class="logs-axe">{{range .Graduations}}<span>{{.Texte}}</span>{{end}}</div>{{end}}
+<p class="aide"><small class="aide">{{if $d.Tronque}}Calculé sur les {{$d.NbTrouvees}} lignes les plus récentes (résultat partiel : affiner les filtres ou la période). {{end}}Glisser sur l'histogramme pour zoomer sur une période · rouge : erreurs, orange : avertissements.</small></p></section>
+
+<nav class="logs-onglets"><a href="{{$d.LienLignes}}"{{if egal $d.Vue "lignes"}} class="actif" aria-current="page"{{end}}>Lignes <small>{{$d.NbTrouvees}}{{if $d.Tronque}}+{{end}}</small></a><a href="{{$d.LienGroupes}}"{{if egal $d.Vue "groupes"}} class="actif" aria-current="page"{{end}}>Messages regroupés{{if $d.Groupes}} <small>{{len $d.Groupes}}</small>{{end}}</a></nav>
+
+{{if egal $d.Vue "groupes"}}
+<p class="aide"><small class="aide">Les messages qui ne diffèrent que par un nombre, une adresse IP, un port ou un identifiant sont comptés ensemble. Calculé sur les lignes trouvées, sans requête de plus.</small></p>
+<p class="logs-tri">Trier : {{range $i, $t := $d.Tris}}{{if $i}} · {{end}}{{if .Actif}}<strong>{{.Titre}}</strong>{{else}}<a href="{{.Lien}}">{{.Titre}}</a>{{end}}{{end}}</p>
+{{if $d.Groupes}}<div class="defile"><table class="logs-groupes" data-sans-tri><thead><tr><th>Nombre</th><th></th><th>Niveau</th><th>Message type</th><th>Machines</th><th>Dernière</th><th></th></tr></thead><tbody>
+{{range $d.Groupes}}<tr class="{{if and (eq .N 1) (egal .Classe "err")}}rare{{end}}"><td class="nombre">{{.N}}</td><td><div class="logs-jauge"><i class="largeur-{{.Largeur}}"></i></div></td>
+<td>{{if .Niveau}}<span class="logs-niv {{.Classe}}">{{.Niveau}}</span>{{end}}</td><td class="logs-motif">{{range .Motif}}{{if .Var}}<span class="var">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{end}}</td>
+<td>{{.TexteMachines}}</td><td class="mono">{{heureLog .Derniere}}</td><td><a href="/logs?{{$d.Requete}}&amp;motif={{.Cle}}">Ces lignes</a></td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune ligne."}}{{end}}
+{{else}}
+<div class="logs-nouvelles" data-logs-nouvelles hidden></div>
+{{if $d.Lignes}}{{template "lignes-logs" $d.Lignes}}
+{{if $d.LienPlusAncien}}<p class="logs-plus-ancien"><a class="bouton secondaire" href="{{$d.LienPlusAncien}}">Charger plus ancien</a></p>{{end}}
+{{else}}<table class="logs-table" data-logs-table hidden><tbody></tbody></table>{{template "vide" "Aucune ligne."}}{{end}}
 {{end}}
 {{end}}
+{{end}}
+{{end}}
+
+{{define "lignes-logs"}}<div class="defile"><table class="logs-table" data-logs-table><tbody>
+{{range .}}{{if .Jour}}<tr class="logs-jour"><td colspan="5">{{.Jour}}</td></tr>{{end}}<tr class="logs-ligne-log {{.Classe}}{{if .Cible}} cible{{end}}" data-logs-ouvrir data-t="{{.T}}" tabindex="0" aria-expanded="false">
+<td class="mono">{{.Heure}}</td><td>{{.Host}}</td><td>{{if .Niveau}}<span class="logs-niv {{.Classe}}">{{.Niveau}}</span>{{end}}</td><td>{{if .Origine}}{{.Origine}}{{else}}{{.Job}}{{end}}</td>
+<td class="logs-msg">{{range .Segments}}{{if .Marque}}<mark>{{.Texte}}</mark>{{else}}{{.Texte}}{{end}}{{end}}{{if gt .Repetitions 1}} <span class="logs-rep">× {{.Repetitions}}</span>{{end}}</td></tr>
+<tr class="logs-detail" hidden><td colspan="5"><div class="logs-boite">
+{{range .Champs}}<div class="logs-champ"><b>{{.Titre}}</b><code>{{.Valeur}}</code>{{if .LienFiltrer}}<span class="logs-act"><a href="{{.LienFiltrer}}">＋ filtrer</a> · <a href="{{.LienExclure}}">－ exclure</a></span>{{end}}</div>{{end}}
+<div class="logs-actions">{{if .LienAutour}}<a class="bouton secondaire" href="{{.LienAutour}}">Voir autour (20 avant, 20 après)</a>{{end}}<button type="button" class="secondaire" data-copier-ligne>Copier la ligne</button><button type="button" class="secondaire" data-copier-json="{{.JSON}}">Copier en JSON</button>{{if .LienAutour}}<a class="bouton secondaire" href="{{.LienAutour}}" data-copier-lien>Copier le lien</a>{{end}}</div>
+</div></td></tr>{{end}}
+</tbody></table></div>{{end}}

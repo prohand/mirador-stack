@@ -128,6 +128,16 @@ func TestEcrireChercher(t *testing.T) {
 	if len(res.Lignes) != 1500 {
 		t.Errorf("variantes : %d lignes", len(res.Lignes))
 	}
+	// Exclusion (page Logs, SPEC § 33) : sans le NAS ; sans les deux
+	// machines : aucun bloc lu.
+	res, _ = m.Chercher(ctx, Requete{Debut: debut, Fin: fin, Exclus: map[string][]string{"host": {"nas"}}, Limite: 5000}, lim)
+	if len(res.Lignes) != 1500 || slices.ContainsFunc(res.Lignes, func(l stockage.Ligne) bool { return l.Champs["host"] == "nas" }) {
+		t.Errorf("exclusion : %d lignes", len(res.Lignes))
+	}
+	res, _ = m.Chercher(ctx, Requete{Debut: debut, Fin: fin, Exclus: map[string][]string{"host": {"nas", "pc"}}}, lim)
+	if len(res.Lignes) != 0 || res.BlocsLus != 0 {
+		t.Errorf("tout exclu : %d lignes, %d blocs lus", len(res.Lignes), res.BlocsLus)
+	}
 	// Période : 10 premières secondes seulement.
 	res, _ = m.Chercher(ctx, Requete{Debut: debut, Fin: t0.Add(9 * time.Second).UnixMilli()}, lim)
 	if len(res.Lignes) != 10 {

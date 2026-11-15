@@ -4772,3 +4772,48 @@ pages. Rechargement seulement pendant une démarche.
 pour régler et renouveler) ; secrets DNS toujours chiffrés et jamais
 réaffichés ; « Renouveler » vérifie que la cible est bien un collecteur ;
 messages d'erreur ACME tronqués à 500 caractères et affichés en texte.
+
+## 33. Page Logs refaite (maquette validée le 16/11) **[Fait, à valider]**
+
+- **Filtres rangés** : machine, niveau (dont « err et plus grave » et
+  « warning et plus grave »), période, un champ « Rechercher » (mots
+  entiers ; `"texte exact"` entre guillemets) ; le reste dans « Plus de
+  filtres ». Filtres actifs en **pastilles** retirables (bleu : inclus,
+  rouge : exclu). Anciennes adresses (`mots=`, `contient=`) toujours lues.
+- **Exclusion** (« − exclure ») faite par le moteur de logs (nouveau
+  champ `Exclus` de la requête) : la limite de lignes reste juste ; un
+  bloc dont toutes les valeurs sont exclues n'est pas lu.
+- **Raccourcis** : les 4 fournis et les **recherches enregistrées** de
+  chaque utilisateur (★, 30 au plus, migration 0024 ; paramètres connus
+  seulement, revérifiés ; préférence personnelle sans code 2FA).
+- **Histogramme** des lignes trouvées (60 tranches, erreurs en rouge,
+  avertissements en orange, SVG sans style en ligne) ; glisser = zoom
+  (`de`, `a` dans l'adresse).
+- **Lignes compactes** : heure seule, séparateur par jour, erreurs et
+  avertissements teintés, mots cherchés surlignés, répétitions repliées.
+  **Détail au clic** : tous les champs avec « ＋ filtrer / － exclure »,
+  « Voir autour », copier la ligne, copier en JSON, copier le lien.
+- **Messages regroupés** : IP, nombres, identifiants, hexadécimal
+  remplacés (`IP`, `N`, `UUID`, `HEX`) ; tri plus fréquents / rares /
+  erreurs ; « Ces lignes » filtre sur le message type.
+- **Contexte** (« Voir autour ») : 20 lignes avant et après sur la même
+  machine (toutes sources, ±1 h), « 20 de plus ».
+- **Mode direct** : `/logs/direct` toutes les 5 s, lignes ajoutées en haut
+  (construites avec `textContent`), pause au survol ou ligne ouverte,
+  arrêt seul après 30 min.
+- **Export** CSV (« ; », BOM, cellules commençant par = + - @ protégées)
+  ou texte, 10 000 lignes au plus. « Charger plus ancien » pour la suite.
+- La courbe « volume par machine » reste sur la page de chaque machine.
+
+**Coût** : une recherche lit 2 000 lignes au plus (au lieu de 300 à 2 000)
+pour l'histogramme et les regroupements ; calcul mesuré **44 ms et 4 Mio
+passagers** pour 2 000 lignes. Mode direct : une petite recherche (15 min
+au plus) toutes les 5 s par onglet actif, 30 min au plus. Toujours
+2 recherches en même temps au plus.
+
+**Menaces** : contenu des logs toujours échappé (gabarits, JSON,
+`textContent`) ; valeurs des filtres et exclusions vérifiées (mêmes
+caractères permis qu'avant, 10 exclusions au plus) ; recherches
+enregistrées réduites aux paramètres connus et liées à leur utilisateur
+(suppression vérifiée) ; formulaires avec jeton CSRF ; export protégé
+contre les formules de tableur.

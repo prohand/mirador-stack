@@ -821,6 +821,17 @@ page machine.
 
 Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
 
+## Page Logs refaite (SPEC § 33, 16/11)
+
+| Partie | État |
+|---|---|
+| Filtres rangés, pastilles, niveau « et plus grave », exclusion (moteur) | **fait**, testé ; à valider |
+| Histogramme + zoom, lignes compactes, surlignage, détail au clic | **fait**, testé ; à valider |
+| Messages regroupés, contexte « Voir autour », mode direct, export, recherches enregistrées | **fait**, testé ; à valider |
+
+Mesure : 44 ms et 4 Mio passagers pour analyser 2 000 lignes ; mode direct :
+une petite recherche toutes les 5 s par onglet actif (30 min au plus).
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

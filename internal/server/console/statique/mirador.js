@@ -808,3 +808,135 @@ document.addEventListener("change", function (e) {
     window.location.reload();
   }, s * 1000);
 })();
+
+// Page Logs (SPEC § 33) : détail d'une ligne au clic, copier, zoom sur
+// l'histogramme, mode direct. Le contenu des logs est toujours posé avec
+// textContent (jamais comme du HTML).
+(function () {
+  function basculer(tr) {
+    var d = tr.nextElementSibling;
+    if (!d || !d.classList.contains("logs-detail")) { return; }
+    d.hidden = !d.hidden;
+    tr.setAttribute("aria-expanded", d.hidden ? "false" : "true");
+    tr.classList.toggle("ouvert", !d.hidden);
+  }
+  document.addEventListener("click", function (e) {
+    var tr = e.target.closest && e.target.closest("[data-logs-ouvrir]");
+    if (tr && !e.target.closest("a, button") && !(window.getSelection && String(window.getSelection()))) { basculer(tr); }
+  });
+  document.addEventListener("keydown", function (e) {
+    var tr = e.target.closest && e.target.closest("[data-logs-ouvrir]");
+    if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); basculer(tr); }
+  });
+  function copier(texte, bouton) {
+    var fini = function () {
+      var avant = bouton.textContent;
+      bouton.textContent = "Copié ✓";
+      setTimeout(function () { bouton.textContent = avant; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(texte).then(fini, function () {}); }
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-copier-ligne], [data-copier-json], [data-copier-lien]");
+    if (!b) { return; }
+    e.preventDefault();
+    if (b.hasAttribute("data-copier-json")) { copier(b.getAttribute("data-copier-json"), b); return; }
+    if (b.hasAttribute("data-copier-lien")) { copier(new URL(b.getAttribute("href"), window.location.href).href, b); return; }
+    var tr = b.closest(".logs-detail").previousElementSibling;
+    copier(Array.prototype.map.call(tr.cells, function (c) { return c.textContent.trim(); }).filter(Boolean).join(" "), b);
+  });
+
+  // Zoom : glisser sur l'histogramme choisit une période (de, a).
+  var svg = document.querySelector("[data-zoom-logs]");
+  if (svg) {
+    var debut = parseInt(svg.getAttribute("data-debut"), 10), fin = parseInt(svg.getAttribute("data-fin"), 10);
+    var sel = svg.querySelector(".h-selection"), x0 = null;
+    var pos = function (e) {
+      var r = svg.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    };
+    svg.addEventListener("mousedown", function (e) { x0 = pos(e); e.preventDefault(); });
+    window.addEventListener("mousemove", function (e) {
+      if (x0 === null) { return; }
+      var x = pos(e);
+      sel.setAttribute("x", String(Math.min(x0, x) * 1000));
+      sel.setAttribute("width", String(Math.abs(x - x0) * 1000));
+    });
+    window.addEventListener("mouseup", function (e) {
+      if (x0 === null) { return; }
+      var x = pos(e), a = Math.min(x0, x), b = Math.max(x0, x);
+      x0 = null;
+      if (b - a < 0.01) { sel.setAttribute("width", "0"); return; }
+      var q = new URLSearchParams(window.location.search);
+      q.set("de", String(Math.round(debut + (fin - debut) * a)));
+      q.set("a", String(Math.round(debut + (fin - debut) * b)));
+      q.delete("avant");
+      window.location = "/logs?" + q.toString();
+    });
+  }
+
+  // Mode direct : nouvelles lignes toutes les 5 s, en haut du tableau.
+  var bouton = document.querySelector("[data-logs-direct]");
+  if (!bouton) { return; }
+  var minuterie = null, finDirect = 0, dernier = 0, nouvelles = 0;
+  var bandeau = document.querySelector("[data-logs-nouvelles]");
+  document.querySelectorAll("[data-logs-ouvrir][data-t]").forEach(function (tr) { dernier = Math.max(dernier, parseInt(tr.getAttribute("data-t"), 10) || 0); });
+  function enPause() {
+    var t = document.querySelector("[data-logs-table]");
+    return document.hidden || (t && t.matches(":hover")) || document.querySelector(".logs-detail:not([hidden])");
+  }
+  function cellule(tr, texte, classe) {
+    var td = document.createElement("td");
+    if (classe) { td.className = classe; }
+    td.textContent = texte;
+    tr.appendChild(td);
+    return td;
+  }
+  function ajouter(lignes) {
+    var t = document.querySelector("[data-logs-table]");
+    if (!t || !lignes.length) { return; }
+    t.hidden = false;
+    var corps = t.tBodies[0], avant = corps.querySelector("tr.logs-ligne-log");
+    // Plus anciennes d'abord dans la boucle : la plus récente finit en haut.
+    lignes.slice().reverse().forEach(function (l) {
+      var tr = document.createElement("tr");
+      tr.className = "logs-ligne-log nouvelle " + (l.classe || "");
+      cellule(tr, l.heure, "mono");
+      cellule(tr, l.host);
+      var niv = cellule(tr, "");
+      if (l.niveau) { var s = document.createElement("span"); s.className = "logs-niv " + (l.classe || ""); s.textContent = l.niveau; niv.appendChild(s); }
+      cellule(tr, l.origine || l.job);
+      cellule(tr, l.msg, "logs-msg");
+      corps.insertBefore(tr, avant);
+      avant = tr;
+      dernier = Math.max(dernier, l.t);
+    });
+    nouvelles += lignes.length;
+    if (bandeau) { bandeau.hidden = false; bandeau.textContent = "↑ " + nouvelles + " nouvelle(s) ligne(s) depuis l'activation du mode direct"; }
+  }
+  function tirer() {
+    if (Date.now() > finDirect) { arreter(); return; }
+    if (enPause()) { return; }
+    fetch(bouton.getAttribute("data-logs-direct") + "&depuis=" + dernier, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
+      .then(function (r) { if (r.status === 401) { window.location = "/connexion"; return null; } return r.json(); })
+      .then(function (d) { if (d && d.lignes) { ajouter(d.lignes); } })
+      .catch(function () {});
+  }
+  function arreter() {
+    clearInterval(minuterie);
+    minuterie = null;
+    bouton.classList.remove("actif");
+    bouton.setAttribute("aria-pressed", "false");
+    bouton.querySelector("span").textContent = "Direct";
+  }
+  bouton.addEventListener("click", function () {
+    if (minuterie) { arreter(); return; }
+    if (!dernier) { dernier = Date.now() - 60000; }
+    finDirect = Date.now() + 30 * 60 * 1000; // arrêt seul après 30 min
+    bouton.classList.add("actif");
+    bouton.setAttribute("aria-pressed", "true");
+    bouton.querySelector("span").textContent = "En direct · 5 s (pause au survol)";
+    tirer();
+    minuterie = setInterval(tirer, 5000);
+  });
+})();

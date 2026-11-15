@@ -7,14 +7,11 @@ import (
 	"errors"
 	"maps"
 	"net/netip"
-	"net/url"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/stockage"
 	"mirador-stack/internal/server/stockage/journaux"
 )
@@ -26,6 +23,9 @@ import (
 
 func (c *Console) routesLogs() {
 	c.mux.HandleFunc("GET /logs", c.lecture(c.pageLogs))
+	c.mux.HandleFunc("GET /logs/direct", c.lecture(c.logsDirect))
+	c.mux.HandleFunc("GET /logs/export", c.lecture(c.logsExport))
+	c.mux.HandleFunc("POST /logs/recherches", c.lecture(c.postRechercheLogs))
 	c.mux.HandleFunc("GET /flux-bloques", c.lecture(c.pageFlux))
 }
 
@@ -37,34 +37,9 @@ var champsLogs = []struct{ Nom, Titre string }{
 
 var reValeurChamp = regexp.MustCompile(`^[\p{L}\p{N} ._:/@+-]{1,200}$`)
 
-type ligneLog struct {
-	T                          int64
-	Host, Job, Niveau, Origine string
-	Msg                        string
-	Repetitions                int
-}
-
 type compte struct {
 	Nom string
 	N   int
-}
-
-type donneesLogs struct {
-	Champs   []champLog
-	Mots     string
-	Contient string
-	Periode  string
-	Periodes []string
-	Limite   int
-	Lignes   []ligneLog
-	NbLignes int
-	Tronque  bool
-	BlocsLus int
-	Duree    time.Duration
-	Machines []string
-	Palmares map[string][]compte
-	Cherche  bool
-	Replier  bool
 }
 
 // champLog : un filtre ; Choix = valeurs proposées dans la liste (la
@@ -115,63 +90,6 @@ func avecValeur(choix []string, v string) []string {
 
 var periodesLogs = []string{"15m", "1h", "6h", "24h", "7d", "30d"}
 
-func (c *Console) pageLogs(q *req) {
-	v := q.r.URL.Query()
-	d := donneesLogs{Periodes: periodesLogs, Periode: v.Get("periode"), Mots: strings.TrimSpace(v.Get("mots")),
-		Contient: strings.TrimSpace(v.Get("contient")), Replier: v.Get("replier") != "non"}
-	if d.Periode == "" {
-		d.Periode = "1h"
-	}
-	d.Limite, _ = strconv.Atoi(v.Get("limite"))
-	if d.Limite <= 0 || d.Limite > 2000 {
-		d.Limite = 300
-	}
-	champs := map[string]string{}
-	err := func() error {
-		for _, ch := range champsLogs {
-			x := strings.TrimSpace(v.Get(ch.Nom))
-			if x != "" {
-				if !reValeurChamp.MatchString(x) {
-					return errors.New(ch.Titre + " : caractères non permis")
-				}
-				champs[ch.Nom] = x
-			}
-			d.Champs = append(d.Champs, champLog{Nom: ch.Nom, Titre: ch.Titre, Valeur: x})
-		}
-		if len(d.Mots) > 200 || len(d.Contient) > 200 {
-			return errors.New("recherche : 200 caractères au plus")
-		}
-		return nil
-	}()
-	if ms, e := flotte.ListerMachines(q.r.Context(), c.db); e == nil {
-		for _, m := range ms {
-			d.Machines = append(d.Machines, m.Nom)
-		}
-	}
-	choix := c.choixLogs(q.r.Context(), d.Machines)
-	for i := range d.Champs {
-		d.Champs[i].Choix = avecValeur(choix[d.Champs[i].Nom], d.Champs[i].Valeur)
-	}
-	if err == nil && c.opt.Logs != nil {
-		var periode time.Duration
-		if periode, err = lirePeriode(d.Periode); err == nil {
-			d.Cherche = true
-			t0 := time.Now()
-			var res journaux.Resultat
-			res, err = c.chercherLogs(q.r.Context(), journaux.Requete{Debut: q.t.Add(-periode).UnixMilli(), Fin: q.t.UnixMilli(),
-				Champs: champs, Mots: d.Mots, Contient: d.Contient, Limite: d.Limite})
-			d.Duree = time.Since(t0).Round(time.Millisecond)
-			d.NbLignes, d.Tronque, d.BlocsLus = len(res.Lignes), res.Tronque, res.BlocsLus
-			d.Lignes = presenterLignes(res.Lignes, d.Replier)
-			d.Palmares = palmares(res.Lignes)
-		}
-	}
-	if err != nil {
-		c.flash(q, "", err.Error())
-	}
-	c.rendre(q, "logs", "Logs", "logs", d)
-}
-
 // chercherLogs : 2 recherches à la fois au plus (chacune peut lire beaucoup
 // de blocs) ; une troisième attend jusqu'à 5 s puis renonce.
 func (c *Console) chercherLogs(ctx context.Context, r journaux.Requete) (journaux.Resultat, error) {
@@ -207,51 +125,6 @@ func (c *Console) chercherLogs(ctx context.Context, r journaux.Requete) (journau
 		}
 	}
 	return res, err
-}
-
-// presenterLignes : lignes identiques qui se suivent (même machine, même
-// message) repliées avec un compteur (idée reprise de Nyx, SPEC § 12.1).
-func presenterLignes(ls []stockage.Ligne, replier bool) []ligneLog {
-	var out []ligneLog
-	for _, l := range ls {
-		o := l.Champs["unit"]
-		if o == "" {
-			o = l.Champs["container"]
-		}
-		x := ligneLog{T: l.T, Host: l.Champs["host"], Job: l.Champs["job"], Niveau: l.Champs["level"], Origine: o, Msg: l.Msg, Repetitions: 1}
-		if n := len(out); replier && n > 0 && out[n-1].Host == x.Host && out[n-1].Msg == x.Msg && out[n-1].Origine == x.Origine {
-			out[n-1].Repetitions++
-			continue
-		}
-		out = append(out, x)
-	}
-	return out
-}
-
-// palmares : machines, unités et conteneurs les plus bavards PARMI les
-// lignes trouvées (pas sur toute la période : ce serait trop coûteux).
-func palmares(ls []stockage.Ligne) map[string][]compte {
-	n := map[string]map[string]int{"host": {}, "unit": {}, "container": {}, "level": {}}
-	for _, l := range ls {
-		for k, m := range n {
-			if v := l.Champs[k]; v != "" {
-				m[v]++
-			}
-		}
-	}
-	out := map[string][]compte{}
-	for k, m := range n {
-		var cs []compte
-		for nom, x := range m {
-			cs = append(cs, compte{nom, x})
-		}
-		sort.Slice(cs, func(i, j int) bool { return cs[i].N > cs[j].N || (cs[i].N == cs[j].N && cs[i].Nom < cs[j].Nom) })
-		if len(cs) > 10 {
-			cs = cs[:10]
-		}
-		out[k] = cs
-	}
-	return out
 }
 
 // --- Flux entrants bloqués --------------------------------------------------------------
@@ -405,9 +278,4 @@ func (c *Console) pageFlux(q *req) {
 		c.flash(q, "", err.Error())
 	}
 	c.rendre(q, "flux", "Flux entrants bloqués", "tableaux", d)
-}
-
-// lienLogs : adresse de la page Logs avec un filtre (palmarès cliquable).
-func lienLogs(champ, valeur, periode string) string {
-	return "/logs?" + url.Values{champ: {valeur}, "periode": {periode}}.Encode()
 }

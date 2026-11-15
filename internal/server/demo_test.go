@@ -169,6 +169,24 @@ func TestDemoInterface(t *testing.T) {
 		lignes = append(lignes, stockage.Ligne{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), Msg: fmt.Sprintf("Accepted publickey for admin from 192.0.2.%d port 5%03d ssh2", k%7, k),
 			Champs: map[string]string{"host": machines[k%5], "job": "journal", "unit": "ssh.service", "level": "info"}})
 	}
+	// Page Logs (SPEC § 33) : avertissements et erreurs répartis sur 6 h.
+	for k := 0; k < 40; k++ {
+		ts := now.Add(-time.Duration(k*9+3) * time.Minute).UnixMilli()
+		switch {
+		case k%5 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("request to backend failed, retrying in 2 s (attempt %d/5)", k%4+1),
+				Champs: map[string]string{"host": "vm-docker", "job": "docker", "container": "appli", "level": "warning"}})
+		case k%7 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("error: PAM: Authentication failure for illegal user admin from 198.51.100.%d", k),
+				Champs: map[string]string{"host": "srv-test", "job": "journal", "unit": "ssh.service", "level": "err"}})
+		case k%3 == 0:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: "authentication failed for user root@pam from 192.0.2.44",
+				Champs: map[string]string{"host": "pve1", "job": "journal", "unit": "pvedaemon", "level": "warning"}})
+		default:
+			lignes = append(lignes, stockage.Ligne{T: ts, Msg: fmt.Sprintf("Started Session %d of User root.", 100+k),
+				Champs: map[string]string{"host": machines[k%5], "job": "journal", "unit": "systemd-logind.service", "level": "info"}})
+		}
+	}
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
 	_ = s.jx.Ecrire(ctx, lignes)
