@@ -12,6 +12,14 @@
 #   - test de sauvegarde / restauration plus lancé deux fois ;
 #   - benchmarks seulement à la demande (Actions › ci › Run workflow).
 # Durée totale inchangée (~7 min : celle des tests).
+#
+# Économie de stockage (15/11 : 90 % des 0,5 Go du mois utilisés, par les
+# binaires de 42 Mo envoyés à chaque push et gardés 30 jours) :
+#   - binaires (artefact) seulement pour un push sur main, gardés 3 jours ;
+#     les machines s'installent depuis les versions publiées (tags), pas
+#     depuis l'artefact ;
+#   - plus d'enregistrement de la construction Docker (artefact
+#     « .dockerbuild » gardé 90 jours).
 
 name: ci
 
@@ -75,8 +83,10 @@ jobs:
       - name: Compilation (agent, collecteur et serveur linux, mirador-release Windows)
         run: make agent collecteur serveur release
       # Binaires et scripts à télécharger depuis la page de l'exécution
-      # (onglet « Artifacts ») pour les essais sur une machine.
+      # (onglet « Artifacts ») pour un essai sur une machine : seulement sur
+      # main, gardés 3 jours (stockage Actions limité à 0,5 Go par mois).
       - name: Publication des binaires (artefact)
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
           name: mirador-agent-${{ github.sha }}
@@ -84,7 +94,7 @@ jobs:
             dist/
             deploy/agent/
             deploy/collecteur/
-          retention-days: 30
+          retention-days: 3
 
   tests:
     name: tests (accès concurrents compris)
@@ -181,6 +191,10 @@ jobs:
 
       - name: Construction
         uses: docker/build-push-action@v7
+        env:
+          # Pas d'artefact « .dockerbuild » (gardé 90 jours, stockage compté).
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           file: deploy/serveur/Dockerfile
@@ -310,6 +324,9 @@ jobs:
 
       - name: Construction et publication
         uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           file: deploy/serveur/Dockerfile

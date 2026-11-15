@@ -1,0 +1,62 @@
+# Nettoyage des artefacts de la CI (stockage Actions limité à 0,5 Go par mois)
+#
+# Garde seulement le dernier artefact de binaires de main ; supprime tous
+# les autres (anciennes exécutions, branches, enregistrements Docker).
+# Seul outil : la commande « gh » déjà présente sur la machine de GitHub,
+# avec le jeton de l'exécution (droit limité aux Actions de ce dépôt).
+#
+# Quand :
+#   - chaque lundi (une tâche d'environ 10 s : 1 minute comptée) ;
+#   - à la demande : Actions › nettoyage › Run workflow ;
+#   - une fois à la fusion de ce fichier sur main (premier nettoyage).
+
+name: nettoyage
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nettoyage.yml']
+
+permissions:
+  actions: write
+
+concurrency:
+  group: nettoyage
+  cancel-in-progress: false
+
+jobs:
+  artefacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Suppression des anciens artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Une ligne par artefact encore présent : date, id, nom, branche,
+          # du plus récent au plus ancien.
+          liste=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired | not) | [.created_at, (.id | tostring), .name, (.workflow_run.head_branch // "")] | @tsv' \
+            | sort -r)
+          garde=""
+          supprimes=0
+          octets=0
+          while IFS=$'\t' read -r date id nom branche; do
+            [ -n "$id" ] || continue
+            # Le plus récent des binaires de main est gardé (essais sur une machine).
+            if [ -z "$garde" ] && [ "$branche" = "main" ] && [[ "$nom" == mirador-agent-* ]]; then
+              garde="$id"
+              echo "gardé : $nom ($date)"
+              continue
+            fi
+            taille=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" --jq '.size_in_bytes')
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}"
+            echo "supprimé : $nom ($branche, $date)"
+            supprimes=$((supprimes + 1))
+            octets=$((octets + taille))
+          done <<< "$liste"
+          echo "Artefacts supprimés : ${supprimes} ($((octets / 1048576)) Mio libérés)" | tee -a "$GITHUB_STEP_SUMMARY"

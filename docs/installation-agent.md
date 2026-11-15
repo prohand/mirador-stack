@@ -19,10 +19,12 @@ Sur le VPS, une seule modification : une ligne de token dans la `map` nginx.
 
 ## 1. Récupérer le binaire
 
-Chaque push sur la branche `etape-2-agent` lance la CI, qui publie les binaires.
+Chaque push sur `main` lance la CI, qui publie les binaires (gardés
+**3 jours** : stockage GitHub limité). Pour une installation durable, passer
+par une version publiée (tag `v…`) et le script du serveur.
 
 1. Ouvrir <https://github.com/prohand/mirador-stack/actions>, cliquer sur la
-   dernière exécution **verte** de la branche `etape-2-agent`.
+   dernière exécution **verte** de la branche `main`.
 2. En bas de la page, section **Artifacts** : télécharger `mirador-agent-<commit>`.
 3. Décompresser : on obtient `dist/` (binaires + `SHA256SUMS`) et `deploy/agent/`
    (script d'installation + script de mesure).
