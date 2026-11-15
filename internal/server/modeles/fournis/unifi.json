@@ -1,0 +1,89 @@
+{
+ "version": 1,
+ "nom": "unifi",
+ "titre": "UniFi",
+ "icone": "machines",
+ "description": "Contrôleur UniFi lu par le collecteur : équipements déconnectés ou redémarrés, processeur, mémoire, température, erreurs de ports, mises à jour.",
+ "detection": "count by (instance) (unpoller_device_info)",
+ "auto": true,
+ "regles": [
+  {
+   "nom": "ReseauEquipementDeconnecte",
+   "remplace": "UnifiEquipementDeconnecte",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "max by (instance, site_name, subsystem) (unpoller_site_disconnected) > 0",
+   "resume": "{{ $value }} equipement(s) UniFi deconnecte(s) ({{ $labels.subsystem }}, site {{ $labels.site_name }})",
+   "description": "Borne ou switch eteint, cable debranche ou equipement bloque. Voir le controleur UniFi.",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauEquipementRedemarre",
+   "remplace": "UnifiEquipementRedemarre",
+   "gravite": "warning",
+   "expr": "resets(unpoller_device_uptime_seconds[10m]) > 0",
+   "resume": "{{ $labels.name }} a redemarre",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauCpuEleve",
+   "remplace": "UnifiCpuEleve",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "unpoller_device_cpu_utilization_ratio > 0.90",
+   "resume": "CPU de {{ $labels.name }} a {{ $value | humanizePercentage }}",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauMemoireSaturee",
+   "remplace": "UnifiMemoireSaturee",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "unpoller_device_memory_utilization_ratio > 0.90",
+   "resume": "Memoire de {{ $labels.name }} a {{ $value | humanizePercentage }}",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauTemperatureElevee",
+   "remplace": "UnifiTemperatureElevee",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "unpoller_device_temperature_celsius > 75",
+   "resume": "{{ $labels.name }} ({{ $labels.temp_area }}) a {{ $value }} degres",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauErreursPort",
+   "remplace": "UnifiErreursPort",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "rate(unpoller_device_port_receive_errors_total[5m]) > 1",
+   "resume": "Erreurs sur le port {{ $labels.port_num }} ({{ $labels.port_name }}) de {{ $labels.name }}",
+   "description": "Cable abime ou mauvaise negociation de vitesse.",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  },
+  {
+   "nom": "ReseauMiseAJourDisponible",
+   "remplace": "UnifiMiseAJourDisponible",
+   "pour": "1d",
+   "gravite": "info",
+   "expr": "max by (instance, name) ({__name__=~\"unpoller_device_upgrad(e)?able\"}) == 1",
+   "resume": "Mise a jour du firmware disponible pour {{ $labels.name }}",
+   "etiquettes": {
+    "via": "collecteur"
+   }
+  }
+ ]
+}

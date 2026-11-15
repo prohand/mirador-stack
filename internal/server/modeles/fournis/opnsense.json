@@ -1,0 +1,111 @@
+{
+ "version": 1,
+ "nom": "opnsense",
+ "titre": "OPNsense",
+ "icone": "machines",
+ "description": "Pare-feu OPNsense (sortie InfluxDB de Telegraf) : processeur, mémoire, swap, disque, redémarrage, table d'états, pertes et latence, erreurs des interfaces.",
+ "detection": "count by (instance) (pf_entries)",
+ "auto": true,
+ "regles": [
+  {
+   "nom": "RouteurCpuEleve",
+   "remplace": "OpnsenseCpuEleve",
+   "pour": "5m",
+   "gravite": "warning",
+   "expr": "100 - cpu_usage_idle{cpu=\"cpu-total\"} > 90",
+   "resume": "CPU d'OPNsense ({{ $labels.host }}) a {{ $value | humanize }} %"
+  },
+  {
+   "nom": "RouteurMemoireFaible",
+   "remplace": "OpnsenseMemoireFaible",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "mem_used_percent > 90",
+   "resume": "Memoire d'OPNsense ({{ $labels.host }}) utilisee a {{ $value | humanize }} %"
+  },
+  {
+   "nom": "RouteurSwapUtilise",
+   "remplace": "OpnsenseSwapUtilise",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "swap_used_percent > 50",
+   "resume": "OPNsense ({{ $labels.host }}) utilise {{ $value | humanize }} % de son swap"
+  },
+  {
+   "nom": "RouteurDisquePresquePlein",
+   "remplace": "OpnsenseDisquePresquePlein",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "disk_used_percent > 85",
+   "resume": "Disque {{ $labels.path }} d'OPNsense rempli a {{ $value | humanize }} %"
+  },
+  {
+   "nom": "RouteurDisquePlein",
+   "remplace": "OpnsenseDisquePlein",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "disk_used_percent > 95",
+   "resume": "Disque {{ $labels.path }} d'OPNsense plein a {{ $value | humanize }} %",
+   "description": "Logs, rapports et mises a jour vont echouer. Nettoyer /var/log ou les rapports Insight."
+  },
+  {
+   "nom": "RouteurRedemarre",
+   "remplace": "OpnsenseRedemarre",
+   "gravite": "warning",
+   "expr": "system_uptime{object=\"\"} < 600",
+   "resume": "OPNsense ({{ $labels.host }}) a redemarre il y a {{ $value | humanizeDuration }}"
+  },
+  {
+   "nom": "RouteurTableEtatsPresquePleine",
+   "remplace": "OpnsenseTableEtatsPresquePleine",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "pf_entries / 605600 > 0.80",
+   "resume": "Table d'etats d'OPNsense pleine a {{ $value | humanizePercentage }}",
+   "description": "Au-dela de la limite, les nouvelles connexions sont refusees. Pic de trafic, scan, attaque ou limite trop basse."
+  },
+  {
+   "nom": "RouteurTableEtatsPleine",
+   "remplace": "OpnsenseTableEtatsPleine",
+   "pour": "2m",
+   "gravite": "critical",
+   "expr": "pf_entries / 605600 > 0.95",
+   "resume": "Table d'etats d'OPNsense pleine a {{ $value | humanizePercentage }}",
+   "description": "Les nouvelles connexions vont etre refusees. Verifier les plus gros emetteurs dans Firewall > Diagnostics > States."
+  },
+  {
+   "nom": "RouteurEtatsAnormaux",
+   "remplace": "OpnsenseEtatsAnormaux",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "pf_entries > 5 * avg_over_time(pf_entries[7d]) and pf_entries > 20000",
+   "resume": "{{ $value }} etats sur OPNsense, bien au-dessus de la normale",
+   "description": "Possible scan, attaque ou machine qui ouvre des milliers de connexions. Voir Firewall > Diagnostics > States."
+  },
+  {
+   "nom": "RouteurPertesPaquets",
+   "remplace": "OpnsensePertesPaquets",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "ping_percent_packet_loss > 10",
+   "resume": "{{ $value | humanize }} % de pertes vers {{ $labels.url }} depuis OPNsense"
+  },
+  {
+   "nom": "RouteurLatenceElevee",
+   "remplace": "OpnsenseLatenceElevee",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "ping_average_response_ms > 100",
+   "resume": "Latence de {{ $value | humanize }} ms vers {{ $labels.url }} depuis OPNsense"
+  },
+  {
+   "nom": "RouteurErreursInterface",
+   "remplace": "OpnsenseErreursInterface",
+   "pour": "15m",
+   "gravite": "warning",
+   "expr": "rate(net_err_in[5m]) > 1 or rate(net_err_out[5m]) > 1",
+   "resume": "Erreurs sur l'interface {{ $labels.interface }} d'OPNsense ({{ $value | humanize }}/s)",
+   "description": "Cable, port de switch ou negociation de vitesse a verifier."
+  }
+ ]
+}

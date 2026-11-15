@@ -7,7 +7,8 @@
  "detection": "count by (instance) (node_uname_info)",
  "config": {
   "systemd": true,
-  "mises_a_jour": true
+  "mises_a_jour": true,
+  "envoyer_pare_feu": true
  },
  "parametres": [
   {
@@ -48,6 +49,14 @@
    "defaut": 10,
    "min": 1,
    "max": 90
+  },
+  {
+   "nom": "trafic_mbits",
+   "titre": "Trafic entrant d'une interface : alerte au-dessus de",
+   "unite": "Mbit/s",
+   "defaut": 800,
+   "min": 1,
+   "max": 100000
   }
  ],
  "regles": [
@@ -153,6 +162,22 @@
    "gravite": "info",
    "expr": "node_time_seconds - node_boot_time_seconds < 300",
    "resume": "{{ $labels.instance }} vient de redémarrer"
+  },
+  {
+   "nom": "LinuxPareFeuOuvert",
+   "remplace": "PareFeuNonRestrictif",
+   "pour": "5m",
+   "gravite": "critical",
+   "expr": "node_firewall_input_policy_drop == 0",
+   "resume": "Pare-feu non restrictif en entrée sur {{ $labels.instance }}"
+  },
+  {
+   "nom": "LinuxTraficAnormal",
+   "remplace": "TraficAnormal",
+   "pour": "10m",
+   "gravite": "warning",
+   "expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[5m]) * 8 / 1000000 > $trafic_mbits",
+   "resume": "Trafic entrant élevé sur {{ $labels.device }} ({{ $labels.instance }}) : {{ $value | humanize }} Mbit/s"
   }
  ]
 }

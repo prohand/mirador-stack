@@ -4417,6 +4417,29 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
   démarrage), présents sur toutes les machines du modèle et sur **aucune**
   autre, hors services de distribution (liste étendue) ; 10 au plus ;
   **plus cochés d'office** ; affichés en liste.
+- **Toutes les règles liées aux modèles** (choix du 15/11 : « 1. Oui,
+  2. auto ») :
+  1. Règle de modèle **sans seuil** : limitée aux machines qui portent le
+     modèle (`… and on (instance) mirador_machine_modele{modele="…"}`) ;
+     avant, elle s'appliquait partout (alerte en double avec la règle
+     importée sur les machines sans le modèle).
+  2. Linux : + pare-feu non restrictif (et relevé du pare-feu allumé), trafic
+     anormal (seuil réglable, défaut 800 Mbit/s).
+  3. **Modèles d'équipement**, repris des règles importées (mêmes
+     expressions, mêmes textes, étiquette `via=collecteur` gardée) :
+     **NAS Synology** (15 règles, détecté par `systemStatus{job="snmp"}`),
+     **OPNsense** (12, `pf_entries`), **UniFi** (7, `unpoller_device_info` ;
+     regroupements gardant `instance`). Champ `auto` : appliqués **dès la
+     détection**, même si l'application automatique générale est coupée ;
+     décochés ensuite, ils ne reviennent pas.
+  4. Page Règles : « Règles importées remplacées par un modèle ». Une règle
+     **ne sert plus** si chaque machine ou source où son modèle est détecté
+     le porte ; sinon « sert encore » avec la liste. Bouton « Retirer les N
+     règles qui ne servent plus » (code 2FA, audit ; export YAML pour revenir
+     en arrière). Seules les règles importées de vmalert sont concernées.
+  Restent générales : Watchdog, AgentMuet, les « … muet » (OPNsense,
+  Proxmox, UniFi, Syslog) et CertificatIllisible (sondes du collecteur).
+  Coût : quelques requêtes de détection en plus par minute (une par modèle).
 - **Passkey Bitwarden sur iPhone (`NotAllowedError`)** : la même passkey
   marche sur le PC, et Bitwarden iPhone marche sur webauthn.io (qui demande
   `userVerification: "preferred"`). La connexion sans mot de passe demandait

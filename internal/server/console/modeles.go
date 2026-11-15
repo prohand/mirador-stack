@@ -666,9 +666,12 @@ func (c *Console) appliquerDetectes(ctx context.Context, qui string, t time.Time
 // non par défaut). Chaque modèle appliqué est signalé par les canaux de
 // notification (un message par machine et par modèle) et reste retirable.
 func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
-	if c.lecteur == nil || !modeles.LireAuto(ctx, c.db) {
+	if c.lecteur == nil {
 		return
 	}
+	// Réglage général (modèles des machines) ; les modèles d'équipement
+	// (Auto : Synology, OPNsense, UniFi) sont appliqués dans tous les cas.
+	general := modeles.LireAuto(ctx, c.db)
 	ms, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return
@@ -680,14 +683,14 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 	}()
 	det := c.detectes(ctx, t)
 	for _, m := range ms {
-		if m.Statut != "approuvee" || m.Type != "agent" {
-			continue
-		}
 		_, _, proposes, err := c.etatModeles(ctx, m, det)
 		if err != nil {
 			continue
 		}
 		for _, mod := range proposes {
+			if !mod.Auto && !general {
+				continue
+			}
 			if err := modeles.Definir(ctx, c.db, modeles.PorteeMachine(m.ID), mod.Nom, modeles.EtatActif, nil, nil, modeles.QuiAuto, t); err != nil {
 				c.journal.Warn("modèle non appliqué automatiquement", "machine", m.Nom, "modele", mod.Nom, "erreur", err)
 				continue

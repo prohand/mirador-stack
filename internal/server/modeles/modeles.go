@@ -51,6 +51,11 @@ type Modele struct {
 	// SPEC § 24.10). Chaque ligne d'une liste devient un check.
 	Listes []ListeParam `json:"listes,omitempty"`
 
+	// Auto : appliqué automatiquement dès qu'il est détecté (modèles
+	// d'équipement : Synology, OPNsense, UniFi), même si l'application
+	// automatique générale est coupée. Décoché ensuite, il ne revient pas.
+	Auto bool `json:"auto,omitempty"`
+
 	// Perso : modèle personnel (créé dans l'interface, partie C), pas livré.
 	Perso bool `json:"-"`
 }
@@ -84,6 +89,9 @@ type RegleModele struct {
 	Gravite     string `json:"gravite"`
 	Resume      string `json:"resume,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Etiquettes : ajoutées à l'alerte (ex. via=collecteur, pour la
+	// sourdine quand le collecteur est muet).
+	Etiquettes map[string]string `json:"etiquettes,omitempty"`
 }
 
 var (
@@ -144,6 +152,14 @@ func (m *Modele) Valider() error {
 			return fmt.Errorf("règle %s en double", r.Nom)
 		}
 		regles[r.Nom] = true
+		if len(r.Etiquettes) > 5 {
+			return fmt.Errorf("règle %s : 5 étiquettes au plus", r.Nom)
+		}
+		for k, v := range r.Etiquettes {
+			if !reNomParametre.MatchString(k) || k == "severity" || k == "instance" || len(v) > 100 {
+				return fmt.Errorf("règle %s : étiquette %q invalide", r.Nom, k)
+			}
+		}
 		if err := verifierRefs(r.Expr, vus); err != nil {
 			return fmt.Errorf("règle %s : %w", r.Nom, err)
 		}
@@ -181,6 +197,11 @@ func verifierRefs(expr string, params map[string]bool) error {
 // ExprRegle : expression d'une règle, chaque $p remplacé par la série du
 // seuil de chaque machine (écrite par le serveur, SPEC § 24.2).
 func (m *Modele) ExprRegle(r RegleModele) string {
+	if !reRefParametre.MatchString(r.Expr) {
+		// Sans seuil : limitée aux machines qui portent le modèle (avec un
+		// seuil, la comparaison au seuil de la machine le fait déjà).
+		return "(" + r.Expr + `) and on (instance) mirador_machine_modele{modele="` + m.Nom + `"}`
+	}
 	return reRefParametre.ReplaceAllStringFunc(r.Expr, func(ref string) string {
 		return `on (instance) group_left () mirador_modele_parametre{modele="` + m.Nom + `", parametre="` + ref[1:] + `"}`
 	})
@@ -193,7 +214,7 @@ func (m *Modele) RegleAlerte(r RegleModele) alertes.Regle {
 		pour, _ = alertes.LireDuree(r.Pour)
 	}
 	return alertes.Regle{Nom: r.Nom, Groupe: "modele_" + strings.ReplaceAll(m.Nom, "-", "_"), Intervalle: alertes.Duree(time.Minute),
-		Expr: m.ExprRegle(r), Pour: pour, Gravite: r.Gravite, Resume: r.Resume, Description: r.Description,
+		Expr: m.ExprRegle(r), Pour: pour, Gravite: r.Gravite, Resume: r.Resume, Description: r.Description, Etiquettes: r.Etiquettes,
 		Active: true, Origine: "modele:" + m.Nom,
 		Note: "Modèle « " + m.Titre + " » : seuils réglables par groupe et par machine (page de la machine)"}
 }
