@@ -48,6 +48,7 @@
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
 </div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
+{{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}
 {{template "liste-attente" .D.Attente}}
 <section class="carte" data-parc>
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
@@ -188,7 +189,8 @@
 <small>Une valeur par ligne{{if $l.Aide}} — {{$l.Aide}}{{end}}. Rien de secret : visible dans les mesures.</small></label>{{end}}
 {{define "plus"}}<a class="aide-plus" href="{{docs .}}" target="_blank" rel="noopener noreferrer">En savoir plus ›</a>{{end}}
 {{define "action-alerte"}}{{/* . = {Page, Alerte, Retour} via dict */}}<div class="actions-alerte">
-{{if and .Admin (not .A.Acquittee)}}<form method="post" action="/alertes/{{.A.ID}}" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter"><input type="hidden" name="retour" value="{{.Retour}}"><button class="secondaire petit">Acquitter</button></form>{{end}}
+{{if and .Admin (not .A.Acquittee)}}<details class="menu-silence"><summary title="Je m'en occupe : plus de rappel pendant la durée choisie">Acquitter ▾</summary><form method="post" action="/alertes/{{.A.ID}}" class="menu">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter"><input type="hidden" name="retour" value="{{.Retour}}">
+<button name="duree_ack" value="4h">4 h</button><button name="duree_ack" value="24h">24 h</button><button name="duree_ack" value="fin">jusqu'à la fin</button></form></details>{{end}}
 {{if .Admin}}<details class="menu-silence"><summary>Silence ▾</summary><form method="post" action="/alertes/{{.A.ID}}" class="menu">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence"><input type="hidden" name="retour" value="{{.Retour}}">
 <button name="duree" value="1h">1 h</button><button name="duree" value="4h">4 h</button><button name="duree" value="24h">24 h</button></form></details>{{end}}
 <a class="bouton secondaire petit" href="/alertes/{{.A.ID}}#graphique">Graphique</a></div>{{end}}
@@ -209,9 +211,16 @@
 <td>{{template "action-alerte" (dict "Admin" $.Admin "CSRF" $.CSRF "A" . "Retour" $v.Retour)}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
 {{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
+{{template "liste-prises" (dict "L" $v.Prises "Admin" $.Admin "CSRF" $.CSRF "Retour" $v.Retour)}}
 {{template "liste-attente" $v.Attente}}
 </div>{{end}}
 {{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
 <div class="defile"><table><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
 {{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
+</tbody></table></div></details>{{end}}{{end}}
+{{define "liste-prises"}}{{if .L}}<details class="carte prises-alertes"><summary><strong>Prises en charge</strong> ({{len .L}}) · <span class="sous">acquittées : pas comptées, pas de rappel pendant la durée choisie</span></summary>
+<div class="defile"><table><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Prise en charge</th><th></th></tr></thead><tbody>
+{{range .L}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a>{{if .Resume}}<span class="resume">{{.Resume}}</span>{{end}}</td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td>
+<td>par <strong>{{.AcquitteePar}}</strong> à {{.AcquitteeLe}}<br><small class="pale">{{if .AcquitteeJusqua}}jusqu'au {{.AcquitteeJusqua}}, puis rappel si elle dure{{else}}jusqu'à la fin de l'alerte{{end}}</small></td>
+<td>{{if $.Admin}}<form method="post" action="/alertes/{{.ID}}" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="reprendre"><input type="hidden" name="retour" value="{{$.Retour}}"><button class="secondaire petit" title="De nouveau à traiter (rappels repris)">Reprendre</button></form>{{end}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}{{end}}

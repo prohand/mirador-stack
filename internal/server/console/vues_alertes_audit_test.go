@@ -255,3 +255,24 @@ func TestPageMachineRessources(t *testing.T) {
 		t.Errorf("ancre : %s", ancre("Services et sécurité"))
 	}
 }
+
+// Prises en charge (SPEC § 30) : hors des alertes à traiter et des
+// compteurs, dans un bloc avec qui, quand, jusqu'à quand et « Reprendre ».
+func TestPrisesEnCharge(t *testing.T) {
+	aTraiter, prises := separerPrises([]resumeAlerte{
+		{ID: 1, Regle: "CpuEleve", Gravite: "critical", Etat: "active"},
+		{ID: 2, Regle: "DisqueFaible", Gravite: "warning", Etat: "active", Acquittee: true, AcquitteePar: "web:admin", AcquitteeLe: "14:05", AcquitteeJusqua: "15/11 18:05"},
+	})
+	if len(aTraiter) != 1 || len(prises) != 1 {
+		t.Fatalf("séparation : %v / %v", aTraiter, prises)
+	}
+	b := nouveauBanc(t)
+	w := httptest.NewRecorder()
+	b.c.pages.executer(w, http.StatusOK, "alertes-fragment", Page{Admin: true, CSRF: "j", D: donneesEnCours{Vue: "machine", Prises: prises, Retour: "/alertes"}})
+	corps := w.Body.String()
+	for _, attendu := range []string{"Prises en charge</strong> (1)", "par <strong>web:admin</strong> à 14:05", "jusqu'au 15/11 18:05", `value="reprendre"`, `data-nb-alertes="0"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("bloc prises en charge : %q absent", attendu)
+		}
+	}
+}

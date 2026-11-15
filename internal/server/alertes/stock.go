@@ -247,7 +247,7 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 		f.Limite = 200
 	}
 	q := `SELECT id, regle, etiquettes, gravite, etat, debut, active_le, fin, valeur_debut, valeur_max, valeur, resume,
-		acquittee_le, acquittee_par, commentaire, description FROM alertes WHERE 1 = 1`
+		acquittee_le, acquittee_par, commentaire, description, acquittee_jusqua FROM alertes WHERE 1 = 1`
 	var args []any
 	if f.Avant > 0 {
 		q += ` AND id < ?`
@@ -275,7 +275,7 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 // plus (frise de la page Alertes, SPEC § 28).
 func HistoriquePeriode(ctx context.Context, db *sql.DB, debut, fin time.Time, limite int) ([]Alerte, error) {
 	q := `SELECT id, regle, etiquettes, gravite, etat, debut, active_le, fin, valeur_debut, valeur_max, valeur, resume,
-		acquittee_le, acquittee_par, commentaire, description FROM alertes
+		acquittee_le, acquittee_par, commentaire, description, acquittee_jusqua FROM alertes
 		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le LIMIT ?`
 	return lireAlertes(ctx, db, q, fin.UnixMilli(), debut.UnixMilli(), limite)
 }
@@ -290,13 +290,14 @@ func lireAlertes(ctx context.Context, db *sql.DB, q string, args ...any) ([]Aler
 	for rows.Next() {
 		var a Alerte
 		var etq string
-		var debut, activeLe, fin, ackLe int64
+		var debut, activeLe, fin, ackLe, ackJusqua int64
 		if err := rows.Scan(&a.ID, &a.Regle, &etq, &a.Gravite, &a.Etat, &debut, &activeLe, &fin,
-			&a.ValeurDebut, &a.ValeurMax, &a.Valeur, &a.Resume, &ackLe, &a.AcquitteePar, &a.Commentaire, &a.Description); err != nil {
+			&a.ValeurDebut, &a.ValeurMax, &a.Valeur, &a.Resume, &ackLe, &a.AcquitteePar, &a.Commentaire, &a.Description, &ackJusqua); err != nil {
 			return nil, err
 		}
 		a.Etiquettes = etiquettesJSON(etq)
 		a.Debut, a.ActiveLe, a.Fin, a.AcquitteeLe = depuisMs(debut), depuisMs(activeLe), depuisMs(fin), depuisMs(ackLe)
+		a.AcquitteeJusqua = depuisMs(ackJusqua)
 		out = append(out, a)
 	}
 	return out, rows.Err()

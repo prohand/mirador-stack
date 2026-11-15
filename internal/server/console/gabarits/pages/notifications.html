@@ -21,11 +21,11 @@
 <label>Regrouper par (étiquettes) <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small class="aide">Défaut : alertname, instance</small></label>
 <label>Règles qui veulent dire « machine en panne » (dépendances) <input name="regles_panne" value="{{range $i, $e := $r.ReglesPanne}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
 </section>
-<section class="carte"><h2>Routage par gravité</h2><div class="defile"><table><thead><tr><th>Gravité</th><th>Attente avant le 1er message</th><th>Écart entre deux messages</th><th>Rappel (0 = jamais)</th><th>Son</th></tr></thead><tbody>
+<section class="carte"><h2>Routage par gravité</h2><div class="defile"><table><thead><tr><th>Gravité</th><th>Attente avant le 1er message</th><th>Écart entre deux messages</th><th>Rappel (0 = jamais)</th><th>Escalade (0 = coupée)</th><th>Son</th></tr></thead><tbody>
 {{range $g := (liste "critical" "warning" "info")}}{{$ro := index $r.Routes $g}}<tr><td>{{template "gravite" $g}}</td>
 <td><input name="attente_{{$g}}" value="{{$ro.Attente}}" size="6" maxlength="10"></td><td><input name="intervalle_{{$g}}" value="{{$ro.Intervalle}}" size="6" maxlength="10"></td>
-<td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
-</tbody></table></div><small class="aide">Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h.</small></section>
+<td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input name="escalade_{{$g}}" value="{{$ro.Escalade}}" size="6" maxlength="10" title="Pas prise en charge après ce délai : aussi envoyée au canal de secours"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
+</tbody></table></div><small class="aide">Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h. Escalade : alerte pas prise en charge après ce délai, aussi envoyée au canal de secours (une fois).</small></section>
 <section class="carte"><h2>Principal, secours, bascule</h2>
 <p>Les alertes partent sur <strong>un seul canal</strong> : le principal. S'il tombe en panne, elles partent sur le secours (avec un message « canal principal en panne »), puis reviennent sur le principal quand il remarche.</p>
 <div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option {{if egal . $c.Principal}}selected{{end}}>{{.}}</option>{{end}}</select></label>

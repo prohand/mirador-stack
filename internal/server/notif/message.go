@@ -36,6 +36,9 @@ type Message struct {
 	Systeme string
 	// EnFileDepuis : message gardé en file d'attente (tous les canaux en panne).
 	EnFileDepuis time.Time
+	// Escalade : alertes pas prises en charge à temps : envoyé aussi sur le
+	// canal de secours (SPEC § 30).
+	Escalade bool
 }
 
 // Nb : nombre d'alertes dans le message.
@@ -122,7 +125,10 @@ func Texte(m *Message, o Mise) string {
 	if m.CanalEnPanne != "" {
 		fmt.Fprintf(&b, "⚠️ %s (canal %s en panne)\n\n", e("Envoyé par le canal de secours "+m.Secours), e(m.CanalEnPanne))
 	}
-	if m.Type == TypeRappel {
+	switch {
+	case m.Escalade:
+		b.WriteString("⏫ " + gras("Escalade") + " : pas prise en charge à temps\n\n")
+	case m.Type == TypeRappel:
 		b.WriteString("🔁 " + gras("Rappel") + " : toujours en cours\n\n")
 	}
 	for _, a := range m.Actives {

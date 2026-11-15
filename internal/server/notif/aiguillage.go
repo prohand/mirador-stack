@@ -59,9 +59,14 @@ type Aiguilleur struct {
 	reglages Reglages
 	sourdine *Sourdine
 	acquis   map[int64]bool
-	gens     map[string]int64
-	chargeLe time.Time
-	enSourd  map[uint64]string // dernière raison de sourdine par alerte (affichage)
+	// aRappeler : alertes dont la prise en charge vient d'expirer (rappel
+	// au prochain tour, sans attendre l'intervalle des rappels).
+	aRappeler map[int64]bool
+	// escaladees : alertes déjà envoyées au canal de secours (une fois).
+	escaladees map[int64]bool
+	gens       map[string]int64
+	chargeLe   time.Time
+	enSourd    map[uint64]string // dernière raison de sourdine par alerte (affichage)
 }
 
 // Nouveau crée l'aiguillage. Les alertes déjà actives (redémarrage) sont
@@ -149,6 +154,18 @@ func (g *Aiguilleur) recharger(ctx context.Context, force bool) error {
 	s, err := Charger(ctx, g.opt.DB, r.ReglesPanne, t)
 	if err != nil {
 		return err
+	}
+	if ids, err := expirerAcquittements(ctx, g.opt.DB, t); err != nil {
+		return err
+	} else if len(ids) > 0 {
+		g.mu.Lock()
+		if g.aRappeler == nil {
+			g.aRappeler = map[int64]bool{}
+		}
+		for _, id := range ids {
+			g.aRappeler[id] = true
+		}
+		g.mu.Unlock()
 	}
 	ac, err := acquittees(ctx, g.opt.DB)
 	if err != nil {
@@ -284,11 +301,22 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 		trier(toujours)
 		trier(resolues)
 		m.Actives, m.Nouvelles, m.Resolues = append(nouvelles, toujours...), len(nouvelles), resolues
-	case len(toujours) > 0 && route.Rappel > 0 && !t.Before(gr.dernierEnvoi.Add(time.Duration(route.Rappel))):
+	case len(toujours) > 0 && g.aEscalader(toujours, route, t):
+		// Escalade : pas prises en charge à temps → aussi au canal de secours.
+		for _, a := range toujours {
+			if !g.acquis[a.ID] && !g.escaladees[a.ID] && !a.ActiveLe.IsZero() && !t.Before(a.ActiveLe.Add(time.Duration(route.Escalade))) {
+				m.Actives = append(m.Actives, a)
+				g.escaladees[a.ID] = true
+			}
+		}
+		trier(m.Actives)
+		m.Type, m.Son, m.Escalade = TypeRappel, route.Son, true
+	case len(toujours) > 0 && (g.rappelForce(toujours) || route.Rappel > 0 && !t.Before(gr.dernierEnvoi.Add(time.Duration(route.Rappel)))):
 		for _, a := range toujours {
 			if !g.acquis[a.ID] {
 				m.Actives = append(m.Actives, a)
 			}
+			delete(g.aRappeler, a.ID)
 		}
 		gr.dernierEnvoi = t // même si tout est acquitté : prochain rappel dans un intervalle
 		if len(m.Actives) == 0 {
@@ -439,4 +467,32 @@ func noterOmbre(ctx context.Context, db *sql.DB, m *Message, r *Reglages, journa
 		Nb: m.Nb(), Statut: Ombre, Texte: txt}); err != nil {
 		journal.Error("historique des envois", "erreur", err)
 	}
+}
+
+// rappelForce (sous verrou) : une alerte du groupe vient de sortir de sa
+// prise en charge (durée passée) : rappel tout de suite.
+func (g *Aiguilleur) rappelForce(toujours []alertes.Alerte) bool {
+	for _, a := range toujours {
+		if g.aRappeler[a.ID] {
+			return true
+		}
+	}
+	return false
+}
+
+// aEscalader (sous verrou) : une alerte du groupe n'est toujours pas prise
+// en charge après le délai d'escalade de sa gravité (et pas encore escaladée).
+func (g *Aiguilleur) aEscalader(toujours []alertes.Alerte, route Route, t time.Time) bool {
+	if route.Escalade <= 0 {
+		return false
+	}
+	if g.escaladees == nil {
+		g.escaladees = map[int64]bool{}
+	}
+	for _, a := range toujours {
+		if !g.acquis[a.ID] && !g.escaladees[a.ID] && !a.ActiveLe.IsZero() && !t.Before(a.ActiveLe.Add(time.Duration(route.Escalade))) {
+			return true
+		}
+	}
+	return false
 }

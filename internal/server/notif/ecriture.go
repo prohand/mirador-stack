@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"mirador-stack/internal/server/alertes"
@@ -210,26 +211,91 @@ func SupprimerElement(ctx context.Context, db *sql.DB, table string, id int64, q
 }
 
 // Acquitter : accusé de réception d'une alerte en cours (arrête les rappels).
-func Acquitter(ctx context.Context, db *sql.DB, id int64, qui, commentaire string, t time.Time) error {
+func Acquitter(ctx context.Context, db *sql.DB, id int64, qui, commentaire string, jusqua, t time.Time) error {
 	if err := verifierTexte(commentaire); err != nil {
 		return err
 	}
+	fin := int64(0) // jusqu'à la fin de l'alerte
+	if !jusqua.IsZero() {
+		if !jusqua.After(t) {
+			return errors.New("fin de la prise en charge déjà passée")
+		}
+		fin = ms(jusqua)
+	}
 	return ecrire(ctx, db, "acquittements", func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE alertes SET acquittee_le = ?, acquittee_par = ?, commentaire = ?
-			WHERE id = ? AND etat = 'active'`, ms(t), qui, commentaire, id)
+		res, err := tx.ExecContext(ctx, `UPDATE alertes SET acquittee_le = ?, acquittee_par = ?, commentaire = ?, acquittee_jusqua = ?
+			WHERE id = ? AND etat = 'active'`, ms(t), qui, commentaire, fin, id)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			return fmt.Errorf("alerte %d inconnue ou pas en cours", id)
 		}
-		return auditer(ctx, tx, qui, "acquittement", strconv.FormatInt(id, 10), "", commentaire, t)
+		apres := commentaire
+		if fin > 0 {
+			apres = strings.TrimSpace("jusqu'au " + jusqua.Format("02/01 15:04") + " " + commentaire)
+		}
+		return auditer(ctx, tx, qui, "acquittement", strconv.FormatInt(id, 10), "", apres, t)
 	})
+}
+
+// DureeAcquittement : durée par défaut d'une prise en charge (bouton des
+// messages, choix proposé en premier dans l'interface), SPEC § 30.
+const DureeAcquittement = 4 * time.Hour
+
+// Reprendre : l'alerte n'est plus prise en charge (de nouveau à traiter).
+func Reprendre(ctx context.Context, db *sql.DB, id int64, qui string, t time.Time) error {
+	return ecrire(ctx, db, "acquittements", func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE alertes SET acquittee_le = 0, acquittee_par = '', commentaire = '', acquittee_jusqua = 0
+			WHERE id = ? AND etat != 'resolue' AND acquittee_le > 0`, id)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("alerte %d pas prise en charge", id)
+		}
+		return auditer(ctx, tx, qui, "acquittement_repris", strconv.FormatInt(id, 10), "", "", t)
+	})
+}
+
+// expirerAcquittements : prises en charge dont la durée est passée, levées
+// (l'alerte redevient à traiter) ; renvoie leurs numéros (rappel immédiat).
+func expirerAcquittements(ctx context.Context, db *sql.DB, t time.Time) ([]int64, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id FROM alertes WHERE etat != 'resolue' AND acquittee_le > 0
+		AND acquittee_jusqua > 0 AND acquittee_jusqua <= ?`, ms(t))
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	err = ecrire(ctx, db, "acquittements", func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if _, err := tx.ExecContext(ctx, `UPDATE alertes SET acquittee_le = 0, acquittee_par = '', commentaire = '', acquittee_jusqua = 0 WHERE id = ?`, id); err != nil {
+				return err
+			}
+			if err := auditer(ctx, tx, "mirador", "acquittement_expire", strconv.FormatInt(id, 10), "", "", t); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return ids, err
 }
 
 // acquittees : alertes en cours acquittées (numéros).
 func acquittees(ctx context.Context, db *sql.DB) (map[int64]bool, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id FROM alertes WHERE etat != 'resolue' AND acquittee_le > 0`)
+	rows, err := db.QueryContext(ctx, `SELECT id FROM alertes WHERE etat != 'resolue' AND acquittee_le > 0`) // les expirées sont levées avant
 	if err != nil {
 		return nil, err
 	}

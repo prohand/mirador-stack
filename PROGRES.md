@@ -784,6 +784,15 @@ Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
 Mesure : 7 à 8 requêtes instantanées de plus par affichage d'une machine ;
 objectif serveur inchangé ✅.
 
+## Acquittement (SPEC § 30, 15/11)
+
+| Partie | État |
+|---|---|
+| État « acquittée » lu en base (défaut : l'alerte semblait ne pas changer) | **corrigé** |
+| Durée 4 h / 24 h / jusqu'à la fin, rappel à l'échéance | **fait**, testé ; à valider |
+| Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; à valider |
+| Escalade vers le canal de secours (coupée par défaut) | **fait**, testé (aiguillage) ; envoi réel à vérifier |
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

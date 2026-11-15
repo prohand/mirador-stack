@@ -613,3 +613,8 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .uplot .u-legend tr.u-series:first-child { background: transparent; cursor: default; }
 .uplot .u-legend tr.u-series.u-off { opacity: .45; }
 .indice-courbe { margin: 2px 0 0; font-size: 11.5px; color: var(--pale); }
+
+/* --- Prises en charge (SPEC § 30) ---------------------------------------- */
+.prises-alertes { opacity: .85; }
+.prises-alertes td { color: var(--doux); }
+.prises-alertes .resume { display: block; font-size: 12.5px; color: var(--pale); }

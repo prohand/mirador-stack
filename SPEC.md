@@ -4577,3 +4577,33 @@ requêtes instantanées de plus.
 **Menaces** : aucune nouvelle donnée ; nom de machine contrôlé avant d'entrer
 dans une requête ; pas de style en ligne (CSP).
 
+---
+
+## 30. Acquittement : prises en charge, durée, par qui, escalade (choix du 15/11) **[Fait, à valider]**
+
+- **Défaut corrigé** : la page lisait l'état « acquittée » dans la mémoire du
+  moteur d'alertes, qui ne le reçoit pas : une alerte acquittée semblait ne
+  pas changer. Il est maintenant lu en base (une requête par affichage).
+- **Durée** (migration 0022, colonne `acquittee_jusqua`) : bouton
+  « Acquitter ▾ » : **4 h** (défaut, aussi pour le bouton Telegram),
+  **24 h**, **jusqu'à la fin** (ancien fonctionnement, gardé pour la ligne de
+  commande). À l'échéance, l'aiguillage lève la prise en charge (audit
+  `acquittement_expire`) et envoie **un rappel tout de suite** si l'alerte
+  dure.
+- **Prises en charge** : bloc à part, grisé (vue d'ensemble, page Alertes,
+  page machine), « par X à HH:MM, jusqu'au … » ; hors des compteurs et des
+  tuiles ; bouton **Reprendre** (de nouveau à traiter, audit
+  `acquittement_repris`). La couleur d'une machine dans le parc compte
+  toujours ses alertes prises en charge.
+- **Escalade** (option, **coupée par défaut**) : réglage par gravité dans
+  Notifications › Routage ; une alerte toujours pas prise en charge après ce
+  délai part **aussi sur le canal de secours**, une fois, marquée « ⏫
+  Escalade ».
+
+**Coût** : une requête de plus par affichage ; une requête par tour de
+l'aiguillage pour les échéances.
+
+**Menaces** : actions réservées aux administrateurs (jeton CSRF) ;
+audit de chaque prise en charge, reprise et échéance ; durée bornée aux
+choix proposés (24 h au plus depuis l'interface).
+

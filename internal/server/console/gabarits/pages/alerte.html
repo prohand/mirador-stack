@@ -12,7 +12,7 @@
 <tr><th>Valeur au début / max / dernière</th><td>{{printf "%.4g" $a.ValeurDebut}} / {{printf "%.4g" $a.ValeurMax}} / {{printf "%.4g" $a.Valeur}}</td></tr>
 <tr><th>Résumé</th><td>{{$a.Resume}}</td></tr>
 <tr><th>Description</th><td>{{$a.Description}}</td></tr>
-<tr><th>Acquittée</th><td>{{if $a.AcquitteePar}}{{date $a.AcquitteeLe}} par {{$a.AcquitteePar}} — {{$a.Commentaire}}{{else}}Non{{end}}</td></tr>
+<tr><th>Prise en charge</th><td>{{if $a.AcquitteePar}}par {{$a.AcquitteePar}} le {{date $a.AcquitteeLe}}, {{if $a.AcquitteeJusqua.IsZero}}jusqu'à la fin de l'alerte{{else}}jusqu'au {{date $a.AcquitteeJusqua}}{{end}}{{if $a.Commentaire}} — {{$a.Commentaire}}{{end}}{{if and $.Admin $.D.EnCours}} <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="reprendre"><button class="secondaire petit">Reprendre</button></form>{{end}}{{else}}Non{{end}}</td></tr>
 </table></section>
 <section class="carte"><h2>Étiquettes</h2><table>{{range .D.Etiquettes}}<tr><th>{{.Nom}}</th><td><code>{{.Valeur}}</code></td></tr>{{end}}</table>
 <p><a href="/regles/modifier/{{$a.Regle}}">Voir la règle</a> · <a href="/alertes?regle={{$a.Regle}}">Historique de cette règle</a></p></section>
@@ -21,8 +21,9 @@
 {{if and .Admin .D.EnCours}}<div class="grille">
 <section class="carte"><h2>Accusé de réception</h2>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter">
+<label>Prise en charge pendant <select name="duree_ack"><option value="4h" selected>4 heures</option><option value="24h">24 heures</option><option value="fin">jusqu'à la fin de l'alerte</option></select></label>
 <label>Commentaire <input name="commentaire" maxlength="1000" placeholder="je m'en occupe"></label><button>Acquitter</button>
-<small class="aide">Arrête les rappels ; la fin de l'alerte sera quand même annoncée.</small></form></section>
+<small class="aide">Plus de rappel pendant la durée choisie ; ensuite, rappel si elle dure. La fin sera annoncée.</small></form></section>
 <section class="carte"><h2>Silence en un clic</h2>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence">
 <p>Sélecteur : <code>{{.D.Selecteur}}</code></p>

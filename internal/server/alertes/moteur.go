@@ -46,6 +46,7 @@ type Alerte struct {
 	Resume                    string
 	Description               string
 	AcquitteeLe               time.Time
+	AcquitteeJusqua           time.Time // fin de la prise en charge (zéro : jusqu'à la fin), SPEC § 30
 	AcquitteePar, Commentaire string
 
 	vueLe   time.Time // dernière évaluation où la condition était vraie
