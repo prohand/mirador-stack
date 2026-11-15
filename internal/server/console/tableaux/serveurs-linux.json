@@ -503,7 +503,8 @@
         {
           "type": "barres",
           "titre": "Occupation des systèmes de fichiers",
-          "description": "Place utilisée par point de montage",
+          "description": "Place utilisée par point de montage ; « plein dans X j » d'après la pente des 7 derniers jours (sous 30 jours).",
+          "prevision_disque": true,
           "unite": "percent",
           "decimales": 0,
           "seuils": [

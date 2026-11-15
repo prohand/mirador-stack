@@ -793,6 +793,19 @@ objectif serveur inchangé ✅.
 | Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; à valider |
 | Escalade vers le canal de secours (coupée par défaut) | **fait**, testé (aiguillage) ; envoi réel à vérifier |
 
+## Métriques et graphiques (SPEC § 31, 15/11)
+
+| Partie | État |
+|---|---|
+| Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; à valider |
+| Livraison 2 : semaine dernière, plein écran, empilé, export, lien | à faire |
+| Livraison 3 : gourmands, carte de chaleur, écran mural | à faire |
+
+Mesure (livraison 1) : prévision des disques **44 ms et 28 Mio passagers**
+pour 50 systèmes de fichiers sur 7 jours, une fois par 10 min (cache) ;
+annotations : 3 petites requêtes par page machine, gardées 30 s. Pas de
+mémoire permanente notable (caches bornés à 500 et 100 entrées).
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

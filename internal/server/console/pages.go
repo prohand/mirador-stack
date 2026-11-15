@@ -558,6 +558,14 @@ func (c *Console) pageMachine(q *req) {
 				}
 			}
 			d.Rangees = c.evaluerTableau(ctx, t, vals, periode, duree, q.t, garder)
+			// Courbes de la machine : avec ses alertes et événements (SPEC § 31).
+			for ri := range d.Rangees {
+				for pi := range d.Rangees[ri].Panneaux {
+					if vp := &d.Rangees[ri].Panneaux[pi]; vp.Courbe != "" {
+						vp.Courbe += "&annoter=1"
+					}
+				}
+			}
 		}
 	}
 	if vs, err := flotte.ListerVersions(ctx, c.db); err == nil {
@@ -990,6 +998,8 @@ type ligneParc struct {
 	PctCPU, PctMemoire, PctDisque int
 	ClasseCPU, ClasseMemoire      string
 	ClasseDisque                  string
+	PleinDans                     string // « plein dans 12 j » : disque le plus pressé (SPEC § 31)
+	PleinUrgent                   bool   // moins de 7 jours
 	Alertes                       int    // alertes actives hors sourdine
 	ClasseAlertes                 string // gravité la plus forte
 	Nouveautes                    int    // éléments détectés « à valider »
@@ -1059,6 +1069,7 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	}
 	cpu, mem, disque := valeurs(exprCPU), valeurs(exprMemoire), valeurs(exprDisque)
 	paquets, securite, redemarrage := valeurs(exprPaquets), valeurs(exprPaquetsSecurite), valeurs(exprRedemarrage)
+	plein := pleinDansMachine(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t))
 	courbes := c.etincelles(ctx, q.t)
 	nouveautes := c.nouveautes(ctx, ms, q.t)
 	pct := func(m map[string]float64, nom string) string {
@@ -1077,6 +1088,9 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 		l.PctCPU, l.ClasseCPU = barre(cpu, m.Nom)
 		l.PctMemoire, l.ClasseMemoire = barre(mem, m.Nom)
 		l.PctDisque, l.ClasseDisque = barre(disque, m.Nom)
+		if j, ok := plein[m.Nom]; ok {
+			l.PleinDans, l.PleinUrgent = pleinDans(j), j < 7
+		}
 		l.Alertes, l.Nouveautes = nombre[m.Nom], nouveautes[m.Nom]
 		l.Paquets, l.PaquetsSecurite = -1, 0
 		if v, ok := paquets[m.Nom]; ok {

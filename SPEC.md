@@ -4607,3 +4607,57 @@ l'aiguillage pour les échéances.
 audit de chaque prise en charge, reprise et échéance ; durée bornée aux
 choix proposés (24 h au plus depuis l'interface).
 
+
+## 31. Métriques et graphiques : 11 améliorations (demande du 15/11) **[En cours]**
+
+Livrées en trois fois. Maquettes de 1, 7 et 9 validées le 15/11.
+
+### 31.1 Livraison 1 **[Fait, à valider]**
+
+- **Alertes et événements sur les courbes d'une machine** (page machine
+  seulement, paramètre `annoter=1`) :
+  - alertes de la période en **bandes** (orange : avertissement, rouge :
+    critique, bleu : info), avec un liseré en haut ;
+  - événements en **traits gris pointillés** : redémarrage (valeurs de
+    `node_boot_time_seconds` dans la période), nouvelle version de l'agent
+    (première apparition d'une version de `mirador_agent_info`),
+    changements faits dans l'interface pour la machine (audit, hors actions
+    automatiques) ; 20 au plus ;
+  - noms **au survol** seulement (ligne sous la courbe), pour ne pas
+    charger le dessin.
+- **Âge des données** : pastille dans le titre de chaque courbe de la page
+  machine, verte « il y a 25 s », orange « dernière donnée il y a 12 min »
+  au-delà de 5 minutes (heure de `timestamp(mirador_agent_info)`). Sur les
+  tableaux : pastille orange seulement, quand la courbe s'arrête.
+- **Disques : « plein dans X j »** sur les barres « Occupation des systèmes
+  de fichiers » (option de panneau `prevision_disque`) et, pour le disque le
+  plus pressé, dans le parc de la vue d'ensemble. Calcul :
+  place libre ÷ pente de la place libre sur **7 jours** (`deriv`), affiché
+  seulement **sous 30 jours** et si la place diminue ; rouge sous 7 jours.
+
+**Coût** :
+
+| Ajout | Coût |
+|---|---|
+| Annotations | 3 petites requêtes PromQL + 2 lectures SQLite par machine et période, gardées 30 s (toutes les courbes d'une page les partagent) |
+| Prévision des disques | 1 requête sur 7 jours : **44 ms, 28 Mio passagers** pour 50 systèmes de fichiers (mesuré) ; gardée **10 min** |
+| Navigateur | dessin sur le même canevas uPlot, pas de bibliothèque en plus |
+
+Une sous-requête `[7d:1h]` (moins de points) a été essayée : elle ne rend
+rien avec le stockage de mirador, d'où `[7d]` direct et le cache.
+
+**Menaces** : lecture seule ; nom de machine vérifié (mêmes caractères
+permis que les filtres) avant d'entrer dans une requête ; requêtes SQL
+paramétrées ; noms d'événements écrits en texte (`textContent`), jamais en
+HTML. Les phrases de l'audit montrées au survol sont celles de la page
+Audit, réservée aux mêmes comptes.
+
+### 31.2 Livraison 2 (à faire)
+
+Comparaison avec la semaine dernière, plein écran, aires empilées
+(CPU par mode, mémoire), export PNG/CSV, période et zoom dans l'adresse.
+
+### 31.3 Livraison 3 (à faire)
+
+Les plus gourmands (conteneurs, processus), carte de chaleur du parc sur
+24 h, mode écran mural.

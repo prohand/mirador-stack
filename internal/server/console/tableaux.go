@@ -88,6 +88,9 @@ type Panneau struct {
 	// SeuilModele : seuil d'un modèle de surveillance tracé en pointillé sur
 	// la courbe d'une machine (SPEC § 29) ; nil = pas de seuil.
 	SeuilModele *SeuilModele `json:"seuil_modele,omitempty"`
+	// PrevisionDisque : barres de systèmes de fichiers avec « plein dans
+	// X j » (pente sur 7 jours, affiché sous 30 jours), SPEC § 31.
+	PrevisionDisque bool `json:"prevision_disque,omitempty"`
 }
 
 // iconesPanneaux : icônes proposées (dessinées dans morceaux.html).

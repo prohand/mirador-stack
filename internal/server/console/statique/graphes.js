@@ -77,6 +77,89 @@
     if (carte && carte.closest("[data-regrouper-vides]")) { carte.classList.toggle("panneau-vide", vide); regrouperVides(); }
   }
 
+  // Âge des données (SPEC § 31) : pastille dans le titre de la carte,
+  // verte « il y a 25 s », orange au-delà de 5 minutes.
+  function texteAge(sec) {
+    if (sec < 60) { return Math.max(0, Math.round(sec)) + " s"; }
+    if (sec < 3600) { return Math.round(sec / 60) + " min"; }
+    if (sec < 172800) { return Math.round(sec / 3600) + " h"; }
+    return Math.round(sec / 86400) + " j";
+  }
+  function majAge(el) {
+    var carte = el.closest(".carte"), titre = carte && carte.querySelector("h2, h3");
+    if (!titre) { return; }
+    var p = titre.querySelector(".age-donnees");
+    if (!el.derniere) { if (p) { p.remove(); } return; }
+    var age = Date.now() / 1000 - el.derniere, vieux = age > 300;
+    // Sans heure de la machine (tableaux), seulement si les données manquent.
+    if (!vieux && !el.ageSur) { if (p) { p.remove(); } return; }
+    if (!p) { p = document.createElement("span"); titre.appendChild(p); }
+    p.className = "age-donnees" + (vieux ? " age-vieux" : "");
+    p.textContent = (vieux ? "dernière donnée il y a " : "il y a ") + texteAge(age);
+    p.title = "Heure de la dernière donnée reçue : " + dateFr(el.derniere);
+  }
+  function derniereX(d) {
+    var t = 0;
+    d.series.forEach(function (s) {
+      for (var i = s.v.length - 1; i >= 0; i--) { if (s.v[i] !== null) { t = Math.max(t, d.x[i]); break; } }
+    });
+    return t;
+  }
+
+  // Alertes (bandes) et événements (traits pointillés) d'une machine, SPEC § 31.
+  function couleurGravite(g) {
+    return couleurVar(g === "critical" || g === "critique" ? "--erreur" : g === "warning" || g === "attention" ? "--attention" : "--info");
+  }
+  function dessinerBandes(u, an) {
+    if (!an || !an.alertes) { return; }
+    var ctx = u.ctx, haut = u.bbox.top, h = u.bbox.height;
+    ctx.save();
+    an.alertes.forEach(function (a) {
+      var x0 = Math.max(u.valToPos(a.debut, "x", true), u.bbox.left);
+      var x1 = Math.min(u.valToPos(a.fin, "x", true), u.bbox.left + u.bbox.width);
+      if (x1 <= x0) { return; }
+      ctx.globalAlpha = 0.13;
+      ctx.fillStyle = couleurGravite(a.gravite);
+      ctx.fillRect(x0, haut, Math.max(x1 - x0, 2), h);
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(x0, haut, Math.max(x1 - x0, 2), 3 * (window.devicePixelRatio || 1));
+    });
+    ctx.restore();
+  }
+  function dessinerEvenements(u, an) {
+    if (!an || !an.evenements) { return; }
+    var ctx = u.ctx, r = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.setLineDash([3 * r, 3 * r]);
+    ctx.strokeStyle = couleurVar("--pale");
+    ctx.lineWidth = r;
+    an.evenements.forEach(function (e) {
+      var x = u.valToPos(e.t, "x", true);
+      if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) { return; }
+      ctx.beginPath();
+      ctx.moveTo(x, u.bbox.top);
+      ctx.lineTo(x, u.bbox.top + u.bbox.height);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+  // Survol : nom de l'alerte ou de l'événement sous le curseur.
+  function survolAnnotations(el, u, an) {
+    if (!el.survol) { return; }
+    var noms = [];
+    if (an && u.cursor.left >= 0) {
+      var t = u.posToVal(u.cursor.left, "x");
+      (an.evenements || []).forEach(function (e) {
+        if (Math.abs(u.valToPos(e.t, "x") - u.cursor.left) <= 6) { noms.push("┆ " + e.nom + " · " + dateFr(e.t)); }
+      });
+      (an.alertes || []).forEach(function (a) {
+        if (t >= a.debut && t <= a.fin) { noms.push("▮ " + a.nom + " · " + dateFr(a.debut) + " → " + dateFr(a.fin)); }
+      });
+    }
+    el.survol.textContent = noms.join("   ");
+    el.survol.hidden = noms.length === 0;
+  }
+
   function dessiner(el) {
     // Zoom en cours (glisser sur la courbe) : pas de rechargement qui le
     // perdrait ; double-clic pour revenir.
@@ -113,6 +196,10 @@
           series.push({ label: s.nom, stroke: c, width: 1.75, spanGaps: false, fill: seule ? c + "22" : undefined,
             value: function (u, v) { return formater(v, d.unite); } });
         });
+        var an = d.annotations || null;
+        el.ageSur = !!(an && an.derniere);
+        el.derniere = el.ageSur ? an.derniere : derniereX(d);
+        majAge(el);
         var seuil = typeof d.seuil === "number" ? d.seuil : null;
         // Seuil loin au-dessus des valeurs (ex. 800 Mbit/s pour un trafic de
         // 2 Mbit/s) : pas tracé, il écraserait la courbe.
@@ -148,7 +235,10 @@
           ],
           hooks: {
             setSelect: [function (u) { if (u.select.width > 0) { el.zoom = true; } }],
+            setCursor: [function (u) { survolAnnotations(el, u, an); }],
+            drawClear: [function (u) { dessinerBandes(u, an); }],
             draw: [function (u) {
+              dessinerEvenements(u, an);
               if (seuil === null) { return; }
               var y = u.valToPos(seuil, "y", true), ctx = u.ctx;
               ctx.save();
@@ -175,8 +265,16 @@
           el.indice.className = "indice-courbe";
           el.parentNode.insertBefore(el.indice, el.nextSibling);
         }
+        var avecAn = an && ((an.alertes && an.alertes.length) || (an.evenements && an.evenements.length));
+        if (avecAn && !el.survol && el.parentNode) {
+          el.survol = document.createElement("p");
+          el.survol.className = "survol-annotation";
+          el.survol.hidden = true;
+          el.parentNode.insertBefore(el.survol, el.nextSibling);
+        }
         if (el.indice) {
-          el.indice.textContent = "Glisser pour zoomer · double-clic pour revenir" + (seuil !== null ? " · pointillé rouge : seuil du modèle" : "");
+          el.indice.textContent = "Glisser : zoom · double-clic : retour" + (seuil !== null ? " · rouge : seuil du modèle" : "") +
+            (avecAn ? " · bandes : alertes · traits gris : événements (survoler)" : "");
         }
         filtrer(el, d.series.length);
         if (d.erreur) {
@@ -220,6 +318,8 @@
   function tout() { regrouperVides(); document.querySelectorAll("[data-courbe]").forEach(dessiner); }
   tout();
   setInterval(tout, 60000);
+  // Pastilles d'âge tenues à jour entre deux rechargements.
+  setInterval(function () { document.querySelectorAll("[data-courbe]").forEach(majAge); }, 15000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tout(); } });
   // Thème changé (sélecteur du menu) : courbes redessinées aux nouvelles couleurs.
   document.addEventListener("mirador:theme", tout);

@@ -65,7 +65,12 @@ func TestDemoInterface(t *testing.T) {
 		mk("node_memory_MemTotal_bytes", func(int) float64 { return 8 << 30 })
 		mk("node_load5", func(k int) float64 { return 0.2 + 0.1*math.Sin(float64(k)/30+ph) })
 		mk("node_time_seconds", func(k int) float64 { return float64(now.Unix()) })
-		mk("node_boot_time_seconds", func(int) float64 { return float64(now.Unix() - int64(86400*(i+1))) })
+		mk("node_boot_time_seconds", func(k int) float64 {
+			if m == "pve1" && k >= 600 { // redémarrée il y a une heure (événement sur les courbes)
+				return float64(now.Add(-time.Hour).Unix())
+			}
+			return float64(now.Unix() - int64(86400*(i+1)))
+		})
 		mk("node_filesystem_avail_bytes", func(int) float64 { return float64(40-7*i) * (1 << 30) }, "mountpoint", "/", "fstype", "ext4", "device", "/dev/sda1")
 		mk("node_filesystem_size_bytes", func(int) float64 { return 50 << 30 }, "mountpoint", "/", "fstype", "ext4", "device", "/dev/sda1")
 		mk("node_network_receive_bytes_total", func(k int) float64 { return float64(k) * 3e6 * (1 + ph/3) }, "device", "eth0")
@@ -83,6 +88,10 @@ func TestDemoInterface(t *testing.T) {
 		mk("mirador_logs_journal_lines_read_total", func(k int) float64 { return float64(k) })
 		mk("node_firewall_input_policy_drop", un, "tool", "nftables", "policy", "drop")
 		mk("node_firewall_input_rules", func(int) float64 { return 14 }, "tool", "nftables", "policy", "drop")
+		if m == "srv-test" { // disque qui se remplit : « plein dans 12 j »
+			mk("node_filesystem_avail_bytes", func(k int) float64 { return (15 - 0.05*float64(k)/120) * (1 << 30) }, "mountpoint", "/var", "fstype", "ext4", "device", "/dev/sda2")
+			mk("node_filesystem_size_bytes", func(int) float64 { return 100 << 30 }, "mountpoint", "/var", "fstype", "ext4", "device", "/dev/sda2")
+		}
 		if m == "pve1" { // machine physique : capteurs, disques, et des nouveautés à valider
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 54 }, "chip", "coretemp", "sensor", "temp1")
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 43 }, "chip", "nct6798", "sensor", "temp2")
@@ -125,6 +134,12 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Alerte passée et changement sur pve1 : bandes et traits des courbes (SPEC § 31).
+	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin, resume, valeur_max)
+		VALUES ('ChargeElevee', '{"alertname":"ChargeElevee","instance":"pve1","severity":"warning"}', 'warning', 'resolue', ?, ?, ?, 'Charge élevée sur pve1', 4)`,
+		now.Add(-4*time.Hour).UnixMilli(), now.Add(-4*time.Hour).UnixMilli(), now.Add(-3*time.Hour).UnixMilli())
+	_, _ = s.db.Exec(`INSERT INTO audit(le, qui, action, objet) SELECT ?, 'web:admin', 'config_agent', 'machine:' || id FROM machines WHERE nom = 'pve1'`,
+		now.Add(-2*time.Hour).Unix())
 	var lignes []stockage.Ligne
 	for k := 0; k < 60; k++ {
 		lignes = append(lignes, stockage.Ligne{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), Msg: fmt.Sprintf("Accepted publickey for admin from 192.0.2.%d port 5%03d ssh2", k%7, k),

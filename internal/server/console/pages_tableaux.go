@@ -75,6 +75,8 @@ type vueValeur struct {
 type vueBarre struct {
 	Nom, Texte, Couleur string
 	Valeur, Max         float64
+	Prevision           string // « plein dans 18 j » (SPEC § 31), vide sinon
+	Urgent              bool   // plein dans moins de 7 jours
 }
 
 type vuePanneau struct {
@@ -211,6 +213,10 @@ func (c *Console) remplirPanneau(ctx context.Context, vp *vuePanneau, vals map[s
 	p := vp.P
 	switch p.Type {
 	case PanneauChiffre, PanneauBarres:
+		var prev map[string]float64
+		if p.Type == PanneauBarres && p.PrevisionDisque {
+			prev = c.previsionsDisques(ctx, substituer(filtreDisques, vals, pas, d), t)
+		}
 		for _, rq := range p.Requetes {
 			ech, err := c.instant(ctx, substituer(rq.Expr, vals, pas, d), t)
 			if err != nil {
@@ -233,7 +239,11 @@ func (c *Console) remplirPanneau(ctx context.Context, vp *vuePanneau, vals map[s
 					v.Legende = nom
 					vp.Chiffres = append(vp.Chiffres, v)
 				} else {
-					vp.Barres = append(vp.Barres, vueBarre{Nom: nom, Texte: v.Texte, Couleur: v.Couleur, Valeur: math.Max(0, e.Valeur), Max: max})
+					b := vueBarre{Nom: nom, Texte: v.Texte, Couleur: v.Couleur, Valeur: math.Max(0, e.Valeur), Max: max}
+					if j, ok := prev[e.Etiquettes.Get("instance")+"|"+e.Etiquettes.Get("mountpoint")]; ok {
+						b.Prevision, b.Urgent = pleinDans(j), j < 7
+					}
+					vp.Barres = append(vp.Barres, b)
 				}
 			}
 		}
@@ -410,6 +420,8 @@ type jsonCourbe struct {
 	Erreur string      `json:"erreur,omitempty"`
 	// Seuil : seuil du modèle pour la machine affichée (pointillé), SPEC § 29.
 	Seuil *float64 `json:"seuil,omitempty"`
+	// Annotations : alertes et événements de la machine affichée, SPEC § 31.
+	Annotations *annotationsCourbe `json:"annotations,omitempty"`
 }
 
 const seriesParCourbeMax = 50
@@ -439,6 +451,13 @@ func (c *Console) donneesCourbe(q *req) {
 	}
 	donnees := c.courbe(q.r.Context(), p.Requetes, p.Unite, vals, d, q.t)
 	donnees.Seuil = c.seuilModele(q.r.Context(), p.SeuilModele, vals["instance"])
+	if n := len(donnees.X); n > 1 && q.r.URL.Query().Get("annoter") == "1" {
+		fin := time.Unix(donnees.X[n-1], 0).Add(pasPour(d))
+		if fin.After(q.t) {
+			fin = q.t
+		}
+		donnees.Annotations = c.annotationsMachine(q.r.Context(), vals["instance"], time.Unix(donnees.X[0], 0), fin)
+	}
 	ecrireCourbe(q, donnees)
 }
 
