@@ -112,9 +112,10 @@ func TestSyslogInterface(t *testing.T) {
 	}
 	// Réglages DNS (deSEC) dans Réglages › Certificats : jeton chiffré, jamais réaffiché.
 	b.post(c, "/reglages/certificats", url.Values{"csrf": {csrf}, "action": {"reglages"}, "fournisseur": {"desec"},
-		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}})
+		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}, "attente_max": {"300"}})
 	_, corps, _ := b.get(c, "/reglages/certificats")
-	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") || !strings.Contains(corps, "zone <code>exemple.org</code>") {
+	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") || !strings.Contains(corps, "zone <code>exemple.org</code>") ||
+		!strings.Contains(corps, `<option value="300" selected>5 min</option>`) || !strings.Contains(corps, "(300 s au plus)") {
 		t.Error("jeton deSEC réaffiché ou non enregistré")
 	}
 	// Autre fournisseur (OVHcloud) : clé d'application réaffichée, secrets non.
@@ -138,10 +139,10 @@ func TestSyslogInterface(t *testing.T) {
 		t.Error("certificat obtenu non affiché")
 	}
 	// Démarche en cours : étape et fin de l'attente DNS ; puis échec.
-	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = 'propagation', etape_le = ?, etape_jusqua = ? WHERE machine_id = ?`,
+	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = 'propagation', etape_info = 'visible sur 1/2 serveurs DNS', etape_le = ?, etape_jusqua = ? WHERE machine_id = ?`,
 		b.h.maintenant().Unix(), b.h.maintenant().Add(time.Minute).Unix(), idC)
 	if _, corps, _ = b.get(c, "/reglages/certificats"); !strings.Contains(corps, "Let&#39;s Encrypt : attente de la publication DNS (4/6)") ||
-		!strings.Contains(corps, "jusqu&#39;à "+b.h.maintenant().Add(time.Minute).In(fuseau.Load()).Format("15:04")+" environ") {
+		!strings.Contains(corps, "visible sur 1/2 serveurs DNS · au plus jusqu&#39;à "+b.h.maintenant().Add(time.Minute).In(fuseau.Load()).Format("15:04")) {
 		t.Errorf("étape en cours absente : %s", section(corps, "Certificats des collecteurs"))
 	}
 	_, _ = b.c.db.Exec(`UPDATE certificats_syslog SET etape = 'validation', erreur = 'ACME : défi refusé', essai_le = ? WHERE machine_id = ?`, b.h.maintenant().Unix(), idC)

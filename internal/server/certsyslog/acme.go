@@ -42,9 +42,13 @@ type ACME struct {
 	// dans les réglages.
 	BasesDNS  map[string]string
 	ClientDNS *http.Client
-	// Attente : délai entre la pose du TXT et la demande de validation
-	// (propagation chez le fournisseur ; 60 s par défaut).
+	// Attente : délai fixe entre la pose du TXT et la demande de validation
+	// (tests ; il coupe aussi la vérification active, sauf VerifDNS donnée).
 	Attente time.Duration
+	// VerifDNS : vérification de la publication (tests ; nil = serveurs DNS
+	// de la zone interrogés directement), Pas : entre deux vérifications.
+	VerifDNS VerifDNS
+	Pas      time.Duration
 }
 
 // Obtenir : compte (créé au premier usage), commande, défi DNS-01, CSR,
@@ -66,7 +70,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if err != nil {
 		return "", err
 	}
-	suivre(ctx, EtapeCompte, time.Time{})
+	suivre(ctx, EtapeCompte, "", time.Time{})
 	compte, err := a.compte(ctx, &r)
 	if err != nil {
 		return "", err
@@ -75,7 +79,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if _, err := c.Register(ctx, &acme.Account{}, acme.AcceptTOS); err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
 		return "", fmt.Errorf("compte ACME : %w", err)
 	}
-	suivre(ctx, EtapeCommande, time.Time{})
+	suivre(ctx, EtapeCommande, "", time.Time{})
 	commande, err := c.AuthorizeOrder(ctx, acme.DomainIDs(nom))
 	if err != nil {
 		return "", fmt.Errorf("commande ACME : %w", err)
@@ -101,26 +105,25 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 		if err != nil {
 			return "", err
 		}
-		suivre(ctx, EtapeDNS, time.Time{})
+		suivre(ctx, EtapeDNS, "", time.Time{})
 		if err := dns.Poser(ctx, sousNom, valeur); err != nil {
 			return "", err
 		}
 		defer func() { _ = dns.Retirer(context.WithoutCancel(ctx), sousNom, valeur) }() // nettoyage
-		attente := a.Attente
-		if attente == 0 {
-			attente = time.Minute
-			// Fournisseur lent à publier (CSC) : délai plus long.
-			if p, ok := dns.(interface{ AttentePropagation() time.Duration }); ok {
-				attente = p.AttentePropagation()
-			}
+		max, fixe := attentes(r, dns)
+		verif, pas := a.VerifDNS, a.Pas
+		if a.Attente > 0 {
+			max, fixe = a.Attente, a.Attente
+		} else if verif == nil {
+			verif = verifDNSReel
 		}
-		suivre(ctx, EtapePropagation, time.Now().Add(attente))
-		select {
-		case <-time.After(attente):
-		case <-ctx.Done():
-			return "", ctx.Err()
+		if pas == 0 {
+			pas = pasVerification
 		}
-		suivre(ctx, EtapeValidation, time.Time{})
+		if err := attendrePublication(ctx, verif, pas, r.Domaine, nom, valeur, max, fixe); err != nil {
+			return "", err
+		}
+		suivre(ctx, EtapeValidation, "", time.Time{})
 		if _, err := c.Accept(ctx, defi); err != nil {
 			return "", fmt.Errorf("ACME : défi refusé : %w", err)
 		}
@@ -131,7 +134,7 @@ func (a *ACME) Obtenir(ctx context.Context, nom string, csrDER []byte) (string, 
 	if commande, err = c.WaitOrder(ctx, commande.URI); err != nil {
 		return "", fmt.Errorf("ACME : commande : %w", err)
 	}
-	suivre(ctx, EtapeEmission, time.Time{})
+	suivre(ctx, EtapeEmission, "", time.Time{})
 	ders, _, err := c.CreateCertFromOrder(ctx, commande, csrDER, true)
 	if err != nil {
 		return "", fmt.Errorf("ACME : certificat : %w", err)
@@ -173,6 +176,9 @@ func (a *ACME) compte(ctx context.Context, r *Reglages) (*ecdsa.PrivateKey, erro
 // Saisie : réglages du certificat saisis dans l'interface.
 type Saisie struct {
 	Fournisseur, Domaine, Annuaire string
+	// AttenteMax : maximum d'attente de la publication DNS, en secondes
+	// (0 = selon le fournisseur).
+	AttenteMax int
 	// Identifiants : champs du fournisseur (secret vide = garder l'actuel,
 	// si le fournisseur ne change pas).
 	Identifiants map[string]string
@@ -238,7 +244,10 @@ func DefinirReglages(ctx context.Context, db *sql.DB, cle []byte, s Saisie, qui 
 		return err
 	}
 	r.Fournisseur, r.Parametres, r.JetonChiffre = info.Nom, params, ""
-	r.Domaine, r.Annuaire = domaine, annuaire
+	if s.AttenteMax != 0 && (s.AttenteMax < int(AttenteMaxMin/time.Second) || s.AttenteMax > int(AttenteMaxPlafond/time.Second)) {
+		return errors.New("attente de publication DNS : entre 10 s et 30 min")
+	}
+	r.Domaine, r.Annuaire, r.AttenteMax = domaine, annuaire, s.AttenteMax
 	return ecrireReglages(ctx, db, r, qui, maintenant)
 }
 

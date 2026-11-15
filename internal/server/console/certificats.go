@@ -38,14 +38,19 @@ type reglagesCertificats struct {
 	JetonEnregistre                bool
 	Parametres                     map[string]string
 	Fournisseurs                   []certsyslog.InfoFournisseur
+	AttenteMax                     int // secondes, 0 = selon le fournisseur
+	ChoixAttente                   []struct {
+		Secondes int
+		Titre    string
+	}
 }
 
 func (r reglagesCertificats) Faits() bool { return r.Domaine != "" && r.JetonEnregistre }
 
 func lireReglagesCertificats(ctx context.Context, c *Console) reglagesCertificats {
-	v := reglagesCertificats{Fournisseurs: certsyslog.Fournisseurs}
+	v := reglagesCertificats{Fournisseurs: certsyslog.Fournisseurs, ChoixAttente: certsyslog.ChoixAttente}
 	if r, err := certsyslog.LireReglages(ctx, c.db); err == nil {
-		v.Domaine, v.Annuaire, v.JetonEnregistre = r.Domaine, r.Annuaire, r.IdentifiantsEnregistres()
+		v.Domaine, v.Annuaire, v.JetonEnregistre, v.AttenteMax = r.Domaine, r.Annuaire, r.IdentifiantsEnregistres(), r.AttenteMax
 		v.Fournisseur, v.Parametres = r.FournisseurEffectif(), r.Parametres
 	}
 	if v.Fournisseur == "" {
@@ -137,7 +142,10 @@ func (c *Console) avancementCertificat(ctx context.Context, nomCollecteur string
 	case e.Etape != "":
 		detail := "étape en cours depuis " + heureCourte(e.EtapeLe, t)
 		if e.EtapeJusqua > 0 {
-			detail = "jusqu'à " + heureCourte(e.EtapeJusqua, t) + " environ"
+			detail = "au plus jusqu'à " + heureCourte(e.EtapeJusqua, t)
+		}
+		if e.EtapeInfo != "" {
+			detail = e.EtapeInfo + " · " + detail
 		}
 		n := 0
 		for i, x := range certsyslog.EtapesACME {
@@ -252,7 +260,8 @@ func (c *Console) postCertificats(q *req) {
 	switch q.r.PostFormValue("action") {
 	case "reglages":
 		// Champs du fournisseur choisi : « dns_<fournisseur>_<champ> ».
-		s := certsyslog.Saisie{Fournisseur: f("fournisseur"), Domaine: f("domaine"), Annuaire: f("annuaire"), Identifiants: map[string]string{}}
+		attente, _ := strconv.Atoi(f("attente_max"))
+		s := certsyslog.Saisie{Fournisseur: f("fournisseur"), Domaine: f("domaine"), Annuaire: f("annuaire"), AttenteMax: attente, Identifiants: map[string]string{}}
 		if info := certsyslog.InfoDe(s.Fournisseur); info != nil {
 			for _, ch := range info.Champs {
 				s.Identifiants[ch.Nom] = q.r.PostFormValue("dns_" + info.Nom + "_" + ch.Nom)

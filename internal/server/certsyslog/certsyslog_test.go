@@ -232,7 +232,7 @@ func TestDemarcheACME(t *testing.T) {
 	var finAttente time.Time
 	req, _ := LireCSR(csr)
 	acmeSeul := &ACME{DB: db, Cle: cleServeur, BasesDNS: map[string]string{"desec": desec.URL}, ClientDNS: desec.Client(), Client: faux.srv.Client(), Attente: time.Millisecond}
-	if _, err := acmeSeul.Obtenir(AvecSuivi(ctx, func(etape string, jusqua time.Time) {
+	if _, err := acmeSeul.Obtenir(AvecSuivi(ctx, func(etape, _ string, jusqua time.Time) {
 		etapes = append(etapes, etape)
 		if etape == EtapePropagation {
 			finAttente = jusqua
@@ -314,4 +314,76 @@ type emetteurFn func(context.Context, string, []byte) (string, error)
 
 func (f emetteurFn) Obtenir(ctx context.Context, nom string, csr []byte) (string, error) {
 	return f(ctx, nom, csr)
+}
+
+// Publication du défi (SPEC § 32) : Let's Encrypt est appelé dès que tous
+// les serveurs DNS montrent la valeur ; délai fixe si on ne peut pas
+// vérifier ; maximum respecté.
+func TestAttendrePublication(t *testing.T) {
+	var infos []string
+	ctx := AvecSuivi(context.Background(), func(etape, info string, _ time.Time) {
+		if etape == EtapePropagation {
+			infos = append(infos, info)
+		}
+	})
+	n := 0
+	visibleAuTroisieme := func(context.Context, string, string, string) (int, int, error) {
+		n++
+		if n < 3 {
+			return n - 1, 2, nil
+		}
+		return 2, 2, nil
+	}
+	debut := time.Now()
+	if err := attendrePublication(ctx, visibleAuTroisieme, time.Millisecond, "exemple.org", "syslog.lan.exemple.org", "v", time.Minute, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(debut) > 5*time.Second || n != 3 || strings.Join(infos, "|") != "visible sur 0/2 serveurs DNS|visible sur 1/2 serveurs DNS|visible sur 2/2 serveurs DNS" {
+		t.Errorf("vérification active : %d essais, %v", n, infos)
+	}
+	// Serveurs DNS injoignables : délai fixe (ici 20 ms), dit dans l'avancement.
+	infos = nil
+	debut = time.Now()
+	injoignable := func(context.Context, string, string, string) (int, int, error) {
+		return 0, 0, errors.New("udp 53 bloqué")
+	}
+	if err := attendrePublication(ctx, injoignable, time.Millisecond, "exemple.org", "x.exemple.org", "v", time.Minute, 20*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(debut); d < 20*time.Millisecond || d > 5*time.Second || len(infos) != 1 || !strings.Contains(infos[0], "attente fixe") {
+		t.Errorf("sans vérification : %v, %v", d, infos)
+	}
+	// Jamais visible : on s'arrête au maximum (Let's Encrypt essaie quand même).
+	debut = time.Now()
+	jamais := func(context.Context, string, string, string) (int, int, error) { return 0, 2, nil }
+	if err := attendrePublication(ctx, jamais, 5*time.Millisecond, "exemple.org", "x.exemple.org", "v", 30*time.Millisecond, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(debut); d > 5*time.Second {
+		t.Errorf("maximum dépassé : %v", d)
+	}
+	// Réglage : maximum choisi ; CSC (lent) : 20 min par défaut ; bornes.
+	if max, fixe := attentes(Reglages{}, nil); max != 3*time.Minute || fixe != time.Minute {
+		t.Errorf("défaut : %v %v", max, fixe)
+	}
+	if max, fixe := attentes(Reglages{}, &csc{}); max != 20*time.Minute || fixe != 3*time.Minute {
+		t.Errorf("CSC : %v %v", max, fixe)
+	}
+	if max, fixe := attentes(Reglages{AttenteMax: 60}, &csc{}); max != time.Minute || fixe != time.Minute {
+		t.Errorf("réglé à 1 min : %v %v", max, fixe)
+	}
+	db := baseTest(t)
+	for _, s := range []int{5, 3600} {
+		if err := DefinirReglages(context.Background(), db, cleServeur, Saisie{Fournisseur: "desec", Domaine: "exemple.org", AttenteMax: s,
+			Identifiants: map[string]string{"jeton": "x"}}, "admin", time.Now()); err == nil {
+			t.Errorf("attente de %d s acceptée", s)
+		}
+	}
+	if err := DefinirReglages(context.Background(), db, cleServeur, Saisie{Fournisseur: "desec", Domaine: "exemple.org", AttenteMax: 300,
+		Identifiants: map[string]string{"jeton": "x"}}, "admin", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := LireReglages(context.Background(), db); r.AttenteMax != 300 {
+		t.Errorf("attente non enregistrée : %d", r.AttenteMax)
+	}
 }

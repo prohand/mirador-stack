@@ -4754,6 +4754,15 @@ vérifié avant d'entrer dans une requête.
   démarche ACME note chaque étape (contexte de suivi), effacées une fois le
   certificat obtenu, gardées en cas d'échec.
 - La commande d'installation affichée reprend le nom choisi (`--nom`).
+- **Publication DNS vérifiée** (demande du 16/11) : après la pose du TXT,
+  le serveur interroge directement les serveurs DNS qui font autorité pour
+  la zone (6 au plus), toutes les 10 s, et demande la vérification à
+  Let's Encrypt dès que l'enregistrement est visible partout (« visible sur
+  1/2 serveurs DNS » dans l'avancement). Le délai réglé dans Réglages ›
+  Certificats devient un **maximum** (défaut 3 min, CSC 20 min ; 10 s à
+  30 min). Serveurs DNS injoignables depuis le serveur (port 53 sortant
+  fermé) : attente fixe comme avant (1 min, CSC 3 min), dite dans
+  l'avancement.
 
 **Coût** : une écriture SQLite par étape (6 par certificat, tous les
 60 jours) ; 2 petites requêtes de mesures par collecteur à l'affichage des

@@ -30,8 +30,9 @@ var EtapesACME = []struct{ Code, Titre string }{
 	{EtapeEmission, "Signature du certificat"},
 }
 
-// Suivi : reçoit chaque étape (jusqua : fin prévue d'une attente, sinon zéro).
-type Suivi func(etape string, jusqua time.Time)
+// Suivi : reçoit chaque étape, un détail (ex. « visible sur 1/2 serveurs
+// DNS ») et la fin prévue d'une attente (zéro sinon).
+type Suivi func(etape, info string, jusqua time.Time)
 
 type cleSuivi struct{}
 
@@ -41,8 +42,8 @@ func AvecSuivi(ctx context.Context, f Suivi) context.Context {
 }
 
 // suivre : note une étape (rien sans suivi dans le contexte).
-func suivre(ctx context.Context, etape string, jusqua time.Time) {
+func suivre(ctx context.Context, etape, info string, jusqua time.Time) {
 	if f, ok := ctx.Value(cleSuivi{}).(Suivi); ok && f != nil {
-		f(etape, jusqua)
+		f(etape, info, jusqua)
 	}
 }

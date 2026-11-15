@@ -123,13 +123,20 @@ func (g *Gestionnaire) obtenir(ctx context.Context, machine int64, nom, csrPEM s
 	ctxA, fin := context.WithTimeout(ctx, 30*time.Minute) // CSC : publication jusqu'à 15 min
 	defer fin()
 	// Avancement noté en base à chaque étape (affiché dans l'interface).
-	ctxA = AvecSuivi(ctxA, func(etape string, jusqua time.Time) {
+	var etapeEnCours string
+	ctxA = AvecSuivi(ctxA, func(etape, info string, jusqua time.Time) {
 		var j int64
 		if !jusqua.IsZero() {
 			j = jusqua.Unix()
 		}
-		_, _ = g.DB.ExecContext(ctx, `UPDATE certificats_syslog SET etape = ?, etape_le = ?, etape_jusqua = ?, erreur = '' WHERE machine_id = ?`,
-			etape, time.Now().Unix(), j, machine)
+		if etape == etapeEnCours {
+			// Même étape (vérifications successives) : détail mis à jour.
+			_, _ = g.DB.ExecContext(ctx, `UPDATE certificats_syslog SET etape_info = ?, etape_jusqua = ? WHERE machine_id = ?`, info, j, machine)
+			return
+		}
+		etapeEnCours = etape
+		_, _ = g.DB.ExecContext(ctx, `UPDATE certificats_syslog SET etape = ?, etape_info = ?, etape_le = ?, etape_jusqua = ?, erreur = '' WHERE machine_id = ?`,
+			etape, info, time.Now().Unix(), j, machine)
 	})
 	chaine, err := g.Emetteur.Obtenir(ctxA, nom, req.Raw)
 	if err != nil {
@@ -142,7 +149,7 @@ func (g *Gestionnaire) obtenir(ctx context.Context, machine int64, nom, csrPEM s
 		return
 	}
 	if _, err := g.DB.ExecContext(ctx, `UPDATE certificats_syslog SET nom = ?, certificat = ?, fin = ?, obtenu_le = ?, essai_le = ?, erreur = '',
-		etape = '', etape_le = 0, etape_jusqua = 0 WHERE machine_id = ?`,
+		etape = '', etape_info = '', etape_le = 0, etape_jusqua = 0 WHERE machine_id = ?`,
 		nom, chaine, finCert.Unix(), maintenant.Unix(), maintenant.Unix(), machine); err != nil {
 		enregistrerEchec(err)
 		return

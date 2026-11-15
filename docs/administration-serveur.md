@@ -60,6 +60,10 @@ Syslog TLS (partie 4) :
      et POST `/zones/edits` sur la zone ; sans approbation manuelle des
      modifications. Publication lente : compter jusqu'à 20 min.
    Premier essai conseillé avec l'annuaire *staging* de Let's Encrypt.
+   *Attente maximale de la publication DNS* : le serveur vérifie lui-même
+   que l'enregistrement est publié (serveurs DNS de la zone, port 53
+   sortant) et n'attend que le temps nécessaire ; ce réglage n'est qu'un
+   maximum.
 2. Page du collecteur › *Syslog TLS* : adresse privée d'écoute du collecteur (ex.
    `192.168.1.10:6514`), nom du certificat (ex. `syslog.lan.exemple.org`,
    qui doit pointer vers cette adresse : DNS du LAN ou enregistrement A),

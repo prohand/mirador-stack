@@ -91,6 +91,7 @@ type Etat struct {
 	// Etape : étape de la démarche en cours, ou celle de l'échec (vide =
 	// pas de démarche) ; EtapeLe : début ; EtapeJusqua : fin d'une attente.
 	Etape                string
+	EtapeInfo            string // ex. « visible sur 1/2 serveurs DNS »
 	EtapeLe, EtapeJusqua int64
 }
 
@@ -99,8 +100,8 @@ func LireEtat(ctx context.Context, db *sql.DB, machine int64) (Etat, error) {
 	var e Etat
 	var csr string
 	err := db.QueryRowContext(ctx, `SELECT nom, csr, csr_recue_le, certificat, fin, obtenu_le, essai_le, erreur, demande_le,
-		etape, etape_le, etape_jusqua FROM certificats_syslog WHERE machine_id = ?`, machine).Scan(&e.Nom, &csr, &e.CSRRecueLe,
-		&e.Certificat, &e.Fin, &e.ObtenuLe, &e.EssaiLe, &e.Erreur, &e.DemandeLe, &e.Etape, &e.EtapeLe, &e.EtapeJusqua)
+		etape, etape_info, etape_le, etape_jusqua FROM certificats_syslog WHERE machine_id = ?`, machine).Scan(&e.Nom, &csr, &e.CSRRecueLe,
+		&e.Certificat, &e.Fin, &e.ObtenuLe, &e.EssaiLe, &e.Erreur, &e.DemandeLe, &e.Etape, &e.EtapeInfo, &e.EtapeLe, &e.EtapeJusqua)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Etat{}, nil
 	}
@@ -199,6 +200,9 @@ type Reglages struct {
 	JetonChiffre string `json:"jeton_chiffre,omitempty"`
 	// CompteChiffre : clé du compte ACME (PEM chiffré), créée au premier usage.
 	CompteChiffre string `json:"compte_chiffre,omitempty"`
+	// AttenteMax : maximum d'attente de la publication DNS, en secondes
+	// (0 = selon le fournisseur), SPEC § 32.
+	AttenteMax int `json:"attente_max,omitempty"`
 }
 
 // AnnuaireEffectif : annuaire ACME (Let's Encrypt si vide).
