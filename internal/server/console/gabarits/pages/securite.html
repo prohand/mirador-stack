@@ -19,7 +19,7 @@
 
 <section class="carte">
 <h2>Sessions ouvertes</h2>
-<div class="defile"><table>
+<div class="defile"><table data-cartes>
 <thead><tr><th>Compte</th><th>Adresse</th><th>Ouverte</th><th>Dernière requête</th><th></th></tr></thead>
 <tbody>{{range .D.Sessions}}<tr><td>{{.Nom}}</td><td>{{.Adresse}}</td><td>{{date .Creee}}</td><td>{{date .Vue}}</td>
 <td><form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire">Fermer</button></form></td></tr>{{end}}</tbody>

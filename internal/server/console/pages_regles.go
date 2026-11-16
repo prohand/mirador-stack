@@ -365,6 +365,14 @@ func (c *Console) postEnregistrerRegle(q *req) {
 	if c.regleDeModele(q, r.Nom) {
 		return
 	}
+	// Changer une règle peut faire taire une alerte : code 2FA ou mode
+	// administration (audit du 16/11, SPEC § 34). Le formulaire est
+	// réaffiché tel quel si le code manque.
+	if err := c.verifierCode(q); err != nil {
+		c.flash(q, "", err.Error())
+		c.rendre(q, "regle", r.Nom, "regles", d)
+		return
+	}
 	if d.Nouvelle {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, x := range rs {
@@ -389,8 +397,11 @@ func (c *Console) postActionRegle(q *req) {
 		err = alertes.Activer(q.r.Context(), c.db, nom, true, q.qui(), q.t)
 		ok = nom + " activée"
 	case "desactiver":
-		err = alertes.Activer(q.r.Context(), c.db, nom, false, q.qui(), q.t)
-		ok = nom + " désactivée"
+		// Désactiver fait taire une alerte : code 2FA ou mode administration.
+		if err = c.verifierCode(q); err == nil {
+			err = alertes.Activer(q.r.Context(), c.db, nom, false, q.qui(), q.t)
+			ok = nom + " désactivée"
+		}
 	case "supprimer":
 		if c.regleDeModele(q, nom) {
 			return
@@ -532,6 +543,11 @@ func (c *Console) postImporterRegles(q *req) {
 		}
 		d := donneesRegles{Rapport: rap, Compteur: rap.Compter(), Groupes: map[string][]ligneRegle{}, Modeles: modelesRegles}
 		if q.r.PostFormValue("essai") == "" {
+			// Un import peut écraser ou désactiver des règles : code 2FA ou
+			// mode administration. L'essai (rien n'est enregistré) reste libre.
+			if err := c.verifierCode(q); err != nil {
+				return err
+			}
 			n, err := alertes.Enregistrer(q.r.Context(), c.db, rap.Regles, q.qui(), q.t)
 			if err != nil {
 				return err

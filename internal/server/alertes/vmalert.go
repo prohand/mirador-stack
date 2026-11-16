@@ -42,8 +42,12 @@ func ReglagesVmalertDefaut() ReglagesVmalert {
 func (r *ReglagesVmalert) Valider() error {
 	if r.URL != "" {
 		u, err := url.Parse(r.URL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-			return errors.New("url : http(s)://hôte:port de vmalert")
+		// Ni paramètres ni fragment : sinon le chemin appelé par le serveur
+		// (« /api/v1/alerts » ajouté au bout) pourrait être détourné vers
+		// n'importe quelle adresse du réseau interne (audit du 16/11).
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+			strings.ContainsAny(r.URL, "?#") {
+			return errors.New("url : http(s)://hôte:port de vmalert (sans paramètres)")
 		}
 	}
 	if r.Actif && r.URL == "" {

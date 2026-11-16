@@ -6,7 +6,7 @@
 {{if .D.Etat}}<table><thead><tr><th>Canal</th><th>Rôle</th><th>État</th><th>Vérifié</th><th>Erreur</th></tr></thead><tbody>
 {{range .D.Etat}}<tr><td>{{majuscule .Nom}}</td><td>{{.Role}}</td><td><span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}">{{if .EnPanne}}En panne depuis {{date .Depuis}}{{else}}OK{{end}}</span></td><td>{{date .Verifie}}</td><td>{{.Erreur}}</td></tr>{{end}}
 </tbody></table>{{else}}<p class="vide">Aucun canal actif.</p>{{end}}
-<p>{{with .D.R.Canaux.Heartbeat}}{{if and (not .Actif) (not .URL)}}Heartbeat : non configuré{{else}}Heartbeat {{.NomService}} : {{if not .Actif}}désactivé{{else if $.D.HbErr}}<span class="erreur">{{$.D.HbErr}}</span>{{else if $.D.HbOK.IsZero}}pas encore envoyé{{else}}dernier envoi réussi {{date $.D.HbOK}}{{end}}{{end}}{{else}}Heartbeat : non configuré{{end}} · File d'attente (tous canaux en panne) : {{.D.File}} message(s)</p>
+<p>{{with .D.R.Canaux.Heartbeat}}{{if and (not .Actif) (not .URL)}}Heartbeat : non configuré{{else}}Heartbeat {{.NomService}} : {{if not .Actif}}désactivé{{else if $.D.HbErr}}<span class="erreur">{{$.D.HbErr}}</span>{{else if $.D.HbOK.IsZero}}pas encore envoyé{{else}}dernier envoi réussi {{date $.D.HbOK}}{{end}}{{end}}{{else}}Heartbeat : non configuré{{end}} · File d'attente (tous canaux en panne) : {{.D.File}} {{accord .D.File "message(s)"}}</p>
 {{if .Admin}}{{if .D.Testables}}<form method="post" class="ligne">{{template "csrf" .CSRF}}{{range .D.Testables}}<button name="action" value="tester:{{.}}" class="secondaire">Tester {{majuscule .}}</button>{{end}}</form>{{else}}<p class="aide"><small class="aide">« Tester » : pour les canaux actifs (plus bas).</small></p>{{end}}{{end}}
 {{if .D.Tests}}<h3>Derniers tests</h3><div class="defile"><table><thead><tr><th>Canal</th><th>Demandé</th><th>Résultat</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>{{range .D.Tests}}<tr><td>{{majuscule .Canal}}</td><td>{{dateMs .Demande}}</td><td>{{if .Fait}}<span class="pastille {{if egal .Statut "ok"}}ok{{else}}erreur{{end}}">{{majuscule .Statut}}</span> {{.Erreur}}{{else}}En attente{{end}}</td>
 {{if $.Admin}}<td><form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="test-effacer" class="secondaire petit" title="Effacer cette ligne">Effacer</button></form></td>{{end}}</tr>{{end}}</tbody></table></div>
@@ -64,6 +64,12 @@
 <label>De <input name="mail_de" value="{{$c.Email.De}}" maxlength="200"></label>
 <label>À (virgules) <input name="mail_a" value="{{range $i, $e := $c.Email.A}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
 </section>
+<section class="carte" id="application"><h2>Application (notifications push)</h2>
+<label class="case"><input type="checkbox" name="app_actif" value="1" {{if $c.Application.Actif}}checked{{end}}> Actif</label>
+<label class="case"><input type="checkbox" name="app_copie" value="1" {{if $c.Application.Copie}}checked{{end}}> Copie : envoyer aussi à l'application quand un autre canal porte le message</label>
+<p>{{.D.AppareilsPush}} {{accord .D.AppareilsPush "appareil(s) abonné(s)"}}. Chacun active les notifications sur son téléphone ou son navigateur dans <a href="/compte#push">Mon compte</a>.</p>
+<small class="aide">Les messages passent par le service de push de Google, Apple ou Mozilla, chiffrés pour l'appareil (ce service ne peut pas les lire). Ils tiennent aussi à jour la pastille de l'icône. La copie ne compte pas pour la bascule : un téléphone éteint n'est pas une panne. {{template "plus" "aide.md#application"}}</small>
+</section>
 <section class="carte"><h2>Heartbeat (surveillance externe)</h2>
 <label class="case"><input type="checkbox" name="hb_actif" value="1" {{if $c.Heartbeat.Actif}}checked{{end}}> Actif</label>
 <label>Service <select name="hb_service">{{$s := $c.Heartbeat.Service}}{{range .D.ServicesHB}}<option value="{{.Code}}" {{if or (egal .Code $s) (and (egal .Code "autre") (egal $s ""))}}selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
@@ -86,5 +92,5 @@
 <label>Correspondances (nom-mirador=nom-vmalert, une par ligne) <textarea name="correspondances" rows="3" maxlength="10000">{{range $k, $v := .D.Vmalert.Correspondances}}{{$k}}={{$v}}
 {{end}}</textarea></label>
 <label>Règles ignorées <input name="ignorer" value="{{range $i, $e := .D.Vmalert.Ignorer}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="2000"></label>
-{{if .Admin}}<button>Enregistrer</button>{{end}}</form></section>
+{{if .Admin}}<button data-code>Enregistrer</button>{{end}}</form></section>
 {{end}}

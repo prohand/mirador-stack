@@ -340,7 +340,7 @@ func TestModelesEquipementEtReglesCouvertes(t *testing.T) {
 		t.Fatalf("modèle d'équipement non appliqué : %+v", effs)
 	}
 	_, corps, _ := b.get(c, "/regles")
-	if !strings.Contains(corps, "ne sert plus") || !strings.Contains(corps, "Retirer les 1 règle(s)") {
+	if !strings.Contains(corps, "ne sert plus") || !strings.Contains(corps, "Retirer la règle qui ne sert plus") {
 		t.Fatal("règle couverte pas proposée au retrait")
 	}
 	csrf := b.csrf(c, "/regles")

@@ -34,8 +34,10 @@ func (c *Console) dechiffrerTOTP(v string) (string, error) {
 // donneesConnexion : ce qu'affichent les pages de connexion.
 type donneesConnexion struct {
 	Nom, Erreur, Secret, Jeton string
-	QR                         template.URL
-	Premier                    bool
+	// Suite : page demandée avant la connexion (on y retourne ensuite).
+	Suite   string
+	QR      template.URL
+	Premier bool
 	// Passkeys du compte utilisables sous ce domaine (étape du code) : défi,
 	// domaine et identifiants (séparés par des virgules), pour passkey.js.
 	PKDefi, PKDomaine, PKIds string
@@ -69,7 +71,7 @@ func (c *Console) pageConnexion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/premier-admin", http.StatusSeeOther)
 		return
 	}
-	c.pageConnexionAvec(w, r, http.StatusOK, donneesConnexion{})
+	c.pageConnexionAvec(w, r, http.StatusOK, donneesConnexion{Suite: suiteLocale(r.URL.Query().Get("suite"))})
 }
 
 // premierAFaire : vrai tant qu'aucun compte n'existe. Un compte créé
@@ -98,7 +100,9 @@ func nomJournal(nom string) string {
 }
 
 // echecConnexion : compteurs de verrouillage + ligne de journal (CrowdSec).
-func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
+// existe : nom est celui d'un compte de la base (les noms inconnus sont
+// comptés à part : ils ne peuvent pas chasser le compteur d'un vrai compte).
+func (c *Console) echecConnexion(ip, nom string, existe bool, raison string, t time.Time) {
 	sec := c.securite.Load()
 	c.journal.Warn("console : échec de connexion", "ip", ip, "utilisateur", nomJournal(nom), "raison", raison)
 	if d := c.verrous.EchecAdresse(ip, sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
@@ -107,7 +111,7 @@ func (c *Console) echecConnexion(ip, nom, raison string, t time.Time) {
 	if nom == "" {
 		return
 	}
-	if d := c.verrous.EchecCompte(nom, 3*sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
+	if d := c.verrous.EchecCompte(nom, existe, 3*sec.Echecs, time.Duration(sec.Verrou), t); d > 0 {
 		c.journal.Warn("console : compte verrouillé", "ip", ip, "utilisateur", nomJournal(nom), "duree", d.String())
 		c.prevenirVerrou(nom, ip, d, t)
 	}
@@ -123,7 +127,8 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	ip := web.AdresseClient(r).String()
 	nom := strings.TrimSpace(r.PostFormValue("nom"))
 	mdp := r.PostFormValue("mot_de_passe")
-	d := donneesConnexion{Nom: nom}
+	suite := suiteLocale(r.PostFormValue("suite"))
+	d := donneesConnexion{Nom: nom, Suite: suite}
 	if len(nom) > 64 {
 		nom = nom[:64]
 	}
@@ -172,7 +177,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 		case u.Desactive && bon:
 			raison = "compte désactivé"
 		}
-		c.echecConnexion(ip, nom, raison, t)
+		c.echecConnexion(ip, nom, u.ID != 0, raison, t)
 		d.Erreur = messageEchec
 		c.pageConnexionAvec(w, r, http.StatusUnauthorized, d)
 		return
@@ -188,7 +193,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip, Suite: suite}, t)
 	auth.PoserCookie(w, id)
 	http.Redirect(w, r, cheminEtape(etape), http.StatusSeeOther)
 }
@@ -287,7 +292,7 @@ func (c *Console) debutEtapeCode(w http.ResponseWriter, r *http.Request) (s *aut
 func (c *Console) echecEtapeCode(w http.ResponseWriter, r *http.Request, s *auth.Session, u auth.Utilisateur, raison, message string) {
 	t := c.maintenant()
 	ip := web.AdresseClient(r).String()
-	c.echecConnexion(ip, u.Nom, raison, t)
+	c.echecConnexion(ip, u.Nom, true, raison, t)
 	// Le mot de passe était bon : s'il ne s'agit pas d'une faute de
 	// frappe, quelqu'un d'autre le connaît.
 	c.prevenirSecurite("2fa|"+u.Nom, "⚠️ mirador : "+raison+" pour « "+u.Nom+" » après un mot de passe juste.\nAdresse : "+ip+
@@ -400,32 +405,60 @@ func (c *Console) postPasskey(w http.ResponseWriter, r *http.Request) {
 // defisConnexion : défis des connexions par passkey seule. Avant la
 // connexion il n'y a pas de session où les garder : ils sont ici, en
 // mémoire, bornés, valables 5 min et à usage unique.
+//
+// Plafond par adresse (audit du 16/11, SPEC § 34) : avant, 2 000 demandes
+// venues d'une seule adresse remplissaient la table et bloquaient ce mode de
+// connexion pour tout le monde pendant 5 min. Une adresse (ou son /64) ne
+// garde plus que defisParAdresse défis : le plus ancien des siens est
+// remplacé. Il faut donc 200 adresses différentes pour remplir la table.
 type defisConnexion struct {
 	mu   sync.Mutex
-	tout map[string]time.Time
+	tout map[string]defiConnexion
 }
 
-const defisConnexionMax = 2000
+type defiConnexion struct {
+	le      time.Time
+	adresse string // adresse (IPv4) ou /64 (IPv6) du demandeur
+}
 
-func (d *defisConnexion) nouveau(t time.Time) (string, error) {
+const (
+	defisConnexionMax = 2000
+	defisParAdresse   = 10
+)
+
+func (d *defisConnexion) nouveau(adresse string, t time.Time) (string, error) {
 	defi, err := auth.NouveauDefiPasskey()
 	if err != nil {
 		return "", err
 	}
+	adresse = auth.CleAdresse(adresse)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.tout == nil {
-		d.tout = map[string]time.Time{}
+		d.tout = map[string]defiConnexion{}
 	}
-	for k, le := range d.tout { // ménage des défis expirés
-		if t.Sub(le) > auth.DureeDefiPasskey {
+	// Ménage des défis expirés ; au passage, ceux de cette adresse sont
+	// comptés et le plus ancien est repéré.
+	n, vieux := 0, ""
+	for k, x := range d.tout {
+		if t.Sub(x.le) > auth.DureeDefiPasskey {
 			delete(d.tout, k)
+			continue
 		}
+		if x.adresse == adresse {
+			n++
+			if vieux == "" || x.le.Before(d.tout[vieux].le) {
+				vieux = k
+			}
+		}
+	}
+	if n >= defisParAdresse {
+		delete(d.tout, vieux)
 	}
 	if len(d.tout) >= defisConnexionMax {
 		return "", errors.New("trop de demandes en cours")
 	}
-	d.tout[defi] = t
+	d.tout[defi] = defiConnexion{le: t, adresse: adresse}
 	return defi, nil
 }
 
@@ -434,9 +467,9 @@ func (d *defisConnexion) nouveau(t time.Time) (string, error) {
 func (d *defisConnexion) prendre(defi string, t time.Time) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	le, ok := d.tout[defi]
+	x, ok := d.tout[defi]
 	delete(d.tout, defi)
-	return ok && t.Sub(le) <= auth.DureeDefiPasskey
+	return ok && t.Sub(x.le) <= auth.DureeDefiPasskey
 }
 
 // postDefiPasskey : défi pour une connexion par passkey seule (appelé par
@@ -449,7 +482,7 @@ func (c *Console) postDefiPasskey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "connexion par passkey indisponible", http.StatusForbidden)
 		return
 	}
-	defi, err := c.defis.nouveau(t)
+	defi, err := c.defis.nouveau(ip, t)
 	if err != nil {
 		http.Error(w, "trop de demandes : réessayer dans un instant", http.StatusTooManyRequests)
 		return
@@ -465,11 +498,12 @@ func (c *Console) postDefiPasskey(w http.ResponseWriter, r *http.Request) {
 func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 	t := c.maintenant()
 	ip := web.AdresseClient(r).String()
+	suite := suiteLocale(r.PostFormValue("suite"))
 	refuser := func(code int, nom, raison string) {
 		if raison != "" {
-			c.echecConnexion(ip, nom, raison, t)
+			c.echecConnexion(ip, nom, nom != "", raison, t)
 		}
-		c.pageConnexionAvec(w, r, code, donneesConnexion{Erreur: "passkey refusée : réessayer, ou se connecter avec le mot de passe"})
+		c.pageConnexionAvec(w, r, code, donneesConnexion{Suite: suite, Erreur: "passkey refusée : réessayer, ou se connecter avec le mot de passe"})
 	}
 	domaine := c.passkeySeule(r)
 	if domaine == "" {
@@ -531,7 +565,7 @@ func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip, Suite: suite}, t)
 	s := c.sessions.Lire(id)
 	if s == nil {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
@@ -562,6 +596,7 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	id := c.sessions.Renouveler(s.Empreinte, t, func(x *auth.Session) {
 		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = auth.EtapeComplet, t, "", 0, u.Generation
 		x.DefiPasskey, x.NomPasskey = "", ""
+		x.Suite = "" // la page demandée ne sert qu'une fois
 		// Le second facteur vient d'être donné : le mode administration
 		// s'ouvre (comme après un code juste sur une action sensible).
 		if d := c.dureeModeAdmin(); d > 0 {
@@ -578,7 +613,15 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
 	}
 	auth.PoserCookie(w, id)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Page demandée avant la connexion (lien d'une notification), sinon l'accueil.
+	// Revérifiée ici, juste avant de s'en servir : toujours un chemin de ce
+	// site (jamais une adresse complète), même si la session avait été
+	// remplie autrement.
+	vers := suiteLocale(s.Suite)
+	if vers == "" {
+		vers = "/"
+	}
+	http.Redirect(w, r, vers, http.StatusSeeOther) // #nosec G710 -- chemin local vérifié par suiteLocale (pas d'hôte, pas de « // »), testé dans TestSuiteApresConnexion
 }
 
 // pageCreer2FA : le compte n'a pas encore de 2FA (premier passage). Le
@@ -641,7 +684,7 @@ func (c *Console) postCreer2FA(w http.ResponseWriter, r *http.Request) {
 	}
 	pas, ok := auth.VerifierTOTP(s.SecretPropose, r.PostFormValue("code"), t, 0)
 	if !ok {
-		c.echecConnexion(ip, s.Nom, "code faux à la création de la 2FA", t)
+		c.echecConnexion(ip, s.Nom, true, "code faux à la création de la 2FA", t)
 		essais := 0
 		c.sessions.Modifier(s.Empreinte, func(x *auth.Session) { x.EssaisCode++; essais = x.EssaisCode })
 		if essais >= auth.EssaisCodeMax {
@@ -706,7 +749,7 @@ func (c *Console) postPremier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(r.PostFormValue("jeton"))), []byte(c.jetonPremier)) != 1 {
-		c.echecConnexion(ip, "", "jeton du premier admin faux", t)
+		c.echecConnexion(ip, "", false, "jeton du premier admin faux", t)
 		d.Erreur = "jeton faux (il est dans le journal du serveur)"
 		c.pages.rendreSeuleCode(w, http.StatusUnauthorized, "premier", "Premier administrateur", d)
 		return

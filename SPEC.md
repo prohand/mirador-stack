@@ -4817,3 +4817,241 @@ caractères permis qu'avant, 10 exclusions au plus) ; recherches
 enregistrées réduites aux paramètres connus et liées à leur utilisateur
 (suppression vérifiée) ; formulaires avec jeton CSRF ; export protégé
 contre les formules de tableur.
+
+## 34. Audit du 16/11 : sécurité, graphique, téléphone, application installable **[Fait, à valider]**
+
+Demande du 16/11 : audit du projet (sécurité, design, graphique), failles de
+l'interface et de la connexion, puis améliorations pour le mode application
+sur téléphone. Réponse : « fait tout ». Aucune faille critique ni haute
+trouvée ; ce qui suit corrige les faiblesses relevées.
+
+### 34.1 Connexion
+
+- **Verrou de compte** : les comptes qui existent ont leur propre table
+  (`auth/verrou.go`). Avant, 10 000 échecs sur des noms inventés (environ
+  2 000 adresses, soit un bloc IPv6 /48) chassaient le compteur d'un vrai
+  compte pas encore verrouillé (mesuré : 14 échecs oubliés). Les noms
+  inconnus sont comptés à part, mêmes seuils, mêmes messages : la réponse ne
+  dit toujours pas si un nom existe.
+- **Passkey seule** : 10 défis au plus par adresse (ou /64), le plus ancien
+  de l'adresse est remplacé. Avant, 2 000 demandes d'une seule adresse
+  bloquaient ce mode de connexion 5 min pour tout le monde.
+
+### 34.2 Console
+
+- **Code 2FA ou mode administration** maintenant demandé pour : adresse
+  d'ingestion (reprise dans la commande d'installation lancée en root),
+  règles (modifier, désactiver, importer ; l'essai et « activer » restent
+  libres), maintenances, inhibitions, dépendances, silences de plus de 24 h,
+  adresse de vmalert, essai de connexion Olvid, export avec les secrets
+  chiffrés (devenu un POST).
+- **Import de la partie « securite »** : nouveau code 2FA, toujours, comme la
+  page Sécurité (avant : le mode administration suffisait).
+- Le code est demandé dans une **boîte** au moment d'envoyer (boutons
+  `data-code`), sans perdre la saisie ; sans JavaScript, le serveur répond
+  « code 2FA demandé » et le mode administration s'ouvre depuis « Mon
+  compte » (`POST /mode-admin/ouvrir`). Un code absent n'est pas compté
+  comme un essai manqué.
+- **Secret gardé et adresse changée** : refusé pour ntfy (même serveur
+  exigé, le sujet peut changer), e-mail, Olvid, UniFi (adresse ou empreinte)
+  et SNMP. Le secret doit être ressaisi : il ne part plus vers une nouvelle
+  adresse par « Tester ».
+- **Rôle avant le corps** : un compte lecture est refusé avant la lecture de
+  la requête (jusqu'à 31 Mio sur la publication d'une version).
+- **Adresse de vmalert** : ni `?` ni `#`.
+- **Secrets chiffrés** remplacés par `***` dans l'audit des configurations
+  d'agents et dans l'export « sans secret » ; à l'import, `***` reprend la
+  valeur actuelle (équipement retrouvé par son champ `machine`).
+- **Rôle lecture** : le sujet ntfy n'est plus montré.
+- **Export CSV d'une courbe** : cellules commençant par `= + - @` protégées.
+- **Import « interface »** : ligne d'audit, mode debug jamais importé.
+
+### 34.3 Application installable (PWA)
+
+Manifeste (`statique/mirador.webmanifest`), icônes PNG 192 / 512 /
+masquable / iOS 180 (`scripts/generer-icones.py`), couleur de barre, zones
+sûres de l'écran (encoche). Raccourcis : Alertes, Machines, Logs.
+
+**Pas de service worker** : il n'est plus nécessaire pour installer
+l'application, et sans lui aucune page connectée ne peut rester en cache
+sur le téléphone. Page « hors ligne », notifications push et pastille sur
+l'icône : option non faite, à décider (une table, un canal, des clés VAPID).
+
+### 34.4 Téléphone
+
+- Barre de navigation en bas (Accueil, Alertes, Machines, Logs, « Plus »
+  qui ouvre tout le menu) ; en-tête sur une ligne ; bandeau du mode
+  administration sur une ligne.
+- Écran tactile (`pointer: coarse`) : champs à 16 px (sinon iOS zoome à la
+  saisie), boutons de 44 px.
+- Tableaux marqués `data-cartes` affichés en cartes sous 640 px (titre de
+  colonne copié dans `data-label` par `mirador.js`) ; `data-cartes="serrees"`
+  pour les longues listes (règles).
+- Page d'une machine : à la première visite sur téléphone, seule la
+  première section est ouverte ; les exports PNG / CSV restent sur grand
+  écran.
+- **Courbes demandées à l'affichage** (`IntersectionObserver`, 400 px
+  d'avance), puis rafraîchies seulement tant qu'elles sont à l'écran.
+- Courbes : dernière valeur dans la légende ; aide affichée une seule fois
+  par page, adaptée au doigt. Correction de l'audit : sur écran tactile, le
+  zoom « glisser » de uPlot ne gênait pas le défilement (il ne réagit qu'à
+  la souris) ; seule l'aide était fausse.
+- Graphique : nom « mirador » visible sur la page de connexion (thème
+  clair), textes de 12 px au moins (hors carte de chaleur), « 1 machine » /
+  « 3 machines » (`accord`, `accorderTexte`), colonne « Vu il y a ».
+
+### 34.5 Connexion depuis un lien
+
+- **Page demandée gardée** (`suite`) : après la connexion on arrive sur la
+  page du lien (alerte d'une notification), plus sur l'accueil.
+- **Lien ouvert depuis un autre site** (Telegram, e-mail) : le cookie
+  `SameSite=Strict` n'est pas envoyé au premier passage. Une page relais
+  recharge la même adresse « de l'intérieur » ; le cookie part alors et la
+  page s'affiche sans reconnexion. Vérifié dans Chromium.
+- Passkey proposée en premier sur écran tactile. La proposition automatique
+  dans le champ « Nom » (WebAuthn conditionnel) n'est **pas** faite : non
+  testable ici sur iPhone, et la connexion par passkey y a déjà été fragile.
+
+### 34.6 Machine muette (retour du 16/11)
+
+« Un agent muet ne devrait rien remonter d'autre. » Cause : le serveur
+écrivait `mirador_modele_service` (services attendus par un modèle) même
+pour une machine muette ; l'état des services n'arrivant plus, la règle
+`ServiceDuModeleAbsent` les croyait tous désinstallés.
+
+- Les services attendus ne sont écrits que pour une machine vue depuis
+  moins de 3 min (`interne.go`). Plus court que le « pour » de la règle
+  (15 min) : la série disparaît avant que l'alerte ne parte. Les autres
+  séries du modèle restent écrites (règles importées toujours remplacées).
+- Affichage : les alertes inhibées ou dont le parent est en panne vont dans
+  un bloc replié « Masquées par une panne », hors compte. Silences et
+  maintenances restent dans la liste.
+
+**Coût** (objectif serveur < 256 Mio, < 5 % d'un cœur : inchangé) :
+
+- mémoire : une table de plus pour les noms inconnus, bornée à 10 000
+  compteurs (environ 1 Mo au pire, vide en temps normal) ; rien d'autre ;
+- CPU : page d'une machine, **4 courbes demandées au chargement au lieu de
+  13** sur un écran 1440 × 900, **0 sur téléphone** avant défilement
+  (mesuré dans Chromium, serveur de démonstration) ;
+- disque : aucune écriture ajoutée ; binaire + ~60 Ko (icônes 45 Ko,
+  manifeste, styles et scripts).
+
+**Menaces** :
+
+- page relais : seulement pour afficher une page (GET, navigation, document)
+  sans cookie, vers un chemin de ce site vérifié (`suiteLocale`) ; une
+  écriture venue d'un autre site reste refusée (origine + jeton CSRF + cookie
+  Strict). Le cookie n'est pas affaibli. Ce que le relais change : un lien
+  d'un autre site ouvre la page connectée, comme avec un cookie « Lax » ;
+  aucun GET ne modifie d'état ;
+- `suite` : chemin local seulement, jamais les pages de connexion ni les
+  adresses des scripts, 512 caractères au plus, gardé dans la session ;
+- boîte du code 2FA : simple confort, tout est vérifié par le serveur ;
+- manifeste et icônes : publics, sans donnée ; pas de service worker, donc
+  pas de cache de pages ni de code qui survit à une mise à jour.
+
+**Non fait, noté** : copie d'un secret SNMP chiffré vers la portée d'un
+autre collecteur par l'import (admin avec code) ; assistant root : le
+fichier ouvert est le chemin trouvé, pas le chemin réel vérifié (course
+possible seulement pour qui écrit déjà dans `/etc/…`, et seuls le nom et
+les dates d'un certificat sortent) ; actions GitHub non figées par empreinte.
+
+## 35. Notifications push et pastille de l'icône (demande du 16/11) **[Fait, à valider]**
+
+Suite de § 34.3 (« fais ceci : notifications push, pastille sur l'icône »).
+
+### 35.1 Choix
+
+- **Canal « application »**, comme les autres : il peut être principal ou
+  secours (décision du 10/11 : un seul canal à la fois). En plus, réglage
+  **Copie** (coché par défaut) : quand un autre canal porte le message, les
+  appareils abonnés le reçoivent aussi. Sans copie, la pastille ne serait
+  à jour que si l'application était le canal principal.
+- La copie **ne compte pas pour la bascule** ni pour la file d'attente : un
+  téléphone éteint n'est pas une panne. Sans appareil abonné, rien n'est
+  fait ni noté. Elle est notée dans l'historique des envois (« … (copie) »).
+- Mode ombre : rien ne part, comme pour les autres canaux.
+- **Chaque compte abonne ses appareils** (« Mon compte »), 10 au plus ; code
+  2FA ou mode administration. Tous les comptes actifs reçoivent les mêmes
+  alertes (pas de choix par règle ou par personne).
+- **Pastille** : nombre d'alertes actives non prises en charge, envoyé dans
+  chaque notification ; remise à jour à chaque page ouverte (`push.js`).
+
+### 35.2 Technique, sans dépendance
+
+Paquet `internal/server/webpush` (~250 lignes, bibliothèque standard) plutôt
+qu'une bibliothèque : chiffrement RFC 8291 / 8188 (ECDH P-256, HKDF,
+AES-128-GCM), jeton VAPID RFC 8292 (ES256). Coût d'une dépendance évité :
+licence à vérifier, code tiers dans le serveur.
+
+- Clé VAPID du serveur : créée au premier besoin, clé privée chiffrée en
+  base avec la clé des secrets (`notif.push.vapid`).
+- Table `abonnements_push` (migration 0025) : adresse du service de push,
+  clés de l'appareil, origine, nom d'appareil (« Chrome sur Android », tiré
+  du navigateur ; le texte complet n'est pas gardé).
+- `sw.js` (2,5 Ko), servi à la racine : affiche la notification, règle la
+  pastille, ouvre la page au toucher. **Aucune interception de requête,
+  aucun cache** (testé : pas de `fetch`, pas de `caches`).
+- Abonnement refusé par le service (404 / 410) : effacé ; 30 échecs de
+  suite : effacé aussi.
+
+### 35.3 Coût
+
+- CPU : **0,15 ms et 17 Ko passagers par appareil et par notification**
+  (chiffrement + jeton, mesuré) ; 4 appareils servis en même temps.
+- RAM : rien de permanent. Disque : une ligne par appareil, une écriture
+  par envoi réussi (date du dernier envoi).
+- Réseau : une requête HTTPS sortante par appareil et par notification.
+- Binaire : + ~9 Ko de scripts ; aucune dépendance ajoutée.
+
+Objectif serveur (< 256 Mio, < 5 % d'un cœur) : inchangé.
+
+### 35.4 Menaces
+
+- **Adresse de l'abonnement fournie par le navigateur** (donc par
+  l'utilisateur, même en lecture seule) : le serveur n'appelle que les
+  services de push connus (`fcm.googleapis.com`, `*.push.apple.com`,
+  `*.push.services.mozilla.com`, `*.notify.windows.com`, `jmt17.google.com`),
+  en HTTPS, port 443, sans redirection, et jamais une adresse interne
+  (contrôle de l'adresse réellement jointe, comme ntfy). Pas de SSRF.
+- **Contenu** : chiffré pour l'appareil ; le service de push ne voit que
+  l'adresse de l'interface (champ « sub » du jeton), l'heure et la taille.
+- **Session volée** : s'abonner demande le code 2FA ou le mode
+  administration ; abonnement et retrait sont dans l'audit (sans l'adresse
+  de l'abonnement, qui vaut un secret et n'est jamais affichée ni
+  journalisée).
+- **Base volée** : sans la clé des secrets, pas de clé VAPID, donc pas
+  d'envoi possible vers les appareils.
+- **Compte désactivé ou supprimé** : plus servi ; abonnements effacés avec
+  le compte.
+- **Notification piégée** : le lien ouvert au toucher est toujours un
+  chemin de ce site (`sw.js` refuse `//hôte` et `\`).
+- **Service worker** : même origine, script embarqué, CSP inchangée ; sans
+  gestion des requêtes, il ne peut ni garder ni modifier une page.
+- **Avalanche d'essais** : une notification d'essai par session toutes les
+  10 s.
+
+### 35.5 Vérifications
+
+- Vecteur de test de la RFC 8291 : corps chiffré identique à l'octet près
+  (`TestVecteurRFC8291`).
+- Hors dépôt : message déchiffré à l'identique par la bibliothèque
+  `http_ece` (Node) et jeton vérifié par `jws`.
+- Chromium : service worker actif à la racine, notification affichée à la
+  réception d'un push, lien piégé ramené à « / », abonnement complet depuis
+  « Mon compte » (appareil listé, marqué « cet appareil »).
+- **Envoi réel accepté par le service de push de Google** (HTTP 2xx).
+- **Non vérifié ici** : l'arrivée de la notification sur un vrai téléphone
+  (iPhone, Android) et la pastille sur l'icône ; à faire chez toi.
+
+### 35.6 Limites connues
+
+- iOS : seulement dans l'application installée (iOS 16.4+). La pastille
+  n'existe que pour une application installée (Android, iOS, ordinateur).
+- Pas de notification « silencieuse » pour baisser la pastille : iOS exige
+  qu'un push affiche quelque chose. Elle baisse au message « résolu » et à
+  l'ouverture de l'application.
+- Navigateur dont le service de push n'est pas dans la liste : refusé, avec
+  le nom de l'hôte dans le message (à ajouter à `hotesPush`).
+

@@ -3,26 +3,26 @@
 {{template "onglets-regles" "regles"}}
 <p>{{.D.Total}} règles, {{.D.Actives}} actives{{if .D.Erreurs}}, <span class="erreur">{{.D.Erreurs}} en erreur</span>{{end}}. Langage : PromQL restreint (comme vmalert).</p>
 {{if .D.Couvertes}}<details class="carte" id="couvertes"{{if .D.NbCouvertes}} open{{end}}><summary><strong>Règles importées remplacées par un modèle</strong> ({{.D.NbCouvertes}} sur {{len .D.Couvertes}} ne servent plus)</summary>
-<div class="defile"><table><thead><tr><th>Règle importée</th><th>Remplacée par</th><th>État</th></tr></thead><tbody>
-{{range .D.Couvertes}}<tr><td>{{.Nom}}</td><td>{{range $i, $m := .Modeles}}{{if $i}}, {{end}}{{$m}}{{end}} ({{.Porteurs}} machine(s))</td>
+<div class="defile"><table data-cartes><thead><tr><th>Règle importée</th><th>Remplacée par</th><th>État</th></tr></thead><tbody>
+{{range .D.Couvertes}}<tr><td>{{.Nom}}</td><td>{{range $i, $m := .Modeles}}{{if $i}}, {{end}}{{$m}}{{end}} ({{.Porteurs}} {{accord .Porteurs "machine(s)"}})</td>
 <td>{{if .Couverte}}<span class="pastille ok">ne sert plus</span>{{else if .Manque}}<span class="pastille attention">sert encore</span> <small>sans le modèle : {{range $i, $x := .Manque}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}</small>{{else}}<span class="pastille">modèle porté nulle part</span>{{end}}</td></tr>{{end}}
 </tbody></table></div>
 {{if and $.Admin .D.NbCouvertes}}<form method="post" action="/regles/action" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="retirer_couvertes">
-{{template "code2fa"}}<button data-confirmer="Retirer les {{.D.NbCouvertes}} règle(s) importée(s) qui ne servent plus ?">Retirer les {{.D.NbCouvertes}} règle(s) qui ne servent plus</button></form>{{end}}
+{{template "code2fa"}}{{if eq .D.NbCouvertes 1}}<button data-confirmer="Retirer la règle importée qui ne sert plus ?">Retirer la règle qui ne sert plus</button>{{else}}<button data-confirmer="Retirer les {{.D.NbCouvertes}} règles importées qui ne servent plus ?">Retirer les {{.D.NbCouvertes}} règles qui ne servent plus</button>{{end}}</form>{{end}}
 <p class="aide"><small class="aide">« Sert encore » : le modèle est détecté sur ces machines sans y être coché. Avant de retirer : export YAML (onglet Import / export) pour revenir en arrière.</small></p>
 </details>{{end}}
 {{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{$g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>
-<div class="defile"><table><thead><tr><th>Nom</th><th>Gravité</th><th>Pendant</th><th>Active</th><th>Dernière évaluation</th><th>En alerte</th><th></th></tr></thead><tbody>
+<div class="defile"><table data-cartes="serrees"><thead><tr><th>Nom</th><th>Gravité</th><th>Pendant</th><th>Active</th><th>Dernière évaluation</th><th>En alerte</th><th></th></tr></thead><tbody>
 {{range index $.D.Groupes $g}}<tr><td>{{if .Modele}}{{.R.Nom}} <a class="pastille" href="{{.Lien}}" title="Règle gérée par le modèle : seuils et expression se règlent dans le modèle">modèle {{.Modele.Titre}}</a>{{else}}<a href="/regles/modifier/{{.R.Nom}}">{{.R.Nom}}</a>{{end}}{{if .Sante.Erreur}}<br><small class="erreur">{{.Sante.Erreur}}</small>{{end}}</td>
 <td>{{template "gravite" .R.Gravite}}</td><td>{{.R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
 <td>{{if not .Sante.Derniere.IsZero}}{{date .Sante.Derniere}} ({{duree .Sante.Duree}}){{end}}</td><td class="nombre">{{.Sante.EnAlerte}}</td>
 <td>{{if $.Admin}}<form method="post" action="/regles/action" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.R.Nom}}">
-{{if .R.Active}}<button name="action" value="desactiver" class="secondaire">Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}
+{{if .R.Active}}<button name="action" value="desactiver" class="secondaire" data-code>Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
 {{if .Admin}}<section class="carte"><h2>Importer</h2>
 <form method="post" action="/regles/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier YAML (export mirador, ou fichier de règles vmalert) <input type="file" name="fichier" accept=".yml,.yaml" required></label>
 <label class="case"><input type="checkbox" name="essai" value="1" checked> Essai seulement (rapport, rien d'enregistré)</label>
 <label class="case"><input type="checkbox" name="desactivees" value="1"> Importer désactivées</label>
-<button>Importer</button></form></section>{{end}}
+<button data-code data-code-sauf="essai">Importer</button></form></section>{{end}}
 {{end}}

@@ -785,9 +785,18 @@ document.addEventListener("change", function (e) {
   if (!zone) { return; }
   var cle = "mirador.replie." + zone.getAttribute("data-memoire-replie");
   var replies = {};
-  try { replies = JSON.parse(window.localStorage.getItem(cle) || "{}") || {}; } catch (e) { replies = {}; }
-  zone.querySelectorAll("details.rangee").forEach(function (d) {
-    if (replies[d.id]) { d.removeAttribute("open"); }
+  var jamaisRegle = false;
+  try {
+    var brut = window.localStorage.getItem(cle);
+    jamaisRegle = brut === null;
+    replies = JSON.parse(brut || "{}") || {};
+  } catch (e) { replies = {}; }
+  // Téléphone, première visite : seule la première section est ouverte
+  // (page courte, courbes des autres sections pas chargées). Ensuite, ce
+  // que l'on ouvre ou replie est retenu comme sur grand écran.
+  var court = jamaisRegle && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+  zone.querySelectorAll("details.rangee").forEach(function (d, i) {
+    if (replies[d.id] || (court && i > 0)) { d.removeAttribute("open"); }
     d.addEventListener("toggle", function () {
       if (d.open) { delete replies[d.id]; } else { replies[d.id] = 1; }
       try { window.localStorage.setItem(cle, JSON.stringify(replies)); } catch (e) { /* navigateur sans stockage */ }
@@ -939,4 +948,144 @@ document.addEventListener("change", function (e) {
     tirer();
     minuterie = setInterval(tirer, 5000);
   });
+})();
+
+// Actions protégées (boutons data-code) : si le mode administration est
+// fermé, le code 2FA est demandé dans une petite boîte au moment d'envoyer,
+// sans perdre ce qui est saisi dans le formulaire. Le serveur vérifie tout ;
+// sans JavaScript, il répond « code 2FA demandé » et le mode administration
+// s'ouvre depuis « Mon compte ».
+//  - data-code : toujours ;
+//  - data-code-sauf="nom" : pas si la case de ce nom est cochée (essai) ;
+//  - data-code-long="nom" : seulement si la durée du champ dépasse 24 h.
+(function () {
+  if (!window.HTMLDialogElement) { return; }
+  var boite = null, champ = null, suite = null;
+  // Durées du serveur : « 90m », « 2h », « 1d12h », « 1w »… en secondes
+  // (NaN si le texte n'est pas une durée : le serveur tranchera).
+  function secondes(texte) {
+    var unites = { ms: 0.001, s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31536000 };
+    var re = /(\d+)(ms|s|m|h|d|w|y)/g, total = 0, lu = 0, m;
+    texte = String(texte).trim();
+    while ((m = re.exec(texte))) { total += parseInt(m[1], 10) * unites[m[2]]; lu += m[0].length; }
+    return lu === texte.length && lu > 0 ? total : NaN;
+  }
+  function demander(apres) {
+    if (!boite) {
+      boite = document.createElement("dialog");
+      boite.className = "code-boite";
+      var f = document.createElement("form");
+      f.method = "dialog";
+      var titre = document.createElement("h2");
+      titre.textContent = "Action protégée";
+      var texte = document.createElement("p");
+      texte.textContent = "Saisir le code 2FA. Il ouvre aussi le mode administration : plus de code pendant quelques minutes.";
+      // Champ « nom d'utilisateur » sans nom : pour que le gestionnaire de
+      // mots de passe propose le bon code (jamais envoyé au serveur).
+      var u = document.createElement("input");
+      u.type = "text"; u.autocomplete = "username"; u.readOnly = true; u.hidden = true; u.tabIndex = -1;
+      u.value = document.body.getAttribute("data-utilisateur") || "";
+      var label = document.createElement("label");
+      label.className = "code toujours";
+      label.textContent = "Code 2FA ";
+      champ = document.createElement("input");
+      champ.type = "text"; champ.inputMode = "numeric"; champ.autocomplete = "one-time-code";
+      champ.pattern = "[0-9 ]{6,7}"; champ.maxLength = 7; champ.required = true; champ.placeholder = "123456";
+      label.appendChild(champ);
+      var boutons = document.createElement("div");
+      boutons.className = "ligne";
+      var non = document.createElement("button");
+      non.type = "button"; non.className = "secondaire"; non.textContent = "Annuler";
+      non.addEventListener("click", function () { suite = null; boite.close(); });
+      var oui = document.createElement("button");
+      oui.textContent = "Valider";
+      boutons.appendChild(non); boutons.appendChild(oui);
+      f.appendChild(titre); f.appendChild(texte); f.appendChild(u); f.appendChild(label); f.appendChild(boutons);
+      f.addEventListener("submit", function () {
+        var s = suite, code = champ.value;
+        suite = null;
+        if (s) { window.setTimeout(function () { s(code); }, 0); }
+      });
+      boite.appendChild(f);
+      document.body.appendChild(boite);
+    }
+    suite = apres;
+    champ.value = "";
+    boite.showModal();
+    champ.focus();
+  }
+  document.addEventListener("submit", function (e) {
+    var b = e.submitter, form = e.target;
+    if (!b || !form || !form.querySelector || document.body.hasAttribute("data-mode-admin")) { return; }
+    var besoin = b.hasAttribute("data-code");
+    if (besoin && b.getAttribute("data-code-sauf")) {
+      var c = form.querySelector('input[type="checkbox"][name="' + b.getAttribute("data-code-sauf") + '"]');
+      besoin = !(c && c.checked);
+    }
+    if (!besoin && b.getAttribute("data-code-long")) {
+      var d = form.elements[b.getAttribute("data-code-long")];
+      besoin = !!d && secondes(d.value) > 86400;
+    }
+    if (!besoin) { return; }
+    var saisi = form.querySelector('input[name="code"]');
+    if (saisi && saisi.value.trim() !== "") { return; } // code déjà là : on envoie
+    e.preventDefault();
+    demander(function (code) {
+      if (!saisi) {
+        saisi = document.createElement("input");
+        saisi.type = "hidden"; saisi.name = "code";
+        form.appendChild(saisi);
+      }
+      saisi.value = code;
+      // Même bouton (son nom et sa valeur partent avec le formulaire).
+      if (form.requestSubmit) { form.requestSubmit(b); } else { form.submit(); }
+    });
+  });
+})();
+
+// Téléphone (SPEC § 34.4) : bouton « Plus » de la barre du bas. Il ouvre ou
+// ferme tout le menu, affiché en plein écran au-dessus de la barre.
+(function () {
+  var appli = document.getElementById("appli");
+  var plus = document.querySelector("[data-menu-plus]");
+  if (!appli || !plus) { return; }
+  function regler(ouvert) {
+    appli.classList.toggle("ouvert", ouvert);
+    document.body.classList.toggle("menu-ouvert", ouvert);
+    plus.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    plus.classList.toggle("actif", ouvert);
+  }
+  plus.addEventListener("click", function () { regler(!appli.classList.contains("ouvert")); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { regler(false); } });
+  // « Aller à… » depuis le menu ouvert : le menu se referme derrière la recherche.
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-aller]")) { regler(false); }
+  });
+})();
+
+// Téléphone : tableaux marqués data-cartes affichés en cartes (une par
+// ligne), chaque valeur précédée du titre de sa colonne. Le titre est copié
+// ici dans data-label ; sans JavaScript, le tableau reste un tableau que
+// l'on fait défiler de côté.
+(function () {
+  function etiqueter() {
+    document.querySelectorAll("table[data-cartes]").forEach(function (t) {
+      var tete = t.tHead && t.tHead.rows[0];
+      if (!tete) { return; }
+      var noms = Array.prototype.map.call(tete.cells, function (th) { return th.textContent.trim(); });
+      Array.prototype.forEach.call(t.tBodies, function (corps) {
+        Array.prototype.forEach.call(corps.rows, function (ligne) {
+          Array.prototype.forEach.call(ligne.cells, function (c, i) {
+            if (!c.hasAttribute("data-label")) { c.setAttribute("data-label", noms[i] || ""); }
+            // Texte long (phrase de l'audit, résumé…) : titre au-dessus,
+            // texte sur toute la largeur, au lieu d'une colonne étroite.
+            if (i > 0 && c.textContent.trim().length > 36) { c.setAttribute("data-long", ""); }
+          });
+        });
+      });
+      t.classList.add("en-cartes");
+    });
+  }
+  etiqueter();
+  document.addEventListener("mirador:fragment", etiqueter);
 })();

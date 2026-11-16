@@ -66,10 +66,10 @@ func TestVerrousRevue(t *testing.T) {
 	v.Reussite("admin", "203.0.113.5", t0.Add(-24*time.Hour))
 	// Un compte verrouillé le reste malgré une avalanche de noms bidon.
 	for i := 0; i < 15; i++ {
-		v.EchecCompte("admin", 15, time.Hour, t0)
+		v.EchecCompte("admin", true, 15, time.Hour, t0)
 	}
 	for i := 0; i < entreesMax+50; i++ {
-		v.EchecCompte(fmt.Sprintf("bidon%d", i), 15, time.Hour, t0)
+		v.EchecCompte(fmt.Sprintf("bidon%d", i), false, 15, time.Hour, t0)
 	}
 	if !v.BloqueCompte("admin", "198.51.100.1", t0) {
 		t.Fatal("verrou de compte effacé par la saturation de la table")
@@ -157,13 +157,13 @@ func TestVerrouProgressif(t *testing.T) {
 	// Compte : une connexion réussie efface la série.
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 15; j++ {
-			v.EchecCompte("admin", 15, 15*time.Minute, t0.Add(time.Duration(i)*time.Hour))
+			v.EchecCompte("admin", true, 15, 15*time.Minute, t0.Add(time.Duration(i)*time.Hour))
 		}
 	}
 	v.Reussite("admin", "203.0.113.5", t0.Add(3*time.Hour))
 	var d time.Duration
 	for j := 0; j < 15; j++ {
-		d = v.EchecCompte("admin", 15, 15*time.Minute, t0.Add(4*time.Hour))
+		d = v.EchecCompte("admin", true, 15, 15*time.Minute, t0.Add(4*time.Hour))
 	}
 	if d != 15*time.Minute {
 		t.Errorf("après une réussite : %s, attendu 15 min", d)
@@ -184,5 +184,37 @@ func TestMotDePasseSimple(t *testing.T) {
 		if err := VerifierSimple(m, "jean.dupont"); err != nil {
 			t.Errorf("%q refusé : %v", m, err)
 		}
+	}
+}
+
+// Audit du 16/11 (SPEC § 34) : le compteur d'un vrai compte, pas encore
+// verrouillé, n'est plus chassé par une avalanche de noms inventés.
+func TestCompteurCompteGardeMalgreNomsInconnus(t *testing.T) {
+	v := NouveauxVerrous()
+	t0 := time.Unix(1_800_000_000, 0)
+	// 14 échecs sur « admin » (seuil du compte : 15) : pas encore verrouillé.
+	for i := 0; i < 14; i++ {
+		if d := v.EchecCompte("admin", true, 15, 15*time.Minute, t0.Add(time.Duration(i)*time.Second)); d != 0 {
+			t.Fatal("verrouillé trop tôt")
+		}
+	}
+	// 10 000 noms inventés dans la même fenêtre : la table des inconnus
+	// déborde, celle des comptes n'est pas touchée.
+	for i := 0; i < entreesMax; i++ {
+		v.EchecCompte(fmt.Sprintf("x%05d", i), false, 15, 15*time.Minute, t0.Add(20*time.Second+time.Duration(i)*50*time.Millisecond))
+	}
+	if len(v.inconnus) > entreesMax {
+		t.Fatalf("table des inconnus non bornée : %d entrées", len(v.inconnus))
+	}
+	// Le 15e échec verrouille bien le compte.
+	if d := v.EchecCompte("admin", true, 15, 15*time.Minute, t0.Add(10*time.Minute)); d == 0 {
+		t.Fatal("compteur du compte perdu : le 15e échec n'a pas verrouillé")
+	}
+	// Un nom inconnu se verrouille comme un vrai (même réponse pour les deux).
+	for i := 0; i < 15; i++ {
+		v.EchecCompte("personne", false, 15, 15*time.Minute, t0.Add(11*time.Minute))
+	}
+	if !v.BloqueCompte("personne", "198.51.100.9", t0.Add(11*time.Minute)) {
+		t.Fatal("nom inconnu : verrou attendu (sinon la réponse dirait qu'il n'existe pas)")
 	}
 }

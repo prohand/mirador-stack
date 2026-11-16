@@ -28,6 +28,6 @@
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="silence">
 <p>Sélecteur : <code>{{.D.Selecteur}}</code></p>
 <label>Pendant <select name="duree"><option>1h</option><option selected>4h</option><option>24h</option><option>168h</option></select></label>
-<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Poser le silence</button></form></section>
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button data-code-long="duree">Poser le silence</button></form></section>
 </div>{{end}}
 {{end}}

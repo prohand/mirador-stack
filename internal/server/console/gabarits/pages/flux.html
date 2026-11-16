@@ -3,7 +3,7 @@
 <form method="get" class="ligne filtres"><label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label><button>Afficher</button></form>
 <div class="chiffres"><div class="chiffre"><b>{{.D.Total}}</b><span>Flux bloqués</span></div><div class="chiffre"><b>{{.D.IPs}}</b><span>Adresses sources</span></div>{{if .D.GeoIP}}<div class="chiffre"><b>{{.D.Pays}}</b><span>Pays</span></div>{{end}}</div>
 {{if .D.Carte}}<section class="carte"><h2>Carte des pays d'origine</h2>{{if .D.CarteVide}}<p class="vide">Aucun pays : {{.D.CarteVide}}.</p>{{end}}
-<svg class="carte-monde" viewBox="0 0 1000 500" role="img" aria-label="Carte du monde des flux bloqués par pays">{{range .D.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}"><title>{{.Nom}} ({{.Code}}) : {{if .N}}{{.N}} flux bloqué(s){{else}}aucun flux{{end}}</title></path>{{end}}</svg>
+<svg class="carte-monde" viewBox="0 0 1000 500" role="img" aria-label="Carte du monde des flux bloqués par pays">{{range .D.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}"><title>{{.Nom}} ({{.Code}}) : {{if .N}}{{.N}} flux {{accord .N "bloqué(s)"}}{{else}}aucun flux{{end}}</title></path>{{end}}</svg>
 <p class="legende-carte"><span class="niveau-0"></span>Aucun <span class="niveau-1"></span>Peu <span class="niveau-3"></span> <span class="niveau-5"></span>Beaucoup <small class="aide">(échelle logarithmique)</small></p>
 </section>{{end}}
 {{if .D.Tronque}}<p class="message erreur">Résultat partiel (10 000 lignes lues au plus) : choisir une période plus courte.</p>{{end}}

@@ -19,6 +19,7 @@ import (
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/secrets"
 )
 
 func (c *Console) routesReglages() {
@@ -47,6 +48,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("GET /audit", c.lecture(c.pageAudit))
 	m.HandleFunc("GET /audit.csv", c.lecture(c.csvAudit))
 	m.HandleFunc("GET /reglages/export.yaml", c.admin(c.exportConfiguration))
+	m.HandleFunc("POST /reglages/export.yaml", c.admin(c.exportConfiguration)) // avec les secrets chiffrés : code 2FA
 	m.HandleFunc("POST /reglages/importer", c.admin(c.postImporterConfiguration))
 }
 
@@ -107,6 +109,9 @@ type donneesNotif struct {
 	Tests      []testCanal
 	Vmalert    alertes.ReglagesVmalert
 	Canaux     []string
+	// AppareilsPush : appareils abonnés aux notifications de l'application
+	// (tous comptes actifs), SPEC § 35.
+	AppareilsPush int
 }
 
 func (c *Console) pageNotifications(q *req) {
@@ -115,11 +120,21 @@ func (c *Console) pageNotifications(q *req) {
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail},
+	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail, notif.NomApplication},
 		ServicesHB: notif.ServicesHeartbeat}
 	if c.opt.Postier != nil {
 		d.Etat, d.HbOK, d.HbErr = c.opt.Postier.Etat()
 		d.File = c.opt.Postier.TailleFile(ctx)
+	}
+	// Rôle lecture : le sujet ntfy (chemin de l'adresse) n'est pas montré.
+	// Sans jeton, le connaître suffit pour lire les alertes ou en publier
+	// de fausses (audit du 16/11, SPEC § 34).
+	if !q.admin() && d.R.Canaux.Ntfy != nil && d.R.Canaux.Ntfy.URL != "" {
+		if u, err := url.Parse(d.R.Canaux.Ntfy.URL); err == nil && u.Host != "" {
+			d.R.Canaux.Ntfy.URL = u.Scheme + "://" + u.Host + "/" + secrets.Masque
+		} else {
+			d.R.Canaux.Ntfy.URL = secrets.Masque
+		}
 	}
 	d.Vmalert, _ = alertes.LireReglagesVmalert(ctx, c.db)
 	rows, err := c.db.QueryContext(ctx, `SELECT id, canal, demande_le, fait_le, statut, erreur FROM tests_canaux ORDER BY id DESC LIMIT 10`)
@@ -137,7 +152,8 @@ func (c *Console) pageNotifications(q *req) {
 		nom   string
 		actif bool
 	}{{notif.NomTelegram, cn.Telegram != nil && cn.Telegram.Actif}, {notif.NomOlvid, cn.Olvid != nil && cn.Olvid.Actif},
-		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif}} {
+		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif},
+		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}} {
 		if x.actif {
 			d.Testables = append(d.Testables, x.nom)
 		}
@@ -158,6 +174,10 @@ func (c *Console) pageNotifications(q *req) {
 	if d.R.Canaux.Heartbeat == nil {
 		d.R.Canaux.Heartbeat = &notif.Heartbeat{Intervalle: alertes.Duree(time.Minute)}
 	}
+	if d.R.Canaux.Application == nil {
+		d.R.Canaux.Application = &notif.Application{Copie: true} // copie cochée d'avance
+	}
+	d.AppareilsPush = notif.NombreAppareilsPush(ctx, c.db)
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
 }
 
@@ -189,6 +209,11 @@ func (c *Console) postNotifications(q *req) {
 			}
 			return "heartbeat envoyé : le service a répondu", nil
 		case action == "vmalert":
+			// Le serveur appelle cette adresse à chaque affichage de la page
+			// « Comparaison » : code 2FA ou mode administration.
+			if err := c.verifierCode(q); err != nil {
+				return "", err
+			}
 			v := alertes.ReglagesVmalert{Actif: f.coche("actif"), URL: f.texte("url"), Suffixe: f.texte("suffixe"),
 				Ignorer: f.liste("ignorer"), Correspondances: map[string]string{}}
 			for _, l := range strings.Split(f.q.r.PostFormValue("correspondances"), "\n") {
@@ -255,6 +280,12 @@ func (c *Console) postNotifications(q *req) {
 			cn.Olvid = &notif.Olvid{Actif: f.coche("olvid_actif"), Adresse: f.texte("olvid_adresse"), Cle: f.secret("olvid_cle"),
 				Discussion: disc, Confirmation: f.duree("olvid_confirmation", &errs)}
 			cn.Heartbeat = &notif.Heartbeat{Actif: f.coche("hb_actif"), Service: f.texte("hb_service"), URL: f.secret("hb_url"), Intervalle: f.duree("hb_intervalle", &errs)}
+			// Application (push) : rien à saisir, deux cases.
+			avantApp := cn.Application
+			cn.Application = &notif.Application{Actif: f.coche("app_actif"), Copie: f.coche("app_copie")}
+			if !cn.Application.Actif && avantApp == nil {
+				cn.Application = nil // jamais activé : rien à enregistrer
+			}
 			// Un canal jamais renseigné ne s'enregistre pas (pas de bloc vide à valider).
 			if !cn.Ntfy.Actif && cn.Ntfy.URL == "" {
 				cn.Ntfy = nil
@@ -761,6 +792,13 @@ func (c *Console) postInterface(q *req) {
 		c.retour(q, "/reglages/interface", nil, "téléchargement de la base GéoIP demandé (dans la minute)")
 		return
 	case "adresse":
+		// Cette adresse est reprise dans la commande d'installation, lancée
+		// en root sur les machines : code 2FA ou mode administration
+		// (audit du 16/11, SPEC § 34).
+		if e := c.verifierCode(q); e != nil {
+			c.retour(q, "/reglages/interface", e, "")
+			return
+		}
 		var e error
 		if r.Ingestion, e = normaliserIngestion(f.texte("ingestion")); e != nil {
 			c.retour(q, "/reglages/interface", e, "")
@@ -779,25 +817,32 @@ func (c *Console) postInterface(q *req) {
 	}
 	err := r.valider()
 	if err == nil {
-		b, _ := json.Marshal(r)
 		// Lire l'ancienne valeur AVANT d'ouvrir la transaction : la base n'a
 		// qu'une connexion, une lecture pendant la transaction se bloquerait.
-		avant, _ := json.Marshal(lireInterface(q.r.Context(), c.db))
-		var tx *sql.Tx
-		if tx, err = c.db.BeginTx(q.r.Context(), nil); err == nil {
-			err = errors.Join(ecrireReglage(q.r.Context(), tx, "interface", string(b), q.qui(), q.t),
-				Auditer(q.r.Context(), tx, q.qui(), "reglages_interface", "interface", string(avant), string(b), q.ip.String(), q.t))
-			if err == nil {
-				err = tx.Commit()
-			} else {
-				_ = tx.Rollback()
-			}
-		}
-	}
-	if err == nil {
-		c.appliquerInterface(q.r.Context(), q.t)
+		err = c.enregistrerInterface(q.r.Context(), lireInterface(q.r.Context(), c.db), r, q.qui(), q.ip.String(), q.t)
 	}
 	c.retour(q, "/reglages/interface", err, "réglages de l'interface enregistrés")
+}
+
+// enregistrerInterface : écrit les réglages (déjà validés) avec leur ligne
+// d'audit, puis les applique. Sert au formulaire et à l'import.
+func (c *Console) enregistrerInterface(ctx context.Context, avant, r ReglagesInterface, qui, adresse string, t time.Time) error {
+	b, _ := json.Marshal(r)
+	a, _ := json.Marshal(avant)
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err = errors.Join(ecrireReglage(ctx, tx, "interface", string(b), qui, t),
+		Auditer(ctx, tx, qui, "reglages_interface", "interface", string(a), string(b), adresse, t)); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	c.appliquerInterface(ctx, t)
+	return nil
 }
 
 // --- Journal d'audit ----------------------------------------------------------------------

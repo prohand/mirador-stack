@@ -85,7 +85,7 @@ func TestMessageCompteVerrouille(t *testing.T) {
 	t0 := b.h.maintenant()
 	// 15 échecs venus de 15 adresses : le compte est verrouillé.
 	for i := 0; i < 15; i++ {
-		b.c.echecConnexion(fmt.Sprintf("203.0.113.%d", i+1), "admin", "mot de passe faux", t0)
+		b.c.echecConnexion(fmt.Sprintf("203.0.113.%d", i+1), "admin", true, "mot de passe faux", t0)
 	}
 	if m := attendre(recus); !strings.Contains(m, "verrouillé") || !strings.Contains(m, "admin") {
 		t.Fatalf("compte verrouillé : message %q", m)
@@ -93,7 +93,7 @@ func TestMessageCompteVerrouille(t *testing.T) {
 	// Compte qui n'existe pas, ou texte qui n'est pas un nom : aucun message.
 	for _, nom := range []string{"personne", "Un Mot De Passe Tapé Ici"} {
 		for i := 0; i < 15; i++ {
-			b.c.echecConnexion(fmt.Sprintf("198.51.100.%d", i+1), nom, "compte inconnu", t0)
+			b.c.echecConnexion(fmt.Sprintf("198.51.100.%d", i+1), nom, false, "compte inconnu", t0)
 		}
 	}
 	if m := attendre(recus); m != "" {

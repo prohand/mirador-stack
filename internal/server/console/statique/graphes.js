@@ -262,7 +262,15 @@
   function exporterCSV(el) {
     var d = el.donnees;
     if (!d) { return; }
-    var cellule = function (t) { t = String(t); return /[";\n]/.test(t) ? "\"" + t.replace(/"/g, "\"\"") + "\"" : t; };
+    // Un nom de série vient des étiquettes envoyées par les machines : s'il
+    // commence par = + - @ (ou tabulation, retour chariot), un tableur le
+    // lirait comme une formule. Une apostrophe devant le garde en texte
+    // (même règle que les exports du serveur).
+    var cellule = function (t) {
+      t = String(t);
+      if (/^[=+\-@\t\r]/.test(t)) { t = "'" + t; }
+      return /[";\n]/.test(t) ? "\"" + t.replace(/"/g, "\"\"") + "\"" : t;
+    };
     var lignes = [["Heure"].concat(d.series.map(function (s) { return cellule(s.nom); })).concat(d.precedent ? ["Il y a 7 jours"] : []).join(";")];
     d.x.forEach(function (t, k) {
       var dt = new Date(t * 1000);
@@ -274,10 +282,46 @@
     telecharger(new Blob(["\ufeff" + lignes.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }), nomFichier(el, "csv"));
   }
 
+  // Aide des courbes : une seule fois par page, sous la première courbe
+  // (avant : répétée sous chacune). Texte adapté au doigt : sur un écran
+  // tactile on ne glisse pas pour zoomer (le geste fait défiler la page) et
+  // on ne survole pas.
+  var indicePage = null, indiceSeuil = false, indiceAn = false;
+  var tactile = !!(window.matchMedia && window.matchMedia("(hover: none)").matches);
+  function majIndice(el, seuil, avecAn) {
+    if (!el.parentNode) { return; }
+    indiceSeuil = indiceSeuil || seuil;
+    indiceAn = indiceAn || avecAn;
+    if (!indicePage || !document.contains(indicePage)) {
+      indicePage = document.createElement("p");
+      indicePage.className = "indice-courbe";
+      // Sous la première courbe de la page (pas sous la première dessinée).
+      var premiere = document.querySelector("[data-courbe]") || el;
+      premiere.parentNode.insertBefore(indicePage, premiere.nextSibling);
+    }
+    indicePage.textContent = (tactile ? "Toucher une courbe : valeurs à cet instant" : "Glisser : zoom · double-clic : retour") +
+      (indiceSeuil ? " · rouge : seuil du modèle" : "") +
+      (indiceAn ? " · bandes : alertes · traits gris : événements" + (tactile ? "" : " (survoler)") : "");
+  }
+
+  // Courbes chargées à l'affichage (SPEC § 34.4) : une courbe n'est demandée
+  // au serveur que lorsqu'elle approche de l'écran (400 px avant), puis
+  // rafraîchie seulement tant qu'elle y reste. La page d'une machine a une
+  // trentaine de courbes : sur téléphone on en voit une ou deux à la fois.
+  // Une section repliée ne charge rien tant qu'elle n'est pas ouverte.
+  var proches = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver(function (entrees) {
+    entrees.forEach(function (e) {
+      e.target.proche = e.isIntersecting;
+      if (e.isIntersecting && (!e.target.dessineLe || Date.now() - e.target.dessineLe > 60000)) { dessiner(e.target); }
+    });
+  }, { rootMargin: "400px 0px" }) : null;
+
   function dessiner(el) {
     // Zoom en cours (glisser sur la courbe) : pas de rechargement qui le
     // perdrait ; double-clic pour revenir.
     if (document.hidden || el.enCours || el.zoom) { return; }
+    // Loin de l'écran : rien à demander (voir « proches » ci-dessus).
+    if (proches && !el.proche) { return; }
     el.enCours = true;
     // data-courbe="apercu" : données déjà dans la page (aperçu de l'éditeur
     // de tableaux, panneau pas encore enregistré), dans data-json.
@@ -330,6 +374,13 @@
             value: function (u, v) { return formater(v, d.unite); } });
         }
         el.donnees = d;
+        el.dessineLe = Date.now();
+        // Dernier instant qui a une valeur : la légende le montre tant que
+        // le curseur n'est pas sur la courbe (avant : « — » partout).
+        var dernier = -1;
+        for (var k = d.x.length - 1; k >= 0 && dernier < 0; k--) {
+          for (var j = 0; j < d.series.length; j++) { if (d.series[j].v[k] !== null) { dernier = k; break; } }
+        }
         var an = d.annotations || null;
         el.ageSur = !!(an && an.derniere);
         el.derniere = el.ageSur ? an.derniere : derniereX(d);
@@ -376,7 +427,10 @@
                 zoomerTout(el, de, a);
               }
             }],
-            setCursor: [function (u) { survolAnnotations(el, u, an); }],
+            setCursor: [function (u) {
+              survolAnnotations(el, u, an);
+              if ((u.cursor.idx === null || u.cursor.idx === undefined) && dernier >= 0) { u.setLegend({ idx: dernier }, false); }
+            }],
             drawClear: [function (u) { dessinerBandes(u, an); }],
             draw: [function (u) {
               dessinerEvenements(u, an);
@@ -397,14 +451,10 @@
         if (el.u) { el.u.destroy(); }
         el.textContent = "";
         el.u = new uPlot(opts, donnees, el);
+        if (dernier >= 0) { el.u.setLegend({ idx: dernier }, false); }
         if (!el.ecouteZoom) {
           el.ecouteZoom = true;
           el.addEventListener("dblclick", function () { dezoomerTout(); });
-        }
-        if (!el.indice && el.parentNode) {
-          el.indice = document.createElement("p");
-          el.indice.className = "indice-courbe";
-          el.parentNode.insertBefore(el.indice, el.nextSibling);
         }
         var avecAn = an && ((an.alertes && an.alertes.length) || (an.evenements && an.evenements.length));
         if (avecAn && !el.survol && el.parentNode) {
@@ -413,10 +463,7 @@
           el.survol.hidden = true;
           el.parentNode.insertBefore(el.survol, el.nextSibling);
         }
-        if (el.indice) {
-          el.indice.textContent = "Glisser : zoom · double-clic : retour" + (seuil !== null ? " · rouge : seuil du modèle" : "") +
-            (avecAn ? " · bandes : alertes · traits gris : événements (survoler)" : "");
-        }
+        majIndice(el, seuil !== null, !!avecAn);
         filtrer(el, d.series.length);
         outils(el, d);
         // Zoom donné par l'adresse (lien partagé) : appliqué au premier dessin.
@@ -480,4 +527,5 @@
     });
     document.querySelectorAll("[data-courbe]").forEach(function (el) { ro.observe(el); });
   }
+  if (proches) { document.querySelectorAll("[data-courbe]").forEach(function (el) { proches.observe(el); }); }
 })();

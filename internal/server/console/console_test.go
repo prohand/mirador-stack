@@ -120,9 +120,10 @@ func (b *banc) post(c *http.Client, chemin string, v url.Values, entetes ...stri
 }
 
 var (
-	reCSRF   = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
-	reSecret = regexp.MustCompile(`<code class="secret">([^<]+)</code>`)
-	reJeton  = regexp.MustCompile(`"jeton":"(mirador_premier_[^"]+)"`)
+	reCSRF    = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
+	reSecret  = regexp.MustCompile(`<code class="secret">([^<]+)</code>`)
+	reJeton   = regexp.MustCompile(`"jeton":"(mirador_premier_[^"]+)"`)
+	reClePush = regexp.MustCompile(`data-push="activer" data-cle="([^"]+)"`)
 )
 
 func trouver(t *testing.T, re *regexp.Regexp, s string) string {
@@ -271,7 +272,13 @@ func TestAccesSansSession(t *testing.T) {
 	b.premierAdmin("admin", mdpAdmin)
 	c := b.client()
 	for _, p := range []string{"/", "/compte", "/utilisateurs", "/securite", "/n-importe-quoi", "/machines"} {
-		if code, _, h := b.get(c, p); code != http.StatusSeeOther || h.Get("Location") != "/connexion" {
+		// La page demandée est gardée pour y revenir après la connexion
+		// (sauf l'accueil : c'est là qu'on arrive de toute façon).
+		attendu := "/connexion"
+		if p != "/" {
+			attendu += "?suite=" + url.QueryEscape(p)
+		}
+		if code, _, h := b.get(c, p); code != http.StatusSeeOther || h.Get("Location") != attendu {
 			t.Errorf("GET %s sans session : %d %s", p, code, h.Get("Location"))
 		}
 	}

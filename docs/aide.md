@@ -142,3 +142,37 @@ section de cette page.
 - Variables : `$__rate_interval`, et les filtres du tableau
   (`instance=~"$instance"`).
 - Légende : `{{instance}}`, `{{device}}`…
+
+<a id="application"></a>
+## Notifications : application (push)
+
+- **Ce que c'est** : les alertes arrivent en notification sur le téléphone
+  ou le navigateur, et l'icône de l'application porte le nombre d'alertes
+  en cours (pastille).
+- **Deux réglages** (Réglages › Notifications › Application) :
+  - *Actif* : le canal existe ; il peut être choisi comme canal principal
+    ou de secours ;
+  - *Copie* : quand un autre canal (Telegram…) porte le message, les
+    appareils le reçoivent aussi. La copie ne compte pas pour la bascule.
+- **Chaque personne abonne ses appareils** dans « Mon compte » ›
+  Notifications sur cet appareil (code 2FA ou mode administration). Dix
+  appareils au plus par compte.
+- **iPhone, iPad** : installer d'abord mirador sur l'écran d'accueil
+  (Partager › Sur l'écran d'accueil), puis activer depuis l'application
+  (iOS 16.4 ou plus récent).
+- **Par où passe le message** : par le service de push du navigateur
+  (Google, Apple, Mozilla, Microsoft). Il est chiffré pour l'appareil : ce
+  service ne peut pas le lire. Il connaît l'adresse de l'interface et
+  l'heure des envois.
+- **Le serveur doit pouvoir sortir en HTTPS** vers `fcm.googleapis.com`,
+  `*.push.apple.com`, `*.push.services.mozilla.com` et
+  `*.notify.windows.com` (pare-feu du serveur).
+- **Pastille** : mise à jour à chaque notification, et à chaque ouverture
+  de l'application. Sans notification (mode ombre, copie décochée), elle
+  ne bouge qu'à l'ouverture.
+- **Un appareil ne reçoit plus rien** : « Envoyer une notification
+  d'essai » ; sinon le retirer et le réabonner. Un abonnement refusé par le
+  service (application désinstallée) est effacé tout seul.
+- **Serveur restauré sans sa base, ou clé des secrets changée** : la clé
+  des notifications change, tous les appareils doivent être réabonnés.
+

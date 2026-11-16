@@ -22,6 +22,11 @@ import (
 //     oublie d'abord les compteurs périmés, puis les plus anciens compteurs
 //     NON verrouillés : un verrou actif n'est jamais effacé par une
 //     avalanche de noms ou d'adresses ;
+//   - les comptes QUI EXISTENT ont leur propre table (audit du 16/11,
+//     SPEC § 34) : avant, 10 000 échecs sur des noms inventés chassaient le
+//     compteur d'un vrai compte pas encore verrouillé (14 échecs oubliés,
+//     mesuré). Les noms inconnus sont comptés à part, avec les mêmes seuils
+//     et les mêmes messages : la réponse ne dit toujours pas si un nom existe ;
 //   - verrou progressif : chaque nouveau verrou de la même adresse ou du
 //     même compte dure deux fois plus longtemps que le précédent (15 min,
 //     30 min, 1 h… 24 h au plus). La série repart de zéro après 24 h sans
@@ -53,15 +58,19 @@ type compteur struct {
 type table map[string]*compteur
 
 type Verrous struct {
-	mu        sync.Mutex
-	adresses  table
-	comptes   table
+	mu       sync.Mutex
+	adresses table
+	comptes  table // comptes qui existent (quelques-uns : jamais pleine en pratique)
+	// inconnus : noms qui ne sont pas des comptes (fautes de frappe, noms
+	// inventés par un attaquant). Table à part : la remplir ne chasse aucun
+	// compteur d'un vrai compte.
+	inconnus  table
 	confiance map[string]time.Time // « compte|adresse » → dernière connexion réussie
 	enCours   map[string]int       // essais en cours de vérification (« a|adresse », « c|compte »)
 }
 
 func NouveauxVerrous() *Verrous {
-	return &Verrous{adresses: table{}, comptes: table{}, confiance: map[string]time.Time{}, enCours: map[string]int{}}
+	return &Verrous{adresses: table{}, comptes: table{}, inconnus: table{}, confiance: map[string]time.Time{}, enCours: map[string]int{}}
 }
 
 // debuter réserve un essai (mot de passe ou code) pour cette adresse et ce
@@ -82,7 +91,7 @@ func (v *Verrous) Debuter(nom, ip string, seuil int, t time.Time) (finir func(),
 	// Compte : seuil 3 fois plus haut, et jamais pour une adresse de
 	// confiance (mêmes règles que bloqueCompte et echecCompte).
 	le, connue := v.confiance[nom+"|"+adr]
-	if !(connue && t.Sub(le) < dureeConfiance) && v.comptes.recents(nom, t)+v.enCours[kc] >= 3*seuil {
+	if !(connue && t.Sub(le) < dureeConfiance) && v.comptes.recents(nom, t)+v.inconnus.recents(nom, t)+v.enCours[kc] >= 3*seuil {
 		return nil, false
 	}
 	v.enCours[ka]++
@@ -128,7 +137,7 @@ func (v *Verrous) BloqueCompte(nom, ip string, t time.Time) bool {
 	if le, ok := v.confiance[nom+"|"+CleAdresse(ip)]; ok && t.Sub(le) < dureeConfiance {
 		return false
 	}
-	return v.comptes.bloque(nom, t)
+	return v.comptes.bloque(nom, t) || v.inconnus.bloque(nom, t)
 }
 
 // echecAdresse, echecCompte : un échec. Si la clé vient d'être verrouillée,
@@ -139,9 +148,14 @@ func (v *Verrous) EchecAdresse(ip string, seuil int, duree time.Duration, t time
 	return v.adresses.echec(CleAdresse(ip), seuil, duree, t)
 }
 
-func (v *Verrous) EchecCompte(nom string, seuil int, duree time.Duration, t time.Time) time.Duration {
+// existe : le nom est celui d'un compte de la base. Un nom inconnu est
+// compté dans une table à part (voir en tête de fichier).
+func (v *Verrous) EchecCompte(nom string, existe bool, seuil int, duree time.Duration, t time.Time) time.Duration {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if !existe {
+		return v.inconnus.echec(nom, seuil, duree, t)
+	}
 	return v.comptes.echec(nom, seuil, duree, t)
 }
 
@@ -162,6 +176,7 @@ func (v *Verrous) Reussite(nom, ip string, t time.Time) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	delete(v.comptes, nom)
+	delete(v.inconnus, nom) // compte créé après des essais sur son nom
 	if len(v.confiance) >= confianceMax {
 		for k, le := range v.confiance {
 			if t.Sub(le) >= dureeConfiance {
@@ -179,7 +194,7 @@ func (v *Verrous) Reussite(nom, ip string, t time.Time) {
 func (v *Verrous) Lever() {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.adresses, v.comptes = table{}, table{}
+	v.adresses, v.comptes, v.inconnus = table{}, table{}, table{}
 }
 
 func (tb table) bloque(cle string, t time.Time) bool {

@@ -1,3 +1,7 @@
+{{define "tete-app"}}{{/* Application installée sur l'écran d'accueil (PWA, SPEC § 34.3) : manifeste et icônes. */}}<link rel="manifest" href="/statique/mirador.webmanifest">
+<link rel="apple-touch-icon" href="{{statique "icones/icone-apple-180.png"}}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="mirador">{{end}}
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
 {{define "code2fa-toujours"}}<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label>{{end}}
@@ -19,7 +23,7 @@
 {{define "liste-alertes"}}{{if .}}<div data-alertes>
 <div class="ligne filtres-alertes"><label>Gravité <select data-filtre-gravite><option value="">Toutes</option><option value="3">Critique</option><option value="2">Avertissement</option><option value="1">Info</option></select></label>
 <label>Filtre <input type="search" data-filtre-alertes placeholder="alerte, machine, résumé…" maxlength="63" autocomplete="off"></label></div>
-<div class="defile"><table>
+<div class="defile"><table data-cartes>
 <thead><tr><th data-tri="gravite">Gravité</th><th data-tri="regle">Alerte</th><th data-tri="machine">Machine</th><th>Résumé</th><th data-tri="depuis">Depuis</th><th>État</th></tr></thead>
 <tbody>{{range $i, $a := .}}<tr data-rang="{{$i}}" data-gravite="{{if egal .Gravite "critical"}}3{{else if egal .Gravite "warning"}}2{{else}}1{{end}}" data-regle="{{.Regle}}" data-machine="{{.Machine}}" data-depuis="{{.Depuis}}" data-texte="{{.Regle}} {{.Machine}} {{.Resume}}"><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
 <td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{.Resume}}</td><td>{{depuisMs .Depuis}}</td>
@@ -28,17 +32,17 @@
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
-  <p>{{sub .D.Machines .D.Muettes}} machine(s) sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} alerte(s) à regarder{{else}} · aucune alerte active{{end}}</p></div>
+  <p>{{sub .D.Machines .D.Muettes}} {{accord (sub .D.Machines .D.Muettes) "machine(s)"}} sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} {{accord .D.Actives "alerte(s)"}} à regarder{{else}} · aucune alerte active{{end}}</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
 </div>
 <div class="kpis">
   <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
-    <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} muette(s) depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
+    <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} {{accord .D.Muettes "muette(s)"}} depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
   <a class="kpi" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
     <div class="kpi-valeur">{{.D.Actives}}</div>
-    <div class="kpi-bas">{{.D.Critiques}} critique(s) · {{.D.Avertissements}} avertissement(s)</div></a>
+    <div class="kpi-bas">{{.D.Critiques}} {{accord .D.Critiques "critique(s)"}} · {{.D.Avertissements}} {{accord .D.Avertissements "avertissement(s)"}}</div></a>
   <a class="kpi" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
     {{if .D.Principal.Nom}}<div class="kpi-valeur moyen">{{majuscule .D.Principal.Nom}}</div>
     <div class="kpi-bas {{if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}">Principal {{if .D.Principal.EnPanne}}en panne{{else}}OK{{end}}{{if .D.Secours.Nom}} · secours {{majuscule .D.Secours.Nom}} {{if .D.Secours.EnPanne}}en panne{{else}}OK{{end}}{{end}}</div>
@@ -49,6 +53,7 @@
 </div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
 {{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}
+{{template "liste-masquees" .D.Masquees}}
 {{template "liste-attente" .D.Attente}}
 <section class="carte" data-parc>
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
@@ -69,8 +74,8 @@
       {{if .D.LienLinux}}<a href="/tableaux/serveurs-linux">Tableau « Serveurs Linux » →</a>{{end}}
       <a href="/mur" title="Vue pour un écran au mur : grands caractères, sans menu, rechargée toutes les 30 s">Écran mural ↗</a>
     </div></div>
-  {{if .D.Parc}}<div class="defile"><table class="parc">
-  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-majs masque-tel" data-tri="majs">Mises à jour</th><th class="col-vu masque-tel" data-tri="vu">Vu</th></tr></thead>
+  {{if .D.Parc}}<div class="defile"><table class="parc" data-cartes>
+  <thead><tr><th data-tri="nom">Machine</th><th data-tri="etat">État</th><th class="col-courbe masque-tel">CPU · 6 h</th><th class="col-cpu" data-tri="cpu">CPU</th><th class="col-memoire masque-tel" data-tri="memoire">Mémoire</th><th class="col-disque" data-tri="disque">Disque</th><th class="col-alertes" data-tri="alertes">Alertes</th><th class="col-valider masque-tel" data-tri="valider">À valider</th><th class="col-majs masque-tel" data-tri="majs">Mises à jour</th><th class="col-vu masque-tel" data-tri="vu">Vu il y a</th></tr></thead>
   <tbody>{{range $i, $l := .D.Parc}}<tr data-rang="{{$i}}" data-nom="{{.Nom}}" data-texte="{{.Nom}} {{.Site}} {{.Env}} {{.Groupe}}" data-cpu="{{.PctCPU}}" data-memoire="{{.PctMemoire}}" data-disque="{{.PctDisque}}" data-alertes="{{.Alertes}}" data-etat="{{.Gravite}}" data-valider="{{.Nouveautes}}" data-majs="{{.Paquets}}" data-vu="{{.VuLe}}">
     <td class="nom-machine"><a href="/machines/{{.Nom}}"><b>{{.Nom}}</b></a><span class="sous">{{.Site}}{{if .Env}} · {{.Env}}{{end}}</span></td>
     <td><span class="pastille {{.ClasseEtat}}">{{.Etat}}</span></td>
@@ -81,7 +86,7 @@
     <td class="col-alertes"><a class="cloche {{.ClasseAlertes}}" href="/machines/{{.Nom}}" title="Alertes actives de {{.Nom}}"><svg class="icone"><use href="#i-alertes"></use></svg>{{.Alertes}}</a></td>
     <td class="col-valider masque-tel">{{if .Nouveautes}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance">{{.Nouveautes}} à valider</a>{{end}}</td>
     <td class="col-majs masque-tel">{{if gt .Paquets 0}}<a class="pastille {{if .PaquetsSecurite}}attention{{end}}" href="/machines/{{.Nom}}" title="Paquets à mettre à jour{{if .PaquetsSecurite}}, dont {{.PaquetsSecurite}} de sécurité{{end}}">{{.Paquets}}{{if .PaquetsSecurite}} · {{.PaquetsSecurite}} sécu{{end}}</a>{{else if eq .Paquets 0}}<span class="sous">À jour</span>{{end}}{{if .Redemarrage}} <span class="pastille attention" title="Redémarrage nécessaire (/run/reboot-required)">Redémarrer</span>{{end}}</td>
-    <td class="col-vu masque-tel">{{depuisS .VuLe}}</td></tr>{{end}}</tbody>
+    <td class="col-vu masque-tel">{{sansIlYA (depuisS .VuLe)}}</td></tr>{{end}}</tbody>
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
 </section>
@@ -113,7 +118,7 @@
 <label>Note <input name="note" value="{{.D.R.Note}}" maxlength="1024"></label>
 <input type="hidden" name="origine" value="{{.D.R.Origine}}">
 <label class="case"><input type="checkbox" name="active" value="1" {{if .D.R.Active}}checked{{end}}> Active</label>
-{{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer">Enregistrer</button></div>{{end}}
+{{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer" data-code>Enregistrer</button></div>{{end}}
 </form></section>{{end}}
 {{define "avancement-certificat"}}<ol class="avancement"{{if .EnCours}} data-recharger="15"{{end}}>{{range .Etapes}}<li class="av-{{.Etat}}"><span class="av-puce" aria-hidden="true"></span><div><strong>{{.Titre}}</strong> <span class="masque-visuel">({{if egal .Etat "fait"}}fait{{else if egal .Etat "encours"}}en cours{{else if egal .Etat "erreur"}}en échec{{else}}à venir{{end}})</span>{{if .Detail}}<small>{{.Detail}}</small>{{end}}</div></li>{{end}}</ol>
 {{if .EnCours}}<p class="aide"><small class="aide">Page rechargée toute seule toutes les 15 s tant qu'une étape avance.</small></p>{{end}}{{end}}
@@ -189,7 +194,7 @@
 <symbol id="i-base" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
 <symbol id="i-vitesse" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8"/><path d="M15 9h6M16 13h5M17 17h4"/></symbol>
 <symbol id="i-puce-sim" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><rect x="10" y="11" width="6" height="6" rx="1"/></symbol>
-<symbol id="i-chevron" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
 </svg>{{end}}
 
 {{/* Liste d'un modèle (partie B) : une valeur par ligne, chacune devient un test de l'agent. */}}
@@ -211,8 +216,8 @@
  <span class="tuile"><small>Nouvelles depuis ta dernière visite</small><b data-nb-nouvelles>0</b></span>
 </div>
 {{if eq $v.Vue "liste"}}<section class="carte">{{template "liste-alertes" $v.Liste}}</section>
-{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary><strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong>{{range $g.Gravites}} {{template "gravite" .}}{{end}}<span class="nb">{{len $g.Alertes}} alerte(s)</span></summary>
-<div class="defile"><table class="table-alertes"><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
+{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary><strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong>{{range $g.Gravites}} {{template "gravite" .}}{{end}}<span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}</span></summary>
+<div class="defile"><table class="table-alertes" data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
 {{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
 <td><a class="titre" href="/alertes/{{.ID}}">{{.Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>
 {{if eq .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td>
@@ -221,14 +226,19 @@
 </tbody></table></div></details>{{end}}
 {{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
 {{template "liste-prises" (dict "L" $v.Prises "Admin" $.Admin "CSRF" $.CSRF "Retour" $v.Retour)}}
+{{template "liste-masquees" $v.Masquees}}
 {{template "liste-attente" $v.Attente}}
 </div>{{end}}
 {{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
-<div class="defile"><table><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
+<div class="defile"><table data-cartes><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
 {{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
 </tbody></table></div></details>{{end}}{{end}}
+{{define "liste-masquees"}}{{if .}}<details class="carte attente-alertes"><summary><strong>Masquées par une panne</strong> ({{len .}}) · <span class="sous">suites d'une alerte déjà affichée (machine muette, équipement parent en panne) : rien n'est compté ni envoyé</span></summary>
+<div class="defile"><table data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Masquée car</th></tr></thead><tbody>
+{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a>{{if .Resume}}<span class="resume">{{.Resume}}</span>{{end}}</td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{majuscule .Sourdine}}</td></tr>{{end}}
+</tbody></table></div></details>{{end}}{{end}}
 {{define "liste-prises"}}{{if .L}}<details class="carte prises-alertes"><summary><strong>Prises en charge</strong> ({{len .L}}) · <span class="sous">acquittées : pas comptées, pas de rappel pendant la durée choisie</span></summary>
-<div class="defile"><table><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Prise en charge</th><th></th></tr></thead><tbody>
+<div class="defile"><table data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Prise en charge</th><th></th></tr></thead><tbody>
 {{range .L}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a>{{if .Resume}}<span class="resume">{{.Resume}}</span>{{end}}</td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td>
 <td>par <strong>{{.AcquitteePar}}</strong> à {{.AcquitteeLe}}<br><small class="pale">{{if .AcquitteeJusqua}}jusqu'au {{.AcquitteeJusqua}}, puis rappel si elle dure{{else}}jusqu'à la fin de l'alerte{{end}}</small></td>
 <td>{{if $.Admin}}<form method="post" action="/alertes/{{.ID}}" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="reprendre"><input type="hidden" name="retour" value="{{$.Retour}}"><button class="secondaire petit" title="De nouveau à traiter (rappels repris)">Reprendre</button></form>{{end}}</td></tr>{{end}}

@@ -195,15 +195,32 @@ func TestSNMPInterface(t *testing.T) {
 	if !strings.Contains(corps, `id="snmp"`) || strings.Contains(corps, "tres-secret") || strings.Contains(corps, "chiffre:v1:") {
 		t.Error("page SNMP : bloc absent ou mot de passe affiché")
 	}
-	// Modification sans mots de passe : gardés.
+	// Modification sans mots de passe : gardés, tant que l'adresse ne change pas.
 	f.Set("mot_de_passe", "")
 	f.Set("cle_chiffrement", "")
-	f.Set("adresse", "192.168.1.21:161")
+	f.Set("auth", "SHA512")
 	b.post(c, "/machines/collecteur-lan", f)
 	doc2, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC)
-	if !strings.Contains(string(doc2), "192.168.1.21:161") || strings.Count(string(doc2), "chiffre:v1:") != 2 {
+	if !strings.Contains(string(doc2), `"auth":"SHA512"`) || strings.Count(string(doc2), "chiffre:v1:") != 2 {
 		t.Fatalf("modification : %s", doc2)
 	}
+	// Adresse changée sans ressaisir les mots de passe : refusé (audit du
+	// 16/11 : un secret gardé ne part pas vers un autre équipement).
+	f.Set("adresse", "192.168.1.21:161")
+	b.post(c, "/machines/collecteur-lan", f)
+	if d, _, _ := flotte.ConfigMachine(ctx, b.c.db, idC); strings.Contains(string(d), "192.168.1.21:161") {
+		t.Fatalf("adresse changée avec les anciens mots de passe : %s", d)
+	}
+	// Avec les mots de passe : accepté.
+	f.Set("mot_de_passe", "tres-secret-auth")
+	f.Set("cle_chiffrement", "tres-secret-priv")
+	b.post(c, "/machines/collecteur-lan", f)
+	doc2, _, _ = flotte.ConfigMachine(ctx, b.c.db, idC)
+	if !strings.Contains(string(doc2), "192.168.1.21:161") || strings.Count(string(doc2), "chiffre:v1:") != 2 {
+		t.Fatalf("adresse changée avec ses mots de passe : %s", doc2)
+	}
+	f.Set("mot_de_passe", "")
+	f.Set("cle_chiffrement", "")
 	// Adresse publique refusée.
 	f.Set("adresse", "8.8.8.8")
 	b.post(c, "/machines/collecteur-lan", f)
@@ -250,13 +267,25 @@ func TestUniFiInterface(t *testing.T) {
 	if !strings.Contains(corps, "compte <code>lecture</code>") || strings.Contains(corps, "mot-de-passe-unifi") {
 		t.Error("page : relevé UniFi absent ou secret affiché")
 	}
-	// Modification sans secret : gardé ; adresse publique refusée.
+	// Adresse changée sans ressaisir le secret : refusé (audit du 16/11).
 	f.Del("code")
 	f.Set("secret", "")
 	f.Set("adresse", "https://unifi.lan")
 	b.post(c, "/machines/collecteur-lan", f)
 	cfg, _ := flotte.ConfigEffective(ctx, b.c.db, idC)
-	if cfg.Collecteur.UniFi == nil || cfg.Collecteur.UniFi.Adresse != "https://unifi.lan" || !strings.HasPrefix(cfg.Collecteur.UniFi.MotDePasse, "chiffre:v1:") {
+	if cfg.Collecteur.UniFi == nil || cfg.Collecteur.UniFi.Adresse != "https://192.168.1.5" {
+		t.Fatalf("adresse changée avec l'ancien secret : %+v", cfg.Collecteur.UniFi)
+	}
+	// Avec le secret : accepté ; ensuite, modification sans secret (même
+	// adresse) : gardé. Adresse publique refusée.
+	f.Set("secret", "mot-de-passe-unifi")
+	b.post(c, "/machines/collecteur-lan", f)
+	f.Set("secret", "")
+	f.Set("sites", "default, annexe")
+	b.post(c, "/machines/collecteur-lan", f)
+	cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC)
+	if cfg.Collecteur.UniFi == nil || cfg.Collecteur.UniFi.Adresse != "https://unifi.lan" || len(cfg.Collecteur.UniFi.Sites) != 2 ||
+		!strings.HasPrefix(cfg.Collecteur.UniFi.MotDePasse, "chiffre:v1:") {
 		t.Fatalf("modification : %+v", cfg.Collecteur.UniFi)
 	}
 	f.Set("adresse", "https://8.8.8.8")

@@ -172,7 +172,7 @@ form.ligne, .ligne { display: flex; gap: .6rem; flex-wrap: wrap; align-items: en
 form.enligne { display: inline; }
 label { display: flex; flex-direction: column; gap: .3rem; font-size: 13px; font-weight: 500; color: var(--doux); }
 label.case { flex-direction: row; align-items: center; gap: .5rem; color: var(--texte); font-weight: 400; }
-small { color: var(--pale); font-weight: 400; }
+small { color: var(--pale); font-weight: 400; font-size: 12px; }
 input, select, textarea, button { font: inherit; color: inherit; }
 input, select, textarea { padding: .45rem .65rem; min-height: 36px; border: 1px solid var(--bord-champ); border-radius: 8px; background: var(--champ); color: var(--texte); max-width: 100%; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
@@ -209,7 +209,7 @@ meter { width: 100%; height: .8rem; }
 body.seule { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
 .carte-seule { background: var(--carte); border: 1px solid var(--bord); border-radius: 18px; padding: 28px; width: min(440px, 100%); box-shadow: 0 8px 30px rgba(17,24,39,.08); }
 .carte-seule form.pile { max-width: none; }
-.carte-seule .logo { margin-bottom: 18px; }
+.carte-seule .logo { margin-bottom: 18px; color: var(--texte); } /* sur la carte claire : le blanc du menu était invisible */
 
 /* --- Tableaux de bord, logs, courbes -------------------------------------------- */
 .logs td.message-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; word-break: break-word; }
@@ -448,6 +448,12 @@ button.aller kbd { margin-left: auto; font: inherit; font-size: 11px; padding: 1
 .replie button.aller { justify-content: center; padding: 0; }
 dialog.aller-boite { width: min(520px, calc(100vw - 32px)); margin-top: 12vh; padding: 12px; border: 1px solid var(--bord); border-radius: 16px; background: var(--carte); color: var(--texte); box-shadow: 0 16px 48px rgba(17,24,39,.25); }
 dialog.aller-boite::backdrop { background: rgba(15,20,32,.45); }
+/* Code 2FA demandé au moment d'envoyer une action protégée (mirador.js). */
+dialog.code-boite { width: min(380px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--bord); border-radius: 16px; background: var(--carte); color: var(--texte); box-shadow: 0 16px 48px rgba(17,24,39,.25); }
+dialog.code-boite::backdrop { background: rgba(15,20,32,.45); }
+dialog.code-boite h2 { margin: 0 0 8px; }
+dialog.code-boite p { margin: 0 0 14px; color: var(--pale); font-size: 13px; }
+dialog.code-boite .ligne { margin-top: 16px; justify-content: flex-end; }
 dialog.aller-boite input { width: 100%; }
 dialog.aller-boite ul { list-style: none; margin: 10px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
 dialog.aller-boite li a { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 10px; text-decoration: none; color: var(--texte); font-weight: 500; }
@@ -554,7 +560,7 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .ligne-alerte td { vertical-align: middle; }
 .ligne-alerte .titre { font-weight: 600; }
 .ligne-alerte .resume { display: block; font-size: 12.5px; color: var(--pale); margin-top: 2px; }
-tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after { content: "nouvelle"; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--info-fond); color: var(--info); }
+tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after { content: "nouvelle"; margin-left: 6px; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--info-fond); color: var(--info); }
 .actions-alerte { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .actions-alerte .petit, .actions-alerte .bouton.petit { padding: 4px 10px; font-size: 12.5px; min-height: 0; }
 .menu-silence > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; padding: 4px 10px; font-size: 12.5px; font-weight: 500;
@@ -576,7 +582,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .frise-tete { border-bottom: 0; }
 .frise-nom { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .frise-nom small { color: var(--pale); }
-.frise-graduations { display: grid; font-size: 11.5px; color: var(--pale); }
+.frise-graduations { display: grid; font-size: 12px; color: var(--pale); }
 .frise-graduations.g8 { grid-template-columns: repeat(8, 1fr); }
 .frise-graduations.g7 { grid-template-columns: repeat(7, 1fr); }
 .frise-barres { display: block; width: 100%; height: 16px; background: var(--survol); border-radius: 4px; }
@@ -594,7 +600,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .jauge-machine b { display: block; font-size: 22px; color: var(--titres); line-height: 1.25; }
 .jauge-machine .jauge { height: 6px; margin-top: 8px; }
 .jauge-machine .jauge i { height: 6px; }
-.jauge-machine .detail { display: block; margin-top: 4px; font-size: 11.5px; color: var(--pale); }
+.jauge-machine .detail { display: block; margin-top: 4px; font-size: 12px; color: var(--pale); }
 .sommaire-machine { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 6px; }
 .sommaire-machine > a { padding: 4px 12px; border-radius: 999px; background: var(--survol); color: var(--texte); text-decoration: none; font-size: 13px; }
 .sommaire-machine .periode { margin-left: auto; }
@@ -612,7 +618,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .uplot .u-legend tr.u-series { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 999px; background: var(--survol); cursor: pointer; }
 .uplot .u-legend tr.u-series:first-child { background: transparent; cursor: default; }
 .uplot .u-legend tr.u-series.u-off { opacity: .45; }
-.indice-courbe { margin: 2px 0 0; font-size: 11.5px; color: var(--pale); }
+.indice-courbe { margin: 2px 0 0; font-size: 12px; color: var(--pale); }
 
 /* --- Prises en charge (SPEC § 30) ---------------------------------------- */
 .prises-alertes { opacity: .85; }
@@ -657,7 +663,7 @@ body.avec-plein-ecran::before { content: ""; position: fixed; inset: 0; z-index:
 .ch-3 { background: #F2B65A; } .ch-4 { background: #E5793A; } .ch-5 { background: #C4321F; }
 :root[data-theme="sombre"] .ch-0 { background: #1C2442; } :root[data-theme="sombre"] .ch-1 { background: #26357A; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .ch-0 { background: #1C2442; } :root:not([data-theme="clair"]) .ch-1 { background: #26357A; } }
-.legende-chaleur { margin: 8px 0 0; font-size: 11.5px; color: var(--pale); }
+.legende-chaleur { margin: 8px 0 0; font-size: 12px; color: var(--pale); }
 .legende-chaleur span { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 2px 0 8px; }
 /* Écran mural (SPEC § 31) : sans menu, grands caractères, thème sombre. */
 body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 32px; margin: 0; min-height: 100vh; box-sizing: border-box; }
@@ -736,7 +742,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-pastille.exclu { background: var(--erreur-fond); color: var(--erreur); }
 .logs-raccourcis a { padding: 3px 10px; border-radius: 999px; background: var(--survol); color: var(--texte); text-decoration: none; }
 .logs-raccourcis a.perso::before { content: "★ "; color: var(--attention); }
-.logs-suppr { min-height: 0; padding: 0 4px; margin-left: -4px; border: 0; background: none; color: var(--pale); cursor: pointer; font-size: 11px; }
+.logs-suppr { min-height: 0; padding: 0 4px; margin-left: -4px; border: 0; background: none; color: var(--pale); cursor: pointer; font-size: 12px; }
 .logs-histo-tete { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .logs-histo-tete h2 { margin: 0; }
 .logs-stat { font-size: 13px; color: var(--doux); }
@@ -748,7 +754,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-histo .h-selection { fill: rgba(62, 99, 221, .15); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 :root[data-theme="sombre"] .logs-histo .h-autre { fill: #3A4F9A; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .logs-histo .h-autre { fill: #3A4F9A; } }
-.logs-axe { display: flex; justify-content: space-between; font-size: 11px; color: var(--pale); }
+.logs-axe { display: flex; justify-content: space-between; font-size: 12px; color: var(--pale); }
 .logs-onglets { display: flex; gap: 4px; margin: 16px 0 10px; border-bottom: 1px solid var(--bord); }
 .logs-onglets a { padding: 8px 14px; font-size: 14px; color: var(--doux); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .logs-onglets a.actif { color: var(--texte); border-color: var(--accent); font-weight: 600; }
@@ -764,17 +770,17 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-table tr.cible td { background: var(--accent-fond); } .logs-table tr.cible td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .logs-table tr.nouvelle td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
 .logs-table tr.ouvert td { border-bottom: 0; }
-.logs-niv { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--survol); color: var(--doux); }
+.logs-niv { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--survol); color: var(--doux); }
 .logs-niv.err { background: var(--erreur); color: #fff; } .logs-niv.warn { background: var(--attention); color: #fff; }
 .logs-table mark { background: #FDE68A; color: #18181B; padding: 0 1px; border-radius: 2px; }
-.logs-rep { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--survol); color: var(--doux); font-family: var(--titres); }
+.logs-rep { font-size: 12px; padding: 1px 6px; border-radius: 999px; background: var(--survol); color: var(--doux); font-family: var(--titres); }
 .logs-detail td { padding: 4px 8px 14px; white-space: normal; }
 .logs-boite { border: 1px solid var(--bord); border-radius: 10px; padding: 12px 14px; display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 6px 18px; font-size: 12.5px; background: var(--carte); }
 .logs-champ { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .logs-champ b { color: var(--pale); font-weight: 500; min-width: 80px; }
 .logs-champ code { font-size: 12px; overflow-wrap: anywhere; }
-.logs-act { margin-left: auto; font-size: 11.5px; white-space: nowrap; }
+.logs-act { margin-left: auto; font-size: 12px; white-space: nowrap; }
 .logs-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .logs-plus-ancien { text-align: center; margin: 14px 0; }
 .logs-nouvelles { font-size: 12.5px; text-align: center; padding: 6px; background: var(--ok-fond); color: var(--ok); border-radius: 8px; margin-bottom: 8px; }
@@ -785,7 +791,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-groupes td { vertical-align: top; }
 .logs-groupes td:nth-child(5), .logs-groupes td:nth-child(6), .logs-groupes td:nth-child(7) { white-space: nowrap; }
 .logs-groupes td.logs-motif { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; word-break: break-word; }
-.logs-groupes .var { background: var(--accent-fond); color: var(--accent-texte); border-radius: 4px; padding: 0 4px; font-size: 11.5px; }
+.logs-groupes .var { background: var(--accent-fond); color: var(--accent-texte); border-radius: 4px; padding: 0 4px; font-size: 12px; }
 .logs-jauge { height: 6px; background: var(--survol); border-radius: 3px; width: 110px; overflow: hidden; margin-top: 7px; }
 .logs-jauge i { display: block; height: 100%; background: var(--accent); }
 .logs-groupes tr.rare td { background: var(--erreur-fond); }
@@ -800,3 +806,120 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   .logs-table tr.logs-jour td, .logs-table tr.logs-detail td { display: block; }
   .logs-filtres label { flex: 1 1 140px; }
 }
+
+/* ====================================================================================
+   Audit du 16/11 (SPEC § 34) : petites corrections, téléphone, application installée.
+   ==================================================================================== */
+.col-vu, td.nombre { white-space: nowrap; }              /* « il y a 6 min » sur une ligne */
+.bandeau.admin > span { min-width: 0; }
+.nav-bas { display: none; }
+
+/* --- Doigt (téléphone, tablette) : champs à 16 px (sinon iOS zoome à la saisie) et
+       boutons d'au moins 44 px ------------------------------------------------------ */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px; min-height: 44px; }
+  input[type="checkbox"], input[type="radio"] { min-height: 0; width: 20px; height: 20px; }
+  button, a.bouton, details.colonnes > summary { min-height: 44px; }
+  button.lien { min-height: 0; padding: 10px 0; }
+  .onglets a, .logs-onglets a { min-height: 44px; display: inline-flex; align-items: center; }
+  .actions-alerte .petit, .actions-alerte .bouton.petit, .menu-silence > summary, .menu-silence .menu button { min-height: 40px; padding: 0 12px; font-size: 13px; }
+  .outil-courbe { min-height: 36px; min-width: 40px; font-size: 12px; }
+  .replier, .sortir button { width: 44px; height: 44px; }
+  .themes button, .bascule-aides button { min-height: 40px; }
+  a.pastille { padding: 6px 12px; }
+  label.case { min-height: 40px; align-items: center; }
+  th[data-tri] button { min-height: 44px; }
+}
+
+/* --- Téléphone et petite tablette : en-tête sur une ligne, barre du bas, menu « Plus » -- */
+@media (max-width: 899px) {
+  /* En-tête : logo à gauche, recherche (loupe) à droite. Le bouton « replier »
+     ne sert plus : le menu s'ouvre par « Plus », en bas. */
+  .barre, .appli.replie .barre, .appli.menu-haut .barre { flex-wrap: nowrap; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
+  .barre-tete, .appli.replie .barre-tete { width: auto; flex: 1; min-width: 0; }
+  .replier, .appli.replie .replier, .appli.menu-haut .replier { display: none; }
+  button.aller, .replie button.aller { width: 44px; height: 44px; min-height: 44px; flex: none; margin: 0; padding: 0; justify-content: center; border-radius: 10px; }
+  button.aller span, button.aller kbd { display: none; }
+  .appli .barre-tete .txt, .appli.replie .barre-tete .txt { display: inline; }   /* « mirador » à côté du logo, même menu replié */
+
+  /* Barre du bas : 4 pages et « Plus ». */
+  .nav-bas { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--menu); border-top: 1px solid var(--menu-bord);
+    padding: 4px max(4px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); }
+  .nav-bas a, .nav-bas button { position: relative; flex: 1 1 0; min-width: 0; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 0; border: 0; border-radius: 10px; background: none; color: var(--menu-pale); font-size: 11px; font-weight: 600; text-decoration: none; }
+  .nav-bas .icone { width: 22px; height: 22px; }
+  .nav-bas a.actif, .nav-bas button.actif { color: #FFFFFF; background: var(--menu-actif); }
+  .nav-bas button:hover { filter: none; }
+  .nav-bas .compteur, .appli.ouvert .nav-bas .compteur { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; min-width: 18px; height: 18px; padding: 0 5px; font-size: 11px; }
+  .contenu { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }   /* rien sous la barre */
+  .pied { padding-bottom: .5rem; }
+
+  /* Menu ouvert par « Plus » : toute la page, au-dessus de la barre du bas. */
+  body.menu-ouvert { overflow: hidden; }
+  .appli.ouvert .barre, .appli.ouvert.replie .barre, .appli.ouvert.menu-haut .barre { position: fixed; top: 0; left: 0; right: 0; bottom: calc(61px + env(safe-area-inset-bottom)); z-index: 29;
+    height: auto; flex-wrap: wrap; align-content: flex-start; overflow-y: auto; }
+  .appli.ouvert .barre nav, .appli.ouvert.menu-haut .barre nav { flex-direction: column; flex-wrap: nowrap; }
+  .appli.ouvert .barre nav .txt { display: block; }
+  .appli.ouvert .barre nav a, .appli.ouvert.replie .barre nav a { min-height: 48px; font-size: 15px; }
+  .appli.ouvert .groupe { width: 100%; }
+  .appli.ouvert .moi .txt { display: block; }
+  .appli.ouvert .themes, .appli.ouvert .bascule-aides { margin-top: 10px; }
+
+  /* Bandeaux : une ligne courte, marges de la page. */
+  .bandeau { padding: 8px 16px; }
+  .bandeau.admin { flex-wrap: nowrap; }
+  .bandeau.admin form { margin-left: auto; }
+  .etat-ombre { margin: -6px 0 10px; }
+  main { padding: 16px max(16px, env(safe-area-inset-right)) 18px max(16px, env(safe-area-inset-left)); }
+  h1 { font-size: 1.25rem; }
+  /* Rien ne dépasse de l'écran : mots longs coupés, blocs de code défilants. */
+  main { overflow-wrap: anywhere; }
+  .carte { min-width: 0; }
+  .titre-page .actions { margin-left: 0; width: 100%; }
+  .titre-page .actions > * { flex: 1 1 auto; justify-content: center; }
+}
+
+/* --- Téléphone : tableaux marqués data-cartes en cartes (mirador.js pose data-label) ---- */
+@media (max-width: 640px) {
+  table.en-cartes, table.en-cartes > tbody { display: block; width: 100%; }
+  .carte > .defile:has(> table.en-cartes), .carte > table.en-cartes { margin: 0; width: 100%; }   /* plus de débord jusqu'au bord de la carte */
+  table.en-cartes > thead { display: none; }
+  table.en-cartes > tbody > tr { display: block; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--bord); border-radius: 12px; }
+  table.en-cartes > tbody > tr > td { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; padding: 3px 0; border: 0; text-align: right; white-space: normal; }
+  table.en-cartes > tbody > tr > td::before { content: attr(data-label); flex: none; max-width: 45%; color: var(--pale); font-size: 12px; font-weight: 500; text-align: left; }
+  table.en-cartes > tbody > tr > td:first-child, .carte > .defile table.en-cartes > tbody > tr > td:first-child { display: block; padding: 0 0 6px; font-size: 15px; text-align: left; }
+  table.en-cartes > tbody > tr > td:first-child::before, table.en-cartes > tbody > tr > td[data-label=""]::before { content: none; }
+  table.en-cartes > tbody > tr > td:empty { display: none; }
+  table.en-cartes > tbody > tr > td[data-long], table.en-cartes[data-cartes="serrees"] > tbody > tr > td[data-long] { display: block; text-align: left; margin-right: 0; }
+  table.en-cartes > tbody > tr > td[data-long]::before { display: block; max-width: none; margin-bottom: 2px; }
+  /* Ligne de titre (jour de l'audit…) : pas de cadre. */
+  table.en-cartes > tbody > tr:has(> td[colspan]) { margin: 6px 0; padding: 0; border: 0; }
+  table.en-cartes > tbody > tr > td[data-label=""] { justify-content: flex-start; flex-wrap: wrap; }
+  table.en-cartes .sous { display: inline; margin-left: 6px; }
+  .defile:has(> table.en-cartes) { overflow-x: visible; }
+  /* Cartes serrées (longues listes : règles) : les valeurs à la suite, sur une ou deux lignes. */
+  table.en-cartes[data-cartes="serrees"] > tbody > tr > td { display: inline-flex; min-height: 0; margin-right: 12px; gap: 5px; font-size: 13px; }
+  table.en-cartes[data-cartes="serrees"] > tbody > tr > td:first-child { display: block; margin-right: 0; }
+  table.en-cartes[data-cartes="serrees"] > tbody > tr > td::before { max-width: none; }
+  /* Courbes : seulement « −7 j » et « agrandir » (les exports restent sur grand écran). */
+  .outils-courbe .outil-courbe:nth-child(n+3) { display: none; }
+  /* Alertes : le texte de l'alerte prend toute la largeur. */
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2) { display: block; text-align: left; padding: 2px 0 6px; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2)::before { content: none; }
+  table.table-alertes.en-cartes th:nth-child(3), table.table-alertes.en-cartes td:nth-child(3) { display: flex; }
+  .actions-alerte { justify-content: flex-start; }
+  .resume-alertes { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- Page de connexion sur téléphone : la passkey d'abord (un seul geste) ----------------- */
+body.seule { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); min-height: 100dvh; }
+@media (pointer: coarse) {
+  .carte-seule { display: flex; flex-direction: column; }
+  .carte-seule > .logo { order: -3; }
+  .carte-seule > .message { order: -2; }
+  .carte-seule > form[data-passkey-form] { order: -1; margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--bord); }
+  .carte-seule > form[data-passkey-form] button { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
+}
+
+/* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
+tr.cet-appareil td:first-child { font-weight: 600; }

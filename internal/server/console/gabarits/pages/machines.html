@@ -4,7 +4,7 @@
 
 {{if .D.EnAttente}}<section class="carte">
 <h2>En attente d'approbation</h2>
-<div class="defile"><table><thead><tr><th>Nom</th><th>Adresse de la demande</th><th>Demandée</th><th></th></tr></thead><tbody>
+<div class="defile"><table data-cartes><thead><tr><th>Nom</th><th>Adresse de la demande</th><th>Demandée</th><th></th></tr></thead><tbody>
 {{range .D.EnAttente}}<tr><td>{{.Nom}}<br><small>{{if .NomDuJeton}}Choisi au jeton{{else}}Proposé par la machine (--nom ou nom d'hôte){{end}}</small></td><td><code>{{.IPEnrolement}}</code></td><td>{{dateS .CreeLe}}</td><td>
 {{if $.Admin}}<form method="post" action="/machines/{{.Nom}}" class="ligne">{{template "csrf" $.CSRF}}
   <label>Nom <input name="nouveau_nom" value="{{.Nom}}" required maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*"></label>
@@ -20,7 +20,7 @@
 
 <section class="carte">
 <h2>Machines approuvées ({{len .D.Approuvees}})</h2>
-{{if .D.Approuvees}}<div class="defile"><table><thead><tr><th>Nom</th><th>Site</th><th>Type</th><th>Groupe</th><th>Dernière donnée</th><th>Version</th><th>Adresse</th><th>À valider</th></tr></thead><tbody>
+{{if .D.Approuvees}}<div class="defile"><table data-cartes><thead><tr><th>Nom</th><th>Site</th><th>Type</th><th>Groupe</th><th>Dernière donnée</th><th>Version</th><th>Adresse</th><th>À valider</th></tr></thead><tbody>
 {{range .D.Approuvees}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if egal .Type "collecteur"}} <span class="pastille info">Collecteur</span>{{end}}</td><td>{{.Site}}</td><td>{{.Env}}</td><td>{{.Groupe}}</td>
 <td>{{if .Muette}}<span class="pastille erreur">{{depuisS .VuLe}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
 <td>{{.Version}}{{if .MajEchec}} <span class="pastille erreur" title="{{.MajEchec}}">Mise à jour en échec</span>{{end}}</td><td><code>{{.DerniereIP}}</code></td>

@@ -126,6 +126,11 @@ func (p *Postier) recharger(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Canal « application » (push) : il lit les appareils abonnés en base,
+	// il est donc fait ici et pas par la fabrique.
+	if a := r.Canaux.Application; a != nil && a.Actif && canaux[NomApplication] == nil {
+		canaux[NomApplication] = nouveauPush(p.opt.DB, p.opt.Cle, p.opt.Maintenant)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// Anciens canaux remplacés : connexions libérées (Olvid).
@@ -228,6 +233,7 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 	if !envoye && enFile {
 		p.mettreEnFile(ctx, m)
 	}
+	p.copierVersApplication(ctx, m, r, loc, recus[NomApplication])
 	// Escalade (SPEC § 30) : aussi sur le canal de secours, s'il est réglé
 	// et qu'il n'a pas déjà reçu ce message.
 	if m.Escalade && r.Canaux.Secours != "" && r.Canaux.Secours != principal && !recus[r.Canaux.Secours] {
@@ -250,6 +256,36 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		}
 	}
 	return envoye
+}
+
+// copierVersApplication : copie du message aux appareils abonnés quand un
+// autre canal le porte (réglage « copie » du canal application, SPEC § 35).
+// Elle tient à jour la pastille de l'icône. Jamais comptée pour la bascule
+// ni pour la file d'attente : un téléphone éteint n'est pas une panne. Sans
+// appareil abonné, rien n'est fait ni noté.
+func (p *Postier) copierVersApplication(ctx context.Context, m *Message, r Reglages, loc *time.Location, dejaRecu bool) {
+	a := r.Canaux.Application
+	if dejaRecu || a == nil || !a.Actif || !a.Copie {
+		return
+	}
+	p.mu.Lock()
+	e := p.etats[NomApplication]
+	p.mu.Unlock()
+	if e == nil || e.canal == nil || NombreAppareilsPush(ctx, p.opt.DB) == 0 {
+		return
+	}
+	ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
+	defer annuler()
+	t0 := time.Now()
+	err := e.canal.Envoyer(ctxE, m, Mise{Fuseau: loc, Lien: r.Lien})
+	statut, msgErr := "ok", ""
+	if err != nil {
+		statut, msgErr = "echec", err.Error()
+	}
+	if errNote := NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: NomApplication, Groupe: m.Groupe, Gravite: m.Gravite,
+		Type: m.Type + " (copie)", Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Erreur: msgErr, Texte: Texte(m, Mise{Fuseau: loc})}); errNote != nil {
+		p.opt.Journal.Error("historique des envois", "erreur", errNote)
+	}
 }
 
 // noter : résultat d'une vérification ou d'un envoi, avec anti-rebond.

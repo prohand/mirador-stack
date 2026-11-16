@@ -17,6 +17,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -75,4 +76,100 @@ func Dechiffrer(cle []byte, usage, valeur string) (string, error) {
 		return "", ErrSecret
 	}
 	return string(clair), nil
+}
+
+// Masque : texte mis à la place d'un secret dans ce qui est montré ou
+// exporté « sans secret ». À l'import, il veut dire « garder la valeur
+// actuelle ».
+const Masque = "***"
+
+// Masquer remplace par Masque tous les secrets chiffrés d'un document JSON
+// déjà décodé (tables, listes, textes), à n'importe quelle profondeur. Le
+// document est modifié sur place et renvoyé. Sert au journal d'audit et à
+// l'export « sans secret » : un texte chiffré n'est pas lisible sans la clé,
+// mais il n'a rien à faire là (audit du 16/11, SPEC § 34).
+func Masquer(v any) any {
+	switch x := v.(type) {
+	case string:
+		if EstChiffre(x) {
+			return Masque
+		}
+	case map[string]any:
+		for k, e := range x {
+			x[k] = Masquer(e)
+		}
+	case []any:
+		for i, e := range x {
+			x[i] = Masquer(e)
+		}
+	}
+	return v
+}
+
+// MasquerJSON : comme Masquer, pour un document JSON en texte. Un document
+// vide ou illisible est rendu tel quel (rien à masquer).
+func MasquerJSON(doc string) string {
+	if !strings.Contains(doc, prefixe) {
+		return doc
+	}
+	var v any
+	if err := json.Unmarshal([]byte(doc), &v); err != nil {
+		// Illisible mais avec un secret chiffré dedans : on ne garde rien.
+		return `"(document illisible, non gardé)"`
+	}
+	b, err := json.Marshal(Masquer(v))
+	if err != nil {
+		return `"(document illisible, non gardé)"`
+	}
+	return string(b)
+}
+
+// Garder remet, dans un document JSON décodé, la valeur actuelle à la place
+// de chaque Masque (import d'un export « sans secret »). Les listes de
+// tables sont rapprochées par leur champ « machine » s'il existe, sinon par
+// leur rang. Erreur si un Masque n'a aucune valeur actuelle à reprendre.
+func Garder(nouveau, actuel any) (any, error) {
+	switch x := nouveau.(type) {
+	case string:
+		if x != Masque {
+			return x, nil
+		}
+		a, _ := actuel.(string)
+		if !EstChiffre(a) {
+			return nil, errors.New("secret « *** » sans valeur actuelle à garder : le saisir dans l'interface")
+		}
+		return a, nil
+	case map[string]any:
+		am, _ := actuel.(map[string]any)
+		for k, e := range x {
+			g, err := Garder(e, am[k])
+			if err != nil {
+				return nil, err
+			}
+			x[k] = g
+		}
+	case []any:
+		al, _ := actuel.([]any)
+		for i, e := range x {
+			var a any
+			if i < len(al) {
+				a = al[i]
+			}
+			// Même « machine » : c'est le même équipement, où qu'il soit dans la liste.
+			if em, ok := e.(map[string]any); ok && em["machine"] != nil {
+				a = nil
+				for _, c := range al {
+					if cm, ok := c.(map[string]any); ok && cm["machine"] == em["machine"] {
+						a = c
+					}
+				}
+			}
+			g, err := Garder(e, a)
+			if err != nil {
+				return nil, err
+			}
+			x[i] = g
+		}
+	}
+	return nouveau, nil
 }

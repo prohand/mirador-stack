@@ -12,7 +12,7 @@
 <p>Adresse publique du <strong>vhost d'ingestion</strong> (celui des agents, ex. <code>https://mirador-ingest.exemple.fr</code>), <strong>pas</strong> celle de cette interface. Les machines s'y enrôlent, y téléchargent l'agent et y envoient leurs données. Elle sert à afficher la commande d'installation complète dans <a href="/machines#ajouter">Machines</a>.</p>
 <form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="adresse">
 <label>Adresse d'ingestion <input name="ingestion" value="{{.D.Ingestion}}" placeholder="https://mirador-ingest.exemple.fr" maxlength="200" size="40" {{if not .Admin}}readonly{{end}}></label>
-{{if .Admin}}<button>Enregistrer</button>{{end}}</form></section>
+{{if .Admin}}<button data-code>Enregistrer</button>{{end}}</form></section>
 <section class="carte"><h2>Base GéoIP (DB-IP)</h2>
 <p>{{if .D.GeoFichier.IsZero}}Pas encore téléchargée.{{else}}Base du {{date .D.GeoFichier}}{{if .D.GeoEnMemoire}}, chargée en mémoire (libérée après 10 min sans usage){{end}}.{{end}}
 {{if .D.GeoDemande}}<br>Téléchargement demandé : fait dans la minute (recharger la page).{{else if not .D.GeoEssai.IsZero}}<br>Dernier essai : {{date .D.GeoEssai}}.{{end}}

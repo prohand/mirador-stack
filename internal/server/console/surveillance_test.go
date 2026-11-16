@@ -331,7 +331,7 @@ func TestCompteRenduChemins(t *testing.T) {
 		t.Error("assistant à jour signalé ancien")
 	}
 	attendu := map[string]string{
-		"/etc/app/*.pem":  "2 certificats lu(s), 1 fichier(s) écarté(s)",
+		"/etc/app/*.pem":  "2 certificats lus, 1 fichier écarté",
 		"/etc/vide/*.crt": "aucun fichier trouvé",
 		"/etc/cles/*.pem": "aucun lu : lien vers un dossier non autorisé (1)",
 		"/opt/neuf/*.pem": "pas encore lu",

@@ -3,7 +3,7 @@
 {{template "onglets-regles" ""}}
 {{with .D.Test}}<section class="carte"><h2>Test sur les dernières 24 h</h2>
 {{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>{{else}}
-<p>{{.Series}} série(s) ont rempli la condition au moins une fois (un point toutes les {{duree .Pas}}). {{if .Declenchements}}<strong>{{len .Declenchements}}</strong> auraient déclenché une alerte :{{else}}<strong>Aucune alerte</strong> n'aurait été envoyée.{{end}}</p>
+<p>{{.Series}} {{accord .Series "série(s)"}} ont rempli la condition au moins une fois (un point toutes les {{duree .Pas}}). {{if .Declenchements}}<strong>{{len .Declenchements}}</strong> auraient déclenché une alerte :{{else}}<strong>Aucune alerte</strong> n'aurait été envoyée.{{end}}</p>
 {{if .Declenchements}}<div class="defile"><table><thead><tr><th>Série</th><th>Fois</th><th>Durée totale</th><th>Première</th><th>Dernière</th><th>Valeur max</th></tr></thead><tbody>
 {{range .Declenchements}}<tr><td>{{.Serie}}</td><td class="nombre">{{.Fois}}</td><td>{{duree .Total}}</td><td>{{date .Premier}}</td><td>{{date .Dernier}}</td><td class="nombre">{{printf "%.4g" .ValeurMax}}</td></tr>{{end}}
 </tbody></table></div>{{end}}{{end}}</section>{{end}}

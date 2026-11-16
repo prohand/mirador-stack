@@ -2,6 +2,12 @@
 <h1>Mon compte</h1>
 <p>Compte <strong>{{.D.U.Nom}}</strong>, rôle <strong>{{.D.U.Role}}</strong>. Dernière connexion : {{dateS .D.U.ConnecteLe}}.</p>
 
+{{if and .Admin (not .ModeAdmin)}}<section class="carte" id="mode-admin">
+<h2>Mode administration</h2>
+<p>Fermé : le code 2FA est demandé pour chaque action protégée. Ouvert, il n'est plus demandé pendant quelques minutes (sauf pour la sécurité des comptes).</p>
+<form method="post" action="/mode-admin/ouvrir" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="retour" value="/compte">{{template "code2fa-toujours"}}<button>Ouvrir le mode administration</button></form>
+</section>{{end}}
+
 <section class="carte">
 <h2>Changer de mot de passe</h2>
 <form method="post" action="/compte/mot-de-passe" class="pile">
@@ -39,7 +45,7 @@
 <ul class="codes-secours">{{range .D.CodesNouveaux}}<li><code>{{.}}</code></li>{{end}}</ul>
 {{end}}
 <p>Si le téléphone de la 2FA est perdu, un code de secours permet de se connecter, puis de recréer la 2FA.
-{{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> code(s) sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
+{{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> {{accord .D.CodesRestants "code(s)"}} sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
 <form method="post" action="/compte/codes-secours" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa-toujours"}}
 <button {{if .D.CodesRestants}}data-confirmer="Créer 10 nouveaux codes ? Les anciens ne marcheront plus."{{end}}>Créer 10 nouveaux codes</button></form>
 </section>
@@ -67,5 +73,23 @@
   {{template "code2fa-toujours"}}<button>Continuer</button></form>
 <p class="aide"><small class="aide">Un moyen de plus : le code 2FA reste demandé pour les actions sensibles.</small></p>
 {{end}}
+</section>
+<section class="carte" id="push" data-push-zone>
+<h2>Notifications sur cet appareil</h2>
+<p>Recevoir les alertes sur ce téléphone ou ce navigateur, avec le nombre d'alertes en pastille sur l'icône de l'application.</p>
+<p class="aide"><small class="aide">Sur iPhone ou iPad : installer d'abord mirador sur l'écran d'accueil (Partager › Sur l'écran d'accueil), puis ouvrir cette page depuis l'application. {{template "plus" "aide.md#application"}}</small></p>
+{{if not .D.PushCanalActif}}<p class="message erreur">Le canal « Application » n'est pas actif : rien ne sera envoyé{{if .Admin}} tant qu'il n'est pas activé dans <a href="/reglages/notifications#application">Réglages › Notifications</a>{{else}} tant qu'un administrateur ne l'a pas activé{{end}}.</p>{{end}}
+{{if .D.PushAppareils}}<div class="defile"><table data-cartes><thead><tr><th>Appareil</th><th>Service de push</th><th>Ajouté le</th><th>Dernier envoi reçu</th><th></th></tr></thead><tbody>
+{{range .D.PushAppareils}}<tr data-push-empreinte="{{.Empreinte}}"><td>{{.Appareil}} <span class="pastille ok" data-push-ici hidden>cet appareil</span></td><td>{{.Service}}</td><td>{{dateS .CreeLe}}</td><td>{{dateS .ReussiLe}}{{if .Echecs}} <span class="pastille attention">{{.Echecs}} {{accord .Echecs "échec(s)"}}</span>{{end}}</td>
+<td><form method="post" action="/compte/push/retirer" class="enligne" data-push-retirer>{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button class="secondaire petit" data-confirmer="Ne plus envoyer de notification à « {{.Appareil}} » ?">Retirer</button></form></td></tr>{{end}}
+</tbody></table></div>
+<form method="post" action="/compte/push/tester" class="ligne">{{template "csrf" .CSRF}}<button class="secondaire">Envoyer une notification d'essai</button></form>
+{{else}}{{template "vide" "Aucun appareil abonné pour ce compte."}}{{end}}
+{{if .D.PushCle}}<form method="post" action="/compte/push/abonner" class="ligne" data-push-form>{{template "csrf" .CSRF}}
+  <input type="hidden" name="adresse"><input type="hidden" name="p256dh"><input type="hidden" name="auth">
+  <button type="button" data-push="activer" data-cle="{{.D.PushCle}}">Activer les notifications sur cet appareil</button>
+  <button hidden data-code data-push-envoyer>Enregistrer</button>
+</form>{{end}}
+<p class="erreur-texte" data-push-erreur hidden></p>
 </section>
 {{end}}

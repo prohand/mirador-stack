@@ -54,7 +54,9 @@ func (c *Console) routesPages() {
 	c.routesModeles()
 	c.routesModelesPerso()
 	c.routesTheme()
+	c.routesPush()
 	m.HandleFunc("POST /mode-admin/quitter", c.lecture(c.postQuitterModeAdmin))
+	m.HandleFunc("POST /mode-admin/ouvrir", c.admin(c.postOuvrirModeAdmin))
 	c.routesReglages()
 }
 
@@ -72,6 +74,23 @@ type resumeAlerte struct {
 	// Prise en charge (SPEC § 30), lue en base (le moteur ne la connaît
 	// pas) : par qui, quand, jusqu'à quand (vide = jusqu'à la fin).
 	AcquitteePar, AcquitteeLe, AcquitteeJusqua string
+}
+
+// separerMasquees : alertes à montrer d'un côté ; de l'autre, celles qui ne
+// sont que la conséquence d'une alerte plus grave déjà affichée (machine
+// muette qui inhibe ses autres alertes, parent en panne). Retour du 16/11 :
+// « un agent muet ne devrait rien remonter d'autre » : elles vont dans un
+// bloc replié, ne sont plus comptées ni mêlées aux alertes à traiter.
+// Silences et maintenances (choisis à la main) restent affichés tels quels.
+func separerMasquees(rs []resumeAlerte) (visibles, masquees []resumeAlerte) {
+	for _, r := range rs {
+		if strings.HasPrefix(r.Sourdine, "inhibée par ") || strings.HasPrefix(r.Sourdine, "dépendance : ") {
+			masquees = append(masquees, r)
+		} else {
+			visibles = append(visibles, r)
+		}
+	}
+	return visibles, masquees
 }
 
 // separerPrises : alertes à traiter d'un côté, prises en charge de l'autre.
@@ -131,6 +150,7 @@ type donneesAccueil struct {
 	Alertes                      []resumeAlerte
 	Attente                      []resumeAlerte // conditions pas encore des alertes
 	Prises                       []resumeAlerte // prises en charge (acquittées), SPEC § 30
+	Masquees                     []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
 	Canaux                       []notif.EtatCanal
 	Mode                         string
 	DerniereSauvegarde           sauvegarde.Execution
@@ -175,6 +195,7 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(""))
 	toutes := d.Alertes // la couleur d'une machine compte aussi ses alertes prises en charge
 	d.Alertes, d.Prises = separerPrises(d.Alertes)
+	d.Alertes, d.Masquees = separerMasquees(d.Alertes)
 	for _, a := range d.Alertes {
 		if a.Etat != "active" || a.Sourdine != "" {
 			continue
@@ -494,6 +515,7 @@ type donneesMachine struct {
 	Alertes     []resumeAlerte
 	Attente     []resumeAlerte // conditions pas encore des alertes
 	Prises      []resumeAlerte // prises en charge (SPEC § 30)
+	Masquees    []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
 	Rangees     []vueRangee
@@ -539,6 +561,7 @@ func (c *Console) pageMachine(q *req) {
 		Periodes: periodesProposees}
 	d.Alertes, d.Attente = separerAttente(c.alertesEnCours(m.Nom))
 	d.Alertes, d.Prises = separerPrises(d.Alertes)
+	d.Alertes, d.Masquees = separerMasquees(d.Alertes)
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)

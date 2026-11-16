@@ -281,7 +281,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	code, corps, _ = n.faire(http.MethodGet, "/logs?level=err%2B&periode=1h", nil)
 	if code != 200 || !strings.Contains(corps, "connexion refus") || strings.Contains(corps, "même ligne") ||
 		!strings.Contains(corps, `<b>niveau</b> err et plus grave`) || !strings.Contains(corps, `class="logs-histo"`) ||
-		!strings.Contains(corps, `<span class="logs-stat err"><b>1</b> erreur(s)</span>`) || !strings.Contains(corps, `class="logs-ligne-log err"`) {
+		!strings.Contains(corps, `<span class="logs-stat err"><b>1</b> erreur</span>`) || !strings.Contains(corps, `class="logs-ligne-log err"`) {
 		t.Errorf("niveau err+ : %d", code)
 	}
 	if _, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&sans=unit%3Acron.service&periode=1h", nil); strings.Contains(corps, "même ligne") ||

@@ -21,6 +21,7 @@ import (
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/modeles"
+	"mirador-stack/internal/server/secrets"
 )
 
 // Portées de la configuration des agents (SPEC § 6.7) : défaut global, puis
@@ -99,7 +100,9 @@ func DefinirConfig(ctx context.Context, db *sql.DB, portee string, doc []byte, q
 	if err != nil {
 		return err
 	}
-	if err := audit(ctx, tx, maintenant.Unix(), qui, "config_agent", portee, avant, string(normalise), ""); err != nil {
+	// Audit sans secret : les mots de passe chiffrés (SNMP, UniFi) sont
+	// remplacés par « *** » (audit du 16/11, SPEC § 34).
+	if err := audit(ctx, tx, maintenant.Unix(), qui, "config_agent", portee, secrets.MasquerJSON(avant), secrets.MasquerJSON(string(normalise)), ""); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

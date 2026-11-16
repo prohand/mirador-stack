@@ -832,6 +832,67 @@ Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
 Mesure : 44 ms et 4 Mio passagers pour analyser 2 000 lignes ; mode direct :
 une petite recherche toutes les 5 s par onglet actif (30 min au plus).
 
+## Audit du 16/11 : sécurité, graphique, téléphone, PWA (SPEC § 34)
+
+Branche `claude/wonderful-goodall-aaqrgl`. Aucune faille critique ni haute.
+
+| Partie | État |
+|---|---|
+| Connexion : verrou de compte (table des comptes à part), 10 défis passkey par adresse | **fait**, testé ; à valider |
+| Console : codes 2FA manquants, import « securite », secrets liés à l'adresse, rôle avant le corps, masquage des secrets | **fait**, testé ; à valider |
+| Machine muette : plus de `ServiceDuModeleAbsent`, alertes inhibées dans un bloc replié | **fait**, testé ; à vérifier sur le VPS |
+| Graphique : logo de la connexion, 12 px au moins, accords, légende et aide des courbes | **fait**, vu dans Chromium ; à valider |
+| Application installable : manifeste, icônes, encoche (sans service worker) | **fait** ; à essayer sur ton téléphone |
+| Téléphone : barre du bas, en-tête compact, cartes, courbes à l'affichage | **fait**, vu en écran d'iPhone 13 simulé ; à valider sur un vrai téléphone |
+| Connexion depuis un lien : page demandée gardée, page relais, passkey en premier | **fait**, vérifié dans Chromium ; à valider |
+| Notifications push et pastille de l'icône (SPEC § 35, demande du 16/11) | **fait**, testé ; à valider sur un vrai téléphone |
+| Option : page hors ligne | **non faite** (pas demandée) |
+
+Mesures (Chromium, serveur de démonstration, machine de développement) :
+
+| Mesure | Avant | Après | Objectif |
+|---|---|---|---|
+| Courbes demandées à l'ouverture d'une page machine (13 courbes), écran 1440 × 900 | 13 | **4** | moins de requêtes ✅ |
+| Idem sur téléphone (avant défilement) | 13 | **0** | ✅ |
+| Largeur de la page machine sur un écran de 390 px | 520 px (débord) | **390 px** | ✅ |
+| Champs de saisie sur téléphone | 14 px, 36 px de haut | **16 px, 44 px** | ✅ |
+| Mémoire du serveur | — | + 1 Mo au pire (table des noms inconnus, bornée) | < 256 Mio ✅ |
+| Écritures disque | — | aucune en plus | ✅ |
+| Binaire du serveur | — | + ~60 Ko (icônes, styles, scripts) | — |
+
+Notifications push (SPEC § 35) : **0,15 ms et 17 Ko passagers par appareil
+et par notification** (mesuré), une requête HTTPS sortante par appareil,
+rien de permanent en mémoire, aucune dépendance ajoutée. Vérifié : vecteur
+de la RFC 8291, déchiffrement par une autre bibliothèque, Chromium,
+**envoi réel accepté par le service de push de Google**. Non vérifié ici :
+l'arrivée sur un vrai téléphone et la pastille.
+
+CI du 16/11 : `gosec` signalait une « redirection ouverte » sur le retour
+à la page demandée (faux positif : chemin local vérifié) ; revérifié juste
+avant la redirection et annoté. `gosec` relancé ici : 0 alerte.
+
+RAM et CPU réels du serveur : **non remesurés** (rien n'est ajouté en
+continu) ; à confirmer sur le VPS avec `docker stats` après la mise à jour.
+
+Tests : `go vet`, `go test ./...` et `gosec` (0 alerte) verts ici.
+`govulncheck` : la CI le fera.
+
+À vérifier chez toi après la mise à jour du serveur :
+
+- la page Alertes d'une machine muette ne montre plus que `AgentMuet` (les
+  `ServiceDuModeleAbsent` en cours se ferment en ~5 min) ;
+- installer l'application sur le téléphone, ouvrir un lien d'alerte reçu
+  par Telegram ;
+- désactiver une règle hors mode administration : la boîte demande le code.
+- notifications : Réglages › Notifications › Application (Actif, Copie),
+  puis « Mon compte » sur le téléphone › Activer › notification d'essai ;
+  vérifier la pastille sur l'icône. Le serveur doit pouvoir sortir en HTTPS
+  vers les services de push (`docs/aide.md`, « Notifications : application »).
+
+Seconde passe (lecture ciblée, pas un audit complet) sur l'ingestion,
+l'enrôlement, les mises à jour et l'assistant root : rien d'exploitable
+trouvé ; un durcissement possible noté dans SPEC § 34.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

@@ -5,10 +5,10 @@
 {{if .Admin}}<section class="carte"><h2>Sauvegarder maintenant</h2><form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant">
 <label class="case"><input type="checkbox" name="metriques" value="1"> Métriques</label><label class="case"><input type="checkbox" name="logs" value="1"> Logs</label><button>Sauvegarder</button></form>
 <small class="aide">Configuration et base : toujours. Métriques et logs : en option (volumineux).</small></section>{{end}}
-<section class="carte"><h2>Historique</h2>{{if .D.Historique}}<div class="defile"><table><thead><tr><th>N°</th><th>Demandée</th><th>Origine</th><th>Statut</th><th>Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
+<section class="carte"><h2>Historique</h2>{{if .D.Historique}}<div class="defile"><table data-cartes><thead><tr><th>N°</th><th>Demandée</th><th>Origine</th><th>Statut</th><th>Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
 {{range .D.Historique}}<tr><td>{{.ID}}</td><td>{{dateS .DemandeeLe}}</td><td>{{.Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{majuscule .Statut}}</span></td><td>{{taille .Taille}}</td><td>{{.Destinations}}</td><td>{{.Erreur}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune sauvegarde."}}{{end}}
-{{if .D.Archives}}<p>{{len .D.Archives}} archive(s) dans le dossier local.</p>{{end}}</section>
+{{if .D.Archives}}<p>{{len .D.Archives}} {{accord (len .D.Archives) "archive(s)"}} dans le dossier local.</p>{{end}}</section>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}
 <section class="carte"><h2>Planification</h2>
 <label class="case"><input type="checkbox" name="actif" value="1" {{if $r.Actif}}checked{{end}}> Chaque jour</label>

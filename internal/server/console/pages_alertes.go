@@ -166,7 +166,10 @@ func (c *Console) postAlerte(q *req) {
 		var a alertes.Alerte
 		if a, err = alertes.LireAlerte(ctx, c.db, id); err == nil {
 			var d alertes.Duree
-			if d, err = alertes.LireDuree(q.r.PostFormValue("duree")); err == nil {
+			if d, err = alertes.LireDuree(q.r.PostFormValue("duree")); err == nil && time.Duration(d) > silenceSansCode {
+				err = c.verifierCode(q) // silence long : comme sur la page « Silences »
+			}
+			if err == nil {
 				_, err = notif.AjouterSilence(ctx, c.db, selecteurSilence(&a), q.t, time.Duration(d), q.qui(),
 					strings.TrimSpace(q.r.PostFormValue("commentaire")), q.t)
 				ok = "silence posé pour " + d.String()
@@ -225,17 +228,35 @@ func lireDebut(s string, t time.Time) (time.Time, error) {
 	return d, nil
 }
 
+// silenceSansCode : durée d'un silence posé sans code 2FA (au-delà : code
+// ou mode administration).
+const silenceSansCode = 24 * time.Hour
+
 func (c *Console) postSourdine(q *req) {
 	ctx := q.r.Context()
 	f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
 	id, _ := strconv.ParseInt(f("id"), 10, 64)
 	var err error
 	ok := "fait"
+	// Ce qui fait taire des alertes longtemps demande le code 2FA ou le mode
+	// administration (audit du 16/11, SPEC § 34) : maintenance, inhibition,
+	// dépendance, silence de plus de silenceSansCode. Un silence court,
+	// annuler ou supprimer restent sans code (gestes courants, sans risque).
+	switch f("action") {
+	case "maintenance", "inhibition", "dependance":
+		if err := c.verifierCode(q); err != nil {
+			c.retour(q, "/sourdine", err, "")
+			return
+		}
+	}
 	switch f("action") {
 	case "silence":
 		var d alertes.Duree
 		var debut time.Time
-		if d, err = alertes.LireDuree(f("duree")); err == nil {
+		if d, err = alertes.LireDuree(f("duree")); err == nil && time.Duration(d) > silenceSansCode {
+			err = c.verifierCode(q)
+		}
+		if err == nil {
 			if debut, err = lireDebut(f("debut"), q.t); err == nil {
 				_, err = notif.AjouterSilence(ctx, c.db, f("selecteur"), debut, time.Duration(d), q.qui(), f("commentaire"), q.t)
 			}
