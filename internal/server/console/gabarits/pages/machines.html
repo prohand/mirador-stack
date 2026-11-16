@@ -1,77 +1,60 @@
-{{define "contenu"}}
-<h1>Machines</h1>
+{{define "contenu"}}{{$f := .D.Filtres}}
+<div class="titre-page"><div><h1>Machines</h1>
+<p>{{.D.Approuvees}} {{accord .D.Approuvees "machine(s)"}}{{if .D.Sites}} · {{.D.Sites}} {{accord .D.Sites "site(s)"}}{{end}}{{if .D.TotalAttente}} · <strong>{{.D.TotalAttente}} en attente</strong>{{end}}</p></div>
+{{if .Admin}}<div class="actions"><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></div>{{end}}</div>
 {{template "onglets-machines" "machines"}}
 
-{{if .D.EnAttente}}<section class="carte">
-<h2>En attente d'approbation</h2>
-<div class="defile"><table data-cartes><thead><tr><th>Nom</th><th>Adresse de la demande</th><th>Demandée</th><th></th></tr></thead><tbody>
-{{range .D.EnAttente}}<tr><td>{{.Nom}}<br><small>{{if .NomDuJeton}}Choisi au jeton{{else}}Proposé par la machine (--nom ou nom d'hôte){{end}}</small></td><td><code>{{.IPEnrolement}}</code></td><td>{{dateS .CreeLe}}</td><td>
-{{if $.Admin}}<form method="post" action="/machines/{{.Nom}}" class="ligne">{{template "csrf" $.CSRF}}
-  <label>Nom <input name="nouveau_nom" value="{{.Nom}}" required maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*"></label>
-  <label>Site {{template "choix-liste" (choix "site" .Site $.D.Listes.Sites)}}</label>
-  <label>Type {{template "choix-liste" (choix "env" .Env $.D.Listes.Types)}}</label>
-  <label>Groupe {{template "choix-liste" (choix "groupe" .Groupe $.D.Listes.Groupes)}}</label>
-  <label class="case"><input type="checkbox" name="avec_ip" value="1" checked> Limiter le token à cette adresse</label>
-  <button name="action" value="approuver">Approuver</button></form>
-<form method="post" action="/machines/{{.Nom}}" class="ligne">{{template "csrf" $.CSRF}}{{template "code2fa"}}
-  <button name="action" value="refuser" class="danger" data-confirmer="Refuser {{.Nom}} ?">Refuser</button></form>{{end}}
-</td></tr>{{end}}</tbody></table></div>
+{{if .D.EnAttente}}<section class="carte attente-approbation" id="attente">
+<h2>À approuver ({{.D.TotalAttente}})</h2>
+<div class="defile"><table class="table-attente" data-cartes><thead><tr><th>Nom</th><th>Demande</th><th>Site</th><th>Type</th><th>Groupe</th><th title="Le token de la machine ne marchera que depuis cette adresse">Limiter à l'adresse</th><th></th></tr></thead><tbody>
+{{range .D.EnAttente}}{{$id := printf "ap-%s" .Nom}}<tr>
+<td>{{if $.Admin}}<input form="{{$id}}" name="nouveau_nom" value="{{.Nom}}" required maxlength="63" size="13" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" aria-label="Nom de la machine">{{else}}<strong>{{.Nom}}</strong>{{end}}
+<small>{{if .NomDuJeton}}nom choisi au jeton{{else}}proposé par la machine{{end}}</small>
+{{if .NomBanal}}<span class="pastille attention" title="Nom d'hôte trop courant : une alerte « {{.Nom}} ne répond plus » ne dira pas de quelle machine il s'agit. Le changer avant d'approuver.">nom à changer ?</span>{{end}}</td>
+<td><code>{{.IPEnrolement}}</code><small>{{depuisS .CreeLe}}</small>
+{{if .AdresseInconnue}}<span class="pastille attention" title="Aucune machine approuvée n'a été vue sur ce réseau. Normal pour un nouvel hébergeur ; si vous n'attendiez pas de machine, refusez (jeton peut-être fuité).">adresse inconnue</span>{{end}}</td>
+{{if $.Admin}}<td>{{template "choix-liste-form" (dict "Nom" "site" "Actuel" .Site "Valeurs" $.D.Listes.Sites "Form" $id)}}</td>
+<td>{{template "choix-liste-form" (dict "Nom" "env" "Actuel" .Env "Valeurs" $.D.Listes.Types "Form" $id)}}</td>
+<td>{{template "choix-liste-form" (dict "Nom" "groupe" "Actuel" .Groupe "Valeurs" $.D.Listes.Groupes "Form" $id)}}</td>
+<td><input form="{{$id}}" type="checkbox" name="avec_ip" value="1" checked aria-label="Limiter le token à cette adresse"></td>
+<td><div class="boutons-attente"><form method="post" action="/machines/{{.Nom}}" id="{{$id}}">{{template "csrf" $.CSRF}}<button name="action" value="approuver" class="petit">Approuver</button></form>
+<form method="post" action="/machines/{{.Nom}}" class="ligne">{{template "csrf" $.CSRF}}{{template "code2fa"}}<button name="action" value="refuser" class="petit secondaire" data-confirmer="Refuser {{.Nom}} ?">Refuser</button></form></div></td>
+{{else}}<td>{{.Site}}</td><td>{{.Env}}</td><td>{{.Groupe}}</td><td></td><td></td>{{end}}
+</tr>{{end}}</tbody></table></div>
+{{if .D.AttenteCachees}}<p><a href="/machines?attente=toutes#attente">Voir les {{.D.AttenteCachees}} autres</a></p>{{end}}
+<p class="aide"><small class="aide">Une par une : approuver donne un token à la machine. Les pastilles orange sont des indices, rien n'est bloqué. {{template "plus" "aide.md#machines-en-attente"}}</small></p>
 </section>{{end}}
 
-<section class="carte">
-<h2>Machines approuvées ({{len .D.Approuvees}})</h2>
-{{if .D.Approuvees}}<div class="defile"><table data-cartes><thead><tr><th>Nom</th><th>Site</th><th>Type</th><th>Groupe</th><th>Dernière donnée</th><th>Version</th><th>Adresse</th><th>À valider</th></tr></thead><tbody>
-{{range .D.Approuvees}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if egal .Type "collecteur"}} <span class="pastille info">Collecteur</span>{{end}}</td><td>{{.Site}}</td><td>{{.Env}}</td><td>{{.Groupe}}</td>
-<td>{{if .Muette}}<span class="pastille erreur">{{depuisS .VuLe}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
-<td>{{.Version}}{{if .MajEchec}} <span class="pastille erreur" title="{{.MajEchec}}">Mise à jour en échec</span>{{end}}</td><td><code>{{.DerniereIP}}</code></td>
-<td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td></tr>{{end}}
-</tbody></table></div>{{else}}{{template "vide" "Aucune machine approuvée."}}{{end}}
-</section>
+<form method="get" action="/machines" class="filtres-machines">
+<span class="recherche-machines"><input type="search" name="q" value="{{$f.Q}}" placeholder="Chercher une machine…" maxlength="100" aria-label="Chercher une machine (nom, site, type, groupe)"><button class="secondaire">Chercher</button>{{if $f.Q}} <a href="/machines">Effacer</a>{{end}}</span>
+{{if ne $f.Vue "site"}}<input type="hidden" name="vue" value="{{$f.Vue}}">{{end}}{{if $f.Filtre}}<input type="hidden" name="filtre" value="{{$f.Filtre}}">{{end}}
+<span class="segment" aria-label="Filtre">
+<a href="{{$f.Lien "filtre" ""}}"{{if eq $f.Filtre ""}} class="actif" aria-current="page"{{end}}>Toutes ({{.D.Compteurs.Toutes}})</a>
+<a href="{{$f.Lien "filtre" "problemes"}}"{{if eq $f.Filtre "problemes"}} class="actif" aria-current="page"{{end}} title="Machines muettes ou dont la mise à jour a échoué">Problèmes ({{.D.Compteurs.Problemes}})</a>
+<a href="{{$f.Lien "filtre" "agents"}}"{{if eq $f.Filtre "agents"}} class="actif" aria-current="page"{{end}}>Agents ({{.D.Compteurs.Agents}})</a>
+<a href="{{$f.Lien "filtre" "collecteurs"}}"{{if eq $f.Filtre "collecteurs"}} class="actif" aria-current="page"{{end}}>Collecteurs et équipements ({{.D.Compteurs.Collecteurs}})</a></span>
+<span class="segment" aria-label="Regroupement">
+<a href="{{$f.Lien "vue" "site"}}"{{if eq $f.Vue "site"}} class="actif" aria-current="page"{{end}}>Par site</a>
+<a href="{{$f.Lien "vue" "groupe"}}"{{if eq $f.Vue "groupe"}} class="actif" aria-current="page"{{end}}>Par groupe</a>
+<a href="{{$f.Lien "vue" "liste"}}"{{if eq $f.Vue "liste"}} class="actif" aria-current="page"{{end}}>Liste</a></span>
+</form>
 
-{{if .D.Autres}}<section class="carte"><h2>Refusées</h2><ul>{{range .D.Autres}}<li><a href="/machines/{{.Nom}}">{{.Nom}}</a> ({{.Statut}})</li>{{end}}</ul></section>{{end}}
+{{range .D.Groupes}}{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines" open>
+<summary><strong class="titre-bloc">{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</strong>
+<span class="doux">· {{len .Machines}} {{accord (len .Machines) "machine(s)"}}</span>
+{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">tout va bien</span>{{end}}</summary>{{end}}
+<div class="defile"><table data-cartes><thead><tr><th>Nom</th>{{if ne $f.Vue "site"}}<th>Site</th>{{end}}<th>Type</th>{{if ne $f.Vue "groupe"}}<th>Groupe</th>{{end}}<th>Version</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
+{{range .Machines}}<tr{{if .Sous}} class="sous-ligne"{{end}}>
+<td>{{if .Sous}}<span class="doux" aria-hidden="true">↳ </span>{{end}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if .Collecteur}} <span class="pastille info">Collecteur</span>{{end}}{{if .ReleveePar}} <small class="doux">relevé par {{.ReleveePar}}</small>{{end}}</td>
+{{if ne $f.Vue "site"}}<td>{{if .Site}}{{.Site}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
+<td>{{if .Env}}{{.Env}}{{else}}<span class="doux">—</span>{{end}}</td>
+{{if ne $f.Vue "groupe"}}<td>{{if .Groupe}}{{.Groupe}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
+<td>{{if .Version}}{{.Version}}{{else}}<span class="doux">—</span>{{end}}{{if .MajEchec}} <span class="pastille erreur" title="{{.MajEchec}}">Mise à jour en échec</span>{{end}}</td>
+<td>{{if not .VuLe}}<span class="pastille erreur">jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
+<td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td>
+</tr>{{end}}</tbody></table></div>
+{{if eq $f.Vue "liste"}}</section>{{else}}</details>{{end}}{{else}}{{if .D.Approuvees}}{{template "vide" "Aucune machine ne correspond à ce choix."}}<p><a href="/machines">Tout afficher</a></p>{{else}}<section class="carte">{{template "vide" "Aucune machine approuvée."}}{{if .Admin}}<p><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></p>{{end}}</section>{{end}}{{end}}
 
-{{if .Admin}}<section class="carte">
-<h2 id="ajouter">Ajouter une machine</h2>
-{{if not .D.Ingestion}}<p class="message erreur">Adresse d'ingestion pas encore renseignée : <a href="/reglages/interface#adresse">la renseigner dans Réglages › Interface</a>.</p>{{end}}
-{{$srv := "https://ADRESSE-INGESTION"}}{{if .D.Ingestion}}{{$srv = .D.Ingestion}}{{end}}{{$j := "JETON"}}{{if .D.Jeton}}{{$j = .D.Jeton}}{{end}}
-<p>1. Choisir le nom (facultatif : sinon le nom d'hôte de la machine), le site, le type et le groupe, puis <strong>créer un jeton</strong> (ci-dessous). 2. Sur la machine, en root, coller :</p>
-{{if .D.JetonCollecteur}}<p>Jeton pour un <strong>collecteur du LAN</strong> (mirador-collector, sur une machine Debian/Ubuntu du LAN : un LXC suffit) :</p>
-<pre class="commande">curl -fsSL {{$srv}}/api/agent/v1/install/collecteur -o mirador-collector-install.sh
- MIRADOR_JETON={{$j}} bash mirador-collector-install.sh --serveur {{$srv}}{{if .D.OptionEnvoi}} {{.D.OptionEnvoi}}{{end}}</pre>
-<p class="aide"><small class="aide">Ensuite : l'approuver, puis lui rattacher des équipements (page du collecteur).</small></p>
-{{else}}<pre class="commande">curl -fsSL {{$srv}}/api/agent/v1/install -o mirador-agent-install.sh
- MIRADOR_JETON={{$j}} bash mirador-agent-install.sh --serveur {{$srv}}{{if .D.OptionEnvoi}} {{.D.OptionEnvoi}}{{end}}</pre>{{end}}
-<p class="aide"><small class="aide">Adresse d'<strong>ingestion</strong> (<a href="/reglages/interface#adresse">Réglages › Interface</a>). Jeton à usage unique, qui expire. {{template "plus" "aide.md#installation-agent"}}</small></p>
-<p>3. La machine apparaît ici « en attente » : l'approuver.</p>
-<form method="post" action="/machines/jeton" class="ligne">{{template "csrf" .CSRF}}
-  <label title="Collecteur du LAN : relève les équipements sans agent (Synology, UniFi…)">Machine <select name="type_machine"><option value="">Agent (machine Linux)</option><option value="collecteur">Collecteur du LAN</option></select></label>
-  <label>Nom <input name="nom" maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="nom d'hôte"></label>
-  <label>Site {{template "choix-liste" (choix "site" "" .D.Listes.Sites)}}</label>
-  <label>Type {{template "choix-liste" (choix "env" "" .D.Listes.Types)}}</label>
-  <label>Groupe {{template "choix-liste" (choix "groupe" "" .D.Listes.Groupes)}}</label>
-  <label>Envoyer <select name="envoi"><option value="">Métriques et logs</option><option value="metriques">Métriques seulement</option><option value="logs">Logs seulement</option></select></label>
-  <label class="case" title="Ajoute --auto-update à la commande : versions signées installées seules (l'assistant root suit aussi)"><input type="checkbox" name="maj_auto" value="1" checked> Mises à jour automatiques</label>
-  <label>Valable <select name="duree"><option value="1h">1 h</option><option value="24h" selected>24 h</option><option value="168h">7 jours</option></select></label>
-  {{template "code2fa"}}<button>Créer un jeton</button></form>
-<p class="aide"><small class="aide">Groupe = mêmes réglages d'agent, et étiquette <code>groupe</code> des données. Listes : <a href="/reglages/sites">Réglages › Sites, types et groupes</a>.</small></p>
-
-<h2 id="equipement">Équipement sans agent</h2>
-<p>Pour un appareil qui n'accepte pas l'agent. Deux cas : il envoie lui-même ses métriques au format InfluxDB v2 (OPNsense avec le plugin Telegraf : un token est créé, affiché une seule fois), ou il est <strong>relevé par un collecteur du LAN</strong> (Synology, UniFi, imprimante… : choisir le collecteur, pas de token). La machine est créée et approuvée tout de suite.</p>
-{{if .D.TokenEquipement}}<div class="message">
-<p><strong>Token de « {{.D.Equipement}} »</strong> (à copier maintenant, il ne sera plus affiché) :</p>
-<pre class="commande">{{.D.TokenEquipement}}</pre>
-<p>Dans OPNsense : Services › Telegraf › Output, section <strong>InfluxDB v2</strong> :</p>
-<ul><li>URL : <code>{{if .D.Ingestion}}{{.D.Ingestion}}{{else}}https://ADRESSE-INGESTION{{end}}/api/agent/v1/influx</code> (Telegraf ajoute lui-même <code>/api/v2/write</code>)</li>
-<li>Token : celui ci-dessus</li><li>Organization et Bucket : au choix (ignorés)</li></ul>
-<p><small>Basculer coupe l'envoi vers l'ancienne cible InfluxDB v2.</small></p>
-</div>{{end}}
-<form method="post" action="/machines/equipement" class="ligne">{{template "csrf" .CSRF}}
-  <label>Nom <input name="nom" required maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="opnsense"></label>
-  <label>Site {{template "choix-liste" (choix "site" "" .D.Listes.Sites)}}</label>
-  <label>Type {{template "choix-liste" (choix "env" "" .D.Listes.Types)}}</label>
-  <label>Groupe {{template "choix-liste" (choix "groupe" "" .D.Listes.Groupes)}}</label>
-  {{if .D.Collecteurs}}<label title="Vide : l'appareil envoie lui-même (Telegraf). Sinon : relevé par ce collecteur, sans token.">Relevé par <select name="collecteur"><option value="">lui-même (Telegraf)</option>{{range .D.Collecteurs}}<option>{{.}}</option>{{end}}</select></label>{{end}}
-  <label title="Adresse publique depuis laquelle l'appareil envoie (vide = toutes celles admises par nginx ; sans objet s'il est relevé par un collecteur)">Adresses autorisées <input name="ips" maxlength="500" size="22" placeholder="203.0.113.7"></label>
-  {{template "code2fa"}}<button>Créer l'équipement</button></form>
-</section>{{end}}
+{{if .D.Autres}}<details class="carte"><summary><strong>Refusées ({{len .D.Autres}})</strong></summary>
+<ul>{{range .D.Autres}}<li><a href="/machines/{{.Nom}}">{{.Nom}}</a> — {{if eq .Statut "refusee"}}refusée{{else}}{{.Statut}}{{end}}</li>{{end}}</ul></details>{{end}}
 {{end}}

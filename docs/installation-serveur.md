@@ -176,9 +176,9 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://VOTRE-VHOST-INGESTION/a
 
 Fait le 11/11 pour srv-test. Tout se fait dans l'interface.
 
-1. **Machines › Ajouter une machine** : nom (facultatif), site, type,
-   groupe, « Envoyer », durée, code 2FA → **Créer un jeton**. La page
-   affiche les deux lignes à coller.
+1. **Machines › + Ajouter une machine** › Machine Linux : nom (facultatif),
+   site, type, groupe, options (envoi, durée), code 2FA → **Créer la
+   commande d'installation**. La page affiche les deux lignes à coller.
 2. Sur la machine, en root (`sudo -i`), coller les deux lignes affichées :
 
    ```bash

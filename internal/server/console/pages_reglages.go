@@ -24,7 +24,7 @@ import (
 
 func (c *Console) routesReglages() {
 	m := c.mux
-	m.HandleFunc("GET /reglages", c.lecture(func(q *req) { c.rendre(q, "reglages", "Réglages", "reglages", nil) }))
+	m.HandleFunc("GET /reglages", c.lecture(c.pageReglages))
 	m.HandleFunc("GET /reglages/export", c.lecture(func(q *req) { c.rendre(q, "export", "Export / import", "reglages", nil) }))
 	m.HandleFunc("GET /reglages/notifications", c.lecture(c.pageNotifications))
 	m.HandleFunc("POST /reglages/notifications", c.admin(c.postNotifications))
@@ -56,6 +56,9 @@ func (c *Console) routesReglages() {
 type champs struct{ q *req }
 
 func (f champs) texte(k string) string { return strings.TrimSpace(f.q.r.PostFormValue(k)) }
+
+// present : le champ fait partie du formulaire envoyé (même vide).
+func (f champs) present(k string) bool { _, ok := f.q.r.PostForm[k]; return ok }
 func (f champs) coche(k string) bool   { return f.q.r.PostFormValue(k) != "" }
 func (f champs) liste(k string) []string {
 	var out []string
@@ -103,6 +106,7 @@ type donneesNotif struct {
 	R          notif.Reglages // secrets masqués
 	Defaut     notif.Reglages
 	Etat       []notif.EtatCanal
+	EtatPar    map[string]notif.EtatCanal // état de chaque canal actif, par nom (cartes, SPEC § 38)
 	HbOK       time.Time
 	HbErr      string
 	File       int
@@ -125,6 +129,10 @@ func (c *Console) pageNotifications(q *req) {
 	if c.opt.Postier != nil {
 		d.Etat, d.HbOK, d.HbErr = c.opt.Postier.Etat()
 		d.File = c.opt.Postier.TailleFile(ctx)
+	}
+	d.EtatPar = map[string]notif.EtatCanal{}
+	for _, e := range d.Etat {
+		d.EtatPar[e.Nom] = e
 	}
 	// Rôle lecture : le sujet ntfy (chemin de l'adresse) n'est pas montré.
 	// Sans jeton, le connaître suffit pour lire les alertes ou en publier
@@ -185,6 +193,7 @@ func (c *Console) postNotifications(q *req) {
 	ctx := q.r.Context()
 	f := champs{q}
 	action := f.texte("action")
+	vers := "/reglages/notifications" // page de retour (autre pour « lien » et « regles_panne »)
 	err := func() (string, error) {
 		switch {
 		case strings.HasPrefix(action, "tester:"):
@@ -232,6 +241,18 @@ func (c *Console) postNotifications(q *req) {
 		}
 		ok := "réglages des notifications enregistrés (appliqués en 5 s au plus)"
 		switch action {
+		case "mode":
+			// Bouton « Activer l'envoi » / « Passer en ombre » (SPEC § 38).
+			r.Mode = f.texte("mode")
+			ok = "mode des notifications : " + r.Mode
+		case "lien":
+			// Adresse de l'interface, réglée dans Réglages › Interface (SPEC § 38).
+			r.Lien = f.texte("lien")
+			ok, vers = "adresse de l'interface enregistrée", "/reglages/interface#adresse-interface"
+		case "regles_panne":
+			// Dépendances, réglées dans Alertes › Silences et maintenances (SPEC § 38).
+			r.ReglesPanne = f.liste("regles_panne")
+			ok, vers = "règles « machine en panne » enregistrées", "/sourdine#dependances"
 		case "defaut":
 			d := notif.ReglagesDefaut()
 			d.Canaux = r.Canaux // les canaux décrits et leurs secrets restent
@@ -246,11 +267,21 @@ func (c *Console) postNotifications(q *req) {
 			ok = "canaux inversés : principal " + r.Canaux.Principal + ", secours " + r.Canaux.Secours
 		default:
 			var errs []error
-			r.Mode = f.texte("mode")
-			r.Lien = f.texte("lien")
-			r.Fuseau = f.texte("fuseau")
+			// Mode, adresse de l'interface, fuseau et dépendances ne sont
+			// plus dans ce formulaire (SPEC § 38) : gardés s'ils sont absents.
+			if f.present("mode") {
+				r.Mode = f.texte("mode")
+			}
+			if f.present("lien") {
+				r.Lien = f.texte("lien")
+			}
+			if f.present("fuseau") {
+				r.Fuseau = f.texte("fuseau")
+			}
+			if f.present("regles_panne") {
+				r.ReglesPanne = f.liste("regles_panne")
+			}
 			r.GrouperPar = f.liste("grouper_par")
-			r.ReglesPanne = f.liste("regles_panne")
 			for _, g := range []string{alertes.Critique, alertes.Avertissement, alertes.Info} {
 				r.Routes[g] = notif.Route{Attente: f.duree("attente_"+g, &errs), Intervalle: f.duree("intervalle_"+g, &errs),
 					Rappel: f.duree("rappel_"+g, &errs), Son: f.coche("son_" + g), Escalade: f.duree("escalade_"+g, &errs)}
@@ -309,7 +340,7 @@ func (c *Console) postNotifications(q *req) {
 		return ok, notif.EcrireReglages(ctx, c.db, r, c.opt.Cle, q.qui(), q.t)
 	}
 	ok, e := err()
-	c.retour(q, "/reglages/notifications", e, ok)
+	c.retour(q, vers, e, ok)
 }
 
 // --- Conservation des données ------------------------------------------------------------
@@ -757,10 +788,20 @@ type donneesInterface struct {
 	GeoErreur    string
 	GeoEssai     time.Time // dernier essai de téléchargement
 	GeoDemande   bool      // téléchargement demandé, pas encore fait
+	// Réglés ici depuis le 16/11 (SPEC § 38), gardés dans les réglages des
+	// notifications : adresse de l'interface (lien dans les messages) et
+	// fuseau des messages, s'il diffère encore de celui de l'interface.
+	Lien, FuseauMessages string
 }
 
 func (c *Console) pageInterface(q *req) {
 	d := donneesInterface{ReglagesInterface: lireInterface(q.r.Context(), c.db)}
+	if rn, err := notif.LireReglages(q.r.Context(), c.db); err == nil {
+		d.Lien = rn.Lien
+		if rn.Fuseau != d.Fuseau {
+			d.FuseauMessages = rn.Fuseau
+		}
+	}
 	if c.opt.GeoIP != nil {
 		d.GeoFichier, d.GeoEnMemoire, d.GeoErreur = c.opt.GeoIP.Etat()
 		d.GeoEssai, d.GeoDemande = c.opt.GeoIP.Essais()
@@ -821,7 +862,21 @@ func (c *Console) postInterface(q *req) {
 		// qu'une connexion, une lecture pendant la transaction se bloquerait.
 		err = c.enregistrerInterface(q.r.Context(), lireInterface(q.r.Context(), c.db), r, q.qui(), q.ip.String(), q.t)
 	}
+	if err == nil {
+		err = c.alignerFuseauMessages(q.r.Context(), r.Fuseau, q.qui(), q.t)
+	}
 	c.retour(q, "/reglages/interface", err, "réglages de l'interface enregistrés")
+}
+
+// alignerFuseauMessages : un seul fuseau (SPEC § 38) ; celui de l'interface
+// sert aussi aux heures écrites dans les messages.
+func (c *Console) alignerFuseauMessages(ctx context.Context, fuseau, qui string, t time.Time) error {
+	rn, err := notif.LireReglages(ctx, c.db)
+	if err != nil || rn.Fuseau == fuseau {
+		return err
+	}
+	rn.Fuseau = fuseau
+	return notif.EcrireReglages(ctx, c.db, rn, c.opt.Cle, qui, t)
 }
 
 // enregistrerInterface : écrit les réglages (déjà validés) avec leur ligne

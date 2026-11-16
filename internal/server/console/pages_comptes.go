@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
 )
@@ -276,11 +275,11 @@ func (c *Console) post2FAAbandonner(q *req) {
 // --- Utilisateurs (admin) ----------------------------------------------------------
 
 func (c *Console) pageUtilisateurs(q *req) {
-	us, err := auth.ListerUtilisateurs(q.r.Context(), c.db)
+	d, err := c.donneesUtilisateurs(q)
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	c.rendre(q, "utilisateurs", "Utilisateurs", "utilisateurs", us)
+	c.rendre(q, "utilisateurs", "Utilisateurs", "utilisateurs", d)
 }
 
 // postUtilisateur : toutes les actions sur les comptes. Sensibles (brief :
@@ -347,10 +346,12 @@ func (c *Console) postUtilisateur(q *req) {
 // --- Sécurité (admin) --------------------------------------------------------------
 
 type donneesSecurite struct {
-	S        Securite
-	Defaut   Securite
-	Sessions []auth.Session
-	MonIP    string
+	S         Securite
+	Defaut    Securite
+	Sessions  []auth.Session
+	MonIP     string
+	MaSession string       // Ref de la session qui regarde la page (« cette session »)
+	Bilan     []pointBilan // ce qui va bien, ce qui est à regarder (SPEC § 38)
 }
 
 func (c *Console) pageSecurite(q *req) {
@@ -360,15 +361,11 @@ func (c *Console) pageSecurite(q *req) {
 	}
 	ss := c.sessions.Lister()
 	sort.Slice(ss, func(i, j int) bool { return ss[i].Vue.After(ss[j].Vue) })
-	c.rendre(q, "securite", "Sécurité", "securite", donneesSecurite{S: s, Defaut: SecuriteDefaut(), Sessions: ss, MonIP: q.ip.String()})
-}
-
-func lireDureeForm(q *req, champ string) (alertes.Duree, error) {
-	d, err := alertes.LireDuree(strings.TrimSpace(q.r.PostFormValue(champ)))
-	if err != nil {
-		return 0, errors.New(champ + " : durée illisible (ex. 30m, 12h)")
+	d := donneesSecurite{S: s, Defaut: SecuriteDefaut(), Sessions: ss, MonIP: q.ip.String(), MaSession: q.s.Ref()}
+	if us, err := auth.ListerUtilisateurs(q.r.Context(), c.db); err == nil {
+		d.Bilan = bilanSecurite(s, us)
 	}
-	return d, nil
+	c.rendre(q, "securite", "Sécurité", "securite", d)
 }
 
 func (c *Console) postSecurite(q *req) {
@@ -381,13 +378,15 @@ func (c *Console) postSecurite(q *req) {
 			s = SecuriteDefaut()
 		} else {
 			var e1, e2, e3, e4, e5 error
-			s.Inactivite, e1 = lireDureeForm(q, "inactivite")
-			s.DureeMax, e2 = lireDureeForm(q, "duree_max")
-			s.Verrou, e3 = lireDureeForm(q, "verrou")
+			// Un nombre seul est compté dans l'unité affichée à côté du
+			// champ (SPEC § 38) ; « 30m », « 12h » restent acceptés.
+			s.Inactivite, e1 = lireDureeUnite(q.r, "inactivite", "min")
+			s.DureeMax, e2 = lireDureeUnite(q.r, "duree_max", "h")
+			s.Verrou, e3 = lireDureeUnite(q.r, "verrou", "min")
 			if v := strings.TrimSpace(q.r.PostFormValue("mode_admin")); v == "0" || v == "" {
 				s.ModeAdmin = 0
 			} else {
-				s.ModeAdmin, e5 = lireDureeForm(q, "mode_admin")
+				s.ModeAdmin, e5 = lireDureeUnite(q.r, "mode_admin", "min")
 			}
 			s.Echecs, e4 = strconv.Atoi(q.r.PostFormValue("echecs"))
 			if e4 != nil {
@@ -448,6 +447,19 @@ func (c *Console) postConfirmer(q *req) {
 // soupçonné, poste oublié).
 func (c *Console) postFermerSession(q *req) {
 	e := q.r.PostFormValue("session")
+	// « Fermer toutes les autres » (SPEC § 38) : toutes sauf celle-ci.
+	if e == "autres" {
+		n := 0
+		for _, s := range c.sessions.Lister() {
+			if s.Empreinte != q.s.Empreinte {
+				c.sessions.Supprimer(s.Empreinte)
+				n++
+			}
+		}
+		_ = Auditer(q.r.Context(), c.db, q.qui(), "sessions_fermees", "", "", strconv.Itoa(n)+" session(s)", q.ip.String(), q.t)
+		c.retour(q, "/securite#sessions", nil, accorderTexte(strconv.Itoa(n)+" session(s) fermée(s)"))
+		return
+	}
 	for _, s := range c.sessions.Lister() {
 		if s.Ref() == e {
 			c.sessions.Supprimer(s.Empreinte)

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"time"
 )
@@ -236,62 +235,6 @@ func (c *Console) effacerLigne(ctx context.Context, nom, action, qui, adresse st
 	return nil
 }
 
-// --- Raccourcis vers des pages de mirador (Logs, Flux bloqués) ---------------
-//
-// Ce ne sont pas des tableaux mais des pages ; ils sont proposés de la même
-// façon (demande du 10/11) : rien n'est installé d'office. Réglage
-// « tableaux.pages » : liste des raccourcis installés.
-
-// PageRaccourci : une page proposée sur la page Tableaux.
-type PageRaccourci struct {
-	Nom, Titre, Description, Lien, Icone, Teinte string
-}
-
-var pagesRaccourcis = []PageRaccourci{
-	{"logs", "Logs", "Recherche, filtres, palmarès", "/logs", "logs", "bleu"},
-	{"flux-bloques", "Flux entrants bloqués", "Pare-feu des machines (pays avec la GéoIP)", "/flux-bloques", "mur", "rouge"},
-}
-
-const clePagesTableaux = "tableaux.pages"
-
-// pagesInstallees : raccourcis installés, puis ceux proposés.
-func (c *Console) pagesInstallees(ctx context.Context) (installees, proposees []PageRaccourci) {
-	var noms []string
-	_, _ = lireJSONReglage(ctx, c.db, clePagesTableaux, &noms)
-	for _, p := range pagesRaccourcis {
-		if slices.Contains(noms, p.Nom) {
-			installees = append(installees, p)
-		} else {
-			proposees = append(proposees, p)
-		}
-	}
-	return
-}
-
-// installerPage : ajoute ou retire un raccourci (audit).
-func (c *Console) installerPage(ctx context.Context, nom string, installer bool, qui, adresse string, t time.Time) error {
-	if !slices.ContainsFunc(pagesRaccourcis, func(p PageRaccourci) bool { return p.Nom == nom }) {
-		return errors.New("page inconnue")
-	}
-	var noms []string
-	_, _ = lireJSONReglage(ctx, c.db, clePagesTableaux, &noms)
-	noms = slices.DeleteFunc(noms, func(s string) bool { return s == nom })
-	action := "tableau_page_retirer"
-	if installer {
-		noms = append(noms, nom)
-		action = "tableau_page_installer"
-	}
-	b, _ := json.Marshal(noms)
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if err := ecrireReglage(ctx, tx, clePagesTableaux, string(b), qui, t); err != nil {
-		return err
-	}
-	if err := Auditer(ctx, tx, qui, action, nom, "", "", adresse, t); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
+// Raccourcis « Logs » et « Flux entrants bloqués » : retirés le 16/11
+// (SPEC § 38) ; ces pages sont dans le menu Logs. Le réglage
+// « tableaux.pages » éventuellement présent en base est simplement ignoré.

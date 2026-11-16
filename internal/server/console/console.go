@@ -102,6 +102,7 @@ type Console struct {
 
 	importMaj    etatImport          // import d'une version depuis GitHub (en arrière-plan)
 	sourceGitHub flotte.SourceGitHub // adresse de GitHub (remplaçable dans les tests)
+	versionsGH   cacheVersionsGitHub // 5 dernières versions du dépôt (SPEC § 37)
 
 	muEtincelles     sync.Mutex
 	etincellesCache  map[string]string

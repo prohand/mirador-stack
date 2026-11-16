@@ -165,6 +165,7 @@ func fonctions() template.FuncMap {
 		"depuisMs": depuis,
 		"duree":    func(d time.Duration) string { return dureeLisible(d) },
 		"dureeC":   dureeCourte,
+		"enUnite":  enUnite,
 		"ancre":    ancre,
 		"periodeFr": func(p string) string { // « 7d » → « 7 j », « 6h » → « 6 h »
 			return strings.NewReplacer("d", " j", "h", " h", "w", " sem.").Replace(p)
@@ -471,19 +472,20 @@ type ongletsReglages struct {
 // aux cartes de la page d'accueil des réglages : mêmes noms, même ordre.
 type sectionReglages struct {
 	Cle, Titre, Href, Aide string
+	Icone, Teinte          string // carte de la page d'accueil des réglages (SPEC § 38)
 	Ou                     string // pages liées : où la page se trouve dans le menu
 }
 
 // sectionsReglages : pages rangées sous /reglages (onglets).
 var sectionsReglages = []sectionReglages{
-	{Cle: "notifications", Titre: "Notifications", Href: "/reglages/notifications", Aide: "Canaux, principal et secours, bascule, routage par gravité, heartbeat, mode ombre, test d'envoi"},
-	{Cle: "olvid", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
-	{Cle: "conservation", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
-	{Cle: "sauvegardes", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
-	{Cle: "certificats", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
-	{Cle: "sites", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
-	{Cle: "interface", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau horaire, thème, menu, mode debug temporaire"},
-	{Cle: "export", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},
+	{Cle: "notifications", Icone: "envoi", Teinte: "bleu", Titre: "Notifications", Href: "/reglages/notifications", Aide: "Canaux, principal et secours, routage, heartbeat"},
+	{Cle: "olvid", Icone: "cle", Teinte: "vert", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
+	{Cle: "conservation", Icone: "stockage", Teinte: "violet", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
+	{Cle: "sauvegardes", Icone: "sauvegarde", Teinte: "vert", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
+	{Cle: "certificats", Icone: "cadenas", Teinte: "vert", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
+	{Cle: "sites", Icone: "maison", Teinte: "bleu", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
+	{Cle: "interface", Icone: "ecran", Teinte: "bleu", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau, thème, menu, adresses de l'interface et d'ingestion, debug"},
+	{Cle: "export", Icone: "fichier", Teinte: "bleu", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},
 }
 
 // pagesLieesReglages : réglages rangés ailleurs dans le menu (à leur place

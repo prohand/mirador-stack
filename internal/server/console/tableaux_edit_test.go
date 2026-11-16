@@ -229,7 +229,7 @@ func TestSitesEtTypes(t *testing.T) {
 	if l := b.c.lireListes(ctx); !slices.Equal(l.Sites, []string{"maison"}) {
 		t.Fatalf("sites : %+v", l.Sites)
 	}
-	if _, corps, _ := b.get(c, "/machines"); !strings.Contains(corps, `<option >maison</option>`) && !strings.Contains(corps, `<option>maison</option>`) {
+	if _, corps, _ := b.get(c, "/machines/ajouter"); !strings.Contains(corps, `<option >maison</option>`) && !strings.Contains(corps, `<option>maison</option>`) {
 		t.Error("site absent de la liste déroulante")
 	}
 	// Jeton : site hors liste refusé, site de la liste accepté.
@@ -312,21 +312,16 @@ func TestIconesDessinees(t *testing.T) {
 	}
 }
 
-// Logs et Flux bloqués : proposés, pas installés d'office.
-func TestRaccourcisPages(t *testing.T) {
+// Raccourcis « Logs » et « Flux bloqués » retirés de la page Tableaux
+// (SPEC § 38) : les pages restent dans le menu.
+func TestPlusDeRaccourcisPages(t *testing.T) {
 	b := nouveauBanc(t)
 	c, _ := b.premierAdmin("admin", mdpAdmin)
 	csrf := b.csrf(c, "/tableaux")
-	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs installé d'office")
-	}
 	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"installer-page"}, "nom": {"logs"}})
-	if _, corps, _ := b.get(c, "/tableaux"); !strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs non installé")
-	}
-	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"retirer-page"}, "nom": {"logs"}})
-	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs non retiré")
+	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) || strings.Contains(corps, "installer-page") ||
+		strings.Contains(corps, "page de mirador") {
+		t.Error("raccourci de page encore proposé sur la page Tableaux")
 	}
 }
 
@@ -372,12 +367,21 @@ func TestImportGitHubInterface(t *testing.T) {
 			_, _ = w.Write(brut)
 		case "/prohand/mirador-stack/releases/download/v1.3.0/mirador-agent-1.3.0-linux-amd64":
 			_, _ = w.Write(bin)
+		case "/prohand/mirador-stack/releases.atom":
+			_, _ = w.Write([]byte(`<feed xmlns="http://www.w3.org/2005/Atom">` +
+				`<entry><updated>2026-11-16T17:00:00Z</updated><link href="https://github.com/prohand/mirador-stack/releases/tag/v1.4.0"/><title>v1.4.0</title></entry>` +
+				`<entry><updated>2026-11-10T09:00:00Z</updated><link href="https://github.com/prohand/mirador-stack/releases/tag/v1.3.0"/><title>v1.3.0</title></entry></feed>`))
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	defer srv.Close()
+	// Sans GitHub joignable (adresse fermée du banc) : le champ à taper.
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, `name="tag" required`) || !strings.Contains(corps, "liste des versions de GitHub indisponible") {
+		t.Error("GitHub injoignable : champ à taper et message attendus")
+	}
 	b.c.sourceGitHub = flotte.SourceGitHub{Base: srv.URL, Client: srv.Client()}
+	b.c.versionsGH.expire = time.Time{} // oublier l'échec mémorisé
 	b.h.avancer(31 * time.Second)
 	b.post(c, "/mises-a-jour", url.Values{"csrf": {csrf}, "action": {"cles"}, "cles": {base64.StdEncoding.EncodeToString(pub)}, "code": {b.code(secret)}})
 	b.h.avancer(31 * time.Second)
@@ -388,8 +392,14 @@ func TestImportGitHubInterface(t *testing.T) {
 	if e := b.c.importMaj.lire(); e.EnCours || e.Erreur || !strings.Contains(e.Resultat, "amd64") {
 		t.Fatalf("import : %+v", e)
 	}
-	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, "<td>1.3.0</td>") || !strings.Contains(corps, `value="supprimer_version"`) {
+	_, corps, _ := b.get(c, "/mises-a-jour")
+	if !strings.Contains(corps, "<td>1.3.0</td>") || !strings.Contains(corps, `value="supprimer_version"`) {
 		t.Error("version importée (ou bouton Supprimer) absente de la liste")
+	}
+	// Liste de GitHub : la plus récente non importée choisie d'office.
+	if !strings.Contains(corps, `<option value="v1.4.0" selected>v1.4.0 — 16/11/2026</option>`) ||
+		!strings.Contains(corps, `<option value="v1.3.0">v1.3.0 — 10/11/2026 (déjà importée)</option>`) || !strings.Contains(corps, `name="tag_autre"`) {
+		t.Error("liste des versions de GitHub absente ou mal remplie")
 	}
 	// Réglage « Versions récentes gardées » (1 à 10).
 	b.h.avancer(31 * time.Second)
@@ -419,7 +429,7 @@ func TestEquipementSansAgent(t *testing.T) {
 	b := nouveauBanc(t)
 	c, secret := b.premierAdmin("admin", mdpAdmin)
 	csrf := b.csrf(c, "/machines")
-	if _, corps, _ := b.get(c, "/machines"); !strings.Contains(corps, `action="/machines/equipement"`) {
+	if _, corps, _ := b.get(c, "/machines/ajouter?quoi=equipement"); !strings.Contains(corps, `action="/machines/equipement"`) {
 		t.Fatal("formulaire absent")
 	}
 	// Adresse invalide : rien n'est créé.
@@ -430,7 +440,7 @@ func TestEquipementSansAgent(t *testing.T) {
 	}
 	b.h.avancer(31 * time.Second)
 	_, corps, _ := b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"OPNsense"}, "ips": {"203.0.113.7"}, "code": {b.code(secret)}})
-	if !strings.Contains(corps, "/api/agent/v1/influx") || !strings.Contains(corps, "Token de « opnsense »") {
+	if !strings.Contains(corps, "/api/agent/v1/influx") || !strings.Contains(corps, "Brancher « opnsense »") {
 		t.Fatalf("token et réglages Telegraf non affichés")
 	}
 	ms, _ := flotte.ListerMachines(context.Background(), b.c.db)

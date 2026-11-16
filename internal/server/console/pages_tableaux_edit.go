@@ -45,7 +45,6 @@ type donneesTableaux struct {
 	Lignes    []ligneTableau
 	Catalogue []ligneTableau // tableaux fournis proposés, pas encore installés
 	// Raccourcis vers les pages Logs et Flux bloqués : installés / proposés.
-	Pages, PagesProposees []PageRaccourci
 }
 
 func (c *Console) pageTableaux(q *req) {
@@ -57,7 +56,6 @@ func (c *Console) pageTableaux(q *req) {
 		}
 		d.Lignes = append(d.Lignes, ligneTableau{T: t, Origine: c.origineTableau(t.Nom), Nb: n})
 	}
-	d.Pages, d.PagesProposees = c.pagesInstallees(q.r.Context())
 	for _, t := range c.etatTab().catalogue {
 		n := 0
 		for _, r := range t.Rangees {
@@ -156,9 +154,6 @@ func (c *Console) postTableaux(q *req) {
 		} else {
 			vers = "/tableaux/" + nom + "/supprimer"
 		}
-	case "installer-page", "retirer-page":
-		err = c.installerPage(ctx, nom, f.texte("action") == "installer-page", q.qui(), q.ip.String(), q.t)
-		ok = "raccourci enregistré"
 	case "installer":
 		if err = c.InstallerTableau(ctx, nom, q.qui(), q.ip.String(), q.t); err == nil {
 			ok, vers = "tableau installé", "/tableaux/"+nom

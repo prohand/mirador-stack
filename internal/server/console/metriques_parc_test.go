@@ -4,6 +4,7 @@ package console
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -80,11 +81,15 @@ func TestGourmandsChaleurMur(t *testing.T) {
 
 	_, corps, _ = b.get(c, "/")
 	ch := section(corps, `id="chaleur"`)
-	for _, attendu := range []string{"Le parc sur 24 h", "<h3>Processeur</h3>", "<h3>Mémoire</h3>", `<a href="/machines/nas">nas</a>`,
+	for _, attendu := range []string{"Le parc sur 24 h", "<h3>Processeur</h3>", "<h3>Mémoire</h3>", `<a href="/machines/nas" title="nas">nas</a>`, `data-nom="web1" data-texte="web1   "`, "data-chaleur-plus",
 		`class="ch-2" title="web1 · `, "· 50 %", `<td class="ch-max">75 %</td>`, `class="ch-0" title="nas · `, `href="/mur"`} {
 		if !strings.Contains(ch+corps, attendu) {
 			t.Errorf("carte de chaleur : %q absent de %s", attendu, ch)
 		}
+	}
+	// Les plus chargées en haut (web1 : 50 % ; nas : 5 %), dans les deux cartes.
+	if strings.Index(ch, `data-nom="web1"`) > strings.Index(ch, `data-nom="nas"`) {
+		t.Error("carte de chaleur : web1, plus chargée, devrait être avant nas")
 	}
 	if n := strings.Count(ch, `title="web1 · `); n != 48 {
 		t.Errorf("carte de chaleur : %d cases pour web1 (48 attendues : 24 h × 2 mesures)", n)
@@ -113,4 +118,25 @@ func section(s, motif string) string {
 		return s[i:]
 	}
 	return s[i : i+j]
+}
+
+// Carte de chaleur : tri par pic, sans données en bas, coupure à 100 comptée.
+func TestOrdonnerChaleur(t *testing.T) {
+	v := vueChaleur{}
+	for i := 0; i < 105; i++ {
+		v.Lignes = append(v.Lignes, ligneChaleur{Nom: fmt.Sprintf("m%03d", i), pic: float64(i % 50)})
+	}
+	v.Lignes = append(v.Lignes, ligneChaleur{Nom: "a-sans-donnees", pic: math.NaN()})
+	ordonnerChaleur(&v)
+	if len(v.Lignes) != 100 || v.Cachees != 6 {
+		t.Fatalf("%d lignes, %d cachées", len(v.Lignes), v.Cachees)
+	}
+	if v.Lignes[0].Nom != "m049" || v.Lignes[1].Nom != "m099" || v.Lignes[0].pic != 49 {
+		t.Errorf("tête : %s, %s", v.Lignes[0].Nom, v.Lignes[1].Nom)
+	}
+	for _, l := range v.Lignes {
+		if l.Nom == "a-sans-donnees" {
+			t.Error("machine sans données gardée devant des machines chargées")
+		}
+	}
 }

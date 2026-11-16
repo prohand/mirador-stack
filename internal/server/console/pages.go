@@ -4,6 +4,7 @@ package console
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,6 +38,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /fragments/accueil", c.lecture(c.fragmentAccueil))
 	m.HandleFunc("GET /mur", c.lecture(c.pageMur))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
+	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
 	m.HandleFunc("GET /machines/{nom}", c.lecture(c.pageMachine))
@@ -309,21 +311,53 @@ type vueMachine struct {
 	flotte.InfoMachine
 	Muette   bool
 	AValider int // éléments détectés « à valider » (SPEC § 19)
+	// Liste (SPEC § 36) : collecteur qui relève cet équipement, et
+	// équipement affiché juste sous son collecteur.
+	ReleveePar string
+	Sous       bool
+	// Machine en attente (SPEC § 36) : nom d'hôte trop commun, et demande
+	// venue d'un réseau où aucune machine approuvée n'a été vue.
+	NomBanal, AdresseInconnue bool
 }
 
+// donneesMachines : page Machines (liste) ; l'ajout est sur sa propre page
+// (donneesAjout, /machines/ajouter).
 type donneesMachines struct {
-	EnAttente, Approuvees, Autres []vueMachine
-	Ingestion                     string         // adresse d'ingestion (Réglages › Interface), vide = à renseigner
-	Jeton                         string         // jeton tout juste créé (affiché une seule fois)
-	OptionEnvoi                   string         // options du script : « --sans-logs », « --sans-metriques », « --auto-update »
-	Listes                        ListesMachines // sites, types et groupes proposés (Réglages)
+	EnAttente, Autres []vueMachine
+	TotalAttente      int  // machines en attente (toutes)
+	AttenteCachees    int  // en attente au-delà des premières (lien « Voir les N autres »)
+	ToutesAttente     bool // ?attente=toutes
+	Listes            ListesMachines
+	Approuvees        int // nombre total, sans filtre
+	Sites             int // nombre de sites différents
+	Filtres           filtresPage
+	Compteurs         compteursFiltres
+	Groupes           []groupeMachines
+}
+
+// donneesAjout : page « Ajouter une machine » (SPEC § 36), en étapes.
+type donneesAjout struct {
+	Quoi      string         // agent, collecteur, equipement
+	Ingestion string         // adresse d'ingestion (Réglages › Interface), vide = à renseigner
+	Listes    ListesMachines // sites, types et groupes proposés (Réglages)
+	// Collecteurs approuvés (« Relevé par » d'un équipement).
+	Collecteurs []string
+	// Jeton tout juste créé (affiché une seule fois) et options du script
+	// (« --nom », « --sans-logs », « --auto-update »…).
+	Jeton, OptionEnvoi string
 	// Équipement sans agent (OPNsense / Telegraf) tout juste créé : son
 	// token n'est affiché qu'ici, une seule fois.
 	Equipement, TokenEquipement string
-	// Collecteurs : collecteurs approuvés (« Relevé par » d'un équipement) ;
-	// JetonCollecteur : le jeton tout juste créé est pour un collecteur.
-	Collecteurs     []string
-	JetonCollecteur bool
+	EnAttente                   int // machines en attente d'approbation
+}
+
+// quoiAjout : ce qu'on ajoute, ramené aux valeurs admises.
+func quoiAjout(s string) string {
+	switch s {
+	case "collecteur", "equipement":
+		return s
+	}
+	return "agent"
 }
 
 func (c *Console) pageMachines(q *req) {
@@ -331,29 +365,74 @@ func (c *Console) pageMachines(q *req) {
 }
 
 func (c *Console) donneesMachines(q *req) donneesMachines {
-	ms, err := flotte.ListerMachines(q.r.Context(), c.db)
+	ctx := q.r.Context()
+	ms, err := flotte.ListerMachines(ctx, c.db)
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	var d donneesMachines
+	u := q.r.URL.Query()
+	d := donneesMachines{Filtres: lireFiltresMachines(u.Get("vue"), u.Get("filtre"), u.Get("q")), ToutesAttente: u.Get("attente") == "toutes"}
 	var aValider map[string]int
 	if c.lecteur != nil {
-		aValider = c.aValider(q.r.Context(), q.t)
+		aValider = c.aValider(ctx, q.t)
 	}
+	releves, _ := flotte.RelevesParCollecteur(ctx, c.db)
+	var approuvees []vueMachine
+	sites := map[string]bool{}
 	for _, m := range ms {
-		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette, AValider: aValider[m.Nom]}
+		v := vueMachine{InfoMachine: m, Muette: q.t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette, AValider: aValider[m.Nom],
+			ReleveePar: releves[m.Nom]}
 		switch m.Statut {
 		case "en_attente":
 			d.EnAttente = append(d.EnAttente, v)
 		case "approuvee":
-			d.Approuvees = append(d.Approuvees, v)
+			approuvees = append(approuvees, v)
+			if m.Site != "" {
+				sites[m.Site] = true
+			}
 		default:
 			d.Autres = append(d.Autres, v)
 		}
 	}
-	d.Ingestion = lireInterface(q.r.Context(), c.db).Ingestion
-	d.Listes = c.lireListes(q.r.Context())
-	d.Collecteurs, _ = flotte.Collecteurs(q.r.Context(), c.db)
+	// En attente : la plus ancienne demande d'abord, avec ses deux signaux.
+	connus := reseauxConnus(approuvees)
+	slices.SortStableFunc(d.EnAttente, func(a, b vueMachine) int { return cmp.Compare(a.CreeLe, b.CreeLe) })
+	for i := range d.EnAttente {
+		m := &d.EnAttente[i]
+		m.NomBanal = !m.NomDuJeton && nomBanal(m.Nom)
+		m.AdresseInconnue = adresseInconnue(m.IPEnrolement, connus)
+	}
+	d.TotalAttente = len(d.EnAttente)
+	if !d.ToutesAttente && len(d.EnAttente) > attenteVisibles {
+		d.AttenteCachees = len(d.EnAttente) - attenteVisibles
+		d.EnAttente = d.EnAttente[:attenteVisibles]
+	}
+	d.Approuvees, d.Sites = len(approuvees), len(sites)
+	d.Compteurs = d.Filtres.compter(approuvees)
+	d.Groupes = regrouperMachines(approuvees, d.Filtres)
+	d.Listes = c.lireListes(ctx)
+	return d
+}
+
+// pageAjouter : ajout d'une machine, d'un collecteur ou d'un équipement
+// (SPEC § 36). Réservée aux administrateurs (elle crée des jetons).
+func (c *Console) pageAjouter(q *req) {
+	c.rendre(q, "machines-ajouter", "Ajouter une machine", "machines", c.donneesAjout(q, q.r.URL.Query().Get("quoi")))
+}
+
+func (c *Console) donneesAjout(q *req, quoi string) donneesAjout {
+	ctx := q.r.Context()
+	d := donneesAjout{Quoi: quoiAjout(quoi)}
+	d.Ingestion = lireInterface(ctx, c.db).Ingestion
+	d.Listes = c.lireListes(ctx)
+	d.Collecteurs, _ = flotte.Collecteurs(ctx, c.db)
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		for _, m := range ms {
+			if m.Statut == "en_attente" {
+				d.EnAttente++
+			}
+		}
+	}
 	return d
 }
 
@@ -409,17 +488,17 @@ func (c *Console) postEquipement(q *req) {
 			flotte.DefinirEtiquettes(ctx, c.db, nom, f("site"), f("env"), f("groupe"), q.qui(), q.t))
 	}
 	if err != nil && token == "" {
-		c.retour(q, "/machines#equipement", err, "")
+		c.retour(q, "/machines/ajouter?quoi=equipement", err, "")
 		return
 	}
-	d := c.donneesMachines(q)
+	d := c.donneesAjout(q, "equipement")
 	d.Equipement, d.TokenEquipement = nom, token
 	if err != nil {
 		c.flash(q, "", "équipement créé, mais : "+err.Error())
 	} else {
 		c.flash(q, "équipement « "+nom+" » créé : copier son token maintenant, il n'est affiché qu'ici", "")
 	}
-	c.rendre(q, "machines", "Machines", "machines", d)
+	c.rendre(q, "machines-ajouter", "Ajouter une machine", "machines", d)
 }
 
 // postJeton : jeton d'enrôlement à usage unique, affiché une seule fois.
@@ -437,16 +516,17 @@ func (c *Console) postJeton(q *req) {
 			}
 		}
 	}
+	quoi := quoiAjout(q.r.PostFormValue("type_machine"))
 	if err != nil {
-		c.retour(q, "/machines", err, "")
+		c.retour(q, "/machines/ajouter?quoi="+quoi, err, "")
 		return
 	}
 	// Page affichée directement (pas de redirection) : le jeton n'est
 	// jamais gardé en session ni en base en clair. Recharger la page ne
 	// recrée rien (le code 2FA ne sert qu'une fois).
-	d := c.donneesMachines(q)
+	d := c.donneesAjout(q, quoi)
 	d.Jeton = j
-	d.JetonCollecteur = q.r.PostFormValue("type_machine") == "collecteur"
+	collecteur := d.Quoi == "collecteur"
 	// Ce que la machine enverra (modifiable ensuite : Configuration des agents).
 	var options []string
 	// Nom choisi : repris dans la commande, pour que le journal de la machine
@@ -457,12 +537,12 @@ func (c *Console) postJeton(q *req) {
 	}
 	switch q.r.PostFormValue("envoi") {
 	case "metriques":
-		if d.JetonCollecteur {
+		if collecteur {
 			break // le collecteur ne lit pas les logs de sa machine
 		}
 		options = append(options, "--sans-logs")
 	case "logs":
-		if d.JetonCollecteur {
+		if collecteur {
 			break
 		}
 		options = append(options, "--sans-metriques")
@@ -474,7 +554,7 @@ func (c *Console) postJeton(q *req) {
 	}
 	d.OptionEnvoi = strings.Join(options, " ")
 	c.flash(q, "jeton d'enrôlement créé : à utiliser une seule fois, il n'est affiché qu'ici", "")
-	c.rendre(q, "machines", "Machines", "machines", d)
+	c.rendre(q, "machines-ajouter", "Ajouter une machine", "machines", d)
 }
 
 // definirEtiquettes : site et type pris dans les listes (Réglages › Sites et
@@ -827,6 +907,45 @@ type donneesMaj struct {
 	Choix    []string // versions publiées, sans doublon (une ligne par architecture dans Versions)
 	Import   vueImport
 	Garder   int // versions récentes gardées (réglage, 1 à 10)
+	// Dernières versions publiées sur GitHub (SPEC § 37), proposées dans
+	// une liste ; ListeGitHub : message si la liste n'a pas pu être lue.
+	Proposees   []versionProposee
+	ListeGitHub string
+}
+
+// versionProposee : une version de GitHub dans la liste d'import.
+type versionProposee struct {
+	Tag, Date string
+	Importee  bool // déjà publiée ici
+}
+
+// versionsProposees : nombre de versions de GitHub proposées (choix du 16/11).
+const versionsProposees = 5
+
+// cacheVersionsGitHub : liste gardée 10 min (1 min après un échec) pour ne
+// pas interroger GitHub à chaque affichage de la page.
+type cacheVersionsGitHub struct {
+	mu     sync.Mutex
+	depot  string
+	vs     []flotte.VersionGitHub
+	err    error
+	expire time.Time
+}
+
+// versionsGitHub : dernières versions du dépôt, depuis le cache si possible.
+func (c *Console) versionsGitHub(ctx context.Context, depot string, t time.Time) ([]flotte.VersionGitHub, error) {
+	c.versionsGH.mu.Lock()
+	defer c.versionsGH.mu.Unlock()
+	if c.versionsGH.depot == depot && t.Before(c.versionsGH.expire) {
+		return c.versionsGH.vs, c.versionsGH.err
+	}
+	vs, err := flotte.DernieresVersionsGitHub(ctx, c.sourceGitHub, depot, versionsProposees)
+	duree := 10 * time.Minute
+	if err != nil {
+		duree = time.Minute
+	}
+	c.versionsGH.depot, c.versionsGH.vs, c.versionsGH.err, c.versionsGH.expire = depot, vs, err, t.Add(duree)
+	return vs, err
 }
 
 type cleVue struct{ Valeur, Empreinte string }
@@ -920,6 +1039,21 @@ func (c *Console) pageMisesAJour(q *req) {
 	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7); err != nil {
 		c.flash(q, "", err.Error())
 	}
+	// Liste des versions de GitHub : seulement pour les admins (eux seuls
+	// importent) ; en cas d'échec, le champ à taper reste là.
+	if q.admin() && e6 == nil {
+		if vs, err := c.versionsGitHub(ctx, d.Depot, q.t); err != nil {
+			d.ListeGitHub = "liste des versions de GitHub indisponible (" + err.Error() + ") : taper le numéro"
+		} else {
+			for _, v := range vs {
+				p := versionProposee{Tag: v.Tag, Importee: vu[strings.TrimPrefix(v.Tag, "v")] || vu[v.Tag]}
+				if !v.Date.IsZero() {
+					p.Date = v.Date.In(fuseau.Load()).Format("02/01/2006")
+				}
+				d.Proposees = append(d.Proposees, p)
+			}
+		}
+	}
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
 }
 
@@ -938,7 +1072,12 @@ func (c *Console) postMisesAJour(q *req) {
 		case "importer":
 			var depot string
 			if depot, err = flotte.LireDepot(ctx, c.db); err == nil {
-				if !c.lancerImport(depot, strings.TrimSpace(q.r.PostFormValue("tag")), q.qui(), q.r.PostFormValue("toutes") != "") {
+				// Version tapée à la main (« autre ») avant celle de la liste.
+				tag := strings.TrimSpace(q.r.PostFormValue("tag_autre"))
+				if tag == "" {
+					tag = strings.TrimSpace(q.r.PostFormValue("tag"))
+				}
+				if !c.lancerImport(depot, tag, q.qui(), q.r.PostFormValue("toutes") != "") {
 					err = errors.New("un import est déjà en cours")
 				}
 				ok = "import lancé : recharger la page dans quelques secondes"

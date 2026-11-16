@@ -56,6 +56,23 @@ section de cette page.
   toutes : Machines › Configuration des agents (« Métriques de la
   machine », « Logs du journal », « Logs Docker »).
 
+<a id="machines-en-attente"></a>
+## Machines en attente d'approbation
+
+- Une ligne par machine, la plus ancienne demande d'abord. Nom, site, type
+  et groupe se corrigent sur la ligne avant **Approuver**.
+- Approuver donne un token à la machine : toujours **une par une**.
+- Au-delà de 5 demandes : lien « Voir les N autres ».
+- Deux pastilles orange, de simples **indices** (rien n'est bloqué) :
+  - **nom à changer ?** : le nom vient de la machine et il est trop
+    courant (`debian`, `ubuntu`, `localhost`, `raspberrypi`, `pve`,
+    `vps-…`, `ip-…`…). Une alerte « debian ne répond plus » ne dirait pas
+    de quelle machine il s'agit, et un second `debian` serait refusé.
+  - **adresse inconnue** : aucune machine approuvée n'a été vue sur ce
+    réseau (même /24 en IPv4, même /64 en IPv6). Normal pour un nouvel
+    hébergeur ; si vous n'attendiez pas de machine, refusez (le jeton a
+    peut-être fuité). Rien n'est signalé pour la toute première machine.
+
 <a id="cle-publique"></a>
 ## Mises à jour : clé publique de signature
 

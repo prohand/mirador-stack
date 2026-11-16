@@ -893,6 +893,58 @@ Seconde passe (lecture ciblée, pas un audit complet) sur l'ingestion,
 l'enrôlement, les mises à jour et l'assistant root : rien d'exploitable
 trouvé ; un durcissement possible noté dans SPEC § 34.
 
+## Page Machines plus claire (SPEC § 36, 16/11)
+
+Branche `claude/vibrant-meitner-a0xe1m`. Choix : B (liste par site, filtres)
++ C (ajout guidé, page à part) + les deux pastilles.
+
+| Partie | État |
+|---|---|
+| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; à valider |
+| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; à valider |
+| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; à valider |
+| Bug : `<body data-alertes>` cassait mirador.js (cartes téléphone, tri, Copier) | **corrigé**, test de non-régression |
+| Vu dans Chromium (écran large et iPhone 13 simulé) | **fait** |
+
+Mesures (banc de test, 200 machines sur 8 sites, 20 en attente, HTTPS
+local compris) :
+
+| Page | Temps | HTML | Mémoire allouée (libérée ensuite) |
+|---|---|---|---|
+| `/machines` (par site) | 8 ms | 65 Ko | 2,4 Mo |
+| `/machines?vue=liste&filtre=problemes&q=m1` | 4 ms | 28 Ko | 1,1 Mo |
+| `/machines/ajouter` | 4 ms | 18 Ko | 0,7 Mo |
+
+Rien en base, rien en mémoire entre deux pages, une requête SQL en plus.
+Négligeable devant les objectifs du serveur (SPEC § 2).
+
+### Suite du 16/11 (SPEC § 37)
+
+| Partie | État |
+|---|---|
+| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; à valider |
+| Import d'une version : liste des 5 dernières versions de GitHub (flux Atom, gardé 10 min), champ « ou autre » | **fait**, testé avec un faux GitHub ; à vérifier sur le VPS |
+| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; à valider |
+
+Coût : carte du parc, aucune requête en plus ; liste des versions, une
+requête HTTPS vers github.com au plus toutes les 10 min (quelques dizaines
+de Ko), seulement à l'ouverture de la page par un admin ; écran mural, rien
+de plus (les alertes prises en charge étaient déjà lues).
+
+### Réglages, Utilisateurs, Sécurité (SPEC § 38, 16/11)
+
+| Partie | État |
+|---|---|
+| Raccourcis « Logs » et « Flux bloqués » retirés de Tableaux | **fait**, testé |
+| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; à valider |
+| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; à valider |
+| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; à valider |
+| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; à valider |
+| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; à valider |
+
+Coût : affichage seulement (quelques lectures en base à l'ouverture des
+pages) ; rien de collecté ni gardé en mémoire.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

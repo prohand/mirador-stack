@@ -69,8 +69,8 @@ func TestAbonnementPushDepuisLeCompte(t *testing.T) {
 	if brut, err := base64.RawURLEncoding.DecodeString(cle); err != nil || len(brut) != 65 {
 		t.Fatalf("clé publique des notifications : %q", cle)
 	}
-	if !strings.Contains(corps, "Le canal « Application » n'est pas actif") || !strings.Contains(corps, `data-alertes="0"`) {
-		t.Error("avertissement « canal non actif » ou attribut data-alertes absent")
+	if !strings.Contains(corps, "Le canal « Application » n'est pas actif") || !strings.Contains(corps, `data-nb-alertes="0"`) {
+		t.Error("avertissement « canal non actif » ou attribut data-nb-alertes absent")
 	}
 	appareil, _ := ecdh.P256().GenerateKey(rand.Reader)
 	auth := make([]byte, 16)
@@ -141,5 +141,18 @@ func TestNomAppareil(t *testing.T) {
 		if g := nomAppareil(ua); g != voulu {
 			t.Errorf("nomAppareil(%q) = %q, attendu %q", ua, g, voulu)
 		}
+	}
+}
+
+// Régression (16/11) : <body data-alertes> était pris pour une liste
+// d'alertes par mirador.js, qui plantait sur le premier tableau de la page
+// (plus de cartes sur téléphone, plus de bouton « Copier »). Seules les
+// listes d'alertes portent data-alertes.
+func TestBodySansDataAlertes(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(c, "/machines")
+	if i := strings.Index(corps, "<body"); i < 0 || strings.Contains(corps[i:i+strings.Index(corps[i:], ">")], "data-alertes=") {
+		t.Error("<body> porte encore data-alertes")
 	}
 }

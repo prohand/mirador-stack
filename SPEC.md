@@ -5055,3 +5055,219 @@ Objectif serveur (< 256 Mio, < 5 % d'un cœur) : inchangé.
 - Navigateur dont le service de push n'est pas dans la liste : refusé, avec
   le nom de l'hôte dans le message (à ajouter à `hotesPush`).
 
+
+## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Fait, à valider]**
+
+Maquettes A, B, C présentées le 16/11 ; choix : **B** (liste par site avec
+filtres) + **C** (ajout guidé sur sa propre page). Les deux pastilles des
+machines en attente sont acceptées.
+
+### 36.1 Liste (`/machines`)
+
+- En tête : nombre de machines, de sites, d'attentes ; bouton
+  **+ Ajouter une machine** (administrateurs).
+- **À approuver (N)** en haut, une ligne par machine (la plus ancienne
+  d'abord) : nom modifiable, origine du nom, adresse et âge de la demande,
+  site / type / groupe, « limiter à l'adresse », **Approuver** et
+  **Refuser** côte à côte. 5 lignes au plus, puis « Voir les N autres »
+  (`?attente=toutes`). Pas de « tout approuver » : approuver donne un token.
+- Recherche (nom, site, type, groupe), filtres **Toutes / Problèmes /
+  Agents / Collecteurs et équipements**, regroupement **Par site / Par
+  groupe / Liste**. Tout est dans l'adresse
+  (`/machines?vue=groupe&filtre=problemes&q=web`) : favori possible, pas de
+  JavaScript. Valeurs inconnues ramenées au choix par défaut ; recherche
+  bornée à 100 caractères.
+- Un bloc repliable par site (ou groupe) : « N machines », « N problèmes »
+  ou « tout va bien ». Problème = machine muette (plus de 5 min) ou mise à
+  jour en échec. Dans un bloc : problèmes d'abord, puis par nom ; un
+  équipement est placé sous son collecteur (« ↳ … relevé par … ») ; un
+  collecteur remonte si l'un de ses équipements a un problème.
+- Colonne « Adresse » retirée de la liste (elle reste sur la page de la
+  machine). Refusées repliées en bas, « refusée » écrit en français.
+
+### 36.2 Pastilles des machines en attente (indices, rien n'est bloqué)
+
+- **nom à changer ?** : nom proposé par la machine (pas choisi au jeton)
+  dans une liste fixe de noms d'hôte courants (`debian`, `ubuntu`,
+  `localhost`, `raspberrypi`, `pve`…) ou commençant par `vps-`, `ip-`,
+  `ubuntu-`, `debian-` (noms d'hébergeurs).
+- **adresse inconnue** : l'adresse de la demande n'est dans le réseau
+  (/24 IPv4, /64 IPv6) d'aucune machine approuvée (dernière adresse vue ou
+  adresse d'enrôlement). Rien pour la première machine, ni pour une
+  adresse illisible. Coût : nul (adresses déjà en base).
+
+### 36.3 Ajout (`/machines/ajouter`, administrateurs)
+
+- Étapes visibles : 1. Quoi ? (Machine Linux / Collecteur du LAN /
+  Équipement sans agent, `?quoi=`), 2. Réglages (seulement les champs
+  utiles ; envoi, mises à jour et durée du jeton repliés dans « Options »),
+  3. Commande à coller (affichée **après** la création du jeton, bouton
+  **Copier**), 4. Approuver (lien vers « À approuver »). Pour un équipement :
+  token et réglages Telegraf affichés une seule fois, bouton Copier.
+- Formulaires et contrôles inchangés (`POST /machines/jeton`,
+  `POST /machines/equipement`, code 2FA) ; ils affichent maintenant cette
+  page, et y reviennent en cas d'erreur.
+- Noms **réservés** : `ajouter`, `jeton`, `equipement` (adresses de
+  l'interface sous `/machines/`) refusés pour une machine (jeton, enrôlement,
+  équipement, renommage). Sans cela la page d'une telle machine serait
+  inaccessible.
+
+### 36.4 Bug corrigé au passage
+
+- Depuis § 35, `<body>` portait `data-alertes` (nombre d'alertes pour la
+  pastille de l'icône). mirador.js le prenait pour une liste d'alertes : il
+  triait et filtrait le premier tableau de la page, puis plantait. Effets :
+  plus de cartes sur téléphone, plus de tri des tableaux, plus de bouton
+  Copier sur la plupart des pages. Attribut renommé `data-nb-alertes`
+  (test de non-régression).
+
+### 36.5 Coût
+
+- Tout est calculé à l'affichage, en mémoire, sur la liste des machines
+  déjà lue (une requête SQL en plus : équipements → collecteur). Rien en
+  base, aucune collecte. Mesure : voir PROGRES.md.
+
+### 36.6 Menaces
+
+- Recherche et filtres : lus dans l'adresse, ramenés à des valeurs
+  admises, échappés par les gabarits ; jamais dans une requête SQL.
+- Page d'ajout : réservée aux administrateurs (comme avant), jetons et
+  tokens toujours affichés une seule fois, jamais gardés en clair.
+- Les pastilles ne remplacent pas le jugement de l'admin : un attaquant
+  qui a le jeton et une adresse « connue » n'en a pas. Elles aident
+  seulement à voir l'inattendu.
+
+## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Fait, à valider]**
+
+### 37.1 « Le parc sur 24 h » avec beaucoup de machines (choix 1 + 2 + 3)
+
+Avant : 100 machines au plus, les premières par ordre alphabétique (les
+autres disparaissaient sans le dire), triées par nom, 20 px par ligne.
+
+- **Tri par pic** sur 24 h, les plus chargées en haut (machines sans
+  données en bas), dans chaque carte (processeur, mémoire).
+- **10 lignes** d'office, puis « Voir les N autres » (mirador.js ; sans
+  JavaScript, tout reste affiché).
+- **Au-delà de 100** : les 100 plus chargées gardées, et « + N machines non
+  affichées (les moins chargées) ».
+- **Suit les filtres du tableau du parc** juste au-dessus (texte et
+  « Afficher ») ; message si plus rien ne correspond. Une machine absente
+  du tableau n'est montrée que sans filtre.
+- Coût : aucune requête en plus (les deux requêtes de la carte, gardées
+  5 min, renvoyaient déjà toutes les machines) ; un tri de quelques
+  centaines de lignes.
+
+### 37.2 Liste des versions à importer (5 dernières)
+
+- « Importer une version signée » propose une **liste des 5 dernières
+  versions** du dépôt, avec leur date ; « (déjà importée) » pour celles qui
+  sont là ; la plus récente non importée est choisie d'office. Un champ
+  « ou autre » garde la saisie d'une version plus ancienne.
+- Source : flux Atom des Releases (`https://github.com/DÉPÔT/releases.atom`),
+  **même hôte que les téléchargements** (rien à ouvrir de plus dans le
+  pare-feu), sans clé d'API. Lu par le serveur, 1 Mo au plus, 4 s au plus ;
+  gardé 10 min (1 min après un échec). Seulement pour les administrateurs.
+- GitHub injoignable : message « liste indisponible » et le champ à taper,
+  comme avant.
+- Menaces : le flux n'est qu'une liste de noms ; chaque nom est vérifié
+  (`vX.Y.Z`) avant d'être affiché ou utilisé, et la **signature** reste
+  vérifiée à l'import. Un flux trafiqué peut au pire proposer un nom de
+  version : l'import d'un binaire non signé par la clé est refusé.
+
+### 37.3 Écran mural : rappel des alertes prises en charge
+
+- Avant : les alertes acquittées n'y étaient pas, et l'écran affichait
+  « Tout va bien » alors qu'il en restait.
+- Maintenant : bloc **Prises en charge (N)** sous les alertes en cours,
+  plus discret (bord pointillé, texte plus petit) : machine, alerte, par
+  qui, jusqu'à quand, depuis quand ; 6 lignes au plus, puis « … et N en
+  tout ». S'il n'y a que des alertes prises en charge : « Rien à traiter »
+  au lieu de « Tout va bien ».
+- Corrigé au passage : « depuis il y a 10 min » → « depuis 10 min ».
+
+## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Fait, à valider]**
+
+Maquettes présentées le 16/11 ; toutes retenues, barre d'enregistrement en
+bas, dans la même pull request que § 36 et § 37.
+
+### 38.1 Raccourcis retirés de la page Tableaux
+
+- « Logs » et « Flux entrants bloqués » n'étaient que des liens vers des
+  pages déjà dans le menu Logs : retirés. Le réglage `tableaux.pages`
+  éventuellement en base est ignoré.
+
+### 38.2 Bloc « Général » des notifications rangé à sa place
+
+| Réglage | Avant | Maintenant |
+|---|---|---|
+| Mode (ombre / actif) | liste dans « Général » | bandeau en haut de Notifications, bouton « Activer l'envoi » / « Passer en ombre » (code 2FA) |
+| Adresse de l'interface (lien dans les messages) | « Général » | Réglages › Interface, carte « Adresse de cette interface » |
+| Fuseau des messages | « Général » (doublon) | **un seul fuseau**, celui de Réglages › Interface ; l'enregistrer aligne celui des messages (message tant qu'ils diffèrent) |
+| Regrouper par (étiquettes) | « Général » | carte « Routage par gravité » |
+| Règles « machine en panne » | « Général » | Alertes › Silences et maintenances › Dépendances |
+
+- Stockage inchangé (réglages des notifications) : export / import YAML
+  identiques. Le formulaire des notifications **garde** ces valeurs quand
+  elles n'y sont plus (test : le formulaire de la page est renvoyé tel quel).
+
+### 38.3 Notifications (N)
+
+- Résumé en tête : principal et son état, secours (orange si aucun), file
+  d'attente, heartbeat. Bandeau « Envoi des notifications » (mode).
+- Une **carte par canal** : icône, état (« Actif · principal », « En
+  panne », « Inactif »), une ligne utile, « Régler ▾ » (actif) ou
+  « Configurer ▾ » (inactif) qui déplie ses champs, « Tester ».
+- « Principal, secours, bascule » : vérifications et adresses privées
+  repliées dans « Avancé ». Derniers tests et comparaison vmalert repliés.
+- **Barre d'enregistrement collée en bas** (sur ordinateur) : « N
+  changements non enregistrés », « Rétablir les valeurs par défaut » en
+  simple lien, « Inverser », code 2FA, « Enregistrer ».
+
+### 38.4 Accueil des Réglages (R)
+
+- Chaque carte : icône et **état du moment** (pastille orange = à
+  regarder) : canaux et mode ; place prise sur le plafond (jauge) ;
+  dernière sauvegarde (orange si aucune ou plus de 2 jours) ; jours restants
+  du certificat le plus proche de sa fin (orange sous 14 j) ; tailles des
+  listes ; fuseau et adresses à renseigner ; dernier export (journal d'audit).
+- « Ailleurs dans mirador » : une liste de liens (au lieu de 6 cartes),
+  avec « 3 comptes » et « N points à regarder » (bilan de sécurité).
+
+### 38.5 Utilisateurs (U)
+
+- « + Nouveau compte » en haut ; formulaire de création sur une ligne.
+- Résumé : comptes actifs, admins, sans 2FA, désactivés.
+- Pastilles : rôle, 2FA (ou « à créer »), passkeys, « pas de codes de
+  secours », état ; « vous » ; dernière connexion en « il y a… ».
+- « Modifier ▾ » : un bouton par action (rôle, mot de passe, effacer la
+  2FA, désactiver / réactiver, supprimer en rouge) au lieu d'une liste
+  « Action » ; code 2FA toujours demandé, comme avant.
+
+### 38.6 Sécurité (S)
+
+- **Bilan** en tête : ✓ ce qui va bien, ! ce qui est à regarder (comptes
+  sans 2FA, interface ouverte à toutes les adresses), avec un lien.
+- Trois cartes : Sessions, Verrouillage, Accès. Les durées se saisissent
+  dans l'**unité affichée** à côté du champ (« 30 » min, « 12 » h) ; une
+  durée écrite (« 1h30m ») reste acceptée et s'affiche telle quelle.
+- Barre d'enregistrement en bas, « Rétablir » en simple lien.
+- Sessions : « cette session », heures en « il y a… », **« Fermer toutes
+  les autres »** (journal d'audit : `sessions_fermees`).
+- L'avertissement « Votre adresse… à confirmer sous 2 min » reste visible
+  en mode « Sans aides ».
+
+### 38.7 Corrigé au passage
+
+- Conservation : colonne « Limites » coupée (formulaire trop étroit).
+- Utilisateurs : plus de flèches de tri sur la colonne des actions.
+
+### 38.8 Coût et menaces
+
+- Affichage seulement : lectures en base à l'ouverture des pages (réglages,
+  comptes, passkeys, une requête sur le journal d'audit). Rien de collecté,
+  rien gardé en mémoire.
+- Mêmes contrôles qu'avant : code 2FA (ou mode administration) pour les
+  réglages, code 2FA à chaque action sur un compte ; le passage en mode
+  actif reste refusé si le canal principal n'est pas configuré.
+- « Fermer toutes les autres » : réservé aux admins, comme « Fermer », et
+  ne ferme jamais la session qui le demande.
