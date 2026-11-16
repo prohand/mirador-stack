@@ -614,11 +614,14 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	}
 	auth.PoserCookie(w, id)
 	// Page demandée avant la connexion (lien d'une notification), sinon l'accueil.
-	vers := "/"
-	if s.Suite != "" {
-		vers = s.Suite
+	// Revérifiée ici, juste avant de s'en servir : toujours un chemin de ce
+	// site (jamais une adresse complète), même si la session avait été
+	// remplie autrement.
+	vers := suiteLocale(s.Suite)
+	if vers == "" {
+		vers = "/"
 	}
-	http.Redirect(w, r, vers, http.StatusSeeOther)
+	http.Redirect(w, r, vers, http.StatusSeeOther) // #nosec G710 -- chemin local vérifié par suiteLocale (pas d'hôte, pas de « // »), testé dans TestSuiteApresConnexion
 }
 
 // pageCreer2FA : le compte n'a pas encore de 2FA (premier passage). Le
