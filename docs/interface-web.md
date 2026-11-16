@@ -93,6 +93,15 @@ curl -s https://CONSOLE/sante     # {"etat":"ok"}
   suppression de machines ou de règles, mises à jour des agents, réduction
   de la conservation, réglages des notifications et des sauvegardes, import
   de configuration.
+  Depuis le 16/11, aussi pour : adresse d'ingestion, règles (modifier,
+  désactiver, importer), maintenances, inhibitions, dépendances, silences
+  de plus de 24 h, adresse de vmalert, export avec les secrets chiffrés.
+- **Mode administration** : après un code juste, plus de code pendant
+  quelques minutes (sauf comptes, sécurité, et import de la partie
+  « securite »). Si le mode est fermé, une boîte demande le code au moment
+  d'envoyer ; on peut aussi l'ouvrir dans « Mon compte ».
+- Changer l'adresse d'un canal (ntfy, e-mail, Olvid, UniFi, SNMP) demande de
+  **ressaisir son secret**.
 - Changer la **liste d'adresses** ou **son propre rôle** : à confirmer dans
   les 2 minutes (bandeau rouge en haut), sinon l'ancienne valeur revient.
 
@@ -318,3 +327,33 @@ SPEC § 20.
   revenir à un agent plus ancien. Si une machine liée devient muette après
   une réinstallation : « Délier », attendre une minute, « Lier ».
 
+
+## 13. Sur téléphone, et comme application
+
+Installer mirador sur l'écran d'accueil (rien à installer sur le serveur) :
+
+- **iPhone / iPad** (Safari) : Partager › « Sur l'écran d'accueil ».
+- **Android** (Chrome) : menu ⋮ › « Installer l'application ».
+
+Un appui long sur l'icône propose Alertes, Machines et Logs (Android).
+
+Sur téléphone :
+
+- barre en bas : Accueil, Alertes, Machines, Logs, et « Plus » pour tout le
+  menu ; la loupe en haut ouvre « Aller à… » ;
+- les tableaux deviennent des cartes ; sur la page d'une machine, seule la
+  première section est ouverte à la première visite (ce que l'on ouvre est
+  retenu) ;
+- toucher une courbe affiche les valeurs à cet instant ; la période se
+  choisit avec les boutons 1 h, 6 h, 24 h… ; les exports PNG et CSV restent
+  sur grand écran.
+
+Connexion :
+
+- la **passkey** est proposée en premier (un geste) ;
+- un lien reçu par Telegram ou e-mail ouvre directement la bonne page ; si
+  la session est finie, on y arrive après la connexion.
+
+Les sessions restent courtes (30 min sans activité par défaut, Réglages ›
+Sécurité). Il n'y a pas de mode hors ligne ni de notification par
+l'application : les alertes arrivent par Telegram, Olvid, ntfy ou e-mail.

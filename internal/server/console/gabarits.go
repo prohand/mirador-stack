@@ -159,7 +159,7 @@ func fonctions() template.FuncMap {
 			}
 			return t.In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
-		"depuisS":  func(s int64) string { return depuis(s * 1000) },
+		"depuisS": func(s int64) string { return depuis(s * 1000) },
 		// sansIlYA : « il y a 5 min » → « 5 min » (colonne dont le titre le dit déjà).
 		"sansIlYA": func(s string) string { return strings.TrimPrefix(s, "il y a ") },
 		"depuisMs": depuis,
