@@ -448,6 +448,12 @@ button.aller kbd { margin-left: auto; font: inherit; font-size: 11px; padding: 1
 .replie button.aller { justify-content: center; padding: 0; }
 dialog.aller-boite { width: min(520px, calc(100vw - 32px)); margin-top: 12vh; padding: 12px; border: 1px solid var(--bord); border-radius: 16px; background: var(--carte); color: var(--texte); box-shadow: 0 16px 48px rgba(17,24,39,.25); }
 dialog.aller-boite::backdrop { background: rgba(15,20,32,.45); }
+/* Code 2FA demandé au moment d'envoyer une action protégée (mirador.js). */
+dialog.code-boite { width: min(380px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--bord); border-radius: 16px; background: var(--carte); color: var(--texte); box-shadow: 0 16px 48px rgba(17,24,39,.25); }
+dialog.code-boite::backdrop { background: rgba(15,20,32,.45); }
+dialog.code-boite h2 { margin: 0 0 8px; }
+dialog.code-boite p { margin: 0 0 14px; color: var(--pale); font-size: 13px; }
+dialog.code-boite .ligne { margin-top: 16px; justify-content: flex-end; }
 dialog.aller-boite input { width: 100%; }
 dialog.aller-boite ul { list-style: none; margin: 10px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
 dialog.aller-boite li a { display: flex; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 10px; text-decoration: none; color: var(--texte); font-weight: 500; }

@@ -1,0 +1,264 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package console
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/notif"
+)
+
+// Tests des corrections de l'audit du 16/11 (SPEC § 34).
+
+// quitterModeAdmin : ferme le mode administration ouvert à la connexion.
+func (b *banc) quitterModeAdmin(c *http.Client) {
+	b.t.Helper()
+	if code, _, _ := b.post(c, "/mode-admin/quitter", url.Values{"csrf": {b.csrf(c, "/compte")}}); code != http.StatusSeeOther {
+		b.t.Fatalf("quitter le mode administration : %d", code)
+	}
+}
+
+// postFichier : formulaire avec un fichier (import).
+func (b *banc) postFichier(c *http.Client, chemin string, champs url.Values, fichier string) (int, string) {
+	b.t.Helper()
+	var corps bytes.Buffer
+	w := multipart.NewWriter(&corps)
+	for k, vs := range champs {
+		for _, v := range vs {
+			_ = w.WriteField(k, v)
+		}
+	}
+	f, _ := w.CreateFormFile("fichier", "export.yaml")
+	_, _ = f.Write([]byte(fichier))
+	_ = w.Close()
+	r, _ := http.NewRequest(http.MethodPost, b.srv.URL+chemin, &corps)
+	r.Header.Set("Content-Type", w.FormDataContentType())
+	resp, err := c.Do(r)
+	if err != nil {
+		b.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out bytes.Buffer
+	_, _ = out.ReadFrom(resp.Body)
+	return resp.StatusCode, out.String()
+}
+
+// L'import de la partie « securite » exige un NOUVEAU code 2FA, même en
+// mode administration (comme la page Sécurité).
+func TestImportSecuriteCodeFrais(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	// Export sans secret, puis réglages de sécurité relâchés dans le fichier.
+	_, yaml, _ := b.get(c, "/reglages/export.yaml")
+	if !strings.Contains(yaml, "duree_max: 12h") {
+		t.Fatalf("export inattendu :\n%s", yaml)
+	}
+	relache := strings.Replace(yaml, "duree_max: 12h", "duree_max: 7d", 1)
+	champs := url.Values{"csrf": {b.csrf(c, "/reglages/export")}, "parties": {"securite"}}
+	// Mode administration ouvert (connexion récente), sans code : refusé.
+	b.postFichier(c, "/reglages/importer", champs, relache)
+	if s, _ := LireSecurite(context.Background(), b.db); time.Duration(s.DureeMax) != 12*time.Hour {
+		t.Fatalf("sécurité changée par import sans nouveau code : durée max %v", time.Duration(s.DureeMax))
+	}
+	// Avec un code : appliqué.
+	champs.Set("code", b.code(secret))
+	b.postFichier(c, "/reglages/importer", champs, relache)
+	if s, _ := LireSecurite(context.Background(), b.db); time.Duration(s.DureeMax) != 7*24*time.Hour {
+		t.Fatalf("import avec code non appliqué : durée max %v", time.Duration(s.DureeMax))
+	}
+}
+
+// Actions qui demandent maintenant le code 2FA ou le mode administration.
+func TestActionsProtegees(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	regle := alertes.Regle{Nom: "RegleTest", Groupe: "essai", Intervalle: alertes.Duree(time.Minute), Expr: "up == 0",
+		Gravite: alertes.Critique, Active: true}
+	if _, err := alertes.Enregistrer(ctx, b.db, []alertes.Regle{regle}, "test", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	ingestion := func() string { return lireInterface(ctx, b.db).Ingestion }
+	regleActive := func() bool {
+		rs, _ := alertes.ListerRegles(ctx, b.db)
+		for _, r := range rs {
+			if r.Nom == "RegleTest" {
+				return r.Active
+			}
+		}
+		t.Fatal("règle de test absente")
+		return false
+	}
+	silences := func() int {
+		s, _ := notif.ListerSilences(ctx, b.db, true, b.h.maintenant())
+		return len(s)
+	}
+	maintenances := func() int {
+		m, _ := notif.ListerMaintenances(ctx, b.db)
+		return len(m)
+	}
+	csrf := b.csrf(c, "/compte")
+
+	// Mode administration fermé, aucun code : tout est refusé.
+	b.quitterModeAdmin(c)
+	csrf = b.csrf(c, "/compte")
+	b.post(c, "/reglages/interface", url.Values{"csrf": {csrf}, "action": {"adresse"}, "ingestion": {"https://attaquant.example"}})
+	if ingestion() != "" {
+		t.Errorf("adresse d'ingestion changée sans code : %q", ingestion())
+	}
+	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"desactiver"}, "nom": {"RegleTest"}})
+	if !regleActive() {
+		t.Error("règle désactivée sans code")
+	}
+	b.post(c, "/sourdine", url.Values{"csrf": {csrf}, "action": {"maintenance"}, "cible": {`{instance="pve1"}`}, "duree": {"2h"}})
+	if maintenances() != 0 {
+		t.Error("maintenance posée sans code")
+	}
+	b.post(c, "/sourdine", url.Values{"csrf": {csrf}, "action": {"silence"}, "selecteur": {`{instance="pve1"}`}, "duree": {"48h"}})
+	if silences() != 0 {
+		t.Error("silence de 48 h posé sans code")
+	}
+	b.post(c, "/reglages/notifications", url.Values{"csrf": {csrf}, "action": {"vmalert"}, "url": {"http://127.0.0.1:9"}})
+	if v, _ := alertes.LireReglagesVmalert(ctx, b.db); v.URL != "" {
+		t.Errorf("adresse vmalert changée sans code : %q", v.URL)
+	}
+	// Export avec les secrets : plus par un simple lien, ni sans code.
+	if code, corps, _ := b.get(c, "/reglages/export.yaml?secrets=chiffres"); code != http.StatusSeeOther || strings.Contains(corps, "version:") {
+		t.Errorf("export avec secrets par un lien : %d", code)
+	}
+	if code, corps, _ := b.post(c, "/reglages/export.yaml", url.Values{"csrf": {csrf}}); code != http.StatusSeeOther || strings.Contains(corps, "version:") {
+		t.Errorf("export avec secrets sans code : %d", code)
+	}
+	// Le message dit quoi faire (rien n'est compté comme un essai manqué).
+	if _, corps, _ := b.get(c, "/reglages/export"); !strings.Contains(corps, "code 2FA demandé") {
+		t.Error("message « code 2FA demandé » absent")
+	}
+
+	// Un silence court reste possible sans code (geste courant).
+	b.post(c, "/sourdine", url.Values{"csrf": {csrf}, "action": {"silence"}, "selecteur": {`{instance="pve1"}`}, "duree": {"2h"}})
+	if silences() != 1 {
+		t.Error("silence de 2 h refusé sans code")
+	}
+
+	// Avec un code : l'action passe et le mode administration s'ouvre.
+	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"desactiver"}, "nom": {"RegleTest"}, "code": {b.code(secret)}})
+	if regleActive() {
+		t.Error("règle non désactivée avec le code")
+	}
+	// Mode ouvert : plus de code pour la suite.
+	b.post(c, "/reglages/interface", url.Values{"csrf": {csrf}, "action": {"adresse"}, "ingestion": {"https://ingest.exemple.fr"}})
+	if ingestion() != "https://ingest.exemple.fr" {
+		t.Errorf("adresse d'ingestion en mode administration : %q", ingestion())
+	}
+	if code, corps, h := b.post(c, "/reglages/export.yaml", url.Values{"csrf": {csrf}}); code != http.StatusOK || !strings.Contains(corps, "version:") ||
+		!strings.Contains(h.Get("Content-Disposition"), "mirador-configuration") {
+		t.Errorf("export avec secrets en mode administration : %d", code)
+	}
+	// Réactiver une règle ne demande jamais de code (plus de surveillance).
+	b.quitterModeAdmin(c)
+	b.post(c, "/regles/action", url.Values{"csrf": {b.csrf(c, "/compte")}, "action": {"activer"}, "nom": {"RegleTest"}})
+	if !regleActive() {
+		t.Error("règle non réactivée")
+	}
+}
+
+// Ouverture du mode administration depuis « Mon compte ».
+func TestOuvrirModeAdmin(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	b.quitterModeAdmin(c)
+	_, corps, _ := b.get(c, "/compte")
+	if !strings.Contains(corps, `action="/mode-admin/ouvrir"`) || strings.Contains(corps, "data-mode-admin") {
+		t.Fatal("formulaire d'ouverture absent, ou mode encore ouvert")
+	}
+	csrf := trouver(t, reCSRF, corps)
+	b.post(c, "/mode-admin/ouvrir", url.Values{"csrf": {csrf}, "code": {"000000"}, "retour": {"/compte"}})
+	if _, corps, _ := b.get(c, "/compte"); strings.Contains(corps, "data-mode-admin") {
+		t.Fatal("mode ouvert avec un code faux")
+	}
+	code, _, h := b.post(c, "/mode-admin/ouvrir", url.Values{"csrf": {csrf}, "code": {b.code(secret)}, "retour": {"https://ailleurs.example/"}})
+	if code != http.StatusSeeOther || h.Get("Location") != "/" {
+		t.Fatalf("retour hors du site accepté : %d %s", code, h.Get("Location"))
+	}
+	if _, corps, _ := b.get(c, "/compte"); !strings.Contains(corps, "data-mode-admin") {
+		t.Fatal("mode non ouvert avec un code juste")
+	}
+}
+
+// Un compte lecture est refusé AVANT la lecture du corps (pas de jeton CSRF
+// à chercher dans 31 Mio).
+func TestRoleAvantCorps(t *testing.T) {
+	b := nouveauBanc(t)
+	b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	if err := auth.CreerUtilisateur(ctx, b.db, "lea", auth.RoleLecture, "mot de passe de lea", "test", "", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	cl := b.client()
+	b.post(cl, "/connexion", url.Values{"nom": {"lea"}, "mot_de_passe": {"mot de passe de lea"}})
+	_, corps, _ := b.get(cl, "/connexion/2fa-creer")
+	sl := strings.ReplaceAll(trouver(t, reSecret, corps), " ", "")
+	b.post(cl, "/connexion/2fa-creer", url.Values{"csrf": {trouver(t, reCSRF, corps)}, "code": {b.code(sl)}})
+	// Sans jeton CSRF : la réponse est celle du rôle, pas celle du jeton.
+	code, corps, _ := b.post(cl, "/mises-a-jour/publier", url.Values{"x": {strings.Repeat("a", 4096)}})
+	if code != http.StatusForbidden || !strings.Contains(corps, "rôle admin") {
+		t.Fatalf("compte lecture : %d %q (rôle attendu avant le jeton)", code, corps)
+	}
+	// Rôle lecture : le sujet ntfy n'est pas montré.
+	r, _ := notif.LireReglages(ctx, b.db)
+	r.Canaux.Ntfy = &notif.Ntfy{Actif: false, URL: "https://ntfy.exemple.fr/sujet-tres-secret"}
+	if err := notif.EcrireReglages(ctx, b.db, r, cleTest, "test", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	if _, corps, _ := b.get(cl, "/reglages/notifications"); strings.Contains(corps, "sujet-tres-secret") || !strings.Contains(corps, "https://ntfy.exemple.fr/***") {
+		t.Error("sujet ntfy visible par un compte lecture")
+	}
+}
+
+// Défis de la connexion par passkey seule : une adresse n'en garde que
+// defisParAdresse et ne peut pas remplir la table à elle seule.
+func TestDefisParAdresse(t *testing.T) {
+	var d defisConnexion
+	t0 := time.Unix(1_800_000_000, 0)
+	var premier string
+	for i := 0; i < defisConnexionMax+500; i++ {
+		defi, err := d.nouveau("203.0.113.7", t0.Add(time.Duration(i)*time.Millisecond))
+		if err != nil {
+			t.Fatalf("demande %d refusée : %v", i, err)
+		}
+		if i == 0 {
+			premier = defi
+		}
+	}
+	if len(d.tout) != defisParAdresse {
+		t.Fatalf("%d défis gardés pour une adresse, %d attendus", len(d.tout), defisParAdresse)
+	}
+	if d.prendre(premier, t0.Add(time.Minute)) {
+		t.Error("le plus ancien défi de l'adresse aurait dû être remplacé")
+	}
+	// Une autre adresse (et tout un /64 compte pour une seule) obtient le sien.
+	autre, err := d.nouveau("2001:db8::1", t0.Add(time.Minute))
+	if err != nil || !d.prendre(autre, t0.Add(2*time.Minute)) {
+		t.Fatalf("autre adresse bloquée : %v", err)
+	}
+	for i := 0; i < 50; i++ {
+		_, _ = d.nouveau(fmt.Sprintf("2001:db8::%x", i+2), t0.Add(time.Minute))
+	}
+	if len(d.tout) != 2*defisParAdresse {
+		t.Errorf("/64 : %d défis, %d attendus", len(d.tout), 2*defisParAdresse)
+	}
+	// Usage unique et durée de vie inchangés.
+	if d.prendre(autre, t0.Add(2*time.Minute)) {
+		t.Error("défi accepté deux fois")
+	}
+}

@@ -2,11 +2,13 @@
 <h1>Export / import</h1>
 {{template "onglets-reglages" (onglet $ "export")}}
 <section class="carte"><h2>Exporter toute la configuration (YAML)</h2>
-<p><a href="/reglages/export.yaml">Exporter sans les secrets</a> · <a href="/reglages/export.yaml?secrets=chiffres">Exporter avec les secrets chiffrés</a> (lisibles seulement avec la même clé des secrets)</p></section>
+<p><a class="bouton secondaire" href="/reglages/export.yaml">Exporter sans les secrets</a></p>
+{{if .Admin}}<form method="post" action="/reglages/export.yaml" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa"}}<button class="secondaire">Exporter avec les secrets chiffrés</button></form>
+<small class="aide">Secrets lisibles seulement avec la même clé des secrets. Code 2FA demandé (ou mode administration).</small>{{end}}</section>
 {{if .Admin}}<section class="carte"><h2>Importer</h2>
 <form method="post" action="/reglages/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier exporté <input type="file" name="fichier" accept=".yaml,.yml" required></label>
 <fieldset><legend>Parties à appliquer</legend><div class="ligne">{{range $x := (liste "regles" "notifications" "conservation" "securite" "sauvegarde" "agents" "machines" "sourdine" "interface")}}<label class="case"><input type="checkbox" name="parties" value="{{$x}}"> {{$x}}</label>{{end}}</div></fieldset>
 <small>« *** » = secret actuel gardé. Inhibitions, dépendances et maintenances sont ajoutées, pas remplacées.</small>
-{{template "code2fa"}}<button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
+<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label><small class="aide">Code obligatoire si la partie « securite » est cochée ; sinon le mode administration suffit.</small><button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
 {{end}}

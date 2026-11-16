@@ -262,7 +262,15 @@
   function exporterCSV(el) {
     var d = el.donnees;
     if (!d) { return; }
-    var cellule = function (t) { t = String(t); return /[";\n]/.test(t) ? "\"" + t.replace(/"/g, "\"\"") + "\"" : t; };
+    // Un nom de série vient des étiquettes envoyées par les machines : s'il
+    // commence par = + - @ (ou tabulation, retour chariot), un tableur le
+    // lirait comme une formule. Une apostrophe devant le garde en texte
+    // (même règle que les exports du serveur).
+    var cellule = function (t) {
+      t = String(t);
+      if (/^[=+\-@\t\r]/.test(t)) { t = "'" + t; }
+      return /[";\n]/.test(t) ? "\"" + t.replace(/"/g, "\"\"") + "\"" : t;
+    };
     var lignes = [["Heure"].concat(d.series.map(function (s) { return cellule(s.nom); })).concat(d.precedent ? ["Il y a 7 jours"] : []).join(";")];
     d.x.forEach(function (t, k) {
       var dt = new Date(t * 1000);

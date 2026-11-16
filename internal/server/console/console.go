@@ -341,6 +341,14 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 			return
 		}
 		q.u = u
+		// Rôle AVANT le jeton CSRF : lire le jeton d'un formulaire lit tout
+		// le corps de la requête (jusqu'à 31 Mio pour la publication d'une
+		// version). Un compte lecture est refusé sans que rien ne soit lu
+		// (audit du 16/11, SPEC § 34).
+		if role == auth.RoleAdmin && u.Role != auth.RoleAdmin {
+			http.Error(w, "réservé au rôle admin", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			jeton := r.Header.Get("X-CSRF")
 			if jeton == "" {
@@ -351,10 +359,6 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 				http.Error(w, "jeton de formulaire invalide : recharger la page", http.StatusForbidden)
 				return
 			}
-		}
-		if role == auth.RoleAdmin && u.Role != auth.RoleAdmin {
-			http.Error(w, "réservé au rôle admin", http.StatusForbidden)
-			return
 		}
 		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Vue = t })
 		f(q)
@@ -428,6 +432,9 @@ func (c *Console) retour(q *req, vers string, err error, ok string) {
 const essaisSensiblesMax = 5
 
 var (
+	// errCodeDemande : action sensible lancée sans code 2FA, mode
+	// administration fermé.
+	errCodeDemande   = errors.New("action protégée : code 2FA demandé (ou ouvrir le mode administration dans « Mon compte »)")
 	errTropEssais    = errors.New("trop d'essais : réessayer plus tard")
 	errSessionFermee = errors.New("trop d'essais : session fermée, se reconnecter")
 )
@@ -446,7 +453,7 @@ func (c *Console) debuterSensible(q *req) (finir func(), ok bool) {
 // echecSensible : compté par adresse ET par compte, et dans la session ;
 // au 5e, la session est fermée.
 func (c *Console) echecSensible(q *req, raison string) error {
-	c.echecConnexion(q.ip.String(), q.u.Nom, raison, q.t)
+	c.echecConnexion(q.ip.String(), q.u.Nom, true, raison, q.t)
 	n := 0
 	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.EssaisSensibles++; n = s.EssaisSensibles })
 	if n >= essaisSensiblesMax {
@@ -473,8 +480,13 @@ func (c *Console) dureeModeAdmin() time.Duration {
 // (demande du 14/11) : sans code saisi, accepté tant que le mode est ouvert
 // (10 min après le dernier code juste, comme le « sudo » de GitHub).
 func (c *Console) verifierCode(q *req) error {
-	if strings.TrimSpace(q.r.PostFormValue("code")) == "" && q.t.Before(q.s.AdminJusqua) && c.dureeModeAdmin() > 0 {
-		return nil
+	if strings.TrimSpace(q.r.PostFormValue("code")) == "" {
+		if q.t.Before(q.s.AdminJusqua) && c.dureeModeAdmin() > 0 {
+			return nil
+		}
+		// Aucun code saisi et mode fermé : message clair, et ce n'est pas
+		// un essai manqué (rien n'est compté).
+		return errCodeDemande
 	}
 	if err := c.verifierCodeFrais(q); err != nil {
 		return err
@@ -519,6 +531,24 @@ func (c *Console) verifierCodeFrais(q *req) error {
 		return errors.New("code 2FA faux ou déjà utilisé")
 	}
 	return nil
+}
+
+// postOuvrirModeAdmin : ouvre le mode administration avec un code 2FA, sans
+// attendre une action sensible (page « Mon compte », et repli sans
+// JavaScript des boutons protégés). Retour à la page d'où l'on vient.
+func (c *Console) postOuvrirModeAdmin(q *req) {
+	vers := retourLocal(q.r.PostFormValue("retour"))
+	if c.dureeModeAdmin() <= 0 {
+		c.retour(q, vers, errors.New("mode administration désactivé (Réglages › Sécurité) : le code est demandé à chaque action"), "")
+		return
+	}
+	if err := c.verifierCodeFrais(q); err != nil {
+		c.retour(q, vers, err, "")
+		return
+	}
+	jusqua := q.t.Add(c.dureeModeAdmin())
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = jusqua })
+	c.retour(q, vers, nil, "mode administration ouvert jusqu'à "+jusqua.In(fuseau.Load()).Format("15:04"))
 }
 
 // postQuitterModeAdmin : ferme le mode administration avant la fin des

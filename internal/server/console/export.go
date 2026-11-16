@@ -20,6 +20,7 @@ import (
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/secrets"
 )
 
 // Export / import de toute la configuration en YAML (brief), format
@@ -122,6 +123,9 @@ func (c *Console) configuration(ctx context.Context, avecSecrets bool, t time.Ti
 			}
 			doc := map[string]any{}
 			if json.Unmarshal([]byte(v), &doc) == nil {
+				if !avecSecrets {
+					secrets.Masquer(doc) // mots de passe SNMP / UniFi chiffrés → « *** »
+				}
 				cf.ConfigAgents[p] = doc
 			}
 		}
@@ -164,8 +168,21 @@ func versYAML(v any) ([]byte, error) {
 	return b.Bytes(), enc.Close()
 }
 
+// exportConfiguration : GET = sans les secrets ; POST = avec les secrets
+// chiffrés, après le code 2FA ou en mode administration (audit du 16/11,
+// SPEC § 34 : avant, un simple lien suffisait).
 func (c *Console) exportConfiguration(q *req) {
-	avec := q.r.URL.Query().Get("secrets") == "chiffres"
+	avec := false
+	if q.r.Method == http.MethodPost {
+		if err := c.verifierCode(q); err != nil {
+			c.retour(q, "/reglages/export", err, "")
+			return
+		}
+		avec = true
+	} else if q.r.URL.Query().Get("secrets") != "" {
+		c.retour(q, "/reglages/export", errors.New("export avec les secrets : utiliser le bouton de cette page (code 2FA demandé)"), "")
+		return
+	}
 	cf, err := c.configuration(q.r.Context(), avec, q.t)
 	if err != nil {
 		http.Error(q.w, err.Error(), http.StatusInternalServerError)
@@ -220,7 +237,16 @@ func (c *Console) postImporterConfiguration(q *req) {
 			return nil, errors.New("fichier illisible (4 Mio au plus)")
 		}
 		defer q.r.MultipartForm.RemoveAll() //nolint:errcheck // en mémoire sous 4 Mio
-		if err := c.verifierCode(q); err != nil {
+		// Partie « securite » : nouveau code 2FA, toujours, comme la page
+		// Sécurité (le mode administration ne suffit pas : audit du 16/11,
+		// SPEC § 34). Les autres parties : code ou mode administration.
+		verifier := c.verifierCode
+		for _, p := range q.r.MultipartForm.Value["parties"] {
+			if p == "securite" {
+				verifier = c.verifierCodeFrais
+			}
+		}
+		if err := verifier(q); err != nil {
 			return nil, err
 		}
 		fh, _, err := q.r.FormFile("fichier")
@@ -291,7 +317,18 @@ func (c *Console) postImporterConfiguration(q *req) {
 					}
 					portee = "machine:" + strconv.FormatInt(ids[nom], 10)
 				}
-				b, _ := json.Marshal(doc)
+				// « *** » = secret actuel gardé (export sans les secrets).
+				var actuel any
+				var brut string
+				if c.db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, "config_agent:"+portee).Scan(&brut) == nil {
+					_ = json.Unmarshal([]byte(brut), &actuel)
+				}
+				garde, err := secrets.Garder(doc, actuel)
+				if err != nil {
+					note("configuration "+p, err)
+					continue
+				}
+				b, _ := json.Marshal(garde)
 				note("configuration "+p, flotte.DefinirConfig(ctx, c.db, portee, b, qui, q.t))
 			}
 			note("fenêtre des mises à jour", flotte.EcrireFenetre(ctx, c.db, cf.FenetreMaj, qui, q.t))
@@ -323,10 +360,14 @@ func (c *Console) postImporterConfiguration(q *req) {
 			}
 		}
 		if parties["interface"] {
-			b, _ := json.Marshal(cf.Interface)
+			// Même chemin que le formulaire : ligne d'audit, et le mode
+			// debug n'est jamais importé (il garde sa fin actuelle, bornée
+			// à 240 min par le formulaire).
+			actuel := lireInterface(ctx, c.db)
+			cf.Interface.DebugJusqua = actuel.DebugJusqua
 			err := cf.Interface.valider()
 			if err == nil {
-				err = ecrireReglage(ctx, c.db, "interface", string(b), qui, q.t)
+				err = c.enregistrerInterface(ctx, actuel, cf.Interface, qui, q.ip.String(), q.t)
 			}
 			note("interface", err)
 		}

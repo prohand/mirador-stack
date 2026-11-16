@@ -126,6 +126,11 @@ func (c *Console) postSNMP(q *req, m flotte.InfoMachine, action string) (string,
 					if ancien == nil {
 						return errors.New("mots de passe SNMP obligatoires pour un nouvel équipement")
 					}
+					// Adresse changée : les mots de passe gardés ne partent
+					// pas vers un autre équipement (audit du 16/11, SPEC § 34).
+					if a, _ := ancien["adresse"].(string); a != cible.Adresse {
+						return errors.New("adresse changée : saisir de nouveau les mots de passe SNMP")
+					}
 					*s.dest, _ = ancien[s.champ].(string)
 					continue
 				}
@@ -196,6 +201,13 @@ func (c *Console) postSNMP(q *req, m flotte.InfoMachine, action string) (string,
 				valeur, _ = ancien[champ].(string)
 				if valeur == "" {
 					return errors.New("mot de passe ou clé API obligatoire (mode changé)")
+				}
+				// Contrôleur ou empreinte épinglée changés : le secret gardé
+				// ne part pas vers une autre adresse (audit du 16/11, SPEC § 34).
+				a, _ := ancien["adresse"].(string)
+				e, _ := ancien["empreinte"].(string)
+				if a != u.Adresse || e != u.Empreinte {
+					return errors.New("adresse ou empreinte changée : saisir de nouveau le mot de passe ou la clé API")
 				}
 			} else {
 				chiffre, err := flotte.ChiffrerSecretSNMP(c.opt.Cle, secret)

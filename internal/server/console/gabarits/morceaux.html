@@ -113,7 +113,7 @@
 <label>Note <input name="note" value="{{.D.R.Note}}" maxlength="1024"></label>
 <input type="hidden" name="origine" value="{{.D.R.Origine}}">
 <label class="case"><input type="checkbox" name="active" value="1" {{if .D.R.Active}}checked{{end}}> Active</label>
-{{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer">Enregistrer</button></div>{{end}}
+{{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer" data-code>Enregistrer</button></div>{{end}}
 </form></section>{{end}}
 {{define "avancement-certificat"}}<ol class="avancement"{{if .EnCours}} data-recharger="15"{{end}}>{{range .Etapes}}<li class="av-{{.Etat}}"><span class="av-puce" aria-hidden="true"></span><div><strong>{{.Titre}}</strong> <span class="masque-visuel">({{if egal .Etat "fait"}}fait{{else if egal .Etat "encours"}}en cours{{else if egal .Etat "erreur"}}en échec{{else}}à venir{{end}})</span>{{if .Detail}}<small>{{.Detail}}</small>{{end}}</div></li>{{end}}</ol>
 {{if .EnCours}}<p class="aide"><small class="aide">Page rechargée toute seule toutes les 15 s tant qu'une étape avance.</small></p>{{end}}{{end}}

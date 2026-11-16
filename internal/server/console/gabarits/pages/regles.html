@@ -17,12 +17,12 @@
 <td>{{template "gravite" .R.Gravite}}</td><td>{{.R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
 <td>{{if not .Sante.Derniere.IsZero}}{{date .Sante.Derniere}} ({{duree .Sante.Duree}}){{end}}</td><td class="nombre">{{.Sante.EnAlerte}}</td>
 <td>{{if $.Admin}}<form method="post" action="/regles/action" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.R.Nom}}">
-{{if .R.Active}}<button name="action" value="desactiver" class="secondaire">Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}
+{{if .R.Active}}<button name="action" value="desactiver" class="secondaire" data-code>Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
 {{if .Admin}}<section class="carte"><h2>Importer</h2>
 <form method="post" action="/regles/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier YAML (export mirador, ou fichier de règles vmalert) <input type="file" name="fichier" accept=".yml,.yaml" required></label>
 <label class="case"><input type="checkbox" name="essai" value="1" checked> Essai seulement (rapport, rien d'enregistré)</label>
 <label class="case"><input type="checkbox" name="desactivees" value="1"> Importer désactivées</label>
-<button>Importer</button></form></section>{{end}}
+<button data-code data-code-sauf="essai">Importer</button></form></section>{{end}}
 {{end}}

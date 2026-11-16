@@ -546,3 +546,20 @@ func TestExprRemplacee(t *testing.T) {
 		t.Errorf("non remplacée : %s", e)
 	}
 }
+
+// Audit du 16/11 (SPEC § 34) : l'adresse de vmalert n'accepte ni paramètres
+// ni fragment (le chemin appelé par le serveur ne peut pas être détourné).
+func TestVmalertAdresseSansParametres(t *testing.T) {
+	for _, u := range []string{"http://127.0.0.1:9/x?y=", "http://vmalert:8880/#", "http://vmalert:8880?", "http://u:p@vmalert:8880"} {
+		r := ReglagesVmalert{URL: u}
+		if r.Valider() == nil {
+			t.Errorf("%q acceptée", u)
+		}
+	}
+	for _, u := range []string{"http://172.30.0.12:8880", "https://vmalert.exemple.fr/prefixe"} {
+		r := ReglagesVmalert{URL: u}
+		if err := r.Valider(); err != nil {
+			t.Errorf("%q refusée : %v", u, err)
+		}
+	}
+}

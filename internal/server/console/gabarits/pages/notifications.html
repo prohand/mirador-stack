@@ -86,5 +86,5 @@
 <label>Correspondances (nom-mirador=nom-vmalert, une par ligne) <textarea name="correspondances" rows="3" maxlength="10000">{{range $k, $v := .D.Vmalert.Correspondances}}{{$k}}={{$v}}
 {{end}}</textarea></label>
 <label>Règles ignorées <input name="ignorer" value="{{range $i, $e := .D.Vmalert.Ignorer}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="2000"></label>
-{{if .Admin}}<button>Enregistrer</button>{{end}}</form></section>
+{{if .Admin}}<button data-code>Enregistrer</button>{{end}}</form></section>
 {{end}}

@@ -138,12 +138,14 @@ func (c *Console) postInstallerOlvid(q *req) {
 	f := champs{q}
 	ctx := q.r.Context()
 	adresse := f.texte("adresse")
-	if f.texte("action") == "ping" {
-		c.retour(q, "/reglages/olvid/installer", notif.PingOlvid(ctx, adresse), "le daemon répond à "+adresse)
-		return
-	}
+	// Code 2FA ou mode administration aussi pour le simple essai : le
+	// serveur se connecte à l'adresse donnée (audit du 16/11, SPEC § 34).
 	if err := c.verifierCode(q); err != nil {
 		c.retour(q, "/reglages/olvid/installer", err, "")
+		return
+	}
+	if f.texte("action") == "ping" {
+		c.retour(q, "/reglages/olvid/installer", notif.PingOlvid(ctx, adresse), "le daemon répond à "+adresse)
 		return
 	}
 	// La clé admin ne passe que par ici : jamais gardée, jamais écrite

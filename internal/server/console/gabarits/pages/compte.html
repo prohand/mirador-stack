@@ -2,6 +2,12 @@
 <h1>Mon compte</h1>
 <p>Compte <strong>{{.D.U.Nom}}</strong>, rôle <strong>{{.D.U.Role}}</strong>. Dernière connexion : {{dateS .D.U.ConnecteLe}}.</p>
 
+{{if and .Admin (not .ModeAdmin)}}<section class="carte" id="mode-admin">
+<h2>Mode administration</h2>
+<p>Fermé : le code 2FA est demandé pour chaque action protégée. Ouvert, il n'est plus demandé pendant quelques minutes (sauf pour la sécurité des comptes).</p>
+<form method="post" action="/mode-admin/ouvrir" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="retour" value="/compte">{{template "code2fa-toujours"}}<button>Ouvrir le mode administration</button></form>
+</section>{{end}}
+
 <section class="carte">
 <h2>Changer de mot de passe</h2>
 <form method="post" action="/compte/mot-de-passe" class="pile">

@@ -10,7 +10,7 @@
 <label>Sélecteur d'étiquettes <input name="selecteur" required maxlength="1024" placeholder='{instance="pve1"} ou {alertname="CpuEleve",instance=~"vm-.*"}'></label>
 <label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
 <label>Durée <input name="duree" value="2h" required maxlength="10"></label>
-<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Poser</button></form></details>{{end}}
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><small class="aide">Au-delà de 24 h : code 2FA demandé (ou mode administration).</small><button data-code-long="duree">Poser</button></form></details>{{end}}
 </section>
 
 <section class="carte"><h2>Fenêtres de maintenance</h2>
@@ -25,7 +25,7 @@
 <label>Durée <input name="duree" value="2h" required maxlength="10"></label>
 <fieldset><legend>Récurrente (facultatif) : jours et heure</legend><div class="ligne">{{range .D.Jours}}<label class="case"><input type="checkbox" name="jours" value="{{.}}"> {{.}}</label>{{end}}</div>
 <label>Heure <input type="time" name="heure"></label></fieldset>
-<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Enregistrer</button></form></details>{{end}}
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button data-code>Enregistrer</button></form></details>{{end}}
 </section>
 
 <div class="grille">
@@ -37,7 +37,7 @@
 <label>Source <input name="source" required maxlength="1024" placeholder='{alertname="AgentMuet"}'></label>
 <label>Cible <input name="cible" required maxlength="1024" placeholder='{severity=~"warning|info"}'></label>
 <label>Étiquettes égales <input name="egales" value="instance" maxlength="200"></label>
-<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Ajouter</button></form></details>{{end}}
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button data-code>Ajouter</button></form></details>{{end}}
 </section>
 <section class="carte"><h2>Dépendances</h2>
 <p class="aide"><small class="aide">Quand le parent est en panne, les alertes de l'enfant sont mises en sourdine.</small></p>
@@ -46,7 +46,7 @@
 {{if .Admin}}<details><summary>Nouvelle dépendance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="dependance">
 <label>Enfant <input name="enfant" required maxlength="1024" list="machines" placeholder="machine:vm1, groupe:vms-pve1 ou sélecteur"></label>
 <label>Parent (machine) <input name="parent" required maxlength="128" placeholder="pve1"></label>
-<label>Commentaire <input name="commentaire" maxlength="1000"></label><button>Ajouter</button></form></details>{{end}}
+<label>Commentaire <input name="commentaire" maxlength="1000"></label><button data-code>Ajouter</button></form></details>{{end}}
 </section>
 </div>
 {{end}}

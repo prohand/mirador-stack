@@ -326,14 +326,25 @@ func (c Canaux) Masques() Canaux {
 
 // PreparerSecrets chiffre les secrets donnés en clair ; « *** » ou vide =
 // garder la valeur déjà enregistrée (on peut renvoyer les réglages affichés).
+//
+// Un secret gardé ne suit pas un changement de destination (audit du 16/11,
+// SPEC § 34) : si le serveur ntfy, le serveur d'e-mail ou le daemon Olvid
+// change, le secret doit être ressaisi. Sinon, changer l'adresse puis
+// cliquer sur « Tester » enverrait l'ancien secret à la nouvelle adresse.
 func PreparerSecrets(nouveaux, anciens Canaux, cle []byte) (Canaux, error) {
 	c := nouveaux
 	var err error
-	prep := func(v, ancien, usage string) string {
+	// change : la destination n'est plus celle du secret enregistré ;
+	// quoi : nom du secret, pour le message.
+	prep := func(v, ancien, usage string, change bool, quoi string) string {
 		if err != nil {
 			return ""
 		}
-		if v == "" || v == "***" {
+		if v == "" || v == "***" || (secrets.EstChiffre(v) && v == ancien) {
+			if change && ancien != "" {
+				err = fmt.Errorf("%s : l'adresse a changé, le saisir de nouveau (il n'est pas envoyé à une autre adresse)", quoi)
+				return ""
+			}
 			return ancien
 		}
 		if secrets.EstChiffre(v) {
@@ -349,25 +360,28 @@ func PreparerSecrets(nouveaux, anciens Canaux, cle []byte) (Canaux, error) {
 		if anciens.Telegram != nil {
 			anc = anciens.Telegram.Jeton
 		}
-		t.Jeton = prep(t.Jeton, anc, usageTelegram)
+		// Telegram : toujours le même serveur (api.telegram.org).
+		t.Jeton = prep(t.Jeton, anc, usageTelegram, false, "jeton Telegram")
 		c.Telegram = &t
 	}
 	if c.Ntfy != nil {
 		n := *c.Ntfy
-		anc := ""
+		anc, change := "", false
 		if anciens.Ntfy != nil {
 			anc = anciens.Ntfy.Jeton
+			change = hoteURL(anciens.Ntfy.URL) != hoteURL(n.URL)
 		}
-		n.Jeton = prep(n.Jeton, anc, usageNtfy)
+		n.Jeton = prep(n.Jeton, anc, usageNtfy, change, "jeton ntfy")
 		c.Ntfy = &n
 	}
 	if c.Email != nil {
 		e := *c.Email
-		anc := ""
+		anc, change := "", false
 		if anciens.Email != nil {
 			anc = anciens.Email.MotDePasse
+			change = !strings.EqualFold(strings.TrimSpace(anciens.Email.Serveur), strings.TrimSpace(e.Serveur))
 		}
-		e.MotDePasse = prep(e.MotDePasse, anc, usageEmail)
+		e.MotDePasse = prep(e.MotDePasse, anc, usageEmail, change, "mot de passe de l'e-mail")
 		c.Email = &e
 	}
 	if c.Heartbeat != nil {
@@ -376,19 +390,32 @@ func PreparerSecrets(nouveaux, anciens Canaux, cle []byte) (Canaux, error) {
 		if anciens.Heartbeat != nil {
 			anc = anciens.Heartbeat.URL
 		}
-		h.URL = prep(h.URL, anc, usageHeartbeat)
+		// Heartbeat : l'adresse EST le secret (rien d'autre n'est envoyé).
+		h.URL = prep(h.URL, anc, usageHeartbeat, false, "adresse du heartbeat")
 		c.Heartbeat = &h
 	}
 	if c.Olvid != nil {
 		o := *c.Olvid
-		anc := ""
+		anc, change := "", false
 		if anciens.Olvid != nil {
 			anc = anciens.Olvid.Cle
+			change = !strings.EqualFold(strings.TrimSpace(anciens.Olvid.Adresse), strings.TrimSpace(o.Adresse))
 		}
-		o.Cle = prep(o.Cle, anc, usageOlvid)
+		o.Cle = prep(o.Cle, anc, usageOlvid, change, "clé client Olvid")
 		c.Olvid = &o
 	}
 	return c, err
+}
+
+// hoteURL : « schéma://hôte:port » d'une adresse, en minuscules ("" si elle
+// est illisible). Deux adresses du même serveur ont le même résultat : le
+// sujet ntfy peut changer sans ressaisir le jeton.
+func hoteURL(adresse string) string {
+	u, err := url.Parse(strings.TrimSpace(adresse))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
 }
 
 // --- Réseau : délais et protection SSRF ------------------------------------------
