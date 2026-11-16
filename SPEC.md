@@ -1235,13 +1235,13 @@ version précédente. Le serveur voit l'échec dans le battement suivant.
   seule, `CONTAINERS=1`, `POST=0`, `INFO=0`, système de fichiers en lecture
   seule, 32 Mio max, écoute sur `127.0.0.1:12375` seulement. Un proxy existant
   peut être réutilisé (`--docker-proxy`).
-- Binaires de test : publiés par la CI (artefact de l'exécution), avec
-  `SHA256SUMS` ; depuis le 15/11, seulement pour un push sur `main`, gardés
-  **3 jours** (42 Mo par envoi : 90 % des 0,5 Go de stockage Actions du mois
-  étaient pris par les artefacts gardés 30 jours). Le workflow `nettoyage`
-  (chaque lundi, à la demande, et une fois à sa fusion) supprime tous les
-  artefacts sauf le dernier binaire de `main`, avec le jeton de l'exécution
-  (droit « actions » seulement, commande `gh`, aucune action tierce).
+- Binaires : dans la Release de chaque version (agent signé et son
+  manifeste) ; la CI ne garde plus d'artefact depuis le 16/11 (le
+  stockage Actions, 0,5 Go par mois partagé avec les paquets privés,
+  était plein). L'image du serveur sur ghcr.io est publique (ne compte
+  pas). Le workflow `nettoyage` (chaque lundi, à la demande) supprime tout
+  artefact qui resterait, avec le jeton de l'exécution (droit « actions »
+  seulement, commande `gh`, aucune action tierce).
 - Guide pas à pas : `docs/installation-agent.md`. Mesures sur la machine :
   `deploy/agent/mesurer.sh` (lecture seule, compare à Alloy).
 

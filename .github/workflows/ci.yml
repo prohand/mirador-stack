@@ -13,13 +13,13 @@
 #   - benchmarks seulement à la demande (Actions › ci › Run workflow).
 # Durée totale inchangée (~7 min : celle des tests).
 #
-# Économie de stockage (15/11 : 90 % des 0,5 Go du mois utilisés, par les
+# Économie de stockage (15-16/11 : les 0,5 Go du mois remplis par les
 # binaires de 42 Mo envoyés à chaque push et gardés 30 jours) :
-#   - binaires (artefact) seulement pour un push sur main, gardés 3 jours ;
-#     les machines s'installent depuis les versions publiées (tags), pas
-#     depuis l'artefact ;
+#   - plus d'artefact de binaires : les machines s'installent depuis les
+#     versions publiées (Releases, à chaque tag), qui ne comptent pas ;
 #   - plus d'enregistrement de la construction Docker (artefact
-#     « .dockerbuild » gardé 90 jours).
+#     « .dockerbuild » gardé 90 jours) ;
+#   - workflow « nettoyage » : supprime chaque lundi ce qui resterait.
 
 name: ci
 
@@ -82,19 +82,7 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
       - name: Compilation (agent, collecteur et serveur linux, mirador-release Windows)
         run: make agent collecteur serveur release
-      # Binaires et scripts à télécharger depuis la page de l'exécution
-      # (onglet « Artifacts ») pour un essai sur une machine : seulement sur
-      # main, gardés 3 jours (stockage Actions limité à 0,5 Go par mois).
-      - name: Publication des binaires (artefact)
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v7
-        with:
-          name: mirador-agent-${{ github.sha }}
-          path: |
-            dist/
-            deploy/agent/
-            deploy/collecteur/
-          retention-days: 3
+      # Pas d'artefact : les binaires d'une version sont dans sa Release.
 
   tests:
     name: tests (accès concurrents compris)
