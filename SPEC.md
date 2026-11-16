@@ -5136,3 +5136,51 @@ machines en attente sont acceptées.
 - Les pastilles ne remplacent pas le jugement de l'admin : un attaquant
   qui a le jeton et une adresse « connue » n'en a pas. Elles aident
   seulement à voir l'inattendu.
+
+## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Fait, à valider]**
+
+### 37.1 « Le parc sur 24 h » avec beaucoup de machines (choix 1 + 2 + 3)
+
+Avant : 100 machines au plus, les premières par ordre alphabétique (les
+autres disparaissaient sans le dire), triées par nom, 20 px par ligne.
+
+- **Tri par pic** sur 24 h, les plus chargées en haut (machines sans
+  données en bas), dans chaque carte (processeur, mémoire).
+- **10 lignes** d'office, puis « Voir les N autres » (mirador.js ; sans
+  JavaScript, tout reste affiché).
+- **Au-delà de 100** : les 100 plus chargées gardées, et « + N machines non
+  affichées (les moins chargées) ».
+- **Suit les filtres du tableau du parc** juste au-dessus (texte et
+  « Afficher ») ; message si plus rien ne correspond. Une machine absente
+  du tableau n'est montrée que sans filtre.
+- Coût : aucune requête en plus (les deux requêtes de la carte, gardées
+  5 min, renvoyaient déjà toutes les machines) ; un tri de quelques
+  centaines de lignes.
+
+### 37.2 Liste des versions à importer (5 dernières)
+
+- « Importer une version signée » propose une **liste des 5 dernières
+  versions** du dépôt, avec leur date ; « (déjà importée) » pour celles qui
+  sont là ; la plus récente non importée est choisie d'office. Un champ
+  « ou autre » garde la saisie d'une version plus ancienne.
+- Source : flux Atom des Releases (`https://github.com/DÉPÔT/releases.atom`),
+  **même hôte que les téléchargements** (rien à ouvrir de plus dans le
+  pare-feu), sans clé d'API. Lu par le serveur, 1 Mo au plus, 4 s au plus ;
+  gardé 10 min (1 min après un échec). Seulement pour les administrateurs.
+- GitHub injoignable : message « liste indisponible » et le champ à taper,
+  comme avant.
+- Menaces : le flux n'est qu'une liste de noms ; chaque nom est vérifié
+  (`vX.Y.Z`) avant d'être affiché ou utilisé, et la **signature** reste
+  vérifiée à l'import. Un flux trafiqué peut au pire proposer un nom de
+  version : l'import d'un binaire non signé par la clé est refusé.
+
+### 37.3 Écran mural : rappel des alertes prises en charge
+
+- Avant : les alertes acquittées n'y étaient pas, et l'écran affichait
+  « Tout va bien » alors qu'il en restait.
+- Maintenant : bloc **Prises en charge (N)** sous les alertes en cours,
+  plus discret (bord pointillé, texte plus petit) : machine, alerte, par
+  qui, jusqu'à quand, depuis quand ; 6 lignes au plus, puis « … et N en
+  tout ». S'il n'y a que des alertes prises en charge : « Rien à traiter »
+  au lieu de « Tout va bien ».
+- Corrigé au passage : « depuis il y a 10 min » → « depuis 10 min ».

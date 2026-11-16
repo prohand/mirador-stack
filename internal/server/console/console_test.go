@@ -23,6 +23,7 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/base"
+	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/web"
 )
 
@@ -77,6 +78,9 @@ func nouveauBanc(t *testing.T) *banc {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Jamais le vrai GitHub dans les tests : adresse fermée par défaut
+	// (refus immédiat), remplacée par un faux GitHub là où il sert.
+	b.c.sourceGitHub = flotte.SourceGitHub{Base: "http://127.0.0.1:1"}
 	b.srv = httptest.NewTLSServer(web.IPClient(nil)(web.EntetesSecurite(b.c)))
 	t.Cleanup(b.srv.Close)
 	return b

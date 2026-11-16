@@ -90,11 +90,13 @@
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
 </section>
-{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé.</small></p>
-<div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur"><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur" data-sans-tri>
+{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
+<div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur" data-chaleur><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur" data-sans-tri>
 <colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
-<tbody>{{range .Lignes}}<tr><th><a href="/machines/{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div></div>{{end}}</div>
+<tbody>{{range .Lignes}}<tr data-nom="{{.Nom}}" data-texte="{{.Texte}}"><th><a href="/machines/{{.Nom}}" title="{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div>
+<p class="chaleur-pied"><button type="button" class="secondaire petit" data-chaleur-plus hidden></button>{{if .Cachees}} <small class="doux" data-chaleur-cachees>+ {{.Cachees}} {{accord .Cachees "machine(s) non affichée(s)"}} (les moins chargées)</small>{{end}}</p></div>{{end}}</div>
+<p class="vide" data-chaleur-vide hidden>Aucune machine ne correspond aux filtres.</p>
 <p class="legende-chaleur"><span class="ch-0"></span> &lt; 20 % <span class="ch-1"></span> 20 % <span class="ch-2"></span> 40 % <span class="ch-3"></span> 60 % <span class="ch-4"></span> 75 % <span class="ch-5"></span> ≥ 90 % <span class="ch-vide"></span> pas de données</p></section>{{end}}
 <div class="grille">
   <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>

@@ -277,9 +277,8 @@ document.addEventListener("change", function (e) {
   function ecrire(cle, v) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
   function appliquer() {
     var zone = document.querySelector("[data-parc]");
-    if (!zone) { return; }
-    var table = zone.querySelector("table.parc");
-    if (!table) { return; }
+    var table = zone && zone.querySelector("table.parc");
+    if (!table) { chaleur([], false); return; }
     // Titres triables : un vrai bouton dans chaque titre (clavier compris).
     table.querySelectorAll("th[data-tri]").forEach(function (th) {
       if (th.querySelector("button")) { return; }
@@ -329,6 +328,7 @@ document.addEventListener("change", function (e) {
     });
     var vide = zone.querySelector("[data-parc-vide]");
     if (vide) { vide.hidden = visibles > 0; }
+    chaleur(lignes, etat !== "" || mots.length > 0);
     // Colonnes masquées.
     var masquees = lire(cleCol, "").split(",").filter(Boolean);
     zone.querySelectorAll("[data-colonne]").forEach(function (c) {
@@ -337,6 +337,42 @@ document.addEventListener("change", function (e) {
       table.classList.toggle("sans-" + nom, masquee);
     });
   }
+  // Carte « Le parc sur 24 h » (SPEC § 37) : suit le filtre du tableau ;
+  // les 10 plus chargées d'abord, le reste derrière « Voir les N autres ».
+  var chaleurOuverte = {};
+  function chaleur(lignesParc, filtrePose) {
+    var cache = {};
+    lignesParc.forEach(function (l) { cache[l.getAttribute("data-nom")] = l.hidden; });
+    var total = 0;
+    document.querySelectorAll("[data-chaleur]").forEach(function (bloc, n) {
+      var gardees = 0, montrees = 0;
+      bloc.querySelectorAll("tr[data-nom]").forEach(function (tr) {
+        var nom = tr.getAttribute("data-nom");
+        // Machine absente du tableau du parc : montrée seulement sans filtre.
+        var garde = nom in cache ? !cache[nom] : !filtrePose;
+        if (garde) { gardees++; }
+        var montre = garde && (chaleurOuverte[n] || gardees <= 10);
+        tr.hidden = !montre;
+        if (montre) { montrees++; }
+      });
+      total += gardees;
+      var b = bloc.querySelector("[data-chaleur-plus]");
+      if (b) {
+        b.hidden = gardees <= 10;
+        b.textContent = chaleurOuverte[n] ? "Voir seulement les 10 plus chargées" : "Voir les " + (gardees - montrees) + " autres";
+        b.setAttribute("data-n", n);
+      }
+    });
+    var vide = document.querySelector("[data-chaleur-vide]");
+    if (vide) { vide.hidden = total > 0 || !document.querySelector("[data-chaleur]"); }
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-chaleur-plus]");
+    if (!b) { return; }
+    var n = b.getAttribute("data-n");
+    chaleurOuverte[n] = !chaleurOuverte[n];
+    appliquer();
+  });
   document.addEventListener("click", function (e) {
     var b = e.target.closest("th[data-tri] button");
     if (!b) { return; }

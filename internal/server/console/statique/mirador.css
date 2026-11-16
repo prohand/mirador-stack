@@ -955,3 +955,14 @@ tr.sous-ligne td:first-child { padding-left: 26px; }
 .recherche-machines { display: flex; gap: 6px; align-items: center; }
 .filtres-machines .segment { flex-wrap: wrap; }
 .filtres-machines .segment a { white-space: nowrap; }
+/* Écran mural : rappel des alertes prises en charge (acquittées), plus discret
+   que les alertes à traiter (SPEC § 37). */
+.mur-prises { background: var(--carte); border: 1px dashed var(--bord); border-radius: 14px; padding: 12px 20px; margin-bottom: 20px; opacity: .85; }
+.mur-prises h2 { margin: 0 0 6px; font-size: 16px; color: var(--doux); }
+.mur-prises h2 small { font-weight: 400; color: var(--pale); font-size: 13px; margin-left: 6px; }
+.mur-prises ul { list-style: none; margin: 0; padding: 0; }
+.mur-prises li { font-size: 17px; padding: 5px 0 5px 12px; border-left: 4px dotted var(--info); margin-bottom: 4px; color: var(--doux); }
+.mur-prises li.g-critical { border-left-color: var(--erreur); } .mur-prises li.g-warning { border-left-color: var(--attention); }
+.mur-prises li small { color: var(--pale); font-size: 13px; margin-left: 8px; }
+.chaleur-pied { margin: 6px 0 0; }
+.chaleur-pied:not(:has(button:not([hidden]), small)) { display: none; }

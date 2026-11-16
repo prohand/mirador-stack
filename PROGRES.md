@@ -918,6 +918,19 @@ local compris) :
 Rien en base, rien en mémoire entre deux pages, une requête SQL en plus.
 Négligeable devant les objectifs du serveur (SPEC § 2).
 
+### Suite du 16/11 (SPEC § 37)
+
+| Partie | État |
+|---|---|
+| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; à valider |
+| Import d'une version : liste des 5 dernières versions de GitHub (flux Atom, gardé 10 min), champ « ou autre » | **fait**, testé avec un faux GitHub ; à vérifier sur le VPS |
+| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; à valider |
+
+Coût : carte du parc, aucune requête en plus ; liste des versions, une
+requête HTTPS vers github.com au plus toutes les 10 min (quelques dizaines
+de Ko), seulement à l'ouverture de la page par un admin ; écran mural, rien
+de plus (les alertes prises en charge étaient déjà lues).
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

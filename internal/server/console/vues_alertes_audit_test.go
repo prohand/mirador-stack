@@ -276,3 +276,33 @@ func TestPrisesEnCharge(t *testing.T) {
 		}
 	}
 }
+
+// Écran mural (SPEC § 37) : rappel des alertes prises en charge ; plus de
+// « Tout va bien » quand il en reste.
+func TestMurPrisesEnCharge(t *testing.T) {
+	b := nouveauBanc(t)
+	prises := []resumeAlerte{{ID: 2, Regle: "DisqueFaible", Gravite: "warning", Machine: "nas", Etat: "active", Acquittee: true,
+		AcquitteePar: "web:admin", AcquitteeLe: "14:05", AcquitteeJusqua: "15/11 18:05", Depuis: 1}}
+	rendre := func(d donneesAccueil) string {
+		w := httptest.NewRecorder()
+		b.c.pages.executer(w, http.StatusOK, "ecran", Page{D: donneesMur{donneesAccueil: d, Heure: "12:00"}})
+		return w.Body.String()
+	}
+	corps := rendre(donneesAccueil{Prises: prises})
+	for _, attendu := range []string{"Rien à traiter", "Prises en charge (1)", "<b>nas</b> DisqueFaible", "par web:admin", "jusqu'au 15/11 18:05"} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("écran mural : %q absent", attendu)
+		}
+	}
+	if strings.Contains(corps, "Tout va bien") {
+		t.Error("« Tout va bien » avec une alerte prise en charge")
+	}
+	// Avec une alerte à traiter : les deux blocs.
+	corps = rendre(donneesAccueil{Prises: prises, Alertes: []resumeAlerte{{Regle: "CpuEleve", Gravite: "critical", Machine: "web1"}}})
+	if !strings.Contains(corps, "Alertes en cours") || !strings.Contains(corps, "Prises en charge (1)") {
+		t.Error("écran mural : alertes et prises en charge attendues ensemble")
+	}
+	if corps = rendre(donneesAccueil{}); !strings.Contains(corps, "Tout va bien") || strings.Contains(corps, "Prises en charge") {
+		t.Error("écran mural calme")
+	}
+}

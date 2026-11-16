@@ -84,6 +84,8 @@ type celluleChaleur struct {
 
 type ligneChaleur struct {
 	Nom       string
+	Texte     string // nom, site, type, groupe : pour le filtre du tableau du parc (SPEC § 37)
+	pic       float64
 	Cellules  []celluleChaleur
 	Maximum   string // plus forte heure, en fin de ligne
 	ClasseMax string
@@ -93,7 +95,13 @@ type vueChaleur struct {
 	Titre  string
 	Heures []string // un libellé toutes les 3 heures (8 en tout)
 	Lignes []ligneChaleur
+	// Cachees : machines au-delà des 100 les plus chargées, non affichées.
+	Cachees int
 }
+
+// lignesChaleurVisibles : lignes montrées d'office, les autres derrière
+// « Voir les N autres » (déplié par mirador.js, qui tient compte des filtres).
+const lignesChaleurVisibles = 10
 
 // Moyenne par heure sur 24 h (une requête par mesure pour tout le parc).
 var exprsChaleur = []struct{ titre, expr string }{
@@ -143,10 +151,14 @@ func (c *Console) chaleurParc(ctx context.Context, ms []flotte.InfoMachine, t ti
 	c.chaleur.mu.Unlock()
 	fin := t.Truncate(time.Hour)
 	debut := fin.Add(-23 * time.Hour)
+	// Toutes les machines approuvées : le tri par pic se fait après, et
+	// seules les 100 plus chargées sont gardées (SPEC § 37).
 	var noms []string
+	textes := map[string]string{}
 	for _, m := range ms {
-		if m.Statut == "approuvee" && len(noms) < machinesChaleurMax {
+		if m.Statut == "approuvee" {
 			noms = append(noms, m.Nom)
+			textes[m.Nom] = strings.Join([]string{m.Nom, m.Site, m.Env, m.Groupe}, " ")
 		}
 	}
 	sort.Strings(noms)
@@ -178,7 +190,7 @@ func (c *Console) chaleurParc(ctx context.Context, ms []flotte.InfoMachine, t ti
 			if !ok {
 				continue
 			}
-			l := ligneChaleur{Nom: nom}
+			l := ligneChaleur{Nom: nom, Texte: textes[nom]}
 			pire := math.NaN()
 			for h, x := range vals {
 				fh := debut.Add(time.Duration(h) * time.Hour).In(fuseau.Load())
@@ -193,17 +205,39 @@ func (c *Console) chaleurParc(ctx context.Context, ms []flotte.InfoMachine, t ti
 				}
 				l.Cellules = append(l.Cellules, celluleChaleur{Classe: classeChaleur(x), Titre: titre})
 			}
+			l.pic = pire
 			if !math.IsNaN(pire) {
 				l.Maximum, l.ClasseMax = formater(pire, "percent", &zero), classeChaleur(pire)
 			}
 			v.Lignes = append(v.Lignes, l)
 		}
+		ordonnerChaleur(&v)
 		vues = append(vues, v)
 	}
 	c.chaleur.mu.Lock()
 	c.chaleur.vues, c.chaleur.expire = vues, t.Add(5*time.Minute)
 	c.chaleur.mu.Unlock()
 	return vues
+}
+
+// ordonnerChaleur : les machines les plus chargées (pic sur 24 h) en haut,
+// sans données en bas, puis par nom ; au-delà de 100, le reste est compté
+// (« + N non affichées ») mais pas montré.
+func ordonnerChaleur(v *vueChaleur) {
+	sort.SliceStable(v.Lignes, func(i, j int) bool {
+		a, b := v.Lignes[i], v.Lignes[j]
+		if math.IsNaN(a.pic) != math.IsNaN(b.pic) {
+			return !math.IsNaN(a.pic)
+		}
+		if !math.IsNaN(a.pic) && a.pic != b.pic {
+			return a.pic > b.pic
+		}
+		return a.Nom < b.Nom
+	})
+	if len(v.Lignes) > machinesChaleurMax {
+		v.Cachees = len(v.Lignes) - machinesChaleurMax
+		v.Lignes = v.Lignes[:machinesChaleurMax]
+	}
 }
 
 // --- Écran mural --------------------------------------------------------------

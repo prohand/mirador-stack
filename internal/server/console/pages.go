@@ -907,6 +907,45 @@ type donneesMaj struct {
 	Choix    []string // versions publiées, sans doublon (une ligne par architecture dans Versions)
 	Import   vueImport
 	Garder   int // versions récentes gardées (réglage, 1 à 10)
+	// Dernières versions publiées sur GitHub (SPEC § 37), proposées dans
+	// une liste ; ListeGitHub : message si la liste n'a pas pu être lue.
+	Proposees   []versionProposee
+	ListeGitHub string
+}
+
+// versionProposee : une version de GitHub dans la liste d'import.
+type versionProposee struct {
+	Tag, Date string
+	Importee  bool // déjà publiée ici
+}
+
+// versionsProposees : nombre de versions de GitHub proposées (choix du 16/11).
+const versionsProposees = 5
+
+// cacheVersionsGitHub : liste gardée 10 min (1 min après un échec) pour ne
+// pas interroger GitHub à chaque affichage de la page.
+type cacheVersionsGitHub struct {
+	mu     sync.Mutex
+	depot  string
+	vs     []flotte.VersionGitHub
+	err    error
+	expire time.Time
+}
+
+// versionsGitHub : dernières versions du dépôt, depuis le cache si possible.
+func (c *Console) versionsGitHub(ctx context.Context, depot string, t time.Time) ([]flotte.VersionGitHub, error) {
+	c.versionsGH.mu.Lock()
+	defer c.versionsGH.mu.Unlock()
+	if c.versionsGH.depot == depot && t.Before(c.versionsGH.expire) {
+		return c.versionsGH.vs, c.versionsGH.err
+	}
+	vs, err := flotte.DernieresVersionsGitHub(ctx, c.sourceGitHub, depot, versionsProposees)
+	duree := 10 * time.Minute
+	if err != nil {
+		duree = time.Minute
+	}
+	c.versionsGH.depot, c.versionsGH.vs, c.versionsGH.err, c.versionsGH.expire = depot, vs, err, t.Add(duree)
+	return vs, err
 }
 
 type cleVue struct{ Valeur, Empreinte string }
@@ -1000,6 +1039,21 @@ func (c *Console) pageMisesAJour(q *req) {
 	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7); err != nil {
 		c.flash(q, "", err.Error())
 	}
+	// Liste des versions de GitHub : seulement pour les admins (eux seuls
+	// importent) ; en cas d'échec, le champ à taper reste là.
+	if q.admin() && e6 == nil {
+		if vs, err := c.versionsGitHub(ctx, d.Depot, q.t); err != nil {
+			d.ListeGitHub = "liste des versions de GitHub indisponible (" + err.Error() + ") : taper le numéro"
+		} else {
+			for _, v := range vs {
+				p := versionProposee{Tag: v.Tag, Importee: vu[strings.TrimPrefix(v.Tag, "v")] || vu[v.Tag]}
+				if !v.Date.IsZero() {
+					p.Date = v.Date.In(fuseau.Load()).Format("02/01/2006")
+				}
+				d.Proposees = append(d.Proposees, p)
+			}
+		}
+	}
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
 }
 
@@ -1018,7 +1072,12 @@ func (c *Console) postMisesAJour(q *req) {
 		case "importer":
 			var depot string
 			if depot, err = flotte.LireDepot(ctx, c.db); err == nil {
-				if !c.lancerImport(depot, strings.TrimSpace(q.r.PostFormValue("tag")), q.qui(), q.r.PostFormValue("toutes") != "") {
+				// Version tapée à la main (« autre ») avant celle de la liste.
+				tag := strings.TrimSpace(q.r.PostFormValue("tag_autre"))
+				if tag == "" {
+					tag = strings.TrimSpace(q.r.PostFormValue("tag"))
+				}
+				if !c.lancerImport(depot, tag, q.qui(), q.r.PostFormValue("toutes") != "") {
 					err = errors.New("un import est déjà en cours")
 				}
 				ok = "import lancé : recharger la page dans quelques secondes"
