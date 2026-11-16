@@ -709,10 +709,10 @@ free -m
 
 | Partie | État |
 |---|---|
-| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; à valider |
-| A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; à valider |
-| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; à valider après mise à jour de l'agent |
-| C. Modèles personnels dans l'interface : créer, dupliquer un modèle livré, modifier, exporter / importer en JSON, supprimer (SPEC § 24.11) | **fait** (14/11), testé (base simulée, interface, rendu vérifié en capture) ; à valider |
+| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; **validé le 16/11** |
+| A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; **validé le 16/11** |
+| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; **validé le 16/11** |
+| C. Modèles personnels dans l'interface : créer, dupliquer un modèle livré, modifier, exporter / importer en JSON, supprimer (SPEC § 24.11) | **fait** (14/11), testé (base simulée, interface, rendu vérifié en capture) ; **validé le 16/11** |
 
 Mesure partie C : 1 à 5 Ko par modèle personnel (200 au plus) gardés en
 mémoire par le serveur, une requête de détection par minute et par modèle
@@ -727,8 +727,8 @@ Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
 | Partie | État |
 |---|---|
 | Maquettes : A épuré, B compact, C doux, D technique, A bis (menu noir) | faites ; choix : **A bis** |
-| Thème Jour / Nuit / Auto par utilisateur, en bas du menu | **fait**, testé ; à valider |
-| Design A bis (feuille de style, menu noir, pastille « mode ombre ») | **fait**, captures jour / nuit / menu replié ; à valider |
+| Thème Jour / Nuit / Auto par utilisateur, en bas du menu | **fait**, testé ; **validé le 16/11** |
+| Design A bis (feuille de style, menu noir, pastille « mode ombre ») | **fait**, captures jour / nuit / menu replié ; **validé le 16/11** |
 
 Mesure : une colonne en base, une requête par changement de thème, feuille
 de style de même taille ; objectif serveur inchangé ✅.
@@ -738,8 +738,8 @@ de style de même taille ; objectif serveur inchangé ✅.
 | Partie | État |
 |---|---|
 | Maquettes A+B+D et C | faites ; choix : **A + B + D** |
-| Bouton « Avec aides / Sans aides » par utilisateur | **fait**, testé ; à valider |
-| 143 aides relues : 81 raccourcies (« En savoir plus » vers `docs/aide.md`), 3 retirées, avertissements gardés | **fait**, captures avant / après ; à valider |
+| Bouton « Avec aides / Sans aides » par utilisateur | **fait**, testé ; **validé le 16/11** |
+| 143 aides relues : 81 raccourcies (« En savoir plus » vers `docs/aide.md`), 3 retirées, avertissements gardés | **fait**, captures avant / après ; **validé le 16/11** |
 
 Mesure : une colonne en base, une requête par clic ; objectif serveur
 inchangé ✅.
@@ -764,9 +764,9 @@ inchangé ✅.
 | Partie | État |
 |---|---|
 | Maquettes (recommandations) | validées (« Oui code ») |
-| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; à valider |
-| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; à valider |
-| Historique : frise 24 h / 7 jours, règles les plus bruyantes | **fait**, testé ; à valider |
+| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; **validé le 16/11** |
+| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; **validé le 16/11** |
+| Historique : frise 24 h / 7 jours, règles les plus bruyantes | **fait**, testé ; **validé le 16/11** |
 | Conditions « en attente » montrées comme des alertes | **corrigé** : bloc « En attente » à part, temps restant affiché |
 
 Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
@@ -777,8 +777,8 @@ Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
 | Partie | État |
 |---|---|
 | Maquette (recommandations, ordre de la page) | validée |
-| En ce moment, ordre, sommaire, périodes, 2 colonnes, vides regroupés, replis retenus | **fait**, testé ; à valider |
-| Graphiques : légende française cliquable, aire, échelle, survol synchronisé, zoom, seuil du modèle | **fait** ; à valider |
+| En ce moment, ordre, sommaire, périodes, 2 colonnes, vides regroupés, replis retenus | **fait**, testé ; **validé le 16/11** |
+| Graphiques : légende française cliquable, aire, échelle, survol synchronisé, zoom, seuil du modèle | **fait** ; **validé le 16/11** |
 | Accents des tableaux fournis | **fait** |
 
 Mesure : 7 à 8 requêtes instantanées de plus par affichage d'une machine ;
@@ -789,17 +789,17 @@ objectif serveur inchangé ✅.
 | Partie | État |
 |---|---|
 | État « acquittée » lu en base (défaut : l'alerte semblait ne pas changer) | **corrigé** |
-| Durée 4 h / 24 h / jusqu'à la fin, rappel à l'échéance | **fait**, testé ; à valider |
-| Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; à valider |
+| Durée 4 h / 24 h / jusqu'à la fin, rappel à l'échéance | **fait**, testé ; **validé le 16/11** |
+| Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; **validé le 16/11** |
 | Escalade vers le canal de secours (coupée par défaut) | **fait**, testé (aiguillage) ; envoi réel à vérifier |
 
 ## Métriques et graphiques (SPEC § 31, 15/11)
 
 | Partie | État |
 |---|---|
-| Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; à valider |
-| Livraison 2 : semaine dernière, plein écran, empilé, export, zoom dans l'adresse | **fait**, testé ; à valider |
-| Livraison 3 : plus gourmands (conteneurs), carte de chaleur 24 h, écran mural | **fait**, testé ; à valider (processus non relevés par l'agent) |
+| Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; **validé le 16/11** |
+| Livraison 2 : semaine dernière, plein écran, empilé, export, zoom dans l'adresse | **fait**, testé ; **validé le 16/11** |
+| Livraison 3 : plus gourmands (conteneurs), carte de chaleur 24 h, écran mural | **fait**, testé ; **validé le 16/11** (processus non relevés par l'agent) |
 
 Mesure (livraison 1) : prévision des disques **44 ms et 28 Mio passagers**
 pour 50 systèmes de fichiers sur 7 jours, une fois par 10 min (cache) ;
@@ -815,8 +815,8 @@ page machine.
 
 | Partie | État |
 |---|---|
-| Réglages › Certificats (compte DNS commun, liste des collecteurs, Renouveler) | **fait**, testé ; à valider |
-| Avancement pas à pas (6 pas, étape Let's Encrypt en cours, écoute confirmée par les mesures) | **fait**, testé ; à valider |
+| Réglages › Certificats (compte DNS commun, liste des collecteurs, Renouveler) | **fait**, testé ; **validé le 16/11** |
+| Avancement pas à pas (6 pas, étape Let's Encrypt en cours, écoute confirmée par les mesures) | **fait**, testé ; **validé le 16/11** |
 | `--nom` dans la commande d'installation | **fait**, testé |
 
 Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
@@ -825,9 +825,9 @@ Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
 
 | Partie | État |
 |---|---|
-| Filtres rangés, pastilles, niveau « et plus grave », exclusion (moteur) | **fait**, testé ; à valider |
-| Histogramme + zoom, lignes compactes, surlignage, détail au clic | **fait**, testé ; à valider |
-| Messages regroupés, contexte « Voir autour », mode direct, export, recherches enregistrées | **fait**, testé ; à valider |
+| Filtres rangés, pastilles, niveau « et plus grave », exclusion (moteur) | **fait**, testé ; **validé le 16/11** |
+| Histogramme + zoom, lignes compactes, surlignage, détail au clic | **fait**, testé ; **validé le 16/11** |
+| Messages regroupés, contexte « Voir autour », mode direct, export, recherches enregistrées | **fait**, testé ; **validé le 16/11** |
 
 Mesure : 44 ms et 4 Mio passagers pour analyser 2 000 lignes ; mode direct :
 une petite recherche toutes les 5 s par onglet actif (30 min au plus).
@@ -838,14 +838,14 @@ Branche `claude/wonderful-goodall-aaqrgl`. Aucune faille critique ni haute.
 
 | Partie | État |
 |---|---|
-| Connexion : verrou de compte (table des comptes à part), 10 défis passkey par adresse | **fait**, testé ; à valider |
-| Console : codes 2FA manquants, import « securite », secrets liés à l'adresse, rôle avant le corps, masquage des secrets | **fait**, testé ; à valider |
+| Connexion : verrou de compte (table des comptes à part), 10 défis passkey par adresse | **fait**, testé ; **validé le 16/11** |
+| Console : codes 2FA manquants, import « securite », secrets liés à l'adresse, rôle avant le corps, masquage des secrets | **fait**, testé ; **validé le 16/11** |
 | Machine muette : plus de `ServiceDuModeleAbsent`, alertes inhibées dans un bloc replié | **fait**, testé ; à vérifier sur le VPS |
-| Graphique : logo de la connexion, 12 px au moins, accords, légende et aide des courbes | **fait**, vu dans Chromium ; à valider |
+| Graphique : logo de la connexion, 12 px au moins, accords, légende et aide des courbes | **fait**, vu dans Chromium ; **validé le 16/11** |
 | Application installable : manifeste, icônes, encoche (sans service worker) | **fait** ; à essayer sur ton téléphone |
-| Téléphone : barre du bas, en-tête compact, cartes, courbes à l'affichage | **fait**, vu en écran d'iPhone 13 simulé ; à valider sur un vrai téléphone |
-| Connexion depuis un lien : page demandée gardée, page relais, passkey en premier | **fait**, vérifié dans Chromium ; à valider |
-| Notifications push et pastille de l'icône (SPEC § 35, demande du 16/11) | **fait**, testé ; à valider sur un vrai téléphone |
+| Téléphone : barre du bas, en-tête compact, cartes, courbes à l'affichage | **fait**, vu en écran d'iPhone 13 simulé ; **validé le 16/11** |
+| Connexion depuis un lien : page demandée gardée, page relais, passkey en premier | **fait**, vérifié dans Chromium ; **validé le 16/11** |
+| Notifications push et pastille de l'icône (SPEC § 35, demande du 16/11) | **fait**, testé ; **validé le 16/11** |
 | Option : page hors ligne | **non faite** (pas demandée) |
 
 Mesures (Chromium, serveur de démonstration, machine de développement) :
