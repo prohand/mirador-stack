@@ -19,21 +19,20 @@ Sur le VPS, une seule modification : une ligne de token dans la `map` nginx.
 
 ## 1. Récupérer le binaire
 
-Chaque push sur `main` lance la CI, qui publie les binaires (gardés
-**3 jours** : stockage GitHub limité). Pour une installation durable, passer
-par une version publiée (tag `v…`) et le script du serveur.
+> Aujourd'hui, la façon normale d'installer un agent est la commande
+> affichée par l'interface (Machines › Ajouter une machine) : le script et
+> le binaire viennent du serveur. Ce guide garde l'essai historique de
+> l'étape 2.
 
-1. Ouvrir <https://github.com/prohand/mirador-stack/actions>, cliquer sur la
-   dernière exécution **verte** de la branche `main`.
-2. En bas de la page, section **Artifacts** : télécharger `mirador-agent-<commit>`.
-3. Décompresser : on obtient `dist/` (binaires + `SHA256SUMS`) et `deploy/agent/`
-   (script d'installation + script de mesure).
+La CI ne garde plus de binaires à télécharger (stockage GitHub limité,
+16/11). Deux façons de les avoir :
 
-Vérifier l'empreinte sur ton poste :
+- **Version publiée** : page *Releases* du dépôt, fichier
+  `mirador-agent-X.Y.Z-linux-amd64` (signé, avec son `.manifeste.json`) ;
+- **Compilés sur ton poste** (Go installé) : `make agent`, puis
+  `cd dist && sha256sum -c SHA256SUMS`.
 
-```bash
-cd dist && sha256sum -c SHA256SUMS
-```
+Le script d'installation et le script de mesure sont dans `deploy/agent/`.
 
 Copier sur srv-test (adapter l'utilisateur) :
 

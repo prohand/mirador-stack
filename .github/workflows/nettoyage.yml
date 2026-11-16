@@ -1,7 +1,7 @@
 # Nettoyage des artefacts de la CI (stockage Actions limité à 0,5 Go par mois)
 #
-# Garde seulement le dernier artefact de binaires de main ; supprime tous
-# les autres (anciennes exécutions, branches, enregistrements Docker).
+# Supprime tous les artefacts restants (la CI n'en produit plus depuis le
+# 16/11 : filet de sécurité si une action en recrée).
 # Seul outil : la commande « gh » déjà présente sur la machine de GitHub,
 # avec le jeton de l'exécution (droit limité aux Actions de ce dépôt).
 #
@@ -42,17 +42,10 @@ jobs:
           liste=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
             --jq '.artifacts[] | select(.expired | not) | [.created_at, (.id | tostring), .name, (.workflow_run.head_branch // "")] | @tsv' \
             | sort -r)
-          garde=""
           supprimes=0
           octets=0
           while IFS=$'\t' read -r date id nom branche; do
             [ -n "$id" ] || continue
-            # Le plus récent des binaires de main est gardé (essais sur une machine).
-            if [ -z "$garde" ] && [ "$branche" = "main" ] && [[ "$nom" == mirador-agent-* ]]; then
-              garde="$id"
-              echo "gardé : $nom ($date)"
-              continue
-            fi
             taille=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" --jq '.size_in_bytes')
             gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}"
             echo "supprimé : $nom ($branche, $date)"
