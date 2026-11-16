@@ -43,6 +43,11 @@ type interne struct {
 	mesureeLe  time.Time
 }
 
+// delaiServicesAttendus : sans donnée reçue d'une machine depuis ce temps,
+// ses « services attendus » ne sont plus écrits. Plus court que le « pour »
+// de la règle (15 min) : la série disparaît avant que l'alerte ne parte.
+const delaiServicesAttendus = 3 * time.Minute
+
 func (i *interne) boucle(ctx context.Context) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
@@ -139,6 +144,14 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 						if r.Remplace != "" {
 							ajout("mirador_machine_regle_remplacee", 1, "instance", m.Nom, "regle", r.Remplace)
 						}
+					}
+					// Services attendus : seulement si la machine répond. Une
+					// machine muette n'envoie plus l'état de ses services ;
+					// sans cela, la règle ServiceDuModeleAbsent les croyait
+					// tous désinstallés et ajoutait une alerte par service à
+					// côté d'AgentMuet (retour du 16/11, SPEC § 34.6).
+					if t.Sub(time.Unix(m.VuLe, 0)) > delaiServicesAttendus {
+						continue
 					}
 					for _, svc := range e.Services {
 						ajout("mirador_modele_service", 1, "instance", m.Nom, "modele", e.Modele.Nom, "name", svc)

@@ -44,6 +44,7 @@ type donneesEnCours struct {
 	Liste                            []resumeAlerte
 	Attente                          []resumeAlerte // pas encore des alertes
 	Prises                           []resumeAlerte // prises en charge (SPEC § 30)
+	Masquees                         []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
 	Retour                           string         // page après une action sur une ligne
 }
 
@@ -63,6 +64,7 @@ func (c *Console) enCoursVue(ctx context.Context, vue string, t time.Time) donne
 	d.Retour = "/alertes?vue=" + url.QueryEscape(d.Vue)
 	rs, attente := separerAttente(c.alertesEnCours(""))
 	rs, d.Prises = separerPrises(rs)
+	rs, d.Masquees = separerMasquees(rs)
 	d.Attente = attente
 	d.Total = len(rs)
 	for _, r := range rs {

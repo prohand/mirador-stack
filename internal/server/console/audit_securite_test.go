@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -260,5 +261,32 @@ func TestDefisParAdresse(t *testing.T) {
 	// Usage unique et durée de vie inchangés.
 	if d.prendre(autre, t0.Add(2*time.Minute)) {
 		t.Error("défi accepté deux fois")
+	}
+}
+
+// Retour du 16/11 : les alertes qui ne sont que la suite d'une panne déjà
+// affichée (machine muette, parent en panne) vont dans un bloc replié ;
+// silences et maintenances restent dans la liste.
+func TestSeparerMasquees(t *testing.T) {
+	rs := []resumeAlerte{
+		{Regle: "AgentMuet", Machine: "pve1"},
+		{Regle: "ServiceDuModeleAbsent", Machine: "pve1", Sourdine: "inhibée par AgentMuet (pve1)"},
+		{Regle: "CpuEleve", Machine: "vm1", Sourdine: "dépendance : pve1 en panne"},
+		{Regle: "DisqueFaible", Machine: "nas", Sourdine: "silence 3"},
+		{Regle: "CpuEleve", Machine: "nas", Sourdine: "maintenance 2 (nas)"},
+	}
+	visibles, masquees := separerMasquees(rs)
+	if len(visibles) != 3 || len(masquees) != 2 || visibles[0].Regle != "AgentMuet" || masquees[0].Regle != "ServiceDuModeleAbsent" {
+		t.Fatalf("visibles %+v, masquées %+v", visibles, masquees)
+	}
+	// Rendu : le bloc replié nomme la raison, les alertes n'y sont pas comptées.
+	b := nouveauBanc(t)
+	w := httptest.NewRecorder()
+	b.c.pages.executer(w, http.StatusOK, "alertes-fragment", Page{D: donneesEnCours{Vue: "machine", Total: 1, Critiques: 1, Masquees: masquees}})
+	corps := w.Body.String()
+	for _, attendu := range []string{"Masquées par une panne</strong> (2)", "Inhibée par AgentMuet (pve1)", "Dépendance : pve1 en panne", `data-nb-alertes="1"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("bloc des alertes masquées : %q absent", attendu)
+		}
 	}
 }

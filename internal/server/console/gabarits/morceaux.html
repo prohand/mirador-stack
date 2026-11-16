@@ -49,6 +49,7 @@
 </div>
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
 {{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}
+{{template "liste-masquees" .D.Masquees}}
 {{template "liste-attente" .D.Attente}}
 <section class="carte" data-parc>
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
@@ -221,11 +222,16 @@
 </tbody></table></div></details>{{end}}
 {{else}}<section class="carte"><p class="vide">Aucune alerte en cours.</p></section>{{end}}
 {{template "liste-prises" (dict "L" $v.Prises "Admin" $.Admin "CSRF" $.CSRF "Retour" $v.Retour)}}
+{{template "liste-masquees" $v.Masquees}}
 {{template "liste-attente" $v.Attente}}
 </div>{{end}}
 {{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
 <div class="defile"><table><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
 {{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
+</tbody></table></div></details>{{end}}{{end}}
+{{define "liste-masquees"}}{{if .}}<details class="carte attente-alertes"><summary><strong>Masquées par une panne</strong> ({{len .}}) · <span class="sous">suites d'une alerte déjà affichée (machine muette, équipement parent en panne) : rien n'est compté ni envoyé</span></summary>
+<div class="defile"><table><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Masquée car</th></tr></thead><tbody>
+{{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a>{{if .Resume}}<span class="resume">{{.Resume}}</span>{{end}}</td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{majuscule .Sourdine}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}{{end}}
 {{define "liste-prises"}}{{if .L}}<details class="carte prises-alertes"><summary><strong>Prises en charge</strong> ({{len .L}}) · <span class="sous">acquittées : pas comptées, pas de rappel pendant la durée choisie</span></summary>
 <div class="defile"><table><thead><tr><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Depuis</th><th>Prise en charge</th><th></th></tr></thead><tbody>
