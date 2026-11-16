@@ -18,7 +18,7 @@
       <button name="action" value="rangee-modifier" class="secondaire">Enregistrer</button></form>
     <a class="bouton" href="/tableaux/{{$t.Nom}}/panneau?rangee={{$ri}}">+ Panneau</a>
     <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="empreinte" value="{{$e}}"><input type="hidden" name="rangee" value="{{$ri}}">
-      <button name="action" value="rangee-supprimer" class="danger" data-confirmer="Supprimer la rangée « {{.R.Titre}} » et ses {{len .R.Panneaux}} panneau(x) ?">Supprimer</button></form>
+      <button name="action" value="rangee-supprimer" class="danger" data-confirmer="Supprimer la rangée « {{.R.Titre}} » et ses {{len .R.Panneaux}} {{accord (len .R.Panneaux) "panneau(x)"}} ?">Supprimer</button></form>
   </div>
   <div class="ed-panneaux" data-zone>
   {{range .Panneaux}}<div class="ed-panneau l{{.Largeur}}" draggable="true" data-glisser="panneau" data-id="{{.ID}}" title="Glisser pour déplacer">

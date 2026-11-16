@@ -4,11 +4,11 @@
 <p>{{.D.Total}} règles, {{.D.Actives}} actives{{if .D.Erreurs}}, <span class="erreur">{{.D.Erreurs}} en erreur</span>{{end}}. Langage : PromQL restreint (comme vmalert).</p>
 {{if .D.Couvertes}}<details class="carte" id="couvertes"{{if .D.NbCouvertes}} open{{end}}><summary><strong>Règles importées remplacées par un modèle</strong> ({{.D.NbCouvertes}} sur {{len .D.Couvertes}} ne servent plus)</summary>
 <div class="defile"><table><thead><tr><th>Règle importée</th><th>Remplacée par</th><th>État</th></tr></thead><tbody>
-{{range .D.Couvertes}}<tr><td>{{.Nom}}</td><td>{{range $i, $m := .Modeles}}{{if $i}}, {{end}}{{$m}}{{end}} ({{.Porteurs}} machine(s))</td>
+{{range .D.Couvertes}}<tr><td>{{.Nom}}</td><td>{{range $i, $m := .Modeles}}{{if $i}}, {{end}}{{$m}}{{end}} ({{.Porteurs}} {{accord .Porteurs "machine(s)"}})</td>
 <td>{{if .Couverte}}<span class="pastille ok">ne sert plus</span>{{else if .Manque}}<span class="pastille attention">sert encore</span> <small>sans le modèle : {{range $i, $x := .Manque}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}</small>{{else}}<span class="pastille">modèle porté nulle part</span>{{end}}</td></tr>{{end}}
 </tbody></table></div>
 {{if and $.Admin .D.NbCouvertes}}<form method="post" action="/regles/action" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="retirer_couvertes">
-{{template "code2fa"}}<button data-confirmer="Retirer les {{.D.NbCouvertes}} règle(s) importée(s) qui ne servent plus ?">Retirer les {{.D.NbCouvertes}} règle(s) qui ne servent plus</button></form>{{end}}
+{{template "code2fa"}}{{if eq .D.NbCouvertes 1}}<button data-confirmer="Retirer la règle importée qui ne sert plus ?">Retirer la règle qui ne sert plus</button>{{else}}<button data-confirmer="Retirer les {{.D.NbCouvertes}} règles importées qui ne servent plus ?">Retirer les {{.D.NbCouvertes}} règles qui ne servent plus</button>{{end}}</form>{{end}}
 <p class="aide"><small class="aide">« Sert encore » : le modèle est détecté sur ces machines sans y être coché. Avant de retirer : export YAML (onglet Import / export) pour revenir en arrière.</small></p>
 </details>{{end}}
 {{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{$g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>

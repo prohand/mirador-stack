@@ -28,17 +28,17 @@
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
-  <p>{{sub .D.Machines .D.Muettes}} machine(s) sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} alerte(s) à regarder{{else}} · aucune alerte active{{end}}</p></div>
+  <p>{{sub .D.Machines .D.Muettes}} {{accord (sub .D.Machines .D.Muettes) "machine(s)"}} sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} {{accord .D.Actives "alerte(s)"}} à regarder{{else}} · aucune alerte active{{end}}</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
 </div>
 <div class="kpis">
   <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
-    <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} muette(s) depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
+    <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} {{accord .D.Muettes "muette(s)"}} depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
   <a class="kpi" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
     <div class="kpi-valeur">{{.D.Actives}}</div>
-    <div class="kpi-bas">{{.D.Critiques}} critique(s) · {{.D.Avertissements}} avertissement(s)</div></a>
+    <div class="kpi-bas">{{.D.Critiques}} {{accord .D.Critiques "critique(s)"}} · {{.D.Avertissements}} {{accord .D.Avertissements "avertissement(s)"}}</div></a>
   <a class="kpi" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
     {{if .D.Principal.Nom}}<div class="kpi-valeur moyen">{{majuscule .D.Principal.Nom}}</div>
     <div class="kpi-bas {{if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}">Principal {{if .D.Principal.EnPanne}}en panne{{else}}OK{{end}}{{if .D.Secours.Nom}} · secours {{majuscule .D.Secours.Nom}} {{if .D.Secours.EnPanne}}en panne{{else}}OK{{end}}{{end}}</div>
@@ -211,7 +211,7 @@
  <span class="tuile"><small>Nouvelles depuis ta dernière visite</small><b data-nb-nouvelles>0</b></span>
 </div>
 {{if eq $v.Vue "liste"}}<section class="carte">{{template "liste-alertes" $v.Liste}}</section>
-{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary><strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong>{{range $g.Gravites}} {{template "gravite" .}}{{end}}<span class="nb">{{len $g.Alertes}} alerte(s)</span></summary>
+{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary><strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong>{{range $g.Gravites}} {{template "gravite" .}}{{end}}<span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}</span></summary>
 <div class="defile"><table class="table-alertes"><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
 {{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
 <td><a class="titre" href="/alertes/{{.ID}}">{{.Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>

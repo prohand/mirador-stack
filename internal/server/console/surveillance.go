@@ -328,7 +328,7 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 			return true, d, r.fans0 > 0
 		}
 		if r.nbFansVus > 0 {
-			return true, pluriel(r.nbFansVus, "capteur") + " trouvé(s)", false
+			return true, accorderTexte(fmt.Sprintf("%d capteur(s) trouvé(s)", r.nbFansVus)), false
 		}
 	case "zfs":
 		if len(r.pools) > 0 {
@@ -348,7 +348,7 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 			var noms []string
 			for g, manquants := range r.grappes {
 				if manquants > 0 {
-					noms = append(noms, fmt.Sprintf("%s (%.0f disque(s) manquant(s))", g, manquants))
+					noms = append(noms, g+" ("+accorderTexte(fmt.Sprintf("%.0f disque(s) manquant(s)", manquants))+")")
 					alerte = true
 				} else {
 					noms = append(noms, g+" (saine)")
@@ -380,7 +380,7 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 		if r.certsTotal == nil {
 			return false, "", false
 		}
-		return true, pluriel(int(*r.certsTotal), "certificat") + " suivi(s)", false
+		return true, accorderTexte(fmt.Sprintf("%d certificat(s) suivi(s)", int(*r.certsTotal))), false
 	case "docker_metriques":
 		if r.dockerUp == nil {
 			return false, "", false
@@ -393,9 +393,9 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 		if r.svcTotal == nil {
 			return false, "", false
 		}
-		d := pluriel(int(*r.svcTotal), "service") + " suivi(s)"
+		d := accorderTexte(fmt.Sprintf("%d service(s) suivi(s)", int(*r.svcTotal)))
 		if r.svcDown != nil && *r.svcDown > 0 {
-			return true, d + fmt.Sprintf(", %.0f arrêté(s)", *r.svcDown), true
+			return true, d + accorderTexte(fmt.Sprintf(", %.0f arrêté(s)", *r.svcDown)), true
 		}
 		return true, d + ", tous actifs", false
 	case "mises_a_jour":
@@ -409,7 +409,7 @@ func (r *releve) detailSurv(cle string) (present bool, detail string, alerte boo
 		if r.logsDocker == nil {
 			return false, "", false
 		}
-		return true, pluriel(int(*r.logsDocker), "conteneur") + " suivi(s)", false
+		return true, accorderTexte(fmt.Sprintf("%d conteneur(s) suivi(s)", int(*r.logsDocker))), false
 	}
 	return false, "", false
 }
@@ -567,16 +567,16 @@ func resultatMotif(m string, r *releve, racineAncienne bool) motifSurv {
 	case fichiers == 0:
 		s.Resultat, s.Classe = "aucun fichier trouvé à ce chemin", "attention"
 	case lus == 0:
-		s.Resultat, s.Classe = pluriel(int(fichiers), "fichier")+" trouvé(s), aucun lu : ", "attention"
+		s.Resultat, s.Classe = accorderTexte(fmt.Sprintf("%d fichier(s) trouvé(s), aucun lu : ", int(fichiers))), "attention"
 		if r := raisonsEcartes(r.motifsEcartes[m]); r != "" {
 			s.Resultat += r
 		} else { // agent d'avant le 12/11 : raison inconnue
 			s.Resultat += "clé privée, lien hors dossier autorisé ou autre format"
 		}
 	default:
-		s.Resultat, s.Classe = pluriel(int(lus), "certificat")+" lu(s)", "ok"
+		s.Resultat, s.Classe = accorderTexte(fmt.Sprintf("%d certificat(s) lu(s)", int(lus))), "ok"
 		if e := int(fichiers - lus); e > 0 {
-			s.Resultat += fmt.Sprintf(", %d fichier(s) écarté(s)", e)
+			s.Resultat += accorderTexte(fmt.Sprintf(", %d fichier(s) écarté(s)", e))
 			if r := raisonsEcartes(r.motifsEcartes[m]); r != "" {
 				s.Resultat += " : " + r
 			}

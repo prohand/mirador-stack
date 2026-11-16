@@ -304,12 +304,12 @@ func calculerHistogramme(ls []stockage.Ligne, debut, fin int64, loc *time.Locati
 		b.YErreur = b.YAvert - b.HErreur
 		t0 := time.UnixMilli(debut + int64(float64(i)*pas)).In(loc)
 		t1 := time.UnixMilli(debut + int64(float64(i+1)*pas)).In(loc)
-		b.Titre = fmt.Sprintf("%s – %s : %d ligne(s)", t0.Format("02/01 15:04"), t1.Format("15:04"), b.N)
+		b.Titre = fmt.Sprintf("%s – %s : ", t0.Format("02/01 15:04"), t1.Format("15:04")) + accorderTexte(fmt.Sprintf("%d ligne(s)", b.N))
 		if b.Erreurs > 0 {
-			b.Titre += fmt.Sprintf(", %d erreur(s)", b.Erreurs)
+			b.Titre += accorderTexte(fmt.Sprintf(", %d erreur(s)", b.Erreurs))
 		}
 		if b.Avertissements > 0 {
-			b.Titre += fmt.Sprintf(", %d avertissement(s)", b.Avertissements)
+			b.Titre += accorderTexte(fmt.Sprintf(", %d avertissement(s)", b.Avertissements))
 		}
 	}
 	h.Barres = barres

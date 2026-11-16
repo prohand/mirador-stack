@@ -412,6 +412,8 @@ func (c *Console) oublierComptes() {
 
 // flash : message affiché une fois sur la page suivante.
 func (c *Console) flash(q *req, ok, erreur string) {
+	// Messages écrits par le serveur : « 1 règle(s) » → « 1 règle ».
+	ok, erreur = accorderTexte(ok), accorderTexte(erreur)
 	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Flash, s.Alerte = ok, erreur })
 }
 

@@ -96,7 +96,7 @@ func TestAuditLisible(t *testing.T) {
 	}
 	_, corps, _ := b.get(c, "/audit")
 	for _, attendu := range []string{"Règle CpuEleve créée ou modifiée", `href="/regles/modifier/CpuEleve"`, "pour : <del>5m</del> → <ins>10m</ins>",
-		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui · ", "action(s) automatique(s) masquée(s)"} {
+		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui · ", " masquée"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("audit : %q absent", attendu)
 		}
@@ -129,7 +129,7 @@ func TestGabaritAlertesEnCours(t *testing.T) {
 	w := httptest.NewRecorder()
 	b.c.pages.executer(w, http.StatusOK, "alertes-fragment", Page{CSRF: "jeton", Admin: true, D: d})
 	corps := w.Body.String()
-	for _, attendu := range []string{`<a href="/machines/vm-docker">vm-docker</a>`, "2 alerte(s)", `action="/alertes/7"`, `value="acquitter"`, `name="duree" value="1h">1 h`,
+	for _, attendu := range []string{`<a href="/machines/vm-docker">vm-docker</a>`, "2 alertes", `action="/alertes/7"`, `value="acquitter"`, `name="duree" value="1h">1 h`,
 		`href="/alertes/7#graphique"`, "<polyline", `data-depuis="1"`, `<span class="pastille ok">Acquittée</span>`, `name="retour" value="/alertes?vue=machine"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("bloc en cours : %q absent", attendu)

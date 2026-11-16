@@ -4,7 +4,7 @@
 {{if not .D.Reglee}}<p class="message erreur">Comparaison non réglée : renseigner l'adresse de vmalert dans <a href="/reglages/notifications">Réglages › Notifications</a>.</p>{{end}}
 {{if .D.Erreur}}<p class="message erreur">vmalert injoignable : {{.D.Erreur}}</p>{{end}}
 <section class="carte"><h2>Maintenant</h2>
-<p><strong>{{.D.Communes}}</strong> alerte(s) présente(s) des deux côtés.</p>
+<p><strong>{{.D.Communes}}</strong> {{accord .D.Communes "alerte(s) présente(s)"}} des deux côtés.</p>
 {{if .D.Ecarts}}<table><thead><tr><th>Écart</th><th>Machine</th><th>Règle</th><th>vmalert</th><th>mirador</th></tr></thead><tbody>
 {{range .D.Ecarts}}<tr><td><span class="pastille {{if egal .Type "manquante"}}erreur{{else}}attention{{end}}">{{if egal .Type "manquante"}}Manquante chez mirador{{else}}En trop chez mirador{{end}}</span></td><td>{{.Machine}}</td><td>{{.Regle}}</td><td class="nombre">{{.Vmalert}}</td><td class="nombre">{{.Mirador}}</td></tr>{{end}}
 </tbody></table>{{else}}<p class="vide">Aucun écart.</p>{{end}}

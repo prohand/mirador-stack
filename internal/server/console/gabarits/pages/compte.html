@@ -45,7 +45,7 @@
 <ul class="codes-secours">{{range .D.CodesNouveaux}}<li><code>{{.}}</code></li>{{end}}</ul>
 {{end}}
 <p>Si le téléphone de la 2FA est perdu, un code de secours permet de se connecter, puis de recréer la 2FA.
-{{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> code(s) sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
+{{if .D.CodesRestants}}Il reste <strong>{{.D.CodesRestants}}</strong> {{accord .D.CodesRestants "code(s)"}} sur 10.{{else}}<span class="erreur-texte">Aucun code de secours : en créer maintenant.</span>{{end}}</p>
 <form method="post" action="/compte/codes-secours" class="ligne">{{template "csrf" .CSRF}}{{template "code2fa-toujours"}}
 <button {{if .D.CodesRestants}}data-confirmer="Créer 10 nouveaux codes ? Les anciens ne marcheront plus."{{end}}>Créer 10 nouveaux codes</button></form>
 </section>

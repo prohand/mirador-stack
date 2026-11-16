@@ -19,5 +19,5 @@
 </tbody></table></div>
 {{if $d.Suivant}}<p><a href="/audit?avant={{$d.Suivant}}&amp;{{$d.Requete}}">Plus anciennes →</a></p>{{end}}
 {{else}}{{template "vide" "Aucune ligne pour ces filtres."}}{{end}}
-<p class="bas-audit">{{if $d.Masquees}}{{$d.Masquees}} action(s) automatique(s) masquée(s) (mirador, modèles détectés, agents) · {{end}}<a href="/audit.csv?{{$d.Requete}}">Exporter en CSV</a></p>
+<p class="bas-audit">{{if $d.Masquees}}{{$d.Masquees}} {{accord $d.Masquees "action(s) automatique(s) masquée(s)"}} (mirador, modèles détectés, agents) · {{end}}<a href="/audit.csv?{{$d.Requete}}">Exporter en CSV</a></p>
 {{end}}

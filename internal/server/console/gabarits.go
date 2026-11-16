@@ -239,6 +239,8 @@ func fonctions() template.FuncMap {
 			return out
 		},
 		"pagesLieesReglages": func() []sectionReglages { return pagesLieesReglages },
+		// accord : « alerte(s) » → « alerte » ou « alertes » selon le nombre.
+		"accord": accorder,
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s
