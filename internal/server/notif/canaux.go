@@ -645,7 +645,9 @@ func (n *ntfy) Envoyer(ctx context.Context, m *Message, o Mise) error {
 		return err
 	}
 	titre := "mirador"
-	if len(m.Actives) > 0 {
+	if t := m.TitreSite(); t != "" {
+		titre += " : " + t
+	} else if len(m.Actives) > 0 {
 		titre += " : " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
 		titre += " : résolu " + m.Resolues[0].Regle
@@ -753,7 +755,9 @@ func (e *email) Envoyer(ctx context.Context, m *Message, o Mise) error {
 		a = append(a, ad.String())
 	}
 	sujet := "[mirador] "
-	if len(m.Actives) > 0 {
+	if t := m.TitreSite(); t != "" {
+		sujet += t
+	} else if len(m.Actives) > 0 {
 		sujet += m.Actives[0].Gravite + " " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
 		sujet += "résolu " + m.Resolues[0].Regle + " " + m.Resolues[0].Machine()

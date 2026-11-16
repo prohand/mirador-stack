@@ -210,6 +210,9 @@ type Sourdine struct {
 	dependances  []Dependance
 	groupes      map[string]string // machine → groupe
 	reglesPanne  map[string]bool   // règles qui signifient « machine en panne »
+	// Sites d'au moins 2 machines (site injoignable, site.go).
+	sites   map[string]string   // machine → site
+	parSite map[string][]string // site → machines
 }
 
 // Raison renvoie pourquoi une alerte est en sourdine à l'instant t ("" si elle
@@ -305,7 +308,13 @@ func Charger(ctx context.Context, db *sql.DB, reglesPanne []string, t time.Time)
 		}
 		s.groupes[n] = g
 	}
-	return s, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.chargerSites(ctx, db, t); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // --- Base : lecture -------------------------------------------------------------------

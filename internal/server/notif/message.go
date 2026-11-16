@@ -5,6 +5,8 @@ package notif
 import (
 	"fmt"
 	"html"
+	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +41,9 @@ type Message struct {
 	// Escalade : alertes pas prises en charge à temps : envoyé aussi sur le
 	// canal de secours (SPEC § 30).
 	Escalade bool
+	// Site : message d'un site injoignable (toutes ses machines muettes en
+	// même temps, SPEC § 39) : mis en forme à part, une ligne par machine.
+	Site string
 }
 
 // Nb : nombre d'alertes dans le message.
@@ -131,6 +136,10 @@ func Texte(m *Message, o Mise) string {
 	case m.Type == TypeRappel:
 		b.WriteString("🔁 " + gras("Rappel") + " : toujours en cours\n\n")
 	}
+	if m.Site != "" {
+		texteSite(&b, m, o, e, gras, code)
+		return finir(b.String(), o)
+	}
 	for _, a := range m.Actives {
 		depuis := a.ActiveLe
 		if depuis.IsZero() {
@@ -175,11 +184,75 @@ func Texte(m *Message, o Mise) string {
 	if m.Dependantes > 0 {
 		fmt.Fprintf(&b, "%s\n", e(fmt.Sprintf("(+ %d alerte(s) d'équipements dépendants en sourdine)", m.Dependantes)))
 	}
-	s := strings.TrimRight(b.String(), "\n")
+	return finir(b.String(), o)
+}
+
+// finir : retire les lignes vides de la fin et coupe si trop long.
+func finir(s string, o Mise) string {
+	s = strings.TrimRight(s, "\n")
 	if o.Max > 0 && len(s) > o.Max {
 		s = couper(s, o.Max)
 	}
 	return s
+}
+
+// texteSite : message d'un site injoignable (SPEC § 39). Une ligne par
+// machine plutôt qu'un bloc par alerte : le message reste court, même pour
+// un site de 20 machines.
+func texteSite(b *strings.Builder, m *Message, o Mise, e, gras, code func(string) string) {
+	heure := func(t time.Time) string { return t.In(o.Fuseau).Format("02/01 15:04") }
+	machines := func(as []alertes.Alerte) string {
+		noms := make([]string, 0, len(as))
+		vu := map[string]bool{}
+		for _, a := range as {
+			if n := a.Machine(); n != "" && !vu[n] {
+				vu[n] = true
+				noms = append(noms, n)
+			}
+		}
+		sort.Strings(noms)
+		for i := range noms {
+			noms[i] = code(noms[i])
+		}
+		return strings.Join(noms, ", ")
+	}
+	lien := func() {
+		if o.Lien != "" {
+			fmt.Fprintf(b, "%s\n", e(o.Lien+"/coupures?site="+url.QueryEscape(m.Site)))
+		}
+	}
+	if len(m.Actives) == 0 { // toutes les machines sont revenues
+		debut, fin := m.Resolues[0].ActiveLe, m.Resolues[0].Fin
+		for _, a := range m.Resolues {
+			if d := debutActif(&a); d.Before(debut) || debut.IsZero() {
+				debut = d
+			}
+			if a.Fin.After(fin) {
+				fin = a.Fin
+			}
+		}
+		fmt.Fprintf(b, "✅ %s\n", gras("Site "+m.Site+" de nouveau joignable"))
+		fmt.Fprintf(b, "%s\n", e(fmt.Sprintf("Coupure de %s (%s → %s), %d machine(s) revenue(s) : ",
+			dureeCourte(fin.Sub(debut)), heure(debut), heure(fin), len(m.Resolues)))+machines(m.Resolues))
+		b.WriteString(e("Les agents renvoient ce qu'ils ont gardé en mémoire (jusqu'à ~19 h) : le bilan est sur la page des coupures.") + "\n")
+		lien()
+		return
+	}
+	depuis := debutActif(&m.Actives[0])
+	for _, a := range m.Actives {
+		if d := debutActif(&a); d.Before(depuis) {
+			depuis = d
+		}
+	}
+	fmt.Fprintf(b, "%s %s\n", pastille(m.Gravite), gras("Site "+m.Site+" injoignable"))
+	fmt.Fprintf(b, "%s\n", e(fmt.Sprintf("Toutes ses machines se sont tues en même temps : coupure d'internet ou de courant sur le site ? "+
+		"Depuis %s (%s).", heure(depuis), dureeCourte(m.Le.Sub(depuis)))))
+	fmt.Fprintf(b, "%s %s\n", e("Muettes :"), machines(m.Actives))
+	if len(m.Resolues) > 0 {
+		fmt.Fprintf(b, "%s %s\n", e("Revenues :"), machines(m.Resolues))
+	}
+	b.WriteString(e("Un seul message pour le site ; un autre au retour.") + "\n")
+	lien()
 }
 
 // couper : garde le début du texte, sur une fin de ligne, avec une mention.

@@ -2780,7 +2780,7 @@ Menaces :
 | Compte GitHub piraté | peut signer : protéger le compte (2FA, clés de sécurité) ; c'était déjà le cas (le code venait de GitHub) |
 | GitHub ou réseau qui sert un autre fichier | signature vérifiée avec la clé réglée ; empreinte et taille vérifiées |
 
-### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions à valider]**
+### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions traitées : § 18.28, § 18.29, réseau Docker à l'étape 7 (§ 40)]**
 
 Revue en lecture du code de connexion (mot de passe, 2FA, sessions,
 verrous), du déploiement et de l'organisation du code.
@@ -2791,7 +2791,7 @@ Corrigé (gravité moyenne) :
 |---|---|
 | Verrou contournable par une rafale : le verrou était lu avant le calcul, l'échec compté après. Des requêtes envoyées en même temps passaient toutes le contrôle. Mesuré : 40 mots de passe essayés au lieu de 5 depuis une adresse (`TestRafaleMotsDePasse`). Même principe pour les codes 2FA (mesuré : 6 au lieu de 5 ; en théorie plus avec beaucoup de sessions partielles) | un essai est **réservé avant** la vérification (`verrous.debuter`) : échecs récents + essais en cours ≥ seuil → refus (429, non compté, écrit dans le journal). Appliqué au mot de passe, au code 2FA, aux actions sensibles et au changement de mot de passe. Coût : une table en mémoire qui ne contient que les requêtes en cours |
 
-Propositions de sécurité (non faites, à valider) :
+Propositions de sécurité (état au 16/11) :
 
 | Gravité | Constat | Proposition |
 |---|---|---|
@@ -2809,7 +2809,7 @@ TOTP, CSRF, CSP sans script en ligne, corps limité à 1 Mio, adresse du
 client prise seulement derrière le proxy déclaré, nom d'utilisateur sensible
 à la casse (pas de contournement du verrou par « Admin »).
 
-Propositions d'architecture (non faites, à valider) :
+Propositions d'architecture (état au 16/11) :
 
 | Sujet | Constat | Proposition | Coût |
 |---|---|---|---|
@@ -2894,7 +2894,7 @@ Menaces (ajouts) :
 
 ---
 
-## 19. Idées reprises de Beszel : surveillance par machine et vue d'ensemble **[Fait, à valider — demande du 12/11]**
+## 19. Idées reprises de Beszel : surveillance par machine et vue d'ensemble **[Validé le 16/11 — demande du 12/11]**
 
 - Source : `github.com/henrygd/beszel` (Go, licence MIT), documentation lue
   le 12/11. **Aucun code repris** : seulement des idées, réécrites ici.
@@ -3071,7 +3071,7 @@ test de charge.
 
 ---
 
-## 20. Codes de secours de la 2FA et passkeys **[Fait, à valider — demande du 12/11]**
+## 20. Codes de secours de la 2FA et passkeys **[Validé le 16/11 — demande du 12/11]**
 
 Même branche que le § 19 (`claude/laughing-sagan-7w7xrm`).
 
@@ -3191,7 +3191,7 @@ synchronisées (iCloud, Google) accepté, formats d'attestation ignorés
 (« none » demandé), origine vérifiée. Vérifié dans Chromium avec un
 authentificateur virtuel (création puis connexion sans mot de passe).
 
-## 21. Élément par élément, signal « à valider », réglages rangés **[Fait, à valider — demandes du 12/11]**
+## 21. Élément par élément, signal « à valider », réglages rangés **[Validé le 16/11 — demandes du 12/11]**
 
 Branche : `claude/affectionate-albattani-izl0lb`. Demandes :
 
@@ -3299,7 +3299,7 @@ ni `/etc/shadow`, ni bloquer l'assistant.
 | Ancien agent cassé par une clé inconnue | clés retirées pour lui selon ses capacités (testé avec 0.2.12) |
 | Formulaire géant | 600 éléments au plus par envoi, 20 chemins ajoutés |
 
-## 22. Retours du 12/11 : temps réel, paquets, certificats, filtres **[Fait, à valider]**
+## 22. Retours du 12/11 : temps réel, paquets, certificats, filtres **[Validé le 16/11]**
 
 Retours après l'essai de la partie 5 quater (§ 21) et réponses du 12/11
 (« configuration en temps réel : oui », « logs 1 à 2 s », « métriques 30 s
@@ -3410,7 +3410,7 @@ version qui confirme (et donc nettoie), la 0.2.20 garde son propre
 manifeste : l'assistant la suit dès qu'elle est confirmée.
 
 
-### 22.6 Versions de l'agent gardées sur le serveur **[Fait, à valider — mesure du 13/11]**
+### 22.6 Versions de l'agent gardées sur le serveur **[Validé le 16/11 — mesure du 13/11]**
 
 Constat (mesure réelle de 18 h 40, `PROGRES.md`) : dossier `versions` à
 166 Mo (12 versions × amd64 + arm64), recopié dans chaque sauvegarde
@@ -3633,7 +3633,7 @@ utilisable pendant la comparaison.
 - Total disque de toutes les VM : `mirador_pve_vms_disque_lus_octets_total`,
   `_ecrits_` (`qemu.slice/io.stat`, toutes les 30 s).
 
-#### 23.7.2 Partie 1b faite (13/11) : tableau et règles **[Fait, à valider]**
+#### 23.7.2 Partie 1b faite (13/11) : tableau et règles **[Validé le 16/11]**
 
 - Tableau « Proxmox VE » réécrit (même nom `proxmox` : un tableau installé
   sans modification suit tout seul ; modifié : « Rétablir ») : vue
@@ -3715,7 +3715,7 @@ utilisable pendant la comparaison.
   passe par la limite par adresse ; token d'OPNsense volé : mêmes parades
   que pour un agent (adresses autorisées, révocation).
 
-### 23.11 Page Logs : listes déroulantes (demande du 14/11) **[Fait, à valider]**
+### 23.11 Page Logs : listes déroulantes (demande du 14/11) **[Validé le 16/11]**
 
 - Chaque filtre (Machine, Source, Niveau, Unité, Conteneur, Site, Type,
   Groupe) devient une liste « (tous) + valeurs » ; la valeur choisie y est
@@ -3974,7 +3974,7 @@ la connexion) ; contrôleur usurpé sur le LAN : certificat vérifié ou
 épinglé ; secrets chiffrés au repos ; réponse piégée : taille bornée,
 décodage typé, nombres illisibles ignorés, textes nettoyés.
 
-### 23.17 Fournisseurs DNS du défi ACME (demande du 14/11) **[Fait, à valider]**
+### 23.17 Fournisseurs DNS du défi ACME (demande du 14/11) **[Validé le 16/11]**
 
 Demande : « rajouter des fournisseurs proposés par ACME », sans délégation
 par CNAME (réponse « 2. Non »).
@@ -4023,7 +4023,7 @@ configurable : seules les adresses officielles sont codées.
 
 ---
 
-## 24. Modèles de surveillance **[Décidé le 14/11 — parties A, B et C faites, à valider]**
+## 24. Modèles de surveillance **[Décidé le 14/11 — parties A, B et C faites, validées le 16/11]**
 
 Demande du 14/11 : « dire : cette machine est une machine Linux, donc tu fais
 ces checks » ; « si je veux les certificats, on les lui attribue depuis
@@ -4118,7 +4118,7 @@ liste des machines. Rien n'est attribué sans validation.
   6 séries + 5 « remplacée ») ; détection = 7 requêtes instantanées,
   passées par le cache des requêtes de l'interface (1 min).
 
-### 24.7 Services des modèles (demande du 14/11) **[Fait, à valider]**
+### 24.7 Services des modèles (demande du 14/11) **[Validé le 16/11]**
 
 - Chaque modèle a une liste de services systemd attendus (départ : Docker
   → `containerd`, `docker` ; Proxmox → `pve-cluster`, `pvedaemon`,
@@ -4133,7 +4133,7 @@ liste des machines. Rien n'est attribué sans validation.
   service en échec ou arrêté reste signalé par les règles des services
   (pas de doublon).
 
-### 24.8 Interface simplifiée (demande du 14/11 : « plus simple ») **[Fait, à valider]**
+### 24.8 Interface simplifiée (demande du 14/11 : « plus simple ») **[Validé le 16/11]**
 
 1. **Mode administration** : après un code 2FA juste, les actions
    sensibles passent sans nouveau code pendant 10 min (comme le « sudo » de
@@ -4157,7 +4157,7 @@ liste des machines. Rien n'est attribué sans validation.
    « Enregistrer », nombre de machines et de détections sans attribution ;
    détail replié par modèle (règles, services, seuils par groupe).
 
-### 24.9 Retours du 14/11 : 100 modèles, services détectés, durée du mode administration **[Fait, à valider]**
+### 24.9 Retours du 14/11 : 100 modèles, services détectés, durée du mode administration **[Validé le 16/11]**
 
 - **Beaucoup de modèles** : le tableau modèles × groupes et la liste des
   cases d'une machine ont le filtre et le tri communs à tous les tableaux
@@ -4174,7 +4174,7 @@ liste des machines. Rien n'est attribué sans validation.
   (`mode_admin`) : 0 = désactivé (code à chaque action sensible), 1 min à
   1 h, défaut 10 min. Changer ce réglage demande un code frais (sécurité).
 
-### 24.10 Partie B : checks faits par l'agent **[Fait, à valider — « Fais la b », 14/11]**
+### 24.10 Partie B : checks faits par l'agent **[Validé le 16/11 — « Fais la b », 14/11]**
 
 Un modèle peut avoir des **listes** (adresses, ports, fichiers…) : chaque
 ligne devient un **check** fait par l'agent de la machine, étiqueté avec le
@@ -4240,7 +4240,7 @@ inchangés ✅.
 - `non-verifie` : choisi par l'admin pour un certificat maison ; la date de
   fin reste mesurée et alertée.
 
-### 24.11 Partie C : modèles personnels **[Fait, à valider — « Fais la partie c », 14/11]**
+### 24.11 Partie C : modèles personnels **[Validé le 16/11 — « Fais la partie c », 14/11]**
 
 Choix faits sans question (valeurs par défaut, à corriger si besoin) :
 
@@ -4293,7 +4293,7 @@ configuration et mêmes checks qu'en partie B).
 - Les pages échappent tout le texte saisi (gabarits Go) ; le nom du fichier
   exporté vient du nom du modèle (minuscules, chiffres, « - »).
 
-## 25. Design « A bis » et thème par utilisateur **[Fait, à valider — choix du 14/11 : « À bis les deux »]**
+## 25. Design « A bis » et thème par utilisateur **[Validé le 16/11 — choix du 14/11 : « À bis les deux »]**
 
 Propositions montrées en maquette (A épuré, B compact, C doux, D
 technique, A bis = A avec le menu noir) ; choix : **A bis**, avec le mode
@@ -4340,7 +4340,7 @@ obligatoire (formulaire ou en-tête `X-CSRF`) ; valeur parmi `clair`,
 
 ---
 
-## 26. Aides allégées (demande du 14/11, choix « A b d ») **[Fait, à valider]**
+## 26. Aides allégées (demande du 14/11, choix « A b d ») **[Validé le 16/11]**
 
 Demande : « épurer dans les réglages et ailleurs ce qui est affiché en tant
 qu'aide ». Maquettes A+B+D et C montrées ; choix : **A + B + D**.
@@ -4373,7 +4373,7 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
 
 ---
 
-## 27. Retours du 14/11 au soir **[Fait, à valider]**
+## 27. Retours du 14/11 au soir **[Validé le 16/11]**
 
 - **Champ « Mode administration » rempli par le gestionnaire de mots de
   passe** : le libellé contenait « code 2FA », pris pour un champ de code à
@@ -4472,7 +4472,7 @@ contrôle que le thème). Liens de doc : adresse fixe dans le code.
 
 ---
 
-## 28. Pages Alertes et Audit lisibles (maquettes validées le 15/11) **[Fait, à valider]**
+## 28. Pages Alertes et Audit lisibles (maquettes validées le 15/11) **[Validé le 16/11]**
 
 **Alertes** (recommandations 1, 2, 3, 4, 6) :
 - 4 tuiles : critiques, avertissements, infos, « nouvelles depuis ta
@@ -4541,7 +4541,7 @@ nombres et de couleurs fixes ; export CSV protégé contre les formules.
 
 ---
 
-## 29. Page d'une machine et graphiques (maquette validée le 15/11) **[Fait, à valider]**
+## 29. Page d'une machine et graphiques (maquette validée le 15/11) **[Validé le 16/11]**
 
 **Page d'une machine** — ordre : en-tête, alertes en cours et en attente,
 **En ce moment**, graphiques, **Surveillance et modèles** (repliable, ouvert
@@ -4584,7 +4584,7 @@ dans une requête ; pas de style en ligne (CSP).
 
 ---
 
-## 30. Acquittement : prises en charge, durée, par qui, escalade (choix du 15/11) **[Fait, à valider]**
+## 30. Acquittement : prises en charge, durée, par qui, escalade (choix du 15/11) **[Validé le 16/11]**
 
 - **Défaut corrigé** : la page lisait l'état « acquittée » dans la mémoire du
   moteur d'alertes, qui ne le reçoit pas : une alerte acquittée semblait ne
@@ -4613,11 +4613,11 @@ audit de chaque prise en charge, reprise et échéance ; durée bornée aux
 choix proposés (24 h au plus depuis l'interface).
 
 
-## 31. Métriques et graphiques : 11 améliorations (demande du 15/11) **[Fait, à valider]**
+## 31. Métriques et graphiques : 11 améliorations (demande du 15/11) **[Validé le 16/11]**
 
 Livrées en trois fois. Maquettes de 1, 7 et 9 validées le 15/11.
 
-### 31.1 Livraison 1 **[Fait, à valider]**
+### 31.1 Livraison 1 **[Validé le 16/11]**
 
 - **Alertes et événements sur les courbes d'une machine** (page machine
   seulement, paramètre `annoter=1`) :
@@ -4661,7 +4661,7 @@ paramétrées ; noms d'événements écrits en texte (`textContent`), jamais en
 HTML. Les phrases de l'audit montrées au survol sont celles de la page
 Audit, réservée aux mêmes comptes.
 
-### 31.2 Livraison 2 **[Fait, à valider]**
+### 31.2 Livraison 2 **[Validé le 16/11]**
 
 Petite barre d'outils en haut à droite de chaque courbe :
 
@@ -4698,7 +4698,7 @@ contrôle des filtres) ; noms des fichiers exportés nettoyés (lettres,
 chiffres, tirets) ; cellules CSV entre guillemets si besoin ; les valeurs
 `de` et `a` de l'adresse sont lues comme des nombres entiers seulement.
 
-### 31.3 Livraison 3 **[Fait, à valider]**
+### 31.3 Livraison 3 **[Validé le 16/11]**
 
 - **Les plus gourmands** (page machine, sous « En ce moment ») : les
   5 conteneurs Docker qui prennent le plus de **processeur** (part de toute
@@ -4731,7 +4731,7 @@ un compte en **lecture seule** pour lui (la session expire comme les
 autres) ; pas de formulaire ni d'action sur la page ; nom de machine
 vérifié avant d'entrer dans une requête.
 
-## 32. Certificats : réglage général et avancement (demande du 15/11) **[Fait, à valider]**
+## 32. Certificats : réglage général et avancement (demande du 15/11) **[Validé le 16/11]**
 
 - **Réglages › Certificats** (nouvelle page) : le compte DNS et
   Let's Encrypt (fournisseur, zone, jeton, annuaire), **communs à tous les
@@ -4773,7 +4773,7 @@ pour régler et renouveler) ; secrets DNS toujours chiffrés et jamais
 réaffichés ; « Renouveler » vérifie que la cible est bien un collecteur ;
 messages d'erreur ACME tronqués à 500 caractères et affichés en texte.
 
-## 33. Page Logs refaite (maquette validée le 16/11) **[Fait, à valider]**
+## 33. Page Logs refaite (maquette validée le 16/11) **[Validé le 16/11]**
 
 - **Filtres rangés** : machine, niveau (dont « err et plus grave » et
   « warning et plus grave »), période, un champ « Rechercher » (mots
@@ -4818,7 +4818,7 @@ enregistrées réduites aux paramètres connus et liées à leur utilisateur
 (suppression vérifiée) ; formulaires avec jeton CSRF ; export protégé
 contre les formules de tableur.
 
-## 34. Audit du 16/11 : sécurité, graphique, téléphone, application installable **[Fait, à valider]**
+## 34. Audit du 16/11 : sécurité, graphique, téléphone, application installable **[Validé le 16/11]**
 
 Demande du 16/11 : audit du projet (sécurité, design, graphique), failles de
 l'interface et de la connexion, puis améliorations pour le mode application
@@ -4957,7 +4957,7 @@ fichier ouvert est le chemin trouvé, pas le chemin réel vérifié (course
 possible seulement pour qui écrit déjà dans `/etc/…`, et seuls le nom et
 les dates d'un certificat sortent) ; actions GitHub non figées par empreinte.
 
-## 35. Notifications push et pastille de l'icône (demande du 16/11) **[Fait, à valider]**
+## 35. Notifications push et pastille de l'icône (demande du 16/11) **[Validé le 16/11]**
 
 Suite de § 34.3 (« fais ceci : notifications push, pastille sur l'icône »).
 
@@ -5056,7 +5056,7 @@ Objectif serveur (< 256 Mio, < 5 % d'un cœur) : inchangé.
   le nom de l'hôte dans le message (à ajouter à `hotesPush`).
 
 
-## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Fait, à valider]**
+## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Validé le 16/11]**
 
 Maquettes A, B, C présentées le 16/11 ; choix : **B** (liste par site avec
 filtres) + **C** (ajout guidé sur sa propre page). Les deux pastilles des
@@ -5137,7 +5137,7 @@ machines en attente sont acceptées.
   qui a le jeton et une adresse « connue » n'en a pas. Elles aident
   seulement à voir l'inattendu.
 
-## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Fait, à valider]**
+## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Validé le 16/11]**
 
 ### 37.1 « Le parc sur 24 h » avec beaucoup de machines (choix 1 + 2 + 3)
 
@@ -5185,7 +5185,7 @@ autres disparaissaient sans le dire), triées par nom, 20 px par ligne.
   au lieu de « Tout va bien ».
 - Corrigé au passage : « depuis il y a 10 min » → « depuis 10 min ».
 
-## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Fait, à valider]**
+## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Validé le 16/11]**
 
 Maquettes présentées le 16/11 ; toutes retenues, barre d'enregistrement en
 bas, dans la même pull request que § 36 et § 37.
@@ -5271,3 +5271,125 @@ bas, dans la même pull request que § 36 et § 37.
   actif reste refusé si le canal principal n'est pas configuré.
 - « Fermer toutes les autres » : réservé aux admins, comme « Fermer », et
   ne ferme jamais la session qui le demande.
+
+## 39. Site injoignable et page des coupures (demande du 16/11) **[Fait, à valider]**
+
+Contexte : le 16/11 à 10:31, le site de l'utilisateur a perdu internet.
+Toutes ses machines se sont tues ; mirador (sur le VPS) envoyait une alerte
+`AgentMuet` par machine.
+
+### 39.1 Un seul message pour un site injoignable
+
+- **Machines d'un site** : agents et collecteurs approuvés, avec un site,
+  vus dans les dernières 24 h ; les équipements relevés par un collecteur
+  ne comptent pas (ils suivent déjà leur collecteur par la dépendance).
+  Au moins 2 machines, sinon rien ne change.
+- **Site injoignable** : chacune de ses machines a une alerte de panne
+  active (réglage « règles de panne » : `AgentMuet`, `ProxmoxMuet`…).
+  Calculé par l'aiguillage des notifications toutes les 5 s, à partir des
+  alertes actives : pas de règle de plus, pas de métrique de plus.
+- **Attente** : la panne d'une machine qui partage son site est annoncée
+  2 min après son début (`AttenteSite`), le temps que les autres machines
+  coupées en même temps aient aussi leur alerte (`AgentMuet` évaluée chaque
+  minute). Coût : une machine seule en panne est annoncée 2 min plus tard.
+- **Regroupement** : les pannes des machines d'un site injoignable passent
+  dans un groupe « site » : **un message** « 📡 Site X injoignable » (une
+  ligne : machines muettes, depuis quand, lien vers la page des coupures),
+  puis les rappels habituels (2 h pour une critique).
+- **Retour** : les machines reviennent à quelques secondes d'écart ; le
+  message de retour attend jusqu'à 3 min (`AttenteRetourSite`) qu'elles
+  soient toutes revenues : **un message** « ✅ Site X de nouveau
+  joignable », durée de la coupure, machines revenues.
+- Les alertes restent une par machine (page Alertes, prise en charge,
+  historique) : seul l'envoi est regroupé. Titre court pour le push, ntfy
+  et l'e-mail (« Site X injoignable (N machines) »).
+- **Bandeau** sur l'accueil et la page Alertes tant que le site est
+  injoignable, avec un lien vers la coupure.
+
+| Choix | Raison | Coût |
+|---|---|---|
+| Calcul dans l'aiguillage, pas une règle | une règle passerait par une métrique écrite chaque minute : 1 à 2 min de retard, donc des messages par machine avant celui du site | 57 µs toutes les 5 s pour 300 machines toutes en panne (banc), ~0,001 % d'un cœur ; une requête SQL de plus par minute |
+| Toutes les machines du site, pas « la plupart » | pas de faux « site injoignable » quand une machine sur trois redémarre | une coupure partielle (une machine sur le 4G) donne des messages par machine, comme avant |
+| Machines vues dans les 24 h | une machine éteinte depuis longtemps ne bloque pas la détection | — |
+
+Menaces : rien de nouveau exposé (calcul interne, pas de réglage, pas de
+saisie). Le seul risque est de retarder une alerte de panne de 2 min : on
+le garde court et seulement pour les machines qui partagent un site.
+
+### 39.2 Page « Coupures » (Alertes › Coupures)
+
+- **Coupures retrouvées dans l'historique des alertes** (30 jours) : au
+  moins 2 machines d'un même site en panne à moins de 10 min d'écart.
+  Marche aussi pour une coupure d'avant cette version (celle du 16/11).
+  Machines sans site : regroupées sous « (sans site) ».
+- **Bilan par machine**, lu dans la base de métriques :
+  - relevés reçus pour la coupure (`node_uname_info`), comparés à l'heure
+    d'avant : 0 % tant que la machine est muette, ~100 % une fois rattrapée ;
+  - taille maximale de la file d'attente de l'agent
+    (`mirador_agent_queue_bytes`), en % du tampon par défaut (8 Mo) ;
+  - lots jetés (file pleine) : `mirador_agent_queue_dropped_total` et
+    `mirador_logs_queue_dropped_total` ;
+  - autonomie du tampon : 8 Mo / débit envoyé dans l'heure d'avant
+    (`mirador_agent_sent_bytes_total`), et l'heure où il déborderait ;
+  - état : « gardées dans le tampon », « tampon sans doute plein »,
+    « rattrapage en cours », « rattrapé », « trou : N lots jetés ».
+- Mesure (banc, 2 machines, 5 h de relevés à 30 s) : 3 à 9 ms, 18 Ko de
+  HTML ; 7 requêtes par machine, seulement à l'ouverture de la page ; rien
+  en base, rien en mémoire entre deux pages.
+- Limite : le tampon de 8 Mo est la valeur par défaut ; un agent réglé
+  autrement (configuration distante) a une autre autonomie.
+
+Menaces : page en lecture (comme Alertes) ; le site et la date viennent de
+l'adresse et ne servent qu'à choisir parmi les coupures trouvées ; les noms
+de machines sont vérifiés (`reValeurVariable`) avant d'entrer dans une
+requête.
+
+### 39.3 Écarts vus dans la comparaison vmalert pendant la coupure
+
+- `ProxmoxMuet` manquante chez mirador : normal, la règle importée lit le
+  metric server de Proxmox (`cpustat_cpu`), que mirador ne reçoit pas. La
+  panne du nœud est couverte par `AgentMuet`. À désactiver dans Règles.
+- `ServiceDuModeleAbsent` en trop (10:54 → 17:28) : défaut déjà corrigé
+  le 16/11 (§ 34.6 : services attendus écrits seulement pour une machine
+  qui répond) ; la fin à 17:28 correspond sans doute à la mise à jour du
+  serveur (à confirmer).
+- `AgentMuet` de `dhcpdns02` en trop 6 min (10:30 → 10:36) : mirador a vu la
+  machine muette avant vmalert ; explication probable : les deux chaînes de
+  données sont différentes (agent mirador d'un côté, Alloy de l'autre). Pas
+  un défaut de mirador.
+
+## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Guide écrit, à valider]**
+
+`docs/bascule-finale.md` : arrêt de l'ancienne stack en 5 phases, chacune
+réversible par une commande, **rien d'effacé avant la phase E** :
+
+| Phase | Quoi | Retour arrière |
+|---|---|---|
+| 0 | liste de contrôle (agents partout avec leur site, 7 jours de comparaison, heartbeat HetrixTools dans mirador, sauvegarde, mesure 24 h) | — |
+| A | arrêt d'Alertmanager (fin des alertes en double) | `docker start` |
+| B | machines : arrêt d'Alloy, des scripts `obs-*`, de `smartctl_exporter`, du metric server Proxmox | `systemctl enable --now` |
+| C | VPS : arrêt de VictoriaMetrics, VictoriaLogs, vmalert(-logs), Grafana ; nginx nettoyé (copie gardée) | `docker start`, copie de nginx |
+| D | réseau Docker dédié `mirador` (reporté au § 18.27) | copie du compose et de `server.conf` |
+| E | nettoyage, au moins 30 jours après, sur validation | aucun (définitif) |
+
+| Choix | Raison | Coût |
+|---|---|---|
+| `docker stop` + `--restart=no`, pas `docker compose down` | retour arrière en une commande ; rien n'est effacé | les volumes de l'ancienne stack gardent leur place disque jusqu'à la phase E |
+| Une machine à la fois, `srv-test` d'abord | une erreur ne touche qu'une machine | quelques jours de plus |
+| Lignes nginx et noms des services confirmés par une sortie collée | je n'ai pas accès au VPS : pas de commande devinée qui modifie | un aller-retour de plus |
+
+Gain attendu : ~770 Mio de RAM rendus (SPEC § 2.1), à mesurer après la
+phase C.
+
+Menaces :
+- Perte des notifications pendant la bascule : Alertmanager arrêté
+  seulement quand mirador est en mode actif, testé, avec le heartbeat
+  externe (HetrixTools) qui prévient si mirador se tait.
+- Perte de données : rien d'effacé avant 30 jours ; les agents gardent
+  ~19 h de données pendant un changement de réseau.
+- Phase D : `MIRADOR_PROXY` faux → adresses des machines mal lues
+  (refusées) ; le serveur refuse déjà de démarrer sans proxy ni TLS sur une
+  écoute ouverte ; corriger et relancer, rien n'est perdu. Réseau dédié :
+  plus aucun autre conteneur ne joint mirador sans passer par nginx.
+- Grafana : non gardé (API de lecture compatible Prometheus du brief non
+  faite, facultative) ; à demander avant la phase C.

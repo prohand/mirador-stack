@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/notif"
 )
 
 // Page Alertes (SPEC § 28, maquette validée le 15/11) : compteurs par
@@ -42,10 +43,11 @@ type donneesEnCours struct {
 	Total                            int
 	Groupes                          []groupeAlertes
 	Liste                            []resumeAlerte
-	Attente                          []resumeAlerte // pas encore des alertes
-	Prises                           []resumeAlerte // prises en charge (SPEC § 30)
-	Masquees                         []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
-	Retour                           string         // page après une action sur une ligne
+	Attente                          []resumeAlerte          // pas encore des alertes
+	Prises                           []resumeAlerte          // prises en charge (SPEC § 30)
+	Masquees                         []resumeAlerte          // conséquences d'une alerte plus grave (bloc replié)
+	Sites                            []notif.SiteInjoignable // sites injoignables (SPEC § 39)
+	Retour                           string                  // page après une action sur une ligne
 }
 
 // maxCourbes : mini-courbes calculées par affichage (coût borné).
@@ -66,6 +68,9 @@ func (c *Console) enCoursVue(ctx context.Context, vue string, t time.Time) donne
 	rs, d.Prises = separerPrises(rs)
 	rs, d.Masquees = separerMasquees(rs)
 	d.Attente = attente
+	if c.opt.Aiguilleur != nil {
+		d.Sites = c.opt.Aiguilleur.SitesInjoignables()
+	}
 	d.Total = len(rs)
 	for _, r := range rs {
 		switch r.Gravite {

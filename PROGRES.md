@@ -8,11 +8,11 @@
 | 2. Agent | **Validée et fusionnée le 09/11/2026** (PR #2 et #3) | `etape-2-agent` |
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
-| 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
+| 5. Interface web | **Validée le 13/11/2026** (parties 1 à 6 ; SPEC § 36 à 38 validés le 16/11) | `claude/admiring-wright-2n17eb` |
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **Validée le 12/11/2026** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 5 quater. Élément par élément, signal « à valider », Réglages rangés | **Validée le 12/11/2026** (SPEC § 21, retours corrigés : § 22) | `claude/affectionate-albattani-izl0lb` |
-| 6. Équipements sans agent + `mirador-collector` | non commencée | — |
+| 6. Équipements sans agent + `mirador-collector` | **en cours** : parties 1 à 6 faites, partie 7 (bascule sur le LAN) à faire avec toi | `claude/intelligent-cori-yh3n7c` |
 | 7. Bascule | non commencée | — |
 
 ## Étape 1 — fait
@@ -709,10 +709,10 @@ free -m
 
 | Partie | État |
 |---|---|
-| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; à valider |
-| A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; à valider |
-| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; à valider après mise à jour de l'agent |
-| C. Modèles personnels dans l'interface : créer, dupliquer un modèle livré, modifier, exporter / importer en JSON, supprimer (SPEC § 24.11) | **fait** (14/11), testé (base simulée, interface, rendu vérifié en capture) ; à valider |
+| A. Serveur, détection, interface (7 modèles fournis, machine et groupe, seuils par machine, règles importées remplacées, services attendus) | **fait**, testé (données simulées, interface) ; **validé le 16/11** |
+| A bis. Plus simple (14/11) : mode administration 10 min, cases à cocher, application automatique, tableau modèles × groupes | **fait**, testé, captures du serveur de démonstration ; **validé le 16/11** |
+| B. Catalogue de checks dans l'agent (HTTP, TCP, processus, fichier, dossier, DNS, ping) + 5 modèles (Serveur web, Sauvegarde, Ports TCP, Processus, Joignabilité) avec listes par groupe et par machine | **fait** (14/11), testé (serveurs et fichiers simulés, interface) ; **validé le 16/11** |
+| C. Modèles personnels dans l'interface : créer, dupliquer un modèle livré, modifier, exporter / importer en JSON, supprimer (SPEC § 24.11) | **fait** (14/11), testé (base simulée, interface, rendu vérifié en capture) ; **validé le 16/11** |
 
 Mesure partie C : 1 à 5 Ko par modèle personnel (200 au plus) gardés en
 mémoire par le serveur, une requête de détection par minute et par modèle
@@ -727,8 +727,8 @@ Mesure partie B (banc d'essai, 40 checks) : 6,5 ms par passage toutes les
 | Partie | État |
 |---|---|
 | Maquettes : A épuré, B compact, C doux, D technique, A bis (menu noir) | faites ; choix : **A bis** |
-| Thème Jour / Nuit / Auto par utilisateur, en bas du menu | **fait**, testé ; à valider |
-| Design A bis (feuille de style, menu noir, pastille « mode ombre ») | **fait**, captures jour / nuit / menu replié ; à valider |
+| Thème Jour / Nuit / Auto par utilisateur, en bas du menu | **fait**, testé ; **validé le 16/11** |
+| Design A bis (feuille de style, menu noir, pastille « mode ombre ») | **fait**, captures jour / nuit / menu replié ; **validé le 16/11** |
 
 Mesure : une colonne en base, une requête par changement de thème, feuille
 de style de même taille ; objectif serveur inchangé ✅.
@@ -738,8 +738,8 @@ de style de même taille ; objectif serveur inchangé ✅.
 | Partie | État |
 |---|---|
 | Maquettes A+B+D et C | faites ; choix : **A + B + D** |
-| Bouton « Avec aides / Sans aides » par utilisateur | **fait**, testé ; à valider |
-| 143 aides relues : 81 raccourcies (« En savoir plus » vers `docs/aide.md`), 3 retirées, avertissements gardés | **fait**, captures avant / après ; à valider |
+| Bouton « Avec aides / Sans aides » par utilisateur | **fait**, testé ; **validé le 16/11** |
+| 143 aides relues : 81 raccourcies (« En savoir plus » vers `docs/aide.md`), 3 retirées, avertissements gardés | **fait**, captures avant / après ; **validé le 16/11** |
 
 Mesure : une colonne en base, une requête par clic ; objectif serveur
 inchangé ✅.
@@ -764,9 +764,9 @@ inchangé ✅.
 | Partie | État |
 |---|---|
 | Maquettes (recommandations) | validées (« Oui code ») |
-| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; à valider |
-| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; à valider |
-| Historique : frise 24 h / 7 jours, règles les plus bruyantes | **fait**, testé ; à valider |
+| Alertes : tuiles, nouvelles, groupes, actions sur la ligne, mini-courbes, rechargement 30 s | **fait**, testé ; **validé le 16/11** |
+| Audit : catégories, phrases, changements, jours, filtres, sensibles, CSV | **fait**, testé ; **validé le 16/11** |
+| Historique : frise 24 h / 7 jours, règles les plus bruyantes | **fait**, testé ; **validé le 16/11** |
 | Conditions « en attente » montrées comme des alertes | **corrigé** : bloc « En attente » à part, temps restant affiché |
 
 Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
@@ -777,8 +777,8 @@ Mesure : 30 requêtes de plage au plus par affichage de la page Alertes
 | Partie | État |
 |---|---|
 | Maquette (recommandations, ordre de la page) | validée |
-| En ce moment, ordre, sommaire, périodes, 2 colonnes, vides regroupés, replis retenus | **fait**, testé ; à valider |
-| Graphiques : légende française cliquable, aire, échelle, survol synchronisé, zoom, seuil du modèle | **fait** ; à valider |
+| En ce moment, ordre, sommaire, périodes, 2 colonnes, vides regroupés, replis retenus | **fait**, testé ; **validé le 16/11** |
+| Graphiques : légende française cliquable, aire, échelle, survol synchronisé, zoom, seuil du modèle | **fait** ; **validé le 16/11** |
 | Accents des tableaux fournis | **fait** |
 
 Mesure : 7 à 8 requêtes instantanées de plus par affichage d'une machine ;
@@ -789,17 +789,17 @@ objectif serveur inchangé ✅.
 | Partie | État |
 |---|---|
 | État « acquittée » lu en base (défaut : l'alerte semblait ne pas changer) | **corrigé** |
-| Durée 4 h / 24 h / jusqu'à la fin, rappel à l'échéance | **fait**, testé ; à valider |
-| Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; à valider |
+| Durée 4 h / 24 h / jusqu'à la fin, rappel à l'échéance | **fait**, testé ; **validé le 16/11** |
+| Bloc « Prises en charge », par qui, Reprendre | **fait**, testé ; **validé le 16/11** |
 | Escalade vers le canal de secours (coupée par défaut) | **fait**, testé (aiguillage) ; envoi réel à vérifier |
 
 ## Métriques et graphiques (SPEC § 31, 15/11)
 
 | Partie | État |
 |---|---|
-| Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; à valider |
-| Livraison 2 : semaine dernière, plein écran, empilé, export, zoom dans l'adresse | **fait**, testé ; à valider |
-| Livraison 3 : plus gourmands (conteneurs), carte de chaleur 24 h, écran mural | **fait**, testé ; à valider (processus non relevés par l'agent) |
+| Livraison 1 : alertes et événements sur les courbes, âge des données, « plein dans X j » | **fait**, testé ; **validé le 16/11** |
+| Livraison 2 : semaine dernière, plein écran, empilé, export, zoom dans l'adresse | **fait**, testé ; **validé le 16/11** |
+| Livraison 3 : plus gourmands (conteneurs), carte de chaleur 24 h, écran mural | **fait**, testé ; **validé le 16/11** (processus non relevés par l'agent) |
 
 Mesure (livraison 1) : prévision des disques **44 ms et 28 Mio passagers**
 pour 50 systèmes de fichiers sur 7 jours, une fois par 10 min (cache) ;
@@ -815,8 +815,8 @@ page machine.
 
 | Partie | État |
 |---|---|
-| Réglages › Certificats (compte DNS commun, liste des collecteurs, Renouveler) | **fait**, testé ; à valider |
-| Avancement pas à pas (6 pas, étape Let's Encrypt en cours, écoute confirmée par les mesures) | **fait**, testé ; à valider |
+| Réglages › Certificats (compte DNS commun, liste des collecteurs, Renouveler) | **fait**, testé ; **validé le 16/11** |
+| Avancement pas à pas (6 pas, étape Let's Encrypt en cours, écoute confirmée par les mesures) | **fait**, testé ; **validé le 16/11** |
 | `--nom` dans la commande d'installation | **fait**, testé |
 
 Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
@@ -825,9 +825,9 @@ Coût : une écriture SQLite par étape (6 par certificat, tous les 60 jours).
 
 | Partie | État |
 |---|---|
-| Filtres rangés, pastilles, niveau « et plus grave », exclusion (moteur) | **fait**, testé ; à valider |
-| Histogramme + zoom, lignes compactes, surlignage, détail au clic | **fait**, testé ; à valider |
-| Messages regroupés, contexte « Voir autour », mode direct, export, recherches enregistrées | **fait**, testé ; à valider |
+| Filtres rangés, pastilles, niveau « et plus grave », exclusion (moteur) | **fait**, testé ; **validé le 16/11** |
+| Histogramme + zoom, lignes compactes, surlignage, détail au clic | **fait**, testé ; **validé le 16/11** |
+| Messages regroupés, contexte « Voir autour », mode direct, export, recherches enregistrées | **fait**, testé ; **validé le 16/11** |
 
 Mesure : 44 ms et 4 Mio passagers pour analyser 2 000 lignes ; mode direct :
 une petite recherche toutes les 5 s par onglet actif (30 min au plus).
@@ -838,14 +838,14 @@ Branche `claude/wonderful-goodall-aaqrgl`. Aucune faille critique ni haute.
 
 | Partie | État |
 |---|---|
-| Connexion : verrou de compte (table des comptes à part), 10 défis passkey par adresse | **fait**, testé ; à valider |
-| Console : codes 2FA manquants, import « securite », secrets liés à l'adresse, rôle avant le corps, masquage des secrets | **fait**, testé ; à valider |
+| Connexion : verrou de compte (table des comptes à part), 10 défis passkey par adresse | **fait**, testé ; **validé le 16/11** |
+| Console : codes 2FA manquants, import « securite », secrets liés à l'adresse, rôle avant le corps, masquage des secrets | **fait**, testé ; **validé le 16/11** |
 | Machine muette : plus de `ServiceDuModeleAbsent`, alertes inhibées dans un bloc replié | **fait**, testé ; à vérifier sur le VPS |
-| Graphique : logo de la connexion, 12 px au moins, accords, légende et aide des courbes | **fait**, vu dans Chromium ; à valider |
+| Graphique : logo de la connexion, 12 px au moins, accords, légende et aide des courbes | **fait**, vu dans Chromium ; **validé le 16/11** |
 | Application installable : manifeste, icônes, encoche (sans service worker) | **fait** ; à essayer sur ton téléphone |
-| Téléphone : barre du bas, en-tête compact, cartes, courbes à l'affichage | **fait**, vu en écran d'iPhone 13 simulé ; à valider sur un vrai téléphone |
-| Connexion depuis un lien : page demandée gardée, page relais, passkey en premier | **fait**, vérifié dans Chromium ; à valider |
-| Notifications push et pastille de l'icône (SPEC § 35, demande du 16/11) | **fait**, testé ; à valider sur un vrai téléphone |
+| Téléphone : barre du bas, en-tête compact, cartes, courbes à l'affichage | **fait**, vu en écran d'iPhone 13 simulé ; **validé le 16/11** |
+| Connexion depuis un lien : page demandée gardée, page relais, passkey en premier | **fait**, vérifié dans Chromium ; **validé le 16/11** |
+| Notifications push et pastille de l'icône (SPEC § 35, demande du 16/11) | **fait**, testé ; **validé le 16/11** |
 | Option : page hors ligne | **non faite** (pas demandée) |
 
 Mesures (Chromium, serveur de démonstration, machine de développement) :
@@ -900,9 +900,9 @@ Branche `claude/vibrant-meitner-a0xe1m`. Choix : B (liste par site, filtres)
 
 | Partie | État |
 |---|---|
-| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; à valider |
-| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; à valider |
-| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; à valider |
+| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; **validé le 16/11** |
+| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; **validé le 16/11** |
+| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; **validé le 16/11** |
 | Bug : `<body data-alertes>` cassait mirador.js (cartes téléphone, tri, Copier) | **corrigé**, test de non-régression |
 | Vu dans Chromium (écran large et iPhone 13 simulé) | **fait** |
 
@@ -922,9 +922,9 @@ Négligeable devant les objectifs du serveur (SPEC § 2).
 
 | Partie | État |
 |---|---|
-| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; à valider |
+| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; **validé le 16/11** |
 | Import d'une version : liste des 5 dernières versions de GitHub (flux Atom, gardé 10 min), champ « ou autre » | **fait**, testé avec un faux GitHub ; à vérifier sur le VPS |
-| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; à valider |
+| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; **validé le 16/11** |
 
 Coût : carte du parc, aucune requête en plus ; liste des versions, une
 requête HTTPS vers github.com au plus toutes les 10 min (quelques dizaines
@@ -936,14 +936,44 @@ de plus (les alertes prises en charge étaient déjà lues).
 | Partie | État |
 |---|---|
 | Raccourcis « Logs » et « Flux bloqués » retirés de Tableaux | **fait**, testé |
-| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; à valider |
-| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; à valider |
-| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; à valider |
-| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; à valider |
-| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; à valider |
+| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; **validé le 16/11** |
+| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; **validé le 16/11** |
+| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; **validé le 16/11** |
+| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; **validé le 16/11** |
+| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; **validé le 16/11** |
 
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
+
+## Coupure d'internet du site (16/11, SPEC § 39 et § 40)
+
+Coupure d'internet chez l'utilisateur le **16/11 à 10:31** : plus rien
+n'arrive au serveur depuis le site. En cours au moment d'écrire.
+
+| Partie | État |
+|---|---|
+| Un seul message « Site X injoignable » quand toutes les machines d'un site se taisent, un seul au retour ; bandeau sur l'accueil et Alertes | **fait**, testé (simulation : 3 machines, retour échelonné) ; à valider |
+| Page Alertes › Coupures : coupures retrouvées dans l'historique, bilan par machine (relevés rattrapés, file d'attente, lots jetés, autonomie du tampon) | **fait**, testé (métriques simulées) ; à valider sur la coupure du 16/11 |
+| Guide de l'étape 7 (`docs/bascule-finale.md`) | **écrit** ; à valider |
+| SPEC § 18.27 : titre remis à jour (propositions traitées) | **fait** |
+
+Mesures (banc d'essai) :
+
+| Quoi | Mesure | Objectif serveur (SPEC § 7.1) |
+|---|---|---|
+| Calcul « site injoignable » (toutes les 5 s) | 57 µs pour 300 machines toutes en panne, 53 Ko alloués puis libérés (~0,001 % d'un cœur) | négligeable ✅ |
+| Page des coupures | 3 à 9 ms, 18 Ko de HTML (2 machines, 5 h de relevés) ; 7 requêtes par machine, seulement à l'ouverture | négligeable ✅ |
+| Base, disque | rien de nouveau en base ni sur disque ; une requête SQL de plus par minute | ✅ |
+
+Au retour d'internet (à coller dans une nouvelle session) :
+- heure de retour ;
+- copie (ou capture) de Alertes › Coupures après la mise à jour du
+  serveur : la coupure du 16/11 y apparaît (si les machines ont leur site) ;
+- si la coupure dépasse ~19 h, des lots auront été jetés : la page le dira.
+
+Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
+manquante chez mirador est normale (mirador ne reçoit pas le metric
+server) : à désactiver dans Règles.
 
 ## Étape 6 — avancement (SPEC § 23)
 
@@ -995,23 +1025,23 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 ## Prochaine étape
 
-Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
-mises à jour automatiques signées).
+Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
 
-1. 5 bis et 5 quater validées le 12/11 (serveur et agent en 0.2.17).
-   13/11 : serveur, agent et assistant root en 0.2.18 (assistant au
-   format 2, unité qui peut écrire son dossier, SPEC § 22.5). À confirmer
-   à la 0.2.19 : l'assistant root suit l'agent tout seul (journal
-   `mirador-agent-root`, `"version"` dans `/run/mirador-agent/root.json`).
-   0.2.19 : pas de mise à jour (manifeste effacé par le nettoyage, bug
-   corrigé en 0.2.20). **0.2.20 : validé le 13/11**, l'assistant root est
-   passé seul de 0.2.18 à 0.2.20 (signature vérifiée par root).
-2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
-3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
-4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
-   **Fait le 13/11** (aucun écart ; test Telegram OK). Alertmanager envoie
-   encore en parallèle : alertes en double quelques jours, puis coupure à
-   l'étape 7.
-5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
-6. Validation de l'étape 5 (et 5 bis, 5 quater), puis étape 6
-   (`mirador-collector` : Synology, UniFi, syslog OPNsense, Proxmox).
+1. Pendant la coupure : rien à faire. Noter l'heure du retour.
+2. Au retour : mettre à jour le serveur (site injoignable, page Coupures),
+   vérifier la page Alertes › Coupures (bilan de la coupure du 16/11),
+   désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
+3. Valider SPEC § 39 (site injoignable, coupures) et § 40 (guide de l'étape 7).
+4. Étape 6, partie 7 : bascule du collecteur sur le LAN
+   (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
+   d'abord, puis installation, quelques jours en parallèle, mesures 24 h
+   (collecteur et nœud Proxmox), arrêt d'Alloy et d'unpoller **sur
+   validation**.
+5. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+6. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
+   validation de l'étape 6. Question à trancher avant la phase C : garder
+   Grafana (API de lecture compatible Prometheus, à étudier) ou non.
+7. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+
+Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
+mode **actif** (Telegram) depuis le 13/11.

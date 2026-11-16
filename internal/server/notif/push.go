@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -272,6 +273,8 @@ func chargeDe(m *Message, o Mise, pastille int) ChargePush {
 	switch {
 	case m.Systeme != "":
 		c.Lien = "/"
+	case m.Site != "":
+		c.Titre, c.Lien = m.TitreSite(), "/coupures?site="+url.QueryEscape(m.Site)
 	case len(m.Actives) > 0:
 		c.Titre = m.Actives[0].Regle
 		if h := m.Actives[0].Machine(); h != "" {

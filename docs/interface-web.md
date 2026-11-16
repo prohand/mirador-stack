@@ -162,7 +162,7 @@ toutes les sessions (elles sont en mémoire).
 | Vue d'ensemble | machines, muettes, alertes, canaux, sauvegarde, stockage, état du parc (rafraîchi chaque minute, en pause si l'onglet est caché) ; tableau des machines avec barres, tri, filtre, colonnes masquables, alertes et éléments « à valider » (§ 10) |
 | Machines | jeton (nom facultatif, site, type, groupe), approbation (nom corrigeable), étiquettes, renommage (historique de l'ancien nom rattaché au nouveau dans les graphiques et les logs), adresses, token, version cible, suppression ; graphiques de la machine |
 | Mises à jour | versions publiées, version globale, fenêtre horaire, publication (manifeste signé + binaire) |
-| Alertes | en cours, historique, détail, accusé de réception, silence en un clic ; silences, maintenances, inhibitions, dépendances ; envois ; comparaison vmalert |
+| Alertes | en cours, historique, détail, accusé de réception, silence en un clic ; silences, maintenances, inhibitions, dépendances ; envois ; coupures de site (bilan du rattrapage des données, SPEC § 39) ; comparaison vmalert. Quand toutes les machines d'un site se taisent en même temps : un seul message « Site X injoignable » et un bandeau |
 | Règles | liste et santé, modèles, formulaire, test sur 24 h, import / export YAML, modifications |
 | Logs | recherche bornée, répétitions repliées, palmarès ; flux bloqués |
 | Tableaux | Serveurs Linux, Proxmox, OPNsense, Synology, UniFi, Certificats (convertis des tableaux Grafana), et ceux créés ici ; tous modifiables (§ 9) |

@@ -51,6 +51,7 @@
     <div class="kpi-valeur">{{enGo (somme .D.Metriques .D.Logs)}}<span> Go{{if .D.Plafond}} / {{enGoEntier .D.Plafond}}{{end}}</span></div>
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
 </div>
+{{template "sites-injoignables" .D.Sites}}
 {{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
 {{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}
 {{template "liste-masquees" .D.Masquees}}
@@ -103,7 +104,7 @@
   <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
 </div>
 {{end}}
-{{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
+{{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "coupures"}}class="actif"{{end}} href="/coupures">Coupures</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
 {{define "onglets-regles"}}<p class="onglets"><a {{if egal . "regles"}}class="actif"{{end}} href="/regles">Règles</a><a {{if egal . "nouvelle"}}class="actif"{{end}} href="/regles/nouvelle">Nouvelle règle</a><a {{if egal . "historique"}}class="actif"{{end}} href="/regles/historique">Modifications</a><a href="/regles/export.yaml">Exporter en YAML</a></p>{{end}}
 {{define "form-regle"}}<section class="carte"><h2>Définition</h2>
 <form method="post" action="/regles/enregistrer" class="pile large">{{template "csrf" .CSRF}}{{if .D.Nouvelle}}<input type="hidden" name="nouvelle" value="1">{{end}}
@@ -211,6 +212,7 @@
 <button name="duree" value="1h">1 h</button><button name="duree" value="4h">4 h</button><button name="duree" value="24h">24 h</button></form></details>{{end}}
 <a class="bouton secondaire petit" href="/alertes/{{.A.ID}}#graphique">Graphique</a></div>{{end}}
 {{define "alertes-en-cours"}}{{$v := .D}}<div data-nb-alertes="{{$v.Total}}">
+{{template "sites-injoignables" $v.Sites}}
 <div class="resume-alertes">
  <a class="tuile critique" href="/alertes?vue={{$v.Vue}}"><small>Critiques</small><b>{{$v.Critiques}}</b></a>
  <a class="tuile avert" href="/alertes?vue={{$v.Vue}}"><small>Avertissements</small><b>{{$v.Avertissements}}</b></a>
@@ -247,3 +249,5 @@
 </tbody></table></div></details>{{end}}{{end}}
 {{define "choix-liste-form"}}<select name="{{.Nom}}" form="{{.Form}}" aria-label="{{.Nom}}">{{$a := .Actuel}}<option value="">(aucun)</option>{{range .Valeurs}}<option {{if egal . $a}}selected{{end}}>{{.}}</option>{{end}}{{if and $a (not (dansListe $a .Valeurs))}}<option selected>{{$a}}</option>{{end}}</select>{{end}}
 {{define "etat-canal"}}{{if not .Actif}}<span class="pastille">Inactif</span>{{else if .E.EnPanne}}<span class="pastille erreur" title="{{.E.Erreur}}">En panne</span>{{else if eq .Nom .C.Principal}}<span class="pastille ok">Actif · principal</span>{{else if eq .Nom .C.Secours}}<span class="pastille ok">Actif · secours</span>{{else}}<span class="pastille ok">Actif</span>{{end}}{{end}}
+{{define "sites-injoignables"}}{{range .}}<p class="message erreur site-injoignable">📡 <strong>Site {{.Site}} injoignable</strong> depuis {{date .Depuis}} : ses {{len .Machines}} machines ({{joindre .Machines}}) se sont tues en même temps (coupure d'internet ou de courant ?). Un seul message envoyé pour le site, un autre au retour. <a href="/coupures?site={{.Site}}">Suivre la coupure</a></p>
+{{end}}{{end}}
