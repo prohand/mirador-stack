@@ -966,3 +966,64 @@ tr.sous-ligne td:first-child { padding-left: 26px; }
 .mur-prises li small { color: var(--pale); font-size: 13px; margin-left: 8px; }
 .chaleur-pied { margin: 6px 0 0; }
 .chaleur-pied:not(:has(button:not([hidden]), small)) { display: none; }
+
+/* --- Réglages plus clairs (SPEC § 38) ---------------------------------------- */
+/* Notifications : résumé, mode d'envoi, cartes de canaux, barre d'enregistrement. */
+.resume-notif { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
+.mode-envoi .ligne { justify-content: space-between; align-items: center; }
+.grille.canaux { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.canal { display: flex; flex-direction: column; gap: 8px; }
+.canal-tete { display: flex; align-items: center; gap: 10px; }
+.canal-tete h3 { margin: 0; font-size: 16px; flex: 1; }
+.canal > .doux { margin: 0; }
+.canal.inactif .canal-tete h3, .canal.inactif > .doux { opacity: .7; }
+.reglage-canal > summary { list-style: none; display: inline-flex; width: auto; }
+.reglage-canal > summary::-webkit-details-marker { display: none; }
+.reglage-canal[open] > summary { margin-bottom: 10px; }
+.canal > button { align-self: flex-start; }
+.unite { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.unite input { width: 6rem; }
+.avance { margin-top: 10px; } .avance > summary { color: var(--doux); font-size: 14px; }
+.regrouper { margin-top: 12px; }
+.barre-enregistrer { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end;
+  background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 10px 16px; margin-top: 6px; box-shadow: 0 -6px 18px rgba(17, 24, 39, .08); }
+.barre-enregistrer [data-barre-etat] { margin-right: auto; }
+.barre-enregistrer.modifie [data-barre-etat] { color: var(--attention); font-weight: 600; }
+.barre-enregistrer label.code { flex-direction: row; align-items: center; gap: 6px; }
+button.lien-discret { background: none; border: 0; color: var(--doux); text-decoration: underline; font-weight: 400; padding: 0 4px; min-height: 0; }
+button.lien-discret:hover { color: var(--texte); filter: none; }
+@media (max-width: 640px) { .barre-enregistrer { position: static; } }
+/* Accueil des Réglages : état sur chaque carte. */
+.carte-reglage { display: flex; flex-direction: column; gap: 6px; }
+.carte-reglage .titre-icone h2 { margin: 0; }
+.carte-reglage .etat-ligne { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.carte-reglage .etat-texte { color: var(--doux); }
+meter.mini-jauge { width: 100%; height: 8px; margin-top: 8px; }
+.liens-ailleurs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 0 28px; }
+.liens-ailleurs a { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bord); color: var(--texte); text-decoration: none; }
+.liens-ailleurs a:hover span:first-child { color: var(--accent); }
+.liens-ailleurs small { color: var(--pale); white-space: nowrap; }
+/* Utilisateurs (SPEC § 38). */
+.avatar-compte { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; margin-right: 8px;
+  background: var(--info-fond); color: var(--info); font-weight: 700; font-size: 13px; vertical-align: middle; }
+.table-comptes tr.desactive td { color: var(--pale); }
+.table-comptes td .pastille { margin: 1px 0; }
+.actions-compte > summary { list-style: none; } .actions-compte > summary::-webkit-details-marker { display: none; }
+.actions-compte[open] { min-width: min(420px, 80vw); }
+.actions-compte form { margin-top: 10px; gap: 10px; }
+/* Sécurité (SPEC § 38) : bilan, trois cartes, sessions. */
+ul.bilan { list-style: none; margin: 8px 0 0; padding: 0; }
+ul.bilan li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; }
+ul.bilan .signe { font-weight: 800; width: 1em; text-align: center; flex: none; }
+ul.bilan li.ok .signe { color: var(--ok); } ul.bilan li.attention .signe { color: var(--attention); }
+.reglages-securite { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); align-items: start; }
+.reglages-securite .pile label small { display: block; margin-top: 4px; }
+.reglages-securite textarea { width: 100%; }
+#sessions .entete-carte { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+#sessions .entete-carte h2 { margin: 0; }
+/* Résumés de <details> présentés comme des boutons (« Régler ▾ », « Modifier ▾ »). */
+summary.bouton { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; font-weight: 600;
+  background: var(--accent); color: var(--sur-accent); border: 1px solid var(--accent); font-size: 14px; }
+summary.bouton.secondaire { background: var(--carte); color: var(--texte); border-color: var(--bord-champ); font-weight: 500; }
+summary.bouton:hover { filter: brightness(1.05); }
+.avatar-compte { text-transform: uppercase; }

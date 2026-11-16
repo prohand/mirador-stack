@@ -1142,3 +1142,23 @@ document.addEventListener("change", function (e) {
     }, function () {});
   });
 })();
+
+// Barre « Enregistrer » collée en bas (SPEC § 38) : dit s'il y a des
+// changements pas encore enregistrés dans le formulaire.
+(function () {
+  document.querySelectorAll("form[data-barre-enregistrer]").forEach(function (f) {
+    var barre = f.querySelector(".barre-enregistrer"), etat = f.querySelector("[data-barre-etat]");
+    if (!barre || !etat) { return; }
+    var n = {};
+    function noter(e) {
+      var c = e.target;
+      if (!c.name || c.name === "code" || c.name === "csrf") { return; }
+      n[c.name] = true;
+      var k = Object.keys(n).length;
+      barre.classList.add("modifie");
+      etat.textContent = k === 1 ? "1 changement non enregistré" : k + " changements non enregistrés";
+    }
+    f.addEventListener("input", noter);
+    f.addEventListener("change", noter);
+  });
+})();

@@ -2,12 +2,18 @@
 <h1>Interface</h1>
 {{template "onglets-reglages" (onglet $ "interface")}}
 <section class="carte"><h2>Affichage</h2><form method="post" class="pile">{{template "csrf" .CSRF}}
-<label>Fuseau horaire <input name="fuseau" value="{{.D.Fuseau}}" required maxlength="64"> <small class="aide">Défaut Europe/Paris</small></label>
+<label>Fuseau horaire <input name="fuseau" value="{{.D.Fuseau}}" required maxlength="64"> <small class="aide">Défaut Europe/Paris. Sert aussi aux heures écrites dans les notifications.</small></label>
+{{if .D.FuseauMessages}}<p class="message">Les notifications utilisent encore le fuseau <code>{{.D.FuseauMessages}}</code> : « Enregistrer » les aligne sur celui-ci.</p>{{end}}
 <label class="case"><input type="checkbox" name="geoip" value="1" {{if .D.GeoIP}}checked{{end}}> Base GéoIP téléchargée chaque mois (pays des flux bloqués)</label>
 <label>Thème <select name="theme">{{$t := .D.Theme}}<option value="auto" {{if egal "auto" $t}}selected{{end}}>Automatique (comme l'appareil)</option><option value="clair" {{if egal "clair" $t}}selected{{end}}>Clair</option><option value="sombre" {{if egal "sombre" $t}}selected{{end}}>Sombre</option></select></label>
 <label>Position du menu <select name="menu">{{$m := .D.Menu}}<option value="gauche" {{if egal "gauche" $m}}selected{{end}}>À gauche (repliable)</option><option value="haut" {{if egal "haut" $m}}selected{{end}}>En haut</option></select> <small class="aide">Sur téléphone : menu toujours en haut, replié.</small></label>
 <label class="case"><input type="checkbox" name="menu_replie" value="1" {{if .D.MenuReplie}}checked{{end}}> Menu replié par défaut (icônes seules)</label>
 {{if .Admin}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire">Rétablir les valeurs par défaut</button></div>{{end}}</form></section>
+<section class="carte" id="adresse-interface"><h2>Adresse de cette interface</h2>
+<p>Adresse publique de l'interface (ex. <code>https://console.exemple.fr</code>). Elle sert au <strong>lien direct</strong> mis dans les notifications (« ouvrir l'alerte »). Vide : pas de lien.</p>
+<form method="post" action="/reglages/notifications" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="lien">
+<label>Adresse de l'interface <input name="lien" value="{{.D.Lien}}" placeholder="https://console.exemple.fr" maxlength="200" size="40" {{if not .Admin}}readonly{{end}}></label>
+{{if .Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form></section>
 <section class="carte" id="adresse"><h2>Adresse du serveur pour les agents (ingestion)</h2>
 <p>Adresse publique du <strong>vhost d'ingestion</strong> (celui des agents, ex. <code>https://mirador-ingest.exemple.fr</code>), <strong>pas</strong> celle de cette interface. Les machines s'y enrôlent, y téléchargent l'agent et y envoient leurs données. Elle sert à afficher la commande d'installation complète dans <a href="/machines#ajouter">Machines</a>.</p>
 <form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="adresse">

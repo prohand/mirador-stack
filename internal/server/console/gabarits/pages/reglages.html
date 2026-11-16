@@ -1,11 +1,17 @@
 {{define "contenu"}}
-<h1>Réglages</h1>
-<div class="grille">
-{{range sectionsReglages $.Olvid}}<a class="carte lien-carte" href="{{.Href}}"><h2>{{.Titre}}</h2><small>{{.Aide}}</small></a>
+<div class="titre-page"><div><h1>Réglages</h1><p>Chaque carte montre l'état du moment ; orange : à regarder.</p></div></div>
+<div class="grille cartes-reglages">
+{{range sectionsReglages $.Olvid}}{{$e := index $.D.Etats .Cle}}<a class="carte lien-carte carte-reglage" href="{{.Href}}">
+<div class="titre-icone">{{if .Icone}}<span class="puce {{.Teinte}}"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span>{{end}}<h2>{{.Titre}}</h2></div>
+<small>{{.Aide}}</small>
+{{if ge $e.Jauge 0}}<meter class="mini-jauge" min="0" max="100" low="75" high="90" optimum="0" value="{{$e.Jauge}}"></meter>{{end}}
+{{if $e.Texte}}<small class="etat-texte">{{$e.Texte}}</small>{{end}}
+{{if $e.Pastilles}}<span class="etat-ligne">{{range $e.Pastilles}}<span class="pastille {{.Classe}}">{{.Texte}}</span>{{end}}</span>{{end}}
+</a>
 {{end}}</div>
-<h2 class="titre-section">Ailleurs dans mirador</h2>
+<section class="carte"><h2>Ailleurs dans mirador</h2>
 <p class="sous">Ces réglages sont rangés avec ce qu'ils concernent.</p>
-<div class="grille">
-{{range pagesLieesReglages}}<a class="carte lien-carte secondaire" href="{{.Href}}"><span class="pastille">{{.Ou}}</span><h2>{{.Titre}}</h2><small>{{.Aide}}</small></a>
-{{end}}</div>
+<div class="liens-ailleurs">
+{{range pagesLieesReglages}}{{$p := index $.D.Liees .Href}}<a href="{{.Href}}" title="{{.Aide}}"><span>{{.Titre}}</span><small>{{if $p.Texte}}<span class="pastille {{$p.Classe}}">{{$p.Texte}}</span>{{else}}{{.Ou}}{{end}} ›</small></a>
+{{end}}</div></section>
 {{end}}

@@ -312,21 +312,16 @@ func TestIconesDessinees(t *testing.T) {
 	}
 }
 
-// Logs et Flux bloqués : proposés, pas installés d'office.
-func TestRaccourcisPages(t *testing.T) {
+// Raccourcis « Logs » et « Flux bloqués » retirés de la page Tableaux
+// (SPEC § 38) : les pages restent dans le menu.
+func TestPlusDeRaccourcisPages(t *testing.T) {
 	b := nouveauBanc(t)
 	c, _ := b.premierAdmin("admin", mdpAdmin)
 	csrf := b.csrf(c, "/tableaux")
-	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs installé d'office")
-	}
 	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"installer-page"}, "nom": {"logs"}})
-	if _, corps, _ := b.get(c, "/tableaux"); !strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs non installé")
-	}
-	b.post(c, "/tableaux", url.Values{"csrf": {csrf}, "action": {"retirer-page"}, "nom": {"logs"}})
-	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) {
-		t.Fatal("raccourci Logs non retiré")
+	if _, corps, _ := b.get(c, "/tableaux"); strings.Contains(corps, `class="carte lien-carte" href="/logs"`) || strings.Contains(corps, "installer-page") ||
+		strings.Contains(corps, "page de mirador") {
+		t.Error("raccourci de page encore proposé sur la page Tableaux")
 	}
 }
 

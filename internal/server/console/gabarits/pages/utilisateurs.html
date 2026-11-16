@@ -1,43 +1,52 @@
-{{define "contenu"}}
-<h1>Utilisateurs</h1>
-<p>Rôles : <strong>admin</strong> (tout) ou <strong>lecture</strong> (consultation seule). Chaque action demande votre code 2FA.</p>
-<div class="defile"><table data-cartes>
-<thead><tr><th>Nom</th><th>Rôle</th><th>2FA</th><th>État</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
+{{define "contenu"}}{{$d := .D}}
+<div class="titre-page"><div><h1>Utilisateurs</h1><p><strong>admin</strong> : tout · <strong>lecture</strong> : consultation seule. Chaque action demande votre code 2FA.</p></div>
+<div class="actions"><a class="bouton" href="#nouveau">+ Nouveau compte</a></div></div>
+<div class="resume-notif">
+<span class="pastille">{{$d.Actifs}} {{accord $d.Actifs "compte(s) actif(s)"}}</span>
+<span class="pastille info">{{$d.Admins}} {{accord $d.Admins "admin(s)"}}</span>
+{{if $d.Sans2FA}}<span class="pastille attention" title="La personne crée sa 2FA à sa première connexion">{{$d.Sans2FA}} sans 2FA (première connexion à faire)</span>{{end}}
+{{if $d.Desactive}}<span class="pastille">{{$d.Desactive}} {{accord $d.Desactive "désactivé(s)"}}</span>{{end}}
+</div>
+<section class="carte"><div class="defile"><table class="table-comptes" data-cartes>
+<thead><tr><th>Compte</th><th>Rôle</th><th>Connexion</th><th>État</th><th>Dernière connexion</th><th aria-label="Actions"></th></tr></thead>
 <tbody>
-{{range .D}}<tr>
-  <td>{{.Nom}}</td><td>{{.Role}}</td>
-  <td>{{if .TOTP}}Oui{{else}}<span class="pastille attention">À créer</span>{{end}}</td>
-  <td>{{if .Desactive}}<span class="pastille erreur">Désactivé</span>{{else}}Actif{{end}}</td>
-  <td>{{dateS .ConnecteLe}}</td>
+{{range $d.Lignes}}<tr{{if .Desactive}} class="desactive"{{end}}>
+  <td><span class="avatar-compte" aria-hidden="true">{{initiale .Nom}}</span><strong>{{.Nom}}</strong>{{if .Moi}} <span class="pastille">vous</span>{{end}}</td>
+  <td><span class="pastille{{if egal .Role "admin"}} info{{end}}">{{.Role}}</span></td>
+  <td>{{if .TOTP}}<span class="pastille ok">2FA</span>{{else}}<span class="pastille attention">2FA à créer</span>{{end}}
+    {{if .Passkeys}}<span class="pastille ok">{{.Passkeys}} {{accord .Passkeys "passkey(s)"}}</span>{{end}}
+    {{if and .TOTP (not .Secours)}}<span class="pastille" title="Codes de secours : « Mon compte » de la personne">pas de codes de secours</span>{{end}}</td>
+  <td>{{if .Desactive}}<span class="pastille">Désactivé</span>{{else}}<span class="pastille ok">Actif</span>{{end}}</td>
+  <td>{{if .ConnecteLe}}{{depuisS .ConnecteLe}}{{else}}<span class="doux">jamais</span>{{end}}</td>
   <td>
-    <details><summary>Modifier</summary>
+    <details class="actions-compte"><summary class="bouton secondaire petit">Modifier ▾</summary>
     <form method="post" action="/utilisateurs" class="pile">
       {{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.Nom}}">
-      <label>Action <select name="action">
-        <option value="role">Changer le rôle</option>
-        <option value="mot_de_passe">Nouveau mot de passe</option>
-        <option value="reinitialiser_2fa">Effacer la 2FA</option>
-        {{if .Desactive}}<option value="activer">Réactiver</option>{{else}}<option value="desactiver">Désactiver</option>{{end}}
-        <option value="supprimer">Supprimer</option>
-      </select></label>
-      <label>Rôle <select name="role"><option value="lecture" {{if egal .Role "lecture"}}selected{{end}}>Lecture</option><option value="admin" {{if egal .Role "admin"}}selected{{end}}>Admin</option></select></label>
-      <label>Mot de passe (si « nouveau mot de passe ») <input type="password" name="mot_de_passe" maxlength="128" autocomplete="new-password"></label>
+      <div class="ligne"><label>Rôle <select name="role"><option value="lecture" {{if egal .Role "lecture"}}selected{{end}}>Lecture</option><option value="admin" {{if egal .Role "admin"}}selected{{end}}>Admin</option></select></label>
+      <button name="action" value="role" class="secondaire petit">Changer le rôle</button></div>
+      <div class="ligne"><label>Nouveau mot de passe <input type="password" name="mot_de_passe" maxlength="128" autocomplete="new-password" placeholder="12 caractères au moins"></label>
+      <button name="action" value="mot_de_passe" class="secondaire petit">Changer le mot de passe</button></div>
       {{template "code2fa-toujours"}}
-      <button data-confirmer="Appliquer cette action au compte {{.Nom}} ?">Appliquer</button>
+      <div class="ligne">
+        <button name="action" value="reinitialiser_2fa" class="secondaire petit" data-confirmer="Effacer la 2FA de {{.Nom}} ? Il la recréera à sa prochaine connexion.">Effacer la 2FA</button>
+        {{if .Desactive}}<button name="action" value="activer" class="secondaire petit">Réactiver</button>{{else}}<button name="action" value="desactiver" class="secondaire petit" data-confirmer="Désactiver {{.Nom}} ? Ses sessions sont fermées.">Désactiver</button>{{end}}
+        <button name="action" value="supprimer" class="danger petit" data-confirmer="Supprimer définitivement le compte {{.Nom}} ?">Supprimer</button>
+      </div>
     </form></details>
   </td>
 </tr>{{end}}
-</tbody></table></div>
+</tbody></table></div></section>
 
-<section class="carte">
+<section class="carte" id="nouveau">
 <h2>Nouveau compte</h2>
-<form method="post" action="/utilisateurs" class="pile">
+<form method="post" action="/utilisateurs" class="ligne">
   {{template "csrf" .CSRF}}<input type="hidden" name="action" value="creer">
-  <label>Nom <input name="nom" required pattern="[a-z0-9][a-z0-9._\-]{1,31}" maxlength="32"></label>
+  <label>Nom <input name="nom" required pattern="[a-z0-9][a-z0-9._\-]{1,31}" maxlength="32" size="14"></label>
   <label>Rôle <select name="role"><option value="lecture">Lecture</option><option value="admin">Admin</option></select></label>
-  <label>Mot de passe provisoire (12 caractères au moins) <input type="password" name="mot_de_passe" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+  <label>Mot de passe provisoire <input type="password" name="mot_de_passe" minlength="12" maxlength="128" required autocomplete="new-password" size="18" placeholder="12 caractères au moins"></label>
   {{template "code2fa-toujours"}}
   <button>Créer</button>
 </form>
+<p class="aide"><small class="aide">La personne choisit son mot de passe et crée sa 2FA à la première connexion.</small></p>
 </section>
 {{end}}

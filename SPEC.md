@@ -5184,3 +5184,90 @@ autres disparaissaient sans le dire), triées par nom, 20 px par ligne.
   tout ». S'il n'y a que des alertes prises en charge : « Rien à traiter »
   au lieu de « Tout va bien ».
 - Corrigé au passage : « depuis il y a 10 min » → « depuis 10 min ».
+
+## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Fait, à valider]**
+
+Maquettes présentées le 16/11 ; toutes retenues, barre d'enregistrement en
+bas, dans la même pull request que § 36 et § 37.
+
+### 38.1 Raccourcis retirés de la page Tableaux
+
+- « Logs » et « Flux entrants bloqués » n'étaient que des liens vers des
+  pages déjà dans le menu Logs : retirés. Le réglage `tableaux.pages`
+  éventuellement en base est ignoré.
+
+### 38.2 Bloc « Général » des notifications rangé à sa place
+
+| Réglage | Avant | Maintenant |
+|---|---|---|
+| Mode (ombre / actif) | liste dans « Général » | bandeau en haut de Notifications, bouton « Activer l'envoi » / « Passer en ombre » (code 2FA) |
+| Adresse de l'interface (lien dans les messages) | « Général » | Réglages › Interface, carte « Adresse de cette interface » |
+| Fuseau des messages | « Général » (doublon) | **un seul fuseau**, celui de Réglages › Interface ; l'enregistrer aligne celui des messages (message tant qu'ils diffèrent) |
+| Regrouper par (étiquettes) | « Général » | carte « Routage par gravité » |
+| Règles « machine en panne » | « Général » | Alertes › Silences et maintenances › Dépendances |
+
+- Stockage inchangé (réglages des notifications) : export / import YAML
+  identiques. Le formulaire des notifications **garde** ces valeurs quand
+  elles n'y sont plus (test : le formulaire de la page est renvoyé tel quel).
+
+### 38.3 Notifications (N)
+
+- Résumé en tête : principal et son état, secours (orange si aucun), file
+  d'attente, heartbeat. Bandeau « Envoi des notifications » (mode).
+- Une **carte par canal** : icône, état (« Actif · principal », « En
+  panne », « Inactif »), une ligne utile, « Régler ▾ » (actif) ou
+  « Configurer ▾ » (inactif) qui déplie ses champs, « Tester ».
+- « Principal, secours, bascule » : vérifications et adresses privées
+  repliées dans « Avancé ». Derniers tests et comparaison vmalert repliés.
+- **Barre d'enregistrement collée en bas** (sur ordinateur) : « N
+  changements non enregistrés », « Rétablir les valeurs par défaut » en
+  simple lien, « Inverser », code 2FA, « Enregistrer ».
+
+### 38.4 Accueil des Réglages (R)
+
+- Chaque carte : icône et **état du moment** (pastille orange = à
+  regarder) : canaux et mode ; place prise sur le plafond (jauge) ;
+  dernière sauvegarde (orange si aucune ou plus de 2 jours) ; jours restants
+  du certificat le plus proche de sa fin (orange sous 14 j) ; tailles des
+  listes ; fuseau et adresses à renseigner ; dernier export (journal d'audit).
+- « Ailleurs dans mirador » : une liste de liens (au lieu de 6 cartes),
+  avec « 3 comptes » et « N points à regarder » (bilan de sécurité).
+
+### 38.5 Utilisateurs (U)
+
+- « + Nouveau compte » en haut ; formulaire de création sur une ligne.
+- Résumé : comptes actifs, admins, sans 2FA, désactivés.
+- Pastilles : rôle, 2FA (ou « à créer »), passkeys, « pas de codes de
+  secours », état ; « vous » ; dernière connexion en « il y a… ».
+- « Modifier ▾ » : un bouton par action (rôle, mot de passe, effacer la
+  2FA, désactiver / réactiver, supprimer en rouge) au lieu d'une liste
+  « Action » ; code 2FA toujours demandé, comme avant.
+
+### 38.6 Sécurité (S)
+
+- **Bilan** en tête : ✓ ce qui va bien, ! ce qui est à regarder (comptes
+  sans 2FA, interface ouverte à toutes les adresses), avec un lien.
+- Trois cartes : Sessions, Verrouillage, Accès. Les durées se saisissent
+  dans l'**unité affichée** à côté du champ (« 30 » min, « 12 » h) ; une
+  durée écrite (« 1h30m ») reste acceptée et s'affiche telle quelle.
+- Barre d'enregistrement en bas, « Rétablir » en simple lien.
+- Sessions : « cette session », heures en « il y a… », **« Fermer toutes
+  les autres »** (journal d'audit : `sessions_fermees`).
+- L'avertissement « Votre adresse… à confirmer sous 2 min » reste visible
+  en mode « Sans aides ».
+
+### 38.7 Corrigé au passage
+
+- Conservation : colonne « Limites » coupée (formulaire trop étroit).
+- Utilisateurs : plus de flèches de tri sur la colonne des actions.
+
+### 38.8 Coût et menaces
+
+- Affichage seulement : lectures en base à l'ouverture des pages (réglages,
+  comptes, passkeys, une requête sur le journal d'audit). Rien de collecté,
+  rien gardé en mémoire.
+- Mêmes contrôles qu'avant : code 2FA (ou mode administration) pour les
+  réglages, code 2FA à chaque action sur un compte ; le passage en mode
+  actif reste refusé si le canal principal n'est pas configuré.
+- « Fermer toutes les autres » : réservé aux admins, comme « Fermer », et
+  ne ferme jamais la session qui le demande.

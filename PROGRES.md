@@ -931,6 +931,20 @@ requête HTTPS vers github.com au plus toutes les 10 min (quelques dizaines
 de Ko), seulement à l'ouverture de la page par un admin ; écran mural, rien
 de plus (les alertes prises en charge étaient déjà lues).
 
+### Réglages, Utilisateurs, Sécurité (SPEC § 38, 16/11)
+
+| Partie | État |
+|---|---|
+| Raccourcis « Logs » et « Flux bloqués » retirés de Tableaux | **fait**, testé |
+| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; à valider |
+| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; à valider |
+| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; à valider |
+| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; à valider |
+| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; à valider |
+
+Coût : affichage seulement (quelques lectures en base à l'ouverture des
+pages) ; rien de collecté ni gardé en mémoire.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

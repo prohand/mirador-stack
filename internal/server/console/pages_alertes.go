@@ -193,6 +193,9 @@ type donneesSourdine struct {
 	Dependances  []notif.Dependance
 	Machines     []string
 	Jours        []string
+	// ReglesPanne : règles qui veulent dire « machine en panne » (réglage
+	// des notifications, modifié ici depuis le 16/11, SPEC § 38).
+	ReglesPanne []string
 }
 
 func (c *Console) pageSourdine(q *req) {
@@ -209,6 +212,9 @@ func (c *Console) pageSourdine(q *req) {
 		d.Machines = append(d.Machines, m.Nom)
 	}
 	d.Jours = []string{"lun", "mar", "mer", "jeu", "ven", "sam", "dim"}
+	if rn, err := notif.LireReglages(ctx, c.db); err == nil {
+		d.ReglesPanne = rn.ReglesPanne
+	}
 	if err := errors.Join(e[:]...); err != nil {
 		c.flash(q, "", err.Error())
 	}
