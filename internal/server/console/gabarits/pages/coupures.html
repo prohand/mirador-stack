@@ -1,0 +1,23 @@
+{{define "contenu"}}
+<h1>Coupures de site</h1>
+{{template "onglets-alertes" "coupures"}}
+{{template "sites-injoignables" .D.Sites}}
+<p class="sous">Une coupure : au moins 2 machines d'un même site en panne (AgentMuet…) à moins de 10 min d'écart, sur les 30 derniers jours. Pendant la coupure, chaque agent garde ses données en mémoire et les renvoie au retour ; le serveur accepte jusqu'à 24 h de retard.</p>
+{{if .D.Choisie}}{{$c := .D.Choisie}}<section class="carte"><h2>Bilan : site {{$c.Site}}, {{date $c.Debut}} → {{if $c.Fin.IsZero}}<strong>en cours</strong>{{else}}{{date $c.Fin}}{{end}} ({{duree ($c.Duree .D.Le)}})</h2>
+<div class="defile"><table data-cartes><thead><tr><th>Machine</th><th>Muette</th><th>Relevés reçus pour la coupure</th><th>File d'attente max</th><th>Lots jetés (métriques · logs)</th><th>Autonomie du tampon</th><th>État</th></tr></thead><tbody>
+{{range .D.Bilan}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
+<td>{{date .Muette}} → {{if .Revenue.IsZero}}<strong>encore muette</strong>{{else}}{{date .Revenue}}{{end}}</td>
+<td>{{if ge .Couverture 0}}{{.Couverture}} %{{else}}—{{end}}</td>
+<td>{{.FileMax}}{{if ge .FilePct 0}} <small class="pale">({{.FilePct}} % de 8 Mo)</small>{{end}}</td>
+<td>{{if ge .Jetes 0}}{{.Jetes}}{{else}}—{{end}} · {{if ge .LogsJetes 0}}{{.LogsJetes}}{{else}}—{{end}}</td>
+<td>{{.Autonomie}}{{if not .Limite.IsZero}} <small class="pale">(jusqu'au {{date .Limite}})</small>{{end}}</td>
+<td>{{if .Classe}}<span class="pastille {{.Classe}}">{{.Etat}}</span>{{else}}{{.Etat}}{{end}}</td></tr>{{end}}
+</tbody></table></div>
+<p class="sous">Relevés reçus : relevés de l'agent datés de la coupure, comparés à l'heure d'avant (0 % tant que la machine est muette, ~100 % une fois rattrapé). File d'attente et lots jetés : lus jusqu'à 1 h après le retour. Autonomie : tampon par défaut de l'agent (8 Mo) divisé par ce qu'il envoyait dans l'heure d'avant ; au-delà, les plus anciens lots sont jetés et comptés.</p>
+</section>{{else if .D.Site}}<p class="vide">Aucune coupure trouvée pour le site {{.D.Site}} sur 30 jours.</p>{{end}}
+<section class="carte"><h2>Coupures des 30 derniers jours ({{len .D.Coupures}})</h2>
+{{if .D.Coupures}}<div class="defile"><table data-cartes><thead><tr><th>Site</th><th>Début</th><th>Fin</th><th>Durée</th><th>Machines</th><th></th></tr></thead><tbody>
+{{range .D.Coupures}}<tr><td>{{.Site}}</td><td>{{date .Debut}}</td><td>{{if .Fin.IsZero}}<strong>en cours</strong>{{else}}{{date .Fin}}{{end}}</td><td>{{duree (.Duree $.D.Le)}}</td><td>{{joindre .Machines}}</td><td><a href="{{.Lien}}">Bilan</a></td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune coupure de site sur 30 jours.</p>{{end}}
+</section>
+{{end}}

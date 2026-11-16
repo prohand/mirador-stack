@@ -150,9 +150,10 @@ type donneesAccueil struct {
 	Critiques, Avertissements    int
 	Infos, Actives               int // Actives : alertes actives hors sourdine
 	Alertes                      []resumeAlerte
-	Attente                      []resumeAlerte // conditions pas encore des alertes
-	Prises                       []resumeAlerte // prises en charge (acquittées), SPEC § 30
-	Masquees                     []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
+	Attente                      []resumeAlerte          // conditions pas encore des alertes
+	Prises                       []resumeAlerte          // prises en charge (acquittées), SPEC § 30
+	Masquees                     []resumeAlerte          // conséquences d'une alerte plus grave (bloc replié)
+	Sites                        []notif.SiteInjoignable // sites injoignables (SPEC § 39)
 	Canaux                       []notif.EtatCanal
 	Mode                         string
 	DerniereSauvegarde           sauvegarde.Execution
@@ -216,6 +217,7 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	}
 	if c.opt.Aiguilleur != nil {
 		d.Mode = c.opt.Aiguilleur.Mode()
+		d.Sites = c.opt.Aiguilleur.SitesInjoignables()
 	}
 	d.DerniereSauvegarde, d.SauvegardeOK, _ = sauvegarde.DerniereReussie(ctx, c.db)
 	if c.opt.Metriques != nil {

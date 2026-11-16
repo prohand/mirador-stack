@@ -163,10 +163,12 @@ func fonctions() template.FuncMap {
 		// sansIlYA : « il y a 5 min » → « 5 min » (colonne dont le titre le dit déjà).
 		"sansIlYA": func(s string) string { return strings.TrimPrefix(s, "il y a ") },
 		"depuisMs": depuis,
-		"duree":    func(d time.Duration) string { return dureeLisible(d) },
-		"dureeC":   dureeCourte,
-		"enUnite":  enUnite,
-		"ancre":    ancre,
+		// joindre : « a, b, c » (liste de noms).
+		"joindre": func(l []string) string { return strings.Join(l, ", ") },
+		"duree":   func(d time.Duration) string { return dureeLisible(d) },
+		"dureeC":  dureeCourte,
+		"enUnite": enUnite,
+		"ancre":   ancre,
 		"periodeFr": func(p string) string { // « 7d » → « 7 j », « 6h » → « 6 h »
 			return strings.NewReplacer("d", " j", "h", " h", "w", " sem.").Replace(p)
 		},

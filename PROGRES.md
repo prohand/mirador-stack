@@ -945,6 +945,36 @@ de plus (les alertes prises en charge étaient déjà lues).
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
 
+## Coupure d'internet du site (16/11, SPEC § 39 et § 40)
+
+Coupure d'internet chez l'utilisateur le **16/11 à 10:31** : plus rien
+n'arrive au serveur depuis le site. En cours au moment d'écrire.
+
+| Partie | État |
+|---|---|
+| Un seul message « Site X injoignable » quand toutes les machines d'un site se taisent, un seul au retour ; bandeau sur l'accueil et Alertes | **fait**, testé (simulation : 3 machines, retour échelonné) ; à valider |
+| Page Alertes › Coupures : coupures retrouvées dans l'historique, bilan par machine (relevés rattrapés, file d'attente, lots jetés, autonomie du tampon) | **fait**, testé (métriques simulées) ; à valider sur la coupure du 16/11 |
+| Guide de l'étape 7 (`docs/bascule-finale.md`) | **écrit** ; à valider |
+| SPEC § 18.27 : titre remis à jour (propositions traitées) | **fait** |
+
+Mesures (banc d'essai) :
+
+| Quoi | Mesure | Objectif serveur (SPEC § 7.1) |
+|---|---|---|
+| Calcul « site injoignable » (toutes les 5 s) | 57 µs pour 300 machines toutes en panne, 53 Ko alloués puis libérés (~0,001 % d'un cœur) | négligeable ✅ |
+| Page des coupures | 3 à 9 ms, 18 Ko de HTML (2 machines, 5 h de relevés) ; 7 requêtes par machine, seulement à l'ouverture | négligeable ✅ |
+| Base, disque | rien de nouveau en base ni sur disque ; une requête SQL de plus par minute | ✅ |
+
+Au retour d'internet (à coller dans une nouvelle session) :
+- heure de retour ;
+- copie (ou capture) de Alertes › Coupures après la mise à jour du
+  serveur : la coupure du 16/11 y apparaît (si les machines ont leur site) ;
+- si la coupure dépasse ~19 h, des lots auront été jetés : la page le dira.
+
+Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
+manquante chez mirador est normale (mirador ne reçoit pas le metric
+server) : à désactiver dans Règles.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.
@@ -995,20 +1025,23 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 ## Prochaine étape
 
-Mise à jour le 16/11 (SPEC § 36 à 38 validés ; PR #37 fusionnée).
+Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
 
-1. Étape 6, partie 7 : bascule du collecteur sur le LAN
-   (`docs/bascule-collecteur.md`), avec toi :
-   - installer `mirador-collector` et le régler (§ 1) ;
-   - brancher OPNsense (InfluxDB + syslog TLS), le NAS (SNMP v3 : coller
-     d'abord la sortie du `snmpwalk` ci-dessus) et UniFi ;
-   - quelques jours en parallèle d'Alloy et d'unpoller, puis comparer (§ 2) ;
-   - mesures 24 h à coller (§ 3), avec celle du nœud Proxmox (pas encore faite) ;
-   - arrêt d'Alloy et d'unpoller **seulement après validation** (§ 4).
-2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
-3. Étape 7 : bascule finale (coupure d'Alertmanager, qui envoie encore les
-   alertes en double ; retrait de l'ancienne stack), après validation de l'étape 6.
-4. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+1. Pendant la coupure : rien à faire. Noter l'heure du retour.
+2. Au retour : mettre à jour le serveur (site injoignable, page Coupures),
+   vérifier la page Alertes › Coupures (bilan de la coupure du 16/11),
+   désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
+3. Valider SPEC § 39 (site injoignable, coupures) et § 40 (guide de l'étape 7).
+4. Étape 6, partie 7 : bascule du collecteur sur le LAN
+   (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
+   d'abord, puis installation, quelques jours en parallèle, mesures 24 h
+   (collecteur et nœud Proxmox), arrêt d'Alloy et d'unpoller **sur
+   validation**.
+5. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+6. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
+   validation de l'étape 6. Question à trancher avant la phase C : garder
+   Grafana (API de lecture compatible Prometheus, à étudier) ou non.
+7. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.

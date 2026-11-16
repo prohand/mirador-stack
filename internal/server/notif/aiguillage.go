@@ -67,6 +67,10 @@ type Aiguilleur struct {
 	gens       map[string]int64
 	chargeLe   time.Time
 	enSourd    map[uint64]string // dernière raison de sourdine par alerte (affichage)
+	// deplacees : alertes passées dans le groupe de leur site (site
+	// injoignable) → clé de ce groupe, pour y ranger aussi leur fin.
+	deplacees map[uint64]string
+	sitesBas  map[string]SiteInjoignable // sites injoignables au dernier tour
 }
 
 // Nouveau crée l'aiguillage. Les alertes déjà actives (redémarrage) sont
@@ -78,7 +82,8 @@ func Nouveau(ctx context.Context, opt Options) (*Aiguilleur, error) {
 	if opt.Maintenant == nil {
 		opt.Maintenant = time.Now
 	}
-	g := &Aiguilleur{opt: opt, groupes: map[string]*groupe{}, gens: map[string]int64{}, enSourd: map[uint64]string{}}
+	g := &Aiguilleur{opt: opt, groupes: map[string]*groupe{}, gens: map[string]int64{}, enSourd: map[uint64]string{},
+		deplacees: map[uint64]string{}}
 	if err := g.recharger(ctx, true); err != nil {
 		return nil, err
 	}
@@ -102,8 +107,11 @@ func (g *Aiguilleur) Recevoir(evs []alertes.Evenement) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for _, e := range evs {
-		gr := g.groupeDe(e.Alerte, t)
 		h := e.Alerte.Etiquettes.Hash()
+		gr := g.groupes[g.deplacees[h]] // alerte rangée dans le groupe de son site
+		if gr == nil {
+			gr = g.groupeDe(e.Alerte, t)
+		}
 		s := gr.alertes[h]
 		switch {
 		case e.Type == "debut":
@@ -219,6 +227,10 @@ func (g *Aiguilleur) Tour(ctx context.Context) {
 	for _, a := range actives {
 		parEmpreinte[a.Etiquettes.Hash()] = a
 	}
+	// Site injoignable (site.go) : les pannes de ses machines passent dans
+	// un seul groupe, donc un seul message.
+	g.sitesBas = g.sourdine.sitesInjoignables(actives)
+	g.regrouperSites(g.sitesBas, t)
 	enSourd := map[uint64]string{}
 	var messages []*Message
 	cles := make([]string, 0, len(g.groupes))
@@ -262,12 +274,16 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 				resolues = append(resolues, s.a)
 			} else {
 				delete(gr.alertes, h) // jamais annoncée : sa fin ne l'est pas non plus
+				delete(g.deplacees, h)
 			}
 			continue
 		}
 		if raison := g.sourdine.Raison(&s.a, actives, t); raison != "" {
 			enSourd[h] = raison
 			continue
+		}
+		if g.retenue(gr, s, t) {
+			continue // tout le site va peut-être tomber : on attend un peu
 		}
 		if rang(s.a.Gravite) < rang(gravite) {
 			gravite = s.a.Gravite
@@ -282,7 +298,10 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 		gravite = resolues[0].Gravite
 	}
 	route := g.reglages.Routes[gravite]
-	m := &Message{Le: t, Groupe: gr.cle, Gravite: gravite, Son: route.Son}
+	m := &Message{Le: t, Groupe: gr.cle, Gravite: gravite, Son: route.Son, Site: groupeSite(gr.cle)}
+	if m.Site != "" && retourEnCours(resolues, append(nouvelles, toujours...), t) {
+		return nil // des machines du site reviennent : on attend les autres
+	}
 	switch {
 	case len(nouvelles)+len(resolues) > 0:
 		attendre := gr.cree.Add(time.Duration(route.Attente))
@@ -331,6 +350,7 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 	for h, s := range gr.alertes {
 		if s.resolue {
 			delete(gr.alertes, h)
+			delete(g.deplacees, h)
 		} else if _, sourd := enSourd[h]; !sourd {
 			s.notifiee = true
 		}

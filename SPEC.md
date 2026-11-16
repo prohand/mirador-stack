@@ -2780,7 +2780,7 @@ Menaces :
 | Compte GitHub piraté | peut signer : protéger le compte (2FA, clés de sécurité) ; c'était déjà le cas (le code venait de GitHub) |
 | GitHub ou réseau qui sert un autre fichier | signature vérifiée avec la clé réglée ; empreinte et taille vérifiées |
 
-### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions à valider]**
+### 18.27 Deuxième revue du 11/11 : connexion et architecture **[Correction faite ; propositions traitées : § 18.28, § 18.29, réseau Docker à l'étape 7 (§ 40)]**
 
 Revue en lecture du code de connexion (mot de passe, 2FA, sessions,
 verrous), du déploiement et de l'organisation du code.
@@ -2791,7 +2791,7 @@ Corrigé (gravité moyenne) :
 |---|---|
 | Verrou contournable par une rafale : le verrou était lu avant le calcul, l'échec compté après. Des requêtes envoyées en même temps passaient toutes le contrôle. Mesuré : 40 mots de passe essayés au lieu de 5 depuis une adresse (`TestRafaleMotsDePasse`). Même principe pour les codes 2FA (mesuré : 6 au lieu de 5 ; en théorie plus avec beaucoup de sessions partielles) | un essai est **réservé avant** la vérification (`verrous.debuter`) : échecs récents + essais en cours ≥ seuil → refus (429, non compté, écrit dans le journal). Appliqué au mot de passe, au code 2FA, aux actions sensibles et au changement de mot de passe. Coût : une table en mémoire qui ne contient que les requêtes en cours |
 
-Propositions de sécurité (non faites, à valider) :
+Propositions de sécurité (état au 16/11) :
 
 | Gravité | Constat | Proposition |
 |---|---|---|
@@ -2809,7 +2809,7 @@ TOTP, CSRF, CSP sans script en ligne, corps limité à 1 Mio, adresse du
 client prise seulement derrière le proxy déclaré, nom d'utilisateur sensible
 à la casse (pas de contournement du verrou par « Admin »).
 
-Propositions d'architecture (non faites, à valider) :
+Propositions d'architecture (état au 16/11) :
 
 | Sujet | Constat | Proposition | Coût |
 |---|---|---|---|
@@ -5271,3 +5271,125 @@ bas, dans la même pull request que § 36 et § 37.
   actif reste refusé si le canal principal n'est pas configuré.
 - « Fermer toutes les autres » : réservé aux admins, comme « Fermer », et
   ne ferme jamais la session qui le demande.
+
+## 39. Site injoignable et page des coupures (demande du 16/11) **[Fait, à valider]**
+
+Contexte : le 16/11 à 10:31, le site de l'utilisateur a perdu internet.
+Toutes ses machines se sont tues ; mirador (sur le VPS) envoyait une alerte
+`AgentMuet` par machine.
+
+### 39.1 Un seul message pour un site injoignable
+
+- **Machines d'un site** : agents et collecteurs approuvés, avec un site,
+  vus dans les dernières 24 h ; les équipements relevés par un collecteur
+  ne comptent pas (ils suivent déjà leur collecteur par la dépendance).
+  Au moins 2 machines, sinon rien ne change.
+- **Site injoignable** : chacune de ses machines a une alerte de panne
+  active (réglage « règles de panne » : `AgentMuet`, `ProxmoxMuet`…).
+  Calculé par l'aiguillage des notifications toutes les 5 s, à partir des
+  alertes actives : pas de règle de plus, pas de métrique de plus.
+- **Attente** : la panne d'une machine qui partage son site est annoncée
+  2 min après son début (`AttenteSite`), le temps que les autres machines
+  coupées en même temps aient aussi leur alerte (`AgentMuet` évaluée chaque
+  minute). Coût : une machine seule en panne est annoncée 2 min plus tard.
+- **Regroupement** : les pannes des machines d'un site injoignable passent
+  dans un groupe « site » : **un message** « 📡 Site X injoignable » (une
+  ligne : machines muettes, depuis quand, lien vers la page des coupures),
+  puis les rappels habituels (2 h pour une critique).
+- **Retour** : les machines reviennent à quelques secondes d'écart ; le
+  message de retour attend jusqu'à 3 min (`AttenteRetourSite`) qu'elles
+  soient toutes revenues : **un message** « ✅ Site X de nouveau
+  joignable », durée de la coupure, machines revenues.
+- Les alertes restent une par machine (page Alertes, prise en charge,
+  historique) : seul l'envoi est regroupé. Titre court pour le push, ntfy
+  et l'e-mail (« Site X injoignable (N machines) »).
+- **Bandeau** sur l'accueil et la page Alertes tant que le site est
+  injoignable, avec un lien vers la coupure.
+
+| Choix | Raison | Coût |
+|---|---|---|
+| Calcul dans l'aiguillage, pas une règle | une règle passerait par une métrique écrite chaque minute : 1 à 2 min de retard, donc des messages par machine avant celui du site | 57 µs toutes les 5 s pour 300 machines toutes en panne (banc), ~0,001 % d'un cœur ; une requête SQL de plus par minute |
+| Toutes les machines du site, pas « la plupart » | pas de faux « site injoignable » quand une machine sur trois redémarre | une coupure partielle (une machine sur le 4G) donne des messages par machine, comme avant |
+| Machines vues dans les 24 h | une machine éteinte depuis longtemps ne bloque pas la détection | — |
+
+Menaces : rien de nouveau exposé (calcul interne, pas de réglage, pas de
+saisie). Le seul risque est de retarder une alerte de panne de 2 min : on
+le garde court et seulement pour les machines qui partagent un site.
+
+### 39.2 Page « Coupures » (Alertes › Coupures)
+
+- **Coupures retrouvées dans l'historique des alertes** (30 jours) : au
+  moins 2 machines d'un même site en panne à moins de 10 min d'écart.
+  Marche aussi pour une coupure d'avant cette version (celle du 16/11).
+  Machines sans site : regroupées sous « (sans site) ».
+- **Bilan par machine**, lu dans la base de métriques :
+  - relevés reçus pour la coupure (`node_uname_info`), comparés à l'heure
+    d'avant : 0 % tant que la machine est muette, ~100 % une fois rattrapée ;
+  - taille maximale de la file d'attente de l'agent
+    (`mirador_agent_queue_bytes`), en % du tampon par défaut (8 Mo) ;
+  - lots jetés (file pleine) : `mirador_agent_queue_dropped_total` et
+    `mirador_logs_queue_dropped_total` ;
+  - autonomie du tampon : 8 Mo / débit envoyé dans l'heure d'avant
+    (`mirador_agent_sent_bytes_total`), et l'heure où il déborderait ;
+  - état : « gardées dans le tampon », « tampon sans doute plein »,
+    « rattrapage en cours », « rattrapé », « trou : N lots jetés ».
+- Mesure (banc, 2 machines, 5 h de relevés à 30 s) : 3 à 9 ms, 18 Ko de
+  HTML ; 7 requêtes par machine, seulement à l'ouverture de la page ; rien
+  en base, rien en mémoire entre deux pages.
+- Limite : le tampon de 8 Mo est la valeur par défaut ; un agent réglé
+  autrement (configuration distante) a une autre autonomie.
+
+Menaces : page en lecture (comme Alertes) ; le site et la date viennent de
+l'adresse et ne servent qu'à choisir parmi les coupures trouvées ; les noms
+de machines sont vérifiés (`reValeurVariable`) avant d'entrer dans une
+requête.
+
+### 39.3 Écarts vus dans la comparaison vmalert pendant la coupure
+
+- `ProxmoxMuet` manquante chez mirador : normal, la règle importée lit le
+  metric server de Proxmox (`cpustat_cpu`), que mirador ne reçoit pas. La
+  panne du nœud est couverte par `AgentMuet`. À désactiver dans Règles.
+- `ServiceDuModeleAbsent` en trop (10:54 → 17:28) : défaut déjà corrigé
+  le 16/11 (§ 34.6 : services attendus écrits seulement pour une machine
+  qui répond) ; la fin à 17:28 correspond sans doute à la mise à jour du
+  serveur (à confirmer).
+- `AgentMuet` de `dhcpdns02` en trop 6 min (10:30 → 10:36) : mirador a vu la
+  machine muette avant vmalert ; explication probable : les deux chaînes de
+  données sont différentes (agent mirador d'un côté, Alloy de l'autre). Pas
+  un défaut de mirador.
+
+## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Guide écrit, à valider]**
+
+`docs/bascule-finale.md` : arrêt de l'ancienne stack en 5 phases, chacune
+réversible par une commande, **rien d'effacé avant la phase E** :
+
+| Phase | Quoi | Retour arrière |
+|---|---|---|
+| 0 | liste de contrôle (agents partout avec leur site, 7 jours de comparaison, heartbeat HetrixTools dans mirador, sauvegarde, mesure 24 h) | — |
+| A | arrêt d'Alertmanager (fin des alertes en double) | `docker start` |
+| B | machines : arrêt d'Alloy, des scripts `obs-*`, de `smartctl_exporter`, du metric server Proxmox | `systemctl enable --now` |
+| C | VPS : arrêt de VictoriaMetrics, VictoriaLogs, vmalert(-logs), Grafana ; nginx nettoyé (copie gardée) | `docker start`, copie de nginx |
+| D | réseau Docker dédié `mirador` (reporté au § 18.27) | copie du compose et de `server.conf` |
+| E | nettoyage, au moins 30 jours après, sur validation | aucun (définitif) |
+
+| Choix | Raison | Coût |
+|---|---|---|
+| `docker stop` + `--restart=no`, pas `docker compose down` | retour arrière en une commande ; rien n'est effacé | les volumes de l'ancienne stack gardent leur place disque jusqu'à la phase E |
+| Une machine à la fois, `srv-test` d'abord | une erreur ne touche qu'une machine | quelques jours de plus |
+| Lignes nginx et noms des services confirmés par une sortie collée | je n'ai pas accès au VPS : pas de commande devinée qui modifie | un aller-retour de plus |
+
+Gain attendu : ~770 Mio de RAM rendus (SPEC § 2.1), à mesurer après la
+phase C.
+
+Menaces :
+- Perte des notifications pendant la bascule : Alertmanager arrêté
+  seulement quand mirador est en mode actif, testé, avec le heartbeat
+  externe (HetrixTools) qui prévient si mirador se tait.
+- Perte de données : rien d'effacé avant 30 jours ; les agents gardent
+  ~19 h de données pendant un changement de réseau.
+- Phase D : `MIRADOR_PROXY` faux → adresses des machines mal lues
+  (refusées) ; le serveur refuse déjà de démarrer sans proxy ni TLS sur une
+  écoute ouverte ; corriger et relancer, rien n'est perdu. Réseau dédié :
+  plus aucun autre conteneur ne joint mirador sans passer par nginx.
+- Grafana : non gardé (API de lecture compatible Prometheus du brief non
+  faite, facultative) ; à demander avant la phase C.

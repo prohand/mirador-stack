@@ -158,6 +158,13 @@ func TestDemoInterface(t *testing.T) {
 		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
 	_, _ = s.db.Exec(`INSERT INTO certificats_syslog(machine_id, csr, csr_recue_le, etape, etape_le, etape_jusqua)
 		SELECT id, 'demande', ?, 'propagation', ?, ? FROM machines WHERE nom = 'collecteur-lan'`, now.Add(-2*time.Minute).Unix(), now.Add(-30*time.Second).Unix(), now.Add(30*time.Second).Unix())
+	// Coupure passée du site « maison » (SPEC § 39) : page Alertes › Coupures.
+	for i, m := range []string{"srv-test", "pve1"} {
+		_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin, resume, valeur_max)
+			VALUES ('AgentMuet', ?, 'critical', 'resolue', ?, ?, ?, ?, 1)`, `{"alertname":"AgentMuet","instance":"`+m+`","severity":"critical"}`,
+			now.Add(-5*time.Hour).UnixMilli(), now.Add(-5*time.Hour+time.Duration(i)*20*time.Second).UnixMilli(),
+			now.Add(-4*time.Hour-30*time.Minute+time.Duration(i)*15*time.Second).UnixMilli(), m+" ne remonte plus de métriques")
+	}
 	// Alerte passée et changement sur pve1 : bandes et traits des courbes (SPEC § 31).
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin, resume, valeur_max)
 		VALUES ('ChargeElevee', '{"alertname":"ChargeElevee","instance":"pve1","severity":"warning"}', 'warning', 'resolue', ?, ?, ?, 'Charge élevée sur pve1', 4)`,
