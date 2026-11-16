@@ -5056,7 +5056,7 @@ Objectif serveur (< 256 Mio, < 5 % d'un cœur) : inchangé.
   le nom de l'hôte dans le message (à ajouter à `hotesPush`).
 
 
-## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Fait, à valider]**
+## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Validé le 16/11]**
 
 Maquettes A, B, C présentées le 16/11 ; choix : **B** (liste par site avec
 filtres) + **C** (ajout guidé sur sa propre page). Les deux pastilles des
@@ -5137,7 +5137,7 @@ machines en attente sont acceptées.
   qui a le jeton et une adresse « connue » n'en a pas. Elles aident
   seulement à voir l'inattendu.
 
-## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Fait, à valider]**
+## 37. Carte du parc, liste des versions, écran mural (demandes du 16/11) **[Validé le 16/11]**
 
 ### 37.1 « Le parc sur 24 h » avec beaucoup de machines (choix 1 + 2 + 3)
 
@@ -5185,7 +5185,7 @@ autres disparaissaient sans le dire), triées par nom, 20 px par ligne.
   au lieu de « Tout va bien ».
 - Corrigé au passage : « depuis il y a 10 min » → « depuis 10 min ».
 
-## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Fait, à valider]**
+## 38. Réglages, Utilisateurs, Sécurité plus clairs (choix du 16/11 : R, N, U, S) **[Validé le 16/11]**
 
 Maquettes présentées le 16/11 ; toutes retenues, barre d'enregistrement en
 bas, dans la même pull request que § 36 et § 37.

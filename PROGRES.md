@@ -8,11 +8,11 @@
 | 2. Agent | **Validée et fusionnée le 09/11/2026** (PR #2 et #3) | `etape-2-agent` |
 | 3. Serveur et stockage | **Validée le 10/11/2026** (PR #4, fusion à confirmer) | `etape-3-serveur` |
 | 4. Alertes et notifications | **Validée le 10/11/2026** (PR à fusionner) | `claude/admiring-lamport-nqtigt` |
-| 5. Interface web | **faite, à valider** (parties 1 à 6) | `claude/admiring-wright-2n17eb` |
+| 5. Interface web | **Validée le 13/11/2026** (parties 1 à 6 ; SPEC § 36 à 38 validés le 16/11) | `claude/admiring-wright-2n17eb` |
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **Validée le 12/11/2026** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 5 quater. Élément par élément, signal « à valider », Réglages rangés | **Validée le 12/11/2026** (SPEC § 21, retours corrigés : § 22) | `claude/affectionate-albattani-izl0lb` |
-| 6. Équipements sans agent + `mirador-collector` | non commencée | — |
+| 6. Équipements sans agent + `mirador-collector` | **en cours** : parties 1 à 6 faites, partie 7 (bascule sur le LAN) à faire avec toi | `claude/intelligent-cori-yh3n7c` |
 | 7. Bascule | non commencée | — |
 
 ## Étape 1 — fait
@@ -900,9 +900,9 @@ Branche `claude/vibrant-meitner-a0xe1m`. Choix : B (liste par site, filtres)
 
 | Partie | État |
 |---|---|
-| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; à valider |
-| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; à valider |
-| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; à valider |
+| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; **validé le 16/11** |
+| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; **validé le 16/11** |
+| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; **validé le 16/11** |
 | Bug : `<body data-alertes>` cassait mirador.js (cartes téléphone, tri, Copier) | **corrigé**, test de non-régression |
 | Vu dans Chromium (écran large et iPhone 13 simulé) | **fait** |
 
@@ -922,9 +922,9 @@ Négligeable devant les objectifs du serveur (SPEC § 2).
 
 | Partie | État |
 |---|---|
-| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; à valider |
+| « Le parc sur 24 h » : tri par pic, 10 lignes puis « Voir les N autres », 100 au plus avec « + N non affichées », suit les filtres du tableau | **fait**, testé, vu dans Chromium (30 machines) ; **validé le 16/11** |
 | Import d'une version : liste des 5 dernières versions de GitHub (flux Atom, gardé 10 min), champ « ou autre » | **fait**, testé avec un faux GitHub ; à vérifier sur le VPS |
-| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; à valider |
+| Écran mural : bloc « Prises en charge », « Rien à traiter » au lieu de « Tout va bien » | **fait**, testé, vu dans Chromium ; **validé le 16/11** |
 
 Coût : carte du parc, aucune requête en plus ; liste des versions, une
 requête HTTPS vers github.com au plus toutes les 10 min (quelques dizaines
@@ -936,11 +936,11 @@ de plus (les alertes prises en charge étaient déjà lues).
 | Partie | État |
 |---|---|
 | Raccourcis « Logs » et « Flux bloqués » retirés de Tableaux | **fait**, testé |
-| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; à valider |
-| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; à valider |
-| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; à valider |
-| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; à valider |
-| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; à valider |
+| Bloc « Général » rangé : mode en haut, adresse et fuseau dans Interface, dépendances dans Silences | **fait**, testé (formulaire renvoyé tel quel : rien n'est perdu) ; **validé le 16/11** |
+| Notifications : cartes de canaux, résumé, barre d'enregistrement en bas | **fait**, testé, vu dans Chromium (écran large et téléphone) ; **validé le 16/11** |
+| Accueil des Réglages : état du moment sur chaque carte | **fait**, testé, vu ; **validé le 16/11** |
+| Utilisateurs : pastilles, boutons par action, création sur une ligne | **fait**, testé, vu ; **validé le 16/11** |
+| Sécurité : bilan, 3 cartes, durées avec unité, « Fermer toutes les autres » | **fait**, testé, vu ; **validé le 16/11** |
 
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
@@ -995,23 +995,20 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 ## Prochaine étape
 
-Mise à jour le 12/11 (serveur en 0.2.13 sur le VPS, agent en 0.2.11 avec
-mises à jour automatiques signées).
+Mise à jour le 16/11 (SPEC § 36 à 38 validés ; PR #37 fusionnée).
 
-1. 5 bis et 5 quater validées le 12/11 (serveur et agent en 0.2.17).
-   13/11 : serveur, agent et assistant root en 0.2.18 (assistant au
-   format 2, unité qui peut écrire son dossier, SPEC § 22.5). À confirmer
-   à la 0.2.19 : l'assistant root suit l'agent tout seul (journal
-   `mirador-agent-root`, `"version"` dans `/run/mirador-agent/root.json`).
-   0.2.19 : pas de mise à jour (manifeste effacé par le nettoyage, bug
-   corrigé en 0.2.20). **0.2.20 : validé le 13/11**, l'assistant root est
-   passé seul de 0.2.18 à 0.2.20 (signature vérifiée par root).
-2. Une seule machine pour l'instant (choix du 12/11) ; d'autres plus tard.
-3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
-4. Après quelques jours sans écart avec vmalert : mode **actif** (Telegram).
-   **Fait le 13/11** (aucun écart ; test Telegram OK). Alertmanager envoie
-   encore en parallèle : alertes en double quelques jours, puis coupure à
-   l'étape 7.
-5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
-6. Validation de l'étape 5 (et 5 bis, 5 quater), puis étape 6
-   (`mirador-collector` : Synology, UniFi, syslog OPNsense, Proxmox).
+1. Étape 6, partie 7 : bascule du collecteur sur le LAN
+   (`docs/bascule-collecteur.md`), avec toi :
+   - installer `mirador-collector` et le régler (§ 1) ;
+   - brancher OPNsense (InfluxDB + syslog TLS), le NAS (SNMP v3 : coller
+     d'abord la sortie du `snmpwalk` ci-dessus) et UniFi ;
+   - quelques jours en parallèle d'Alloy et d'unpoller, puis comparer (§ 2) ;
+   - mesures 24 h à coller (§ 3), avec celle du nœud Proxmox (pas encore faite) ;
+   - arrêt d'Alloy et d'unpoller **seulement après validation** (§ 4).
+2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+3. Étape 7 : bascule finale (coupure d'Alertmanager, qui envoie encore les
+   alertes en double ; retrait de l'ancienne stack), après validation de l'étape 6.
+4. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+
+Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
+mode **actif** (Telegram) depuis le 13/11.
