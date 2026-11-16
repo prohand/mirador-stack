@@ -1,7 +1,7 @@
 {{define "contenu"}}
 <h1>Utilisateurs</h1>
 <p>Rôles : <strong>admin</strong> (tout) ou <strong>lecture</strong> (consultation seule). Chaque action demande votre code 2FA.</p>
-<div class="defile"><table>
+<div class="defile"><table data-cartes>
 <thead><tr><th>Nom</th><th>Rôle</th><th>2FA</th><th>État</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
 <tbody>
 {{range .D}}<tr>

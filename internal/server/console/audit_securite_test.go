@@ -290,3 +290,85 @@ func TestSeparerMasquees(t *testing.T) {
 		}
 	}
 }
+
+// Lien d'une notification (SPEC § 34.5) : la page demandée est gardée
+// pendant la connexion, et jamais vers un autre site.
+func TestSuiteApresConnexion(t *testing.T) {
+	b := nouveauBanc(t)
+	c0, secret := b.premierAdmin("admin", mdpAdmin)
+	_ = c0
+	c := b.client()
+	_, _, h := b.get(c, "/alertes/12?onglet=graphique")
+	vers := h.Get("Location")
+	if vers != "/connexion?suite="+url.QueryEscape("/alertes/12?onglet=graphique") {
+		t.Fatalf("redirection : %s", vers)
+	}
+	_, corps, _ := b.get(c, vers)
+	if !strings.Contains(corps, `name="suite" value="/alertes/12?onglet=graphique"`) {
+		t.Fatal("page demandée absente du formulaire de connexion")
+	}
+	b.post(c, "/connexion", url.Values{"nom": {"admin"}, "mot_de_passe": {mdpAdmin}, "suite": {"/alertes/12?onglet=graphique"}})
+	_, corps, _ = b.get(c, "/connexion/code")
+	code, _, h := b.post(c, "/connexion/code", url.Values{"csrf": {trouver(t, reCSRF, corps)}, "code": {b.code(secret)}})
+	if code != http.StatusSeeOther || h.Get("Location") != "/alertes/12?onglet=graphique" {
+		t.Fatalf("après la connexion : %d %s", code, h.Get("Location"))
+	}
+	// Adresses refusées : autre site, pages de connexion, adresses des scripts.
+	for _, mauvaise := range []string{"https://ailleurs.example/x", "//ailleurs.example/x", `/\ailleurs.example`, "/connexion/code", "/deconnexion",
+		"/statique/mirador.js", "/donnees/courbe?x=1", "/fragments/alertes", "/", "", "/" + strings.Repeat("a", 600)} {
+		if s := suiteLocale(mauvaise); s != "" {
+			t.Errorf("suiteLocale(%q) = %q", mauvaise, s)
+		}
+	}
+	c2 := b.client()
+	b.post(c2, "/connexion", url.Values{"nom": {"admin"}, "mot_de_passe": {mdpAdmin}, "suite": {"https://ailleurs.example/x"}})
+	_, corps, _ = b.get(c2, "/connexion/code")
+	if _, _, h := b.post(c2, "/connexion/code", url.Values{"csrf": {trouver(t, reCSRF, corps)}, "code": {b.code(secret)}}); h.Get("Location") != "/" {
+		t.Fatalf("suite vers un autre site suivie : %s", h.Get("Location"))
+	}
+}
+
+// Lien ouvert depuis un autre site : page relais (le cookie Strict n'est pas
+// envoyé au premier passage), seulement pour l'affichage d'une page.
+func TestRelaisLienExterne(t *testing.T) {
+	b := nouveauBanc(t)
+	b.premierAdmin("admin", mdpAdmin)
+	c := b.client()
+	demande := func(methode, chemin string, entetes ...string) (int, string, http.Header) {
+		r, _ := http.NewRequest(methode, b.srv.URL+chemin, nil)
+		for i := 0; i+1 < len(entetes); i += 2 {
+			r.Header.Set(entetes[i], entetes[i+1])
+		}
+		resp, err := c.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var corps bytes.Buffer
+		_, _ = corps.ReadFrom(resp.Body)
+		return resp.StatusCode, corps.String(), resp.Header
+	}
+	externe := []string{"Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "navigate", "Sec-Fetch-Dest", "document"}
+	code, corps, _ := demande(http.MethodGet, "/alertes/7?a=1&b=2", externe...)
+	if code != http.StatusOK || !strings.Contains(corps, `http-equiv="refresh" content="0;url=/alertes/7?a=1&amp;b=2"`) {
+		t.Fatalf("relais : %d %s", code, corps)
+	}
+	// Rechargement « de l'intérieur » : plus de relais (pas de boucle).
+	if code, _, h := demande(http.MethodGet, "/alertes/7", "Sec-Fetch-Site", "same-origin", "Sec-Fetch-Mode", "navigate", "Sec-Fetch-Dest", "document"); code != http.StatusSeeOther ||
+		!strings.HasPrefix(h.Get("Location"), "/connexion") {
+		t.Fatalf("après le relais : %d %s", code, h.Get("Location"))
+	}
+	// Jamais de relais vers un autre site, ni pour une image ou un cadre.
+	// (Go ramène déjà « //hôte/x » à « /hôte/x », une page de ce site.)
+	if _, corps, h := demande(http.MethodGet, "//ailleurs.example/x", externe...); strings.Contains(corps, "url=//") || strings.Contains(corps, `href="//`) ||
+		strings.HasPrefix(h.Get("Location"), "//") {
+		t.Fatalf("relais vers un autre site :\n%s", corps)
+	}
+	if code, _, _ := demande(http.MethodGet, "/alertes/7", "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "no-cors", "Sec-Fetch-Dest", "image"); code != http.StatusSeeOther {
+		t.Fatalf("image d'un autre site : %d", code)
+	}
+	// Une écriture venue d'un autre site reste refusée.
+	if code, _, _ := demande(http.MethodPost, "/alertes/7", externe...); code != http.StatusForbidden {
+		t.Fatalf("écriture d'un autre site : %d", code)
+	}
+}

@@ -56,8 +56,11 @@ func init() {
 		_ = zw.Close()
 		e := sha256.Sum256(b)
 		t := mime.TypeByExtension(path.Ext(p))
-		if path.Ext(p) == ".woff2" {
+		switch path.Ext(p) {
+		case ".woff2":
 			t = "font/woff2"
+		case ".webmanifest": // manifeste de l'application installée (PWA)
+			t = "application/manifest+json"
 		}
 		if t == "" {
 			t = "application/octet-stream"
@@ -157,6 +160,8 @@ func fonctions() template.FuncMap {
 			return t.In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
 		"depuisS":  func(s int64) string { return depuis(s * 1000) },
+		// sansIlYA : « il y a 5 min » → « 5 min » (colonne dont le titre le dit déjà).
+		"sansIlYA": func(s string) string { return strings.TrimPrefix(s, "il y a ") },
 		"depuisMs": depuis,
 		"duree":    func(d time.Duration) string { return dureeLisible(d) },
 		"dureeC":   dureeCourte,
@@ -430,6 +435,21 @@ func (g *gabarits) rendreSeule(w http.ResponseWriter, nom, titre string, d donne
 
 func (g *gabarits) rendreSeuleCode(w http.ResponseWriter, code int, nom, titre string, d donneesConnexion) {
 	g.executer(w, code, nom, pageSeule{Titre: titre, D: d})
+}
+
+// gabaritRelais : page relais d'un lien ouvert depuis un autre site (voir
+// versConnexion). Elle recharge tout de suite la même adresse ; le lien
+// reste là si le navigateur ne suit pas le rechargement.
+var gabaritRelais = template.Must(template.New("relais").Parse(`<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0;url={{.}}"><title>mirador</title></head>
+<body><p><a href="{{.}}">Ouvrir la page</a></p></body></html>
+`))
+
+// relais : vers est un chemin de ce site, déjà vérifié (suiteLocale).
+func (g *gabarits) relais(w http.ResponseWriter, vers string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = gabaritRelais.Execute(w, vers)
 }
 
 // lienMenu : une entrée du menu latéral.

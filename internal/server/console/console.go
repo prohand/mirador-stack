@@ -367,12 +367,59 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 
 // versConnexion : page de connexion pour une page, 401 pour un appel de
 // script (fetch) ou une écriture.
+//
+// Deux aides pour les liens reçus ailleurs (notification Telegram, e-mail,
+// favori), SPEC § 34.5 :
+//   - la page demandée est gardée (« suite ») : on y arrive après la
+//     connexion, au lieu de l'accueil ;
+//   - lien ouvert depuis un autre site : le navigateur n'envoie pas le
+//     cookie de session (SameSite=Strict), même si l'on est connecté. Une
+//     page relais recharge alors la même adresse « de l'intérieur » : cette
+//     fois le cookie part, et la page s'affiche sans se reconnecter. Le
+//     cookie reste Strict, et le relais ne sert que pour afficher une page
+//     (GET) : une écriture venue d'un autre site est toujours refusée.
 func (c *Console) versConnexion(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet && r.Header.Get("X-Requested-With") == "" {
-		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
+		suite := suiteLocale(r.URL.RequestURI())
+		if _, err := r.Cookie(auth.NomCookie); err != nil && suite != "" && lienExterne(r) {
+			c.pages.relais(w, suite)
+			return
+		}
+		vers := "/connexion"
+		if suite != "" {
+			vers += "?suite=" + url.QueryEscape(suite)
+		}
+		http.Redirect(w, r, vers, http.StatusSeeOther)
 		return
 	}
 	http.Error(w, "session expirée : se reconnecter", http.StatusUnauthorized)
+}
+
+// lienExterne : page ouverte en cliquant un lien depuis un autre site ou
+// une autre application (en-têtes Sec-Fetch-* des navigateurs récents).
+func lienExterne(r *http.Request) bool {
+	s := r.Header.Get("Sec-Fetch-Site")
+	return (s == "cross-site" || s == "same-site") && r.Header.Get("Sec-Fetch-Mode") == "navigate" &&
+		r.Header.Get("Sec-Fetch-Dest") == "document"
+}
+
+// suiteLocale : page de ce site où revenir après la connexion ("" : aucune,
+// on ira à l'accueil). Jamais une adresse d'un autre site, ni les pages de
+// connexion, ni les adresses appelées par les scripts.
+func suiteLocale(v string) string {
+	if v == "" || len(v) > 512 {
+		return ""
+	}
+	s := retourLocal(v)
+	if s == "/" {
+		return ""
+	}
+	for _, p := range []string{"/connexion", "/deconnexion", "/premier-admin", "/statique/", "/fragments/", "/donnees/", "/sante"} {
+		if strings.HasPrefix(s, p) {
+			return ""
+		}
+	}
+	return s
 }
 
 func cheminEtape(e string) string {

@@ -34,8 +34,10 @@ func (c *Console) dechiffrerTOTP(v string) (string, error) {
 // donneesConnexion : ce qu'affichent les pages de connexion.
 type donneesConnexion struct {
 	Nom, Erreur, Secret, Jeton string
-	QR                         template.URL
-	Premier                    bool
+	// Suite : page demandée avant la connexion (on y retourne ensuite).
+	Suite   string
+	QR      template.URL
+	Premier bool
 	// Passkeys du compte utilisables sous ce domaine (étape du code) : défi,
 	// domaine et identifiants (séparés par des virgules), pour passkey.js.
 	PKDefi, PKDomaine, PKIds string
@@ -69,7 +71,7 @@ func (c *Console) pageConnexion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/premier-admin", http.StatusSeeOther)
 		return
 	}
-	c.pageConnexionAvec(w, r, http.StatusOK, donneesConnexion{})
+	c.pageConnexionAvec(w, r, http.StatusOK, donneesConnexion{Suite: suiteLocale(r.URL.Query().Get("suite"))})
 }
 
 // premierAFaire : vrai tant qu'aucun compte n'existe. Un compte créé
@@ -125,7 +127,8 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 	ip := web.AdresseClient(r).String()
 	nom := strings.TrimSpace(r.PostFormValue("nom"))
 	mdp := r.PostFormValue("mot_de_passe")
-	d := donneesConnexion{Nom: nom}
+	suite := suiteLocale(r.PostFormValue("suite"))
+	d := donneesConnexion{Nom: nom, Suite: suite}
 	if len(nom) > 64 {
 		nom = nom[:64]
 	}
@@ -190,7 +193,7 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip, Suite: suite}, t)
 	auth.PoserCookie(w, id)
 	http.Redirect(w, r, cheminEtape(etape), http.StatusSeeOther)
 }
@@ -495,11 +498,12 @@ func (c *Console) postDefiPasskey(w http.ResponseWriter, r *http.Request) {
 func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 	t := c.maintenant()
 	ip := web.AdresseClient(r).String()
+	suite := suiteLocale(r.PostFormValue("suite"))
 	refuser := func(code int, nom, raison string) {
 		if raison != "" {
 			c.echecConnexion(ip, nom, nom != "", raison, t)
 		}
-		c.pageConnexionAvec(w, r, code, donneesConnexion{Erreur: "passkey refusée : réessayer, ou se connecter avec le mot de passe"})
+		c.pageConnexionAvec(w, r, code, donneesConnexion{Suite: suite, Erreur: "passkey refusée : réessayer, ou se connecter avec le mot de passe"})
 	}
 	domaine := c.passkeySeule(r)
 	if domaine == "" {
@@ -561,7 +565,7 @@ func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip, Suite: suite}, t)
 	s := c.sessions.Lire(id)
 	if s == nil {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
@@ -592,6 +596,7 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 	id := c.sessions.Renouveler(s.Empreinte, t, func(x *auth.Session) {
 		x.Etape, x.Creee, x.SecretPropose, x.EssaisCode, x.Generation = auth.EtapeComplet, t, "", 0, u.Generation
 		x.DefiPasskey, x.NomPasskey = "", ""
+		x.Suite = "" // la page demandée ne sert qu'une fois
 		// Le second facteur vient d'être donné : le mode administration
 		// s'ouvre (comme après un code juste sur une action sensible).
 		if d := c.dureeModeAdmin(); d > 0 {
@@ -608,7 +613,12 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
 	}
 	auth.PoserCookie(w, id)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Page demandée avant la connexion (lien d'une notification), sinon l'accueil.
+	vers := "/"
+	if s.Suite != "" {
+		vers = s.Suite
+	}
+	http.Redirect(w, r, vers, http.StatusSeeOther)
 }
 
 // pageCreer2FA : le compte n'a pas encore de 2FA (premier passage). Le

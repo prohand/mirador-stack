@@ -9,7 +9,7 @@
 <label class="case"><input type="checkbox" name="sensibles" value="1"{{if $d.F.Sensibles}} checked{{end}}> Sensibles seulement</label>
 <button>Filtrer</button>
 </form></section>
-{{if $d.Lignes}}<div class="defile"><table class="table-audit"><thead><tr><th>Heure</th><th>Catégorie</th><th>Ce qui a été fait</th><th>Qui</th><th></th></tr></thead><tbody>
+{{if $d.Lignes}}<div class="defile"><table class="table-audit" data-cartes><thead><tr><th>Heure</th><th>Catégorie</th><th>Ce qui a été fait</th><th>Qui</th><th></th></tr></thead><tbody>
 {{range $d.Lignes}}{{if .Jour}}<tr class="jour-audit"><th colspan="5">{{.Jour}}</th></tr>{{end}}
 <tr class="ligne-audit"><td class="nombre">{{.Heure}}</td><td><span class="cat-audit {{.Cat.Cle}}">{{.Cat.Titre}}</span></td>
 <td><span class="phrase">{{if .Lien}}<a href="{{.Lien}}">{{.Phrase}}</a>{{else}}{{.Phrase}}{{end}}</span>{{if .Sensible}} <span class="pastille erreur">sensible</span>{{end}}

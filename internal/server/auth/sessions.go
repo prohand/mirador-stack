@@ -65,6 +65,10 @@ type Session struct {
 	NomPasskey    string
 	// Codes de secours tout juste créés : affichés une seule fois.
 	CodesSecours []string
+	// Suite : page demandée avant la connexion (lien d'une notification,
+	// favori) ; on y retourne une fois connecté. Toujours un chemin de ce
+	// site, vérifié à l'écriture (SPEC § 34.5).
+	Suite string
 	// AdminJusqua : mode administration (demande du 14/11) : après un code
 	// 2FA juste, les actions sensibles passent sans nouveau code jusqu'à
 	// cette heure (sauf la sécurité des comptes, qui redemande toujours).

@@ -785,9 +785,18 @@ document.addEventListener("change", function (e) {
   if (!zone) { return; }
   var cle = "mirador.replie." + zone.getAttribute("data-memoire-replie");
   var replies = {};
-  try { replies = JSON.parse(window.localStorage.getItem(cle) || "{}") || {}; } catch (e) { replies = {}; }
-  zone.querySelectorAll("details.rangee").forEach(function (d) {
-    if (replies[d.id]) { d.removeAttribute("open"); }
+  var jamaisRegle = false;
+  try {
+    var brut = window.localStorage.getItem(cle);
+    jamaisRegle = brut === null;
+    replies = JSON.parse(brut || "{}") || {};
+  } catch (e) { replies = {}; }
+  // Téléphone, première visite : seule la première section est ouverte
+  // (page courte, courbes des autres sections pas chargées). Ensuite, ce
+  // que l'on ouvre ou replie est retenu comme sur grand écran.
+  var court = jamaisRegle && window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+  zone.querySelectorAll("details.rangee").forEach(function (d, i) {
+    if (replies[d.id] || (court && i > 0)) { d.removeAttribute("open"); }
     d.addEventListener("toggle", function () {
       if (d.open) { delete replies[d.id]; } else { replies[d.id] = 1; }
       try { window.localStorage.setItem(cle, JSON.stringify(replies)); } catch (e) { /* navigateur sans stockage */ }
@@ -1032,4 +1041,51 @@ document.addEventListener("change", function (e) {
       if (form.requestSubmit) { form.requestSubmit(b); } else { form.submit(); }
     });
   });
+})();
+
+// Téléphone (SPEC § 34.4) : bouton « Plus » de la barre du bas. Il ouvre ou
+// ferme tout le menu, affiché en plein écran au-dessus de la barre.
+(function () {
+  var appli = document.getElementById("appli");
+  var plus = document.querySelector("[data-menu-plus]");
+  if (!appli || !plus) { return; }
+  function regler(ouvert) {
+    appli.classList.toggle("ouvert", ouvert);
+    document.body.classList.toggle("menu-ouvert", ouvert);
+    plus.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    plus.classList.toggle("actif", ouvert);
+  }
+  plus.addEventListener("click", function () { regler(!appli.classList.contains("ouvert")); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { regler(false); } });
+  // « Aller à… » depuis le menu ouvert : le menu se referme derrière la recherche.
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-aller]")) { regler(false); }
+  });
+})();
+
+// Téléphone : tableaux marqués data-cartes affichés en cartes (une par
+// ligne), chaque valeur précédée du titre de sa colonne. Le titre est copié
+// ici dans data-label ; sans JavaScript, le tableau reste un tableau que
+// l'on fait défiler de côté.
+(function () {
+  function etiqueter() {
+    document.querySelectorAll("table[data-cartes]").forEach(function (t) {
+      var tete = t.tHead && t.tHead.rows[0];
+      if (!tete) { return; }
+      var noms = Array.prototype.map.call(tete.cells, function (th) { return th.textContent.trim(); });
+      Array.prototype.forEach.call(t.tBodies, function (corps) {
+        Array.prototype.forEach.call(corps.rows, function (ligne) {
+          Array.prototype.forEach.call(ligne.cells, function (c, i) {
+            if (!c.hasAttribute("data-label")) { c.setAttribute("data-label", noms[i] || ""); }
+            // Texte long (phrase de l'audit, résumé…) : titre au-dessus,
+            // texte sur toute la largeur, au lieu d'une colonne étroite.
+            if (i > 0 && c.textContent.trim().length > 36) { c.setAttribute("data-long", ""); }
+          });
+        });
+      });
+      t.classList.add("en-cartes");
+    });
+  }
+  etiqueter();
+  document.addEventListener("mirador:fragment", etiqueter);
 })();
