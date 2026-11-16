@@ -264,6 +264,10 @@ func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		servirStatique(w, r)
 		return
 	}
+	if r.URL.Path == "/sw.js" { // service worker des notifications (SPEC § 35)
+		servirSW(w, r)
+		return
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && !memeOrigine(r) {
 		c.journal.Warn("console : requête d'un autre site refusée", "ip", ip.String(), "chemin", r.URL.Path,
 			"origine", r.Header.Get("Origin"))
@@ -474,6 +478,9 @@ func (c *Console) retour(q *req, vers string, err error, ok string) {
 	}
 	http.Redirect(q.w, q.r, vers, http.StatusSeeOther)
 }
+
+// delaiEssaiPush : temps entre deux notifications d'essai d'une session.
+const delaiEssaiPush = 10 * time.Second
 
 // essaisSensiblesMax : codes 2FA (ou mots de passe) faux tolérés pendant
 // une session complète ; au-delà, la session est fermée (un cookie volé ne

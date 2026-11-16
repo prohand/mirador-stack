@@ -120,9 +120,10 @@ func (b *banc) post(c *http.Client, chemin string, v url.Values, entetes ...stri
 }
 
 var (
-	reCSRF   = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
-	reSecret = regexp.MustCompile(`<code class="secret">([^<]+)</code>`)
-	reJeton  = regexp.MustCompile(`"jeton":"(mirador_premier_[^"]+)"`)
+	reCSRF    = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
+	reSecret  = regexp.MustCompile(`<code class="secret">([^<]+)</code>`)
+	reJeton   = regexp.MustCompile(`"jeton":"(mirador_premier_[^"]+)"`)
+	reClePush = regexp.MustCompile(`data-push="activer" data-cle="([^"]+)"`)
 )
 
 func trouver(t *testing.T, re *regexp.Regexp, s string) string {

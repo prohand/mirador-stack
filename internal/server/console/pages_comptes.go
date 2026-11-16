@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
 )
 
@@ -28,6 +29,11 @@ type donneesCompte struct {
 	Passkeys        []auth.Passkey
 	PasskeyPossible bool   // faux sous une adresse IP ou sans HTTPS
 	Domaine         string // domaine de l'interface (rpId)
+	// Notifications push (SPEC § 35) : clé publique du serveur donnée au
+	// navigateur, appareils abonnés de ce compte, canal activé ou non.
+	PushCle        string
+	PushAppareils  []notif.AppareilPush
+	PushCanalActif bool
 	// Passkey en cours de création (défi préparé après le code 2FA).
 	PKDefi, PKNom, PKUtilisateur, PKExclure, PKAlgorithmes string
 }
@@ -45,6 +51,15 @@ func (c *Console) pageCompte(q *req) {
 		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.CodesSecours = nil })
 	}
 	d.Passkeys, _ = auth.ListerPasskeys(ctx, c.db, q.u.ID)
+	if _, pub, err := notif.ClePush(ctx, c.db, c.opt.Cle, q.t); err == nil {
+		d.PushCle = pub
+	} else {
+		c.journal.Error("notifications push : clé du serveur", "erreur", err)
+	}
+	d.PushAppareils, _ = notif.ListerAppareilsPush(ctx, c.db, q.u.ID)
+	if r, err := notif.LireReglages(ctx, c.db); err == nil && r.Canaux.Application != nil {
+		d.PushCanalActif = r.Canaux.Application.Actif
+	}
 	if domaine, _, err := auth.DomaineEtOrigine(q.r.Host); err == nil {
 		d.Domaine, d.PasskeyPossible = domaine, auth.PasskeyPossible(domaine)
 	}

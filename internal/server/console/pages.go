@@ -54,6 +54,7 @@ func (c *Console) routesPages() {
 	c.routesModeles()
 	c.routesModelesPerso()
 	c.routesTheme()
+	c.routesPush()
 	m.HandleFunc("POST /mode-admin/quitter", c.lecture(c.postQuitterModeAdmin))
 	m.HandleFunc("POST /mode-admin/ouvrir", c.admin(c.postOuvrirModeAdmin))
 	c.routesReglages()

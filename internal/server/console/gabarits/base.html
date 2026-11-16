@@ -12,10 +12,11 @@
 <link rel="icon" href="{{statique "icone.svg"}}" type="image/svg+xml">
 <script src="{{statique "mirador.js"}}" defer></script>
 <script src="{{statique "passkey.js"}}" defer></script>
+<script src="{{statique "push.js"}}" defer></script>
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
-<body{{if .SansAides}} class="sans-aides"{{end}} data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
+<body{{if .SansAides}} class="sans-aides"{{end}} data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}" data-alertes="{{.NbAlertes}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
 {{template "icones"}}
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">

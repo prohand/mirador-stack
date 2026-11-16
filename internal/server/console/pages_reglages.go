@@ -109,6 +109,9 @@ type donneesNotif struct {
 	Tests      []testCanal
 	Vmalert    alertes.ReglagesVmalert
 	Canaux     []string
+	// AppareilsPush : appareils abonnés aux notifications de l'application
+	// (tous comptes actifs), SPEC § 35.
+	AppareilsPush int
 }
 
 func (c *Console) pageNotifications(q *req) {
@@ -117,7 +120,7 @@ func (c *Console) pageNotifications(q *req) {
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail},
+	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail, notif.NomApplication},
 		ServicesHB: notif.ServicesHeartbeat}
 	if c.opt.Postier != nil {
 		d.Etat, d.HbOK, d.HbErr = c.opt.Postier.Etat()
@@ -149,7 +152,8 @@ func (c *Console) pageNotifications(q *req) {
 		nom   string
 		actif bool
 	}{{notif.NomTelegram, cn.Telegram != nil && cn.Telegram.Actif}, {notif.NomOlvid, cn.Olvid != nil && cn.Olvid.Actif},
-		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif}} {
+		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif},
+		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}} {
 		if x.actif {
 			d.Testables = append(d.Testables, x.nom)
 		}
@@ -170,6 +174,10 @@ func (c *Console) pageNotifications(q *req) {
 	if d.R.Canaux.Heartbeat == nil {
 		d.R.Canaux.Heartbeat = &notif.Heartbeat{Intervalle: alertes.Duree(time.Minute)}
 	}
+	if d.R.Canaux.Application == nil {
+		d.R.Canaux.Application = &notif.Application{Copie: true} // copie cochée d'avance
+	}
+	d.AppareilsPush = notif.NombreAppareilsPush(ctx, c.db)
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
 }
 
@@ -272,6 +280,12 @@ func (c *Console) postNotifications(q *req) {
 			cn.Olvid = &notif.Olvid{Actif: f.coche("olvid_actif"), Adresse: f.texte("olvid_adresse"), Cle: f.secret("olvid_cle"),
 				Discussion: disc, Confirmation: f.duree("olvid_confirmation", &errs)}
 			cn.Heartbeat = &notif.Heartbeat{Actif: f.coche("hb_actif"), Service: f.texte("hb_service"), URL: f.secret("hb_url"), Intervalle: f.duree("hb_intervalle", &errs)}
+			// Application (push) : rien à saisir, deux cases.
+			avantApp := cn.Application
+			cn.Application = &notif.Application{Actif: f.coche("app_actif"), Copie: f.coche("app_copie")}
+			if !cn.Application.Actif && avantApp == nil {
+				cn.Application = nil // jamais activé : rien à enregistrer
+			}
 			// Un canal jamais renseigné ne s'enregistre pas (pas de bloc vide à valider).
 			if !cn.Ntfy.Actif && cn.Ntfy.URL == "" {
 				cn.Ntfy = nil

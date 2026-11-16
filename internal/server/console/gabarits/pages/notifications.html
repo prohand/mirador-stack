@@ -64,6 +64,12 @@
 <label>De <input name="mail_de" value="{{$c.Email.De}}" maxlength="200"></label>
 <label>À (virgules) <input name="mail_a" value="{{range $i, $e := $c.Email.A}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000"></label>
 </section>
+<section class="carte" id="application"><h2>Application (notifications push)</h2>
+<label class="case"><input type="checkbox" name="app_actif" value="1" {{if $c.Application.Actif}}checked{{end}}> Actif</label>
+<label class="case"><input type="checkbox" name="app_copie" value="1" {{if $c.Application.Copie}}checked{{end}}> Copie : envoyer aussi à l'application quand un autre canal porte le message</label>
+<p>{{.D.AppareilsPush}} {{accord .D.AppareilsPush "appareil(s) abonné(s)"}}. Chacun active les notifications sur son téléphone ou son navigateur dans <a href="/compte#push">Mon compte</a>.</p>
+<small class="aide">Les messages passent par le service de push de Google, Apple ou Mozilla, chiffrés pour l'appareil (ce service ne peut pas les lire). Ils tiennent aussi à jour la pastille de l'icône. La copie ne compte pas pour la bascule : un téléphone éteint n'est pas une panne. {{template "plus" "aide.md#application"}}</small>
+</section>
 <section class="carte"><h2>Heartbeat (surveillance externe)</h2>
 <label class="case"><input type="checkbox" name="hb_actif" value="1" {{if $c.Heartbeat.Actif}}checked{{end}}> Actif</label>
 <label>Service <select name="hb_service">{{$s := $c.Heartbeat.Service}}{{range .D.ServicesHB}}<option value="{{.Code}}" {{if or (egal .Code $s) (and (egal .Code "autre") (egal $s ""))}}selected{{end}}>{{.Nom}}</option>{{end}}</select></label>

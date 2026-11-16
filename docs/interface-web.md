@@ -355,5 +355,16 @@ Connexion :
   la session est finie, on y arrive après la connexion.
 
 Les sessions restent courtes (30 min sans activité par défaut, Réglages ›
-Sécurité). Il n'y a pas de mode hors ligne ni de notification par
-l'application : les alertes arrivent par Telegram, Olvid, ntfy ou e-mail.
+Sécurité). Il n'y a pas de mode hors ligne.
+
+### Notifications et pastille de l'icône
+
+1. Un administrateur active le canal dans Réglages › Notifications ›
+   **Application** (« Copie » cochée : les appareils reçoivent aussi ce que
+   Telegram reçoit).
+2. Chacun, sur son téléphone : « Mon compte » › **Notifications sur cet
+   appareil** › Activer, puis « Envoyer une notification d'essai ».
+
+Sur iPhone : seulement depuis l'application installée sur l'écran
+d'accueil. Toucher une notification ouvre l'alerte. Détail, pare-feu et
+dépannage : `docs/aide.md` (« Notifications : application »).

@@ -74,6 +74,8 @@ type Canaux struct {
 	Email     *Email     `json:"email,omitempty"`
 	Olvid     *Olvid     `json:"olvid,omitempty"`
 	Heartbeat *Heartbeat `json:"heartbeat,omitempty"`
+	// Application : notifications push vers les appareils abonnés (SPEC § 35).
+	Application *Application `json:"application,omitempty"`
 }
 
 // Telegram : bot et conversation (groupe).
@@ -161,7 +163,9 @@ var (
 	reChatTelegram  = regexp.MustCompile(`^(-?[0-9]{1,20}|@[A-Za-z0-9_]{5,32})$`)
 )
 
-func nomsCanaux() []string { return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid} }
+func nomsCanaux() []string {
+	return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid, NomApplication}
+}
 
 // configure : le canal nom est-il décrit et actif ?
 func (c *Canaux) configure(nom string) bool {
@@ -174,6 +178,8 @@ func (c *Canaux) configure(nom string) bool {
 		return c.Email != nil && c.Email.Actif
 	case NomOlvid:
 		return c.Olvid != nil && c.Olvid.Actif
+	case NomApplication:
+		return c.Application != nil && c.Application.Actif
 	}
 	return false
 }

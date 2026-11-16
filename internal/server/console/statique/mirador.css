@@ -920,3 +920,6 @@ body.seule { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-are
   .carte-seule > form[data-passkey-form] { order: -1; margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--bord); }
   .carte-seule > form[data-passkey-form] button { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
 }
+
+/* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
+tr.cet-appareil td:first-child { font-weight: 600; }

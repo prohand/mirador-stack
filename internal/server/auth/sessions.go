@@ -65,6 +65,9 @@ type Session struct {
 	NomPasskey    string
 	// Codes de secours tout juste créés : affichés une seule fois.
 	CodesSecours []string
+	// EssaiPushLe : dernière notification d'essai demandée (une toutes les
+	// 10 s au plus par session).
+	EssaiPushLe time.Time
 	// Suite : page demandée avant la connexion (lien d'une notification,
 	// favori) ; on y retourne une fois connecté. Toujours un chemin de ce
 	// site, vérifié à l'écriture (SPEC § 34.5).
