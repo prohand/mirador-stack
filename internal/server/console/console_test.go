@@ -365,7 +365,7 @@ func TestRolesEtCodeSensible(t *testing.T) {
 	if code, _, _ := b.get(cl, "/compte"); code != http.StatusOK {
 		t.Fatalf("lecture : /compte → %d", code)
 	}
-	for _, p := range []string{"/utilisateurs", "/securite"} {
+	for _, p := range []string{"/utilisateurs", "/securite", "/machines/ajouter"} {
 		if code, _, _ := b.get(cl, p); code != http.StatusForbidden {
 			t.Errorf("lecture : GET %s → %d", p, code)
 		}

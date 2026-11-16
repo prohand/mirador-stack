@@ -5055,3 +5055,84 @@ Objectif serveur (< 256 Mio, < 5 % d'un cœur) : inchangé.
 - Navigateur dont le service de push n'est pas dans la liste : refusé, avec
   le nom de l'hôte dans le message (à ajouter à `hotesPush`).
 
+
+## 36. Page Machines plus claire (choix du 16/11 : B + C, page à part) **[Fait, à valider]**
+
+Maquettes A, B, C présentées le 16/11 ; choix : **B** (liste par site avec
+filtres) + **C** (ajout guidé sur sa propre page). Les deux pastilles des
+machines en attente sont acceptées.
+
+### 36.1 Liste (`/machines`)
+
+- En tête : nombre de machines, de sites, d'attentes ; bouton
+  **+ Ajouter une machine** (administrateurs).
+- **À approuver (N)** en haut, une ligne par machine (la plus ancienne
+  d'abord) : nom modifiable, origine du nom, adresse et âge de la demande,
+  site / type / groupe, « limiter à l'adresse », **Approuver** et
+  **Refuser** côte à côte. 5 lignes au plus, puis « Voir les N autres »
+  (`?attente=toutes`). Pas de « tout approuver » : approuver donne un token.
+- Recherche (nom, site, type, groupe), filtres **Toutes / Problèmes /
+  Agents / Collecteurs et équipements**, regroupement **Par site / Par
+  groupe / Liste**. Tout est dans l'adresse
+  (`/machines?vue=groupe&filtre=problemes&q=web`) : favori possible, pas de
+  JavaScript. Valeurs inconnues ramenées au choix par défaut ; recherche
+  bornée à 100 caractères.
+- Un bloc repliable par site (ou groupe) : « N machines », « N problèmes »
+  ou « tout va bien ». Problème = machine muette (plus de 5 min) ou mise à
+  jour en échec. Dans un bloc : problèmes d'abord, puis par nom ; un
+  équipement est placé sous son collecteur (« ↳ … relevé par … ») ; un
+  collecteur remonte si l'un de ses équipements a un problème.
+- Colonne « Adresse » retirée de la liste (elle reste sur la page de la
+  machine). Refusées repliées en bas, « refusée » écrit en français.
+
+### 36.2 Pastilles des machines en attente (indices, rien n'est bloqué)
+
+- **nom à changer ?** : nom proposé par la machine (pas choisi au jeton)
+  dans une liste fixe de noms d'hôte courants (`debian`, `ubuntu`,
+  `localhost`, `raspberrypi`, `pve`…) ou commençant par `vps-`, `ip-`,
+  `ubuntu-`, `debian-` (noms d'hébergeurs).
+- **adresse inconnue** : l'adresse de la demande n'est dans le réseau
+  (/24 IPv4, /64 IPv6) d'aucune machine approuvée (dernière adresse vue ou
+  adresse d'enrôlement). Rien pour la première machine, ni pour une
+  adresse illisible. Coût : nul (adresses déjà en base).
+
+### 36.3 Ajout (`/machines/ajouter`, administrateurs)
+
+- Étapes visibles : 1. Quoi ? (Machine Linux / Collecteur du LAN /
+  Équipement sans agent, `?quoi=`), 2. Réglages (seulement les champs
+  utiles ; envoi, mises à jour et durée du jeton repliés dans « Options »),
+  3. Commande à coller (affichée **après** la création du jeton, bouton
+  **Copier**), 4. Approuver (lien vers « À approuver »). Pour un équipement :
+  token et réglages Telegraf affichés une seule fois, bouton Copier.
+- Formulaires et contrôles inchangés (`POST /machines/jeton`,
+  `POST /machines/equipement`, code 2FA) ; ils affichent maintenant cette
+  page, et y reviennent en cas d'erreur.
+- Noms **réservés** : `ajouter`, `jeton`, `equipement` (adresses de
+  l'interface sous `/machines/`) refusés pour une machine (jeton, enrôlement,
+  équipement, renommage). Sans cela la page d'une telle machine serait
+  inaccessible.
+
+### 36.4 Bug corrigé au passage
+
+- Depuis § 35, `<body>` portait `data-alertes` (nombre d'alertes pour la
+  pastille de l'icône). mirador.js le prenait pour une liste d'alertes : il
+  triait et filtrait le premier tableau de la page, puis plantait. Effets :
+  plus de cartes sur téléphone, plus de tri des tableaux, plus de bouton
+  Copier sur la plupart des pages. Attribut renommé `data-nb-alertes`
+  (test de non-régression).
+
+### 36.5 Coût
+
+- Tout est calculé à l'affichage, en mémoire, sur la liste des machines
+  déjà lue (une requête SQL en plus : équipements → collecteur). Rien en
+  base, aucune collecte. Mesure : voir PROGRES.md.
+
+### 36.6 Menaces
+
+- Recherche et filtres : lus dans l'adresse, ramenés à des valeurs
+  admises, échappés par les gabarits ; jamais dans une requête SQL.
+- Page d'ajout : réservée aux administrateurs (comme avant), jetons et
+  tokens toujours affichés une seule fois, jamais gardés en clair.
+- Les pastilles ne remplacent pas le jugement de l'admin : un attaquant
+  qui a le jeton et une adresse « connue » n'en a pas. Elles aident
+  seulement à voir l'inattendu.

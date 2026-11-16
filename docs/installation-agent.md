@@ -189,8 +189,9 @@ ne filtre que par IP, mirador vérifie les tokens (SPEC § 16.5).
    docker exec mirador-server /mirador-server -config /etc/mirador/server.conf jeton -site bureau -env vm
    ```
 
-   Plus simple : interface › Machines › « Ajouter une machine » (site, type,
-   groupe, puis « Créer un jeton » : la commande complète s'affiche).
+   Plus simple : interface › Machines › « + Ajouter une machine » (site, type,
+   groupe, puis « Créer la commande d'installation » : elle s'affiche avec
+   un bouton « Copier »).
 
 2. Sur la machine, télécharger et installer avec ce jeton (site et type ne se
    donnent plus ici : ils viennent du jeton, et se changent dans la fiche de

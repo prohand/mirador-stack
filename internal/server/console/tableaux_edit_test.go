@@ -229,7 +229,7 @@ func TestSitesEtTypes(t *testing.T) {
 	if l := b.c.lireListes(ctx); !slices.Equal(l.Sites, []string{"maison"}) {
 		t.Fatalf("sites : %+v", l.Sites)
 	}
-	if _, corps, _ := b.get(c, "/machines"); !strings.Contains(corps, `<option >maison</option>`) && !strings.Contains(corps, `<option>maison</option>`) {
+	if _, corps, _ := b.get(c, "/machines/ajouter"); !strings.Contains(corps, `<option >maison</option>`) && !strings.Contains(corps, `<option>maison</option>`) {
 		t.Error("site absent de la liste déroulante")
 	}
 	// Jeton : site hors liste refusé, site de la liste accepté.
@@ -419,7 +419,7 @@ func TestEquipementSansAgent(t *testing.T) {
 	b := nouveauBanc(t)
 	c, secret := b.premierAdmin("admin", mdpAdmin)
 	csrf := b.csrf(c, "/machines")
-	if _, corps, _ := b.get(c, "/machines"); !strings.Contains(corps, `action="/machines/equipement"`) {
+	if _, corps, _ := b.get(c, "/machines/ajouter?quoi=equipement"); !strings.Contains(corps, `action="/machines/equipement"`) {
 		t.Fatal("formulaire absent")
 	}
 	// Adresse invalide : rien n'est créé.
@@ -430,7 +430,7 @@ func TestEquipementSansAgent(t *testing.T) {
 	}
 	b.h.avancer(31 * time.Second)
 	_, corps, _ := b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"OPNsense"}, "ips": {"203.0.113.7"}, "code": {b.code(secret)}})
-	if !strings.Contains(corps, "/api/agent/v1/influx") || !strings.Contains(corps, "Token de « opnsense »") {
+	if !strings.Contains(corps, "/api/agent/v1/influx") || !strings.Contains(corps, "Brancher « opnsense »") {
 		t.Fatalf("token et réglages Telegraf non affichés")
 	}
 	ms, _ := flotte.ListerMachines(context.Background(), b.c.db)

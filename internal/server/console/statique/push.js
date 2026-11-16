@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // mirador : notifications push et pastille de l'icône (SPEC § 35).
 //  - sur chaque page : la pastille de l'icône de l'application installée
-//    reçoit le nombre d'alertes en cours (attribut data-alertes du <body>) ;
+//    reçoit le nombre d'alertes en cours (attribut data-nb-alertes du <body> ; pas « data-alertes », réservé aux listes d'alertes de mirador.js) ;
 //  - page « Mon compte » : bouton data-push="activer" (abonne cet appareil,
 //    puis envoie l'abonnement par le formulaire voisin, jeton CSRF compris) ;
 //    ligne de « cet appareil » marquée ; « Retirer » le désabonne aussi ici.
@@ -14,9 +14,9 @@
     if (!navigator.setAppBadge || isNaN(n)) { return; }
     (n > 0 ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(function () { /* pas installée : rien */ });
   }
-  pastille(parseInt(document.body.getAttribute("data-alertes"), 10));
+  pastille(parseInt(document.body.getAttribute("data-nb-alertes"), 10));
   document.addEventListener("mirador:fragment", function () {
-    var z = document.querySelector("[data-nb-alertes]");
+    var z = document.querySelector("body [data-nb-alertes]"); // le fragment, pas le <body>
     if (z) { pastille(parseInt(z.getAttribute("data-nb-alertes"), 10)); }
   });
 

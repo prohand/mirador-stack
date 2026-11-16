@@ -893,6 +893,31 @@ Seconde passe (lecture ciblée, pas un audit complet) sur l'ingestion,
 l'enrôlement, les mises à jour et l'assistant root : rien d'exploitable
 trouvé ; un durcissement possible noté dans SPEC § 34.
 
+## Page Machines plus claire (SPEC § 36, 16/11)
+
+Branche `claude/vibrant-meitner-a0xe1m`. Choix : B (liste par site, filtres)
++ C (ajout guidé, page à part) + les deux pastilles.
+
+| Partie | État |
+|---|---|
+| Liste par site / groupe / liste, filtres et recherche dans l'adresse, problèmes en premier, équipements sous leur collecteur | **fait**, testé ; à valider |
+| « À approuver » : une ligne par machine, 5 puis « Voir les N autres », pastilles « nom à changer ? » et « adresse inconnue » | **fait**, testé ; à valider |
+| Page `/machines/ajouter` en 4 étapes, bouton Copier, noms réservés | **fait**, testé ; à valider |
+| Bug : `<body data-alertes>` cassait mirador.js (cartes téléphone, tri, Copier) | **corrigé**, test de non-régression |
+| Vu dans Chromium (écran large et iPhone 13 simulé) | **fait** |
+
+Mesures (banc de test, 200 machines sur 8 sites, 20 en attente, HTTPS
+local compris) :
+
+| Page | Temps | HTML | Mémoire allouée (libérée ensuite) |
+|---|---|---|---|
+| `/machines` (par site) | 8 ms | 65 Ko | 2,4 Mo |
+| `/machines?vue=liste&filtre=problemes&q=m1` | 4 ms | 28 Ko | 1,1 Mo |
+| `/machines/ajouter` | 4 ms | 18 Ko | 0,7 Mo |
+
+Rien en base, rien en mémoire entre deux pages, une requête SQL en plus.
+Négligeable devant les objectifs du serveur (SPEC § 2).
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.

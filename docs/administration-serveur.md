@@ -34,15 +34,15 @@ imprimante…) depuis le LAN (SPEC.md § 23.13). Partie 3 de l'étape 6 : il
 s'installe, s'enrôle, reçoit sa configuration et ses mises à jour ; les
 relevés (syslog, SNMP, sondes, UniFi) arrivent avec les parties 4 à 6.
 
-1. Machines › Ajouter une machine › Machine : **Collecteur du LAN**, nom
-   (ex. `collecteur-lan`), créer le jeton.
+1. Machines › **+ Ajouter une machine** › **Collecteur du LAN**, nom
+   (ex. `collecteur-lan`), « Créer la commande d'installation ».
 2. Sur une machine Debian/Ubuntu du LAN (un LXC suffit), en root : coller
    la commande affichée (`…/install/collecteur`, puis
    `MIRADOR_JETON=… bash mirador-collector-install.sh --serveur …`).
-3. L'approuver dans Machines (badge « Collecteur »).
+3. L'approuver dans Machines › À approuver (badge « Collecteur » ensuite).
 4. Page du collecteur › **Équipements relevés** : rattacher les
-   équipements, ou les créer depuis Machines › Équipement sans agent ›
-   *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
+   équipements, ou les créer depuis Machines › + Ajouter une machine ›
+   Équipement sans agent › *Relevé par*. Le collecteur n'a le droit d'envoyer que pour eux.
 
 Syslog TLS (partie 4) :
 
@@ -94,7 +94,7 @@ OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin
 importées marchent tels quels.
 
 1. Une machine et son token (affiché une seule fois). Dans l'interface :
-   Machines › « Équipement sans agent (OPNsense / Telegraf) » (nom, site,
+   Machines › + Ajouter une machine › « Équipement sans agent » (nom, site,
    type, groupe, adresse autorisée, code 2FA) ; la page affiche ensuite le
    token et les réglages de Telegraf. Ou en ligne de commande :
 

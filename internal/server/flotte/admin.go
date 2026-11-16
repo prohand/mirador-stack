@@ -259,6 +259,9 @@ func TokenManuel(ctx context.Context, db *sql.DB, nom, qui string, maintenant ti
 	var id int64
 	err = tx.QueryRowContext(ctx, `SELECT id FROM machines WHERE nom = ?`, nom).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
+		if NomReserve(nom) {
+			return "", errors.New("ce nom est réservé par l'interface : en choisir un autre")
+		}
 		res, err := tx.ExecContext(ctx, `INSERT INTO machines(nom, statut, cree_le) VALUES (?, 'approuvee', ?)`, nom, maintenant.Unix())
 		if err != nil {
 			return "", err
@@ -375,9 +378,19 @@ func Renommer(ctx context.Context, db *sql.DB, nom, nouveau, qui string, mainten
 	})
 }
 
+// nomsReserves : adresses de l'interface placées sous /machines/ ; une
+// machine de ce nom aurait une page inaccessible (/machines/ajouter…).
+var nomsReserves = map[string]bool{"ajouter": true, "jeton": true, "equipement": true}
+
+// NomReserve : nom pris par l'interface, refusé pour une machine.
+func NomReserve(nom string) bool { return nomsReserves[strings.ToLower(nom)] }
+
 // nomLibre : ni une autre machine, ni l'ancien nom d'une autre machine
 // (son historique y est rattaché). sauf = la machine elle-même (0 = aucune).
 func nomLibre(ctx context.Context, tx *sql.Tx, nom string, sauf int64) error {
+	if NomReserve(nom) {
+		return errors.New("ce nom est réservé par l'interface : en choisir un autre")
+	}
 	var n int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM machines WHERE nom = ? AND id != ?`, nom, sauf).Scan(&n); err != nil {
 		return err

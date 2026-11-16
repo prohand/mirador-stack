@@ -923,3 +923,35 @@ body.seule { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-are
 
 /* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
 tr.cet-appareil td:first-child { font-weight: 600; }
+
+/* --- Page Machines (SPEC § 36) : à approuver, filtres, blocs par site ----- */
+.doux { color: var(--pale); font-size: 13px; }
+.attente-approbation { border-left: 4px solid var(--attention); }
+.table-attente td { vertical-align: middle; }
+.table-attente td small { display: block; color: var(--pale); }
+.table-attente td .pastille { margin-top: 4px; }
+.table-attente input:not([type="checkbox"]), .table-attente select { width: auto; min-height: 32px; padding: 4px 8px; font-size: 13px; }
+.boutons-attente { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.boutons-attente form { margin: 0; }
+.filtres-machines { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 16px; }
+.filtres-machines input[type="search"] { max-width: 240px; }
+.bloc-machines > summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.titre-bloc { font-family: var(--titres); font-size: 1.1rem; }
+tr.sous-ligne td:first-child { padding-left: 26px; }
+/* Page « Ajouter une machine » : étapes et choix */
+.etapes-ajout { display: flex; gap: 8px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 8px; counter-reset: etape; }
+.etapes-ajout li { counter-increment: etape; padding: 5px 12px; border-radius: 999px; background: var(--survol); color: var(--doux); font-size: 13px; font-weight: 600; }
+.etapes-ajout li::before { content: counter(etape) ". "; }
+.etapes-ajout li.actif { background: var(--accent); color: var(--sur-accent); }
+.etapes-ajout li.fait { color: var(--ok); }
+.choix-ajout { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.choix-ajout .carte { border: 2px solid var(--bord); }
+.choix-ajout .carte.choisi { border-color: var(--accent); }
+.choix-ajout h3 { margin: .3rem 0 .4rem; }
+.choix-ajout p { margin: 0; color: var(--doux); font-size: 14px; }
+.options-ajout { margin: 12px 0; }
+.options-ajout > summary { color: var(--doux); }
+.options-ajout .ligne { margin-top: 8px; }
+.recherche-machines { display: flex; gap: 6px; align-items: center; }
+.filtres-machines .segment { flex-wrap: wrap; }
+.filtres-machines .segment a { white-space: nowrap; }

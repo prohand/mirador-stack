@@ -1089,3 +1089,20 @@ document.addEventListener("change", function (e) {
   etiqueter();
   document.addEventListener("mirador:fragment", etiqueter);
 })();
+
+// Bouton « Copier » (SPEC § 36) : [data-copier="#id"] copie le texte de
+// l'élément visé (commande d'installation, token d'un équipement).
+(function () {
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-copier]");
+    if (!b) { return; }
+    var cible = document.querySelector(b.getAttribute("data-copier"));
+    if (!cible || !navigator.clipboard || !navigator.clipboard.writeText) { return; }
+    e.preventDefault();
+    navigator.clipboard.writeText(cible.textContent.trim()).then(function () {
+      var avant = b.textContent;
+      b.textContent = "Copié ✓";
+      setTimeout(function () { b.textContent = avant; }, 1500);
+    }, function () {});
+  });
+})();

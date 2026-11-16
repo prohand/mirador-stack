@@ -1,0 +1,81 @@
+{{define "contenu"}}{{$d := .D}}{{$q := .D.Quoi}}
+<div class="titre-page"><div><p><a href="/machines">← Machines</a></p><h1>Ajouter une machine</h1></div></div>
+{{$fait := or .D.Jeton .D.TokenEquipement}}
+<ol class="etapes-ajout" aria-label="Étapes">
+<li class="fait">Quoi ?</li><li{{if not $fait}} class="actif" aria-current="step"{{else}} class="fait"{{end}}>Réglages</li>
+{{if eq $q "equipement"}}<li{{if $fait}} class="actif" aria-current="step"{{end}}>Branchement</li>
+{{else}}<li{{if $fait}} class="actif" aria-current="step"{{end}}>Commande à coller</li><li>Approuver</li>{{end}}</ol>
+
+<h2 class="titre-section">1. Quoi ?</h2>
+<nav class="grille choix-ajout" aria-label="Ce que l'on ajoute">
+<a class="carte lien-carte{{if eq $q "agent"}} choisi{{end}}"{{if eq $q "agent"}} aria-current="page"{{end}} href="/machines/ajouter"><span class="pastille info">Le plus courant</span><h3>Machine Linux</h3><p>Serveur, VPS, Proxmox, Raspberry… On y installe <strong>mirador-agent</strong>.</p></a>
+<a class="carte lien-carte{{if eq $q "collecteur"}} choisi{{end}}"{{if eq $q "collecteur"}} aria-current="page"{{end}} href="/machines/ajouter?quoi=collecteur"><h3>Collecteur du LAN</h3><p>Une machine Debian/Ubuntu du LAN (un LXC suffit) qui relève les appareils sans agent.</p></a>
+<a class="carte lien-carte{{if eq $q "equipement"}} choisi{{end}}"{{if eq $q "equipement"}} aria-current="page"{{end}} href="/machines/ajouter?quoi=equipement"><h3>Équipement sans agent</h3><p>OPNsense (Telegraf), Synology, UniFi, imprimante… Rien à installer dessus.</p></a>
+</nav>
+
+{{if not .D.Ingestion}}{{if ne $q "equipement"}}<p class="message erreur">Adresse d'ingestion pas encore renseignée : <a href="/reglages/interface#adresse">la renseigner dans Réglages › Interface</a>.</p>{{end}}{{end}}
+{{$srv := "https://ADRESSE-INGESTION"}}{{if .D.Ingestion}}{{$srv = .D.Ingestion}}{{end}}
+
+{{if eq $q "equipement"}}
+{{/* --- Équipement sans agent : envoi Telegraf (token) ou relevé par un collecteur --- */}}
+{{if not .D.TokenEquipement}}<section class="carte">
+<h2>2. Réglages de l'équipement</h2>
+<p>Deux cas : il envoie lui-même ses métriques au format InfluxDB v2 (OPNsense avec le plugin Telegraf : un token est créé, affiché une seule fois), ou il est <strong>relevé par un collecteur du LAN</strong> (pas de token). L'équipement est créé et approuvé tout de suite.</p>
+<form method="post" action="/machines/equipement" class="ligne">{{template "csrf" .CSRF}}
+  <label>Nom <input name="nom" required maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="opnsense"></label>
+  <label>Site {{template "choix-liste" (choix "site" "" .D.Listes.Sites)}}</label>
+  <label>Type {{template "choix-liste" (choix "env" "" .D.Listes.Types)}}</label>
+  <label>Groupe {{template "choix-liste" (choix "groupe" "" .D.Listes.Groupes)}}</label>
+  {{if .D.Collecteurs}}<label title="Vide : l'appareil envoie lui-même (Telegraf). Sinon : relevé par ce collecteur, sans token.">Relevé par <select name="collecteur"><option value="">lui-même (Telegraf)</option>{{range .D.Collecteurs}}<option>{{.}}</option>{{end}}</select></label>{{end}}
+  <label title="Adresse publique depuis laquelle l'appareil envoie (vide = toutes celles admises par nginx ; sans objet s'il est relevé par un collecteur)">Adresses autorisées <input name="ips" maxlength="500" size="22" placeholder="203.0.113.7"></label>
+  {{template "code2fa"}}<button>Créer l'équipement</button></form>
+{{if not .D.Collecteurs}}<p class="aide"><small class="aide">Pas encore de collecteur du LAN : pour un Synology, un UniFi ou une imprimante, <a href="/machines/ajouter?quoi=collecteur">ajouter d'abord un collecteur</a>.</small></p>{{end}}
+</section>{{else}}<section class="carte">
+<h2>3. Brancher « {{.D.Equipement}} »</h2>
+<p><strong>Token</strong> (à copier maintenant, il ne sera plus affiché) :</p>
+<pre class="commande" id="token-equipement">{{.D.TokenEquipement}}</pre>
+<p><button type="button" class="secondaire" data-copier="#token-equipement">Copier le token</button></p>
+<p>Dans OPNsense : Services › Telegraf › Output, section <strong>InfluxDB v2</strong> :</p>
+<ul><li>URL : <code>{{$srv}}/api/agent/v1/influx</code> (Telegraf ajoute lui-même <code>/api/v2/write</code>)</li>
+<li>Token : celui ci-dessus</li><li>Organization et Bucket : au choix (ignorés)</li></ul>
+<p><small>Basculer coupe l'envoi vers l'ancienne cible InfluxDB v2.</small></p>
+<p><a class="bouton secondaire" href="/machines/{{.D.Equipement}}">Voir la page de {{.D.Equipement}}</a> <a href="/machines/ajouter?quoi=equipement">Ajouter un autre équipement</a></p>
+</section>{{end}}
+
+{{else}}
+{{/* --- Machine Linux (agent) ou collecteur du LAN : jeton puis commande --- */}}
+{{if not .D.Jeton}}<section class="carte">
+<h2>2. Réglages {{if eq $q "collecteur"}}du collecteur{{else}}de la machine Linux{{end}}</h2>
+<form method="post" action="/machines/jeton">{{template "csrf" .CSRF}}
+<input type="hidden" name="type_machine" value="{{if eq $q "collecteur"}}collecteur{{end}}">
+<div class="ligne">
+  <label title="Vide : le nom d'hôte de la machine">Nom <input name="nom" maxlength="63" size="14" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="nom d'hôte"></label>
+  <label>Site {{template "choix-liste" (choix "site" "" .D.Listes.Sites)}}</label>
+  <label>Type {{template "choix-liste" (choix "env" "" .D.Listes.Types)}}</label>
+  <label>Groupe {{template "choix-liste" (choix "groupe" "" .D.Listes.Groupes)}}</label>
+</div>
+<details class="options-ajout"><summary>Options : {{if ne $q "collecteur"}}envoi, {{end}}mises à jour, durée du jeton</summary>
+<div class="ligne">
+  {{if ne $q "collecteur"}}<label>Envoyer <select name="envoi"><option value="">Métriques et logs</option><option value="metriques">Métriques seulement</option><option value="logs">Logs seulement</option></select></label>{{end}}
+  <label class="case" title="Ajoute --auto-update à la commande : versions signées installées seules (l'assistant root suit aussi)"><input type="checkbox" name="maj_auto" value="1" checked> Mises à jour automatiques</label>
+  <label>Jeton valable <select name="duree"><option value="1h">1 h</option><option value="24h" selected>24 h</option><option value="168h">7 jours</option></select></label>
+</div></details>
+<div class="ligne">{{template "code2fa"}}<button>Créer la commande d'installation</button></div>
+</form>
+<p class="aide"><small class="aide">Groupe = mêmes réglages d'agent, et étiquette <code>groupe</code> des données. Listes : <a href="/reglages/sites">Réglages › Sites, types et groupes</a>.</small></p>
+</section>{{else}}<section class="carte">
+<h2>3. Sur la machine, en root, coller :</h2>
+{{if eq $q "collecteur"}}<pre class="commande" id="commande-ajout">curl -fsSL {{$srv}}/api/agent/v1/install/collecteur -o mirador-collector-install.sh
+ MIRADOR_JETON={{.D.Jeton}} bash mirador-collector-install.sh --serveur {{$srv}}{{if .D.OptionEnvoi}} {{.D.OptionEnvoi}}{{end}}</pre>
+{{else}}<pre class="commande" id="commande-ajout">curl -fsSL {{$srv}}/api/agent/v1/install -o mirador-agent-install.sh
+ MIRADOR_JETON={{.D.Jeton}} bash mirador-agent-install.sh --serveur {{$srv}}{{if .D.OptionEnvoi}} {{.D.OptionEnvoi}}{{end}}</pre>{{end}}
+<p class="ligne"><button type="button" class="secondaire" data-copier="#commande-ajout">Copier la commande</button>
+<small class="doux">Jeton à usage unique, qui expire. Il n'est affiché qu'ici : ne pas recharger la page avant d'avoir copié. {{template "plus" "aide.md#installation-agent"}}</small></p>
+</section>
+<section class="carte">
+<h2>4. Approuver</h2>
+<p>La machine se présente dès que la commande a tourné. Elle apparaît alors dans <a href="/machines#attente">Machines › À approuver</a>{{if eq $q "collecteur"}} ; ensuite, lui rattacher des équipements (page du collecteur){{end}}.</p>
+{{if .D.EnAttente}}<p><a class="bouton" href="/machines#attente">Voir {{.D.EnAttente}} {{accord .D.EnAttente "machine(s)"}} en attente</a></p>{{end}}
+</section>{{end}}
+{{end}}
+{{end}}

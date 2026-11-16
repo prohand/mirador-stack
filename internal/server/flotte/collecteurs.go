@@ -371,3 +371,23 @@ func contient(l []string, v string) bool {
 	}
 	return false
 }
+
+// RelevesParCollecteur : pour chaque équipement rattaché, le nom de son
+// collecteur (une seule requête, pour la liste des machines).
+func RelevesParCollecteur(ctx context.Context, db *sql.DB) (map[string]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT m.nom, c.nom FROM equipements_collecteur e
+		JOIN machines m ON m.id = e.machine_id JOIN machines c ON c.id = e.collecteur_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var eq, col string
+		if err := rows.Scan(&eq, &col); err != nil {
+			return nil, err
+		}
+		out[eq] = col
+	}
+	return out, rows.Err()
+}

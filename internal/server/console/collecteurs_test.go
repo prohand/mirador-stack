@@ -43,11 +43,11 @@ func TestCollecteurInterface(t *testing.T) {
 		t.Error("« relevé par » absent de la page de l'équipement")
 	}
 	// Équipement sans agent créé « relevé par » : pas de token, rattaché.
-	if _, corps, _ = b.get(c, "/machines"); !strings.Contains(corps, `<select name="collecteur">`) {
+	if _, corps, _ = b.get(c, "/machines/ajouter?quoi=equipement"); !strings.Contains(corps, `<select name="collecteur">`) {
 		t.Fatal("choix « Relevé par » absent")
 	}
 	_, corps, _ = b.post(c, "/machines/equipement", url.Values{"csrf": {csrf}, "nom": {"imprimante"}, "collecteur": {"collecteur-lan"}})
-	if strings.Contains(corps, "Token de") {
+	if strings.Contains(corps, "Brancher «") {
 		t.Error("token créé pour un équipement relevé par un collecteur")
 	}
 	if eqs, _ := flotte.EquipementsDe(ctx, b.c.db, idC); len(eqs) != 2 {

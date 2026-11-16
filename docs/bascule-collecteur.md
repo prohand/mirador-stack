@@ -7,9 +7,9 @@ ta validation** (SPEC.md § 23.9). Rien n'est coupé par mirador lui-même.
 ## 1. Installer et régler le collecteur
 
 1. Mettre à jour le serveur (tag) : il embarque le binaire du collecteur.
-2. Machines › Ajouter une machine › Machine : **Collecteur du LAN** ;
+2. Machines › + Ajouter une machine › **Collecteur du LAN** ;
    coller la commande sur la machine du LAN (un LXC suffit), approuver.
-3. Créer les équipements (Machines › Équipement sans agent › *Relevé par*
+3. Créer les équipements (Machines › + Ajouter une machine › Équipement sans agent › *Relevé par*
    ce collecteur) : NAS, contrôleur UniFi, etc. Les noms doivent être
    **ceux d'aujourd'hui** (étiquette `instance` des tableaux et des règles).
 4. Page du collecteur : SNMP (NAS), contrôleur UniFi, sondes de certificats,

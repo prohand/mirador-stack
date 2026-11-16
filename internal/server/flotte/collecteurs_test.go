@@ -4,6 +4,7 @@ package flotte
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -234,5 +235,36 @@ func TestSecretsSNMP(t *testing.T) {
 	b.f.opt.Cle = []byte("ffffffffffffffffffffffffffffffff")
 	if w := b.requete(http.MethodGet, protocole.CheminConfig, tokC, nil, "", protocole.EnteteCapacites, protocole.CapaciteCollecteur); w.Code == http.StatusOK {
 		t.Error("secret illisible : configuration envoyée quand même")
+	}
+}
+
+// Noms réservés par l'interface (/machines/ajouter…) : refusés partout ;
+// RelevesParCollecteur : équipement → collecteur en une requête.
+func TestNomsReservesEtReleves(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	t0 := time.Unix(1_700_000_000, 0)
+	if _, err := TokenManuel(ctx, b.db, "Ajouter", "admin", t0); err == nil {
+		t.Error("token manuel pour un nom réservé")
+	}
+	if _, err := CreerJetonEtiquettes(ctx, b.db, time.Hour, Etiquettes{Nom: "jeton"}, "admin", t0); err == nil {
+		t.Error("jeton pour un nom réservé")
+	}
+	if _, err := TokenManuel(ctx, b.db, "collecteur-lan", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.db.Exec(`UPDATE machines SET type = 'collecteur' WHERE nom = 'collecteur-lan'`); err != nil {
+		t.Fatal(err)
+	}
+	idC, _ := IDMachine(ctx, b.db, "collecteur-lan")
+	if err := CreerEquipement(ctx, b.db, "equipement", idC, "admin", t0); err == nil {
+		t.Error("équipement au nom réservé")
+	}
+	if err := CreerEquipement(ctx, b.db, "synology", idC, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	r, err := RelevesParCollecteur(ctx, b.db)
+	if err != nil || len(r) != 1 || r["synology"] != "collecteur-lan" {
+		t.Fatalf("relevés : %v, %v", r, err)
 	}
 }
