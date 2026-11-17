@@ -44,6 +44,9 @@ type Message struct {
 	// Site : message d'un site injoignable (toutes ses machines muettes en
 	// même temps, SPEC § 39) : mis en forme à part, une ligne par machine.
 	Site string
+	// Extraits : dernières lignes de logs par alerte (empreinte des
+	// étiquettes), remplies juste avant l'envoi (SPEC § 41).
+	Extraits map[uint64][]string
 }
 
 // Nb : nombre d'alertes dans le message.
@@ -151,6 +154,16 @@ func Texte(m *Message, o Mise) string {
 		}
 		if a.Description != "" {
 			b.WriteString(ital(a.Description) + "\n")
+		}
+		if lignes := m.Extraits[a.Etiquettes.Hash()]; len(lignes) > 0 {
+			b.WriteString(e("📄 Derniers logs :") + "\n")
+			if o.HTML {
+				b.WriteString("<pre>" + e(strings.Join(lignes, "\n")) + "</pre>\n")
+			} else {
+				for _, l := range lignes {
+					b.WriteString("  " + l + "\n")
+				}
+			}
 		}
 		machine := a.Machine()
 		if machine == "" {

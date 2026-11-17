@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,10 @@ import (
 // MisesAJour produit :
 //   - apt_upgrades_pending : paquets à mettre à jour ;
 //   - apt_upgrades_security_pending : dont mises à jour de sécurité ;
-//   - node_reboot_required : 1 si /run/reboot-required existe.
+//   - node_reboot_required : 1 si /run/reboot-required existe ;
+//   - apt_upgrade_package{package, from, to, security} : un paquet à mettre
+//     à jour (valeur 1), 200 au plus (SPEC § 42.3 : liste montrée sur la
+//     page de la machine).
 //
 // Méthode (SPEC.md § 6.2) : « apt-get --simulate dist-upgrade », chemin et
 // arguments figés dans le code, sans droits root (la simulation n'en demande
@@ -42,8 +46,19 @@ type MisesAJour struct {
 	ok       bool // au moins une mesure réussie
 	total    int
 	securite int
+	paquets  []paquetAJour
 	erreur   error
 }
+
+// paquetAJour : une ligne « Inst » de la simulation.
+type paquetAJour struct {
+	nom, avant, apres string
+	securite          bool
+}
+
+// maxPaquetsListes : au-delà, seuls les premiers sont envoyés (le nombre
+// total reste juste) : quelques centaines de séries au pire.
+const maxPaquetsListes = 200
 
 // cheminAptGet : seul programme lancé par ce collecteur.
 const cheminAptGet = "/usr/bin/apt-get"
@@ -81,6 +96,10 @@ func (m *MisesAJour) Collecter(b *metrics.Batch) error {
 	if m.ok {
 		b.Add("apt_upgrades_pending", float64(m.total))
 		b.Add("apt_upgrades_security_pending", float64(m.securite))
+		for _, p := range m.paquets {
+			b.Add("apt_upgrade_package", 1, metrics.L("package", p.nom), metrics.L("from", p.avant),
+				metrics.L("to", p.apres), metrics.L("security", bool01s(p.securite)))
+		}
 	}
 	return m.erreur
 }
@@ -90,16 +109,17 @@ func (m *MisesAJour) mesurer() {
 	ctx, annuler := context.WithTimeout(context.Background(), m.delai)
 	defer annuler()
 	sortie, err := m.lancer(ctx)
+	var paquets []paquetAJour
 	total, securite := 0, 0
 	if err == nil {
-		total, securite = compterMisesAJour(sortie)
+		paquets, total, securite = lireMisesAJour(sortie)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.enCours = false
 	m.erreur = err
 	if err == nil {
-		m.ok, m.total, m.securite = true, total, securite
+		m.ok, m.total, m.securite, m.paquets = true, total, securite, paquets
 	}
 }
 
@@ -122,23 +142,65 @@ func (m *MisesAJour) lancerAptGet(ctx context.Context) ([]byte, error) {
 	return sortie.buf.Bytes(), nil
 }
 
-// compterMisesAJour lit les lignes « Inst paquet [ancienne] (nouvelle origine [arch]) ».
-// Une mise à jour est « de sécurité » si son origine contient « -security »
-// (Debian : bookworm-security, Ubuntu : noble-security).
+// compterMisesAJour : nombre de mises à jour, dont de sécurité.
 func compterMisesAJour(sortie []byte) (total, securite int) {
+	_, total, securite = lireMisesAJour(sortie)
+	return total, securite
+}
+
+// lireMisesAJour lit les lignes « Inst paquet [ancienne] (nouvelle origine [arch]) ».
+// Une mise à jour est « de sécurité » si son origine contient « -security »
+// (Debian : bookworm-security, Ubuntu : noble-security). Un nouveau paquet
+// (sans [ancienne]) a une version installée vide. Les champs sont bornés
+// (nom 128, version 64 caractères) : ce sont des étiquettes de séries.
+func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) {
 	sc := bufio.NewScanner(bytes.NewReader(sortie))
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for sc.Scan() {
 		ligne := sc.Bytes()
-		if !bytes.HasPrefix(ligne, []byte("Inst ")) {
+		reste, ok := bytes.CutPrefix(ligne, []byte("Inst "))
+		if !ok {
 			continue
 		}
 		total++
+		p := paquetAJour{}
 		if i := bytes.IndexByte(ligne, '('); i >= 0 && bytes.Contains(ligne[i:], []byte("-security")) {
 			securite++
+			p.securite = true
+		}
+		if len(paquets) >= maxPaquetsListes {
+			continue
+		}
+		nom, apres, _ := bytes.Cut(reste, []byte(" "))
+		p.nom = borne(string(nom), 128)
+		if v, ok := bytes.CutPrefix(apres, []byte("[")); ok {
+			avant, suite, _ := bytes.Cut(v, []byte("] "))
+			p.avant, apres = borne(string(avant), 64), suite
+		}
+		if v, ok := bytes.CutPrefix(apres, []byte("(")); ok {
+			version, _, _ := bytes.Cut(v, []byte(" "))
+			p.apres = borne(strings.TrimSuffix(string(version), ")"), 64)
+		}
+		if p.nom != "" {
+			paquets = append(paquets, p)
 		}
 	}
-	return total, securite
+	return paquets, total, securite
+}
+
+// borne : au plus n octets, sans couper un caractère.
+func borne(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return strings.ToValidUTF8(s[:n], "")
+}
+
+func bool01s(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
 }
 
 // limiteur garde au plus max octets.

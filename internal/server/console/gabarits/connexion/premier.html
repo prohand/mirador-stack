@@ -1,5 +1,5 @@
 {{define "contenu"}}
-<p>Aucun compte n'existe encore. Créer le premier administrateur avec le <strong>jeton à usage unique</strong> écrit dans le journal du serveur :</p>
+<p class="connexion-sous-titre">Aucun compte n'existe encore. Créer le premier administrateur avec le <strong>jeton à usage unique</strong> écrit dans le journal du serveur :</p>
 <pre>docker logs mirador-server 2>&amp;1 | grep premier</pre>
 <form method="post" action="/premier-admin" class="pile">
   <label>Jeton <input name="jeton" required autocomplete="off" maxlength="128"></label>

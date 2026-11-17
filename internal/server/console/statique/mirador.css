@@ -206,10 +206,43 @@ span.erreur, small.erreur, td.erreur, .erreur-texte { color: var(--erreur); }
 meter { width: 100%; height: .8rem; }
 
 /* --- Connexion ---------------------------------------------------------------- */
-body.seule { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
-.carte-seule { background: var(--carte); border: 1px solid var(--bord); border-radius: 18px; padding: 28px; width: min(440px, 100%); box-shadow: 0 8px 30px rgba(17,24,39,.08); }
+/* SPEC § 43, style « Nuit » (choix du 17/11) : carte centrée sur fond bleu
+   nuit, grille de points et halo ; toujours sombre (couleurs redéfinies
+   ici : champs, boutons et messages suivent). */
+body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; overflow-x: hidden;
+  --fond: #0A0E1A; --carte: rgba(20, 26, 44, .78); --survol: #182038; --texte: #E8EBF5; --doux: #9AA3BC; --pale: #7D879F;
+  --bord: rgba(255, 255, 255, .09); --bord-doux: rgba(255, 255, 255, .06); --champ: #0D1222; --bord-champ: #262E46;
+  --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0A0E1A;
+  --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --erreur: #F87171; --erreur-fond: #2E1517;
+  background: #0A0E1A; color: var(--texte); color-scheme: dark; }
+body.seule::before { content: ""; position: fixed; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px); background-size: 26px 26px; }
+.connexion-halo { position: fixed; width: 760px; height: 760px; max-width: 160vw; border-radius: 50%; top: 42%; left: 50%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(62, 99, 221, .35), transparent 62%); pointer-events: none; }
+.connexion-formulaire { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px 16px; }
+.carte-seule { width: min(420px, 100%); padding: 36px; border-radius: 20px; background: var(--carte); border: 1px solid var(--bord);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .carte-seule form.pile { max-width: none; }
-.carte-seule .logo { margin-bottom: 18px; color: var(--texte); } /* sur la carte claire : le blanc du menu était invisible */
+.carte-seule .logo { justify-content: center; margin-bottom: 26px; color: #FFFFFF; }
+.connexion-titre { text-align: center; font-size: 24px; margin: 0 0 6px; color: #FFFFFF; }
+.connexion-sous-titre { text-align: center; margin: 0 0 24px; color: var(--doux); }
+.carte-seule input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 155, 255, .25); outline: none; }
+.carte-seule a { color: var(--accent-texte); }
+.carte-seule pre, .carte-seule code { background: #0D1222; color: #D5DAE8; border-color: var(--bord-champ); }
+.carte-seule img { background: #FFFFFF; padding: 10px; border-radius: 12px; }
+.connexion-pied { position: relative; margin: 0; padding: 0 16px max(24px, env(safe-area-inset-bottom)); text-align: center; color: #6F7891; font-size: 13px; }
+.champ-icone { position: relative; display: block; margin-top: 6px; }
+.champ-icone svg { position: absolute; left: 12px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); fill: none; stroke: var(--pale); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.champ-icone input { width: 100%; padding-left: 40px; box-sizing: border-box; }
+.champ-icone:focus-within svg { stroke: var(--accent); }
+.bouton-connexion { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; font-weight: 600; margin-top: 6px; }
+.bouton-connexion svg, .bouton-passkey svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bouton-passkey { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; }
+.separateur-ou { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--pale); font-size: 13px; }
+.separateur-ou::before, .separateur-ou::after { content: ""; flex: 1; height: 1px; background: var(--bord); }
+.champ-code { font-size: 22px; letter-spacing: .3em; text-align: center; font-variant-numeric: tabular-nums; }
+.connexion-retour { margin: 18px 0 0; }
+
 
 /* --- Tableaux de bord, logs, courbes -------------------------------------------- */
 .logs td.message-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; word-break: break-word; }
@@ -227,8 +260,18 @@ body.seule { display: flex; min-height: 100vh; align-items: center; justify-cont
 .rangee > summary { cursor: pointer; list-style: none; }
 .rangee > summary::-webkit-details-marker { display: none; }
 .titre-rangee { display: inline-block; margin: .6rem 0; font-family: var(--titres); font-size: 1.1rem; }
-.rangee > summary .titre-rangee::before { content: "▸ "; color: var(--pale); }
-.rangee[open] > summary .titre-rangee::before { content: "▾ "; }
+/* Flèche commune des blocs repliables (SPEC § 42) : › plié, ⌄ déplié. */
+details.carte > summary, details.secours > summary, .rangee > summary { list-style: none; }
+details.carte > summary::-webkit-details-marker, details.secours > summary::-webkit-details-marker { display: none; }
+details.carte > summary::before, details.secours > summary::before, .rangee > summary .titre-rangee::before { content: ""; display: inline-block; flex: none; width: 7px; height: 7px;
+  margin: 0 10px 3px 2px; border-right: 2px solid var(--doux); border-bottom: 2px solid var(--doux); transform: rotate(-45deg);
+  transition: transform .15s; vertical-align: middle; }
+details.carte[open] > summary::before, details.secours[open] > summary::before, .rangee[open] > summary .titre-rangee::before { transform: rotate(45deg); margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { details.carte > summary::before, .rangee > summary .titre-rangee::before { transition: none; } }
+tr[data-onglet-cache] { display: none; }
+.onglets button { padding: 6px 14px; border-radius: 8px; border: 0; background: none; color: var(--doux); font: inherit; font-weight: 500; cursor: pointer; min-height: 0; box-shadow: none; }
+.onglets button:hover { color: var(--texte); background: none; }
+.onglets button.actif { background: var(--carte); color: var(--texte); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .cellule-ok { color: var(--ok); } .cellule-attention { color: var(--attention); font-weight: 600; } .cellule-erreur { color: var(--erreur); font-weight: 700; } .cellule-info { color: var(--info); }
 td.ok { color: var(--ok); } td.attention { color: var(--attention); } td.erreur { color: var(--erreur); font-weight: 700; }
 table.barres td:first-child { width: 45%; word-break: break-word; } table.barres td:last-child { width: 35%; }
@@ -912,14 +955,18 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 }
 
 /* --- Page de connexion sur téléphone : la passkey d'abord (un seul geste) ----------------- */
-body.seule { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); min-height: 100dvh; }
+.connexion-formulaire { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); }
 @media (pointer: coarse) {
   .carte-seule { display: flex; flex-direction: column; }
-  .carte-seule > .logo { order: -3; }
-  .carte-seule > .message { order: -2; }
-  .carte-seule > form[data-passkey-form] { order: -1; margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--bord); }
+  .carte-seule > .logo { order: -6; }
+  .carte-seule > .connexion-titre { order: -5; }
+  .carte-seule > .message { order: -4; }
+  .carte-seule > .connexion-sous-titre { order: -3; }
+  .carte-seule > form[data-passkey-form] { order: -2; }
+  .carte-seule > .separateur-ou { order: -1; }
   .carte-seule > form[data-passkey-form] button { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
 }
+@media (max-width: 480px) { .carte-seule { padding: 28px 20px; border-radius: 18px; } }
 
 /* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
 tr.cet-appareil td:first-child { font-weight: 600; }
@@ -1027,3 +1074,23 @@ summary.bouton { display: inline-flex; align-items: center; min-height: 32px; pa
 summary.bouton.secondaire { background: var(--carte); color: var(--texte); border-color: var(--bord-champ); font-weight: 500; }
 summary.bouton:hover { filter: brightness(1.05); }
 .avatar-compte { text-transform: uppercase; }
+
+/* --- Panneau de détail au clic (SPEC § 42.4) ---------------------------------- */
+.voile-panneau { position: fixed; inset: 0; background: rgba(16, 24, 40, .35); z-index: 60; }
+.panneau-detail { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 94vw; overflow: auto; z-index: 61;
+  background: var(--carte); border-left: 1px solid var(--bord-doux); box-shadow: -12px 0 32px rgba(16, 24, 40, .14); padding: 18px 22px 28px; }
+.panneau-detail:focus { outline: none; }
+.panneau-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.panneau-tete h2 { margin: 0; flex: 1 1 auto; }
+.panneau-detail .onglets, .detail-pleine-page .onglets { margin-bottom: 10px; }
+.bloc-detail { border: 1px solid var(--bord-doux); border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; }
+.bloc-detail h3 { margin: 0 0 8px; font-size: 15px; }
+.bloc-detail table.barres td:first-child { width: 42%; }
+.bloc-detail table.barres td:last-child { width: 34%; }
+body.panneau-ouvert { overflow: hidden; }
+a.jauge-machine { display: block; color: inherit; text-decoration: none; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.detail-pleine-page [data-fermer-panneau] { display: none; }
+@media (max-width: 640px) { .panneau-detail { width: 100vw; max-width: 100vw; padding: 14px 16px 24px; } }
+.sans-coupure { white-space: nowrap; }
+.mesure-large > span { width: 72px; }

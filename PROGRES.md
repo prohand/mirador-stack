@@ -975,6 +975,49 @@ Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
 manquante chez mirador est normale (mirador ne reçoit pas le metric
 server) : à désactiver dans Règles.
 
+## Pages de connexion refaites (SPEC § 43, 17/11)
+
+| Partie | État |
+|---|---|
+| Style « Nuit » (choix A parmi 4 maquettes) : carte centrée sur fond bleu nuit, toujours sombre | **fait**, vu dans Chromium (écran large, iPhone 13) ; à valider |
+| Code 2FA, code de secours, création de la 2FA, premier administrateur : même cadre | **fait**, connexion complète testée (mot de passe faux, puis bon mot de passe et code) ; à valider |
+
+Coût : CSS et SVG en ligne seulement, aucun script ni image.
+
+## Conteneurs, Services, Paquets, détail au clic (SPEC § 42, 17/11)
+
+Idées de Beszel, maquettes validées le 17/11 ; « fais tout et le détail au clic ».
+
+| Partie | État |
+|---|---|
+| Page Conteneurs (menu, compteur, Ctrl K, lien depuis la machine, filtres, tri, Logs) | **fait**, testé, vu dans Chromium (écran large et téléphone) ; à valider |
+| Bloc Services (replié, ouvert d'office si échec, onglets, Logs) | **fait**, testé, vu ; à valider |
+| Bloc Paquets (agent : liste de 200 au plus ; serveur : bloc replié) | **fait**, testé, vu ; à valider après mise à jour des agents |
+| Panneau de détail (CPU par cœur, mémoire, disques, réseau) | **fait**, testé, vu (Échap, onglets, téléphone) ; à valider |
+| Même flèche › / ⌄ sur tous les blocs repliables | **fait** |
+
+Mesures (banc, 10 machines, 200 conteneurs) : page Conteneurs 86 ms et
+4,3 Mo temporaires ; page machine 26 ms ; panneau CPU 5 ms. Agent : une
+série de plus par conteneur en marche, une par paquet en attente (200 au
+plus). Négligeable devant les objectifs ✅.
+
+À faire de ton côté : mettre à jour serveur **et agents** (liste des
+paquets, « Depuis » des conteneurs).
+
+## Derniers logs dans les messages (SPEC § 41, 17/11)
+
+Idée reprise de Beszel (idée seulement). Choix du 17/11 : « fais le 1 uniquement ».
+
+| Partie | État |
+|---|---|
+| Service en échec, conteneur, OOM du noyau : 5 dernières lignes de logs dans le message (alertes nouvelles) | **fait**, testé (faux stockage et vrai stockage des logs) ; à valider |
+| Case dans Réglages › Notifications (cochée par défaut) | **fait**, testé |
+
+Mesure (banc, 24 h de logs, 200 000 lignes, 10 machines) : **1,5 ms** et
+1,5 Mo de mémoire temporaire par recherche ; au plus 3 recherches par
+message, abandonnées après 3 s. Rien en base. Négligeable devant les
+objectifs du serveur ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.
@@ -1031,7 +1074,10 @@ Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
 2. Au retour : mettre à jour le serveur (site injoignable, page Coupures),
    vérifier la page Alertes › Coupures (bilan de la coupure du 16/11),
    désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
-3. Valider SPEC § 39 (site injoignable, coupures) et § 40 (guide de l'étape 7).
+3. Valider SPEC § 39 (site injoignable, coupures), § 40 (guide de l'étape 7)
+   § 41 (derniers logs dans les messages) et § 42 (Conteneurs, Services,
+   Paquets, détail au clic ; mettre aussi les agents à jour) et § 43
+   (pages de connexion).
 4. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

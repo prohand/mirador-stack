@@ -282,6 +282,7 @@ func (c *Console) postNotifications(q *req) {
 				r.ReglesPanne = f.liste("regles_panne")
 			}
 			r.GrouperPar = f.liste("grouper_par")
+			r.SansExtraitsLogs = !f.coche("extraits_logs") // SPEC § 41
 			for _, g := range []string{alertes.Critique, alertes.Avertissement, alertes.Info} {
 				r.Routes[g] = notif.Route{Attente: f.duree("attente_"+g, &errs), Intervalle: f.duree("intervalle_"+g, &errs),
 					Rappel: f.duree("rappel_"+g, &errs), Son: f.coche("son_" + g), Escalade: f.duree("escalade_"+g, &errs)}

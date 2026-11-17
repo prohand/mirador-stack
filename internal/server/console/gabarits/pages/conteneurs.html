@@ -1,0 +1,31 @@
+{{define "contenu"}}
+<h1>Conteneurs</h1>
+<p class="sous">Tous les conteneurs Docker du parc, problèmes en premier. Processeur : part de toute la machine. Mémoire : utilisée / limite du conteneur. « Logs » ouvre la page Logs filtrée sur le conteneur.</p>
+{{if .D.SansDonnees}}<section class="carte"><p class="vide">Aucun conteneur reçu : aucune machine n'envoie de données Docker (collecteur Docker de l'agent, accès au proxy de la socket).</p></section>
+{{else}}
+<div class="resume-alertes">
+ <a class="tuile" href="/conteneurs?etat=marche"><small>En marche</small><b>{{.D.EnMarche}}</b></a>
+ <a class="tuile{{if .D.NonSains}} critique{{end}}" href="/conteneurs?etat=problemes"><small>Non sains</small><b>{{.D.NonSains}}</b></a>
+ <a class="tuile{{if .D.Arretes}} avert{{end}}" href="/conteneurs?etat=problemes"><small>Arrêtés (redémarrage auto)</small><b>{{.D.Arretes}}</b></a>
+ <span class="tuile"><small>Redémarrés sur 24 h</small><b>{{.D.Redemarres}}</b></span>
+</div>
+<section class="carte">
+<div class="entete-carte"><div><h2>{{.D.Total}} {{accord .D.Total "conteneur(s)"}}{{if not .D.Machine}} sur {{.D.NbMachines}} {{accord .D.NbMachines "machine(s)"}}{{else}} sur {{.D.Machine}}{{end}}</h2></div>
+<form method="get" action="/conteneurs" class="ligne filtres-conteneurs">
+<label class="masque-visuel" for="filtre-machine">Machine</label><select id="filtre-machine" name="machine"><option value="">Toutes les machines</option>{{range .D.Machines}}<option value="{{.}}"{{if egal . $.D.Machine}} selected{{end}}>{{.}}</option>{{end}}</select>
+<label class="masque-visuel" for="filtre-etat">État</label><select id="filtre-etat" name="etat"><option value="">Tous les états</option><option value="problemes"{{if egal .D.Etat "problemes"}} selected{{end}}>Problèmes</option><option value="marche"{{if egal .D.Etat "marche"}} selected{{end}}>En marche</option><option value="arretes"{{if egal .D.Etat "arretes"}} selected{{end}}>Arrêtés</option></select>
+<button class="secondaire">Afficher</button>{{if or .D.Machine .D.Etat}} <a href="/conteneurs">Tout voir</a>{{end}}
+</form></div>
+{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur</th><th>Mémoire</th><th class="nombre">Redémarrages 24 h</th><th>Depuis</th><th></th></tr></thead><tbody>
+{{range .D.Lignes}}<tr><td><strong>{{.Nom}}</strong>{{if .Projet}}<br><small class="doux">{{.Projet}}</small>{{end}}</td>
+<td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
+<td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}{{if .OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
+<td>{{if .Sante}}<span class="pastille {{.ClasseSante}}">{{.Sante}}</span>{{else}}<span class="doux">pas de test</span>{{end}}</td>
+<td data-valeur="{{.PctCPU}}"><div class="mesure"><span>{{.CPU}}</span>{{if ge .PctCPU 0}}<div class="jauge {{.ClasseCPU}}"><i class="largeur-{{.PctCPU}}"></i></div>{{end}}</div></td>
+<td data-valeur="{{.PctMemoire}}"><div class="mesure mesure-large"><span class="sans-coupure">{{.Memoire}}</span>{{if ge .PctMemoire 0}}<div class="jauge {{.ClasseMem}}"><i class="largeur-{{.PctMemoire}}"></i></div>{{end}}</div>{{if .Limite}}<small class="doux sans-coupure">limite {{.Limite}}</small>{{end}}</td>
+<td class="nombre">{{if .Redemarrages}}<strong>{{.Redemarrages}}</strong>{{else}}0{{end}}</td>
+<td data-valeur="{{.DepuisS}}">{{if .Depuis}}{{.Depuis}}{{else}}—{{end}}</td>
+<td><a class="pastille" href="{{.LienLogs}}">Logs</a></td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucun conteneur pour ce filtre.</p>{{end}}
+</section>{{end}}
+{{end}}

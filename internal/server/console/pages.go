@@ -38,6 +38,8 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /fragments/accueil", c.lecture(c.fragmentAccueil))
 	m.HandleFunc("GET /mur", c.lecture(c.pageMur))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
+	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
+	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
@@ -600,6 +602,8 @@ type donneesMachine struct {
 	Masquees    []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
+	Services    *vueServices   // bloc « Services » (SPEC § 42.2)
+	Paquets     *vuePaquets    // bloc « Paquets à mettre à jour » (SPEC § 42.3)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -651,6 +655,16 @@ func (c *Console) pageMachine(q *req) {
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
 		d.Identite = c.identite(ctx, m, ech, q.t)
+		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
+		d.Paquets = c.paquetsMachine(ctx, m, q.t)
+		if d.Paquets != nil {
+			// Ouvert d'office quand l'alerte des mises à jour de sécurité est en cours.
+			for _, a := range d.Alertes {
+				if a.Regle == "MisesAJourSecuriteEnAttente" {
+					d.Paquets.Ouvrir = true
+				}
+			}
+		}
 		d.Modeles = c.vueModelesMachine(ctx, m, q.t)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	}
@@ -1353,7 +1367,8 @@ type destination struct {
 // fois à l'ouverture de la recherche ; le filtrage se fait dans le navigateur).
 func (c *Console) donneesAller(q *req) {
 	out := []destination{
-		{"Vue d'ensemble", "Page", "/"}, {"Machines", "Page", "/machines"}, {"Alertes", "Page", "/alertes"},
+		{"Vue d'ensemble", "Page", "/"}, {"Machines", "Page", "/machines"}, {"Conteneurs", "Page", "/conteneurs"},
+		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
 	}

@@ -5393,3 +5393,150 @@ Menaces :
   plus aucun autre conteneur ne joint mirador sans passer par nginx.
 - Grafana : non gardé (API de lecture compatible Prometheus du brief non
   faite, facultative) ; à demander avant la phase C.
+
+## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Fait, à valider]**
+
+Idée reprise de Beszel (qui joint les logs d'un conteneur « unhealthy ») ;
+**aucun code repris**, réécrit pour mirador.
+
+- Pour une alerte **nouvelle** d'un message d'alerte, le message contient
+  « 📄 Derniers logs : » et les 5 dernières lignes, dans l'ordre :
+  - étiquette `name` en `.service` (`ServiceSystemdEnEchec`,
+    `ServiceRedemarreEnBoucle`…) : logs de cette unité sur la machine ;
+  - étiquette `name` sans `.service` (règles des conteneurs Docker :
+    `ConteneurNonSain`, `ConteneurRedemarreEnBoucle`, OOM d'un conteneur…) :
+    logs de ce conteneur ;
+  - `OomKiller` : lignes du noyau « Out of memory: Killed process … ».
+- Période : depuis le début de la condition moins 10 min (24 h au plus).
+- Pas d'extrait pour les rappels, les fins, ni le message d'un site
+  injoignable. 3 alertes au plus par message, 160 caractères par ligne,
+  caractères de contrôle retirés.
+- Réglages › Notifications › Routage : case « Joindre les 5 dernières lignes
+  de logs… », cochée par défaut.
+
+| Choix | Raison | Coût |
+|---|---|---|
+| Recherche dans le stockage du serveur, pas une demande à l'agent | les logs y sont déjà ; l'agent n'ouvre aucun port et ne reçoit pas d'ordre | 1,5 ms et 1,5 Mo temporaires par recherche (banc : 24 h, 200 000 lignes, 10 machines) |
+| Limites serrées (200 blocs, 2 s, 1 travailleur ; 3 s par message) | un message ne doit jamais attendre ; une recherche lente est abandonnée, le message part sans extrait | — |
+| Choix d'après les étiquettes, pas une liste par règle | marche aussi pour une règle ajoutée plus tard avec la même étiquette | une règle dont `name` n'est ni un service ni un conteneur ne trouve rien : pas d'extrait |
+
+Menaces :
+- **Des logs quittent le serveur** (Telegram, e-mail, ntfy, push) : ils
+  sont déjà masqués par l'agent (mots de passe, jetons, règles de masquage)
+  avant d'arriver ; la case permet de tout couper.
+- Texte des logs hostile (balises, retours à la ligne) : échappé en HTML,
+  caractères de contrôle remplacés, longueur bornée ; le message entier
+  reste coupé proprement à la limite du canal.
+- Charge : une recherche par alerte nouvelle concernée, plafonnée (voir
+  ci-dessus) ; une rafale d'alertes reste bornée à 3 recherches par message.
+
+## 42. Conteneurs, Services, Paquets, détail au clic (idées de Beszel, demande du 17/11) **[Fait, à valider]**
+
+Idées reprises de Beszel après maquettes validées le 17/11 (captures) ;
+**aucun code repris**.
+
+### 42.1 Page « Conteneurs »
+
+- Menu : « Conteneurs » sous « Machines », avec un compteur orange (non
+  sains + arrêtés alors qu'ils devraient redémarrer, mêmes conditions que
+  `ConteneurNonSain` et `ConteneurArrete`). Aussi dans « Aller à… » (Ctrl K)
+  et en lien depuis « Les plus gourmands » de chaque machine.
+- Quatre tuiles (en marche, non sains, arrêtés, redémarrés sur 24 h) ; un
+  tableau, problèmes en premier : conteneur (et projet compose), machine,
+  état, santé, processeur (part de toute la machine), mémoire (et limite),
+  redémarrages sur 24 h, depuis quand, bouton « Logs » (page Logs filtrée).
+- Filtres machine et état (dans l'adresse), tri par colonne et « Filtrer
+  ce tableau » comme les autres tableaux.
+- **Agent** : une série de plus par conteneur en marche,
+  `node_docker_container_started_timestamp_seconds` (date lue dans la
+  réponse déjà demandée à Docker, rien de plus). Agent ancien : « — ».
+
+### 42.2 Bloc « Services » (page machine)
+
+- Placé après les alertes, avant « En ce moment ». Replié, sauf si un
+  service est en échec (ouvert d'office) ; sinon le choix est retenu par
+  le navigateur. Flèche › / ⌄, désormais la même sur tous les blocs
+  repliables de l'interface.
+- Onglets Tous / À regarder (en échec + arrêtés) / Au démarrage /
+  Surveillés ; tri, filtre, bouton « Logs » (page Logs filtrée sur l'unité).
+- Rien de nouveau collecté : `node_systemd_unit_state`,
+  `node_systemd_unit_enabled_active`, `node_systemd_service_restart_total`.
+  L'agent n'envoie pas l'état « actif » de chaque unité (écarté le 09/11) :
+  un service ni en échec ni lancé au démarrage est « À la demande ». Les
+  services du système (systemd-*, getty, dbus…) sont cachés, sauf en échec.
+
+### 42.3 Bloc « Paquets à mettre à jour » (page machine)
+
+- Même place, même pliage ; ouvert d'office si l'alerte
+  `MisesAJourSecuriteEnAttente` est en cours. Paquet, version installée,
+  nouvelle version, sécurité ou non ; « Redémarrage nécessaire » ; la
+  commande à lancer (mirador n'installe jamais rien).
+- **Agent** : la simulation `apt-get --simulate dist-upgrade` (déjà lancée
+  toutes les 6 h) est lue en entier : une série
+  `apt_upgrade_package{package, from, to, security}` par paquet, **200 au
+  plus** (le nombre total reste juste), champs bornés (128 / 64 caractères).
+  Agent ancien : le nombre seulement, avec une phrase qui le dit.
+
+### 42.4 Détail au clic
+
+- Les tuiles « En ce moment » (CPU, mémoire, disque, swap, charge) et
+  4 liens ouvrent un panneau à droite (plein écran sur téléphone) :
+  processeur par cœur et répartition du temps (user, system, iowait…),
+  mémoire détaillée et swap, disques (place par point de montage, lecture,
+  écriture, occupation par disque), réseau par interface (reçu, envoyé,
+  erreurs) ; conteneurs les plus gourmands. Onglets pour passer de l'un à
+  l'autre ; fermeture par bouton, Échap ou clic à côté.
+- `GET /machines/{nom}/detail/{cpu|memoire|disques|reseau}` : fragment pour
+  la page, page complète sans JavaScript (ou dans un nouvel onglet).
+
+### 42.5 Coût mesuré (banc : 10 machines, 200 conteneurs, 60 services par machine, 16 cœurs)
+
+| Quoi | Temps | HTML | Mémoire allouée (libérée ensuite) |
+|---|---|---|---|
+| Page Conteneurs (200) | 86 ms (cache froid) | 126 Ko | 4,3 Mo |
+| Page machine avec Services (60) et Paquets | 26 ms | 78 Ko | 3,5 Mo |
+| Panneau CPU (16 cœurs) | 5 ms | 3 Ko | 0,4 Mo |
+| Compteur du menu (chaque page) | 1 requête, gardée 20 s | — | — |
+
+Séries en plus : 1 par conteneur en marche ; 1 par paquet en attente
+(200 au plus par machine, quelques-unes en général). Rien en base, rien
+gardé en mémoire entre deux pages.
+
+### 42.6 Menaces
+
+- Noms de paquets, de services et de conteneurs : valeurs envoyées par
+  l'agent, affichées échappées (html/template) ; dans les liens, encodées
+  (`url.Values`) ; un nom de machine n'entre dans une requête qu'après
+  vérification (`reValeurVariable`).
+- Panneau : fragment HTML du serveur (gabarit échappé) inséré dans la
+  page, aucun script ; adresse refusée (404) si la machine ou la rubrique
+  est inconnue. Lecture seule, mêmes droits que la page machine.
+- L'agent ne lance rien de nouveau : la commande apt est la même qu'avant
+  (chemin et arguments figés, sans root) ; seule sa sortie est lue en plus.
+- `localStorage` : seulement l'état plié / déplié (aucune donnée).
+
+## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Fait, à valider]**
+
+- Première version (présentation à gauche, formulaire à droite), puis
+  4 maquettes présentées (A Nuit, B Console, C Topographie, D Aperçu) :
+  **A choisi le 17/11**.
+- Style « Nuit » : carte centrée, semi-transparente (flou d'arrière-plan),
+  sur fond bleu nuit avec une grille de points et un halo bleu ; logo,
+  « Connectez-vous pour voir votre parc. » (sans titre visible : « Bon
+  retour » retiré le 17/11 ; titre caché pour les lecteurs d'écran), champs avec
+  icône, bouton bleu clair « Continuer → », séparateur « ou » avant la
+  passkey ; en bas : « Connexion chiffrée · 2FA obligatoire · mirador-stack,
+  logiciel libre ».
+- **Toujours sombre**, même quand le système est en mode clair : les
+  couleurs de l'interface sont redéfinies pour ces pages seulement
+  (champs, boutons, messages d'erreur, liens suivent).
+- Même cadre pour toutes les pages hors connexion : code 2FA (champ large,
+  chiffres espacés), code de secours, création de la 2FA (QR code sur fond
+  blanc), premier administrateur. Téléphone : la même carte ; sur écran
+  tactile, la passkey reste en premier (§ 34).
+- Coût : quelques règles CSS et un SVG en ligne ; aucun script, aucune
+  image, aucune police nouvelle.
+- Menaces : **rien sur le parc n'est montré avant connexion** (ni nom de
+  machine, ni chiffre). Noms des champs, formulaires, jeton CSRF, passkey
+  et limites de tentatives inchangés ; connexion complète vérifiée dans
+  Chromium (mot de passe faux, puis bon mot de passe et code 2FA).

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F7F7F8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0C0D10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0A0E1A">
+<meta name="color-scheme" content="dark">
 {{template "tete-app"}}
 <title>{{.Titre}} — mirador</title>
 <link rel="stylesheet" href="{{statique "mirador.css"}}">
@@ -12,10 +12,19 @@
 <script src="{{statique "passkey.js"}}" defer></script>
 </head>
 <body class="seule">
-<main class="carte-seule">
-<div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#2F5BEA"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>mirador</span></div>
-{{if .D.Erreur}}<p class="message erreur" role="alert">{{majuscule .D.Erreur}}</p>{{end}}
-{{template "contenu" .}}
+{{/* Pages de connexion (SPEC § 43, style « Nuit » choisi le 17/11) : carte
+     centrée sur fond bleu nuit (grille de points, halo), toujours sombre.
+     Rien sur le parc n'est montré avant connexion. */}}
+<div class="connexion-halo" aria-hidden="true"></div>
+<main class="connexion-formulaire">
+  <div class="carte-seule">
+    <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#3E63DD"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>mirador</span></div>
+    {{/* Page de connexion : pas de titre visible (demande du 17/11), un titre
+         caché reste pour les lecteurs d'écran. */}}{{if eq .Titre "Connexion"}}<h1 class="masque-visuel">Connexion</h1>{{else}}<h1 class="connexion-titre">{{.Titre}}</h1>{{end}}
+    {{if .D.Erreur}}<p class="message erreur" role="alert">{{majuscule .D.Erreur}}</p>{{end}}
+    {{template "contenu" .}}
+  </div>
 </main>
+<p class="connexion-pied">Connexion chiffrée · 2FA obligatoire · mirador-stack, logiciel libre</p>
 </body>
 </html>

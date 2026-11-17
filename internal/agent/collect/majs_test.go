@@ -3,7 +3,9 @@
 package collect
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -111,5 +113,30 @@ func attendreCond(t *testing.T, cond func() bool) {
 			t.Fatal("délai dépassé")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// Liste des paquets (SPEC § 42.3) : nom, versions, sécurité ; nouveau
+// paquet sans version installée ; plafond de 200 (le total reste juste).
+func TestLireMisesAJour(t *testing.T) {
+	ps, total, sec := lireMisesAJour([]byte(sortieApt + "Inst neuf (1.0-1 Debian:12/stable [amd64])\n"))
+	if total != 5 || sec != 3 || len(ps) != 5 {
+		t.Fatalf("total %d, sécurité %d, liste %d", total, sec, len(ps))
+	}
+	if p := ps[0]; p.nom != "libssl3" || p.avant != "3.0.15-1~deb12u1" || p.apres != "3.0.17-1~deb12u2" || !p.securite {
+		t.Errorf("libssl3 : %+v", p)
+	}
+	if p := ps[2]; p.nom != "tzdata" || p.securite || p.apres != "2025b-0+deb12u1" {
+		t.Errorf("tzdata : %+v", p)
+	}
+	if p := ps[4]; p.nom != "neuf" || p.avant != "" || p.apres != "1.0-1" {
+		t.Errorf("nouveau paquet : %+v", p)
+	}
+	var beaucoup bytes.Buffer
+	for i := 0; i < 250; i++ {
+		fmt.Fprintf(&beaucoup, "Inst p%d [1] (2 Debian:12/stable [amd64])\n", i)
+	}
+	if ps, total, _ := lireMisesAJour(beaucoup.Bytes()); total != 250 || len(ps) != maxPaquetsListes {
+		t.Errorf("plafond : total %d, liste %d", total, len(ps))
 	}
 }

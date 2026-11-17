@@ -251,3 +251,9 @@
 {{define "etat-canal"}}{{if not .Actif}}<span class="pastille">Inactif</span>{{else if .E.EnPanne}}<span class="pastille erreur" title="{{.E.Erreur}}">En panne</span>{{else if eq .Nom .C.Principal}}<span class="pastille ok">Actif · principal</span>{{else if eq .Nom .C.Secours}}<span class="pastille ok">Actif · secours</span>{{else}}<span class="pastille ok">Actif</span>{{end}}{{end}}
 {{define "sites-injoignables"}}{{range .}}<p class="message erreur site-injoignable">📡 <strong>Site {{.Site}} injoignable</strong> depuis {{date .Depuis}} : ses {{len .Machines}} machines ({{joindre .Machines}}) se sont tues en même temps (coupure d'internet ou de courant ?). Un seul message envoyé pour le site, un autre au retour. <a href="/coupures?site={{.Site}}">Suivre la coupure</a></p>
 {{end}}{{end}}
+{{define "detail-machine"}}{{$d := .D}}<div class="panneau-tete"><h2>{{$d.Titre}} · {{$d.Machine}}</h2><button type="button" class="secondaire petit" data-fermer-panneau>Fermer</button></div>
+<p class="onglets">{{range $d.Onglets}}<a href="/machines/{{$d.Machine}}/detail/{{.Quoi}}" data-panneau{{if .Actif}} class="actif" aria-current="page"{{end}}>{{.Titre}}</a>{{end}}</p>
+{{if $d.Resume}}<p class="sous">{{$d.Resume}}</p>{{end}}
+{{range $d.Blocs}}<section class="bloc-detail"><h3>{{.Titre}}{{if .Note}} <small class="doux">· {{.Note}}</small>{{end}}</h3>
+{{if .Lignes}}<table class="barres">{{range .Lignes}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée.</p>{{end}}</section>{{end}}
+{{if not $d.Blocs}}<p class="vide">Aucune donnée pour cette machine.</p>{{end}}{{end}}

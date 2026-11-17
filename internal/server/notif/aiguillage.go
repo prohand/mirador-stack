@@ -35,6 +35,8 @@ type Options struct {
 	Envoyeur   Envoyeur                // canaux (mode actif)
 	Journal    *slog.Logger
 	Maintenant func() time.Time
+	// Logs : recherche des extraits joints aux messages (nil : aucun).
+	Logs ChercheurLogs
 }
 
 type suivi struct {
@@ -252,6 +254,7 @@ func (g *Aiguilleur) Tour(ctx context.Context) {
 	g.mu.Unlock()
 
 	for _, m := range messages {
+		g.ajouterExtraits(ctx, m, &r, t)
 		if r.Mode == Ombre {
 			noterOmbre(ctx, g.opt.DB, m, &r, g.opt.Journal)
 			continue
