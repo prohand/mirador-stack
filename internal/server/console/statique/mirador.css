@@ -227,8 +227,18 @@ body.seule { display: flex; min-height: 100vh; align-items: center; justify-cont
 .rangee > summary { cursor: pointer; list-style: none; }
 .rangee > summary::-webkit-details-marker { display: none; }
 .titre-rangee { display: inline-block; margin: .6rem 0; font-family: var(--titres); font-size: 1.1rem; }
-.rangee > summary .titre-rangee::before { content: "▸ "; color: var(--pale); }
-.rangee[open] > summary .titre-rangee::before { content: "▾ "; }
+/* Flèche commune des blocs repliables (SPEC § 42) : › plié, ⌄ déplié. */
+details.carte > summary, .rangee > summary { list-style: none; }
+details.carte > summary::-webkit-details-marker { display: none; }
+details.carte > summary::before, .rangee > summary .titre-rangee::before { content: ""; display: inline-block; flex: none; width: 7px; height: 7px;
+  margin: 0 10px 3px 2px; border-right: 2px solid var(--doux); border-bottom: 2px solid var(--doux); transform: rotate(-45deg);
+  transition: transform .15s; vertical-align: middle; }
+details.carte[open] > summary::before, .rangee[open] > summary .titre-rangee::before { transform: rotate(45deg); margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { details.carte > summary::before, .rangee > summary .titre-rangee::before { transition: none; } }
+tr[data-onglet-cache] { display: none; }
+.onglets button { padding: 6px 14px; border-radius: 8px; border: 0; background: none; color: var(--doux); font: inherit; font-weight: 500; cursor: pointer; min-height: 0; box-shadow: none; }
+.onglets button:hover { color: var(--texte); background: none; }
+.onglets button.actif { background: var(--carte); color: var(--texte); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 .cellule-ok { color: var(--ok); } .cellule-attention { color: var(--attention); font-weight: 600; } .cellule-erreur { color: var(--erreur); font-weight: 700; } .cellule-info { color: var(--info); }
 td.ok { color: var(--ok); } td.attention { color: var(--attention); } td.erreur { color: var(--erreur); font-weight: 700; }
 table.barres td:first-child { width: 45%; word-break: break-word; } table.barres td:last-child { width: 35%; }
@@ -1027,3 +1037,23 @@ summary.bouton { display: inline-flex; align-items: center; min-height: 32px; pa
 summary.bouton.secondaire { background: var(--carte); color: var(--texte); border-color: var(--bord-champ); font-weight: 500; }
 summary.bouton:hover { filter: brightness(1.05); }
 .avatar-compte { text-transform: uppercase; }
+
+/* --- Panneau de détail au clic (SPEC § 42.4) ---------------------------------- */
+.voile-panneau { position: fixed; inset: 0; background: rgba(16, 24, 40, .35); z-index: 60; }
+.panneau-detail { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 94vw; overflow: auto; z-index: 61;
+  background: var(--carte); border-left: 1px solid var(--bord-doux); box-shadow: -12px 0 32px rgba(16, 24, 40, .14); padding: 18px 22px 28px; }
+.panneau-detail:focus { outline: none; }
+.panneau-tete { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.panneau-tete h2 { margin: 0; flex: 1 1 auto; }
+.panneau-detail .onglets, .detail-pleine-page .onglets { margin-bottom: 10px; }
+.bloc-detail { border: 1px solid var(--bord-doux); border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; }
+.bloc-detail h3 { margin: 0 0 8px; font-size: 15px; }
+.bloc-detail table.barres td:first-child { width: 42%; }
+.bloc-detail table.barres td:last-child { width: 34%; }
+body.panneau-ouvert { overflow: hidden; }
+a.jauge-machine { display: block; color: inherit; text-decoration: none; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.detail-pleine-page [data-fermer-panneau] { display: none; }
+@media (max-width: 640px) { .panneau-detail { width: 100vw; max-width: 100vw; padding: 14px 16px 24px; } }
+.sans-coupure { white-space: nowrap; }
+.mesure-large > span { width: 72px; }

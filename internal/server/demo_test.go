@@ -95,6 +95,21 @@ func TestDemoInterface(t *testing.T) {
 			mk("node_systemd_unit_enabled_active", un, "name", svc)
 		}
 		mk("apt_upgrades_pending", func(int) float64 { return float64(3 * i) })
+		// Services, paquets, cœurs (SPEC § 42) : blocs repliables et panneau de détail.
+		for _, svc := range []string{"ssh.service", "cron.service", "docker.service", "sauvegarde.service", "systemd-journald.service"} {
+			mk("node_systemd_unit_state", func(int) float64 { return 0 }, "name", svc, "state", "failed")
+		}
+		mk("node_systemd_unit_enabled_active", un, "name", "docker.service")
+		if i > 0 {
+			mk("apt_upgrades_security_pending", func(int) float64 { return 1 })
+			for j, p := range [][3]string{{"openssl", "3.0.15-1~deb12u1", "3.0.17-1~deb12u2"}, {"curl", "7.88.1-10+deb12u8", "7.88.1-10+deb12u12"}, {"tzdata", "2025a-0+deb12u1", "2025b-0+deb12u1"}} {
+				if j < 3*i {
+					mk("apt_upgrade_package", un, "package", p[0], "from", p[1], "to", p[2], "security", map[bool]string{true: "1", false: "0"}[j == 0])
+				}
+			}
+		}
+		mk("node_cpu_seconds_total", func(k int) float64 { return float64(k)*(20-3*ph) + 40*math.Sin(float64(k)/25+ph) }, "cpu", "1", "mode", "idle")
+		mk("node_cpu_seconds_total", func(k int) float64 { return float64(k) * 4 }, "cpu", "1", "mode", "user")
 		mk("mirador_logs_journal_lines_read_total", func(k int) float64 { return float64(k) })
 		mk("node_firewall_input_policy_drop", un, "tool", "nftables", "policy", "drop")
 		mk("node_firewall_input_rules", func(int) float64 { return 14 }, "tool", "nftables", "policy", "drop")
@@ -127,12 +142,17 @@ func TestDemoInterface(t *testing.T) {
 		if m == "vm-docker" {
 			mk("node_docker_up", un)
 			for j, ct := range []string{"traefik", "postgres", "appli"} {
-				mk("node_docker_container_running", un, "name", ct)
+				mk("node_docker_container_running", un, "name", ct, "project", "site", "state", "running", "restart_policy", "unless-stopped")
+				mk("node_docker_container_started_timestamp_seconds", func(int) float64 { return float64(now.Add(-time.Duration(j+1) * 26 * time.Hour).Unix()) }, "name", ct, "project", "site")
+				mk("node_docker_container_memory_limit_bytes", func(int) float64 { return 3 << 30 }, "name", ct, "project", "site")
 				// Plus gourmands (SPEC § 31) : postgres en tête.
 				part := []float64{0.05, 0.35, 0.15}[j]
-				mk("node_docker_container_cpu_seconds_total", func(k int) float64 { return float64(k) * 30 * part }, "name", ct)
-				mk("node_docker_container_memory_bytes", func(int) float64 { return part * 6 * (1 << 30) }, "name", ct)
+				mk("node_docker_container_cpu_seconds_total", func(k int) float64 { return float64(k) * 30 * part }, "name", ct, "project", "site")
+				mk("node_docker_container_memory_bytes", func(int) float64 { return part * 6 * (1 << 30) }, "name", ct, "project", "site")
 			}
+			mk("node_docker_container_healthy", func(int) float64 { return 0 }, "name", "appli", "project", "site")
+			mk("node_docker_container_healthy", un, "name", "postgres", "project", "site")
+			mk("node_docker_container_running", func(int) float64 { return 0 }, "name", "cache", "project", "site", "state", "exited", "restart_policy", "always")
 			mk("mirador_logs_docker_streams", func(int) float64 { return 3 })
 		}
 	}

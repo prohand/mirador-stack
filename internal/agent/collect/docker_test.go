@@ -24,7 +24,7 @@ var reponsesDocker = map[string]string{
 	]`,
 	"/containers/aaaaaaaaaaaaaaaa/json": `{"RestartCount":2,"HostConfig":{"RestartPolicy":{"Name":"unless-stopped"}},
 	  "Config":{"Env":["MOT_DE_PASSE=secret-ne-pas-envoyer"]},
-	  "State":{"OOMKilled":false,"Health":{"Status":"healthy"}}}`,
+	  "State":{"OOMKilled":false,"StartedAt":"2026-11-10T08:15:30.123456789Z","Health":{"Status":"healthy"}}}`,
 	"/containers/bbbbbbbbbbbbbbbb/json": `{"RestartCount":0,"HostConfig":{"RestartPolicy":{"Name":""}},"State":{"OOMKilled":false}}`,
 	"/containers/cccccccccccccccc/json": `{"RestartCount":5,"HostConfig":{"RestartPolicy":{"Name":"always"}},"State":{"OOMKilled":true,"Health":{"Status":"starting"}}}`,
 	"/containers/aaaaaaaaaaaaaaaa/stats": `{"cpu_stats":{"cpu_usage":{"total_usage":12500000000}},
@@ -65,7 +65,14 @@ func TestDocker(t *testing.T) {
 		"node_docker_container_cpu_seconds_total|name=web|project=site":                                   12.5,
 		"node_docker_container_memory_bytes|name=web|project=site":                                        (100 - 20) << 20,
 		"node_docker_container_memory_limit_bytes|name=web|project=site":                                  512 << 20,
+		"node_docker_container_started_timestamp_seconds|name=web|project=site":                           1794298530,
 	})
+	// Conteneur arrêté, ou date absente : pas de série « démarré depuis ».
+	for k := range p {
+		if strings.HasPrefix(k, "node_docker_container_started_timestamp_seconds|name=base") {
+			t.Errorf("conteneur arrêté : %s", k)
+		}
+	}
 	for k := range p {
 		if strings.Contains(k, "secret") || strings.Contains(k, "MOT_DE_PASSE") {
 			t.Fatalf("une variable d'environnement a fuité : %s", k)

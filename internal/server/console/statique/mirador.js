@@ -1162,3 +1162,106 @@ document.addEventListener("change", function (e) {
     f.addEventListener("change", noter);
   });
 })();
+
+// Blocs repliables retenus (SPEC § 42) : <details data-memoire-ouvert="nom">.
+// data-ouvrir : ouvert d'office (problème : service en échec, mises à jour
+// de sécurité en attente) ; sinon l'état choisi est retenu par ce navigateur.
+(function () {
+  "use strict";
+  document.querySelectorAll("details[data-memoire-ouvert]").forEach(function (d) {
+    var cle = "mirador.ouvert." + d.getAttribute("data-memoire-ouvert");
+    var ouvert = false;
+    try { ouvert = window.localStorage.getItem(cle) === "1"; } catch (e) { /* navigateur sans stockage */ }
+    if (d.hasAttribute("data-ouvrir") || ouvert) { d.open = true; }
+    // L'écoute commence après l'ouverture d'office : seul un clic est retenu.
+    window.setTimeout(function () {
+      d.addEventListener("toggle", function () {
+        try { window.localStorage.setItem(cle, d.open ? "1" : "0"); } catch (e) { /* rien */ }
+      });
+    }, 0);
+  });
+})();
+
+// Onglets qui filtrent les lignes d'un tableau (SPEC § 42.2) :
+// <p data-onglets-lignes="nom"><button data-filtre="echec">…</button></p> et
+// <table data-lignes-filtrees="nom"> dont les lignes ont data-groupes="echec …".
+// Le filtre « Filtrer ce tableau » reste indépendant (attribut à part).
+(function () {
+  "use strict";
+  document.querySelectorAll("[data-onglets-lignes]").forEach(function (barre) {
+    var table = document.querySelector('table[data-lignes-filtrees="' + barre.getAttribute("data-onglets-lignes") + '"]');
+    if (!table) { return; }
+    barre.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-filtre]");
+      if (!b) { return; }
+      var f = b.getAttribute("data-filtre");
+      barre.querySelectorAll("button[data-filtre]").forEach(function (x) {
+        x.classList.toggle("actif", x === b);
+        x.setAttribute("aria-pressed", x === b ? "true" : "false");
+      });
+      Array.prototype.forEach.call(table.tBodies[0].rows, function (l) {
+        var g = " " + (l.getAttribute("data-groupes") || "") + " ";
+        if (f === "" || g.indexOf(" " + f + " ") >= 0) { l.removeAttribute("data-onglet-cache"); }
+        else { l.setAttribute("data-onglet-cache", ""); }
+      });
+    });
+  });
+})();
+
+// Panneau de détail au clic (SPEC § 42.4) : a[data-panneau] charge un
+// fragment du serveur dans un panneau à droite (au-dessus d'un voile).
+// Fermeture : bouton, Échap, clic sur le voile ; le focus revient au lien.
+// Sans JavaScript, le lien ouvre une page complète.
+(function () {
+  "use strict";
+  var voile = null, panneau = null, origine = null;
+  function creer() {
+    if (panneau) { return; }
+    voile = document.createElement("div");
+    voile.className = "voile-panneau";
+    voile.hidden = true;
+    panneau = document.createElement("aside");
+    panneau.className = "panneau-detail";
+    panneau.setAttribute("role", "dialog");
+    panneau.setAttribute("aria-modal", "true");
+    panneau.setAttribute("aria-label", "Détail");
+    panneau.hidden = true;
+    panneau.tabIndex = -1;
+    document.body.appendChild(voile);
+    document.body.appendChild(panneau);
+    voile.addEventListener("click", fermer);
+  }
+  function fermer() {
+    if (!panneau || panneau.hidden) { return; }
+    panneau.hidden = true;
+    voile.hidden = true;
+    document.body.classList.remove("panneau-ouvert");
+    if (origine && origine.focus) { origine.focus(); }
+  }
+  function ouvrir(lien) {
+    creer();
+    if (panneau.hidden) { origine = lien; }
+    panneau.setAttribute("aria-busy", "true");
+    fetch(lien.getAttribute("href"), { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) { throw new Error(String(r.status)); } return r.text(); })
+      .then(function (html) {
+        panneau.innerHTML = html; // fragment du serveur (gabarit échappé)
+        panneau.hidden = false;
+        voile.hidden = false;
+        document.body.classList.add("panneau-ouvert");
+        panneau.removeAttribute("aria-busy");
+        var f = panneau.querySelector("[data-fermer-panneau]");
+        (f || panneau).focus();
+      })
+      .catch(function () { window.location.href = lien.getAttribute("href"); });
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-panneau]");
+    if (a && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); ouvrir(a); return; }
+    if (e.target.closest && e.target.closest("[data-fermer-panneau]")) {
+      if (panneau && panneau.contains(e.target)) { fermer(); }
+      else { window.history.back(); }
+    }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { fermer(); } });
+})();

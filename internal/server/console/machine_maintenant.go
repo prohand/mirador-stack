@@ -20,6 +20,7 @@ import (
 // jaugeMachine : une jauge du résumé.
 type jaugeMachine struct {
 	Titre, Valeur, Detail string
+	Lien                  string // panneau de détail au clic : cpu, memoire, disques (SPEC § 42.4)
 	Pct                   int    // largeur de la barre (0 à 100) ; -1 = pas de barre
 	Classe                string // ok, attention, erreur
 }
@@ -84,11 +85,11 @@ func (c *Console) enCeMoment(ctx context.Context, m flotte.InfoMachine, t time.T
 	s := c.seuilsLinux(ctx, m)
 	var out []jaugeMachine
 	if v, ok := une(`100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{` + i + `, mode="idle"}[5m])))`); ok {
-		out = append(out, jaugeMachine{Titre: "CPU", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, s["cpu_pct"]),
+		out = append(out, jaugeMachine{Titre: "CPU", Lien: "cpu", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, s["cpu_pct"]),
 			Detail: fmt.Sprintf("seuil %.0f %%", s["cpu_pct"])})
 	}
 	if v, ok := une(`100 * (1 - node_memory_MemAvailable_bytes{` + i + `} / node_memory_MemTotal_bytes{` + i + `})`); ok {
-		out = append(out, jaugeMachine{Titre: "Mémoire", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, 100-s["memoire_libre_pct"]),
+		out = append(out, jaugeMachine{Titre: "Mémoire", Lien: "memoire", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, 100-s["memoire_libre_pct"]),
 			Detail: fmt.Sprintf("seuil : %.0f %% libre", s["memoire_libre_pct"])})
 	}
 	// Disque le plus plein : point de montage et place libre.
@@ -104,7 +105,7 @@ func (c *Console) enCeMoment(ctx context.Context, m flotte.InfoMachine, t time.T
 			if libre, ok := une(`node_filesystem_avail_bytes{` + i + `, mountpoint="` + echapperPromQL(mp) + `", ` + fsIgnoresMaintenant + `}`); ok {
 				detail += " · " + virgule(tailleLisible(int64(libre))) + " libres"
 			}
-			out = append(out, jaugeMachine{Titre: "Disque le plus plein", Valeur: fmt.Sprintf("%.0f %%", max), Pct: pctBarre(max),
+			out = append(out, jaugeMachine{Titre: "Disque le plus plein", Lien: "disques", Valeur: fmt.Sprintf("%.0f %%", max), Pct: pctBarre(max),
 				Classe: classeSeuil(max, 100-s["disque_libre_pct"]), Detail: detail})
 		}
 	}
@@ -117,11 +118,11 @@ func (c *Console) enCeMoment(ctx context.Context, m flotte.InfoMachine, t time.T
 			if v >= 1 {
 				detail = virgule(tailleLisible(int64(total-libre))) + " sur " + virgule(tailleLisible(int64(total)))
 			}
-			out = append(out, jaugeMachine{Titre: "Swap", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, 50), Detail: detail})
+			out = append(out, jaugeMachine{Titre: "Swap", Lien: "memoire", Valeur: fmt.Sprintf("%.0f %%", v), Pct: pctBarre(v), Classe: classeSeuil(v, 50), Detail: detail})
 		}
 	}
 	if v, ok := une(`max by (instance) (node_load5{` + i + `}) / count by (instance) (node_cpu_seconds_total{` + i + `, mode="idle"})`); ok {
-		out = append(out, jaugeMachine{Titre: "Charge par cœur", Valeur: virgule(fmt.Sprintf("%.2f", v)), Pct: pctBarre(100 * v / math.Max(s["charge_par_coeur"], 0.01)),
+		out = append(out, jaugeMachine{Titre: "Charge par cœur", Lien: "cpu", Valeur: virgule(fmt.Sprintf("%.2f", v)), Pct: pctBarre(100 * v / math.Max(s["charge_par_coeur"], 0.01)),
 			Classe: classeSeuil(v, s["charge_par_coeur"]), Detail: virgule(fmt.Sprintf("seuil %.1f", s["charge_par_coeur"]))})
 	}
 	if v, ok := une(`node_time_seconds{` + i + `} - node_boot_time_seconds{` + i + `}`); ok {

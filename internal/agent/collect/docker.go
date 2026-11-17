@@ -85,7 +85,8 @@ type conteneurDetail struct {
 		} `json:"RestartPolicy"`
 	} `json:"HostConfig"`
 	State struct {
-		OOMKilled bool `json:"OOMKilled"`
+		OOMKilled bool   `json:"OOMKilled"`
+		StartedAt string `json:"StartedAt"` // RFC 3339 ; « 0001-01-01… » si jamais démarré
 		Health    *struct {
 			Status string `json:"Status"`
 		} `json:"Health"`
@@ -148,6 +149,11 @@ func (d *Docker) Collecter(b *metrics.Batch) error {
 		}
 		if c.State != "running" {
 			continue
+		}
+		// Démarré depuis (colonne « Depuis » de la page Conteneurs, SPEC § 42).
+		// Texte lu à part : une date illisible ne fait jamais perdre le conteneur.
+		if debut, err := time.Parse(time.RFC3339Nano, det.State.StartedAt); err == nil && debut.Year() > 2000 {
+			b.Add("node_docker_container_started_timestamp_seconds", float64(debut.Unix()), base[:]...)
 		}
 
 		// « one-shot » : réponse immédiate, sans attendre un second échantillon.
