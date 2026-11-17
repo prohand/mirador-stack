@@ -206,10 +206,54 @@ span.erreur, small.erreur, td.erreur, .erreur-texte { color: var(--erreur); }
 meter { width: 100%; height: .8rem; }
 
 /* --- Connexion ---------------------------------------------------------------- */
-body.seule { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
-.carte-seule { background: var(--carte); border: 1px solid var(--bord); border-radius: 18px; padding: 28px; width: min(440px, 100%); box-shadow: 0 8px 30px rgba(17,24,39,.08); }
+/* SPEC § 43 : présentation à gauche (grand écran), formulaire à droite. */
+body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(--fond); }
+.connexion-cadre { display: grid; grid-template-columns: minmax(380px, 46%) 1fr; min-height: 100vh; min-height: 100dvh; }
+.connexion-vitrine { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+  padding: 40px 48px; background: #0E1220; color: #E8EBF5; border-right: 1px solid #1C2233; }
+.connexion-vitrine::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size: 22px 22px; }
+.connexion-vitrine > * { position: relative; }
+.vitrine-logo { color: #FFFFFF; }
+.vitrine-milieu { max-width: 460px; }
+.vitrine-titre { font-family: var(--titres); font-size: clamp(30px, 3.2vw, 42px); line-height: 1.12; font-weight: 650; letter-spacing: -.02em; margin: 0 0 14px; color: #FFFFFF; }
+.vitrine-texte { margin: 0 0 28px; color: #AEB5C8; font-size: 16px; }
+.vitrine-courbe { display: block; width: 100%; height: 150px; margin: 0 0 28px; border: 1px solid #222A3D; border-radius: 14px; background: #121829; }
+.vitrine-courbe .grille path { stroke: #222A3D; stroke-width: 1; }
+.vitrine-courbe .aire { fill: rgba(124, 155, 255, .12); }
+.vitrine-courbe .trait { fill: none; stroke: #7C9BFF; stroke-width: 2.5; stroke-linecap: round; }
+.vitrine-courbe .trait-pale { fill: none; stroke: #3A4560; stroke-width: 2; stroke-dasharray: 4 6; }
+.vitrine-courbe .point { fill: #0E1220; stroke: #7C9BFF; stroke-width: 3; }
+.vitrine-promesses { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; color: #D5DAE8; }
+.vitrine-promesses li { display: flex; align-items: center; gap: 10px; }
+.vitrine-promesses svg { flex: none; width: 20px; height: 20px; padding: 3px; border-radius: 999px; background: rgba(74, 222, 128, .14);
+  fill: none; stroke: #4ADE80; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.vitrine-pied { margin: 0; color: #8790A8; font-size: 13px; }
+.connexion-formulaire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px 24px; }
+.carte-seule { width: min(400px, 100%); background: var(--carte); border: 1px solid var(--bord); border-radius: 18px; padding: 32px; box-shadow: 0 1px 2px rgba(17,24,39,.04), 0 12px 32px rgba(17,24,39,.06); }
 .carte-seule form.pile { max-width: none; }
-.carte-seule .logo { margin-bottom: 18px; color: var(--texte); } /* sur la carte claire : le blanc du menu était invisible */
+.carte-seule .logo { margin-bottom: 22px; color: var(--texte); } /* sur la carte claire : le blanc du menu était invisible */
+.connexion-cadre .carte-seule > .logo { display: none; } /* grand écran : le logo est dans la présentation */
+.connexion-titre { font-size: 24px; margin: 0 0 6px; }
+.connexion-sous-titre { margin: 0 0 22px; color: var(--doux); }
+.champ-icone { position: relative; display: block; margin-top: 6px; }
+.champ-icone svg { position: absolute; left: 12px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); fill: none; stroke: var(--pale); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.champ-icone input { width: 100%; padding-left: 40px; box-sizing: border-box; }
+.champ-icone:focus-within svg { stroke: var(--accent); }
+.bouton-connexion { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 46px; font-weight: 600; margin-top: 6px; }
+.bouton-connexion svg, .bouton-passkey svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bouton-passkey { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; }
+.separateur-ou { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--pale); font-size: 13px; }
+.separateur-ou::before, .separateur-ou::after { content: ""; flex: 1; height: 1px; background: var(--bord); }
+.champ-code { font-size: 22px; letter-spacing: .3em; text-align: center; font-variant-numeric: tabular-nums; }
+.connexion-retour { margin: 18px 0 0; }
+.connexion-pied { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--pale); font-size: 13px; }
+.connexion-pied .icone { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+@media (max-width: 900px) {
+  .connexion-cadre { grid-template-columns: 1fr; }
+  .connexion-vitrine { display: none; }
+  .connexion-cadre .carte-seule > .logo { display: flex; }
+}
 
 /* --- Tableaux de bord, logs, courbes -------------------------------------------- */
 .logs td.message-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; word-break: break-word; }
@@ -228,12 +272,12 @@ body.seule { display: flex; min-height: 100vh; align-items: center; justify-cont
 .rangee > summary::-webkit-details-marker { display: none; }
 .titre-rangee { display: inline-block; margin: .6rem 0; font-family: var(--titres); font-size: 1.1rem; }
 /* Flèche commune des blocs repliables (SPEC § 42) : › plié, ⌄ déplié. */
-details.carte > summary, .rangee > summary { list-style: none; }
-details.carte > summary::-webkit-details-marker { display: none; }
-details.carte > summary::before, .rangee > summary .titre-rangee::before { content: ""; display: inline-block; flex: none; width: 7px; height: 7px;
+details.carte > summary, details.secours > summary, .rangee > summary { list-style: none; }
+details.carte > summary::-webkit-details-marker, details.secours > summary::-webkit-details-marker { display: none; }
+details.carte > summary::before, details.secours > summary::before, .rangee > summary .titre-rangee::before { content: ""; display: inline-block; flex: none; width: 7px; height: 7px;
   margin: 0 10px 3px 2px; border-right: 2px solid var(--doux); border-bottom: 2px solid var(--doux); transform: rotate(-45deg);
   transition: transform .15s; vertical-align: middle; }
-details.carte[open] > summary::before, .rangee[open] > summary .titre-rangee::before { transform: rotate(45deg); margin-bottom: 6px; }
+details.carte[open] > summary::before, details.secours[open] > summary::before, .rangee[open] > summary .titre-rangee::before { transform: rotate(45deg); margin-bottom: 6px; }
 @media (prefers-reduced-motion: reduce) { details.carte > summary::before, .rangee > summary .titre-rangee::before { transition: none; } }
 tr[data-onglet-cache] { display: none; }
 .onglets button { padding: 6px 14px; border-radius: 8px; border: 0; background: none; color: var(--doux); font: inherit; font-weight: 500; cursor: pointer; min-height: 0; box-shadow: none; }
@@ -922,14 +966,18 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 }
 
 /* --- Page de connexion sur téléphone : la passkey d'abord (un seul geste) ----------------- */
-body.seule { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); min-height: 100dvh; }
+.connexion-formulaire { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 @media (pointer: coarse) {
   .carte-seule { display: flex; flex-direction: column; }
-  .carte-seule > .logo { order: -3; }
-  .carte-seule > .message { order: -2; }
-  .carte-seule > form[data-passkey-form] { order: -1; margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--bord); }
+  .carte-seule > .logo { order: -6; }
+  .carte-seule > .connexion-titre { order: -5; }
+  .carte-seule > .message { order: -4; }
+  .carte-seule > .connexion-sous-titre { order: -3; }
+  .carte-seule > form[data-passkey-form] { order: -2; }
+  .carte-seule > .separateur-ou { order: -1; }
   .carte-seule > form[data-passkey-form] button { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
 }
+@media (max-width: 480px) { .carte-seule { padding: 24px 20px; border-radius: 16px; } }
 
 /* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
 tr.cet-appareil td:first-child { font-weight: 600; }

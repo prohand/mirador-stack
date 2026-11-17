@@ -5514,3 +5514,22 @@ gardé en mémoire entre deux pages.
 - L'agent ne lance rien de nouveau : la commande apt est la même qu'avant
   (chemin et arguments figés, sans root) ; seule sa sortie est lue en plus.
 - `localStorage` : seulement l'état plié / déplié (aucune donnée).
+
+## 43. Pages de connexion refaites (demande du 17/11 : « plus classe ») **[Fait, à valider]**
+
+- Grand écran : présentation à gauche (fond bleu nuit, logo, « Votre parc,
+  d'un seul regard. », courbe décorative, trois engagements : agents sans
+  port ouvert, 2FA obligatoire, mises à jour signées et données chez vous) ;
+  formulaire à droite dans une carte : titre, phrase d'aide, champs avec
+  icône, bouton « Continuer → », séparateur « ou » avant la passkey, mention
+  « Connexion chiffrée · tentatives limitées et journalisées ».
+- Téléphone (moins de 900 px) : la présentation disparaît, la carte
+  garde le logo ; sur écran tactile, la passkey reste en premier (§ 34).
+- Même cadre pour toutes les pages hors connexion : code 2FA (champ large,
+  chiffres espacés), code de secours, création de la 2FA, premier
+  administrateur. Clair et nuit.
+- Coût : quelques règles CSS et un SVG en ligne (≈ 2 Ko) ; aucun script
+  ajouté, aucune image, aucune police nouvelle.
+- Menaces : **rien sur le parc n'est montré avant connexion** (ni nom de
+  machine, ni chiffre : la courbe est un décor fixe). Noms des champs,
+  formulaires, jeton CSRF, passkey et limites de tentatives inchangés.

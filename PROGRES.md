@@ -975,6 +975,15 @@ Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
 manquante chez mirador est normale (mirador ne reçoit pas le metric
 server) : à désactiver dans Règles.
 
+## Pages de connexion refaites (SPEC § 43, 17/11)
+
+| Partie | État |
+|---|---|
+| Connexion : présentation à gauche, formulaire en carte à droite ; téléphone et nuit | **fait**, vu dans Chromium (écran large, nuit, iPhone 13) ; à valider |
+| Code 2FA, code de secours, création de la 2FA, premier administrateur : même cadre | **fait**, connexion complète testée (mot de passe puis code) ; à valider |
+
+Coût : CSS et SVG en ligne seulement (≈ 2 Ko), aucun script ni image.
+
 ## Conteneurs, Services, Paquets, détail au clic (SPEC § 42, 17/11)
 
 Idées de Beszel, maquettes validées le 17/11 ; « fais tout et le détail au clic ».
@@ -1067,7 +1076,8 @@ Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
    désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
 3. Valider SPEC § 39 (site injoignable, coupures), § 40 (guide de l'étape 7)
    § 41 (derniers logs dans les messages) et § 42 (Conteneurs, Services,
-   Paquets, détail au clic ; mettre aussi les agents à jour).
+   Paquets, détail au clic ; mettre aussi les agents à jour) et § 43
+   (pages de connexion).
 4. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h
