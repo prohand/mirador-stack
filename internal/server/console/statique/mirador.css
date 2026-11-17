@@ -206,36 +206,31 @@ span.erreur, small.erreur, td.erreur, .erreur-texte { color: var(--erreur); }
 meter { width: 100%; height: .8rem; }
 
 /* --- Connexion ---------------------------------------------------------------- */
-/* SPEC § 43 : présentation à gauche (grand écran), formulaire à droite. */
-body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(--fond); }
-.connexion-cadre { display: grid; grid-template-columns: minmax(380px, 46%) 1fr; min-height: 100vh; min-height: 100dvh; }
-.connexion-vitrine { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
-  padding: 40px 48px; background: #0E1220; color: #E8EBF5; border-right: 1px solid #1C2233; }
-.connexion-vitrine::before { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size: 22px 22px; }
-.connexion-vitrine > * { position: relative; }
-.vitrine-logo { color: #FFFFFF; }
-.vitrine-milieu { max-width: 460px; }
-.vitrine-titre { font-family: var(--titres); font-size: clamp(30px, 3.2vw, 42px); line-height: 1.12; font-weight: 650; letter-spacing: -.02em; margin: 0 0 14px; color: #FFFFFF; }
-.vitrine-texte { margin: 0 0 28px; color: #AEB5C8; font-size: 16px; }
-.vitrine-courbe { display: block; width: 100%; height: 150px; margin: 0 0 28px; border: 1px solid #222A3D; border-radius: 14px; background: #121829; }
-.vitrine-courbe .grille path { stroke: #222A3D; stroke-width: 1; }
-.vitrine-courbe .aire { fill: rgba(124, 155, 255, .12); }
-.vitrine-courbe .trait { fill: none; stroke: #7C9BFF; stroke-width: 2.5; stroke-linecap: round; }
-.vitrine-courbe .trait-pale { fill: none; stroke: #3A4560; stroke-width: 2; stroke-dasharray: 4 6; }
-.vitrine-courbe .point { fill: #0E1220; stroke: #7C9BFF; stroke-width: 3; }
-.vitrine-promesses { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; color: #D5DAE8; }
-.vitrine-promesses li { display: flex; align-items: center; gap: 10px; }
-.vitrine-promesses svg { flex: none; width: 20px; height: 20px; padding: 3px; border-radius: 999px; background: rgba(74, 222, 128, .14);
-  fill: none; stroke: #4ADE80; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.vitrine-pied { margin: 0; color: #8790A8; font-size: 13px; }
-.connexion-formulaire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px 24px; }
-.carte-seule { width: min(400px, 100%); background: var(--carte); border: 1px solid var(--bord); border-radius: 18px; padding: 32px; box-shadow: 0 1px 2px rgba(17,24,39,.04), 0 12px 32px rgba(17,24,39,.06); }
+/* SPEC § 43, style « Nuit » (choix du 17/11) : carte centrée sur fond bleu
+   nuit, grille de points et halo ; toujours sombre (couleurs redéfinies
+   ici : champs, boutons et messages suivent). */
+body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; overflow-x: hidden;
+  --fond: #0A0E1A; --carte: rgba(20, 26, 44, .78); --survol: #182038; --texte: #E8EBF5; --doux: #9AA3BC; --pale: #7D879F;
+  --bord: rgba(255, 255, 255, .09); --bord-doux: rgba(255, 255, 255, .06); --champ: #0D1222; --bord-champ: #262E46;
+  --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0A0E1A;
+  --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --erreur: #F87171; --erreur-fond: #2E1517;
+  background: #0A0E1A; color: var(--texte); color-scheme: dark; }
+body.seule::before { content: ""; position: fixed; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px); background-size: 26px 26px; }
+.connexion-halo { position: fixed; width: 760px; height: 760px; max-width: 160vw; border-radius: 50%; top: 42%; left: 50%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(62, 99, 221, .35), transparent 62%); pointer-events: none; }
+.connexion-formulaire { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px 16px; }
+.carte-seule { width: min(420px, 100%); padding: 36px; border-radius: 20px; background: var(--carte); border: 1px solid var(--bord);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .carte-seule form.pile { max-width: none; }
-.carte-seule .logo { margin-bottom: 22px; color: var(--texte); } /* sur la carte claire : le blanc du menu était invisible */
-.connexion-cadre .carte-seule > .logo { display: none; } /* grand écran : le logo est dans la présentation */
-.connexion-titre { font-size: 24px; margin: 0 0 6px; }
-.connexion-sous-titre { margin: 0 0 22px; color: var(--doux); }
+.carte-seule .logo { justify-content: center; margin-bottom: 26px; color: #FFFFFF; }
+.connexion-titre { text-align: center; font-size: 24px; margin: 0 0 6px; color: #FFFFFF; }
+.connexion-sous-titre { text-align: center; margin: 0 0 24px; color: var(--doux); }
+.carte-seule input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 155, 255, .25); outline: none; }
+.carte-seule a { color: var(--accent-texte); }
+.carte-seule pre, .carte-seule code { background: #0D1222; color: #D5DAE8; border-color: var(--bord-champ); }
+.carte-seule img { background: #FFFFFF; padding: 10px; border-radius: 12px; }
+.connexion-pied { position: relative; margin: 0; padding: 0 16px max(24px, env(safe-area-inset-bottom)); text-align: center; color: #6F7891; font-size: 13px; }
 .champ-icone { position: relative; display: block; margin-top: 6px; }
 .champ-icone svg { position: absolute; left: 12px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); fill: none; stroke: var(--pale); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .champ-icone input { width: 100%; padding-left: 40px; box-sizing: border-box; }
@@ -247,13 +242,7 @@ body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(-
 .separateur-ou::before, .separateur-ou::after { content: ""; flex: 1; height: 1px; background: var(--bord); }
 .champ-code { font-size: 22px; letter-spacing: .3em; text-align: center; font-variant-numeric: tabular-nums; }
 .connexion-retour { margin: 18px 0 0; }
-.connexion-pied { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--pale); font-size: 13px; }
-.connexion-pied .icone { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
-@media (max-width: 900px) {
-  .connexion-cadre { grid-template-columns: 1fr; }
-  .connexion-vitrine { display: none; }
-  .connexion-cadre .carte-seule > .logo { display: flex; }
-}
+
 
 /* --- Tableaux de bord, logs, courbes -------------------------------------------- */
 .logs td.message-log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; word-break: break-word; }
@@ -966,7 +955,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 }
 
 /* --- Page de connexion sur téléphone : la passkey d'abord (un seul geste) ----------------- */
-.connexion-formulaire { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.connexion-formulaire { padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); }
 @media (pointer: coarse) {
   .carte-seule { display: flex; flex-direction: column; }
   .carte-seule > .logo { order: -6; }
@@ -977,7 +966,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   .carte-seule > .separateur-ou { order: -1; }
   .carte-seule > form[data-passkey-form] button { background: var(--accent); color: var(--sur-accent); border-color: var(--accent); font-weight: 600; }
 }
-@media (max-width: 480px) { .carte-seule { padding: 24px 20px; border-radius: 16px; } }
+@media (max-width: 480px) { .carte-seule { padding: 28px 20px; border-radius: 18px; } }
 
 /* --- Notifications push (« Mon compte », SPEC § 35) ---------------------------------- */
 tr.cet-appareil td:first-child { font-weight: 600; }

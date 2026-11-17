@@ -5515,21 +5515,27 @@ gardé en mémoire entre deux pages.
   (chemin et arguments figés, sans root) ; seule sa sortie est lue en plus.
 - `localStorage` : seulement l'état plié / déplié (aucune donnée).
 
-## 43. Pages de connexion refaites (demande du 17/11 : « plus classe ») **[Fait, à valider]**
+## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Fait, à valider]**
 
-- Grand écran : présentation à gauche (fond bleu nuit, logo, « Votre parc,
-  d'un seul regard. », courbe décorative, trois engagements : agents sans
-  port ouvert, 2FA obligatoire, mises à jour signées et données chez vous) ;
-  formulaire à droite dans une carte : titre, phrase d'aide, champs avec
-  icône, bouton « Continuer → », séparateur « ou » avant la passkey, mention
-  « Connexion chiffrée · tentatives limitées et journalisées ».
-- Téléphone (moins de 900 px) : la présentation disparaît, la carte
-  garde le logo ; sur écran tactile, la passkey reste en premier (§ 34).
+- Première version (présentation à gauche, formulaire à droite), puis
+  4 maquettes présentées (A Nuit, B Console, C Topographie, D Aperçu) :
+  **A choisi le 17/11**.
+- Style « Nuit » : carte centrée, semi-transparente (flou d'arrière-plan),
+  sur fond bleu nuit avec une grille de points et un halo bleu ; logo,
+  « Bon retour », « Connectez-vous pour voir votre parc. », champs avec
+  icône, bouton bleu clair « Continuer → », séparateur « ou » avant la
+  passkey ; en bas : « Connexion chiffrée · 2FA obligatoire · mirador-stack,
+  logiciel libre ».
+- **Toujours sombre**, même quand le système est en mode clair : les
+  couleurs de l'interface sont redéfinies pour ces pages seulement
+  (champs, boutons, messages d'erreur, liens suivent).
 - Même cadre pour toutes les pages hors connexion : code 2FA (champ large,
-  chiffres espacés), code de secours, création de la 2FA, premier
-  administrateur. Clair et nuit.
-- Coût : quelques règles CSS et un SVG en ligne (≈ 2 Ko) ; aucun script
-  ajouté, aucune image, aucune police nouvelle.
+  chiffres espacés), code de secours, création de la 2FA (QR code sur fond
+  blanc), premier administrateur. Téléphone : la même carte ; sur écran
+  tactile, la passkey reste en premier (§ 34).
+- Coût : quelques règles CSS et un SVG en ligne ; aucun script, aucune
+  image, aucune police nouvelle.
 - Menaces : **rien sur le parc n'est montré avant connexion** (ni nom de
-  machine, ni chiffre : la courbe est un décor fixe). Noms des champs,
-  formulaires, jeton CSRF, passkey et limites de tentatives inchangés.
+  machine, ni chiffre). Noms des champs, formulaires, jeton CSRF, passkey
+  et limites de tentatives inchangés ; connexion complète vérifiée dans
+  Chromium (mot de passe faux, puis bon mot de passe et code 2FA).

@@ -979,10 +979,10 @@ server) : à désactiver dans Règles.
 
 | Partie | État |
 |---|---|
-| Connexion : présentation à gauche, formulaire en carte à droite ; téléphone et nuit | **fait**, vu dans Chromium (écran large, nuit, iPhone 13) ; à valider |
-| Code 2FA, code de secours, création de la 2FA, premier administrateur : même cadre | **fait**, connexion complète testée (mot de passe puis code) ; à valider |
+| Style « Nuit » (choix A parmi 4 maquettes) : carte centrée sur fond bleu nuit, toujours sombre | **fait**, vu dans Chromium (écran large, iPhone 13) ; à valider |
+| Code 2FA, code de secours, création de la 2FA, premier administrateur : même cadre | **fait**, connexion complète testée (mot de passe faux, puis bon mot de passe et code) ; à valider |
 
-Coût : CSS et SVG en ligne seulement (≈ 2 Ko), aucun script ni image.
+Coût : CSS et SVG en ligne seulement, aucun script ni image.
 
 ## Conteneurs, Services, Paquets, détail au clic (SPEC § 42, 17/11)
 

@@ -1,5 +1,5 @@
 {{define "contenu"}}
-<p class="connexion-sous-titre">Entrez vos identifiants. Le code 2FA est demandé juste après.</p>
+<p class="connexion-sous-titre">Connectez-vous pour voir votre parc.</p>
 <form method="post" action="/connexion" class="pile">
   {{if .D.Suite}}<input type="hidden" name="suite" value="{{.D.Suite}}">{{end}}
   <label>Nom <span class="champ-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"></path></svg><input name="nom" value="{{.D.Nom}}" autocomplete="username" required autofocus maxlength="64" spellcheck="false" autocapitalize="none"></span></label>

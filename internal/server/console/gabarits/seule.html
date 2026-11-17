@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F7F7F8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0C0D10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0A0E1A">
+<meta name="color-scheme" content="dark">
 {{template "tete-app"}}
 <title>{{.Titre}} — mirador</title>
 <link rel="stylesheet" href="{{statique "mirador.css"}}">
@@ -12,39 +12,18 @@
 <script src="{{statique "passkey.js"}}" defer></script>
 </head>
 <body class="seule">
-{{/* Pages de connexion (SPEC § 43) : présentation à gauche sur grand écran,
-     formulaire à droite. Rien sur le parc n'est montré avant connexion
-     (pas de nom de machine, pas de chiffre) : seulement le décor. */}}
-<div class="connexion-cadre">
-<aside class="connexion-vitrine" aria-hidden="true">
-  <div class="logo vitrine-logo"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#3E63DD"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>mirador</span></div>
-  <div class="vitrine-milieu">
-    <p class="vitrine-titre">Votre parc,<br>d'un seul regard.</p>
-    <p class="vitrine-texte">Machines, alertes et logs au même endroit, sur votre serveur.</p>
-    <svg class="vitrine-courbe" viewBox="0 0 480 160" preserveAspectRatio="none">
-      <g class="grille"><path d="M0 40H480M0 80H480M0 120H480"></path></g>
-      <path class="aire" d="M0 118 C40 110 60 92 96 96 S150 128 190 112 S250 52 290 60 S350 104 390 88 S450 40 480 46 V160 H0 Z"></path>
-      <path class="trait" d="M0 118 C40 110 60 92 96 96 S150 128 190 112 S250 52 290 60 S350 104 390 88 S450 40 480 46"></path>
-      <path class="trait-pale" d="M0 138 C50 132 80 126 120 130 S200 140 240 128 S320 118 360 124 S440 112 480 116"></path>
-      <circle class="point" cx="290" cy="60" r="5"></circle>
-    </svg>
-    <ul class="vitrine-promesses">
-      <li><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"></path></svg>Agents sans aucun port ouvert</li>
-      <li><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"></path></svg>Double authentification obligatoire</li>
-      <li><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"></path></svg>Mises à jour signées, données chez vous</li>
-    </ul>
-  </div>
-  <p class="vitrine-pied">mirador-stack · logiciel libre (GPL-3.0)</p>
-</aside>
+{{/* Pages de connexion (SPEC § 43, style « Nuit » choisi le 17/11) : carte
+     centrée sur fond bleu nuit (grille de points, halo), toujours sombre.
+     Rien sur le parc n'est montré avant connexion. */}}
+<div class="connexion-halo" aria-hidden="true"></div>
 <main class="connexion-formulaire">
   <div class="carte-seule">
     <div class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#3E63DD"></rect><path d="M7 20 L12.5 12.5 L17 18 L20.5 13.5 L25 20" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>mirador</span></div>
-    <h1 class="connexion-titre">{{.Titre}}</h1>
+    <h1 class="connexion-titre">{{if eq .Titre "Connexion"}}Bon retour{{else}}{{.Titre}}{{end}}</h1>
     {{if .D.Erreur}}<p class="message erreur" role="alert">{{majuscule .D.Erreur}}</p>{{end}}
     {{template "contenu" .}}
   </div>
-  <p class="connexion-pied"><svg class="icone" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3"></path></svg>Connexion chiffrée · tentatives limitées et journalisées</p>
 </main>
-</div>
+<p class="connexion-pied">Connexion chiffrée · 2FA obligatoire · mirador-stack, logiciel libre</p>
 </body>
 </html>
