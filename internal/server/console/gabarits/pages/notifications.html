@@ -107,6 +107,7 @@
 <td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input name="escalade_{{$g}}" value="{{$ro.Escalade}}" size="6" maxlength="10" title="Pas prise en charge après ce délai : aussi envoyée au canal de secours"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
 </tbody></table></div><small class="aide">Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h. Escalade : alerte pas prise en charge après ce délai, aussi envoyée au canal de secours (une fois).</small>
 <label class="regrouper">Regrouper dans un même message les alertes qui ont les mêmes étiquettes <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small class="aide">Défaut : alertname, instance</small></label>
+<label class="case"><input type="checkbox" name="extraits_logs" value="1" {{if not $r.SansExtraitsLogs}}checked{{end}}> Joindre les 5 dernières lignes de logs du service, du conteneur ou du noyau en cause (alertes nouvelles seulement ; logs déjà masqués par l'agent)</label>
 </section>
 {{if .Admin}}<div class="barre-enregistrer"><span class="doux" data-barre-etat>Aucun changement</span>
 <button name="action" value="defaut" class="lien-discret" formnovalidate data-confirmer="Rétablir les valeurs par défaut (les canaux décrits sont gardés) ?">Rétablir les valeurs par défaut</button>

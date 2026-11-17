@@ -43,6 +43,9 @@ type Reglages struct {
 	Lien        string           `json:"lien"`         // adresse de l'interface, pour le lien direct (https://…)
 	Fuseau      string           `json:"fuseau"`       // heures affichées dans les messages
 	Canaux      Canaux           `json:"canaux"`
+	// SansExtraitsLogs : ne pas joindre les dernières lignes de logs aux
+	// messages (SPEC § 41). Faux par défaut : les extraits sont joints.
+	SansExtraitsLogs bool `json:"sans_extraits_logs,omitempty"`
 }
 
 // ReglagesDefaut : repris d'alertmanager.yml (SPEC § 4.7) ; mode ombre tant

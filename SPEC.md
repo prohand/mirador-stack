@@ -5393,3 +5393,39 @@ Menaces :
   plus aucun autre conteneur ne joint mirador sans passer par nginx.
 - Grafana : non gardé (API de lecture compatible Prometheus du brief non
   faite, facultative) ; à demander avant la phase C.
+
+## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Fait, à valider]**
+
+Idée reprise de Beszel (qui joint les logs d'un conteneur « unhealthy ») ;
+**aucun code repris**, réécrit pour mirador.
+
+- Pour une alerte **nouvelle** d'un message d'alerte, le message contient
+  « 📄 Derniers logs : » et les 5 dernières lignes, dans l'ordre :
+  - étiquette `name` en `.service` (`ServiceSystemdEnEchec`,
+    `ServiceRedemarreEnBoucle`…) : logs de cette unité sur la machine ;
+  - étiquette `name` sans `.service` (règles des conteneurs Docker :
+    `ConteneurNonSain`, `ConteneurRedemarreEnBoucle`, OOM d'un conteneur…) :
+    logs de ce conteneur ;
+  - `OomKiller` : lignes du noyau « Out of memory: Killed process … ».
+- Période : depuis le début de la condition moins 10 min (24 h au plus).
+- Pas d'extrait pour les rappels, les fins, ni le message d'un site
+  injoignable. 3 alertes au plus par message, 160 caractères par ligne,
+  caractères de contrôle retirés.
+- Réglages › Notifications › Routage : case « Joindre les 5 dernières lignes
+  de logs… », cochée par défaut.
+
+| Choix | Raison | Coût |
+|---|---|---|
+| Recherche dans le stockage du serveur, pas une demande à l'agent | les logs y sont déjà ; l'agent n'ouvre aucun port et ne reçoit pas d'ordre | 1,5 ms et 1,5 Mo temporaires par recherche (banc : 24 h, 200 000 lignes, 10 machines) |
+| Limites serrées (200 blocs, 2 s, 1 travailleur ; 3 s par message) | un message ne doit jamais attendre ; une recherche lente est abandonnée, le message part sans extrait | — |
+| Choix d'après les étiquettes, pas une liste par règle | marche aussi pour une règle ajoutée plus tard avec la même étiquette | une règle dont `name` n'est ni un service ni un conteneur ne trouve rien : pas d'extrait |
+
+Menaces :
+- **Des logs quittent le serveur** (Telegram, e-mail, ntfy, push) : ils
+  sont déjà masqués par l'agent (mots de passe, jetons, règles de masquage)
+  avant d'arriver ; la case permet de tout couper.
+- Texte des logs hostile (balises, retours à la ligne) : échappé en HTML,
+  caractères de contrôle remplacés, longueur bornée ; le message entier
+  reste coupé proprement à la limite du canal.
+- Charge : une recherche par alerte nouvelle concernée, plafonnée (voir
+  ci-dessus) ; une rafale d'alertes reste bornée à 3 recherches par message.

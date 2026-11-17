@@ -975,6 +975,20 @@ Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
 manquante chez mirador est normale (mirador ne reçoit pas le metric
 server) : à désactiver dans Règles.
 
+## Derniers logs dans les messages (SPEC § 41, 17/11)
+
+Idée reprise de Beszel (idée seulement). Choix du 17/11 : « fais le 1 uniquement ».
+
+| Partie | État |
+|---|---|
+| Service en échec, conteneur, OOM du noyau : 5 dernières lignes de logs dans le message (alertes nouvelles) | **fait**, testé (faux stockage et vrai stockage des logs) ; à valider |
+| Case dans Réglages › Notifications (cochée par défaut) | **fait**, testé |
+
+Mesure (banc, 24 h de logs, 200 000 lignes, 10 machines) : **1,5 ms** et
+1,5 Mo de mémoire temporaire par recherche ; au plus 3 recherches par
+message, abandonnées après 3 s. Rien en base. Négligeable devant les
+objectifs du serveur ✅.
+
 ## Étape 6 — avancement (SPEC § 23)
 
 Étape 5 **validée le 13/11**.
@@ -1031,7 +1045,8 @@ Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
 2. Au retour : mettre à jour le serveur (site injoignable, page Coupures),
    vérifier la page Alertes › Coupures (bilan de la coupure du 16/11),
    désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
-3. Valider SPEC § 39 (site injoignable, coupures) et § 40 (guide de l'étape 7).
+3. Valider SPEC § 39 (site injoignable, coupures), § 40 (guide de l'étape 7)
+   et § 41 (derniers logs dans les messages).
 4. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

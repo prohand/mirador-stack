@@ -151,6 +151,16 @@ func TestReglagesGeneralRanges(t *testing.T) {
 	if r.Lien != "https://console.exemple.fr" || strings.Join(r.ReglesPanne, ",") != "AgentMuet" || r.Mode != "ombre" {
 		t.Errorf("réglages hors formulaire effacés : %+v / %v / %s", r.Lien, r.ReglesPanne, r.Mode)
 	}
+	// Extraits de logs (SPEC § 41) : cochés par défaut, gardés tels quels ;
+	// décochés, ils sont coupés.
+	if r.SansExtraitsLogs || v.Get("extraits_logs") != "1" {
+		t.Errorf("extraits de logs : coupés par défaut ou case absente (%q)", v.Get("extraits_logs"))
+	}
+	v.Del("extraits_logs")
+	b.post(c, "/reglages/notifications", v)
+	if r, _ = notif.LireReglages(ctx, b.db); !r.SansExtraitsLogs {
+		t.Error("case décochée : extraits toujours joints")
+	}
 
 	// Mode : bouton en haut de la page.
 	// Sans canal configuré, « Activer l'envoi » est refusé avec un message.
