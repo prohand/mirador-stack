@@ -5522,7 +5522,8 @@ gardé en mémoire entre deux pages.
   **A choisi le 17/11**.
 - Style « Nuit » : carte centrée, semi-transparente (flou d'arrière-plan),
   sur fond bleu nuit avec une grille de points et un halo bleu ; logo,
-  « Bon retour », « Connectez-vous pour voir votre parc. », champs avec
+  « Connectez-vous pour voir votre parc. » (sans titre visible : « Bon
+  retour » retiré le 17/11 ; titre caché pour les lecteurs d'écran), champs avec
   icône, bouton bleu clair « Continuer → », séparateur « ou » avant la
   passkey ; en bas : « Connexion chiffrée · 2FA obligatoire · mirador-stack,
   logiciel libre ».
