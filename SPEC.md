@@ -5368,7 +5368,7 @@ requête.
   données sont différentes (agent mirador d'un côté, Alloy de l'autre). Pas
   un défaut de mirador.
 
-## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Guide écrit, à valider]**
+## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Validé le 18/11]**
 
 `docs/bascule-finale.md` : arrêt de l'ancienne stack en 5 phases, chacune
 réversible par une commande, **rien d'effacé avant la phase E** :
@@ -5440,7 +5440,7 @@ Menaces :
 - Charge : une recherche par alerte nouvelle concernée, plafonnée (voir
   ci-dessus) ; une rafale d'alertes reste bornée à 3 recherches par message.
 
-## 42. Conteneurs, Services, Paquets, détail au clic (idées de Beszel, demande du 17/11) **[Fait, à valider]**
+## 42. Conteneurs, Services, Paquets, détail au clic (idées de Beszel, demande du 17/11) **[Validé le 18/11]**
 
 Idées reprises de Beszel après maquettes validées le 17/11 (captures) ;
 **aucun code repris**.
@@ -5487,7 +5487,7 @@ Idées reprises de Beszel après maquettes validées le 17/11 (captures) ;
   plus** (le nombre total reste juste), champs bornés (128 / 64 caractères).
   Agent ancien : le nombre seulement, avec une phrase qui le dit.
 
-### 42.4 Détail au clic **[Validé le 18/11]**
+### 42.4 Détail au clic
 
 - Les tuiles « En ce moment » (CPU, mémoire, disque, swap, charge) et
   4 liens ouvrent un panneau à droite (plein écran sur téléphone) :

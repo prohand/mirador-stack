@@ -1098,11 +1098,11 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 ## Prochaine étape
 
-Mise à jour le 18/11. Validés le 18/11 : SPEC § 41 (logs dans les messages),
-§ 42.4 (détail au clic), § 43 (connexion), § 44 (réessayer la mise à jour).
+Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
+§ 41 (logs dans les messages), § 42 (Conteneurs, Services, Paquets, détail
+au clic), § 43 (connexion), § 44 (réessayer la mise à jour).
 
-1. À valider : § 39 (message « Site injoignable »), § 40 (guide de
-   l'étape 7), § 42.1 à 42.3 (Conteneurs, Services, Paquets).
+1. À valider : § 39 (message unique « Site injoignable », pas encore vu).
 2. `AgentMuet` corrigée (SPEC § 45) : à mettre à jour sur le serveur
    (la règle est corrigée seule au démarrage), puis valider.
 3. Étape 6, partie 7 : bascule du collecteur sur le LAN
