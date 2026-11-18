@@ -7,7 +7,7 @@
  <span class="tuile"><small>OK</small><b>{{.D.NbOK}}</b></span>
 </div>
 <div class="grille-services">{{range .D.Cartes}}
-<section class="carte"><div class="entete-carte"><h2>{{.Nom}}</h2><span class="pastille {{.Classe}}">{{.Texte}}</span></div>
+<section class="carte"><div class="entete-carte"><h2><a href="/services/{{.Nom}}">{{.Nom}}</a></h2><span class="pastille {{.Classe}}">{{.Texte}}</span></div>
 <p class="doux service-dispo">30 j : {{.Dispo}}</p>
 <ul class="composants">{{range .Composants}}<li><span>{{if eq .Sorte "machine"}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{else if eq .Sorte "sonde"}}Sonde <a href="/sondes">{{.Nom}}</a>{{else}}Conteneur {{.Nom}}{{end}}{{if .Cle}}<span class="cle">clé</span>{{end}}</span><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Texte}}</span></li>{{end}}</ul>
 {{if $.Admin}}<details class="modifier-service"><summary class="bouton secondaire petit">Modifier ▾</summary>

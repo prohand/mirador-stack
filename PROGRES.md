@@ -1056,6 +1056,8 @@ registre des éléments, fiches, période commune, Ctrl+K, étiquettes.
 - § 54 Incidents : fait (`TestIncidents` : regroupement par service et par
   site, alerte isolée, frise avec le changement d'avant, note, lien depuis
   l'alerte, note dans le journal).
+- § 55 Registre des éléments, § 56 fiches, § 59 étiquettes : faits
+  (`TestElementsFichesEtiquettes`, `TestRuche` qui passe par le registre).
 
 ## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
 

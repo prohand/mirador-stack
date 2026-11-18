@@ -9,7 +9,7 @@
  <span class="tuile"><small>Temps de réponse médian</small><b>{{if .D.Mediane}}{{.D.Mediane}}{{else}}—{{end}}</b></span>
 </div>
 <section class="carte">{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Type</th><th>Cible</th><th>Depuis</th><th>État</th><th>Temps de réponse (1 h)</th><th class="nombre">Dispo 24 h</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><strong>{{.S.Nom}}</strong></td><td>{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</td>
+{{range .D.Lignes}}<tr><td><a href="/sondes/{{.S.Nom}}"><strong>{{.S.Nom}}</strong></a></td><td>{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</td>
 <td class="cible-sonde"><span class="url-sonde">{{.S.Cible}}</span><br><small class="doux">{{.Attendu}}</small></td><td>{{.Depuis}}</td>
 <td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
 <td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{.Dispo}}</td>

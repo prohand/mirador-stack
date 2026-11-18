@@ -4,14 +4,11 @@ package console
 
 import (
 	"context"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"mirador-stack/internal/server/flotte"
-	essais "mirador-stack/internal/sondes"
 )
 
 // Vue « ruche » de la vue d'ensemble (SPEC § 51, idée reprise de New Relic
@@ -123,85 +120,36 @@ func (c *Console) ruche(ctx context.Context, filtre string, parc []ligneParc, t 
 		filtre = "machines"
 	}
 	v := &vueRuche{Filtre: filtre}
-	if filtre == "machines" || filtre == "tout" {
-		maint := c.machinesEnMaintenance(ctx, t)
-		g := map[string][]caseRuche{}
-		for _, m := range parc {
-			classe, sous := "ok", ""
-			if m.CPU != "—" {
-				sous = m.CPU + " CPU"
-			}
-			switch {
-			case maint[m.Nom]:
-				classe, sous = "ma", "maintenance"
-			case m.Muette:
-				classe, sous = "mu", "muette "+strings.TrimPrefix(depuis(m.VuLe*1000), "il y a ")
-			case m.ClasseEtat == "erreur":
-				classe = "cr"
-			case m.ClasseEtat == "attention":
-				classe = "av"
-			}
-			titre := m.Nom + " : " + m.Etat
-			if m.Alertes > 0 {
-				titre += " · " + strconv.Itoa(m.Alertes) + " alerte(s)"
-			}
-			site := m.Site
-			if site == "" {
-				site = "Sans site"
-			}
+	// Éléments du registre (SPEC § 55), groupés selon le filtre.
+	parFiltre := map[string]map[string][]caseRuche{}
+	for _, e := range c.elementsDuParc(ctx, parc, t) {
+		var f, groupe string
+		switch strings.SplitN(e.Sorte, " ", 2)[0] {
+		case sorteMachine, sorteCollecteur, sorteEquipement:
+			f, groupe = "machines", e.Groupe
 			if filtre == "tout" {
-				site = "Machines · " + site
+				groupe = "Machines · " + groupe
 			}
-			g[site] = append(g[site], nouvelleCase(m.Nom, sous, classe, "/machines/"+url.PathEscape(m.Nom), titre))
+		case sorteConteneur:
+			f, groupe = "conteneurs", "Conteneurs · "+e.Groupe
+		case sorteSonde:
+			f, groupe = "sondes", e.Groupe
+		default:
+			continue // services : page Services
 		}
-		v.Groupes = append(v.Groupes, grouperRuche(g)...)
+		if filtre != "tout" && f != filtre {
+			continue
+		}
+		if parFiltre[f] == nil {
+			parFiltre[f] = map[string][]caseRuche{}
+		}
+		titre := e.Sorte + " " + e.Nom + " : " + e.Etat
+		parFiltre[f][groupe] = append(parFiltre[f][groupe], nouvelleCase(e.Nom, e.Sous, e.Classe, e.Lien, titre))
 	}
-	if filtre == "conteneurs" || filtre == "tout" {
-		g := map[string][]caseRuche{}
-		for _, l := range c.conteneursDuParc(ctx, t) {
-			classe := "ok"
-			switch {
-			case l.Probleme && l.ClasseEtat == "erreur" || l.ClasseSante == "erreur" || l.OOM:
-				classe = "cr"
-			case l.Etat != "En marche":
-				classe = "mu"
-			}
-			sous := l.Etat
-			if l.Sante != "" && l.Etat == "En marche" {
-				sous = l.Sante
-			}
-			titre := "Conteneur " + l.Nom + " sur " + l.Machine + " : " + l.Etat
-			g["Conteneurs · "+l.Machine] = append(g["Conteneurs · "+l.Machine],
-				nouvelleCase(l.Nom, sous, classe, "/conteneurs?machine="+url.QueryEscape(l.Machine), titre))
+	for _, f := range []string{"machines", "conteneurs", "sondes"} {
+		if g := parFiltre[f]; g != nil {
+			v.Groupes = append(v.Groupes, grouperRuche(g)...)
 		}
-		v.Groupes = append(v.Groupes, grouperRuche(g)...)
-	}
-	if filtre == "sondes" || filtre == "tout" {
-		g := map[string][]caseRuche{}
-		if ss, err := flotte.LireSondes(ctx, c.db); err == nil && len(ss) > 0 {
-			lues := c.sondesLues(ctx, t)
-			for _, s := range ss {
-				k := cleSonde(instanceDe(s), s.Nom)
-				classe, sous := "mu", "pas d'essai"
-				if e, ok := lues["succes"][k]; ok {
-					ms := strconv.FormatFloat(lues["duree"][k].Valeur*1000, 'f', 0, 64) + " ms"
-					switch {
-					case e.Valeur == 0:
-						classe, sous = "cr", "échec"
-					case lues["lente"][k].Valeur == 1:
-						classe, sous = "av", "lente · "+ms
-					default:
-						classe, sous = "ok", ms
-					}
-				}
-				depuisSonde := "Sondes depuis le serveur"
-				if s.Depuis != essais.ServeurLocal {
-					depuisSonde = "Sondes depuis " + s.Depuis
-				}
-				g[depuisSonde] = append(g[depuisSonde], nouvelleCase(s.Nom, sous, classe, "/sondes", "Sonde "+s.Nom+" ("+s.Cible+")"))
-			}
-		}
-		v.Groupes = append(v.Groupes, grouperRuche(g)...)
 	}
 	return v
 }

@@ -41,6 +41,11 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
 	m.HandleFunc("GET /services", c.lecture(c.pageServices))
+	m.HandleFunc("GET /elements", c.lecture(c.pageElements))
+	m.HandleFunc("GET /sondes/{nom}", c.lecture(c.ficheSonde))
+	m.HandleFunc("GET /services/{nom}", c.lecture(c.ficheService))
+	m.HandleFunc("GET /conteneurs/{machine}/{nom}", c.lecture(c.ficheConteneur))
+	m.HandleFunc("POST /etiquettes", c.admin(c.postEtiquettes))
 	m.HandleFunc("POST /services", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
@@ -619,15 +624,16 @@ type donneesMachine struct {
 	NomsAnciens []string // historique rattaché à la machine
 	M           vueMachine
 	Alertes     []resumeAlerte
-	Attente     []resumeAlerte  // conditions pas encore des alertes
-	Prises      []resumeAlerte  // prises en charge (SPEC § 30)
-	Masquees    []resumeAlerte  // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine  // « En ce moment » (SPEC § 29)
-	Gourmands   *vueGourmands   // conteneurs les plus gourmands (SPEC § 31)
-	Services    *vueServices    // bloc « Services » (SPEC § 42.2)
-	Maj         vueMaj          // bloc « Mise à jour » (SPEC § 44)
-	Paquets     *vuePaquets     // bloc « Paquets à mettre à jour » (SPEC § 42.3)
-	Changements *vueChangements // bloc « Changements » (SPEC § 47)
+	Attente     []resumeAlerte      // conditions pas encore des alertes
+	Prises      []resumeAlerte      // prises en charge (SPEC § 30)
+	Masquees    []resumeAlerte      // conséquences d'une alerte plus grave (bloc replié)
+	Maintenant  []jaugeMachine      // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands       // conteneurs les plus gourmands (SPEC § 31)
+	Services    *vueServices        // bloc « Services » (SPEC § 42.2)
+	Maj         vueMaj              // bloc « Mise à jour » (SPEC § 44)
+	Paquets     *vuePaquets         // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Changements *vueChangements     // bloc « Changements » (SPEC § 47)
+	Element     *blocElementMachine // liens et étiquettes (SPEC § 56, § 59)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -682,6 +688,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
 		d.Paquets = c.paquetsMachine(ctx, m, q.t)
 		d.Changements = c.changementsMachine(ctx, m.Nom, q.t)
+		d.Element = c.elementMachine(ctx, m.Nom)
 		if d.Paquets != nil {
 			// Ouvert d'office quand l'alerte des mises à jour de sécurité est en cours.
 			for _, a := range d.Alertes {

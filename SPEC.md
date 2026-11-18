@@ -6055,3 +6055,40 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   l'ouverture ; recherche de logs d'erreur bornée.
 - Menaces : notes réservées aux administrateurs, 1 000 caractères,
   affichées échappées.
+
+## 55. Registre des éléments (idée de New Relic « entities », demande du 18/11) **[Fait, à valider]**
+
+- Une seule construction dans le code (`elementsDuParc`) : machines,
+  collecteurs, équipements, conteneurs, sondes, services, avec état
+  (même code couleur que la ruche), groupe, fiche et **liens** (relevé
+  par, sur la machine, faite depuis, fait partie de, comprend) et
+  étiquettes (§ 59).
+- Lue par la ruche (§ 51, qui ne refait plus sa liste), la page
+  **Supervision › Éléments** (onglets par sorte, filtre par étiquette,
+  problèmes en premier) et les fiches (§ 56).
+- Coût : les requêtes de la vue d'ensemble, de la page Conteneurs et de la
+  page Sondes, à l'ouverture.
+
+## 56. Fiches identiques (idée de New Relic « entity overview », demande du 18/11) **[Fait, à valider]**
+
+- Même fiche pour une sonde (`/sondes/NOM`), un service (`/services/NOM`)
+  et un conteneur (`/conteneurs/MACHINE/NOM`) : en-tête (sorte, nom,
+  état), raccourcis (logs, pages, disponibilité, événements), 4 tuiles,
+  courbe sur 24 h, alertes en cours, liens, étiquettes, derniers
+  événements (7 jours).
+- Fiche machine : blocs **Liens** et **Étiquettes** en plus.
+- Les noms des pages Sondes, Services, Conteneurs et Éléments mènent aux
+  fiches.
+
+## 59. Étiquettes libres (idée de New Relic « tags », demande du 18/11) **[Fait, à valider]**
+
+- `clé=valeur` sur n'importe quel élément (16 au plus ; clé : minuscules,
+  chiffres, `_` ; valeur : 64 caractères), en plus de site, type, groupe.
+  Réglage `etiquettes_elements`, administrateurs, audit.
+- Affichées sur les fiches et la page Éléments (clic : filtre).
+- Règles : série interne `mirador_element_etiquette{instance|element,
+  cle, valeur}` (chaque minute), par exemple
+  `… and on (instance) mirador_element_etiquette{cle="critique", valeur="oui"}`.
+- Pas encore dans les sélecteurs des silences ni des groupes de
+  notification (les étiquettes ne sont pas sur les alertes) : à faire si
+  besoin.

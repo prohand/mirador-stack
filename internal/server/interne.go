@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -188,6 +189,24 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 		r, _ := notif.LireReglages(ctx, s.db)
 		for _, e := range servicesmetier.Calculer(ctx, i.lecteur, s.alertes.EnCours(), r.ReglesPanne, svcs, t) {
 			ajout("mirador_service_etat", float64(e.Etat), "service", e.Nom)
+		}
+	}
+
+	// Étiquettes libres (SPEC § 59) : une série par étiquette, pour les
+	// règles (« and on (instance) mirador_element_etiquette{cle="critique", valeur="oui"} »).
+	var brutEtq string
+	if s.db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = 'etiquettes_elements'`).Scan(&brutEtq) == nil {
+		var etq map[string]map[string]string
+		if json.Unmarshal([]byte(brutEtq), &etq) == nil {
+			for el, kv := range etq {
+				for k, v := range kv {
+					if nom, ok := strings.CutPrefix(el, "m:"); ok {
+						ajout("mirador_element_etiquette", 1, "instance", nom, "cle", k, "valeur", v)
+					} else {
+						ajout("mirador_element_etiquette", 1, "element", el, "cle", k, "valeur", v)
+					}
+				}
+			}
 		}
 	}
 
