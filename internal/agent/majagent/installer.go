@@ -209,6 +209,23 @@ func (i *Installateur) DernierEchec() (version, raison string) {
 	return e["version"], e["raison"]
 }
 
+// EffacerEchecAvant : oublie le dernier échec s'il date d'avant t (demande
+// « Réessayer la mise à jour » faite après l'échec, SPEC § 44). Renvoie vrai
+// si un échec a été oublié : la version peut alors être retentée. Un échec
+// sans date (fichier ancien) est aussi oublié.
+func (i *Installateur) EffacerEchecAvant(t time.Time) bool {
+	var e map[string]string
+	chemin := filepath.Join(i.Dossier, "echec.json")
+	brut, err := os.ReadFile(chemin) // #nosec G304 -- dossier de l'agent
+	if err != nil || json.Unmarshal(brut, &e) != nil {
+		return false
+	}
+	if d, err := time.Parse(time.RFC3339, e["date"]); err == nil && !d.Before(t) {
+		return false // échec plus récent que la demande : on ne recommence pas
+	}
+	return os.Remove(chemin) == nil
+}
+
 // nettoyer supprime les anciens binaires, sauf ceux à garder (et leur
 // manifeste signé, dont l'assistant root a besoin : SPEC § 22.5).
 func (i *Installateur) nettoyer(garder ...string) {

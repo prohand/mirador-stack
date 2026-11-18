@@ -146,6 +146,45 @@ func DefinirCible(ctx context.Context, db *sql.DB, machine int64, version, qui s
 	return tx.Commit()
 }
 
+// DureeMajForcee : pendant ce temps après « Mettre à jour maintenant », la
+// fenêtre horaire des mises à jour est ignorée pour cette machine.
+const DureeMajForcee = 24 * time.Hour
+
+// ForcerMaj : bouton « Mettre à jour maintenant » / « Réessayer la mise à
+// jour » d'une machine (SPEC § 44). La version reste celle assignée (signée,
+// vérifiée par l'agent comme d'habitude) ; seuls changent :
+//   - la fenêtre horaire, ignorée pendant DureeMajForcee ;
+//   - pour un agent qui annonce « reessai » : une version déjà en échec est
+//     retentée (la demande est plus récente que l'échec).
+//
+// L'agent est réveillé tout de suite (même canal que « Actualiser ») ; un
+// agent ancien vérifie à son rythme (15 min au plus).
+func ForcerMaj(ctx context.Context, db *sql.DB, machine int64, qui string, maintenant time.Time) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
+	var nom, echec string
+	if err := tx.QueryRowContext(ctx, `SELECT nom, maj_echec FROM machines WHERE id = ? AND statut = 'approuvee'`, machine).Scan(&nom, &echec); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("machine inconnue ou pas approuvée")
+		}
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE machines SET maj_forcee_le = ? WHERE id = ?`, maintenant.Unix(), machine); err != nil {
+		return err
+	}
+	if err := audit(ctx, tx, maintenant.Unix(), qui, "maj_forcee", nom, echec, "", ""); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	DemanderActualisation(machine, maintenant)
+	return nil
+}
+
 // cible renvoie la version assignée à une machine et son architecture.
 func (f *Flotte) cible(ctx context.Context, machine int64) (version, arch string, err error) {
 	if err = f.opt.DB.QueryRowContext(ctx, `SELECT version_cible, architecture FROM machines WHERE id = ?`, machine).Scan(&version, &arch); err != nil {
@@ -193,8 +232,18 @@ func (f *Flotte) maj(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var rep protocole.ReponseMaj
+	// « Mettre à jour maintenant » (SPEC § 44) : fenêtre horaire ignorée
+	// pendant DureeMajForcee ; « reessai » seulement pour un agent qui le
+	// comprend (les anciens refusent tout champ inconnu de la réponse).
+	var forcee int64
+	_ = f.opt.DB.QueryRowContext(r.Context(), `SELECT maj_forcee_le FROM machines WHERE id = ?`, machine.ID).Scan(&forcee)
+	maintenant := f.opt.Maintenant()
+	recente := forcee > 0 && maintenant.Sub(time.Unix(forcee, 0)) < DureeMajForcee
+	if forcee > 0 && ACapacite(capacitesDe(r), protocole.CapaciteReessai) {
+		rep.Reessai = forcee
+	}
 	fen, _ := LireFenetre(r.Context(), f.opt.DB)
-	if version != "" && version != r.Header.Get(protocole.EnteteVersion) && fen.Contient(f.opt.Maintenant()) {
+	if version != "" && version != r.Header.Get(protocole.EnteteVersion) && (recente || fen.Contient(maintenant)) {
 		if rep.Manifeste, err = f.manifeste(r.Context(), ProduitDe(machine.Type), version, arch); err != nil {
 			erreur(w, http.StatusServiceUnavailable, "base indisponible")
 			return

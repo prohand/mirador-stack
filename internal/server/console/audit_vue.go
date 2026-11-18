@@ -100,6 +100,7 @@ var phrasesAudit = map[string]string{ // #nosec G101 -- libellés d'actions (« 
 	"version_supprimee":                "Version %s supprimée",
 	"versions_gardees":                 "Nombre de versions gardées changé",
 	"maj_fenetre":                      "Fenêtre de mise à jour changée",
+	"maj_forcee":                       "Mise à jour demandée maintenant",
 	"config_agent":                     "Configuration des agents changée (%s)",
 	"jeton_cree":                       "Jeton d'enrôlement créé",
 	"token_manuel":                     "Jeton d'une machine créé à la main (%s)",

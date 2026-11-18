@@ -289,6 +289,9 @@ func depuis(ms int64) string {
 	if d < 0 {
 		return "dans " + dureeLisible(-d)
 	}
+	if d < 5*time.Second {
+		return "à l'instant" // plutôt que « il y a 0 s »
+	}
 	return "il y a " + dureeLisible(d)
 }
 

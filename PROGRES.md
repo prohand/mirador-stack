@@ -975,6 +975,22 @@ Vu sur la capture de la comparaison vmalert (SPEC § 39.3) : `ProxmoxMuet`
 manquante chez mirador est normale (mirador ne reçoit pas le metric
 server) : à désactiver dans Règles.
 
+## Réessayer / forcer une mise à jour (SPEC § 44, 18/11)
+
+| Partie | État |
+|---|---|
+| Fiche machine : bloc « Mise à jour » (raison de l'échec, bouton Réessayer / Mettre à jour maintenant), lien depuis la liste | **fait**, testé, vu dans Chromium ; à valider |
+| Serveur : fenêtre ignorée 24 h, agent réveillé, `reessai` envoyé seulement aux agents qui le comprennent | **fait**, testé |
+| Agent : capacité `reessai`, échec oublié si la demande est plus récente, vérification réveillée par l'actualisation | **fait**, testé ; à valider après mise à jour des agents |
+| Conteneurs : « — » et légende au lieu de « pas de test » | **fait**, vu |
+
+Pour proxmoxbackup (agent 0.3.1, trop ancien pour `reessai`) : une fois
+sur la machine `sudo rm /var/lib/mirador-agent/bin/echec.json`, puis
+« Réessayer la mise à jour » sur sa fiche.
+
+Coût : une colonne en base, une lecture par demande de mise à jour de
+l'agent (toutes les 15 min par machine) ; rien d'autre.
+
 ## Pages de connexion refaites (SPEC § 43, 17/11)
 
 | Partie | État |

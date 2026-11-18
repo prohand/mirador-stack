@@ -20,12 +20,13 @@
 {{range .D.Lignes}}<tr><td><strong>{{.Nom}}</strong>{{if .Projet}}<br><small class="doux">{{.Projet}}</small>{{end}}</td>
 <td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
 <td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}{{if .OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
-<td>{{if .Sante}}<span class="pastille {{.ClasseSante}}">{{.Sante}}</span>{{else}}<span class="doux">pas de test</span>{{end}}</td>
+<td>{{if .Sante}}<span class="pastille {{.ClasseSante}}">{{.Sante}}</span>{{else}}<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>{{end}}</td>
 <td data-valeur="{{.PctCPU}}"><div class="mesure"><span>{{.CPU}}</span>{{if ge .PctCPU 0}}<div class="jauge {{.ClasseCPU}}"><i class="largeur-{{.PctCPU}}"></i></div>{{end}}</div></td>
 <td data-valeur="{{.PctMemoire}}"><div class="mesure mesure-large"><span class="sans-coupure">{{.Memoire}}</span>{{if ge .PctMemoire 0}}<div class="jauge {{.ClasseMem}}"><i class="largeur-{{.PctMemoire}}"></i></div>{{end}}</div>{{if .Limite}}<small class="doux sans-coupure">limite {{.Limite}}</small>{{end}}</td>
 <td class="nombre">{{if .Redemarrages}}<strong>{{.Redemarrages}}</strong>{{else}}0{{end}}</td>
 <td data-valeur="{{.DepuisS}}">{{if .Depuis}}{{.Depuis}}{{else}}—{{end}}</td>
 <td><a class="pastille" href="{{.LienLogs}}">Logs</a></td></tr>{{end}}
-</tbody></table></div>{{else}}<p class="vide">Aucun conteneur pour ce filtre.</p>{{end}}
+</tbody></table></div>
+<p class="sous legende-tableau">Santé : résultat du test intégré au conteneur (« healthcheck » de l'image ou du compose). « — » : pas de test défini, seul l'état (en marche ou arrêté) est suivi.</p>{{else}}<p class="vide">Aucun conteneur pour ce filtre.</p>{{end}}
 </section>{{end}}
 {{end}}

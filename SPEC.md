@@ -5540,3 +5540,46 @@ gardé en mémoire entre deux pages.
   machine, ni chiffre). Noms des champs, formulaires, jeton CSRF, passkey
   et limites de tentatives inchangés ; connexion complète vérifiée dans
   Chromium (mot de passe faux, puis bon mot de passe et code 2FA).
+
+## 44. « Réessayer la mise à jour » / « Mettre à jour maintenant » (demande du 18/11) **[Fait, à valider]**
+
+Constat : une machine affichait « Mise à jour en échec » (0.3.1) sans moyen
+de relancer. L'agent note l'échec (`echec.json`) et ne retente jamais la
+même version (choix de l'étape 2 : pas de boucle d'essais).
+
+- Fiche de la machine, juste après les alertes : bloc **Mise à jour** quand
+  une mise à jour a échoué (raison affichée) ou qu'une version assignée
+  n'est pas encore installée ; bouton **Réessayer la mise à jour** ou
+  **Mettre à jour maintenant** (admin, code 2FA ou mode administration,
+  audit `maj_forcee`). La pastille « Mise à jour en échec » de la liste des
+  machines mène à ce bloc.
+- Effets (`flotte.ForcerMaj`) : la version reste celle assignée et signée ;
+  - fenêtre horaire ignorée 24 h pour cette machine ;
+  - l'agent est réveillé tout de suite (même canal que « Actualiser » ;
+    les agents à jour vérifient la mise à jour dans la seconde, les anciens
+    à leur rythme, 15 min au plus) ;
+  - nouvelle capacité **`reessai`** : le serveur ajoute `reessai` (heure de
+    la demande) à la réponse de mise à jour, **seulement** aux agents qui
+    l'annoncent (les anciens refusent tout champ inconnu). L'agent oublie
+    l'échec s'il est plus ancien que la demande et retente ; s'il échoue
+    encore, il faut une nouvelle demande (pas de boucle).
+- Agent trop ancien : le bloc donne la commande à lancer une fois
+  (`sudo rm …/bin/echec.json`), puis le bouton.
+- Corrigé au passage : l'agent n'efface plus jamais son message d'erreur de
+  mise à jour ; il le garde maintenant seulement tant que l'erreur dure.
+
+| Choix | Raison | Coût |
+|---|---|---|
+| Une demande datée, comparée à la date de l'échec | un clic = un essai ; jamais de boucle d'essais qui ferait redémarrer l'agent sans fin | une colonne (`maj_forcee_le`), une lecture en base par demande de mise à jour |
+| Champ envoyé seulement aux agents qui annoncent `reessai` | les agents déjà installés refusent une réponse avec un champ inconnu : leurs mises à jour casseraient | — |
+| Réveil par l'actualisation existante | aucun port ouvert sur l'agent, aucune nouvelle connexion | aucun |
+
+Menaces :
+- Rien de nouveau n'est installable : seule la version assignée, publiée et
+  signée, vérifiée par l'agent (signature, empreinte, anti-retour arrière,
+  self-test, retour automatique). Le bouton change seulement *quand*.
+- Action réservée aux admins, code 2FA (ou mode administration), journal
+  d'audit ; l'ancien agent relance aussi son assistant root (comme
+  « Actualiser »), sans autre effet.
+- La colonne « Santé » de la page Conteneurs affiche « — » (au lieu de « pas
+  de test » répété) avec une légende (retour du 18/11).
