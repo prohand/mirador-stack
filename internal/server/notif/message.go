@@ -47,6 +47,9 @@ type Message struct {
 	// Extraits : dernières lignes de logs par alerte (empreinte des
 	// étiquettes), remplies juste avant l'envoi (SPEC § 41).
 	Extraits map[uint64][]string
+	// Changements : « 12 min avant : 14 paquets mis à jour » par alerte
+	// (SPEC § 47), rempli juste avant l'envoi.
+	Changements map[uint64]string
 }
 
 // Nb : nombre d'alertes dans le message.
@@ -158,6 +161,9 @@ func Texte(m *Message, o Mise) string {
 		if !a.AbsenteDepuis.IsZero() { // SPEC § 46
 			fmt.Fprintf(&b, "%s\n", e("📡 Données absentes depuis "+a.AbsenteDepuis.In(o.Fuseau).Format("02/01 15:04")+
 				" ("+dureeCourte(m.Le.Sub(a.AbsenteDepuis))+") : la machine n'envoie plus rien"))
+		}
+		if ch := m.Changements[a.Etiquettes.Hash()]; ch != "" {
+			b.WriteString(e("🔧 "+ch) + "\n")
 		}
 		if lignes := m.Extraits[a.Etiquettes.Hash()]; len(lignes) > 0 {
 			b.WriteString(e("📄 Derniers logs :") + "\n")

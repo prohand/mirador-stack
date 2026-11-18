@@ -143,9 +143,9 @@ func phraseAudit(action, objet string) string {
 // changement : une valeur changée (ancienne → nouvelle).
 type changement struct{ Cle, Avant, Apres string }
 
-// changements : clés changées entre deux documents JSON (aplatis), sinon
+// clesChangees : clés changées entre deux documents JSON (aplatis), sinon
 // les deux textes ; 8 au plus.
-func changements(avant, apres string) []changement {
+func clesChangees(avant, apres string) []changement {
 	ja, okA := aplatir(avant)
 	jb, okB := aplatir(apres)
 	var out []changement
@@ -352,7 +352,7 @@ func (c *Console) pageAudit(q *req) {
 	for _, l := range ls {
 		t := time.Unix(l.Le, 0).In(fuseau.Load())
 		v := ligneAuditVue{ligneAudit: l, Heure: t.Format("15:04"), Cat: categorieDe(l.Action), Phrase: phraseAudit(l.Action, l.Objet),
-			Lien: lienAudit(l.Action, l.Objet), Sensible: estSensible(l.Action), Changes: changements(l.Avant, l.Apres)}
+			Lien: lienAudit(l.Action, l.Objet), Sensible: estSensible(l.Action), Changes: clesChangees(l.Avant, l.Apres)}
 		if j := libelleJour(t, q.t); j != jour {
 			v.Jour, jour = j, j
 		}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/changements"
 )
 
 // Annotations des courbes d'une machine (SPEC § 31) : alertes de la période
@@ -117,20 +118,15 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 		}
 	}
 	// Changements faits dans l'interface pour cette machine (audit).
-	var id int64
-	if err := c.db.QueryRowContext(ctx, `SELECT id FROM machines WHERE nom = ?`, instance).Scan(&id); err == nil {
-		porte := "machine:" + strconv.FormatInt(id, 10)
-		rows, err := c.db.QueryContext(ctx, `SELECT le, action, objet FROM audit WHERE le >= ? AND le <= ? AND (objet = ? OR objet = ? OR objet LIKE ?)
-			AND qui NOT IN ('mirador', 'auto') ORDER BY le LIMIT ?`, debut.Unix(), fin.Unix(), instance, porte, porte+" %", maxEvenements)
-		if err == nil {
-			for rows.Next() {
-				var le int64
-				var action, objet string
-				if rows.Scan(&le, &action, &objet) == nil {
-					out.Evenements = append(out.Evenements, evenementCourbe{T: le, Nom: phraseAudit(action, objet)})
-				}
+	out.Evenements = append(out.Evenements, c.auditMachine(ctx, instance, debut, fin, maxEvenements)...)
+	// Changements repérés par le serveur (SPEC § 47) : paquets, noyau,
+	// conteneurs (redémarrages et agent sont déjà lus ci-dessus).
+	if cs, err := changements.Lister(ctx, c.db, instance, debut, maxEvenements); err == nil {
+		for _, x := range cs {
+			if x.Le.After(fin) || x.Type == changements.Redemarrage || x.Type == changements.Agent {
+				continue
 			}
-			_ = rows.Close()
+			out.Evenements = append(out.Evenements, evenementCourbe{T: x.Le.Unix(), Nom: changements.Titre(x.Type) + " : " + x.Resume()})
 		}
 	}
 	sort.Slice(out.Evenements, func(a, b int) bool { return out.Evenements[a].T < out.Evenements[b].T })

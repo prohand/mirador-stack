@@ -5734,3 +5734,62 @@ fermé, aucun code. Maquette validée le 18/11.
   propres alertes en se taisant, pas celles d'une autre.
 - Une alerte gardée ouverte ne renvoie pas de message (pas de répétition
   hors rappels réglés).
+
+## 47. Suivi des changements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« change tracking ») : idée seulement, aucun
+code. Maquette validée le 18/11.
+
+### 47.1 Ce qui est repéré
+
+| Type | Comment | Source |
+|---|---|---|
+| Paquets | lignes « upgrade » et « install » de `/var/log/dpkg.log`, lues au fil de l'eau par l'agent : `apt_package_installed{package, from, to}` = heure (48 h, 200 au plus) | agent (nouveau) |
+| Redémarrage | nouvelle valeur de `node_boot_time_seconds` (le noyau changé y est cité) | métriques existantes |
+| Noyau | `release` de `node_uname_info` changé sans redémarrage vu (rare) | métriques existantes |
+| Agent | nouvelle version de `mirador_agent_info` | métriques existantes |
+| Conteneur | heure de démarrage changée **sans** que le compteur de redémarrages automatiques bouge (redémarré à la main ou recréé) ; « recréé : image A → B » si l'image a changé (`node_docker_container_info{image}`, nouveau) | agent |
+| Réglage | changements faits dans mirador pour la machine (audit, hors actions automatiques) | audit (existant) |
+
+- Un plantage suivi d'un redémarrage automatique n'est **pas** un
+  changement (déjà couvert par les alertes des conteneurs).
+- Paquets installés à moins de 30 min les uns des autres : une seule ligne.
+- Machine vue pour la première fois (ou tout premier tour) : rien n'est
+  signalé, l'état est seulement noté.
+- Après une installation, l'agent recalcule la liste « à mettre à jour »
+  2 min plus tard au lieu d'attendre 6 h.
+
+### 47.2 Fonctionnement
+
+- Le serveur compare chaque minute (7 requêtes instantanées) avec la
+  dernière valeur vue, gardée en base (`changements_etat`) : rien n'est
+  répété après un redémarrage du serveur.
+- Table `changements` (machine, heure, type, détail), gardée **90 jours**
+  (migration 0027).
+
+### 47.3 Affichage et messages
+
+- Fiche machine : bloc repliable « Changements » (7 jours) : quand, type,
+  détail, source ; ouvert d'office s'il y a eu un changement depuis 24 h.
+- Courbes de la machine : traits pointillés existants (§ 31.1), avec en plus
+  paquets, noyau et conteneurs (nom au survol).
+- Message d'alerte : « 🔧 12m avant : 14 paquets mis à jour » quand la
+  machine a changé dans l'heure qui précède le début de l'alerte.
+
+### 47.4 Coût
+
+- Agent : un `stat()` de dpkg.log par minute ; lecture des seules lignes
+  nouvelles (4 Mio au plus au premier passage) ; quelques séries de plus
+  (paquets des dernières 48 h, une série par conteneur pour l'image).
+- Serveur : 7 requêtes instantanées par minute, quelques lignes en base
+  par jour.
+
+### 47.5 Menaces
+
+- dpkg.log est lisible par tous sur Debian/Ubuntu : aucun droit de plus
+  pour l'agent ; aucun programme lancé.
+- Textes venus des machines (noms de paquets, images, versions) : bornés
+  (128 et 200 caractères, détail 4 000 au plus), échappés à l'affichage
+  (gabarits HTML, messages).
+- Une machine ne peut écrire que sous son propre nom (nom imposé à
+  l'ingestion).

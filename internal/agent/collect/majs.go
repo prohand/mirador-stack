@@ -22,7 +22,9 @@ import (
 //   - node_reboot_required : 1 si /run/reboot-required existe ;
 //   - apt_upgrade_package{package, from, to, security} : un paquet à mettre
 //     à jour (valeur 1), 200 au plus (SPEC § 42.3 : liste montrée sur la
-//     page de la machine).
+//     page de la machine) ;
+//   - apt_package_installed{package, from, to} : paquets installés depuis
+//     48 h, d'après /var/log/dpkg.log (valeur : heure, dpkg.go, SPEC § 47).
 //
 // Méthode (SPEC.md § 6.2) : « apt-get --simulate dist-upgrade », chemin et
 // arguments figés dans le code, sans droits root (la simulation n'en demande
@@ -48,6 +50,8 @@ type MisesAJour struct {
 	securite int
 	paquets  []paquetAJour
 	erreur   error
+
+	dpkg journalDpkg // paquets installés (SPEC § 47)
 }
 
 // paquetAJour : une ligne « Inst » de la simulation.
@@ -71,6 +75,7 @@ func NewMisesAJour() *MisesAJour {
 		periode:            6 * time.Hour,
 		delai:              2 * time.Minute,
 		maintenant:         time.Now,
+		dpkg:               journalDpkg{chemin: cheminDpkgLog},
 	}
 	m.lancer = m.lancerAptGet
 	return m
@@ -88,6 +93,16 @@ func (m *MisesAJour) Collecter(b *metrics.Batch) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// Paquets installés : liste lue au fil de dpkg.log. Après une
+	// installation, la liste « à mettre à jour » est recalculée (2 min
+	// plus tard, le temps qu'apt finisse) au lieu d'attendre 6 h.
+	if m.dpkg.lire(m.maintenant()) && !m.enCours {
+		m.derniere = m.maintenant().Add(-m.periode + 2*time.Minute)
+	}
+	for _, p := range m.dpkg.liste {
+		b.Add("apt_package_installed", float64(p.le.Unix()), metrics.L("package", p.nom),
+			metrics.L("from", p.avant), metrics.L("to", p.apres))
+	}
 	if !m.enCours && (m.derniere.IsZero() || m.maintenant().Sub(m.derniere) >= m.periode) {
 		m.enCours = true
 		m.derniere = m.maintenant()

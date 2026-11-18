@@ -42,6 +42,7 @@ func TestCompterMisesAJour(t *testing.T) {
 func TestMisesAJourEnFond(t *testing.T) {
 	dir := t.TempDir()
 	m := NewMisesAJour()
+	m.dpkg.chemin = filepath.Join(dir, "dpkg.log") // pas celui de la machine de test
 	// apt-get factice : un fichier qui existe, et une fonction de lancement simulée.
 	m.commande = filepath.Join(dir, "apt-get")
 	if err := os.WriteFile(m.commande, nil, 0o600); err != nil {

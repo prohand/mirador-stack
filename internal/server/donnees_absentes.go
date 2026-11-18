@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"mirador-stack/internal/server/changements"
 	"mirador-stack/internal/server/flotte"
 )
 
@@ -62,4 +63,14 @@ func (s *Serveur) derniereDonnee(instance string) (time.Time, bool) {
 		return time.Time{}, false // jamais rien reçu : rien à garder
 	}
 	return time.Unix(vuLe, 0), true
+}
+
+// dernierChangement : pour les messages d'alerte (SPEC § 47), le dernier
+// changement de la machine dans l'heure qui précède le début de l'alerte.
+func (s *Serveur) dernierChangement(ctx context.Context, machine string, avant time.Time) (time.Time, string, bool) {
+	c, ok := changements.Avant(ctx, s.db, machine, avant, time.Hour)
+	if !ok {
+		return time.Time{}, "", false
+	}
+	return c.Le, c.Resume(), true
 }

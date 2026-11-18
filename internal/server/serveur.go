@@ -19,6 +19,7 @@ import (
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/base"
 	"mirador-stack/internal/server/certsyslog"
+	"mirador-stack/internal/server/changements"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/flotte"
@@ -147,7 +148,8 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		return echec(fmt.Errorf("canaux de notification : %w", err))
 	}
 	if s.aiguille, err = notif.Nouveau(ctx, notif.Options{DB: s.db, EnCours: s.alertes.EnCours,
-		Envoyeur: s.postier, Journal: journal.With("composant", "notifications"), Logs: chercheurExtraits(s.jx)}); err != nil {
+		Envoyeur: s.postier, Journal: journal.With("composant", "notifications"), Logs: chercheurExtraits(s.jx),
+		Changement: s.dernierChangement}); err != nil {
 		return echec(fmt.Errorf("notifications : %w", err))
 	}
 	s.alertes.DefinirRecepteur(s.aiguille)
@@ -181,6 +183,8 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		defer close(s.finFond)
 		taches := []func(context.Context){s.flotte.Boucle, s.planif.Boucle, s.alertes.Boucle, s.aiguille.Boucle,
 			s.postier.Boucle, (&interne{s: s}).boucle, s.console.Boucle,
+			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
+				Journal: journal.With("composant", "changements")}).Boucle,
 			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner}
 		fini := make(chan struct{}, len(taches))
 		for _, f := range taches {

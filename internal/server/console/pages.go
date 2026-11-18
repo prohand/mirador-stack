@@ -603,14 +603,15 @@ type donneesMachine struct {
 	NomsAnciens []string // historique rattaché à la machine
 	M           vueMachine
 	Alertes     []resumeAlerte
-	Attente     []resumeAlerte // conditions pas encore des alertes
-	Prises      []resumeAlerte // prises en charge (SPEC § 30)
-	Masquees    []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
-	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
-	Services    *vueServices   // bloc « Services » (SPEC § 42.2)
-	Maj         vueMaj         // bloc « Mise à jour » (SPEC § 44)
-	Paquets     *vuePaquets    // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Attente     []resumeAlerte  // conditions pas encore des alertes
+	Prises      []resumeAlerte  // prises en charge (SPEC § 30)
+	Masquees    []resumeAlerte  // conséquences d'une alerte plus grave (bloc replié)
+	Maintenant  []jaugeMachine  // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands   // conteneurs les plus gourmands (SPEC § 31)
+	Services    *vueServices    // bloc « Services » (SPEC § 42.2)
+	Maj         vueMaj          // bloc « Mise à jour » (SPEC § 44)
+	Paquets     *vuePaquets     // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Changements *vueChangements // bloc « Changements » (SPEC § 47)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -664,6 +665,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Identite = c.identite(ctx, m, ech, q.t)
 		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
 		d.Paquets = c.paquetsMachine(ctx, m, q.t)
+		d.Changements = c.changementsMachine(ctx, m.Nom, q.t)
 		if d.Paquets != nil {
 			// Ouvert d'office quand l'alerte des mises à jour de sécurité est en cours.
 			for _, a := range d.Alertes {

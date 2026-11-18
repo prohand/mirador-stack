@@ -193,6 +193,19 @@ func TestDemoInterface(t *testing.T) {
 		now.Add(-4*time.Hour).UnixMilli(), now.Add(-4*time.Hour).UnixMilli(), now.Add(-3*time.Hour).UnixMilli())
 	_, _ = s.db.Exec(`INSERT INTO audit(le, qui, action, objet) SELECT ?, 'web:admin', 'config_agent', 'machine:' || id FROM machines WHERE nom = 'pve1'`,
 		now.Add(-2*time.Hour).Unix())
+	// Changements repérés sur pve1 (SPEC § 47) : bloc de la fiche et traits des courbes.
+	for _, c := range []struct {
+		il    time.Duration
+		typ   string
+		texte string
+	}{
+		{5 * time.Hour, "paquets", "openssl 3.0.15-1 → 3.0.15-2, linux-image-amd64 6.8.12-4 → 6.8.12-5, libc6 2.36-9 → 2.36-9+deb12u9"},
+		{4*time.Hour + 50*time.Minute, "redemarrage", "Machine redémarrée, noyau 6.8.12-4-pve → 6.8.12-5-pve"},
+		{90 * time.Minute, "conteneur", "homeassistant recréé : image home-assistant:2026.11.1 → home-assistant:2026.11.2"},
+		{30 * time.Minute, "agent", "mirador-agent 0.2.31 → 0.2.32"},
+	} {
+		_, _ = s.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('pve1', ?, ?, ?)`, now.Add(-c.il).Unix(), c.typ, c.texte)
+	}
 	var lignes []stockage.Ligne
 	for k := 0; k < 60; k++ {
 		lignes = append(lignes, stockage.Ligne{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), Msg: fmt.Sprintf("Accepted publickey for admin from 192.0.2.%d port 5%03d ssh2", k%7, k),

@@ -959,6 +959,24 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
   répond sans alerte).
 - Coût : aucune requête de plus sauf pour les règles « ouvrir ».
 
+### Idée 2 — Suivi des changements (SPEC § 47) : fait, à valider
+
+- Agent : paquets installés lus dans dpkg.log (`apt_package_installed`),
+  image des conteneurs (`node_docker_container_info`) ; liste « à mettre
+  à jour » recalculée 2 min après une installation. **Agent à mettre à
+  jour** pour les paquets et les images.
+- Serveur : comparaison chaque minute (paquets, redémarrage + noyau,
+  agent, conteneur recréé ou redémarré à la main), table `changements`
+  (90 jours, migration 0027).
+- Fiche machine : bloc « Changements » (7 jours, audit compris) ; traits
+  sur les courbes ; ligne « 🔧 12m avant : … » dans le message d'alerte.
+- Tests : `TestJournalDpkg` (lecture, ajout, rotation, 48 h),
+  `TestDetecteur` (premier tour muet, nuit de mises à jour complète,
+  plantage ignoré, regroupement des paquets, redémarrage du serveur sans
+  doublon), `TestChangementEtAbsenceDansLeMessage`.
+- Coût : agent, un stat() par minute ; serveur, 7 requêtes instantanées
+  par minute.
+
 ### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
 
 - Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
@@ -1142,8 +1160,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent).
-   Idées New Relic en cours : 2 (changements), 3 (sondes), 4
+   § 46 (si les données disparaissent), § 47 (changements).
+   Idées New Relic en cours : 3 (sondes), 4
    (disponibilité), 6 (services), 5 (ruche : emplacement à choisir) ;
    7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN

@@ -139,3 +139,27 @@ func TestExtraitsLimites(t *testing.T) {
 		t.Fatalf("réglage coupé : %d message(s), %d recherches", len(m), len(f.requetes))
 	}
 }
+
+// Dernier changement de la machine dans le message (SPEC § 47) et données
+// absentes (SPEC § 46).
+func TestChangementEtAbsenceDansLeMessage(t *testing.T) {
+	b := nouveauBanc(t)
+	var demandes []string
+	b.g.opt.Changement = func(_ context.Context, machine string, avant time.Time) (time.Time, string, bool) {
+		demandes = append(demandes, machine)
+		return avant.Add(-12 * time.Minute), "14 paquets mis à jour", true
+	}
+	a := alerte(1, "DisqueQuasiPlein", alertes.Critique, "nas", b.horloge)
+	a.AbsenteDepuis = b.horloge.Add(-26 * time.Hour)
+	b.debut(a)
+	m := b.avancer(15 * time.Second)
+	if len(m) != 1 || len(demandes) != 1 || demandes[0] != "nas" {
+		t.Fatalf("messages %d, demandes %v", len(m), demandes)
+	}
+	texte := Texte(m[0], Mise{})
+	for _, attendu := range []string{"🔧 12m avant : 14 paquets mis à jour", "📡 Données absentes depuis", "(1j 2h) : la machine n'envoie plus rien"} {
+		if !strings.Contains(texte, attendu) {
+			t.Errorf("%q absent :\n%s", attendu, texte)
+		}
+	}
+}

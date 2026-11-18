@@ -136,3 +136,34 @@ func (g *Aiguilleur) ajouterExtraits(ctx context.Context, m *Message, r *Reglage
 		m.Extraits[a.Etiquettes.Hash()] = propres
 	}
 }
+
+// ajouterChangements (hors verrou) : dernier changement de la machine avant
+// chaque alerte nouvelle du message (SPEC § 47).
+func (g *Aiguilleur) ajouterChangements(ctx context.Context, m *Message) {
+	if g.opt.Changement == nil || m.Type != TypeAlerte || m.Site != "" || m.Nouvelles == 0 {
+		return
+	}
+	for i := 0; i < m.Nouvelles && i < len(m.Actives) && i < extraitAlertesMax; i++ {
+		a := &m.Actives[i]
+		debut := a.Debut
+		if debut.IsZero() {
+			debut = a.ActiveLe
+		}
+		if a.Machine() == "" || debut.IsZero() {
+			continue
+		}
+		quand, texte, ok := g.opt.Changement(ctx, a.Machine(), debut)
+		if !ok {
+			continue
+		}
+		if m.Changements == nil {
+			m.Changements = map[uint64]string{}
+		}
+		ecart := debut.Sub(quand).Round(time.Minute)
+		avant := "juste avant"
+		if ecart >= time.Minute {
+			avant = strings.TrimSuffix(dureeCourte(ecart), " 0s") + " avant"
+		}
+		m.Changements[a.Etiquettes.Hash()] = avant + " : " + texte
+	}
+}

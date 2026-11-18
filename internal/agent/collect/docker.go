@@ -74,6 +74,7 @@ type conteneurListe struct {
 	ID     string            `json:"Id"`
 	Names  []string          `json:"Names"`
 	State  string            `json:"State"`
+	Image  string            `json:"Image"`
 	Labels map[string]string `json:"Labels"`
 }
 
@@ -143,6 +144,14 @@ func (d *Docker) Collecter(b *metrics.Batch) error {
 		b.Add("node_docker_container_running", bool01(c.State == "running"),
 			base[0], base[1], metrics.L("state", c.State), metrics.L("restart_policy", politique))
 		b.Add("node_docker_container_restart_count", float64(det.RestartCount), base[:]...)
+		// Image du conteneur (suivi des changements, SPEC § 47 : « recréé :
+		// image A → B »). Coupée à 200 caractères.
+		if img := c.Image; img != "" {
+			if len(img) > 200 {
+				img = img[:200]
+			}
+			b.Add("node_docker_container_info", 1, base[0], base[1], metrics.L("image", img))
+		}
 		b.Add("node_docker_container_oom_killed", bool01(det.State.OOMKilled), base[:]...)
 		if h := det.State.Health; h != nil && (h.Status == "healthy" || h.Status == "unhealthy") {
 			b.Add("node_docker_container_healthy", bool01(h.Status == "healthy"), base[:]...)
