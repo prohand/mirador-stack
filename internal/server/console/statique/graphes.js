@@ -6,6 +6,9 @@
 "use strict";
 
 (function () {
+  var cleComparer = "mirador-comparer";
+  var comparerTout = false;
+  try { comparerTout = window.localStorage.getItem(cleComparer) === "1"; } catch (e) { /* stockage refusé */ }
   if (typeof uPlot === "undefined") { return; }
   var palette = ["#1f6feb", "#e16f24", "#1a7f37", "#cf222e", "#8250df", "#9a6700", "#0598bc", "#bf3989",
     "#57606a", "#2da44e", "#d4a72c", "#a475f9"];
@@ -326,6 +329,10 @@
     // data-courbe="apercu" : données déjà dans la page (aperçu de l'éditeur
     // de tableaux, panneau pas encore enregistré), dans data-json.
     var source = el.getAttribute("data-courbe");
+    // Comparaison réglée pour toute la page (SPEC § 57) : reprise par chaque
+    // courbe au premier dessin ; le bouton « −7 j » la change pour une seule.
+    if (el.comparer === undefined) { el.comparer = comparerTout; }
+    if (el.btnComparer) { el.btnComparer.classList.toggle("actif", !!el.comparer); }
     if (el.comparer && source !== "apercu") { source += "&comparer=1"; }
     var donneesPretes = source === "apercu"
       ? Promise.resolve(JSON.parse(el.getAttribute("data-json") || "{}"))
@@ -511,6 +518,31 @@
   }
 
   function tout() { regrouperVides(); document.querySelectorAll("[data-courbe]").forEach(dessiner); }
+
+  // « Comparer avec la semaine dernière » pour toutes les courbes de la
+  // page, retenu par ce navigateur (SPEC § 57). Case posée à côté du choix
+  // de la période (fiche machine, tableau).
+  function poserComparerTout() {
+    var courbes = document.querySelectorAll("[data-courbe]:not([data-courbe=apercu])");
+    var ancre = document.querySelector("nav .segment.periode, form select[name=periode]");
+    if (!courbes.length || !ancre) { return; }
+    var lab = document.createElement("label");
+    lab.className = "case comparer-tout";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = comparerTout;
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" Comparer avec la semaine dernière"));
+    lab.title = "Toutes les courbes : la même période il y a 7 jours, en pointillé gris (une seule courbe à la fois)";
+    cb.addEventListener("change", function () {
+      comparerTout = cb.checked;
+      try { window.localStorage.setItem(cleComparer, comparerTout ? "1" : "0"); } catch (e) { /* stockage refusé */ }
+      courbes.forEach(function (el) { el.comparer = comparerTout; var z = el.zoom; el.zoom = false; dessiner(el); el.zoom = z; });
+    });
+    var cible = ancre.closest("label") || ancre;
+    cible.insertAdjacentElement("afterend", lab);
+  }
+  poserComparerTout();
   tout();
   setInterval(tout, 60000);
   // Pastilles d'âge tenues à jour entre deux rechargements.

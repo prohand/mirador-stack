@@ -1205,3 +1205,4 @@ h2.enligne { display: inline; }
 .relations small { color: var(--pale); margin-right: 4px; }
 .grille-deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } .grille-deux h2 { margin-top: 0; }
 @media (max-width: 760px) { .grille-deux { grid-template-columns: 1fr; } }
+.comparer-tout { margin-left: 12px; font-size: 13px; color: var(--doux); white-space: nowrap; }

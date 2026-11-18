@@ -1289,3 +1289,28 @@ document.addEventListener("change", function (e) {
     if (!isNaN(l)) { e.style.width = Math.max(0.5, Math.min(100 - x, l)) + "%"; }
   });
 })();
+
+// Période commune (SPEC § 57) : la période choisie sur une fiche machine,
+// un tableau ou la page Logs est retenue par ce navigateur et reprise par
+// les autres pages qui en ont une (seulement les périodes qu'elles ont
+// toutes : 1h, 6h, 24h, 7d, 30d). Un lien qui en donne une (ou un zoom
+// « de / a ») passe avant.
+(function () {
+  var cle = "mirador-periode", communes = ["1h", "6h", "24h", "7d", "30d"];
+  var p = window.location.pathname;
+  if (!/^\/(machines\/[^/]+|tableaux\/[^/]+|logs)$/.test(p)) { return; }
+  var q = new URLSearchParams(window.location.search);
+  var actuelle = q.get("periode");
+  try {
+    if (actuelle) {
+      if (communes.indexOf(actuelle) >= 0) { window.localStorage.setItem(cle, actuelle); }
+      return;
+    }
+    if (q.get("de") || q.get("avant") || q.get("motif")) { return; }
+    var retenue = window.localStorage.getItem(cle);
+    if (retenue && communes.indexOf(retenue) >= 0) {
+      q.set("periode", retenue);
+      window.location.replace(p + "?" + q.toString() + window.location.hash);
+    }
+  } catch (e) { /* stockage refusé : période par défaut */ }
+})();
