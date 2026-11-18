@@ -960,8 +960,12 @@ pages) ; rien de collecté ni gardé en mémoire.
 
 ## Coupure d'internet du site (16/11, SPEC § 39 et § 40)
 
-Coupure d'internet chez l'utilisateur du **16/11 10:30 au 17/11 10:30**
-(23 h 59, confirmé le 18/11). Page Coupures vérifiée sur ce cas réel.
+Coupure d'internet chez l'utilisateur du **16/11 10:30 au 18/11 10:11**
+(environ 47 h 40, heure du retour donnée par l'utilisateur le 18/11).
+La page Coupures affiche une fin au 17/11 10:30 (23 h 59) : fausse, due au
+défaut d'AgentMuet (fermée seule 24 h après la dernière donnée, SPEC § 45).
+Le bilan (0 % de relevés reçus, file vide) a donc été lu trop tôt.
+L'historique de cette coupure reste faux ; les suivantes seront justes.
 `ProxmoxMuet` absent chez l'utilisateur : rien à désactiver.
 
 | Partie | État |

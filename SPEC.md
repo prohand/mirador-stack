@@ -5318,8 +5318,9 @@ le garde court et seulement pour les machines qui partagent un site.
 
 ### 39.2 Page « Coupures » (Alertes › Coupures) **[Vérifiée le 18/11]**
 
-Vérifiée sur la vraie coupure : du 16/11 10:30 au 17/11 10:30, durée
-affichée 23 h 59, confirmée par l'utilisateur. La règle importée
+Vérifiée sur la vraie coupure (16/11 10:30 → 18/11 10:11, environ 47 h 40) :
+la page affichait une fin au 17/11 10:30 (23 h 59), fausse à cause du
+défaut d'AgentMuet corrigé au § 45. La règle importée
 `ProxmoxMuet` n'existe pas chez lui : rien à désactiver.
 
 Limite connue (vue le 18/11) : `AgentMuet` lit `lag(node_uname_info[1d])`.
