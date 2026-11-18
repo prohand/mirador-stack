@@ -1094,3 +1094,5 @@ a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accen
 @media (max-width: 640px) { .panneau-detail { width: 100vw; max-width: 100vw; padding: 14px 16px 24px; } }
 .sans-coupure { white-space: nowrap; }
 .mesure-large > span { width: 72px; }
+.sans-test { color: var(--pale); }
+.legende-tableau { margin: 10px 0 0; font-size: 13px; }

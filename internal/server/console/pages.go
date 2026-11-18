@@ -603,6 +603,7 @@ type donneesMachine struct {
 	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
 	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
 	Services    *vueServices   // bloc « Services » (SPEC § 42.2)
+	Maj         vueMaj         // bloc « Mise à jour » (SPEC § 44)
 	Paquets     *vuePaquets    // bloc « Paquets à mettre à jour » (SPEC § 42.3)
 	Rangees     []vueRangee
 	Periode     string
@@ -667,6 +668,9 @@ func (c *Console) pageMachine(q *req) {
 		}
 		d.Modeles = c.vueModelesMachine(ctx, m, q.t)
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
+	}
+	if (m.Type == "agent" || m.Type == "collecteur") && m.Statut == "approuvee" {
+		d.Maj = c.majMachine(ctx, m, q.t)
 	}
 	if m.Type == "collecteur" {
 		d.Collecteur = true
@@ -752,6 +756,8 @@ func (c *Console) postMachine(q *req) {
 		"modeles": true,
 		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
 		"rattacher": true, "detacher": true,
+		// Mise à jour forcée (SPEC § 44) : installe la version assignée hors fenêtre.
+		"maj_forcer": true,
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
 		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true,
 		// SNMP et sondes d'un collecteur (SPEC § 23.15).
@@ -837,6 +843,14 @@ func (c *Console) postMachine(q *req) {
 		var tok string
 		if tok, err = flotte.TokenManuel(ctx, c.db, nom, q.qui(), q.t); err == nil {
 			ok = "nouveau token (affiché une seule fois ; l'ancien est révoqué) : " + tok
+		}
+	case "maj_forcer":
+		var id int64
+		vers += "#maj"
+		if id, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
+			if err = flotte.ForcerMaj(ctx, c.db, id, q.qui(), q.t); err == nil {
+				ok = "mise à jour demandée : l'agent vérifie tout de suite (moins d'une minute), télécharge la version assignée, la vérifie (signature) et redémarre. Recharger la page dans 2 minutes."
+			}
 		}
 	case "cible":
 		var id int64

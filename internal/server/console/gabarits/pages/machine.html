@@ -8,6 +8,14 @@
 {{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" (print "/machines/" .D.M.Nom))}}
 {{template "liste-masquees" .D.Masquees}}
 {{template "liste-attente" .D.Attente}}
+{{with .D.Maj}}{{if .Afficher}}<section class="carte{{if .Echec}} bloc-maj-echec{{end}}" id="maj">
+<div class="entete-carte"><div><h2>{{if .Echec}}Mise à jour en échec{{else}}Mise à jour en attente{{end}}</h2>
+<p class="sous">Version actuelle <strong>{{.Actuelle}}</strong>{{if .Cible}} · version assignée <strong>{{.Cible}}</strong>{{end}}.{{if .DemandeRecente}} Demandée {{depuisS .DemandeeLe}} : fenêtre horaire ignorée pendant 24 h.{{end}}</p></div></div>
+{{if .Echec}}<p class="message erreur">{{.Echec}}</p>{{end}}
+{{if and .Echec (not .Capable)}}<p class="sous">Cet agent ({{.Actuelle}}) ne sait pas encore retenter une version déjà en échec. Une fois, sur la machine : <code>sudo rm {{.FichierEchec}}</code>, puis le bouton ci-dessous. Les agents à jour le font tout seuls.</p>{{end}}
+{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="maj_forcer">{{template "code2fa"}}<button>{{if .Echec}}Réessayer la mise à jour{{else}}Mettre à jour maintenant{{end}}</button></form>
+<p class="sous">L'agent installe la version assignée tout de suite, sans attendre la fenêtre horaire : même vérification de la signature, retour automatique à la version actuelle si la nouvelle ne répond pas.</p>{{end}}
+</section>{{end}}{{end}}
 {{if .D.Collecteur}}<section class="carte" id="equipements">
 <div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
 {{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>

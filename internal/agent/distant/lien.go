@@ -37,7 +37,8 @@ import (
 //     sur disque et l'agent redémarre proprement pour l'appliquer ;
 //   - mise à jour (si MIRADOR_MAJ_AUTO=oui) toutes les 15 min : manifeste
 //     vérifié AVANT le téléchargement, binaire vérifié, self-test, bascule,
-//     redémarrage ; une version qui a déjà échoué n'est pas retentée ;
+//     redémarrage ; une version qui a déjà échoué n'est pas retentée, sauf
+//     « Réessayer la mise à jour » demandé après l'échec (SPEC § 44) ;
 //   - après une mise à jour : sans battement réussi en 10 min, retour à la
 //     version précédente.
 type Lien struct {
@@ -57,8 +58,10 @@ type Lien struct {
 	demarrage time.Time
 	mu        sync.Mutex
 	echecMaj  string // dernier échec de mise à jour (signalé au serveur)
-	confirme  chan struct{}
-	unSucces  sync.Once
+	// majMaintenant : réveil de la boucle de mise à jour (actualisation demandée).
+	majMaintenant chan struct{}
+	confirme      chan struct{}
+	unSucces      sync.Once
 
 	// Rythmes (modifiables dans les tests).
 	rythmeBattement, rythmeConfig, rythmeMaj, delaiEssai, premierDelai time.Duration
@@ -281,6 +284,7 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 			if r.Actualiser > r.Actualise {
 				if !premiere {
 					l.actualiserRacine()
+					l.demanderMaj() // « Mettre à jour maintenant » passe aussi par là
 				}
 				r.Actualise = r.Actualiser
 			}
@@ -393,15 +397,44 @@ func (l *Lien) boucleMaj(ctx context.Context) {
 		return
 	}
 	for {
-		if err := l.mettreAJour(ctx); err != nil {
-			l.mu.Lock()
+		err := l.mettreAJour(ctx)
+		l.mu.Lock()
+		if err != nil {
 			l.echecMaj = err.Error()
-			l.mu.Unlock()
+		} else {
+			l.echecMaj = "" // plus d'erreur : le serveur ne garde pas un vieux message
+		}
+		l.mu.Unlock()
+		if err != nil {
 			l.Journal.Error("mise à jour impossible", "erreur", err)
 		}
-		if !attendre(ctx, alea(l.rythmeMaj)) {
+		// Prochaine vérification : au rythme habituel, ou tout de suite si
+		// l'interface demande « Actualiser » / « Mettre à jour maintenant ».
+		select {
+		case <-ctx.Done():
 			return
+		case <-time.After(alea(l.rythmeMaj)):
+		case <-l.reveilMaj():
 		}
+	}
+}
+
+// reveilMaj : canal signalé quand une actualisation arrive (SPEC § 44).
+func (l *Lien) reveilMaj() chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.majMaintenant == nil {
+		l.majMaintenant = make(chan struct{}, 1)
+	}
+	return l.majMaintenant
+}
+
+// demanderMaj : réveille la boucle de mise à jour (sans bloquer).
+func (l *Lien) demanderMaj() {
+	ch := l.reveilMaj()
+	select {
+	case ch <- struct{}{}:
+	default:
 	}
 }
 
@@ -427,7 +460,12 @@ func (l *Lien) mettreAJour(ctx context.Context) error {
 		return nil
 	}
 	if v, _ := l.Installateur.DernierEchec(); v == m.Version {
-		return nil // déjà essayée sans succès : attendre une autre version
+		// Déjà essayée sans succès : attendre une autre version, sauf si
+		// l'interface demande de réessayer après cet échec (SPEC § 44).
+		if rep.Reessai <= 0 || !l.Installateur.EffacerEchecAvant(time.Unix(rep.Reessai, 0)) {
+			return nil
+		}
+		l.Journal.Info("nouvel essai de mise à jour demandé dans l'interface", "version", m.Version)
 	}
 	// Signature, cohérence et anti-retour arrière vérifiés AVANT de télécharger,
 	// avec les clés posées à l'installation (fichier root, relu à chaque fois :

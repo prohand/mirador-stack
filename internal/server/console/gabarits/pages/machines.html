@@ -49,7 +49,7 @@
 {{if ne $f.Vue "site"}}<td>{{if .Site}}{{.Site}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
 <td>{{if .Env}}{{.Env}}{{else}}<span class="doux">—</span>{{end}}</td>
 {{if ne $f.Vue "groupe"}}<td>{{if .Groupe}}{{.Groupe}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
-<td>{{if .Version}}{{.Version}}{{else}}<span class="doux">—</span>{{end}}{{if .MajEchec}} <span class="pastille erreur" title="{{.MajEchec}}">Mise à jour en échec</span>{{end}}</td>
+<td>{{if .Version}}{{.Version}}{{else}}<span class="doux">—</span>{{end}}{{if .MajEchec}} <a class="pastille erreur" href="/machines/{{.Nom}}#maj" title="{{.MajEchec}} — cliquer pour réessayer">Mise à jour en échec</a>{{end}}</td>
 <td>{{if not .VuLe}}<span class="pastille erreur">jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
 <td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td>
 </tr>{{end}}</tbody></table></div>

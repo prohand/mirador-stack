@@ -83,8 +83,15 @@ const CapaciteChecks = "checks"
 // configuration, SPEC § 23.13).
 const CapaciteCollecteur = "collecteur"
 
+// CapaciteReessai : l'agent comprend « reessai » dans la réponse de mise à
+// jour (bouton « Réessayer la mise à jour », SPEC § 44) : il retente une
+// version déjà en échec si la demande est plus récente que l'échec. Le
+// serveur n'envoie ce champ qu'aux agents qui l'annoncent (les anciens
+// refusent tout champ inconnu).
+const CapaciteReessai = "reessai"
+
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
-const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks
+const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).
@@ -147,6 +154,10 @@ const (
 // ReponseMaj : version assignée à cette machine par l'interface.
 type ReponseMaj struct {
 	Manifeste *Manifeste `json:"manifeste,omitempty"` // nil : rester à la version actuelle
+	// Reessai : heure (secondes Unix) du dernier « Réessayer la mise à jour »
+	// demandé dans l'interface. Seulement pour un agent qui annonce
+	// CapaciteReessai.
+	Reessai int64 `json:"reessai,omitempty"`
 }
 
 // Produits signés (SPEC § 23.13) : le nom du produit fait partie du message

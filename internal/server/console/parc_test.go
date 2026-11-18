@@ -86,7 +86,8 @@ func TestPageConteneurs(t *testing.T) {
 	cl, _ := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(cl, "/conteneurs")
 	for _, attendu := range []string{"<h1>Conteneurs</h1>", "4 conteneurs sur 2 machines", "Non sain", `href="/logs?container=postgres&amp;host=web1"`,
-		"50 %", "1,0 Go", "limite 4,0 Go", ">3 j</td>", `class="tuile critique"`, `<span class="pastille erreur">Arrêté</span>`} {
+		"50 %", "1,0 Go", "limite 4,0 Go", ">3 j</td>", `class="tuile critique"`, `<span class="pastille erreur">Arrêté</span>`,
+		`<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>`, "« — » : pas de test défini"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des conteneurs : %q absent", attendu)
 		}

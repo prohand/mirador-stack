@@ -272,6 +272,16 @@ manifeste signé avec `-retour-autorise`). Il teste la nouvelle version
 10 minutes, il revient à l'ancienne version et ne retente pas celle-ci ;
 `MS machines` affiche l'échec.
 
+Fiche de la machine › bloc « Mise à jour » (SPEC § 44) :
+- **Réessayer la mise à jour** (après un échec) ou **Mettre à jour
+  maintenant** (version assignée pas encore installée) : l'agent vérifie
+  tout de suite, sans attendre la fenêtre horaire (ignorée 24 h pour cette
+  machine), avec les mêmes contrôles (signature, self-test, retour
+  automatique). Code 2FA ou mode administration ; noté dans l'audit.
+- Un agent plus ancien que cette fonction ne retente pas seul une version en
+  échec : une fois, sur la machine, `sudo rm /var/lib/mirador-agent/bin/echec.json`
+  (collecteur : `/var/lib/mirador-collector/bin/echec.json`), puis le bouton.
+
 Versions gardées sur le serveur (chaque version pèse ~8 Mo par
 architecture, et les sauvegardes les recopient) : la cible, les versions
 installées ou à l'essai sur une machine, les 2 plus récentes (réglage

@@ -361,6 +361,60 @@ func TestMisesAJour(t *testing.T) {
 	if got := lireMaj("1.0.0"); got == nil || got.Version != "1.2.0" {
 		t.Fatalf("cible de la machine : %+v", got)
 	}
+
+	// « Mettre à jour maintenant » (SPEC § 44). Fenêtre horaire fermée à
+	// l'heure du test : plus de manifeste…
+	heure := t0.UTC().Add(2 * time.Hour).Format("15:04")
+	if err := EcrireFenetre(ctx, b.db, Fenetre{Active: true, Debut: heure, Fin: t0.UTC().Add(3 * time.Hour).Format("15:04"), Fuseau: "UTC"}, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if got := lireMaj("1.0.0"); got != nil {
+		t.Fatalf("manifeste hors de la fenêtre horaire : %+v", got)
+	}
+	// … sauf après la demande : fenêtre ignorée, audit, agent réveillé.
+	// (L'actualisation est en mémoire, partagée entre les tests : effacée à
+	// la fin pour ne pas réveiller la machine d'un autre test.)
+	t.Cleanup(func() {
+		actualisations.mu.Lock()
+		delete(actualisations.m, id)
+		actualisations.mu.Unlock()
+	})
+	avant := actualisationDe(id)
+	if err := ForcerMaj(ctx, b.db, id, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if got := lireMaj("1.0.0"); got == nil || got.Version != "1.2.0" {
+		t.Fatalf("mise à jour forcée : %+v", got)
+	}
+	if actualisationDe(id) == avant {
+		t.Error("agent non réveillé (actualisation)")
+	}
+	var n int
+	_ = b.db.QueryRow(`SELECT count(*) FROM audit WHERE action = 'maj_forcee' AND objet = 'pc' AND qui = 'admin'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("audit de la mise à jour forcée : %d ligne(s)", n)
+	}
+	// « reessai » : seulement pour un agent qui annonce la capacité (un ancien
+	// agent refuse tout champ inconnu dans la réponse).
+	lireReessai := func(capacites string) int64 {
+		w := b.requete(http.MethodGet, protocole.CheminMaj, token, nil, "", protocole.EnteteVersion, "1.0.0", protocole.EnteteCapacites, capacites)
+		var rep protocole.ReponseMaj
+		_ = json.Unmarshal(w.Body.Bytes(), &rep)
+		if strings.Contains(w.Body.String(), "reessai") != (rep.Reessai != 0) {
+			t.Fatal("réponse incohérente")
+		}
+		return rep.Reessai
+	}
+	if r := lireReessai("surveillance,elements"); r != 0 {
+		t.Errorf("« reessai » envoyé à un agent qui ne le comprend pas : %d", r)
+	}
+	if r := lireReessai(protocole.Capacites); r != t0.Unix() {
+		t.Errorf("« reessai » attendu %d, obtenu %d", t0.Unix(), r)
+	}
+	// Machine inconnue ou pas approuvée : refusé.
+	if err := ForcerMaj(ctx, b.db, 99999, "admin", t0); err == nil {
+		t.Error("mise à jour forcée d'une machine inconnue acceptée")
+	}
 }
 
 // Jeton avec site, type et groupe : la machine créée les reçoit.

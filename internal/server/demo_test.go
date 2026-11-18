@@ -156,6 +156,8 @@ func TestDemoInterface(t *testing.T) {
 			mk("mirador_logs_docker_streams", func(int) float64 { return 3 })
 		}
 	}
+	// Mise à jour en échec (SPEC § 44) : bloc « Réessayer la mise à jour » sur pve1.
+	_, _ = s.db.Exec(`UPDATE machines SET version_cible = '0.5.1', maj_echec = '0.5.1 : pas de battement en 10 min, retour à 0.5.0' WHERE nom = 'pve1'`)
 	// Agents récents (capacité « surveillance ») ; pve1 valide ses services un par un.
 	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements'`)
 	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par)
