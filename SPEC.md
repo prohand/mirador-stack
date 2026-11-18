@@ -5595,7 +5595,7 @@ Menaces :
 - La colonne « Santé » de la page Conteneurs affiche « — » (au lieu de « pas
   de test » répété) avec une légende (retour du 18/11).
 
-## 45. AgentMuet ne se ferme plus seule après 24 h (défaut vu le 18/11) **[Fait, à valider]**
+## 45. AgentMuet ne se ferme plus seule après 24 h (défaut vu le 18/11) **[Validé le 18/11]**
 
 ### 45.1 Le défaut
 
@@ -5651,6 +5651,10 @@ Menaces :
   parc (avant, l'alerte se fermait seule au bout de 24 h). La supprimer,
   ou la mettre en sourdine, quand elle est retirée.
 - Redémarrage du serveur : rien à faire, `vu_le` sert de point de départ.
+- Vérifié sur le serveur le 18/11 : « règles d'alerte corrigées (SPEC § 45)
+  nombre=1 » au démarrage, expression en deux parties, série présente pour
+  dhcp-dns02 (17 s d'âge), règle évaluée sans erreur en 5 ms, aucune
+  fausse alerte.
 
 ### 45.5 Menaces
 

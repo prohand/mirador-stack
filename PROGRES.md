@@ -554,10 +554,10 @@ docker volume ls
    le test, mirador envoie avec `instance` / `host` = `<nom>-mirador` (même `job`,
    `site`, `env`). Les dashboards le montrent comme une machine de plus, et la
    comparaison est directe. D'accord ?
-3. **Alertes en double** pendant le test : les règles se déclencheront aussi pour
+2. **Alertes en double** pendant le test : les règles se déclencheront aussi pour
    `<nom>-mirador`. On les laisse partir (utile pour comparer), ou tu ajoutes une
    route Alertmanager qui les envoie nulle part (je te donne les lignes) ?
-4. **Accès d'ingestion** : il faudra une ligne de token en plus dans la `map` nginx
+3. **Accès d'ingestion** : il faudra une ligne de token en plus dans la `map` nginx
    pour l'agent de test (comme pour une nouvelle machine). Je te donnerai la ligne
    et la commande de génération ; tu confirmes que ça te va ?
 
@@ -1104,21 +1104,20 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
 § 41 (logs dans les messages), § 42 (Conteneurs, Services, Paquets, détail
-au clic), § 43 (connexion), § 44 (réessayer la mise à jour).
+au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
+(AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu).
-2. `AgentMuet` corrigée (SPEC § 45) : à mettre à jour sur le serveur
-   (la règle est corrigée seule au démarrage), puis valider.
-3. Étape 6, partie 7 : bascule du collecteur sur le LAN
+2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h
    (collecteur et nœud Proxmox), arrêt d'Alloy et d'unpoller **sur
    validation**.
-4. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
-5. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
+3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+4. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
    validation de l'étape 6. Question à trancher avant la phase C : garder
    Grafana (API de lecture compatible Prometheus, à étudier) ou non.
-6. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.
