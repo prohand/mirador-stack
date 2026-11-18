@@ -31,12 +31,12 @@
 </section>
 {{$e := index $.D.EtatPar "application"}}{{$actif := $c.Application.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-application">
 <div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-telephone"></use></svg></span><h3>Application (push)</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "application" "C" $c)}}</div>
-<p class="doux">{{if $actif}}{{$.D.AppareilsPush}} {{accord $.D.AppareilsPush "appareil(s) abonné(s)"}}{{if $c.Application.Copie}} · copie des messages{{end}}{{else}}Notifications sur téléphone ou navigateur, sans compte tiers.{{end}}</p>
+<p class="doux">{{if $actif}}{{$.D.AppareilsPush}} {{accord $.D.AppareilsPush "appareil(s) abonné(s)"}}{{if $c.Application.Copie}} · reçoivent aussi les alertes{{end}}{{else}}Notifications sur téléphone ou navigateur, sans compte tiers.{{end}}</p>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="app_actif" value="1" {{if $c.Application.Actif}}checked{{end}}> Actif</label>
-<label class="case"><input type="checkbox" name="app_copie" value="1" {{if $c.Application.Copie}}checked{{end}}> Copie : envoyer aussi à l'application quand un autre canal porte le message</label>
+<label class="case"><input type="checkbox" name="app_copie" value="1" {{if $c.Application.Copie}}checked{{end}}> Recevoir aussi les alertes en notification sur les appareils, en plus {{if and $c.Principal (ne $c.Principal "application")}}de {{majuscule $c.Principal}}{{else}}du canal principal{{end}}</label>
 <p>{{.D.AppareilsPush}} {{accord .D.AppareilsPush "appareil(s) abonné(s)"}}. Chacun active les notifications sur son téléphone ou son navigateur dans <a href="/compte#push">Mon compte</a>.</p>
-<small class="aide">Les messages passent par le service de push de Google, Apple ou Mozilla, chiffrés pour l'appareil (ce service ne peut pas les lire). Ils tiennent aussi à jour la pastille de l'icône. La copie ne compte pas pour la bascule : un téléphone éteint n'est pas une panne. {{template "plus" "aide.md#application"}}</small>
+<small class="aide">Les messages passent par le service de push de Google, Apple ou Mozilla, chiffrés pour l'appareil (ce service ne peut pas les lire). Ils tiennent aussi à jour la pastille de l'icône. Ces notifications en plus ne comptent pas pour la bascule : un téléphone éteint n'est pas une panne. {{template "plus" "aide.md#application"}}</small>
 </div></details>
 {{if and $.Admin $actif (ne "application" "heartbeat")}}<button name="action" value="tester:application" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
