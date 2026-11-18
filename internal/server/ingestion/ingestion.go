@@ -124,6 +124,9 @@ type Ingestion struct {
 
 	mu        sync.Mutex
 	decalages map[int64]time.Duration // dernier décalage d'horloge mesuré par machine
+	// recues : heure (secondes Unix) des dernières métriques écrites pour
+	// chaque machine (règle AgentMuet au-delà de 24 h, SPEC § 45).
+	recues map[int64]int64
 	// lignesHote : lignes de logs reçues par hôte (host) depuis le démarrage
 	// (courbes de volume des logs, SPEC § 18.20). 2 000 hôtes au plus.
 	lignesHote map[string]uint64
@@ -148,6 +151,7 @@ func Nouvelle(opt Options) *Ingestion {
 		parMachine: NouveauLimiteur(opt.RequetesMachine, opt.RequetesMachine*10, maxCles),
 		lignes:     NouveauLimiteur(lm/60, lm, maxCles),
 		decalages:  make(map[int64]time.Duration),
+		recues:     make(map[int64]int64),
 		lignesHote: make(map[string]uint64),
 		enCours:    make(map[int64]int),
 		avertis:    make(map[int64]time.Time),
@@ -164,6 +168,15 @@ func (g *Ingestion) Decalage(machine int64) (time.Duration, bool) {
 	defer g.mu.Unlock()
 	d, ok := g.decalages[machine]
 	return d, ok
+}
+
+// DerniereReception : heure des dernières métriques reçues d'une machine
+// depuis le démarrage du serveur (false si rien reçu depuis).
+func (g *Ingestion) DerniereReception(machine int64) (int64, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	t, ok := g.recues[machine]
+	return t, ok
 }
 
 // Boucle : tâches de fond (écriture de vu_le, oubli des séries muettes,
@@ -516,6 +529,11 @@ func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, se
 			g.refuser(w, http.StatusServiceUnavailable, "stockage indisponible", 10)
 			return
 		}
+	}
+	if len(series) > 0 {
+		g.mu.Lock()
+		g.recues[m.ID] = maintenant.Unix()
+		g.mu.Unlock()
 	}
 	g.Compteurs.Series.Add(uint64(len(series)))
 	g.Compteurs.Points.Add(uint64(points)) // #nosec G115 -- compteur ≥ 0

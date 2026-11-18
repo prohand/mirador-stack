@@ -119,6 +119,14 @@ func TestAlertesDeBoutEnBout(t *testing.T) {
 	if code != 0 || !strings.Contains(sortie, "1 séries") {
 		t.Fatalf("métriques internes :\n%s", sortie)
 	}
+	// Dernières métriques reçues de pc1 (AgentMuet au-delà de 24 h, SPEC § 45).
+	code, sortie = commande("voir-metriques", "-machine", "pc1", "mirador_machine_derniere_metrique_timestamp_seconds")
+	if code != 0 || !strings.Contains(sortie, "1 séries") {
+		t.Fatalf("dernière réception :\n%s", sortie)
+	}
+	if !strings.Contains(export, "mirador_machine_derniere_metrique_timestamp_seconds") {
+		t.Fatalf("AgentMuet non corrigée à l'import :\n%s", export)
+	}
 	code, sortie = commande("voir-metriques", "-machine", InstanceServeur, "mirador_disque_libre_octets")
 	if code != 0 || !strings.Contains(sortie, "1 séries") {
 		t.Fatalf("disque :\n%s", sortie)

@@ -5316,7 +5316,18 @@ Menaces : rien de nouveau exposé (calcul interne, pas de réglage, pas de
 saisie). Le seul risque est de retarder une alerte de panne de 2 min : on
 le garde court et seulement pour les machines qui partagent un site.
 
-### 39.2 Page « Coupures » (Alertes › Coupures)
+### 39.2 Page « Coupures » (Alertes › Coupures) **[Vérifiée le 18/11]**
+
+Vérifiée sur la vraie coupure (16/11 10:30 → 18/11 10:11, environ 47 h 40) :
+la page affichait une fin au 17/11 10:30 (23 h 59), fausse à cause du
+défaut d'AgentMuet corrigé au § 45. La règle importée
+`ProxmoxMuet` n'existe pas chez lui : rien à désactiver.
+
+Limite connue (vue le 18/11) : `AgentMuet` lit `lag(node_uname_info[1d])`.
+Au-delà de 24 h sans aucune donnée, la série sort de la fenêtre, `lag()`
+ne renvoie plus rien et l'alerte passe « résolue » à tort (message
+« Résolu », fin de coupure fausse). Sans effet le 16/11 (retour à 23 h 59).
+Corrigée le 18/11 : § 45.
 
 - **Coupures retrouvées dans l'historique des alertes** (30 jours) : au
   moins 2 machines d'un même site en panne à moins de 10 min d'écart.
@@ -5358,7 +5369,7 @@ requête.
   données sont différentes (agent mirador d'un côté, Alloy de l'autre). Pas
   un défaut de mirador.
 
-## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Guide écrit, à valider]**
+## 40. Étape 7 préparée : guide de bascule finale (demande du 16/11) **[Validé le 18/11]**
 
 `docs/bascule-finale.md` : arrêt de l'ancienne stack en 5 phases, chacune
 réversible par une commande, **rien d'effacé avant la phase E** :
@@ -5394,7 +5405,7 @@ Menaces :
 - Grafana : non gardé (API de lecture compatible Prometheus du brief non
   faite, facultative) ; à demander avant la phase C.
 
-## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Fait, à valider]**
+## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Validé le 18/11]**
 
 Idée reprise de Beszel (qui joint les logs d'un conteneur « unhealthy ») ;
 **aucun code repris**, réécrit pour mirador.
@@ -5430,7 +5441,7 @@ Menaces :
 - Charge : une recherche par alerte nouvelle concernée, plafonnée (voir
   ci-dessus) ; une rafale d'alertes reste bornée à 3 recherches par message.
 
-## 42. Conteneurs, Services, Paquets, détail au clic (idées de Beszel, demande du 17/11) **[Fait, à valider]**
+## 42. Conteneurs, Services, Paquets, détail au clic (idées de Beszel, demande du 17/11) **[Validé le 18/11]**
 
 Idées reprises de Beszel après maquettes validées le 17/11 (captures) ;
 **aucun code repris**.
@@ -5515,7 +5526,7 @@ gardé en mémoire entre deux pages.
   (chemin et arguments figés, sans root) ; seule sa sortie est lue en plus.
 - `localStorage` : seulement l'état plié / déplié (aucune donnée).
 
-## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Fait, à valider]**
+## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Validé le 18/11]**
 
 - Première version (présentation à gauche, formulaire à droite), puis
   4 maquettes présentées (A Nuit, B Console, C Topographie, D Aperçu) :
@@ -5541,7 +5552,7 @@ gardé en mémoire entre deux pages.
   et limites de tentatives inchangés ; connexion complète vérifiée dans
   Chromium (mot de passe faux, puis bon mot de passe et code 2FA).
 
-## 44. « Réessayer la mise à jour » / « Mettre à jour maintenant » (demande du 18/11) **[Fait, à valider]**
+## 44. « Réessayer la mise à jour » / « Mettre à jour maintenant » (demande du 18/11) **[Validé le 18/11]**
 
 Constat : une machine affichait « Mise à jour en échec » (0.3.1) sans moyen
 de relancer. L'agent note l'échec (`echec.json`) et ne retente jamais la
@@ -5583,3 +5594,70 @@ Menaces :
   « Actualiser »), sans autre effet.
 - La colonne « Santé » de la page Conteneurs affiche « — » (au lieu de « pas
   de test » répété) avec une légende (retour du 18/11).
+
+## 45. AgentMuet ne se ferme plus seule après 24 h (défaut vu le 18/11) **[Fait, à valider]**
+
+### 45.1 Le défaut
+
+- Règle reprise de vmalert : `min by (instance) (lag(node_uname_info[1d])) > 60`.
+- `lag()` ne voit que les points des dernières 24 h. Après 24 h sans
+  aucune donnée, la série sort de la fenêtre : plus de résultat, l'alerte
+  passe « résolue » alors que la machine est toujours muette.
+- Effets : faux message « Résolu », fin de coupure fausse (page Coupures),
+  bilan lu trop tôt (relevés, file d'attente, lots jetés lus jusqu'à 1 h
+  après une « fin » qui n'en est pas une).
+- Coupure du 16/11 : les deux machines sont « revenues » exactement 24 h
+  après leur dernière donnée, avec 0 % de relevés reçus et une file
+  d'attente vide : c'est la signature de ce défaut.
+- Même défaut dans vmalert (même expression), qui n'envoie plus rien depuis
+  le mode actif de mirador.
+
+### 45.2 La correction
+
+- Le serveur note l'heure des dernières métriques reçues de chaque machine
+  (en mémoire, à chaque envoi accepté) et l'écrit chaque minute dans une
+  série interne : `mirador_machine_derniere_metrique_timestamp_seconds{instance}`.
+  Avant toute réception depuis le démarrage : `vu_le` (en base).
+  Pas pour les équipements relevés par un collecteur (pas de
+  `node_uname_info`, AgentMuet ne les concerne pas).
+- Nouvelle expression :
+  ```
+  min by (instance) (lag(node_uname_info[1d])) > 60
+  or on (instance)
+  max by (instance) (time() - mirador_machine_derniere_metrique_timestamp_seconds) > 82800
+  ```
+  - 1re partie inchangée : alerte en 1 à 2 min, comme avant.
+  - 2e partie : prend le relais à partir de 23 h (1 h de recouvrement),
+    mêmes étiquettes `{instance}`, donc la même alerte continue (pas de
+    « Résolu » puis nouvelle alerte).
+  - Machine qui répond : la 2e partie est fausse (dernière réception de
+    moins de 2 min, même avec le retard d'une minute de la série interne).
+- Appliquée seule :
+  - au démarrage du serveur, aux règles en base dont l'expression est
+    exactement l'ancienne (espaces mis à part) ; trace dans l'audit
+    (« modifiée par mirador ») et note sur la règle ;
+  - à l'import d'un fichier vmalert (classée « approchée » dans le rapport).
+  - Une règle déjà modifiée par l'utilisateur n'est pas touchée.
+
+### 45.3 Coût
+
+- Une série par machine, un point par minute (quelques Ko par jour).
+- Évaluation : 3,3 à 3,6 ms contre 3,8 à 4,0 ms avant (20 machines, 24 h
+  de données, banc `BenchmarkAgentMuet`) : pas de surcoût.
+
+### 45.4 À savoir
+
+- Une machine arrêtée pour de bon reste en alerte tant qu'elle est dans le
+  parc (avant, l'alerte se fermait seule au bout de 24 h). La supprimer,
+  ou la mettre en sourdine, quand elle est retirée.
+- Redémarrage du serveur : rien à faire, `vu_le` sert de point de départ.
+
+### 45.5 Menaces
+
+- Rien de nouveau exposé : série écrite par le serveur lui-même, rien
+  d'ouvert en plus.
+- Une machine ne peut pas agir sur la série d'une autre : l'étiquette
+  `instance` est imposée à l'ingestion.
+- Une machine compromise pourrait envoyer cette série sous son propre nom
+  et retarder sa propre alerte : elle le peut déjà en envoyant
+  `node_uname_info`. Pas de risque nouveau.

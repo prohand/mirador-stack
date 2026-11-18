@@ -107,9 +107,24 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 
 	// Machines : décalage d'horloge, mise à jour en échec.
 	if ms, err := flotte.ListerMachines(ctx, s.db); err == nil {
+		releves, _ := flotte.RelevesParCollecteur(ctx, s.db) // équipements (nom → collecteur)
 		for _, m := range ms {
 			if m.Statut != "approuvee" {
 				continue
+			}
+			// Dernières métriques reçues (règle AgentMuet au-delà de 24 h,
+			// SPEC § 45). Avant toute réception depuis le démarrage : vu_le
+			// (dernière requête, enregistrée en base). Pas pour les
+			// équipements relevés par un collecteur : ils n'ont pas
+			// node_uname_info, AgentMuet ne les concerne pas.
+			if _, equipement := releves[m.Nom]; !equipement {
+				recue, ok := s.ing.DerniereReception(m.ID)
+				if !ok {
+					recue = m.VuLe
+				}
+				if recue > 0 {
+					ajout(alertes.MetriqueDerniereReception, float64(recue), "instance", m.Nom)
+				}
 			}
 			if d, ok := s.ing.Decalage(m.ID); ok {
 				ajout("mirador_machine_decalage_horloge_secondes", d.Seconds(), "instance", m.Nom)
