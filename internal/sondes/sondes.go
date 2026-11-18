@@ -350,8 +350,8 @@ func (r Resultat) Texte() string {
 func Tourner(ctx context.Context, s Sonde, o Options, rendre func(Sonde, Resultat)) {
 	intervalle, _ := s.Durees()
 	var h uint32
-	for _, c := range s.Nom {
-		h = h*31 + uint32(c)
+	for i := 0; i < len(s.Nom); i++ { // octets : pas de conversion signée
+		h = h*31 + uint32(s.Nom[i])
 	}
 	attente := time.Duration(h%10) * time.Second
 	for {
