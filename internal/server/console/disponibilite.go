@@ -124,12 +124,15 @@ func dureeArret(s int64) string {
 	return fmt.Sprintf("%d j %d h", int(d.Hours())/24, int(d.Hours())%24)
 }
 
+// pct : « 99,86 », « 99,5 », « 100 » (zéros inutiles retirés après la virgule).
 func pct(v float64) string {
-	s := strconv.FormatFloat(v, 'f', 2, 64)
 	if v >= 99.995 {
-		s = "100"
+		return "100"
 	}
-	return virgule(strings.TrimSuffix(strings.TrimSuffix(s, "0"), ".0"))
+	s := strconv.FormatFloat(v, 'f', 2, 64)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimSuffix(s, ".")
+	return virgule(s)
 }
 
 func (c *Console) lireObjectifs(ctx context.Context) map[string]float64 {

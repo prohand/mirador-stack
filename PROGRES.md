@@ -997,6 +997,18 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
   dont 1 h en maintenance, objectif 99,9 % dépassé de 16 min).
 - Coût : aucune nouvelle donnée ; deux requêtes SQL à l'ouverture.
 
+### Idée 6 — Services (SPEC § 50) : fait, à valider
+
+- Supervision › Services : regroupements machines / conteneurs / sondes,
+  éléments clés, état, disponibilité 30 j ; série
+  `mirador_service_etat` et règles ServiceEnPanne / ServiceDegrade.
+- Tests : `TestLignes`, `TestCalculer` (5 services : panne, dégradé, OK,
+  élément inconnu), `TestPageServices` (création, état, renommage,
+  refus, suppression). Le test a trouvé un défaut de format des
+  pourcentages (« 100 » affiché « 10 ») : corrigé, aussi sur la page
+  Disponibilité.
+- Coût : 5 requêtes par minute au plus, une série par service.
+
 ### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
 
 - Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
@@ -1180,9 +1192,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité).
-   Idées New Relic en cours : 6 (services), 5 (ruche : emplacement à
-   choisir) ;
+   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services).
+   Idées New Relic en cours : 5 (ruche : emplacement à choisir) ;
    7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS

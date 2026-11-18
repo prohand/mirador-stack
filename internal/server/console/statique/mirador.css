@@ -1117,3 +1117,14 @@ fieldset.bloc-absence .aide { margin: 0 0 8px; }
 .texte-erreur { color: var(--erreur); }
 .objectif-dispo input { width: 4.5em; text-align: right; padding: 4px 6px; }
 .objectif-dispo button { margin-left: 4px; }
+
+/* --- Services (SPEC § 50) ------------------------------------------------------------ */
+.grille-services { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.grille-services .carte { margin: 0; }
+.service-dispo { margin: 4px 0 0; }
+.composants { list-style: none; padding: 0; margin: 10px 0; }
+.composants li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--bord-doux); }
+.composants .cle { font-size: 11px; color: var(--pale); margin-left: 6px; }
+.modifier-service summary { list-style: none; display: inline-block; cursor: pointer; }
+.modifier-service summary::-webkit-details-marker { display: none; }
+.modifier-service form { margin-top: 10px; }

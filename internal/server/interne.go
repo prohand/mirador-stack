@@ -18,6 +18,7 @@ import (
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
 )
 
@@ -41,6 +42,7 @@ type interne struct {
 	erreurVm   string
 	purgeeLe   time.Time
 	mesureeLe  time.Time
+	lecteur    *alertes.Lecteur // états des services (SPEC § 50)
 }
 
 // delaiServicesAttendus : sans donnée reçue d'une machine depuis ce temps,
@@ -174,6 +176,18 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 					}
 				}
 			}
+		}
+	}
+
+	// Services (SPEC § 50) : état de chaque service (0 OK, 1 dégradé,
+	// 2 en panne), lu par les règles ServiceEnPanne et ServiceDegrade.
+	if svcs, err := servicesmetier.Lire(ctx, s.db); err == nil && len(svcs) > 0 && s.alertes != nil {
+		if i.lecteur == nil {
+			i.lecteur = alertes.NouveauLecteur(s.met.Requetes(), s.journal.With("composant", "services"))
+		}
+		r, _ := notif.LireReglages(ctx, s.db)
+		for _, e := range servicesmetier.Calculer(ctx, i.lecteur, s.alertes.EnCours(), r.ReglesPanne, svcs, t) {
+			ajout("mirador_service_etat", float64(e.Etat), "service", e.Nom)
 		}
 	}
 

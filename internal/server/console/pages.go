@@ -40,6 +40,8 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
+	m.HandleFunc("GET /services", c.lecture(c.pageServices))
+	m.HandleFunc("POST /services", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))

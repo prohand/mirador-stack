@@ -1,0 +1,28 @@
+{{define "contenu"}}
+<h1>Services</h1>
+<p class="sous">Un service regroupe ce qui le fait marcher : machines, conteneurs, sondes. Son état : <strong>en panne</strong> si un élément « clé » a un problème, <strong>dégradé</strong> si un autre en a un. Alertes fournies : ServiceEnPanne (2 min), ServiceDegrade (10 min). Disponibilité sur 30 jours : d'après les pannes des éléments clés (machines et sondes).</p>
+{{if .D.Cartes}}<div class="resume-alertes">
+ <span class="tuile{{if .D.NbPanne}} critique{{end}}"><small>En panne</small><b>{{.D.NbPanne}}</b></span>
+ <span class="tuile{{if .D.NbDegrade}} avert{{end}}"><small>Dégradés</small><b>{{.D.NbDegrade}}</b></span>
+ <span class="tuile"><small>OK</small><b>{{.D.NbOK}}</b></span>
+</div>
+<div class="grille-services">{{range .D.Cartes}}
+<section class="carte"><div class="entete-carte"><h2>{{.Nom}}</h2><span class="pastille {{.Classe}}">{{.Texte}}</span></div>
+<p class="doux service-dispo">30 j : {{.Dispo}}</p>
+<ul class="composants">{{range .Composants}}<li><span>{{if eq .Sorte "machine"}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{else if eq .Sorte "sonde"}}Sonde <a href="/sondes">{{.Nom}}</a>{{else}}Conteneur {{.Nom}}{{end}}{{if .Cle}}<span class="cle">clé</span>{{end}}</span><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Texte}}</span></li>{{end}}</ul>
+{{if $.Admin}}<details class="modifier-service"><summary class="bouton secondaire petit">Modifier ▾</summary>
+<form method="post" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="ancien" value="{{.Nom}}">
+<label>Nom <input name="nom" value="{{.Nom}}" required maxlength="48"></label>
+<label>Éléments (un par ligne) <textarea name="elements" rows="5" maxlength="4000">{{.Lignes}}</textarea></label>
+{{template "code2fa"}}<div class="ligne"><button name="action" value="enregistrer" data-code>Enregistrer</button><button name="action" value="supprimer" class="danger" data-code data-confirmer="Supprimer le service « {{.Nom}} » ?">Supprimer</button></div>
+</form></details>{{end}}
+</section>{{end}}</div>
+{{else}}<section class="carte"><p class="vide">Aucun service pour l'instant.{{if .Admin}} Créer le premier ci-dessous.{{end}}</p></section>{{end}}
+{{if .Admin}}<section class="carte"><h2>Nouveau service</h2>
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="enregistrer">
+<label>Nom <input name="nom" required maxlength="48" placeholder="Domotique"></label>
+<label>Éléments (un par ligne) <textarea name="elements" rows="5" maxlength="4000" placeholder="clé sonde Home Assistant&#10;clé conteneur docker01/homeassistant&#10;conteneur docker01/mosquitto&#10;machine pi-zigbee"></textarea></label>
+<small class="aide">Une ligne par élément : <code>machine NOM</code>, <code>conteneur MACHINE/CONTENEUR</code> ou <code>sonde NOM</code> (nom de la page Sondes). <code>clé</code> devant : l'élément est indispensable (le service est en panne s'il a un problème). 30 services et 30 éléments par service au plus.</small>
+{{template "code2fa"}}<div class="ligne"><button data-code>Créer</button></div>
+</form></section>{{end}}
+{{end}}

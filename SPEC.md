@@ -5898,3 +5898,53 @@ code. Maquette validée le 18/11.
 
 - Lecture seule pour tous les rôles ; objectifs réservés aux
   administrateurs (code 2FA), valeur bornée, audit.
+
+## 50. Services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« workloads ») : idée seulement, aucun code.
+Maquette validée le 18/11.
+
+### 50.1 Principe
+
+- Un service regroupe ce qui le fait marcher : machines, conteneurs
+  (`machine/conteneur`), sondes (§ 48). Un élément peut être « clé ».
+- État :
+  - **en panne** : un élément clé a un problème (machine muette ou avec
+    une alerte critique, conteneur arrêté ou non sain, sonde en échec, ou
+    élément clé dont on ne reçoit rien) ;
+  - **dégradé** : un autre élément a un problème, ou un élément clé n'a
+    qu'un avertissement (sonde lente, alerte « warning ») ;
+  - **OK** sinon.
+- 30 services, 30 éléments par service au plus ; réglage `services_metier`
+  en base, audit.
+
+### 50.2 Alertes
+
+- Le serveur calcule l'état chaque minute (même code que la page) et
+  l'écrit dans `mirador_service_etat{service}` (0, 1, 2).
+- Règles fournies : **ServiceEnPanne** (critique, 2 min), **ServiceDegrade**
+  (avertissement, 10 min).
+- Les alertes des éléments partent toujours (pas de masquage
+  automatique) : à régler avec les inhibitions existantes si besoin.
+
+### 50.3 Interface
+
+- Supervision › **Services** : tuiles (en panne, dégradés, OK), une carte
+  par service (problèmes en premier) : état, disponibilité sur 30 jours
+  (pannes des éléments clés : machines et sondes, maintenances retirées),
+  éléments avec leur état.
+- Création, modification (nom, éléments : une ligne
+  `[clé] machine|conteneur|sonde NOM`), suppression : administrateurs,
+  code 2FA.
+
+### 50.4 Coût
+
+- Serveur : au plus 5 requêtes instantanées par minute (seulement s'il y a
+  des services), une série par service.
+- Page : les mêmes requêtes et deux requêtes SQL (disponibilité).
+
+### 50.5 Menaces
+
+- Lecture seule pour tous ; changements réservés aux administrateurs,
+  validés (sortes connues, noms bornés), audit.
+- Noms d'éléments affichés échappés (gabarits HTML).

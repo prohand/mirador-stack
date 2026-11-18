@@ -21,6 +21,11 @@ func TestIntervallesDispo(t *testing.T) {
 	if dureeDans(iv, 25, 42) != 5+2 {
 		t.Fatal("durée dans une fenêtre")
 	}
+	for v, attendu := range map[float64]string{100: "100", 99.5: "99,5", 99.86: "99,86", 90: "90", 0: "0", 99.999: "100"} {
+		if pct(v) != attendu {
+			t.Errorf("pct(%v) : %q", v, pct(v))
+		}
+	}
 	for s, attendu := range map[int64]string{0: "0", 30: "moins d'1 min", 720: "12 min", 20460: "5 h 41", 3*86400 + 7200: "3 j 2 h"} {
 		if dureeArret(s) != attendu {
 			t.Errorf("%d s : %q", s, dureeArret(s))
