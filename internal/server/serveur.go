@@ -59,6 +59,7 @@ type Serveur struct {
 	postier   *notif.Postier    // canaux, bascule, file d'attente, heartbeat
 	console   *console.Console  // interface web (étape 5)
 	geo       *geoip.Base       // pays des adresses (flux bloqués), base DB-IP mensuelle
+	vus       vusParNom         // dernières données par machine (SPEC § 46)
 }
 
 // Chemins dans le dossier des données.
@@ -133,7 +134,8 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	} else if n > 0 {
 		journal.Info("règles des modèles de surveillance mises à jour", "nombre", n)
 	}
-	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(),
+	s.vus.recharger(ctx, s)
+	if s.alertes, err = alertes.Nouveau(ctx, alertes.Options{DB: s.db, Donnees: s.met.Requetes(), DerniereDonnee: s.derniereDonnee,
 		Journal: journal.With("composant", "alertes"), Remplacees: modeles.EstRemplacee}); err != nil {
 		return echec(fmt.Errorf("moteur d'alertes : %w", err))
 	}

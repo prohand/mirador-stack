@@ -1096,3 +1096,8 @@ a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accen
 .mesure-large > span { width: 72px; }
 .sans-test { color: var(--pale); }
 .legende-tableau { margin: 10px 0 0; font-size: 13px; }
+
+/* --- Si les données disparaissent (SPEC § 46) ------------------------------------ */
+fieldset.bloc-absence { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 14px 12px; margin: 4px 0; }
+fieldset.bloc-absence legend { padding: 0 6px; font-weight: 600; }
+fieldset.bloc-absence .aide { margin: 0 0 8px; }

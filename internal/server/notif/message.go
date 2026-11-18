@@ -155,6 +155,10 @@ func Texte(m *Message, o Mise) string {
 		if a.Description != "" {
 			b.WriteString(ital(a.Description) + "\n")
 		}
+		if !a.AbsenteDepuis.IsZero() { // SPEC § 46
+			fmt.Fprintf(&b, "%s\n", e("📡 Données absentes depuis "+a.AbsenteDepuis.In(o.Fuseau).Format("02/01 15:04")+
+				" ("+dureeCourte(m.Le.Sub(a.AbsenteDepuis))+") : la machine n'envoie plus rien"))
+		}
 		if lignes := m.Extraits[a.Etiquettes.Hash()]; len(lignes) > 0 {
 			b.WriteString(e("📄 Derniers logs :") + "\n")
 			if o.HTML {

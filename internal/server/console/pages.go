@@ -78,6 +78,9 @@ type resumeAlerte struct {
 	// Prise en charge (SPEC § 30), lue en base (le moteur ne la connaît
 	// pas) : par qui, quand, jusqu'à quand (vide = jusqu'à la fin).
 	AcquitteePar, AcquitteeLe, AcquitteeJusqua string
+	// Absente : la machine n'envoie plus rien depuis ce temps (« 26 h »),
+	// l'alerte reste ouverte (SPEC § 46). Vide : données à jour.
+	Absente string
 }
 
 // separerMasquees : alertes à montrer d'un côté ; de l'autre, celles qui ne
@@ -269,6 +272,9 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 		}
 		r := resumeAlerte{ID: a.ID, Regle: a.Regle, Gravite: a.Gravite, Machine: a.Machine(), Resume: a.Resume,
 			Etat: a.Etat, Depuis: a.Debut.UnixMilli()}
+		if !a.AbsenteDepuis.IsZero() {
+			r.Absente = dureeLisible(c.maintenant().Sub(a.AbsenteDepuis))
+		}
 		if p, ok := prises[a.ID]; ok {
 			r.Acquittee, r.AcquitteePar = true, p.Par
 			r.AcquitteeLe = time.UnixMilli(p.Le).In(loc).Format("15:04")

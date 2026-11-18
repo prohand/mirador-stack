@@ -107,6 +107,7 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 
 	// Machines : décalage d'horloge, mise à jour en échec.
 	if ms, err := flotte.ListerMachines(ctx, s.db); err == nil {
+		s.vus.remplacer(ms)                                  // vu_le relu chaque minute (SPEC § 46)
 		releves, _ := flotte.RelevesParCollecteur(ctx, s.db) // équipements (nom → collecteur)
 		for _, m := range ms {
 			if m.Statut != "approuvee" {

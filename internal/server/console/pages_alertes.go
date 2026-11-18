@@ -87,6 +87,7 @@ type donneesAlerte struct {
 	EnCours    bool
 	Selecteur  string        // pour le silence en un clic
 	Courbe     template.HTML // valeur suivie sur 24 h et seuil (SPEC § 28)
+	Absente    string        // données absentes depuis (SPEC § 46), vide sinon
 }
 
 func (c *Console) pageAlerte(q *req) {
@@ -97,6 +98,13 @@ func (c *Console) pageAlerte(q *req) {
 		return
 	}
 	d := donneesAlerte{A: a, Machine: a.Machine(), EnCours: a.Etat != "resolue", Selecteur: selecteurSilence(&a)}
+	if d.EnCours && c.opt.Alertes != nil { // état tenu par le moteur, pas en base
+		for _, x := range c.opt.Alertes.EnCours() {
+			if x.ID == a.ID && !x.AbsenteDepuis.IsZero() {
+				d.Absente = dureeLisible(c.maintenant().Sub(x.AbsenteDepuis)) + " (dernières données le " + x.AbsenteDepuis.In(fuseau.Load()).Format("02/01 15:04") + ")"
+			}
+		}
+	}
 	if c.lecteur != nil {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, r := range rs {

@@ -5665,3 +5665,72 @@ Menaces :
 - Une machine compromise pourrait envoyer cette série sous son propre nom
   et retarder sa propre alerte : elle le peut déjà en envoyant
   `node_uname_info`. Pas de risque nouveau.
+
+## 46. Si les données disparaissent (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« loss of signal ») : idée seulement, service
+fermé, aucun code. Maquette validée le 18/11.
+
+### 46.1 Le besoin
+
+- Avant : quand une machine s'arrête, la série d'une alerte disparaît au
+  bout de 5 min (fenêtre de PromQL) et l'alerte se **ferme** : faux
+  « Résolu » (disque plein, mémoire…) alors que rien n'est réglé.
+- Même défaut de fond que celui d'AgentMuet (§ 45), pour toutes les règles.
+
+### 46.2 Le réglage (par règle)
+
+- « Que faire » :
+  - **Garder l'alerte ouverte** (défaut, choix du 18/11, pour toutes les
+    règles, importées comprises) : tant que la machine n'envoie rien,
+    l'alerte reste ouverte, marquée « Données absentes depuis… » ;
+  - **Fermer l'alerte** : comportement d'avant ;
+  - **Ouvrir une alerte « données absentes »** : une alerte part aussi pour
+    une machine qui avait les métriques de la règle et n'envoie plus rien
+    depuis le délai « au bout de » (10 min par défaut, 24 h au plus).
+- Champs `absence` (vide = garder, `fermer`, `ouvrir`) et `absence_apres`
+  dans la règle (base, export et import YAML mirador).
+
+### 46.3 Fonctionnement
+
+- « Machine muette » : plus aucune donnée depuis 90 s (deux relevés de
+  30 s et une marge), pour la machine de l'étiquette `instance`.
+- Heure des dernières données : tenue par l'ingestion à chaque envoi de
+  métriques accepté (machine, collecteur et chaque équipement relevé) ;
+  avant le premier envoi depuis le démarrage du serveur : `vu_le` en base
+  (relu chaque minute).
+- Alerte sans `instance`, ou machine supprimée du parc : jamais « muette »,
+  l'alerte suit sa série comme avant.
+- Retour de la machine : l'alerte est évaluée normalement (résolue si la
+  condition est fausse, sinon elle continue).
+- « Ouvrir » : une requête de plus pour ces règles seulement :
+  `group by (instance) (present_over_time({__name__=~"métriques de la règle"}[délai + 30 min]))`.
+  L'alerte ouverte porte `{instance}` et le résumé
+  « <machine> : données absentes (règle …) ».
+- Pas d'alerte pendant le délai de démarrage (3 min) : rien n'est ouvert
+  pendant que les agents vident leur file.
+
+### 46.4 Affichage et messages
+
+- Listes d'alertes et page d'une alerte : pastille « Données absentes depuis
+  26 h » (avec l'heure des dernières données sur la page de l'alerte).
+- Message : ligne « 📡 Données absentes depuis 18/11 10:31 (26 h) : la
+  machine n'envoie plus rien » quand l'alerte part déjà dans cet état.
+- État tenu en mémoire par le moteur (recalculé à chaque évaluation, rien
+  de plus en base).
+
+### 46.5 Coût
+
+- Par évaluation : une recherche en mémoire par alerte dont la série a
+  disparu (rien sinon).
+- « Ouvrir » : une requête de plus par évaluation de la règle (séries des
+  métriques de la règle sur 40 min). À réserver à quelques règles.
+- Mémoire : une entrée (nom, heure) par machine.
+
+### 46.6 Menaces
+
+- Rien de nouveau exposé. Une machine ne peut agir que sur son propre nom
+  (nom imposé à l'ingestion) : elle peut retarder la fermeture de ses
+  propres alertes en se taisant, pas celles d'une autre.
+- Une alerte gardée ouverte ne renvoie pas de message (pas de répétition
+  hors rappels réglés).

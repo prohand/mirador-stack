@@ -945,6 +945,40 @@ de plus (les alertes prises en charge étaient déjà lues).
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
 
+## Idées reprises de New Relic (18/11)
+
+Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
+(motifs de logs) à mesurer avant de décider.
+
+### Idée 1 — Si les données disparaissent (SPEC § 46) : fait, à valider
+
+- Réglage par règle : garder (défaut), fermer, ouvrir ; pastille
+  « Données absentes depuis… » ; ligne dans le message.
+- Tests : `TestAbsenceDeDonnees` (garder 10 min à 3 h puis retour, fermer,
+  machine supprimée, ouvrir après le délai sans doublon, machine qui
+  répond sans alerte).
+- Coût : aucune requête de plus sauf pour les règles « ouvrir ».
+
+### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
+
+- Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
+  identifiants remplacés par ‹n›, mots qui changent par ‹*›.
+- Jeu réaliste d'une journée (1,4 million de lignes, profil du § 1 :
+  traefik, Home Assistant, zigbee2mqtt, Nextcloud, journal, sshd, dnsmasq…) :
+  - **1,2 µs par ligne** (1,7 s pour la journée entière) ;
+  - 33 motifs, lisibles (« Invalid user ‹*› from ‹n› port ‹n› »,
+    « DHCPACK(eth‹n›) ‹n› ‹n› ‹*› ») ;
+  - pire cas (lignes toutes différentes, 5 000 motifs, éviction
+    continue) : 0,8 à 3,9 µs par ligne.
+- Au débit actuel (16 lignes/s) : **≈ 0,002 % d'un cœur** ; à 500 lignes/s :
+  0,06 % (0,2 % au pire).
+- Mémoire : **4,2 Mo** au plus (5 000 motifs, plafond), 192 octets
+  passagers par ligne.
+- Disque : compteurs par heure gardés en base toutes les 5 min (quelques
+  centaines de lignes), négligeable.
+- Conclusion : coût faible, **faisable**. Décision à prendre par
+  l'utilisateur.
+
 ## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
 
 - Défaut : la règle se fermait seule après 24 h sans données (`lag(...[1d])`).
@@ -1107,7 +1141,11 @@ Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
 au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
-1. À valider : § 39 (message unique « Site injoignable », pas encore vu).
+1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
+   § 46 (si les données disparaissent).
+   Idées New Relic en cours : 2 (changements), 3 (sondes), 4
+   (disponibilité), 6 (services), 5 (ruche : emplacement à choisir) ;
+   7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h
