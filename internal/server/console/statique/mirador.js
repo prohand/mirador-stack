@@ -1265,3 +1265,15 @@ document.addEventListener("change", function (e) {
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { fermer(); } });
 })();
+
+// Vue d'ensemble : onglet Résumé / Ruche retenu par ce navigateur (SPEC § 51).
+(function () {
+  var cle = "mirador-vue-accueil";
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest("[data-vue-accueil]") : null;
+    if (a) { try { window.localStorage.setItem(cle, a.getAttribute("data-vue-accueil")); } catch (e) { /* stockage refusé */ } }
+  });
+  if (window.location.pathname === "/" && !window.location.search) {
+    try { if (window.localStorage.getItem(cle) === "ruche") { window.location.replace("/?vue=ruche"); } } catch (e) { /* stockage refusé */ }
+  }
+})();

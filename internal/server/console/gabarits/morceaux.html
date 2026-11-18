@@ -36,6 +36,8 @@
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
 </div>
+<p class="onglets onglets-accueil"><a {{if ne .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=resume" data-vue-accueil="resume">Résumé</a><a {{if eq .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=ruche" data-vue-accueil="ruche">Ruche</a></p>
+{{if eq .D.Vue "ruche"}}{{template "ruche" .D.Ruche}}{{else}}
 <div class="kpis">
   <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
@@ -103,6 +105,7 @@
   <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>
   <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
 </div>
+{{end}}
 {{end}}
 {{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "coupures"}}class="actif"{{end}} href="/coupures">Coupures</a><a {{if egal . "disponibilite"}}class="actif"{{end}} href="/disponibilite">Disponibilité</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
 {{define "onglets-regles"}}<p class="onglets"><a {{if egal . "regles"}}class="actif"{{end}} href="/regles">Règles</a><a {{if egal . "nouvelle"}}class="actif"{{end}} href="/regles/nouvelle">Nouvelle règle</a><a {{if egal . "historique"}}class="actif"{{end}} href="/regles/historique">Modifications</a><a href="/regles/export.yaml">Exporter en YAML</a></p>{{end}}
@@ -263,3 +266,11 @@
 {{range $d.Blocs}}<section class="bloc-detail"><h3>{{.Titre}}{{if .Note}} <small class="doux">· {{.Note}}</small>{{end}}</h3>
 {{if .Lignes}}<table class="barres">{{range .Lignes}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée.</p>{{end}}</section>{{end}}
 {{if not $d.Blocs}}<p class="vide">Aucune donnée pour cette machine.</p>{{end}}{{end}}
+{{define "ruche"}}{{/* Vue « ruche » de la vue d'ensemble (SPEC § 51) : une case par élément. */}}
+<div class="ligne entete-ruche"><p class="onglets">{{$f := .Filtre}}{{range $x := (liste "machines" "conteneurs" "sondes" "tout")}}<a {{if eq $x $f}}class="actif" aria-current="page"{{end}} href="/?vue=ruche&amp;ruche={{$x}}">{{if eq $x "machines"}}Machines{{else if eq $x "conteneurs"}}Conteneurs{{else if eq $x "sondes"}}Sondes{{else}}Tout{{end}}</a>{{end}}</p>
+<span class="legende-ruche"><span class="l-ok">OK</span><span class="l-av">Avertissement</span><span class="l-cr">Critique</span><span class="l-mu">Muette ou inconnue</span><span class="l-ma">Maintenance</span></span></div>
+{{range .Groupes}}<section class="carte"><h2>{{.Titre}} <span class="doux resume-ruche">· {{.Resume}}</span></h2>
+{{range .Lignes}}<div class="ruche">{{range .}}<a class="h {{.Classe}}" href="{{.Lien}}" title="{{.Titre}}">{{.Nom}}{{if .Sous}}<small>{{.Sous}}</small>{{end}}</a>{{end}}</div>{{end}}
+</section>{{else}}<section class="carte"><p class="vide">Rien à montrer ici.</p></section>{{end}}
+<p class="sous">Une case par élément, couleur = pire état en cours ; survol : le détail ; clic : la fiche. Le choix Résumé / Ruche est retenu par ce navigateur.</p>
+{{end}}

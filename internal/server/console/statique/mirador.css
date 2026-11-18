@@ -1128,3 +1128,30 @@ fieldset.bloc-absence .aide { margin: 0 0 8px; }
 .modifier-service summary { list-style: none; display: inline-block; cursor: pointer; }
 .modifier-service summary::-webkit-details-marker { display: none; }
 .modifier-service form { margin-top: 10px; }
+
+/* --- Ruche de la vue d'ensemble (SPEC § 51) ---------------------------------------- */
+.onglets-accueil { margin-top: 4px; }
+.entete-ruche { margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
+.legende-ruche { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--doux); }
+.legende-ruche span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legende-ruche .l-ok::before { background: #16A34A; } .legende-ruche .l-av::before { background: #D97706; }
+.legende-ruche .l-cr::before { background: #DC2626; } .legende-ruche .l-mu::before { background: #6B7280; }
+.legende-ruche .l-ma::before { background: #2563EB; }
+.resume-ruche { font-weight: 400; font-size: 14px; }
+.ruche { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; }
+.ruche + .ruche { margin-top: -14px; }
+.ruche:nth-of-type(even) { margin-left: 45px; }
+.ruche .h { width: 86px; height: 76px; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.2;
+  color: #FFFFFF; font-size: 11px; font-weight: 600; text-decoration: none; padding: 0 10px; overflow: hidden; word-break: break-word; }
+.ruche .h small { color: #FFFFFF; opacity: .92; font-weight: 400; font-size: 10px; }
+.ruche .h:hover, .ruche .h:focus-visible { filter: brightness(1.12); }
+.ruche .h.ok { background: #16A34A; } .ruche .h.av { background: #D97706; } .ruche .h.cr { background: #DC2626; }
+.ruche .h.mu { background: #6B7280; } .ruche .h.ma { background: #2563EB; }
+@media (max-width: 640px) {
+  .ruche .h { width: 70px; height: 62px; font-size: 10px; padding: 0 8px; }
+  .ruche .h small { font-size: 9px; }
+  .ruche:nth-of-type(even) { margin-left: 37px; }
+  .ruche + .ruche { margin-top: -10px; }
+}
+.entete-ruche .onglets { margin: 0; }

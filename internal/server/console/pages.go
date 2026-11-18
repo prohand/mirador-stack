@@ -175,15 +175,27 @@ type donneesAccueil struct {
 	PctStockage                  int
 	Depuis                       int64
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
+	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
+	Ruche                        *vueRuche
 }
 
 func (c *Console) pageAccueil(q *req) {
-	c.rendre(q, "accueil", "Vue d'ensemble", "accueil", c.donneesAccueil(q))
+	c.rendre(q, "accueil", "Vue d'ensemble", "accueil", c.donneesAccueilVue(q))
+}
+
+// donneesAccueilVue : résumé ou ruche (onglet, SPEC § 51).
+func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
+	d := c.donneesAccueil(q)
+	if q.r.URL.Query().Get("vue") == "ruche" {
+		d.Vue = "ruche"
+		d.Ruche = c.ruche(q.r.Context(), q.r.URL.Query().Get("ruche"), d.Parc, q.t)
+	}
+	return d
 }
 
 // fragmentAccueil : même contenu, sans le cadre (rechargé toutes les 60 s).
 func (c *Console) fragmentAccueil(q *req) {
-	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueil(q)})
+	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q)})
 }
 
 const delaiMuette = 5 * time.Minute

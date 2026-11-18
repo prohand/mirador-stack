@@ -5948,3 +5948,24 @@ Maquette validée le 18/11.
 - Lecture seule pour tous ; changements réservés aux administrateurs,
   validés (sortes connues, noms bornés), audit.
 - Noms d'éléments affichés échappés (gabarits HTML).
+
+## 51. Vue « ruche » (idée de New Relic, choix du 18/11 : onglet B) **[Fait, à valider]**
+
+Idée reprise de New Relic (« Navigator ») : idée seulement, aucun code.
+Emplacement choisi le 18/11 parmi 3 maquettes : **onglet de la vue
+d'ensemble** (B).
+
+- Vue d'ensemble : onglets **Résumé** / **Ruche** ; le choix est retenu
+  par le navigateur (stockage local), la page s'ouvre ensuite sur lui.
+- Ruche : une case hexagonale par élément, couleur = pire état en cours
+  (vert OK, orange avertissement, rouge critique, gris muette ou inconnue,
+  bleu maintenance) ; nom et petite info (CPU, état, temps de réponse) ;
+  survol : le détail ; clic : la fiche.
+- Filtres : Machines (par site), Conteneurs (par machine), Sondes (par
+  origine), Tout. Problèmes en premier dans chaque groupe ; rangées
+  décalées (nid d'abeille), plus petites sur téléphone.
+- Rechargée toutes les 60 s comme le résumé (même fragment, avec la vue).
+- Coût : rien de plus que les pages existantes (parc de la vue
+  d'ensemble, page Conteneurs, page Sondes) ; une requête SQL pour les
+  maintenances en cours.
+- Menaces : lecture seule ; noms affichés échappés.
