@@ -247,7 +247,9 @@ func Calculer(ctx context.Context, l Lecteur, enCours []alertes.Alerte, reglesPa
 		}
 		return out
 	}
-	parCt := func(e alertes.Echantillon) string { return e.Etiquettes.Get("instance") + "/" + e.Etiquettes.Get("name") }
+	parCt := func(e alertes.Echantillon) string {
+		return e.Etiquettes.Get("instance") + "/" + e.Etiquettes.Get("name")
+	}
 	parSonde := func(e alertes.Echantillon) string { return e.Etiquettes.Get("sonde") }
 	var marche, sain, succes, duree, lente map[string]float64
 	besoin := map[string]bool{}

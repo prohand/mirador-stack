@@ -19,6 +19,7 @@ import (
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/secrets"
+	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
 	essais "mirador-stack/internal/sondes"
 )
@@ -217,6 +218,13 @@ func TestDemoInterface(t *testing.T) {
 		}
 	}
 	_ = s.met.Ecrire(ctx, sondesDemo)
+	// Services (SPEC § 50).
+	_ = servicesmetier.Enregistrer(ctx, s.db, []servicesmetier.Service{
+		{Nom: "Domotique", Composants: []servicesmetier.Composant{{Sorte: "sonde", Nom: "Home Assistant", Cle: true},
+			{Sorte: "machine", Nom: "vm-docker", Cle: true}, {Sorte: "sonde", Nom: "DNS interne"}}},
+		{Nom: "Sauvegardes", Composants: []servicesmetier.Composant{{Sorte: "machine", Nom: "nas-backup", Cle: true}, {Sorte: "machine", Nom: "pve1"}}},
+		{Nom: "Nextcloud", Composants: []servicesmetier.Composant{{Sorte: "sonde", Nom: "Nextcloud", Cle: true}, {Sorte: "machine", Nom: "vps-web"}}},
+	}, "demo", "", now)
 	// Changements repérés sur pve1 (SPEC § 47) : bloc de la fiche et traits des courbes.
 	for _, c := range []struct {
 		il    time.Duration
