@@ -6023,3 +6023,35 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   (plafond de 5 000 motifs, oubli des plus anciens).
 - Une règle « nouveau motif d'erreur » reste possible plus tard (non
   faite).
+
+## 53. Journal d'événements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- Un seul point d'entrée dans le code (`journalEvenements`) qui lit les
+  historiques existants, sans rien garder de plus : alertes (début et
+  fin ; sondes à part), changements (§ 47), maintenances, réglages
+  (audit, réglages automatiques masqués par défaut), sauvegardes, notes
+  d'incident (§ 54).
+- Lu par : la page **Alertes › Événements** (filtres machine, type,
+  période 24 h / 7 j / 30 j ; 500 au plus, regroupés par jour), la frise
+  des incidents (§ 54) et les repères des courbes (§ 31.1 : réglages,
+  changements, maintenances).
+- Coût : 6 requêtes SQL bornées à l'ouverture.
+
+## 54. Incidents (idée de New Relic « issues », demande du 18/11) **[Fait, à valider]**
+
+- Calculés à partir de l'historique des alertes (30 jours, critiques et
+  avertissements) : une alerte rejoint un incident si elle commence au plus
+  10 min après la fin (ou pendant) d'une de ses alertes, et touche la même
+  machine, le même site ou un même service (§ 50).
+- Numéro : celui de la première alerte ; titre : « Domotique en panne »,
+  « Site maison injoignable (2 machines) », « vm-docker : AgentMuet »…
+- Page **Alertes › Incidents** (en cours d'abord) et page d'un incident :
+  frise (30 min avant le début pour voir ce qui a changé, jusqu'à 5 min
+  après la fin ; 14 points au plus ; bande rouge = durée), alertes, logs
+  d'erreur des machines (20 lignes), **notes** (administrateurs, gardées
+  en base, migration 0029, visibles dans le journal), tout ce qui s'est
+  passé. La page d'une alerte mène à son incident.
+- Coût : une requête SQL sur les alertes de 30 jours (3 000 au plus) à
+  l'ouverture ; recherche de logs d'erreur bornée.
+- Menaces : notes réservées aux administrateurs, 1 000 caractères,
+  affichées échappées.

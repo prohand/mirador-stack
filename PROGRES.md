@@ -1047,6 +1047,16 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Design et architecture repris de New Relic (18/11, SPEC § 53 à 59)
+
+Demande du 18/11 : « fais tout ». Ordre : journal d'événements, incident,
+registre des éléments, fiches, période commune, Ctrl+K, étiquettes.
+
+- § 53 Journal d'événements : fait (`TestEvenements`).
+- § 54 Incidents : fait (`TestIncidents` : regroupement par service et par
+  site, alerte isolée, frise avec le changement d'avant, note, lien depuis
+  l'alerte, note dans le journal).
+
 ## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
 
 - Défaut : la règle se fermait seule après 24 h sans données (`lag(...[1d])`).

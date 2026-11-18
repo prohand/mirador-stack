@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/alertes"
-	"mirador-stack/internal/server/changements"
 )
 
 // Annotations des courbes d'une machine (SPEC § 31) : alertes de la période
@@ -117,17 +116,15 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 			}
 		}
 	}
-	// Changements faits dans l'interface pour cette machine (audit).
-	out.Evenements = append(out.Evenements, c.auditMachine(ctx, instance, debut, fin, maxEvenements)...)
-	// Changements repérés par le serveur (SPEC § 47) : paquets, noyau,
-	// conteneurs (redémarrages et agent sont déjà lus ci-dessus).
-	if cs, err := changements.Lister(ctx, c.db, instance, debut, maxEvenements); err == nil {
-		for _, x := range cs {
-			if x.Le.After(fin) || x.Type == changements.Redemarrage || x.Type == changements.Agent {
-				continue
-			}
-			out.Evenements = append(out.Evenements, evenementCourbe{T: x.Le.Unix(), Nom: changements.Titre(x.Type) + " : " + x.Resume()})
+	// Réglages faits pour la machine, changements repérés (paquets, noyau,
+	// conteneurs ; redémarrages et agent sont lus ci-dessus) et maintenances :
+	// lus dans le journal d'événements (SPEC § 53).
+	for _, e := range c.journalEvenements(ctx, filtreEvenements{Debut: debut, Fin: fin, Machine: instance, SansAuto: true, Max: 4 * maxEvenements,
+		Types: map[string]bool{evReglage: true, evChangement: true, evMaintenance: true}}) {
+		if e.Type == evChangement && (strings.HasPrefix(e.Texte, "Redémarrage") || strings.HasPrefix(e.Texte, "Agent")) {
+			continue
 		}
+		out.Evenements = append(out.Evenements, evenementCourbe{T: e.Le.Unix(), Nom: e.Texte})
 	}
 	sort.Slice(out.Evenements, func(a, b int) bool { return out.Evenements[a].T < out.Evenements[b].T })
 	if len(out.Evenements) > maxEvenements {

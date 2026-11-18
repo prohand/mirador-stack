@@ -1277,3 +1277,15 @@ document.addEventListener("change", function (e) {
     try { if (window.localStorage.getItem(cle) === "ruche") { window.location.replace("/?vue=ruche"); } } catch (e) { /* stockage refusé */ }
   }
 })();
+
+// Frise d'un incident (SPEC § 54) : position des points et de la bande
+// (data-x, data-l en %), posée par le script (pas de style dans la page).
+(function () {
+  document.querySelectorAll(".frise [data-x]").forEach(function (e) {
+    var x = parseFloat(e.getAttribute("data-x"));
+    if (isNaN(x)) { return; }
+    e.style.left = Math.max(0, Math.min(100, x)) + "%";
+    var l = parseFloat(e.getAttribute("data-l"));
+    if (!isNaN(l)) { e.style.width = Math.max(0.5, Math.min(100 - x, l)) + "%"; }
+  });
+})();
