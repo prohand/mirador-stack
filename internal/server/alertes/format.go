@@ -234,6 +234,12 @@ func convertir(v regleVmalert, groupe string, iv Duree, fichier string) (LigneRa
 	var notes []string
 	r := &Regle{Nom: v.Alert, Groupe: groupe, Intervalle: iv, Expr: strings.TrimSpace(v.Expr), Active: true,
 		Origine: "vmalert:" + fichier, Etiquettes: map[string]string{}}
+	// Expression au défaut connu : remplacée par sa version corrigée.
+	if nouvelle, note, ok := corrigerExpr(r.Expr); ok {
+		r.Expr, r.Note = nouvelle, note
+		notes = append(notes, note)
+		l.Classement = Approche
+	}
 	var err error
 	if r.Pour, err = LireDuree(v.For); err != nil {
 		l.Classement, l.Note = Impossible, err.Error()

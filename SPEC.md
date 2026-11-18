@@ -5326,7 +5326,7 @@ Limite connue (vue le 18/11) : `AgentMuet` lit `lag(node_uname_info[1d])`.
 Au-delà de 24 h sans aucune donnée, la série sort de la fenêtre, `lag()`
 ne renvoie plus rien et l'alerte passe « résolue » à tort (message
 « Résolu », fin de coupure fausse). Sans effet le 16/11 (retour à 23 h 59).
-Correction proposée, à valider : voir PROGRES « Prochaine étape ».
+Corrigée le 18/11 : § 45.
 
 - **Coupures retrouvées dans l'historique des alertes** (30 jours) : au
   moins 2 machines d'un même site en panne à moins de 10 min d'écart.
@@ -5593,3 +5593,67 @@ Menaces :
   « Actualiser »), sans autre effet.
 - La colonne « Santé » de la page Conteneurs affiche « — » (au lieu de « pas
   de test » répété) avec une légende (retour du 18/11).
+
+## 45. AgentMuet ne se ferme plus seule après 24 h (défaut vu le 18/11) **[Fait, à valider]**
+
+### 45.1 Le défaut
+
+- Règle reprise de vmalert : `min by (instance) (lag(node_uname_info[1d])) > 60`.
+- `lag()` ne voit que les points des dernières 24 h. Après 24 h sans
+  aucune donnée, la série sort de la fenêtre : plus de résultat, l'alerte
+  passe « résolue » alors que la machine est toujours muette.
+- Effets : faux message « Résolu », fin de coupure fausse (page Coupures),
+  bilan lu trop tôt (relevés, file d'attente, lots jetés lus jusqu'à 1 h
+  après une « fin » qui n'en est pas une).
+- Coupure du 16/11 : les deux machines sont « revenues » exactement 24 h
+  après leur dernière donnée, avec 0 % de relevés reçus et une file
+  d'attente vide : c'est la signature de ce défaut.
+- Même défaut dans vmalert (même expression), qui n'envoie plus rien depuis
+  le mode actif de mirador.
+
+### 45.2 La correction
+
+- Le serveur note l'heure des dernières métriques reçues de chaque machine
+  (en mémoire, à chaque envoi accepté) et l'écrit chaque minute dans une
+  série interne : `mirador_machine_derniere_metrique_timestamp_seconds{instance}`.
+  Avant toute réception depuis le démarrage : `vu_le` (en base).
+  Pas pour les équipements relevés par un collecteur (pas de
+  `node_uname_info`, AgentMuet ne les concerne pas).
+- Nouvelle expression :
+  ```
+  min by (instance) (lag(node_uname_info[1d])) > 60
+  or on (instance)
+  max by (instance) (time() - mirador_machine_derniere_metrique_timestamp_seconds) > 82800
+  ```
+  - 1re partie inchangée : alerte en 1 à 2 min, comme avant.
+  - 2e partie : prend le relais à partir de 23 h (1 h de recouvrement),
+    mêmes étiquettes `{instance}`, donc la même alerte continue (pas de
+    « Résolu » puis nouvelle alerte).
+  - Machine qui répond : la 2e partie est fausse (dernière réception de
+    moins de 2 min, même avec le retard d'une minute de la série interne).
+- Appliquée seule :
+  - au démarrage du serveur, aux règles en base dont l'expression est
+    exactement l'ancienne (espaces mis à part) ; trace dans l'audit
+    (« modifiée par mirador ») et note sur la règle ;
+  - à l'import d'un fichier vmalert (classée « approchée » dans le rapport).
+  - Une règle déjà modifiée par l'utilisateur n'est pas touchée.
+
+### 45.3 Coût
+
+- Une série par machine, un point par minute (quelques Ko par jour).
+- Évaluation : 3,3 à 3,6 ms contre 3,8 à 4,0 ms avant (20 machines, 24 h
+  de données, banc `BenchmarkAgentMuet`) : pas de surcoût.
+
+### 45.4 À savoir
+
+- Une machine arrêtée pour de bon reste en alerte tant qu'elle est dans le
+  parc (avant, l'alerte se fermait seule au bout de 24 h). La supprimer,
+  ou la mettre en sourdine, quand elle est retirée.
+- Redémarrage du serveur : rien à faire, `vu_le` sert de point de départ.
+
+### 45.5 Menaces
+
+- Rien de nouveau exposé : série écrite par le serveur lui-même, sous le
+  nom de la machine authentifiée. Une machine ne peut pas écrire cette
+  série pour une autre (nom imposé à l'ingestion, préfixe `mirador_` des
+  séries internes sous instance imposée).

@@ -945,6 +945,19 @@ de plus (les alertes prises en charge étaient déjà lues).
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
 
+## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
+
+- Défaut : la règle se fermait seule après 24 h sans données (`lag(...[1d])`).
+- Correction : série interne `mirador_machine_derniere_metrique_timestamp_seconds`
+  et expression en deux parties ; règle en base corrigée au démarrage.
+- Tests : `TestAgentMuetAuDelaDe24h` (2 min à 70 h de silence : alerte
+  continue, mêmes étiquettes ; machine qui répond : rien),
+  `TestCorrigerRegles`, contrôle de bout en bout. `go test ./internal/...` OK.
+- Mesures :
+  - évaluation 3,3 à 3,6 ms contre 3,8 à 4,0 ms avant (20 machines) ;
+  - une série et un point par minute par machine ; RAM : une entrée de
+    16 octets par machine.
+
 ## Coupure d'internet du site (16/11, SPEC § 39 et § 40)
 
 Coupure d'internet chez l'utilisateur du **16/11 10:30 au 17/11 10:30**
@@ -1090,11 +1103,8 @@ Mise à jour le 18/11. Validés le 18/11 : SPEC § 41 (logs dans les messages),
 
 1. À valider : § 39 (message « Site injoignable »), § 40 (guide de
    l'étape 7), § 42.1 à 42.3 (Conteneurs, Services, Paquets).
-2. Défaut à corriger (sur accord) : `AgentMuet` se résout seule après 24 h
-   sans données (`lag(...[1d])`). Piste : le serveur tient l'heure de la
-   dernière donnée reçue par machine (déjà en base, `vu_le`) et l'expose
-   en série interne ; la règle compare à cette heure, sans fenêtre.
-   Coût : une série par machine, rien à lire sur 24 h.
+2. `AgentMuet` corrigée (SPEC § 45) : à mettre à jour sur le serveur
+   (la règle est corrigée seule au démarrage), puis valider.
 3. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

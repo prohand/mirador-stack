@@ -188,8 +188,9 @@ func TestImportRegLesActuelles(t *testing.T) {
 		tout = append(tout, rap.Regles...)
 	}
 	// 70 règles : Watchdog remplacée par le heartbeat, SyslogMuet importée
-	// désactivée (règle d'enregistrement), les 68 autres exactes.
-	if total[Exact] != 68 || total[Impossible] != 2 || total[Approche] != 0 {
+	// désactivée (règle d'enregistrement), AgentMuet corrigée (SPEC § 45),
+	// les 67 autres exactes.
+	if total[Exact] != 67 || total[Impossible] != 2 || total[Approche] != 1 {
 		t.Errorf("classements : %v", total)
 	}
 	if len(tout) != 69 {

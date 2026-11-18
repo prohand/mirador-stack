@@ -115,6 +115,12 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	} else if n > 0 {
 		journal.Info("règles d'alerte mirador ajoutées", "nombre", n)
 	}
+	// Règles au défaut connu (SPEC § 45) : expression corrigée.
+	if n, err := alertes.CorrigerRegles(ctx, s.db, time.Now()); err != nil {
+		journal.Warn("correction des règles", "erreur", err)
+	} else if n > 0 {
+		journal.Info("règles d'alerte corrigées (SPEC § 45)", "nombre", n)
+	}
 	// Modèles personnels (SPEC § 24.11) : chargés avant leurs règles ; un
 	// modèle abîmé est laissé de côté (journal), les autres servent.
 	if err := modeles.ChargerPerso(ctx, s.db); err != nil {
