@@ -6092,3 +6092,25 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - Pas encore dans les sélecteurs des silences ni des groupes de
   notification (les étiquettes ne sont pas sur les alertes) : à faire si
   besoin.
+
+## 57. Période commune (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- La période choisie sur une fiche machine, un tableau ou la page Logs
+  est retenue par le navigateur et reprise par les autres pages
+  (périodes communes : 1h, 6h, 24h, 7d, 30d). Un lien qui en donne une, un
+  zoom (« de / a ») ou une recherche de motif passe avant.
+- « Comparer avec la semaine dernière » (§ 31) : en plus du bouton « −7 j »
+  de chaque courbe, une case pour toutes les courbes de la page, à côté du
+  choix de la période, retenue par le navigateur.
+- Rien côté serveur (stockage local du navigateur).
+
+## 58. Ctrl+K enrichi (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- Recherche aussi dans les sondes, services et conteneurs (leurs fiches,
+  § 56) et dans les nouvelles pages (Sondes, Services, Éléments,
+  Incidents, Événements, Disponibilité, Coupures).
+- Champ vide : **favoris** (☆ sur chaque ligne, 20 au plus) et **pages
+  récentes** (5), retenus par le navigateur.
+- **Actions** (administrateurs) : « Mettre pve1 en maintenance… » ouvre
+  le formulaire de maintenance prérempli.
+- Tout est inséré comme texte ; seuls les liens internes sont suivis.

@@ -206,6 +206,7 @@ func (c *Console) postAlerte(q *req) {
 // --- Sourdine : silences, maintenances, inhibitions, dépendances ---------------------
 
 type donneesSourdine struct {
+	Prerempli    string // cible de maintenance proposée (Ctrl+K, SPEC § 58)
 	Silences     []notif.Silence
 	Maintenances []notif.Maintenance
 	Inhibitions  []notif.Inhibition
@@ -220,6 +221,9 @@ type donneesSourdine struct {
 func (c *Console) pageSourdine(q *req) {
 	ctx := q.r.Context()
 	var d donneesSourdine
+	if m := q.r.URL.Query().Get("maintenance"); len(m) <= 200 && strings.HasPrefix(m, "machine:") {
+		d.Prerempli = m
+	}
 	var e [5]error
 	d.Silences, e[0] = notif.ListerSilences(ctx, c.db, false, q.t)
 	d.Maintenances, e[1] = notif.ListerMaintenances(ctx, c.db)

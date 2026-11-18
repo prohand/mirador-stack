@@ -1058,6 +1058,10 @@ registre des éléments, fiches, période commune, Ctrl+K, étiquettes.
   l'alerte, note dans le journal).
 - § 55 Registre des éléments, § 56 fiches, § 59 étiquettes : faits
   (`TestElementsFichesEtiquettes`, `TestRuche` qui passe par le registre).
+- § 57 Période commune et § 58 Ctrl+K : faits, vérifiés dans Chromium
+  (période reprise par Logs et une autre machine, case « Comparer »
+  retenue, favori, récents, Entrée sur une sonde → sa fiche ; aucune
+  erreur JavaScript).
 
 ## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
 
@@ -1223,7 +1227,9 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
    § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services), § 51 (ruche),
-   § 52 (motifs de logs).
+   § 52 (motifs de logs), § 53 à 59 (design et architecture : journal
+   d'événements, incidents, éléments, fiches, période commune, Ctrl+K,
+   étiquettes).
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

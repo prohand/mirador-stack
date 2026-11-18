@@ -30,6 +30,7 @@ import (
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/servicesmetier"
 )
 
 // routesPages : pages de supervision et de réglage.
@@ -1416,6 +1417,31 @@ func (c *Console) donneesAller(q *req) {
 		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
+		{"Sondes", "Page", "/sondes"}, {"Services", "Page", "/services"}, {"Éléments", "Page", "/elements"},
+		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
+		{"Coupures", "Page", "/coupures"},
+	}
+	ctx := q.r.Context()
+	// Sondes, services, conteneurs (SPEC § 58) : leurs fiches.
+	if ss, err := flotte.LireSondes(ctx, c.db); err == nil {
+		for _, s := range ss {
+			out = append(out, destination{s.Nom, "Sonde", "/sondes/" + url.PathEscape(s.Nom)})
+		}
+	}
+	if svcs, err := servicesmetier.Lire(ctx, c.db); err == nil {
+		for _, s := range svcs {
+			out = append(out, destination{s.Nom, "Service", "/services/" + url.PathEscape(s.Nom)})
+		}
+	}
+	if c.lecteur != nil {
+		if ech, err := c.instant(ctx, `max by (instance, name) (node_docker_container_running)`, q.t); err == nil {
+			for _, e := range ech {
+				m, n := e.Etiquettes.Get("instance"), e.Etiquettes.Get("name")
+				if m != "" && n != "" {
+					out = append(out, destination{n + " (" + m + ")", "Conteneur", "/conteneurs/" + url.PathEscape(m) + "/" + url.PathEscape(n)})
+				}
+			}
+		}
 	}
 	if q.admin() {
 		out = append(out, destination{"Mises à jour des agents", "Page", "/mises-a-jour"},
@@ -1425,10 +1451,14 @@ func (c *Console) donneesAller(q *req) {
 			destination{"Sauvegardes", "Page", "/reglages/sauvegardes"},
 			destination{"Utilisateurs", "Page", "/utilisateurs"}, destination{"Sécurité", "Page", "/securite"})
 	}
-	if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				out = append(out, destination{m.Nom, "Machine", "/machines/" + url.PathEscape(m.Nom)})
+				if q.admin() {
+					out = append(out, destination{"Mettre " + m.Nom + " en maintenance…", "Action",
+						"/sourdine?maintenance=" + url.QueryEscape("machine:"+m.Nom) + "#maintenance"})
+				}
 			}
 		}
 	}
