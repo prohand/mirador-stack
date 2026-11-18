@@ -37,15 +37,15 @@ type jourDispo struct {
 
 type ligneDispo struct {
 	Cle, Nom, Sorte, Lien string
-	Objectif                string // « 99,5 »
-	Atteint                 string
-	Sous                    bool // sous l'objectif
-	Jours                   []jourDispo
-	Arret, Permis           string
-	Marge                   int // % de la marge restante (0 à 100)
-	ClasseMarge             string
-	Depasse                 string // « Dépassé de 2 h 05 »
-	atteint                 float64
+	Objectif              string // « 99,5 »
+	Atteint               string
+	Sous                  bool // sous l'objectif
+	Jours                 []jourDispo
+	Arret, Permis         string
+	Marge                 int // % de la marge restante (0 à 100)
+	ClasseMarge           string
+	Depasse               string // « Dépassé de 2 h 05 »
+	atteint               float64
 }
 
 type donneesDispo struct {

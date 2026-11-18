@@ -1181,8 +1181,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
    § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité).
-   Idées New Relic en cours :
-   (disponibilité), 6 (services), 5 (ruche : emplacement à choisir) ;
+   Idées New Relic en cours : 6 (services), 5 (ruche : emplacement à
+   choisir) ;
    7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
