@@ -195,3 +195,26 @@ section de cette page.
 - **Serveur restauré sans sa base, ou clé des secrets changée** : la clé
   des notifications change, tous les appareils doivent être réabonnés.
 
+
+## Sondes
+
+- **Ce que c'est** : un essai régulier d'un service, comme le ferait un
+  utilisateur (SPEC § 48) :
+  - *HTTP(S)* : la page répond-elle avec le bon code (200 à 399 par défaut),
+    et contient-elle le texte attendu ;
+  - *TCP* : le port est-il ouvert (SSH, base de données…) ;
+  - *Ping* : la machine répond-elle ;
+  - *DNS* : le serveur DNS répond-il pour un nom (et avec la bonne adresse).
+- **Faite depuis** :
+  - un *collecteur* : services du LAN (Home Assistant, NAS, box…) ;
+  - le *serveur mirador* : vue de l'extérieur (Nextcloud, site public…).
+    Adresses locales et privées refusées.
+- **Alertes fournies** : *SondeEnEchec* (deux essais ratés de suite),
+  *SondeLente* (plus lente que le seuil pendant 5 min). La raison d'un
+  échec est sur la page Sondes.
+- **Ping depuis un collecteur** : autorisé sans droits par le réglage
+  `net.ipv4.ping_group_range` (ouvert par défaut sur Debian 12 et Ubuntu).
+  Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
+  `0 2147483647`.
+- **Collecteur ancien** : il ne connaît pas les sondes ; elles lui sont
+  retirées de sa configuration jusqu'à sa mise à jour.

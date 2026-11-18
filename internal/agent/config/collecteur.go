@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	essais "mirador-stack/internal/sondes"
 )
 
 // Collecteur : réglages propres à mirador-collector (SPEC § 23.13), reçus
@@ -31,6 +33,9 @@ type Collecteur struct {
 	Sondes []Sonde `json:"sondes,omitempty"`
 	// UniFi : contrôleur UniFi lu en lecture seule (partie 6, SPEC § 23.16).
 	UniFi *UniFi `json:"unifi,omitempty"`
+	// Services : sondes HTTP, TCP, ping, DNS faites depuis le LAN (SPEC
+	// § 48), posées par le serveur (page Sondes), jamais saisies ici.
+	Services []essais.Sonde `json:"services,omitempty"`
 }
 
 // UniFi : contrôleur UniFi Network (UniFi OS ou logiciel), lu par son API en
@@ -371,7 +376,23 @@ func (c *Collecteur) Valider() error {
 	if err := validerUniFi(c.UniFi, connus); err != nil {
 		return err
 	}
-	return validerSondes(c.Sondes, connus)
+	if err := validerSondes(c.Sondes, connus); err != nil {
+		return err
+	}
+	if len(c.Services) > essais.MaxSondes {
+		return fmt.Errorf("sondes de services : %d au plus", essais.MaxSondes)
+	}
+	nomsServices := map[string]bool{}
+	for i := range c.Services {
+		if err := c.Services[i].Valider(); err != nil {
+			return err
+		}
+		if nomsServices[c.Services[i].Nom] {
+			return errors.New("sonde " + c.Services[i].Nom + " en double")
+		}
+		nomsServices[c.Services[i].Nom] = true
+	}
+	return nil
 }
 
 // DefautCollecteur : valeurs par défaut de mirador-collector. Il ne relève

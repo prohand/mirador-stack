@@ -230,6 +230,21 @@ func configCollecteur(ctx context.Context, db *sql.DB, collecteur int64, saisie 
 			}
 		}
 	}
+	// Sondes de services faites depuis ce collecteur (SPEC § 48) : posées
+	// par le serveur (page Sondes), jamais saisies à la main.
+	delete(m, "services")
+	var nomCollecteur string
+	if err := db.QueryRowContext(ctx, `SELECT nom FROM machines WHERE id = ?`, collecteur).Scan(&nomCollecteur); err == nil {
+		ss, err := sondesDe(ctx, db, nomCollecteur)
+		if err != nil {
+			return nil, err
+		}
+		if len(ss) > 0 {
+			if m["services"], err = json.Marshal(ss); err != nil {
+				return nil, err
+			}
+		}
+	}
 	delete(m, "equipements")
 	if len(noms) > 0 {
 		brut, err := json.Marshal(noms)

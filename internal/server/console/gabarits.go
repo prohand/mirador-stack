@@ -524,6 +524,7 @@ type Page struct {
 	NbAlertes     int    // alertes actives (compteur du menu)
 	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
 	NbConteneurs  int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
+	NbSondes      int    // sondes en échec (compteur du menu, SPEC § 48)
 	Olvid         bool   // canal Olvid activé : l'onglet « Olvid » apparaît
 	D             any
 }
@@ -574,6 +575,7 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	if c.lecteur != nil {
 		p.NbAValider = len(c.aValider(q.r.Context(), q.t))
 		p.NbConteneurs = c.nbConteneursProblemes(q.r.Context(), q.t)
+		p.NbSondes = c.nbSondesEnEchec(q.r.Context(), q.t)
 	}
 	c.pages.executer(q.w, code, nom, p)
 }

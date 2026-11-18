@@ -1101,3 +1101,8 @@ a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accen
 fieldset.bloc-absence { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 14px 12px; margin: 4px 0; }
 fieldset.bloc-absence legend { padding: 0 6px; font-weight: 600; }
 fieldset.bloc-absence .aide { margin: 0 0 8px; }
+
+/* --- Sondes (SPEC § 48) ---------------------------------------------------------- */
+.cible-sonde { max-width: 360px; }
+.url-sonde { word-break: break-all; }
+.cible-sonde + td + td .pastille { white-space: normal; max-width: 260px; }

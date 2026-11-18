@@ -202,6 +202,13 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 				return nil, "", err
 			}
 		}
+		// Collecteur d'avant les sondes de services (SPEC § 48) : il
+		// refuserait la clé collecteur.services ; on la lui retire.
+		if m.Type == "collecteur" && !ACapacite(capacitesDe(r), protocole.CapaciteSondes) {
+			if doc, etag, err = sansServices(doc); err != nil {
+				return nil, "", err
+			}
+		}
 		// Collecteur : mots de passe SNMP déchiffrés pour lui seul, à
 		// l'envoi (ils restent chiffrés en base ; même ETag).
 		if m.Type == "collecteur" {

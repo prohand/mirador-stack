@@ -194,3 +194,32 @@ func ModifierConfig(ctx context.Context, db *sql.DB, portee string, changer func
 	}
 	return DefinirConfig(ctx, db, portee, doc, qui, maintenant)
 }
+
+// sansServices : retire collecteur.services (collecteur qui n'annonce pas
+// la capacité « sondes », SPEC § 48) et recalcule l'ETag.
+func sansServices(doc []byte) ([]byte, string, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(doc, &m); err != nil {
+		return nil, "", err
+	}
+	if brut, ok := m["collecteur"]; ok {
+		var c map[string]json.RawMessage
+		if err := json.Unmarshal(brut, &c); err != nil {
+			return nil, "", err
+		}
+		if _, ok := c["services"]; ok {
+			delete(c, "services")
+			nouveau, err := json.Marshal(c)
+			if err != nil {
+				return nil, "", err
+			}
+			m["collecteur"] = nouveau
+		}
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return nil, "", err
+	}
+	h := sha256.Sum256(out)
+	return out, `"` + hex.EncodeToString(h[:16]) + `"`, nil
+}

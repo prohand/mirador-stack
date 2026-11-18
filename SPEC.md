@@ -5793,3 +5793,71 @@ code. Maquette validée le 18/11.
   (gabarits HTML, messages).
 - Une machine ne peut écrire que sous son propre nom (nom imposé à
   l'ingestion).
+
+## 48. Sondes de services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« synthetics ») : idée seulement, aucun code.
+Maquette validée le 18/11.
+
+### 48.1 Types d'essai
+
+| Type | Essai | Réussi si |
+|---|---|---|
+| HTTP(S) | GET, 3 redirections au plus, corps lu jusqu'à 1 Mio | code attendu (200 à 399 par défaut), texte attendu présent ; certificat vérifié sauf case « ne pas vérifier » (LAN) |
+| TCP | ouverture de connexion | connexion acceptée |
+| Ping | un écho ICMP par le socket « ping » sans droits de Linux | réponse reçue |
+| DNS | question A/AAAA posée au serveur choisi | au moins une adresse (ou l'adresse attendue) |
+
+- Délai d'un essai : 10 s. Rythme : 60 s par défaut (30 s à 1 h).
+  Seuil « lente » : 1 s par défaut (10 s au plus).
+- 50 sondes au plus ; noms uniques.
+
+### 48.2 Qui fait l'essai
+
+- **Collecteur** (services du LAN) : la liste lui arrive dans sa
+  configuration (`collecteur.services`), posée par le serveur. Un
+  collecteur qui n'annonce pas la capacité `sondes` ne la reçoit pas (il
+  refuserait toute la configuration).
+- **Serveur** (vue de l'extérieur) : liste relue toutes les 30 s, une
+  tâche par sonde. Adresses refusées après résolution : boucle locale,
+  réseaux privés, lien local, multicast, adresse non spécifiée.
+- Même code pour les deux (`internal/sondes`).
+
+### 48.3 Données et alertes
+
+- Séries (job="sondes", instance = collecteur ou `mirador-server`,
+  étiquettes `sonde`, `type`, `cible`) : `mirador_sonde_succes`,
+  `mirador_sonde_duree_secondes`, `mirador_sonde_lente`,
+  `mirador_sonde_code_http`, et `mirador_sonde_erreur{erreur}` en cas
+  d'échec (raison courte).
+- Règles fournies : **SondeEnEchec** (critique, 1 min, soit deux essais),
+  **SondeLente** (avertissement, 5 min).
+- Liste gardée en base (réglage `sondes`), changements dans l'audit,
+  collecteurs prévenus tout de suite (configuration en direct).
+
+### 48.4 Interface
+
+- Menu Supervision › **Sondes** (compteur des sondes en échec).
+- Tuiles (total, OK, en échec, lentes, temps médian), tableau (problèmes
+  en premier) : cible et ce qui est vérifié, depuis, état et raison,
+  temps de réponse sur 1 h, disponibilité sur 24 h ; retrait.
+- Ajout : administrateurs, code 2FA (ou mode administration).
+
+### 48.5 Coût
+
+- Collecteur et serveur : un essai par sonde et par minute (une requête
+  réseau), 4 à 5 séries par sonde.
+- Page : 6 requêtes à l'ouverture ; menu : une requête de plus par page.
+
+### 48.6 Menaces
+
+- Sondes du serveur : il ne peut viser ni lui-même ni le réseau Docker ou
+  privé (refus après résolution du nom, à chaque connexion : un nom qui
+  change d'adresse ne contourne pas le refus).
+- Seuls les administrateurs (code 2FA) créent des sondes ; audit.
+- Essais en lecture seule (GET, connexion, écho, question DNS), délai
+  10 s, corps lu 1 Mio au plus : pas de charge sur les services visés.
+- Certificat non vérifié seulement sur demande explicite (case cochée,
+  montrée dans la liste).
+- Textes venus des essais (raison de l'échec) : bornés à 160 caractères,
+  échappés à l'affichage.

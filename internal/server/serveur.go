@@ -183,6 +183,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		defer close(s.finFond)
 		taches := []func(context.Context){s.flotte.Boucle, s.planif.Boucle, s.alertes.Boucle, s.aiguille.Boucle,
 			s.postier.Boucle, (&interne{s: s}).boucle, s.console.Boucle,
+			(&sondeur{s: s}).boucle,
 			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
 				Journal: journal.With("composant", "changements")}).Boucle,
 			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner}

@@ -231,8 +231,17 @@ func (c *Console) courbeAlerte(ctx context.Context, expr string, alerte labels.L
 // svgCourbe : courbe de la valeur, seuil en pointillé. Que des nombres et
 // des couleurs fixes dans le SVG.
 func svgCourbe(ts []int64, vs []float64, debut, fin time.Time, seuil float64, aSeuil bool, gravite string, l, h float64) template.HTML {
+	return svgCourbeEchelle(ts, vs, debut, fin, seuil, aSeuil, gravite, l, h, false)
+}
+
+// svgCourbeEchelle : idem ; depuisZero : l'échelle part de 0 (temps de
+// réponse des sondes, SPEC § 48).
+func svgCourbeEchelle(ts []int64, vs []float64, debut, fin time.Time, seuil float64, aSeuil bool, gravite string, l, h float64, depuisZero bool) template.HTML {
 	const marge = 2.0
 	mn, mx := math.Inf(1), math.Inf(-1)
+	if depuisZero {
+		mn = 0
+	}
 	for _, v := range vs {
 		if !math.IsNaN(v) && !math.IsInf(v, 0) {
 			mn, mx = math.Min(mn, v), math.Max(mx, v)

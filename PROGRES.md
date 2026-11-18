@@ -977,6 +977,18 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Coût : agent, un stat() par minute ; serveur, 7 requêtes instantanées
   par minute.
 
+### Idée 3 — Sondes de services (SPEC § 48) : fait, à valider
+
+- HTTP(S), TCP, ping, DNS ; depuis un collecteur (LAN) ou le serveur
+  (extérieur, adresses privées refusées) ; page Supervision › Sondes ;
+  règles SondeEnEchec et SondeLente.
+- **Collecteur à mettre à jour** pour les sondes du LAN.
+- Tests : `internal/sondes` (validation, HTTP code/contenu/lente/refus,
+  TCP, DNS avec un faux serveur, ping sauté ici faute de droit),
+  `TestSondesCollecteur` (liste, part du collecteur, collecteur ancien,
+  audit), `TestLotSonde`, `TestPageSondes`.
+- Coût : un essai par sonde et par minute ; 4 à 5 séries par sonde.
+
 ### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
 
 - Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
@@ -1160,8 +1172,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent), § 47 (changements).
-   Idées New Relic en cours : 3 (sondes), 4
+   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes).
+   Idées New Relic en cours : 4
    (disponibilité), 6 (services), 5 (ruche : emplacement à choisir) ;
    7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN

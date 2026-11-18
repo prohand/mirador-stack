@@ -48,7 +48,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// Ce binaire est mirador-collector : manifestes, noms des binaires
 	// installés et capacités annoncées au serveur.
 	majagent.ProduitCourant = protocole.ProduitCollecteur
-	distant.Capacites = protocole.CapaciteCollecteur
+	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes
 
 	fs := flag.NewFlagSet("mirador-collector", flag.ContinueOnError)
 	fs.SetOutput(erreurs)

@@ -16,9 +16,11 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/config"
+	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
+	essais "mirador-stack/internal/sondes"
 )
 
 // TestDemoInterface : serveur de démonstration pour regarder l'interface
@@ -193,6 +195,28 @@ func TestDemoInterface(t *testing.T) {
 		now.Add(-4*time.Hour).UnixMilli(), now.Add(-4*time.Hour).UnixMilli(), now.Add(-3*time.Hour).UnixMilli())
 	_, _ = s.db.Exec(`INSERT INTO audit(le, qui, action, objet) SELECT ?, 'web:admin', 'config_agent', 'machine:' || id FROM machines WHERE nom = 'pve1'`,
 		now.Add(-2*time.Hour).Unix())
+	// Sondes (SPEC § 48) : une depuis le serveur (sans réseau ici : en
+	// échec), une depuis le collecteur, et des résultats simulés.
+	_ = flotte.EnregistrerSondes(ctx, s.db, []essais.Sonde{
+		{Nom: "Nextcloud", Type: essais.HTTP, Cible: "https://cloud.exemple.invalid/status.php", Depuis: essais.ServeurLocal, Code: 200, Contenu: "installed"},
+		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/", Depuis: "collecteur-lan", NonVerifie: true},
+		{Nom: "DNS interne", Type: essais.DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "collecteur-lan"},
+	}, "demo", now)
+	var sondesDemo []stockage.Serie
+	for k := 0; k < 120; k++ {
+		ts := now.Add(time.Duration(-k) * 30 * time.Second).UnixMilli()
+		for _, x := range []struct {
+			nom   string
+			duree float64
+		}{{"Home Assistant", 0.035 + float64(k%7)/1000}, {"DNS interne", 0.002 + float64(k%3)/1000}} {
+			for nom, v := range map[string]float64{"mirador_sonde_succes": 1, "mirador_sonde_duree_secondes": x.duree, "mirador_sonde_lente": 0} {
+				sondesDemo = append(sondesDemo, stockage.Serie{Labels: []stockage.Label{{Nom: "__name__", Valeur: nom}, {Nom: "cible", Valeur: "-"},
+					{Nom: "instance", Valeur: "collecteur-lan"}, {Nom: "job", Valeur: "sondes"}, {Nom: "sonde", Valeur: x.nom}},
+					Points: []stockage.Point{{T: ts, V: v}}})
+			}
+		}
+	}
+	_ = s.met.Ecrire(ctx, sondesDemo)
 	// Changements repérés sur pve1 (SPEC § 47) : bloc de la fiche et traits des courbes.
 	for _, c := range []struct {
 		il    time.Duration
