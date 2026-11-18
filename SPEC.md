@@ -5653,7 +5653,10 @@ Menaces :
 
 ### 45.5 Menaces
 
-- Rien de nouveau exposé : série écrite par le serveur lui-même, sous le
-  nom de la machine authentifiée. Une machine ne peut pas écrire cette
-  série pour une autre (nom imposé à l'ingestion, préfixe `mirador_` des
-  séries internes sous instance imposée).
+- Rien de nouveau exposé : série écrite par le serveur lui-même, rien
+  d'ouvert en plus.
+- Une machine ne peut pas agir sur la série d'une autre : l'étiquette
+  `instance` est imposée à l'ingestion.
+- Une machine compromise pourrait envoyer cette série sous son propre nom
+  et retarder sa propre alerte : elle le peut déjà en envoyant
+  `node_uname_info`. Pas de risque nouveau.

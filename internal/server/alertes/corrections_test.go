@@ -81,7 +81,7 @@ func TestCorrigerRegles(t *testing.T) {
 	}
 	if _, err := Enregistrer(ctx, db, []Regle{
 		r("AgentMuet", "min by (instance)\n  (lag(node_uname_info[1d])) >  60"), // espaces différents : reconnue
-		r("AutreMuet", "min by (instance) (lag(node_uname_info[1d])) > 120"),  // changée par l'utilisateur : intacte
+		r("AutreMuet", "min by (instance) (lag(node_uname_info[1d])) > 120"),    // changée par l'utilisateur : intacte
 	}, "test", maintenant); err != nil {
 		t.Fatal(err)
 	}
