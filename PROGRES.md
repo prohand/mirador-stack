@@ -989,6 +989,14 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
   audit), `TestLotSonde`, `TestPageSondes`.
 - Coût : un essai par sonde et par minute ; 4 à 5 séries par sonde.
 
+### Idée 4 — Disponibilité (SPEC § 49) : fait, à valider
+
+- Alertes › Disponibilité : machines et sondes, 30 j / 90 j / ce mois-ci,
+  objectifs réglables (99,5 % par défaut), maintenances retirées.
+- Tests : `TestIntervallesDispo`, `TestPageDisponibilite` (panne de 2 h
+  dont 1 h en maintenance, objectif 99,9 % dépassé de 16 min).
+- Coût : aucune nouvelle donnée ; deux requêtes SQL à l'ouverture.
+
 ### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
 
 - Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
@@ -1172,8 +1180,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes).
-   Idées New Relic en cours : 4
+   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité).
+   Idées New Relic en cours :
    (disponibilité), 6 (services), 5 (ruche : emplacement à choisir) ;
    7 (motifs de logs) : mesuré, décision à prendre.
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN

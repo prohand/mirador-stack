@@ -5861,3 +5861,40 @@ Maquette validée le 18/11.
   montrée dans la liste).
 - Textes venus des essais (raison de l'échec) : bornés à 160 caractères,
   échappés à l'affichage.
+
+## 49. Disponibilité (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« service levels ») : idée seulement, aucun
+code. Maquette validée le 18/11.
+
+### 49.1 Ce qui est mesuré
+
+- Par machine (agents, collecteurs, équipements) et par sonde : part du
+  temps sans panne sur la période (30 jours, 90 jours, ce mois-ci).
+- Panne d'une machine : alerte d'une « règle de panne » (Réglages ›
+  Notifications : AgentMuet, ProxmoxMuet… les mêmes que pour les
+  dépendances) portant son nom ; panne d'une sonde : SondeEnEchec.
+- Maintenances ponctuelles déclarées pour la machine (`machine:NOM`) :
+  retirées du temps d'arrêt. Les maintenances récurrentes et par sélecteur
+  ne sont pas retirées (à faire si besoin).
+- Une machine ajoutée pendant la période est comptée depuis son ajout.
+
+### 49.2 Affichage
+
+- Alertes › **Disponibilité** : objectif, taux atteint, un carré par jour
+  (vert : aucun arrêt ; orange : moins d'une heure ; rouge : une heure ou
+  plus ; gris : pas encore suivi ; détail au survol), arrêt / permis,
+  marge restante (barre), « Dépassé de… ». Éléments sous l'objectif en
+  premier.
+- Objectif : 99,5 % par défaut, réglable par élément (administrateurs,
+  code 2FA, entre 50 et 100 %), audit.
+
+### 49.3 Coût
+
+- Aucune nouvelle donnée : une requête SQL sur les alertes de la période
+  et une sur les maintenances, calcul en mémoire à l'ouverture de la page.
+
+### 49.4 Menaces
+
+- Lecture seule pour tous les rôles ; objectifs réservés aux
+  administrateurs (code 2FA), valeur bornée, audit.

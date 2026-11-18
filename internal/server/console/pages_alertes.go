@@ -31,6 +31,8 @@ func (c *Console) routesAlertes() {
 	m.HandleFunc("GET /envois", c.lecture(c.pageEnvois))
 	m.HandleFunc("GET /comparaison", c.lecture(c.pageComparaison))
 	m.HandleFunc("GET /coupures", c.lecture(c.pageCoupures))
+	m.HandleFunc("GET /disponibilite", c.lecture(c.pageDisponibilite))
+	m.HandleFunc("POST /disponibilite", c.admin(c.postDisponibilite))
 	m.HandleFunc("GET /comparaison.csv", c.lecture(c.csvComparaison))
 	c.routesRegles()
 }
