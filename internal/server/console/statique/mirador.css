@@ -1160,3 +1160,7 @@ fieldset.bloc-absence .aide { margin: 0 0 8px; }
   .ruche + .ruche { margin-top: -10px; }
 }
 .entete-ruche .onglets { margin: 0; }
+
+/* --- Motifs de logs (SPEC § 52) ---------------------------------------------------- */
+.logs-groupes tr.motif-nouveau td { background: var(--attention-fond); }
+.evolution-motif { display: block; }

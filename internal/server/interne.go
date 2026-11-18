@@ -191,6 +191,11 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 		}
 	}
 
+	// Motifs de logs gardés par le registre (SPEC § 52, 5 000 au plus).
+	if s.motifs != nil {
+		ajout("mirador_logs_motifs", float64(s.motifs.Nombre()))
+	}
+
 	// Volume des logs : lignes reçues par hôte (compteur depuis le démarrage).
 	for h, n := range s.ing.LignesParHote() {
 		if h != "" {

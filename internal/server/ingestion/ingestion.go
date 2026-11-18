@@ -59,6 +59,10 @@ type Options struct {
 	LignesMinute      int     // lignes de logs par minute et par machine (rafale : 1 minute)
 
 	Maintenant func() time.Time // remplaçable dans les tests
+
+	// ApresLignes : lignes de logs écrites (registre des motifs, SPEC § 52) ;
+	// nil : rien. Appelé dans la requête : doit rester rapide.
+	ApresLignes func([]stockage.Ligne)
 }
 
 func (o *Options) completer() {
@@ -629,6 +633,9 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 			g.opt.Journal.Error("écriture des logs", "machine", m.Nom, "erreur", err)
 			g.refuser(w, http.StatusServiceUnavailable, "stockage indisponible", 10)
 			return
+		}
+		if g.opt.ApresLignes != nil {
+			g.opt.ApresLignes(lignes)
 		}
 	}
 	g.Compteurs.Lignes.Add(uint64(len(lignes)))

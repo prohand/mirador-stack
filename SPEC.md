@@ -5969,3 +5969,57 @@ d'ensemble** (B).
   d'ensemble, page Conteneurs, page Sondes) ; une requête SQL pour les
   maintenances en cours.
 - Menaces : lecture seule ; noms affichés échappés.
+
+## 52. Motifs de logs (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« log patterns ») : idée seulement, aucun
+code. Mesurée avant de décider (PROGRES, 18/11), validée ensuite :
+amélioration de l'onglet existant « Messages regroupés » (§ 33).
+
+### 52.1 Regroupement
+
+- Étape 1 (comme avant) : parties variables remplacées (UUID, IP, HEX,
+  N). Les expressions ne sont essayées que sur les mots qui contiennent un
+  chiffre, et chacune seulement si un test rapide le permet (3 points pour
+  une IPv4, « :: » pour une IPv6…).
+- Étape 2 (nouveau, méthode « Drain ») : messages de même forme (même
+  nombre de mots, même premier mot) qui ont au moins 60 % de mots en
+  commun : les mots qui changent deviennent **MOT**
+  (« Invalid user ‹MOT› from ‹IP› port ‹N› »).
+- Même code pour la page et pour le registre (`internal/server/motifs`).
+
+### 52.2 Registre des motifs
+
+- Toutes les lignes reçues passent par le registre (à l'ingestion) :
+  première et dernière fois vu, nombre de lignes ; 5 000 motifs au plus
+  (les moins récemment vus sont oubliés) ; écrit en base toutes les
+  5 minutes (table `motifs_logs`, migration 0028) et à l'arrêt.
+- « **Nouveau** » : vu la première fois depuis moins de 24 h, et rien
+  d'équivalent dans les 7 jours d'avant. Pendant les 7 premiers jours du
+  registre (apprentissage), rien n'est « nouveau » (la page le dit).
+- Série interne `mirador_logs_motifs` (nombre de motifs gardés).
+
+### 52.3 Onglet « Messages regroupés »
+
+- Colonnes en plus : **Évolution** (30 barres sur la période cherchée,
+  rouges pour les erreurs) et **Vu la 1re fois** (avec la pastille
+  « nouveau » et la ligne surlignée).
+- Tri en plus : « Nouveaux d'abord ».
+- « Ces lignes » : lignes du motif (même regroupement).
+
+### 52.4 Coût (mesuré)
+
+- Registre : **7 µs par ligne** sur des lignes réalistes chargées en
+  chiffres (banc `BenchmarkRegistre`), soit ≈ 0,01 % d'un cœur au débit
+  actuel (16 lignes/s), 0,35 % à 500 lignes/s ; 25 µs avant les deux
+  optimisations.
+- Mémoire : 4 Mo au plus (5 000 motifs) ; disque : quelques milliers de
+  lignes en base.
+
+### 52.5 Menaces
+
+- Textes des logs bornés (2 000 caractères, 64 mots) avant regroupement ;
+  affichés échappés. Une machine bavarde ne peut pas remplir la mémoire
+  (plafond de 5 000 motifs, oubli des plus anciens).
+- Une règle « nouveau motif d'erreur » reste possible plus tard (non
+  faite).

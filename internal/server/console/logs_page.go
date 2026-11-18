@@ -244,6 +244,7 @@ type donneesLogs struct {
 	Histo          histogramme
 	Groupes        []groupeLogs
 	Tris           []triGroupes
+	Apprentissage  bool // registre des motifs de moins de 7 jours : pas encore de « nouveau »
 	LienLignes     string
 	LienGroupes    string
 	LienPlusAncien string
@@ -467,7 +468,7 @@ func (c *Console) pageLogs(q *req) {
 	d.Requete = w.Encode()
 	d.LienLignes = lienLogsAvec(v, func(w url.Values) { w.Del("vue"); w.Del("tri") })
 	d.LienGroupes = lienLogsAvec(v, func(w url.Values) { w.Set("vue", "groupes"); w.Del("motif") })
-	for _, t := range []triGroupes{{Code: "frequents", Titre: "Plus fréquents"}, {Code: "rares", Titre: "Rares d'abord"}, {Code: "erreurs", Titre: "Erreurs d'abord"}} {
+	for _, t := range []triGroupes{{Code: "frequents", Titre: "Plus fréquents"}, {Code: "nouveaux", Titre: "Nouveaux d'abord"}, {Code: "rares", Titre: "Rares d'abord"}, {Code: "erreurs", Titre: "Erreurs d'abord"}} {
 		tri := t.Code
 		t.Lien = lienLogsAvec(v, func(w url.Values) { w.Set("vue", "groupes"); w.Set("tri", tri) })
 		t.Actif = d.Tri == t.Code || (d.Tri == "" && t.Code == "frequents")
@@ -518,7 +519,8 @@ func (c *Console) chercherPourPage(q *req, v url.Values, f filtresLogs, d *donne
 	}
 	d.Histo = calculerHistogramme(ls, r.Debut, r.Fin, fuseau.Load())
 	if d.Vue == "groupes" {
-		d.Groupes = regrouper(ls, d.Tri)
+		d.Groupes = regrouper(ls, d.Tri, r.Debut, r.Fin, c.opt.Motifs, q.t)
+		d.Apprentissage = c.opt.Motifs != nil && c.opt.Motifs.Apprentissage(q.t)
 	}
 	affichees := ls
 	if len(affichees) > d.Limite {

@@ -4,14 +4,14 @@ package console
 
 import (
 	"fmt"
-	"hash/fnv"
-	"regexp"
+	"html/template"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"mirador-stack/internal/server/motifs"
 	"mirador-stack/internal/server/stockage"
 )
 
@@ -62,88 +62,25 @@ func rangNiveau(niveau string) int {
 
 // --- Messages regroupés -------------------------------------------------------------
 
-// Parties variables remplacées, dans cet ordre (la première qui convient).
-var variablesMessage = []struct {
-	re  *regexp.Regexp
-	nom string
-}{
-	{regexp.MustCompile(`(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b`), "UUID"},
-	{regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`), "IP"},
-	{regexp.MustCompile(`(?i)\b(?:[0-9a-f]{1,4}:){5,7}[0-9a-f]{1,4}\b`), "IP"},
-	{regexp.MustCompile(`(?i)\b[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?\b`), "IP"},
-	{regexp.MustCompile(`(?i)\b0x[0-9a-f]+\b`), "HEX"},
-	{regexp.MustCompile(`(?i)\b[0-9a-f]*\d[0-9a-f]*[a-f][0-9a-f]*\b|(?i)\b[0-9a-f]*[a-f][0-9a-f]*\d[0-9a-f]*\b`), "HEX"}, // hexadécimal mêlé
-	{regexp.MustCompile(`\b\d+(?:[.,]\d+)*\b`), "N"},
-}
-
-// motifMessage : message type (parties variables remplacées), en segments.
-func motifMessage(msg string) []segment {
-	if len(msg) > 2000 {
-		msg = msg[:2000]
-	}
-	type trou struct {
-		debut, fin int
-		nom        string
-	}
-	var trous []trou
-	pris := make([]bool, len(msg))
-	for _, v := range variablesMessage {
-		for _, m := range v.re.FindAllStringIndex(msg, -1) {
-			libre := true
-			for i := m[0]; i < m[1]; i++ {
-				if pris[i] {
-					libre = false
-					break
-				}
-			}
-			// Hexadécimal court : sans doute un mot (« cafe », « bed »).
-			if !libre || (v.nom == "HEX" && m[1]-m[0] < 6 && !strings.HasPrefix(strings.ToLower(msg[m[0]:m[1]]), "0x")) {
-				continue
-			}
-			for i := m[0]; i < m[1]; i++ {
-				pris[i] = true
-			}
-			trous = append(trous, trou{m[0], m[1], v.nom})
-		}
-	}
-	sort.Slice(trous, func(i, j int) bool { return trous[i].debut < trous[j].debut })
-	var out []segment
-	pos := 0
-	for _, t := range trous {
-		if t.debut > pos {
-			out = append(out, segment{Texte: msg[pos:t.debut]})
-		}
-		out = append(out, segment{Texte: t.nom, Var: true})
-		pos = t.fin
-	}
-	if pos < len(msg) {
-		out = append(out, segment{Texte: msg[pos:]})
-	}
-	return out
-}
-
-// cleMotif : empreinte courte d'un message type (lien « ces lignes »).
-func cleMotif(segs []segment) string {
-	h := fnv.New64a()
-	for _, s := range segs {
-		if s.Var {
-			_, _ = h.Write([]byte{0})
-		}
-		_, _ = h.Write([]byte(s.Texte))
-	}
-	return fmt.Sprintf("%012x", h.Sum64()&0xffffffffffff)
-}
+// Regroupement (SPEC § 33, refait au § 52) : module motifs (parties
+// variables remplacées, puis messages de même forme fusionnés : les mots
+// qui changent deviennent MOT). « Vu la 1re fois » et « nouveau » viennent
+// du registre des motifs (toutes les lignes reçues par le serveur).
 
 // groupeLogs : un message type et ses lignes.
 type groupeLogs struct {
-	Cle      string
-	Motif    []segment
-	N        int
-	Niveau   string // le plus grave vu
-	Classe   string
-	Machines []string
-	Derniere int64 // millisecondes
-	Largeur  int   // barre : part du groupe le plus fréquent (0 à 100)
+	Cle       string
+	Motif     []segment
+	N         int
+	Niveau    string // le plus grave vu
+	Classe    string
+	Machines  []string
+	Derniere  int64 // millisecondes
+	Largeur   int   // barre : part du groupe le plus fréquent (0 à 100)
+	Evolution template.HTML
+	PremierVu string // « 12/10 », « il y a 40 min » ; vide si inconnu
+	Nouveau   bool
+	premier   int64
 }
 
 // TexteMachines : « pve1, srv-test » ou « 5 machines ».
@@ -156,44 +93,75 @@ func (g groupeLogs) TexteMachines() string {
 
 const groupesMax = 200
 
-// regrouper : messages semblables comptés ensemble ; tri : « frequents »,
-// « rares » ou « erreurs ».
-func regrouper(ls []stockage.Ligne, tri string) []groupeLogs {
-	parCle := map[string]*groupeLogs{}
-	machines := map[string]map[string]bool{}
-	var ordre []string
-	for _, l := range ls {
-		segs := motifMessage(l.Msg)
-		k := cleMotif(segs)
-		g := parCle[k]
-		if g == nil {
-			g = &groupeLogs{Cle: k, Motif: segs}
-			parCle[k] = g
-			machines[k] = map[string]bool{}
-			ordre = append(ordre, k)
-		}
-		g.N++
-		if n := l.Champs["level"]; g.Niveau == "" || rangNiveau(n) > rangNiveau(g.Niveau) {
-			g.Niveau = n
-		}
-		if h := l.Champs["host"]; h != "" && !machines[k][h] {
-			machines[k][h] = true
-			g.Machines = append(g.Machines, h)
-		}
-		if l.T > g.Derniere {
-			g.Derniere = l.T
-		}
+// segmentsMotif : segments d'affichage d'un gabarit.
+func segmentsMotif(g string) []segment {
+	var out []segment
+	for _, s := range motifs.SegmentsGabarit(g) {
+		out = append(out, segment{Texte: s.Texte, Var: s.Var})
 	}
-	out := make([]groupeLogs, 0, len(ordre))
-	for _, k := range ordre {
-		g := parCle[k]
+	return out
+}
+
+// groupesBruts : lignes regroupées (gabarit et indices des lignes).
+func groupesBruts(ls []stockage.Ligne) []*motifs.Groupe {
+	r := motifs.NouveauRegroupeur()
+	for i, l := range ls {
+		r.Ajouter(i, l.Msg)
+	}
+	return r.Groupes()
+}
+
+// regrouper : messages semblables comptés ensemble ; tri : « frequents »,
+// « rares », « erreurs » ou « nouveaux ». debut, fin : période (ms) pour la
+// petite courbe ; reg : registre (nil : pas de « vu la 1re fois »).
+func regrouper(ls []stockage.Ligne, tri string, debut, fin int64, reg *motifs.Registre, t time.Time) []groupeLogs {
+	var out []groupeLogs
+	loc := fuseau.Load()
+	for _, gb := range groupesBruts(ls) {
+		gab := motifs.Gabarit(gb.Jetons)
+		g := groupeLogs{Cle: motifs.Cle(gab), Motif: segmentsMotif(gab), N: len(gb.Indices)}
+		vues := map[string]bool{}
+		var ts []int64
+		for _, i := range gb.Indices {
+			l := ls[i]
+			if n := l.Champs["level"]; g.Niveau == "" || rangNiveau(n) > rangNiveau(g.Niveau) {
+				g.Niveau = n
+			}
+			if h := l.Champs["host"]; h != "" && !vues[h] {
+				vues[h] = true
+				g.Machines = append(g.Machines, h)
+			}
+			if l.T > g.Derniere {
+				g.Derniere = l.T
+			}
+			ts = append(ts, l.T)
+		}
 		g.Classe = classeNiveau(g.Niveau)
 		sort.Strings(g.Machines)
-		out = append(out, *g)
+		g.Evolution = svgEvolution(ts, debut, fin, g.Classe == "err")
+		if reg != nil {
+			if p, ok := reg.Vu(gb.Jetons); ok {
+				g.premier, g.Nouveau = p, reg.Nouveau(p, t)
+				vu := time.Unix(p, 0)
+				if t.Sub(vu) < 24*time.Hour {
+					g.PremierVu = depuis(vu.UnixMilli())
+				} else {
+					g.PremierVu = vu.In(loc).Format("02/01")
+				}
+			}
+		}
+		out = append(out, g)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]
 		switch tri {
+		case "nouveaux":
+			if a.Nouveau != b.Nouveau {
+				return a.Nouveau
+			}
+			if a.premier != b.premier {
+				return a.premier > b.premier
+			}
 		case "rares":
 			if a.N != b.N {
 				return a.N < b.N
@@ -225,15 +193,50 @@ func regrouper(ls []stockage.Ligne, tri string) []groupeLogs {
 	return out
 }
 
+// svgEvolution : lignes du groupe sur la période, 30 barres.
+func svgEvolution(ts []int64, debut, fin int64, erreur bool) template.HTML {
+	const nb, l, h = 30, 120.0, 22.0
+	if fin <= debut || len(ts) == 0 {
+		return ""
+	}
+	var c [nb]int
+	mx := 1
+	for _, t := range ts {
+		k := int(float64(t-debut) / float64(fin-debut) * nb)
+		k = min(max(k, 0), nb-1)
+		c[k]++
+		mx = max(mx, c[k])
+	}
+	couleur := "var(--accent)"
+	if erreur {
+		couleur = "var(--erreur)"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg class="evolution-motif" width="%.0f" height="%.0f" viewBox="0 0 %.0f %.0f" role="img" aria-label="Évolution sur la période">`, l, h, l, h)
+	for k, n := range c {
+		if n == 0 {
+			continue
+		}
+		hb := max(1.5, h*float64(n)/float64(mx))
+		fmt.Fprintf(&b, `<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>`, float64(k)*l/nb, h-hb, l/nb-1, hb, couleur)
+	}
+	b.WriteString("</svg>")
+	return template.HTML(b.String()) // #nosec G203 -- SVG fait de nombres formatés et de couleurs fixes
+}
+
 // lignesDuMotif : lignes d'un message type (clic sur un groupe).
 func lignesDuMotif(ls []stockage.Ligne, cle string) []stockage.Ligne {
-	var out []stockage.Ligne
-	for _, l := range ls {
-		if cleMotif(motifMessage(l.Msg)) == cle {
-			out = append(out, l)
+	for _, gb := range groupesBruts(ls) {
+		if motifs.Cle(motifs.Gabarit(gb.Jetons)) != cle {
+			continue
 		}
+		out := make([]stockage.Ligne, 0, len(gb.Indices))
+		for _, i := range gb.Indices {
+			out = append(out, ls[i])
+		}
+		return out
 	}
-	return out
+	return nil
 }
 
 // --- Histogramme --------------------------------------------------------------------

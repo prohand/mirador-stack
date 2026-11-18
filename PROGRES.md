@@ -1017,7 +1017,17 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
   conteneurs, fragment « tout »), vérifié dans Chromium (ordinateur et
   téléphone, onglet retenu).
 
-### Idée 7 — Motifs de logs : mesure (prototype hors dépôt)
+### Idée 7 — Motifs de logs (SPEC § 52) : fait, à valider
+
+- Onglet « Messages regroupés » amélioré : mots qui changent fusionnés
+  (MOT), colonnes Évolution et Vu la 1re fois, « nouveau », tri
+  « Nouveaux d'abord » ; registre des motifs alimenté à l'ingestion.
+- Mesure dans le serveur : 7 µs par ligne (25 µs avant optimisation),
+  ≈ 0,01 % d'un cœur au débit actuel ; 4 Mo au plus.
+- Tests : `TestRegroupeur`, `TestRegistre` (relu après redémarrage,
+  nouveau, apprentissage), `TestRegistrePlafond`, `TestRegrouper`,
+  `TestRegrouperMotifs`.
+- Mesure d'avant la décision (prototype) :
 
 - Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
   identifiants remplacés par ‹n›, mots qui changent par ‹*›.
@@ -1200,9 +1210,8 @@ au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
 1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services), § 51 (ruche).
-   Idée New Relic restante :
-   7 (motifs de logs) : mesuré, décision à prendre.
+   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services), § 51 (ruche),
+   § 52 (motifs de logs).
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

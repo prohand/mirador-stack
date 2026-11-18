@@ -26,8 +26,10 @@ import (
 	"mirador-stack/internal/server/geoip"
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/modeles"
+	"mirador-stack/internal/server/motifs"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/stockage"
 	"mirador-stack/internal/server/stockage/journaux"
 	"mirador-stack/internal/server/stockage/metriques"
 	"mirador-stack/internal/server/web"
@@ -61,6 +63,7 @@ type Serveur struct {
 	console   *console.Console  // interface web (étape 5)
 	geo       *geoip.Base       // pays des adresses (flux bloqués), base DB-IP mensuelle
 	vus       vusParNom         // dernières données par machine (SPEC § 46)
+	motifs    *motifs.Registre  // motifs des logs (SPEC § 52)
 }
 
 // Chemins dans le dossier des données.
@@ -154,7 +157,16 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	}
 	s.alertes.DefinirRecepteur(s.aiguille)
 
-	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal})
+	// Registre des motifs de logs (SPEC § 52) : toutes les lignes reçues.
+	if s.motifs, err = motifs.OuvrirRegistre(ctx, s.db, journal.With("composant", "motifs"), time.Now()); err != nil {
+		return echec(fmt.Errorf("registre des motifs : %w", err))
+	}
+	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal,
+		ApresLignes: func(ls []stockage.Ligne) {
+			for _, l := range ls {
+				s.motifs.Ajouter(l.Msg, l.T/1000)
+			}
+		}})
 	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle})
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
@@ -162,7 +174,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
 	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
-		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal}); err != nil {
+		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs}); err != nil {
 		return echec(fmt.Errorf("interface web : %w", err))
 	}
 	// Certificats du syslog des collecteurs (SPEC § 23.14) : démarche ACME
@@ -183,7 +195,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		defer close(s.finFond)
 		taches := []func(context.Context){s.flotte.Boucle, s.planif.Boucle, s.alertes.Boucle, s.aiguille.Boucle,
 			s.postier.Boucle, (&interne{s: s}).boucle, s.console.Boucle,
-			(&sondeur{s: s}).boucle,
+			(&sondeur{s: s}).boucle, s.motifs.Boucle,
 			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
 				Journal: journal.With("composant", "changements")}).Boucle,
 			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner}
