@@ -5316,7 +5316,17 @@ Menaces : rien de nouveau exposé (calcul interne, pas de réglage, pas de
 saisie). Le seul risque est de retarder une alerte de panne de 2 min : on
 le garde court et seulement pour les machines qui partagent un site.
 
-### 39.2 Page « Coupures » (Alertes › Coupures)
+### 39.2 Page « Coupures » (Alertes › Coupures) **[Vérifiée le 18/11]**
+
+Vérifiée sur la vraie coupure : du 16/11 10:30 au 17/11 10:30, durée
+affichée 23 h 59, confirmée par l'utilisateur. La règle importée
+`ProxmoxMuet` n'existe pas chez lui : rien à désactiver.
+
+Limite connue (vue le 18/11) : `AgentMuet` lit `lag(node_uname_info[1d])`.
+Au-delà de 24 h sans aucune donnée, la série sort de la fenêtre, `lag()`
+ne renvoie plus rien et l'alerte passe « résolue » à tort (message
+« Résolu », fin de coupure fausse). Sans effet le 16/11 (retour à 23 h 59).
+Correction proposée, à valider : voir PROGRES « Prochaine étape ».
 
 - **Coupures retrouvées dans l'historique des alertes** (30 jours) : au
   moins 2 machines d'un même site en panne à moins de 10 min d'écart.
@@ -5394,7 +5404,7 @@ Menaces :
 - Grafana : non gardé (API de lecture compatible Prometheus du brief non
   faite, facultative) ; à demander avant la phase C.
 
-## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Fait, à valider]**
+## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Validé le 18/11]**
 
 Idée reprise de Beszel (qui joint les logs d'un conteneur « unhealthy ») ;
 **aucun code repris**, réécrit pour mirador.
@@ -5477,7 +5487,7 @@ Idées reprises de Beszel après maquettes validées le 17/11 (captures) ;
   plus** (le nombre total reste juste), champs bornés (128 / 64 caractères).
   Agent ancien : le nombre seulement, avec une phrase qui le dit.
 
-### 42.4 Détail au clic
+### 42.4 Détail au clic **[Validé le 18/11]**
 
 - Les tuiles « En ce moment » (CPU, mémoire, disque, swap, charge) et
   4 liens ouvrent un panneau à droite (plein écran sur téléphone) :
@@ -5515,7 +5525,7 @@ gardé en mémoire entre deux pages.
   (chemin et arguments figés, sans root) ; seule sa sortie est lue en plus.
 - `localStorage` : seulement l'état plié / déplié (aucune donnée).
 
-## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Fait, à valider]**
+## 43. Pages de connexion refaites (demandes du 17/11 : « plus classe », puis style « A ») **[Validé le 18/11]**
 
 - Première version (présentation à gauche, formulaire à droite), puis
   4 maquettes présentées (A Nuit, B Console, C Topographie, D Aperçu) :
@@ -5541,7 +5551,7 @@ gardé en mémoire entre deux pages.
   et limites de tentatives inchangés ; connexion complète vérifiée dans
   Chromium (mot de passe faux, puis bon mot de passe et code 2FA).
 
-## 44. « Réessayer la mise à jour » / « Mettre à jour maintenant » (demande du 18/11) **[Fait, à valider]**
+## 44. « Réessayer la mise à jour » / « Mettre à jour maintenant » (demande du 18/11) **[Validé le 18/11]**
 
 Constat : une machine affichait « Mise à jour en échec » (0.3.1) sans moyen
 de relancer. L'agent note l'échec (`echec.json`) et ne retente jamais la

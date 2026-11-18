@@ -947,8 +947,9 @@ pages) ; rien de collecté ni gardé en mémoire.
 
 ## Coupure d'internet du site (16/11, SPEC § 39 et § 40)
 
-Coupure d'internet chez l'utilisateur le **16/11 à 10:31** : plus rien
-n'arrive au serveur depuis le site. En cours au moment d'écrire.
+Coupure d'internet chez l'utilisateur du **16/11 10:30 au 17/11 10:30**
+(23 h 59, confirmé le 18/11). Page Coupures vérifiée sur ce cas réel.
+`ProxmoxMuet` absent chez l'utilisateur : rien à désactiver.
 
 | Partie | État |
 |---|---|
@@ -1084,26 +1085,26 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 
 ## Prochaine étape
 
-Mise à jour le 16/11 (coupure d'internet du site depuis 10:31).
+Mise à jour le 18/11. Validés le 18/11 : SPEC § 41 (logs dans les messages),
+§ 42.4 (détail au clic), § 43 (connexion), § 44 (réessayer la mise à jour).
 
-1. Pendant la coupure : rien à faire. Noter l'heure du retour.
-2. Au retour : mettre à jour le serveur (site injoignable, page Coupures),
-   vérifier la page Alertes › Coupures (bilan de la coupure du 16/11),
-   désactiver la règle importée `ProxmoxMuet` (SPEC § 39.3).
-3. Valider SPEC § 39 (site injoignable, coupures), § 40 (guide de l'étape 7)
-   § 41 (derniers logs dans les messages) et § 42 (Conteneurs, Services,
-   Paquets, détail au clic ; mettre aussi les agents à jour) et § 43
-   (pages de connexion).
-4. Étape 6, partie 7 : bascule du collecteur sur le LAN
+1. À valider : § 39 (message « Site injoignable »), § 40 (guide de
+   l'étape 7), § 42.1 à 42.3 (Conteneurs, Services, Paquets).
+2. Défaut à corriger (sur accord) : `AgentMuet` se résout seule après 24 h
+   sans données (`lag(...[1d])`). Piste : le serveur tient l'heure de la
+   dernière donnée reçue par machine (déjà en base, `vu_le`) et l'expose
+   en série interne ; la règle compare à cette heure, sans fenêtre.
+   Coût : une série par machine, rien à lire sur 24 h.
+3. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h
    (collecteur et nœud Proxmox), arrêt d'Alloy et d'unpoller **sur
    validation**.
-5. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
-6. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
+4. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+5. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
    validation de l'étape 6. Question à trancher avant la phase C : garder
    Grafana (API de lecture compatible Prometheus, à étudier) ou non.
-7. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+6. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.
