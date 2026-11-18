@@ -186,11 +186,11 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 // --- Page « Éléments » ----------------------------------------------------------------
 
 type donneesElements struct {
-	Lignes  []element
-	Sorte   string
-	Compte  map[string]int
-	Sortes  []string
-	Filtre  string // étiquette « clé=valeur » (§ 59)
+	Lignes []element
+	Sorte  string
+	Compte map[string]int
+	Sortes []string
+	Filtre string // étiquette « clé=valeur » (§ 59)
 }
 
 func (c *Console) pageElements(q *req) {

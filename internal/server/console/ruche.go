@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 )
 
 // Vue « ruche » de la vue d'ensemble (SPEC § 51, idée reprise de New Relic
