@@ -6320,3 +6320,27 @@ Choix de l'utilisateur : **Applications**, règles renommées aussi.
 - Interne inchangé : série `mirador_service_etat{service}`, étiquette
   `service` des alertes, paquet `servicesmetier`, clé `v:` des étiquettes.
 - État « Dégradée » (féminin).
+
+## 66. Page d'une machine en onglets (retour du 19/11 : « tout est mélangé ») **[Fait, à valider]**
+
+Choix de l'utilisateur : onglets. En haut, toujours visibles : nom, bandeau,
+alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
+
+| Onglet | Contenu |
+|---|---|
+| Vue d'ensemble | En ce moment, Les plus gourmands, courbes (sommaire et période) |
+| Collecte (collecteur seulement) | Équipements relevés, Syslog TLS et certificat, SNMP / UniFi / sondes de certificats |
+| Activité | Changements, Paquets à mettre à jour, Services systemd, Volume des logs |
+| Sondes et liens | Sondes (ping, proposées), Liens, Étiquettes, collecteur qui relève |
+| Réglages | Surveillance et modèles, Détails, Modifier la machine |
+
+- Pastilles sur les onglets : services en échec et paquets de sécurité
+  (Activité), sondes en échec (Sondes et liens), à valider et modèles
+  détectés (Réglages).
+- Un seul panneau visible ; l'onglet est dans l'adresse (`#activite`) et
+  retenu par le navigateur ; un lien vers un bloc (`#modeles`, `#sondes`…)
+  ouvre son onglet. Un onglet sans contenu n'est pas montré (collecteur :
+  Collecte, Activité, Réglages).
+- Sans JavaScript : tous les panneaux restent visibles, l'un sous l'autre.
+- Rien de plus côté serveur (mêmes données, rangées autrement) ; les
+  courbes d'un onglet caché ne sont lues qu'à son ouverture.

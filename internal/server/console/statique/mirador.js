@@ -1372,3 +1372,63 @@ document.addEventListener("change", function (e) {
     }
   } catch (e) { /* stockage refusé : période par défaut */ }
 })();
+
+// Page d'une machine en onglets (SPEC § 66) : <nav data-onglets-panneaux>
+// avec des liens data-onglet="nom", et des blocs data-panneau-onglet="nom".
+// Un seul panneau visible ; l'onglet est dans l'adresse (#nom) et retenu
+// par ce navigateur. Un lien vers un bloc d'un panneau (#sondes, #modeles…)
+// ouvre son panneau. Sans JavaScript : tout reste visible.
+(function () {
+  var nav = document.querySelector("[data-onglets-panneaux]");
+  if (!nav) { return; }
+  var cle = "mirador-onglet-" + nav.getAttribute("data-onglets-panneaux");
+  var liens = Array.prototype.slice.call(nav.querySelectorAll("[data-onglet]"));
+  var panneaux = Array.prototype.slice.call(document.querySelectorAll("[data-panneau-onglet]"));
+  if (!liens.length || !panneaux.length) { return; }
+  function existe(nom) { return liens.some(function (a) { return a.getAttribute("data-onglet") === nom; }); }
+  function montrer(nom, garder) {
+    liens.forEach(function (a) {
+      var actif = a.getAttribute("data-onglet") === nom;
+      a.classList.toggle("actif", actif);
+      if (actif) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
+    });
+    panneaux.forEach(function (p) { p.hidden = p.getAttribute("data-panneau-onglet") !== nom; });
+    // Les courbes d'un panneau caché se dessinent quand il devient visible.
+    window.dispatchEvent(new Event("resize"));
+    if (garder) { try { window.localStorage.setItem(cle, nom); } catch (e) { /* stockage refusé */ } }
+  }
+  // Onglet à montrer pour une ancre : l'onglet lui-même, ou le panneau qui
+  // contient le bloc visé.
+  function ongletDe(ancre) {
+    if (!ancre) { return ""; }
+    if (existe(ancre)) { return ancre; }
+    var cible = document.getElementById(ancre);
+    var p = cible && cible.closest ? cible.closest("[data-panneau-onglet]") : null;
+    return p ? p.getAttribute("data-panneau-onglet") : "";
+  }
+  function depuisAdresse() {
+    var ancre = decodeURIComponent(window.location.hash.slice(1));
+    var nom = ongletDe(ancre);
+    if (nom) {
+      montrer(nom, false);
+      // Bloc précis : on y va une fois son panneau visible.
+      if (ancre !== nom) { var c = document.getElementById(ancre); if (c) { c.scrollIntoView(); } }
+      return true;
+    }
+    return false;
+  }
+  if (!depuisAdresse()) {
+    var memo = "";
+    try { memo = window.localStorage.getItem(cle) || ""; } catch (e) { /* stockage refusé */ }
+    montrer(existe(memo) ? memo : liens[0].getAttribute("data-onglet"), false);
+  }
+  nav.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest("[data-onglet]") : null;
+    if (!a) { return; }
+    ev.preventDefault();
+    var nom = a.getAttribute("data-onglet");
+    montrer(nom, true);
+    if (window.history && window.history.replaceState) { window.history.replaceState(null, "", "#" + nom); }
+  });
+  window.addEventListener("hashchange", depuisAdresse);
+})();

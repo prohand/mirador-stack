@@ -16,6 +16,28 @@
 {{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="maj_forcer">{{template "code2fa"}}<button>{{if .Echec}}Réessayer la mise à jour{{else}}Mettre à jour maintenant{{end}}</button></form>
 <p class="sous">L'agent installe la version assignée tout de suite, sans attendre la fenêtre horaire : même vérification de la signature, retour automatique à la version actuelle si la nouvelle ne répond pas.</p>{{end}}
 </section>{{end}}{{end}}
+{{/* Onglets (retour du 19/11 : « tout est mélangé », SPEC § 66). Sans
+     JavaScript, tous les panneaux restent visibles, l'un sous l'autre. */}}
+<nav class="onglets onglets-machine" data-onglets-panneaux="machine" aria-label="Parties de la page">
+{{if or .D.Maintenant .D.Gourmands .D.Rangees}}<a href="#vue" data-onglet="vue">Vue d'ensemble</a>{{end}}
+{{if .D.Collecteur}}<a href="#collecte" data-onglet="collecte">Collecte</a>{{end}}
+<a href="#activite" data-onglet="activite">Activité{{with .D.Services}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}{{with .D.Paquets}}{{if .NbSecurite}} <span class="pastille attention" title="paquets de sécurité">{{.NbSecurite}}</span>{{end}}{{end}}</a>
+{{if or .D.Sondes .D.Element .D.RelevePar}}<a href="#reseau" data-onglet="reseau">Sondes et liens{{with .D.Sondes}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}</a>{{end}}
+<a href="#reglages" data-onglet="reglages">Réglages{{if .D.Agent}}{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}}</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}}</span>{{end}}{{end}}</a>
+</nav>
+{{if or .D.Maintenant .D.Gourmands .D.Rangees}}<div class="panneau-onglet" data-panneau-onglet="vue">
+{{if .D.Maintenant}}<section class="carte" id="maintenant"><div class="entete-carte"><h2>En ce moment</h2><p class="sous">Détail : <a href="/machines/{{$m.Nom}}/detail/cpu" data-panneau>Processeur</a> · <a href="/machines/{{$m.Nom}}/detail/memoire" data-panneau>Mémoire</a> · <a href="/machines/{{$m.Nom}}/detail/disques" data-panneau>Disques</a> · <a href="/machines/{{$m.Nom}}/detail/reseau" data-panneau>Réseau</a> (ou clic sur une tuile)</p></div><div class="resume-machine">
+{{range .D.Maintenant}}{{if .Lien}}<a class="jauge-machine lien-panneau" href="/machines/{{$m.Nom}}/detail/{{.Lien}}" data-panneau title="Voir le détail">{{else}}<div class="jauge-machine">{{end}}<small>{{.Titre}}</small><b>{{.Valeur}}</b>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}
+</div></section>{{end}}
+{{with .D.Gourmands}}<section class="carte" id="gourmands"><h2>Les plus gourmands</h2><p><small>Conteneurs Docker, en ce moment (processeur : part de toute la machine). Les processus ne sont pas relevés par l'agent. <a href="/conteneurs?machine={{$m.Nom}}">Tous les conteneurs de {{$m.Nom}}</a></small></p>
+<div class="gourmands">{{if .CPU}}<div><h3>Processeur</h3><table class="barres">{{range .CPU}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}
+{{if .Memoire}}<div><h3>Mémoire</h3><table class="barres">{{range .Memoire}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}</div></section>{{end}}
+{{if .D.Rangees}}
+<nav class="sommaire-machine">{{range .D.Rangees}}<a href="#{{ancre .Titre}}">{{.Titre}}</a>{{end}}{{if .D.Agent}}<a href="#surveillance-modeles">Surveillance et modèles</a>{{end}}<a href="/logs?host={{$m.Nom}}">Logs</a>
+<span class="segment periode">{{$p := .D.Periode}}{{range .D.Periodes}}<a href="/machines/{{$m.Nom}}?periode={{.}}#graphiques"{{if egal . $p}} class="actif"{{end}}>{{periodeFr .}}</a>{{end}}</span></nav>
+<div id="graphiques" data-regrouper-vides data-memoire-replie="machine">{{template "rangees" .D.Rangees}}</div>{{end}}
+</div>{{end}}
+{{if .D.Collecteur}}<div class="panneau-onglet" data-panneau-onglet="collecte">
 {{if .D.Collecteur}}<section class="carte" id="equipements">
 <div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
 {{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
@@ -98,18 +120,8 @@
 {{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
 </form>
 </section>{{end}}
-{{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
-{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
-
-{{with .D.Paquets}}<details class="carte section-surveillance" id="paquets" data-memoire-ouvert="paquets"{{if .Ouvrir}} data-ouvrir{{end}}><summary><h2>Paquets à mettre à jour</h2>{{if .Nombre}} <span class="pastille{{if .NbSecurite}} attention{{end}}">{{.Nombre}}{{if .NbSecurite}}, dont {{.NbSecurite}} de sécurité{{else}}, aucun de sécurité{{end}}</span>{{else}} <span class="pastille ok">À jour</span>{{end}}{{if .Redemarrage}} <span class="pastille attention">Redémarrage nécessaire</span>{{end}}</summary>
-<p class="sous">Liste lue par l'agent avec « apt-get --simulate dist-upgrade » (simulation : rien n'est installé), toutes les 6 h. Commande à lancer sur la machine : <code>sudo apt update &amp;&amp; sudo apt upgrade</code> (mirador n'installe jamais rien).{{if .Tronquee}} Seuls les {{len .Lignes}} premiers paquets sont listés.{{end}}</p>
-{{if .Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Paquet</th><th>Version installée</th><th>Nouvelle version</th><th>Type</th></tr></thead><tbody>
-{{range .Lignes}}<tr><td><strong>{{.Nom}}</strong></td><td class="doux">{{.Avant}}</td><td>{{.Apres}}</td><td>{{if .Securite}}<span class="pastille attention">Sécurité</span>{{else}}<span class="pastille">Normal</span>{{end}}</td></tr>{{end}}
-</tbody></table></div>{{else if .SansListe}}<p class="vide">L'agent de cette machine envoie le nombre de paquets ({{.Nombre}}) mais pas encore leur liste : elle arrive avec la mise à jour de l'agent.</p>{{end}}
-</details>{{end}}
-{{with .D.Element}}<section class="carte" id="etiquettes"><div class="grille-deux"><div><h2>Liens</h2>{{if .Liens}}<div class="relations">{{range .Liens}}<a href="{{.Lien}}"><small>{{.Quoi}}</small>{{.Nom}}</a>{{end}}</div>{{else}}<p class="vide">Aucune application ni collecteur.</p>{{end}}</div>
-<div><h2>Étiquettes</h2><p>{{range $k, $v := .Etiquettes}}<a class="etiq" href="/elements?etiquette={{$k}}={{$v}}"><b>{{$k}}</b><span>{{$v}}</span></a>{{else}}<span class="vide">Aucune.</span>{{end}}</p>
-{{if $.Admin}}<form method="post" action="/etiquettes" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="element" value="{{.Cle}}"><input type="hidden" name="retour" value="{{.Retour}}"><label class="masque-visuel" for="etq-machine">Étiquettes</label><input id="etq-machine" name="etiquettes" value="{{.Texte}}" maxlength="1200" placeholder="critique=oui, role=dns"><button class="secondaire">Enregistrer</button></form>{{end}}</div></div></section>{{end}}
+</div>{{end}}
+<div class="panneau-onglet" data-panneau-onglet="activite">
 {{with .D.Changements}}<details class="carte section-surveillance" id="changements" data-memoire-ouvert="changements"{{if .Recent}} data-ouvrir{{end}}><summary><h2>Changements</h2> <span class="pastille">{{.Total}} sur 7 jours</span></summary>
 <p class="sous">Paquets, redémarrages, noyau, agent, conteneurs et réglages des 7 derniers jours (aussi en pointillés sur les courbes). {{template "plus" "aide.md#changements"}}</p>
 {{if .Lignes}}<div class="defile"><table data-cartes data-sans-filtre class="changements"><thead><tr><th>Quand</th><th>Type</th><th>Détail</th></tr></thead><tbody>
@@ -119,6 +131,24 @@
 {{range .Anciennes}}{{template "ligne-changement" .}}{{end}}
 </tbody></table></div></details>{{end}}{{else}}<p class="vide">Aucun changement repéré depuis 7 jours.</p>{{end}}
 </details>{{end}}
+{{with .D.Paquets}}<details class="carte section-surveillance" id="paquets" data-memoire-ouvert="paquets"{{if .Ouvrir}} data-ouvrir{{end}}><summary><h2>Paquets à mettre à jour</h2>{{if .Nombre}} <span class="pastille{{if .NbSecurite}} attention{{end}}">{{.Nombre}}{{if .NbSecurite}}, dont {{.NbSecurite}} de sécurité{{else}}, aucun de sécurité{{end}}</span>{{else}} <span class="pastille ok">À jour</span>{{end}}{{if .Redemarrage}} <span class="pastille attention">Redémarrage nécessaire</span>{{end}}</summary>
+<p class="sous">Liste lue par l'agent avec « apt-get --simulate dist-upgrade » (simulation : rien n'est installé), toutes les 6 h. Commande à lancer sur la machine : <code>sudo apt update &amp;&amp; sudo apt upgrade</code> (mirador n'installe jamais rien).{{if .Tronquee}} Seuls les {{len .Lignes}} premiers paquets sont listés.{{end}}</p>
+{{if .Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Paquet</th><th>Version installée</th><th>Nouvelle version</th><th>Type</th></tr></thead><tbody>
+{{range .Lignes}}<tr><td><strong>{{.Nom}}</strong></td><td class="doux">{{.Avant}}</td><td>{{.Apres}}</td><td>{{if .Securite}}<span class="pastille attention">Sécurité</span>{{else}}<span class="pastille">Normal</span>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else if .SansListe}}<p class="vide">L'agent de cette machine envoie le nombre de paquets ({{.Nombre}}) mais pas encore leur liste : elle arrive avec la mise à jour de l'agent.</p>{{end}}
+</details>{{end}}
+{{with .D.Services}}<details class="carte section-surveillance" id="services" data-memoire-ouvert="services"{{if .NbEchec}} data-ouvrir{{end}}><summary><h2>Services</h2>{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}} en échec</span>{{end}}{{if .NbArretes}} <span class="pastille attention">{{.NbArretes}} {{accord .NbArretes "arrêté(s)"}}</span>{{end}} <span class="pastille ok">{{.NbActifs}} {{accord .NbActifs "actif(s)"}}</span>{{if .NbDemande}} <span class="pastille">{{.NbDemande}} à la demande</span>{{end}}</summary>
+<p class="sous">Services systemd de la machine. Ouvert d'office quand un service est en échec ; sinon, le choix est retenu par ce navigateur. {{if .NbCaches}}{{.NbCaches}} {{accord .NbCaches "service(s)"}} du système (systemd-*, getty, dbus…) {{accord .NbCaches "caché(s)"}}.{{end}} « À la demande » : ni en échec, ni lancé au démarrage (minuterie, socket, à la main).</p>
+<p class="onglets" data-onglets-lignes="services"><button type="button" class="actif" data-filtre="">Tous ({{len .Lignes}})</button><button type="button" data-filtre="echec">À regarder ({{.NbARegarder}})</button><button type="button" data-filtre="demarrage">Au démarrage ({{.NbDemarrage}})</button><button type="button" data-filtre="surveille">Surveillés ({{.NbSurveilles}})</button></p>
+<div class="defile"><table data-cartes data-lignes-filtrees="services"><thead><tr><th>Service</th><th>État</th><th>Au démarrage</th><th class="nombre">Redémarrages 24 h</th><th>Surveillé</th><th></th></tr></thead><tbody>
+{{range .Lignes}}<tr data-groupes="{{.Groupes}}"><td><strong>{{.Nom}}</strong></td><td><span class="pastille {{.Classe}}">{{.Etat}}</span></td><td>{{if .AuDemarrage}}oui{{else}}<span class="doux">non</span>{{end}}</td><td class="nombre">{{if .Redemarrages}}<strong>{{.Redemarrages}}</strong>{{else}}0{{end}}</td><td>{{if .Surveille}}<span class="pastille ok">oui</span>{{else}}<span class="doux">non</span>{{end}}</td><td><a class="pastille" href="{{.LienLogs}}">Logs</a></td></tr>{{end}}
+</tbody></table></div>
+</details>{{end}}
+<section class="carte"><h2>Volume des logs (lignes reçues par minute, {{.D.Periode}})</h2>
+<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}&amp;instance={{.D.M.Nom}}"></div>
+<p><small><a href="/logs?host={{.D.M.Nom}}&amp;periode={{.D.Periode}}">Voir les logs de {{.D.M.Nom}}</a></small></p></section>
+</div>
+{{if or .D.Sondes .D.Element .D.RelevePar}}<div class="panneau-onglet" data-panneau-onglet="reseau">
 {{with .D.Sondes}}<details class="carte section-surveillance" id="sondes" data-memoire-ouvert="sondes"><summary><h2>Sondes</h2>{{if .NbPings}} <span class="pastille ok">{{.NbPings}} ping{{if gt .NbPings 1}}s{{end}}</span>{{end}}{{if .Sondes}} <span class="pastille">{{len .Sondes}} {{accord (len .Sondes) "sonde(s)"}}</span>{{end}}{{if .Propositions}} <span class="pastille info">{{len .Propositions}} {{accord (len .Propositions) "port(s) ouvert(s)"}}</span>{{end}}</summary>
 <p class="sous">La machine vue du réseau : ping et services essayés depuis un collecteur de son site (ou depuis le serveur pour une adresse publique). Les ports ouverts sont trouvés par l'agent, qui essaie chacun une fois pour savoir s'il parle HTTPS, HTTP ou SSH. {{template "plus" "aide.md#sondes"}}</p>
 {{if .Sondes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Cible</th><th>Depuis</th><th>Dernier essai</th>{{if $.Admin}}<th></th>{{end}}</tr></thead><tbody>
@@ -141,27 +171,13 @@
 <div class="ligne"><button name="action" value="ajouter" data-code>Enregistrer les sondes</button></div>{{else if not .AgentAncien}}<p class="vide">Aucun port ouvert vers le réseau trouvé par l'agent (ou détection en cours : quelques minutes après le démarrage de l'agent).</p>{{end}}
 {{template "code2fa"}}</form>{{end}}
 </details>{{end}}
-{{with .D.Services}}<details class="carte section-surveillance" id="services" data-memoire-ouvert="services"{{if .NbEchec}} data-ouvrir{{end}}><summary><h2>Services</h2>{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}} en échec</span>{{end}}{{if .NbArretes}} <span class="pastille attention">{{.NbArretes}} {{accord .NbArretes "arrêté(s)"}}</span>{{end}} <span class="pastille ok">{{.NbActifs}} {{accord .NbActifs "actif(s)"}}</span>{{if .NbDemande}} <span class="pastille">{{.NbDemande}} à la demande</span>{{end}}</summary>
-<p class="sous">Services systemd de la machine. Ouvert d'office quand un service est en échec ; sinon, le choix est retenu par ce navigateur. {{if .NbCaches}}{{.NbCaches}} {{accord .NbCaches "service(s)"}} du système (systemd-*, getty, dbus…) {{accord .NbCaches "caché(s)"}}.{{end}} « À la demande » : ni en échec, ni lancé au démarrage (minuterie, socket, à la main).</p>
-<p class="onglets" data-onglets-lignes="services"><button type="button" class="actif" data-filtre="">Tous ({{len .Lignes}})</button><button type="button" data-filtre="echec">À regarder ({{.NbARegarder}})</button><button type="button" data-filtre="demarrage">Au démarrage ({{.NbDemarrage}})</button><button type="button" data-filtre="surveille">Surveillés ({{.NbSurveilles}})</button></p>
-<div class="defile"><table data-cartes data-lignes-filtrees="services"><thead><tr><th>Service</th><th>État</th><th>Au démarrage</th><th class="nombre">Redémarrages 24 h</th><th>Surveillé</th><th></th></tr></thead><tbody>
-{{range .Lignes}}<tr data-groupes="{{.Groupes}}"><td><strong>{{.Nom}}</strong></td><td><span class="pastille {{.Classe}}">{{.Etat}}</span></td><td>{{if .AuDemarrage}}oui{{else}}<span class="doux">non</span>{{end}}</td><td class="nombre">{{if .Redemarrages}}<strong>{{.Redemarrages}}</strong>{{else}}0{{end}}</td><td>{{if .Surveille}}<span class="pastille ok">oui</span>{{else}}<span class="doux">non</span>{{end}}</td><td><a class="pastille" href="{{.LienLogs}}">Logs</a></td></tr>{{end}}
-</tbody></table></div>
-</details>{{end}}
-{{if .D.Maintenant}}<section class="carte" id="maintenant"><div class="entete-carte"><h2>En ce moment</h2><p class="sous">Détail : <a href="/machines/{{$m.Nom}}/detail/cpu" data-panneau>Processeur</a> · <a href="/machines/{{$m.Nom}}/detail/memoire" data-panneau>Mémoire</a> · <a href="/machines/{{$m.Nom}}/detail/disques" data-panneau>Disques</a> · <a href="/machines/{{$m.Nom}}/detail/reseau" data-panneau>Réseau</a> (ou clic sur une tuile)</p></div><div class="resume-machine">
-{{range .D.Maintenant}}{{if .Lien}}<a class="jauge-machine lien-panneau" href="/machines/{{$m.Nom}}/detail/{{.Lien}}" data-panneau title="Voir le détail">{{else}}<div class="jauge-machine">{{end}}<small>{{.Titre}}</small><b>{{.Valeur}}</b>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}
-</div></section>{{end}}
-{{with .D.Gourmands}}<section class="carte" id="gourmands"><h2>Les plus gourmands</h2><p><small>Conteneurs Docker, en ce moment (processeur : part de toute la machine). Les processus ne sont pas relevés par l'agent. <a href="/conteneurs?machine={{$m.Nom}}">Tous les conteneurs de {{$m.Nom}}</a></small></p>
-<div class="gourmands">{{if .CPU}}<div><h3>Processeur</h3><table class="barres">{{range .CPU}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}
-{{if .Memoire}}<div><h3>Mémoire</h3><table class="barres">{{range .Memoire}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td><div class="jauge"><i class="largeur-{{.Pct}}"></i></div></td></tr>{{end}}</table></div>{{end}}</div></section>{{end}}
-{{if .D.Rangees}}
-<nav class="sommaire-machine">{{range .D.Rangees}}<a href="#{{ancre .Titre}}">{{.Titre}}</a>{{end}}{{if .D.Agent}}<a href="#surveillance-modeles">Surveillance et modèles</a>{{end}}<a href="/logs?host={{$m.Nom}}">Logs</a>
-<span class="segment periode">{{$p := .D.Periode}}{{range .D.Periodes}}<a href="/machines/{{$m.Nom}}?periode={{.}}#graphiques"{{if egal . $p}} class="actif"{{end}}>{{periodeFr .}}</a>{{end}}</span></nav>
-<div id="graphiques" data-regrouper-vides data-memoire-replie="machine">{{template "rangees" .D.Rangees}}</div>{{end}}
-<section class="carte"><h2>Volume des logs (lignes reçues par minute, {{.D.Periode}})</h2>
-<div class="graphe" data-courbe="/donnees/volume-logs?periode={{.D.Periode}}&amp;instance={{.D.M.Nom}}"></div>
-<p><small><a href="/logs?host={{.D.M.Nom}}&amp;periode={{.D.Periode}}">Voir les logs de {{.D.M.Nom}}</a></small></p></section>
-
+{{with .D.Element}}<section class="carte" id="etiquettes"><div class="grille-deux"><div><h2>Liens</h2>{{if .Liens}}<div class="relations">{{range .Liens}}<a href="{{.Lien}}"><small>{{.Quoi}}</small>{{.Nom}}</a>{{end}}</div>{{else}}<p class="vide">Aucune application ni collecteur.</p>{{end}}</div>
+<div><h2>Étiquettes</h2><p>{{range $k, $v := .Etiquettes}}<a class="etiq" href="/elements?etiquette={{$k}}={{$v}}"><b>{{$k}}</b><span>{{$v}}</span></a>{{else}}<span class="vide">Aucune.</span>{{end}}</p>
+{{if $.Admin}}<form method="post" action="/etiquettes" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="element" value="{{.Cle}}"><input type="hidden" name="retour" value="{{.Retour}}"><label class="masque-visuel" for="etq-machine">Étiquettes</label><input id="etq-machine" name="etiquettes" value="{{.Texte}}" maxlength="1200" placeholder="critique=oui, role=dns"><button class="secondaire">Enregistrer</button></form>{{end}}</div></div></section>{{end}}
+{{if .D.RelevePar}}<section class="carte" id="equipements"><p>Relevé par le collecteur <a href="/machines/{{.D.RelevePar}}">{{.D.RelevePar}}</a>.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="detacher">{{template "code2fa"}}<button class="secondaire">Détacher de ce collecteur</button></form>{{end}}</section>{{end}}
+</div>{{end}}
+<div class="panneau-onglet" data-panneau-onglet="reglages">
 {{if .D.Agent}}<details class="carte section-surveillance" id="surveillance-modeles"{{if or .D.Surv.NbAValider .D.Modeles.Proposes}} open{{end}}><summary><h2>Surveillance et modèles</h2>{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}} à valider</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}} {{accord .D.Modeles.Proposes "modèle(s) détecté(s)"}}</span>{{end}}</summary>{{end}}
 {{if .D.Agent}}{{$s := .D.Surv}}<section class="carte" id="surveillance">
 <div class="entete-carte"><div><h2>À surveiller sur cette machine</h2><p class="sous">L'agent regarde ce qui existe sur la machine. Rien de nouveau n'est surveillé sans validation, et tout ce qui est surveillé peut être retiré.</p></div>
@@ -249,7 +265,6 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 </form>
 </section>{{end}}
 {{if .D.Agent}}</details>{{end}}
-
 <details class="carte"><summary><strong>Détails de la machine</strong></summary>
 <table>
 <tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>
@@ -265,7 +280,6 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <tr><th>Token lié à la machine</th><td>{{if $m.EmpreinteLiee}}Oui{{else}}Non{{end}}</td></tr>
 <tr><th>Enrôlée le</th><td>{{dateS $m.CreeLe}}</td></tr>
 </table></details>
-
 {{if .Admin}}<details class="carte"><summary><strong>Modifier la machine</strong></summary>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="etiquettes">
   <h3>Site, type, groupe</h3>
@@ -305,4 +319,5 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
   <label class="case"><input type="checkbox" name="historique" value="1"> Effacer aussi l'historique des métriques</label>
   {{template "code2fa"}}<button class="danger" data-confirmer="Supprimer {{$m.Nom}} ? C'est définitif.">Supprimer la machine</button></form>
 </details>{{end}}
+</div>
 {{end}}

@@ -174,9 +174,15 @@ func TestBlocsServicesEtPaquets(t *testing.T) {
 	if strings.Index(pqs, "openssl") > strings.Index(pqs, "curl") {
 		t.Error("paquets de sécurité pas en premier")
 	}
-	// Ordre de la page : Paquets et Services avant « En ce moment ».
-	if i, j := strings.Index(corps, `id="services"`), strings.Index(corps, `id="maintenant"`); j >= 0 && i > j {
-		t.Error("Services après « En ce moment »")
+	// Page en onglets (SPEC § 66) : « En ce moment » dans « Vue d'ensemble »,
+	// Paquets et Services dans « Activité ».
+	vue, act := strings.Index(corps, `data-panneau-onglet="vue"`), strings.Index(corps, `data-panneau-onglet="activite"`)
+	if vue < 0 || act < 0 || !(vue < strings.Index(corps, `id="maintenant"`) && strings.Index(corps, `id="maintenant"`) < act) ||
+		strings.Index(corps, `id="services"`) < act || strings.Index(corps, `id="paquets"`) < act {
+		t.Error("blocs pas dans leur onglet")
+	}
+	if !strings.Contains(corps, `data-onglets-panneaux="machine"`) {
+		t.Error("barre d'onglets absente")
 	}
 }
 

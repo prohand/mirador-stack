@@ -1047,6 +1047,13 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Page d'une machine en onglets (SPEC § 66, 19/11) : fait, à valider
+
+- Vue d'ensemble · Activité · Sondes et liens · Réglages (Collecte pour un
+  collecteur) ; alertes toujours en haut ; pastilles sur les onglets ;
+  onglet retenu et dans l'adresse. Vérifié dans Chromium (ordinateur et
+  téléphone), sans erreur JS.
+
 ## « Services » renommés « Applications » (SPEC § 65, 19/11) : fait, à valider
 
 - Menu, page, fiches, Ctrl+K, incidents ; anciennes adresses redirigées.
