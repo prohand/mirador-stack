@@ -103,8 +103,30 @@ func sondesDe(ctx context.Context, db *sql.DB, collecteur string) ([]essais.Sond
 	var out []essais.Sonde
 	for _, s := range toutes {
 		if s.Depuis == collecteur {
+			s.Machine = "" // rangement côté serveur : le collecteur n'en a pas besoin (et un ancien refuserait la clé)
 			out = append(out, s)
 		}
 	}
 	return out, nil
+}
+
+// CollecteurSite : collecteur approuvé et son site.
+type CollecteurSite struct{ Nom, Site string }
+
+// CollecteursSites : collecteurs approuvés, par site puis par nom.
+func CollecteursSites(ctx context.Context, db *sql.DB) ([]CollecteurSite, error) {
+	rows, err := db.QueryContext(ctx, `SELECT nom, site FROM machines WHERE type = 'collecteur' AND statut = 'approuvee' ORDER BY site, nom`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CollecteurSite
+	for rows.Next() {
+		var c CollecteurSite
+		if err := rows.Scan(&c.Nom, &c.Site); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

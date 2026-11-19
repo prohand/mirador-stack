@@ -726,7 +726,7 @@ document.addEventListener("change", function (e) {
         trier(table, cle);
       });
     });
-    if (table.tBodies[0].rows.length >= 6) {
+    if (table.tBodies[0].rows.length >= 6 && !table.hasAttribute("data-sans-filtre")) {
       var champ = document.createElement("input");
       champ.type = "search";
       champ.placeholder = "Filtrer ce tableau…";

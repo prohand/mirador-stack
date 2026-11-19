@@ -177,7 +177,10 @@ func TestDemoInterface(t *testing.T) {
 	// compte DNS fictif (jamais utilisé : la démarche est simulée).
 	_ = certsyslog.DefinirReglages(ctx, s.db, s.cle, certsyslog.Saisie{Fournisseur: "desec", Domaine: "exemple.org",
 		Identifiants: map[string]string{"jeton": "jeton-de-demo"}}, "demo", now)
-	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le, version_agent) VALUES ('collecteur-lan', 'approuvee', 'collecteur', ?, ?, '0.3.0')`,
+	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, type, site, cree_le, vu_le, version_agent) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 'maison', ?, ?, '0.3.0'),
+		('collecteur-bureau', 'approuvee', 'collecteur', 'bureau', ?, ?, '0.3.0')`, now.Unix()-3600, now.Unix(), now.Unix()-3600, now.Unix())
+	// Machine sans site (SPEC § 60) : on choisit le site du ping.
+	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, version_agent, architecture) VALUES ('portable', 'approuvee', ?, ?, '0.5.0', 'amd64')`,
 		now.Unix()-3600, now.Unix())
 	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) SELECT 'config_agent:machine:' || id,
 		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
@@ -218,6 +221,27 @@ func TestDemoInterface(t *testing.T) {
 		}
 	}
 	_ = s.met.Ecrire(ctx, sondesDemo)
+	// Adresses et ports ouverts trouvés par l'agent (SPEC § 60).
+	var ecoutes []stockage.Serie
+	ajout := func(inst, nom string, etq ...string) {
+		sr := stockage.Serie{Labels: []stockage.Label{{Nom: "__name__", Valeur: nom}, {Nom: "instance", Valeur: inst}, {Nom: "job", Valeur: "integrations/unix"}}}
+		for j := 0; j+1 < len(etq); j += 2 {
+			sr.Remplacer(etq[j], etq[j+1])
+		}
+		for k := -10; k < 60; k++ {
+			sr.Points = append(sr.Points, stockage.Point{T: now.Add(time.Duration(k) * 30 * time.Second).UnixMilli(), V: 1})
+		}
+		ecoutes = append(ecoutes, sr)
+	}
+	for _, inst := range []string{"vm-docker", "portable"} {
+		ip := map[string]string{"vm-docker": "192.168.1.20", "portable": "192.168.50.7"}[inst]
+		ajout(inst, "mirador_adresse_info", "interface", "eth0", "adresse", ip)
+		ajout(inst, "mirador_adresse_info", "interface", "eth0", "adresse", "fd00::20")
+		for _, p := range [][2]string{{"22", "ssh"}, {"80", "http"}, {"443", "https"}, {"8123", "http"}, {"9443", "https"}, {"5432", "tcp"}, {"111", "tcp"}} {
+			ajout(inst, "mirador_port_ecoute", "port", p[0], "adresse", "*", "protocole", p[1])
+		}
+	}
+	_ = s.met.Ecrire(ctx, ecoutes)
 	// Services (SPEC § 50).
 	_ = servicesmetier.Enregistrer(ctx, s.db, []servicesmetier.Service{
 		{Nom: "Domotique", Composants: []servicesmetier.Composant{{Sorte: "sonde", Nom: "Home Assistant", Cle: true},

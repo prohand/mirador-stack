@@ -1047,6 +1047,22 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Sondes depuis la page machine (SPEC § 60, 19/11) : fait, à valider
+
+- Agent : adresses IP et ports ouverts (lus dans `/proc/net/tcp`), protocole
+  détecté une fois par port (HTTPS, HTTP, SSH, TCP).
+- Page machine › **Sondes** : « Activer le ping » depuis le collecteur du
+  site (ou le site choisi si la machine n'en a pas), sondes proposées
+  cochées d'office (HTTPS, HTTP, SSH), ajoutées en un clic.
+- Mesures : agent 0,28 ms et 300 Kio passagers toutes les 5 min (40 ports,
+  2 000 connexions) ; serveur : 2 requêtes de plus à l'ouverture de la page
+  machine. Objectifs tenus.
+- À faire chez l'utilisateur : mettre à jour les agents (adresses et ports)
+  et le serveur ; les collecteurs n'ont pas besoin de changer.
+- Vérification proposée : page d'une machine du site du collecteur ›
+  Sondes : le collecteur est choisi d'office, les ports apparaissent
+  quelques minutes après la mise à jour de l'agent.
+
 ## Design et architecture repris de New Relic (18/11, SPEC § 53 à 59)
 
 Demande du 18/11 : « fais tout ». Ordre : journal d'événements, incident,

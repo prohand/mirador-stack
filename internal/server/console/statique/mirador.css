@@ -1213,3 +1213,5 @@ dialog.aller-boite li a.aller-lien { flex: 1; }
 dialog.aller-boite li.aller-section { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pale); padding: 10px 10px 4px; }
 .aller-favori { background: none; border: 0; color: var(--pale); font-size: 16px; cursor: pointer; padding: 4px 8px; min-height: 0; box-shadow: none; }
 .aller-favori:hover { color: var(--attention); }
+.sondes-machine .ligne { margin: .6rem 0; }
+.sondes-machine h3 { margin: 1rem 0 .4rem; font-size: 1rem; }

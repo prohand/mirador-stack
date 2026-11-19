@@ -1,0 +1,391 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package console
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/netip"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"mirador-stack/internal/server/flotte"
+	essais "mirador-stack/internal/sondes"
+)
+
+// Bloc « Sondes » de la page d'une machine (SPEC § 60) :
+//   - ping de la machine depuis un collecteur de son site (ou du site
+//     choisi si la machine n'en a pas) ;
+//   - sondes proposées d'après les ports ouverts que l'agent a trouvés
+//     (HTTPS, HTTP, SSH, TCP), ajoutées en un clic ;
+//   - sondes déjà rangées sous la machine, avec leur dernier essai.
+//
+// Coût à l'ouverture : 2 requêtes instantanées sur les séries de la
+// machine (adresses, ports) et les 4 des sondes (déjà faites par la page
+// Sondes). Rien n'est mesuré en continu en plus.
+
+type depuisSonde struct {
+	Nom, Libelle string
+	MemeSite     bool
+}
+
+type ligneSondeMachine struct {
+	Nom, Type, Cible, Depuis string
+	Etat, Classe             string
+}
+
+type propositionSonde struct {
+	Valeur  string // type|cible|nom|nonverifie (relu et vérifié au retour)
+	Nom     string
+	Quoi    string // « HTTPS · port 443 (web) »
+	Cible   string
+	Deja    string // nom de la sonde qui le fait déjà
+	Coche   bool
+	Inconnu bool // port sans nom connu (replié)
+}
+
+type vueSondesMachine struct {
+	Machine      string
+	Site         string
+	Sondes       []ligneSondeMachine
+	Adresses     []string
+	Adresse      string // adresse proposée (privée IPv4 d'abord)
+	Depuis       []depuisSonde
+	DepuisDefaut string
+	SansSite     bool   // la machine n'a pas de site : on choisit
+	SiteSansColl bool   // site sans collecteur
+	Ping         string // nom de la sonde ping existante
+	Propositions []propositionSonde
+	AgentAncien  bool // ni adresses ni ports : agent à mettre à jour
+}
+
+// nomsPorts : services connus (affichage et nom de la sonde).
+var nomsPorts = map[int]string{
+	21: "FTP", 22: "SSH", 25: "SMTP", 53: "DNS", 80: "web", 110: "POP3", 139: "SMB", 143: "IMAP",
+	389: "LDAP", 443: "web", 445: "SMB", 465: "SMTPS", 587: "SMTP", 631: "CUPS", 636: "LDAPS",
+	853: "DNS TLS", 993: "IMAPS", 995: "POP3S", 1883: "MQTT", 2049: "NFS", 3000: "Grafana",
+	3306: "MySQL", 3389: "RDP", 5000: "DSM", 5001: "DSM", 5432: "PostgreSQL", 5900: "VNC",
+	6379: "Redis", 8006: "Proxmox", 8080: "web", 8096: "Jellyfin", 8123: "Home Assistant",
+	8443: "web", 8883: "MQTT TLS", 9000: "web", 9090: "Cockpit", 9443: "Portainer",
+	27017: "MongoDB", 32400: "Plex",
+}
+
+// portsSansInteret : ports qu'on ne propose pas (services système internes).
+var portsSansInteret = map[int]bool{111: true}
+
+func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, releveur string, t time.Time) *vueSondesMachine {
+	v := &vueSondesMachine{Machine: m.Nom, Site: m.Site, SansSite: m.Site == ""}
+	// Collecteurs : ceux du site d'abord.
+	cs, _ := flotte.CollecteursSites(ctx, c.db)
+	for _, x := range cs {
+		lib := x.Nom
+		if x.Site != "" {
+			lib = "site « " + x.Site + " » · collecteur " + x.Nom
+		} else {
+			lib = "sans site · collecteur " + x.Nom
+		}
+		v.Depuis = append(v.Depuis, depuisSonde{Nom: x.Nom, Libelle: lib, MemeSite: m.Site != "" && x.Site == m.Site})
+	}
+	sort.SliceStable(v.Depuis, func(i, j int) bool { return v.Depuis[i].MemeSite && !v.Depuis[j].MemeSite })
+	switch {
+	case len(v.Depuis) > 0 && v.Depuis[0].MemeSite:
+		v.DepuisDefaut = v.Depuis[0].Nom
+	case releveur != "":
+		v.DepuisDefaut = releveur // collecteur qui relève déjà la machine
+	}
+	v.SiteSansColl = m.Site != "" && v.DepuisDefaut == ""
+	v.Depuis = append(v.Depuis, depuisSonde{Nom: essais.ServeurLocal, Libelle: "serveur mirador (adresse publique seulement)"})
+
+	// Adresses et ports trouvés par l'agent.
+	type port struct {
+		num               int
+		adresse, protocol string
+	}
+	var ports []port
+	if c.lecteur != nil {
+		sel := `{instance=` + strconv.Quote(m.Nom) + `}`
+		if ech, err := c.instant(ctx, `max by (adresse) (mirador_adresse_info`+sel+`)`, t); err == nil {
+			for _, e := range ech {
+				v.Adresses = append(v.Adresses, e.Etiquettes.Get("adresse"))
+			}
+		}
+		if ech, err := c.instant(ctx, `max by (port, adresse, protocole) (mirador_port_ecoute`+sel+`)`, t); err == nil {
+			for _, e := range ech {
+				n, err := strconv.Atoi(e.Etiquettes.Get("port"))
+				if err == nil {
+					ports = append(ports, port{n, e.Etiquettes.Get("adresse"), e.Etiquettes.Get("protocole")})
+				}
+			}
+		}
+	}
+	trierAdresses(v.Adresses)
+	if len(v.Adresses) > 0 {
+		v.Adresse = v.Adresses[0]
+	}
+	v.AgentAncien = len(v.Adresses) == 0 && len(ports) == 0
+
+	// Sondes existantes : celles rangées sous la machine, et toutes les
+	// cibles (une proposition déjà faite n'est pas reproposée).
+	liste, _ := flotte.LireSondes(ctx, c.db)
+	lues := c.sondesLues(ctx, t)
+	cibles := map[string]string{}
+	for _, s := range liste {
+		cibles[cleCible(s.Type, s.Cible)] = s.Nom
+		if s.Machine != m.Nom {
+			continue
+		}
+		l := ligneSondeMachine{Nom: s.Nom, Type: s.Type, Cible: s.Cible, Depuis: s.Depuis}
+		l.Etat, l.Classe, _ = etatSondeLue(lues, s)
+		v.Sondes = append(v.Sondes, l)
+		if s.Type == essais.Ping {
+			v.Ping = s.Nom
+		}
+	}
+
+	sort.Slice(ports, func(i, j int) bool { return ports[i].num < ports[j].num })
+	for _, p := range ports {
+		_, connu := nomsPorts[p.num]
+		// Ports système (rpcbind) et ports hauts sans nom (souvent choisis
+		// au hasard au démarrage d'un service : RPC, NFS…) : pas proposés.
+		if portsSansInteret[p.num] || !connu && p.num >= 32768 {
+			continue
+		}
+		hote := p.adresse
+		if hote == "*" || hote == "" {
+			hote = v.Adresse
+		}
+		if hote == "" {
+			continue
+		}
+		pr := proposer(m.Nom, hote, p.num, p.protocol)
+		pr.Deja = cibles[cleCible(typeDeValeur(pr.Valeur), pr.Cible)]
+		pr.Inconnu = !connu
+		pr.Coche = pr.Deja == "" && (p.protocol == "https" || p.protocol == "http" || p.protocol == "ssh")
+		v.Propositions = append(v.Propositions, pr)
+	}
+	return v
+}
+
+// trierAdresses : IPv4 privées d'abord, puis IPv4, puis IPv6.
+func trierAdresses(as []string) {
+	rang := func(s string) int {
+		a, err := netip.ParseAddr(s)
+		switch {
+		case err != nil:
+			return 9
+		case a.Is4() && a.IsPrivate():
+			return 0
+		case a.Is4():
+			return 1
+		case a.IsPrivate():
+			return 2
+		}
+		return 3
+	}
+	sort.SliceStable(as, func(i, j int) bool { return rang(as[i]) < rang(as[j]) })
+}
+
+// hotePort : « 192.168.1.5:443 », « [fd00::5]:443 ».
+func hotePort(hote string, port int) string {
+	if a, err := netip.ParseAddr(hote); err == nil {
+		return netip.AddrPortFrom(a, uint16(port)).String() // #nosec G115 -- port lu d'une étiquette, 1 à 65535
+	}
+	return hote + ":" + strconv.Itoa(port)
+}
+
+// proposer : sonde proposée pour un port ouvert.
+func proposer(machine, hote string, port int, protocole string) propositionSonde {
+	nomPort := nomsPorts[port]
+	quoi := strings.ToUpper(protocole)
+	typ, cible, nv := essais.TCP, hotePort(hote, port), false
+	switch protocole {
+	case "https":
+		typ, nv = essais.HTTP, true // adresse IP : le certificat ne peut pas correspondre
+		cible = "https://" + hotePort(hote, port) + "/"
+		if port == 443 {
+			cible = "https://" + crochets(hote) + "/"
+		}
+	case "http":
+		typ = essais.HTTP
+		cible = "http://" + hotePort(hote, port) + "/"
+		if port == 80 {
+			cible = "http://" + crochets(hote) + "/"
+		}
+	case "ssh":
+		quoi = "SSH"
+	case "tls":
+		quoi = "TLS"
+	default:
+		quoi = "TCP"
+	}
+	libelle := quoi + " · port " + strconv.Itoa(port)
+	if nomPort != "" && !strings.EqualFold(nomPort, quoi) {
+		libelle += " (" + nomPort + ")"
+	}
+	// Port toujours dans le nom : deux ports d'un même service (SMB 139
+	// et 445, DSM 5000 et 5001) donnent deux noms.
+	court := quoi + " " + strconv.Itoa(port)
+	if nomPort != "" && nomPort != "web" && !strings.EqualFold(nomPort, quoi) {
+		court = nomPort + " " + strconv.Itoa(port)
+	}
+	nom := nomSonde(machine, court)
+	val := typ + "|" + cible + "|" + nom + "|" + strconv.FormatBool(nv)
+	return propositionSonde{Valeur: val, Nom: nom, Quoi: libelle, Cible: cible}
+}
+
+func crochets(hote string) string {
+	if a, err := netip.ParseAddr(hote); err == nil && a.Is6() {
+		return "[" + hote + "]"
+	}
+	return hote
+}
+
+// nomSonde : « nas HTTPS 5001 » ; caractères hors du permis remplacés,
+// 48 caractères au plus.
+func nomSonde(machine, quoi string) string {
+	var b strings.Builder
+	for _, r := range machine {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', strings.ContainsRune(" _.()'-", r), r > 127:
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	m := []rune(b.String())
+	max := 47 - len([]rune(quoi))
+	if len(m) > max {
+		m = m[:max]
+	}
+	return string(m) + " " + quoi
+}
+
+func typeDeValeur(v string) string { t, _, _ := strings.Cut(v, "|"); return t }
+
+// cleCible : même cible (le / final ne compte pas).
+func cleCible(typ, cible string) string {
+	return typ + " " + strings.TrimSuffix(strings.ToLower(cible), "/")
+}
+
+// postSondesMachine : ping, ajout des propositions, retrait.
+func (c *Console) postSondesMachine(q *req) {
+	ctx := q.r.Context()
+	nom := q.r.PathValue("nom")
+	retour := "/machines/" + url.PathEscape(nom) + "#sondes"
+	if err := c.verifierCode(q); err != nil {
+		c.retour(q, retour, err, "")
+		return
+	}
+	m, ok := c.machine(q)
+	if !ok {
+		c.retour(q, retour, errors.New("machine introuvable"), "")
+		return
+	}
+	liste, err := flotte.LireSondes(ctx, c.db)
+	if err != nil {
+		c.retour(q, retour, err, "")
+		return
+	}
+	f := champs{q}
+	depuis := f.texte("depuis")
+	if depuis == "" && f.texte("action") != "retirer" {
+		c.retour(q, retour, errors.New("choisir d'où faire la sonde (site et collecteur)"), "")
+		return
+	}
+	var ajout []essais.Sonde
+	switch f.texte("action") {
+	case "ping":
+		adresse := f.texte("adresse")
+		if _, err := netip.ParseAddr(adresse); err != nil && !nomHoteValide(adresse) {
+			c.retour(q, retour, fmt.Errorf("adresse %q illisible", adresse), "")
+			return
+		}
+		ajout = append(ajout, essais.Sonde{Nom: nomSonde(m.Nom, "ping"), Type: essais.Ping, Cible: adresse, Depuis: depuis, Machine: m.Nom})
+	case "ajouter":
+		for _, v := range q.r.PostForm["p"] {
+			p := strings.SplitN(v, "|", 4)
+			if len(p) != 4 {
+				continue
+			}
+			ajout = append(ajout, essais.Sonde{Type: p[0], Cible: p[1], Nom: p[2], NonVerifie: p[3] == "true", Depuis: depuis, Machine: m.Nom})
+		}
+		if len(ajout) == 0 {
+			c.retour(q, retour, errors.New("aucune sonde cochée"), "")
+			return
+		}
+	case "retirer":
+		s := f.texte("sonde")
+		garde := liste[:0]
+		for _, x := range liste {
+			if !(x.Nom == s && x.Machine == m.Nom) {
+				garde = append(garde, x)
+			}
+		}
+		err = flotte.EnregistrerSondes(ctx, c.db, garde, q.qui(), q.t)
+		c.retour(q, retour, err, "sonde « "+s+" » retirée")
+		return
+	default:
+		c.retour(q, retour, errors.New("action inconnue"), "")
+		return
+	}
+	// Depuis le serveur : adresses publiques seulement (le serveur refuse
+	// le réseau local, SPEC § 48) ; dit tout de suite plutôt qu'au 1er essai.
+	if depuis == essais.ServeurLocal {
+		for _, s := range ajout {
+			if adressePrivee(s) {
+				c.retour(q, retour, fmt.Errorf("« %s » vise une adresse du réseau local : le serveur ne peut pas la joindre, choisir un collecteur", s.Nom), "")
+				return
+			}
+		}
+	}
+	var noms []string
+	for _, s := range ajout {
+		noms = append(noms, "« "+s.Nom+" »")
+	}
+	err = flotte.EnregistrerSondes(ctx, c.db, append(liste, ajout...), q.qui(), q.t)
+	c.retour(q, retour, err, strings.Join(noms, ", ")+" "+accordSimple(len(ajout), "ajoutée", "ajoutées")+" : premier essai dans la minute")
+}
+
+func accordSimple(n int, un, plusieurs string) string {
+	if n > 1 {
+		return plusieurs
+	}
+	return un
+}
+
+// adressePrivee : la cible est une adresse IP du réseau local.
+func adressePrivee(s essais.Sonde) bool {
+	hote := s.Cible
+	if u, err := url.Parse(s.Cible); err == nil && u.Host != "" {
+		hote = u.Hostname()
+	} else if h, _, err := splitHotePort(s.Cible); err == nil {
+		hote = h
+	}
+	a, err := netip.ParseAddr(hote)
+	return err == nil && (a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast())
+}
+
+func splitHotePort(s string) (string, string, error) {
+	ap, err := netip.ParseAddrPort(s)
+	if err != nil {
+		return "", "", err
+	}
+	return ap.Addr().String(), strconv.Itoa(int(ap.Port())), nil
+}
+
+// nomHoteValide : nom d'hôte simple (lettres, chiffres, - et .).
+func nomHoteValide(s string) bool {
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '.') {
+			return false
+		}
+	}
+	return true
+}

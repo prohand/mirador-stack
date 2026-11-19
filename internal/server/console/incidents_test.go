@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/servicesmetier"
+	essais "mirador-stack/internal/sondes"
 )
 
 // Incidents (SPEC § 54) : regroupement par machine / service / site,
@@ -41,6 +43,13 @@ func TestIncidents(t *testing.T) {
 	alerte("AgentMuet", `{"instance":"pve2"}`, 48*time.Hour-2*time.Minute, 47*time.Hour)
 	// Sans lien : une alerte isolée sur nas, 1 jour avant.
 	alerte("DisquePlein", `{"instance":"nas"}`, 24*time.Hour, 23*time.Hour)
+	// Ping de nas fait par le collecteur « lan » (SPEC § 60) : avec nas,
+	// pas avec le collecteur.
+	_, _ = b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('lan', 'approuvee', 'collecteur', 1)`)
+	if err := flotte.EnregistrerSondes(t.Context(), b.c.db, []essais.Sonde{{Nom: "nas ping", Type: essais.Ping, Cible: "192.168.1.5", Depuis: "lan", Machine: "nas"}}, "test", m); err != nil {
+		t.Fatal(err)
+	}
+	alerte("SondeEnEchec", `{"instance":"lan","sonde":"nas ping"}`, 24*time.Hour-time.Minute, 23*time.Hour)
 	_, _ = b.c.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('vm-docker', ?, 'paquets', 'openssl 1 → 2, curl 1 → 2')`, m.Add(-3*time.Hour-8*time.Minute).Unix())
 
 	incs := b.c.incidentsDe(t.Context(), m.Add(-30*24*time.Hour), m)
@@ -51,7 +60,7 @@ func TestIncidents(t *testing.T) {
 	for _, i := range incs {
 		titres[i.Titre] = len(i.Alertes)
 	}
-	for titre, n := range map[string]int{"Domotique : AgentMuet · 2 alertes": 2, "Site maison injoignable (2 machines) · 2 alertes": 2, "nas : DisquePlein": 1} {
+	for titre, n := range map[string]int{"Domotique : AgentMuet · 2 alertes": 2, "Site maison injoignable (2 machines) · 2 alertes": 2, "nas : DisquePlein · 2 alertes": 2} {
 		if titres[titre] != n {
 			t.Errorf("%q : %d alertes (%v)", titre, titres[titre], titres)
 		}

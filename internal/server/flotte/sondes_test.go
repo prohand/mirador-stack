@@ -24,7 +24,7 @@ func TestSondesCollecteur(t *testing.T) {
 		t.Fatal(err)
 	}
 	liste := []essais.Sonde{
-		{Nom: "HA", Type: essais.HTTP, Cible: "https://ha.lan:8123/", Depuis: "lan", NonVerifie: true},
+		{Nom: "HA", Type: essais.HTTP, Cible: "https://ha.lan:8123/", Depuis: "lan", NonVerifie: true, Machine: "ha"},
 		{Nom: "Nextcloud", Type: essais.HTTP, Cible: "https://cloud.exemple.fr/status.php", Depuis: essais.ServeurLocal},
 	}
 	if err := EnregistrerSondes(ctx, b.db, append(liste, essais.Sonde{Nom: "X", Type: essais.TCP, Cible: "a:1", Depuis: "inconnu"}), "admin", t0); err == nil {
@@ -51,6 +51,16 @@ func TestSondesCollecteur(t *testing.T) {
 	}
 	if len(cfg.Collecteur.Services) != 1 || cfg.Collecteur.Services[0].Nom != "HA" || !cfg.Collecteur.Services[0].NonVerifie {
 		t.Fatalf("part du collecteur : %s", doc)
+	}
+	// La machine sondée reste au serveur (un ancien collecteur refuserait la clé).
+	if strings.Contains(string(doc), `"machine"`) {
+		t.Errorf("clé machine envoyée au collecteur : %s", doc)
+	}
+	if l, _ := LireSondes(ctx, b.db); len(l) != 2 || l[0].Machine != "ha" {
+		t.Errorf("machine non gardée : %+v", l)
+	}
+	if cs, err := CollecteursSites(ctx, b.db); err != nil || len(cs) != 1 || cs[0].Nom != "lan" {
+		t.Errorf("collecteurs et sites : %+v %v", cs, err)
 	}
 	// Collecteur ancien : clé retirée, le reste intact.
 	sans, etag, err := sansServices(doc)
