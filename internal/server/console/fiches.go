@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/notif"
+	essais "mirador-stack/internal/sondes"
 )
 
 // Fiches (SPEC § 56, idée reprise de New Relic « entity overview ») : même
@@ -34,6 +36,9 @@ type donneesFiche struct {
 	Evenements  []evenement
 	Etiquettes  string // formulaire
 	Retour      string
+	// Sonde : formulaire « Modifier la sonde » (retour du 19/11).
+	Sonde  *essais.Sonde
+	Depuis []string // serveur + collecteurs
 }
 
 func (c *Console) ficheElement(q *req, cle string) {
@@ -52,6 +57,19 @@ func (c *Console) ficheElement(q *req, cle string) {
 		return
 	}
 	d := donneesFiche{E: *e, Etiquettes: texteEtiquettesElement(e.Etiquettes), Retour: q.r.URL.Path}
+	if nom, ok := strings.CutPrefix(cle, "s:"); ok {
+		if ss, err := flotte.LireSondes(ctx, c.db); err == nil {
+			for i := range ss {
+				if ss[i].Nom == nom {
+					d.Sonde = &ss[i]
+				}
+			}
+		}
+		d.Depuis = []string{essais.ServeurLocal}
+		if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
+			d.Depuis = append(d.Depuis, cs...)
+		}
+	}
 	debut := q.t.Add(-24 * time.Hour)
 	r, _ := notif.LireReglages(ctx, c.db)
 	pannes := c.pannes(ctx, r.ReglesPanne, q.t.Add(-30*24*time.Hour), q.t)

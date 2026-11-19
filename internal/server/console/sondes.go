@@ -7,6 +7,8 @@ import (
 	"errors"
 	"html/template"
 	"math"
+	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/servicesmetier"
 	essais "mirador-stack/internal/sondes"
 )
 
@@ -153,6 +156,45 @@ func (c *Console) pageSondes(q *req) {
 	c.rendre(q, "sondes", "Sondes", "sondes", d)
 }
 
+// sondeDuFormulaire : sonde lue dans le formulaire d'ajout ou de
+// modification (vérifiée ensuite par flotte.EnregistrerSondes).
+func sondeDuFormulaire(f champs) (essais.Sonde, error) {
+	code := 0
+	if v := f.texte("code_http"); v != "" {
+		var err error
+		if code, err = strconv.Atoi(v); err != nil {
+			return essais.Sonde{}, errors.New("code attendu : un nombre (ex. 200)")
+		}
+	}
+	return essais.Sonde{Nom: f.texte("nom"), Type: f.texte("type"), Cible: f.texte("cible"), Depuis: f.texte("depuis"),
+		Intervalle: f.texte("intervalle"), Lente: f.texte("lente"), Code: code, Contenu: f.texte("contenu"),
+		NonVerifie: f.coche("non_verifie"), Question: f.texte("question")}, nil
+}
+
+// renommerSonde : le nouveau nom suit dans les services (§ 50) et les
+// étiquettes (§ 59). Les séries déjà enregistrées gardent l'ancien nom
+// (l'historique des mesures repart sous le nouveau).
+func (c *Console) renommerSonde(ctx context.Context, q *req, ancien, nouveau string) {
+	if svcs, err := servicesmetier.Lire(ctx, c.db); err == nil {
+		change := false
+		for i := range svcs {
+			for j := range svcs[i].Composants {
+				if x := &svcs[i].Composants[j]; x.Sorte == servicesmetier.Sonde && x.Nom == ancien {
+					x.Nom, change = nouveau, true
+				}
+			}
+		}
+		if change {
+			_ = servicesmetier.Enregistrer(ctx, c.db, svcs, q.qui(), q.ip.String(), q.t)
+		}
+	}
+	if etq := c.lireEtiquettes(ctx)["s:"+ancien]; len(etq) > 0 {
+		if c.enregistrerEtiquettes(ctx, q, "s:"+nouveau, etq, q.t) == nil {
+			_ = c.enregistrerEtiquettes(ctx, q, "s:"+ancien, nil, q.t)
+		}
+	}
+}
+
 // Bilan du dernier essai d'une sonde.
 const (
 	bilanSansEssai = iota
@@ -236,19 +278,42 @@ func (c *Console) postSondes(q *req) {
 	}
 	switch f.texte("action") {
 	case "ajouter":
-		code := 0
-		if v := f.texte("code_http"); v != "" {
-			if code, err = strconv.Atoi(v); err != nil {
-				c.retour(q, "/sondes", errors.New("code attendu : un nombre (ex. 200)"), "")
-				return
-			}
+		var s essais.Sonde
+		if s, err = sondeDuFormulaire(f); err != nil {
+			c.retour(q, "/sondes", err, "")
+			return
 		}
-		s := essais.Sonde{Nom: f.texte("nom"), Type: f.texte("type"), Cible: f.texte("cible"), Depuis: f.texte("depuis"),
-			Intervalle: f.texte("intervalle"), Lente: f.texte("lente"), Code: code, Contenu: f.texte("contenu"),
-			NonVerifie: f.coche("non_verifie"), Question: f.texte("question")}
 		liste = append(liste, s)
 		err = flotte.EnregistrerSondes(ctx, c.db, liste, q.qui(), q.t)
 		c.retour(q, "/sondes", err, "sonde « "+s.Nom+" » ajoutée : premier essai dans la minute")
+	case "modifier":
+		// Modifier une sonde (retour du 19/11 : cible HTTPS à changer,
+		// sonde à renommer) : mêmes vérifications qu'à l'ajout ; la machine
+		// de rangement est gardée.
+		ancien := f.texte("ancien")
+		retour := "/sondes/" + url.PathEscape(ancien)
+		i := slices.IndexFunc(liste, func(x essais.Sonde) bool { return x.Nom == ancien })
+		if i < 0 {
+			c.retour(q, "/sondes", errors.New("sonde introuvable"), "")
+			return
+		}
+		s, err := sondeDuFormulaire(f)
+		if err != nil {
+			c.retour(q, retour+"#modifier", err, "")
+			return
+		}
+		s.Machine = liste[i].Machine
+		liste[i] = s
+		if err = flotte.EnregistrerSondes(ctx, c.db, liste, q.qui(), q.t); err != nil {
+			c.retour(q, retour+"#modifier", err, "")
+			return
+		}
+		ok := "sonde « " + s.Nom + " » modifiée : prise en compte dans la minute"
+		if s.Nom != ancien {
+			c.renommerSonde(ctx, q, ancien, s.Nom)
+			ok += " ; l'historique des mesures repart sous le nouveau nom"
+		}
+		c.retour(q, "/sondes/"+url.PathEscape(s.Nom), nil, ok)
 	case "supprimer":
 		nom := f.texte("nom")
 		garde := liste[:0]

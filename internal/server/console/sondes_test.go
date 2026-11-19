@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/servicesmetier"
+	essais "mirador-stack/internal/sondes"
 )
 
 // Page Sondes (SPEC § 48) : ajout (code 2FA), état, retrait.
@@ -64,5 +66,54 @@ func TestPageSondes(t *testing.T) {
 	_, corps, _ = b.get(cl, "/")
 	if !strings.Contains(corps, `href="/sondes"`) {
 		t.Error("entrée Sondes absente du menu")
+	}
+}
+
+// Modifier une sonde (retour du 19/11) : cible HTTPS changée pour le nom du
+// site, renommage suivi par les services et les étiquettes ; machine gardée.
+func TestModifierSonde(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := t.Context()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, site, cree_le) VALUES ('lan', 'approuvee', 'collecteur', 'maison', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := flotte.EnregistrerSondes(ctx, b.c.db, []essais.Sonde{{Nom: "dhcp-dns02 HTTPS 443", Type: essais.HTTP,
+		Cible: "https://192.168.35.250/", Depuis: "lan", NonVerifie: true, Machine: "dhcp-dns02"}}, "test", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	if err := servicesmetier.Enregistrer(ctx, b.c.db, []servicesmetier.Service{{Nom: "DNS",
+		Composants: []servicesmetier.Composant{{Sorte: "sonde", Nom: "dhcp-dns02 HTTPS 443", Cle: true}}}}, "test", "", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	cl, secret := b.premierAdmin("admin", mdpAdmin)
+	// Étiquette posée directement (même format que l'interface, § 59).
+	_, _ = b.c.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES ('etiquettes_elements', '{"s:dhcp-dns02 HTTPS 443":{"role":"dns"}}', 1, 'test')
+		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`)
+	_, corps, _ := b.get(cl, "/sondes/dhcp-dns02%20HTTPS%20443")
+	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("fiche de la sonde : %q absent", attendu)
+		}
+	}
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"dhcp-dns02 HTTPS 443"},
+		"nom": {"DNS02 interface"}, "type": {"http"}, "cible": {"https://dns02.lan/"}, "depuis": {"lan"}, "code": {b.code(secret)}})
+	l, _ := flotte.LireSondes(ctx, b.c.db)
+	if len(l) != 1 || l[0].Nom != "DNS02 interface" || l[0].Cible != "https://dns02.lan/" || l[0].NonVerifie || l[0].Machine != "dhcp-dns02" {
+		t.Fatalf("sonde modifiée : %+v", l)
+	}
+	if svcs, _ := servicesmetier.Lire(ctx, b.c.db); svcs[0].Composants[0].Nom != "DNS02 interface" {
+		t.Errorf("service non suivi : %+v", svcs)
+	}
+	etq := b.c.lireEtiquettes(ctx)
+	if etq["s:DNS02 interface"]["role"] != "dns" || etq["s:dhcp-dns02 HTTPS 443"] != nil {
+		t.Errorf("étiquettes non suivies : %v", etq)
+	}
+	// Nom déjà pris : refusé, rien ne change.
+	_ = flotte.EnregistrerSondes(ctx, b.c.db, append(l, essais.Sonde{Nom: "Autre", Type: essais.Ping, Cible: "192.168.35.1", Depuis: "lan"}), "test", b.h.maintenant())
+	b.h.avancer(31 * time.Second)
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"Autre"},
+		"nom": {"DNS02 interface"}, "type": {"ping"}, "cible": {"192.168.35.1"}, "depuis": {"lan"}})
+	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 2 {
+		t.Errorf("nom en double accepté : %+v", l)
 	}
 }

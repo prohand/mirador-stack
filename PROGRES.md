@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Modifier et renommer une sonde (SPEC § 64, 19/11) : fait, à valider
+
+- Fiche de la sonde › « Modifier la sonde » (lien « Modifier » sur la page
+  Sondes et dans le bloc Sondes de la machine) : cible HTTPS vers le nom du
+  site, renommage (suivi par les services et les étiquettes).
+
 ## Code 2FA de la boîte « Action protégée » et Bitwarden (19/11) : corrigé, à valider
 
 - Bitwarden ne proposait pas le code dans la boîte (champ sans nom ni id,

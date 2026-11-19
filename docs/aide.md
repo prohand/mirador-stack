@@ -232,6 +232,9 @@ section de cette page.
   `net.ipv4.ping_group_range` (ouvert par défaut sur Debian 12 et Ubuntu).
   Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
   `0 2147483647`.
+- **Modifier, renommer** : lien « Modifier » (page Sondes, bloc Sondes de
+  la machine) ou fiche de la sonde. Le nouveau nom suit dans les services et
+  les étiquettes ; l'historique des mesures repart sous le nouveau nom.
 - **Collecteur ancien** : il ne connaît pas les sondes ; elles lui sont
   retirées de sa configuration jusqu'à sa mise à jour.
 - **Depuis la page d'une machine** (bloc *Sondes*, SPEC § 60) :
@@ -244,7 +247,8 @@ section de cette page.
     une fois, en local, pour savoir s'il parle HTTPS, HTTP ou SSH ; cocher
     et *Ajouter les sondes cochées* ;
   - HTTPS par adresse IP : certificat non vérifié (il ne peut pas
-    correspondre à une adresse) ; pour vérifier le certificat, modifier la
-    sonde sur la page Sondes avec le nom du site ;
+    correspondre à une adresse) ; pour vérifier le certificat : « Modifier »
+    (fiche de la sonde), viser le nom du site et décocher « Ne pas
+    vérifier » ;
   - un agent ancien (avant 0.3.9) ne donne pas ses adresses : le ping
     reste possible en tapant l'adresse.

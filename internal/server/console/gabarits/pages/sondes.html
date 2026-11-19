@@ -13,7 +13,7 @@
 <td class="cible-sonde"><span class="url-sonde">{{.S.Cible}}</span><br><small class="doux">{{.Attendu}}{{if .S.Machine}} · machine <a href="/machines/{{.S.Machine}}#sondes">{{.S.Machine}}</a>{{end}}</small></td><td>{{.Depuis}}</td>
 <td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
 <td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{.Dispo}}</td>
-{{if $.Admin}}<td><form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
+{{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.S.Nom}}#modifier">Modifier</a> <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} Ajouter la première ci-dessous.{{end}}</p>{{end}}</section>
 {{if .Admin}}<section class="carte"><h2>Ajouter une sonde</h2>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter">
