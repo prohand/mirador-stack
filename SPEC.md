@@ -6408,3 +6408,19 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
   sortes d'éléments (« Sonde HTTP », « Conteneur », « Machine ») sur les
   pages Éléments, Disponibilité et les fiches (affichage seulement : la
   valeur des filtres ne change pas).
+
+## 70. Page Sondes en couleurs (retour du 19/11) **[Fait, à valider]**
+
+Maquette montrée, puis tuiles « comme la page Alertes » (demande de
+l'utilisateur) :
+- Tuiles : trait de couleur à gauche, comme Alertes (Sondes bleu, OK vert,
+  En échec rouge, Lentes orange ; temps médian sans trait).
+- Type : pastille de couleur (HTTP(S) bleu, TCP violet, Ping vert d'eau,
+  DNS orange).
+- Ligne : trait à gauche selon l'état (vert OK, orange lente, rouge échec,
+  fond rosé en échec).
+- Disponibilité 24 h : chiffre coloré et petite jauge (vert ≥ 99,9 %,
+  orange ≥ 99 %, rouge en dessous).
+- Courbe du temps de réponse verte quand la sonde est OK ; état sur une
+  ligne (« OK · 200 · 5 ms »).
+- Couleurs tirées des variables du thème : lisibles en clair et en sombre.

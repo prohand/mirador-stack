@@ -1052,7 +1052,8 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - « + Ajouter une sonde » en haut : « Depuis une machine » (même bloc que la
   page machine) ou « À la main ».
 - Majuscules : pastilles et sortes d'éléments.
-- Couleurs de la page Sondes : maquette montrée, en attente de validation.
+- Couleurs de la page Sondes (SPEC § 70) : tuiles comme la page Alertes,
+  pastilles de type, trait par ligne, disponibilité colorée.
 
 ## Liens des fiches filtrés sur l'élément (SPEC § 68, 19/11) : fait, à valider
 

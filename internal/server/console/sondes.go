@@ -39,6 +39,11 @@ type ligneSonde struct {
 	Dispo            string
 	Probleme         bool
 	SansDonnee       bool
+	// Couleurs (retour du 19/11, SPEC § 70) : trait de la ligne (ok, lente,
+	// echec), pastille du type, disponibilité (ok, attention, erreur).
+	ClasseLigne string
+	DispoClasse string
+	DispoPct    int
 }
 
 type donneesSondes struct {
@@ -174,13 +179,26 @@ func (c *Console) pageSondes(q *req) {
 		if bilan == bilanOK || bilan == bilanLente {
 			durees = append(durees, lues["duree"][k].Valeur*1000)
 		}
+		l.ClasseLigne = map[int]string{bilanOK: "ok", bilanLente: "lente", bilanEchec: "echec"}[bilan]
 		if v, ok := lues["dispo"][k]; ok && !math.IsNaN(v.Valeur) {
 			l.Dispo = virgule(strconv.FormatFloat(100*v.Valeur, 'f', dispoDecimales(v.Valeur), 64)) + " %"
+			l.DispoPct = int(math.Round(100 * v.Valeur))
+			switch {
+			case v.Valeur >= 0.999:
+				l.DispoClasse = "ok"
+			case v.Valeur >= 0.99:
+				l.DispoClasse = "attention"
+			default:
+				l.DispoClasse = "erreur"
+			}
 		}
 		if cb, ok := courbes[k]; ok {
 			g := ""
-			if l.ClasseEtat == "erreur" {
+			switch l.ClasseEtat {
+			case "erreur":
 				g = alertes.Critique
+			case "ok":
+				g = "ok" // courbe verte (§ 70)
 			}
 			// Échelle : de 0 au seuil « lente » au moins (pointillé) ; un
 			// petit écart de quelques ms ne fait pas une montagne.

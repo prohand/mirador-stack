@@ -27,17 +27,17 @@
 </details>{{end}}
 <p class="sous">Essais faits depuis le collecteur du LAN, ou depuis le serveur pour la vue de l'extérieur : la page répond-elle, en combien de temps, avec le bon contenu ; le port est-il ouvert ; la machine répond-elle au ping ; le DNS répond-il. Alertes fournies : SondeEnEchec (deux essais ratés de suite), SondeLente (5 min).</p>
 <div class="resume-alertes">
- <span class="tuile"><small>Sondes</small><b>{{.D.Total}}</b></span>
- <span class="tuile"><small>OK</small><b>{{.D.OK}}</b></span>
- <span class="tuile{{if .D.Echecs}} critique{{end}}"><small>En échec</small><b>{{.D.Echecs}}</b></span>
- <span class="tuile{{if .D.Lentes}} avert{{end}}"><small>Lentes</small><b>{{.D.Lentes}}</b></span>
+ <span class="tuile info"><small>Sondes</small><b>{{.D.Total}}</b></span>
+ <span class="tuile bon"><small>OK</small><b>{{.D.OK}}</b></span>
+ <span class="tuile critique"><small>En échec</small><b>{{.D.Echecs}}</b></span>
+ <span class="tuile avert"><small>Lentes</small><b>{{.D.Lentes}}</b></span>
  <span class="tuile"><small>Temps de réponse médian</small><b>{{if .D.Mediane}}{{.D.Mediane}}{{else}}—{{end}}</b></span>
 </div>
 <section class="carte">{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Type</th><th>Cible</th><th>Depuis</th><th>État</th><th>Temps de réponse (1 h)</th><th class="nombre">Dispo 24 h</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><a href="/sondes/{{.S.Nom}}"><strong>{{.S.Nom}}</strong></a></td><td>{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</td>
+{{range .D.Lignes}}<tr{{if .ClasseLigne}} class="ligne-sonde {{.ClasseLigne}}"{{end}}><td><a href="/sondes/{{.S.Nom}}"><strong>{{.S.Nom}}</strong></a></td><td><span class="type-sonde type-{{.S.Type}}">{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</span></td>
 <td class="cible-sonde"><span class="url-sonde">{{.S.Cible}}</span><br><small class="doux">{{.Attendu}}{{if .S.Machine}} · machine <a href="/machines/{{.S.Machine}}#sondes">{{.S.Machine}}</a>{{end}}</small></td><td>{{.Depuis}}</td>
-<td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
-<td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{.Dispo}}</td>
+<td class="sans-coupure">{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
+<td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{if .DispoClasse}}<span class="dispo-sonde {{.DispoClasse}}">{{.Dispo}}</span><div class="jauge {{.DispoClasse}} jauge-dispo"><i class="largeur-{{.DispoPct}}"></i></div>{{else}}{{.Dispo}}{{end}}</td>
 {{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.S.Nom}}#modifier">Modifier</a> <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} « + Ajouter une sonde » ci-dessus.{{end}}</p>{{end}}</section>
 
