@@ -6569,3 +6569,23 @@ l'utilisateur) :
   que l'écran, aucune erreur JavaScript ni blocage CSP.
 - Coût : CSS et quelques lignes de JavaScript au chargement ; côté
   serveur, une requête « id, nom des machines » par page Audit ou Agents.
+
+## 76. Courbe d'une alerte et températures sur la page machine (retour du 19/11) **[Fait, à valider]**
+
+- Page d'une alerte : la « valeur suivie sur 24 h » était un simple trait
+  sans axe ni valeur, et le seuil manquait pour les règles des modèles.
+  - Cause du seuil absent : le seuil d'un modèle est une série écrite par
+    le serveur (`job="mirador"`), l'alerte vient de l'agent (`job="node"`) ;
+    la recherche exigeait toutes les étiquettes égales. Elle suit
+    maintenant le « on (instance) » de la règle.
+  - La courbe est dessinée comme celles des tableaux (graphes.js) : axes,
+    unité devinée (°C, %, octets, secondes), valeur au survol, zoom, seuil
+    en pointillé. L'ancien trait reste en repli et pour les petites
+    courbes des listes.
+- Page machine : nouvelle rangée « Températures » dans le tableau « Serveurs
+  Linux » (capteurs hwmon, disques SMART, zones thermiques), avec le seuil
+  du modèle « Machine physique » en pointillé. Rien ne s'affiche pour une
+  machine sans capteur (panneaux vides regroupés). Si le tableau a été
+  modifié dans l'interface, la rangée n'est pas ajoutée (copie gardée).
+- Coût : une requête de plus à l'ouverture de la page d'une alerte (288
+  points) ; trois courbes de plus sur la page machine.

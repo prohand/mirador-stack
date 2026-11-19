@@ -17,7 +17,8 @@
 <section class="carte"><h2>Étiquettes</h2><table>{{range .D.Etiquettes}}<tr><th>{{.Nom}}</th><td><code>{{.Valeur}}</code></td></tr>{{end}}</table>
 <p><a href="/regles/modifier/{{$a.Regle}}">Voir la règle <code>{{$a.Regle}}</code></a> · <a href="/alertes?regle={{$a.Regle}}">Historique de cette règle</a></p></section>
 </div>
-{{if .D.Courbe}}<section class="carte" id="graphique"><h2>Valeur suivie sur 24 h</h2><div class="courbe-grande">{{.D.Courbe}}</div><p><small>Pointillé : le seuil de la règle pour cette machine.</small></p></section>{{end}}
+{{if .D.CourbeJSON}}<section class="carte" id="graphique"><h2>Valeur suivie sur 24 h</h2><div class="graphe" data-courbe="apercu" data-json="{{.D.CourbeJSON}}"></div></section>
+{{else if .D.Courbe}}<section class="carte" id="graphique"><h2>Valeur suivie sur 24 h</h2><div class="courbe-grande">{{.D.Courbe}}</div><p><small>Pointillé : le seuil de la règle pour cette machine.</small></p></section>{{end}}
 {{if and .Admin .D.EnCours}}<div class="grille">
 <section class="carte"><h2>Accusé de réception</h2>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="acquitter">

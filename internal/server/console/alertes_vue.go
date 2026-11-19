@@ -4,6 +4,7 @@ package console
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"math"
@@ -164,6 +165,31 @@ func decomposerRegle(expr string) (parser.Expr, parser.Expr, bool) {
 	}
 }
 
+// etiquettesOn : étiquettes du « on (…) » de la comparaison principale
+// d'une règle (vide sans « on »).
+func etiquettesOn(expr string) []string {
+	e, err := alertes.AnalyserExpr(expr)
+	if err != nil {
+		return nil
+	}
+	for {
+		switch x := e.(type) {
+		case *parser.ParenExpr:
+			e = x.Expr
+			continue
+		case *parser.BinaryExpr:
+			if x.Op == parser.LAND || x.Op == parser.LUNLESS {
+				e = x.LHS
+				continue
+			}
+			if x.Op.IsComparisonOperator() && x.VectorMatching != nil && x.VectorMatching.On {
+				return x.VectorMatching.MatchingLabels
+			}
+		}
+		return nil
+	}
+}
+
 // compatible : nombre d'étiquettes communes à la série et à l'alerte, ou
 // -1 si l'une d'elles diffère.
 func compatible(serie, alerte labels.Labels) int {
@@ -189,17 +215,71 @@ func compatible(serie, alerte labels.Labels) int {
 // courbeAlerte : valeur suivie sur la durée (90 points environ) et seuil,
 // en SVG de la taille donnée.
 func (c *Console) courbeAlerte(ctx context.Context, expr string, alerte labels.Labels, gravite string, t time.Time, duree time.Duration, largeur, hauteur float64) template.HTML {
-	lhs, rhs, ok := decomposerRegle(expr)
-	if !ok || alerte.IsEmpty() {
+	ts, vs, seuil, aSeuil, ok := c.serieAlerte(ctx, expr, alerte, t, duree, 90)
+	if !ok {
 		return ""
 	}
-	pas := (duree / 90).Truncate(time.Minute)
+	return svgCourbe(ts, vs, t.Add(-duree), t, seuil, aSeuil, gravite, largeur, hauteur)
+}
+
+// courbeAlerteJSON : mêmes données pour la grande courbe de la page d'une
+// alerte, dessinée par graphes.js (axes, valeur au survol, seuil en
+// pointillé, unité) au lieu d'un simple trait sans échelle (retour du 19/11).
+func (c *Console) courbeAlerteJSON(ctx context.Context, expr, nom string, alerte labels.Labels, t time.Time, duree time.Duration) string {
+	ts, vs, seuil, aSeuil, ok := c.serieAlerte(ctx, expr, alerte, t, duree, 288)
+	if !ok {
+		return ""
+	}
+	d := jsonCourbe{Unite: uniteDeRegle(expr), Series: []jsonSerie{{Nom: nom}}}
+	for i, v := range vs {
+		d.X = append(d.X, ts[i]/1000)
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			d.Series[0].V = append(d.Series[0].V, nil)
+			continue
+		}
+		v := v
+		d.Series[0].V = append(d.Series[0].V, &v)
+	}
+	if aSeuil && !math.IsNaN(seuil) && !math.IsInf(seuil, 0) {
+		d.Seuil = &seuil
+	}
+	b, err := json.Marshal(d)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// uniteDeRegle : unité devinée d'après le nom de la métrique suivie.
+func uniteDeRegle(expr string) string {
+	e := strings.ToLower(expr)
+	switch {
+	case strings.Contains(e, "celsius") || strings.Contains(e, "temperature"):
+		return "celsius"
+	case strings.Contains(e, "percent") || strings.Contains(e, "_pct") || strings.Contains(e, "* 100"):
+		return "percent"
+	case strings.Contains(e, "_bytes"):
+		return "bytes"
+	case strings.Contains(e, "_seconds") && !strings.Contains(e, "timestamp"):
+		return "s"
+	}
+	return ""
+}
+
+// serieAlerte : la série suivie par la règle pour cette alerte (n points
+// environ sur la durée) et son seuil.
+func (c *Console) serieAlerte(ctx context.Context, expr string, alerte labels.Labels, t time.Time, duree time.Duration, n int) (ts []int64, vs []float64, seuil float64, aSeuil bool, ok bool) {
+	lhs, rhs, ok := decomposerRegle(expr)
+	if !ok || alerte.IsEmpty() {
+		return nil, nil, 0, false, false
+	}
+	pas := (duree / time.Duration(n)).Truncate(time.Minute)
 	if pas < time.Minute {
 		pas = time.Minute
 	}
 	courbes, _, err := c.lecteur.Plage(ctx, lhs.String(), t.Add(-duree), t, pas)
 	if err != nil {
-		return ""
+		return nil, nil, 0, false, false
 	}
 	meilleur, score := -1, -1
 	for i, cb := range courbes {
@@ -208,24 +288,33 @@ func (c *Console) courbeAlerte(ctx context.Context, expr string, alerte labels.L
 		}
 	}
 	if meilleur < 0 || len(courbes[meilleur].V) < 2 {
-		return ""
+		return nil, nil, 0, false, false
 	}
-	seuil, aSeuil := math.NaN(), false
+	seuil, aSeuil = math.NaN(), false
 	switch x := rhs.(type) {
 	case *parser.NumberLiteral:
 		seuil, aSeuil = x.Val, true
 	default:
+		// Seuil par machine (modèles : « > on (instance) group_left ()
+		// mirador_modele_parametre{…} ») : seules les étiquettes du « on (…) »
+		// comptent ; la série du seuil a job="mirador", l'alerte job="node"
+		// (sans cela, aucun seuil trouvé, pas de pointillé : retour du 19/11).
+		sur := etiquettesOn(expr)
 		if ech, err := c.instant(ctx, rhs.String(), t); err == nil {
 			s := -1
 			for _, e := range ech {
-				if k := compatible(e.Etiquettes, alerte); k > s {
+				ls := e.Etiquettes
+				if len(sur) > 0 {
+					ls = ls.MatchLabels(true, sur...)
+				}
+				if k := compatible(ls, alerte); k > s {
 					seuil, aSeuil, s = e.Valeur, true, k
 				}
 			}
 		}
 	}
 	cb := courbes[meilleur]
-	return svgCourbe(cb.T, cb.V, t.Add(-duree), t, seuil, aSeuil, gravite, largeur, hauteur)
+	return cb.T, cb.V, seuil, aSeuil, true
 }
 
 // svgCourbe : courbe de la valeur, seuil en pointillé. Que des nombres et

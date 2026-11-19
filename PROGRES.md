@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Courbe d'une alerte et températures de la machine (SPEC § 76, 19/11) : fait, à valider
+
+- Page d'une alerte : vraie courbe (axes, °C, seuil du modèle en pointillé).
+- Page machine : rangée « Températures » (capteurs, disques SMART).
+
 ## Six améliorations d'affichage (SPEC § 75, 19/11) : fait, à valider
 
 - Courbes vides, onglets sur une ligne, aides repliées, audit lisible,
