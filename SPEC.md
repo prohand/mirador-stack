@@ -6344,3 +6344,30 @@ alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
 - Sans JavaScript : tous les panneaux restent visibles, l'un sous l'autre.
 - Rien de plus côté serveur (mêmes données, rangées autrement) ; les
   courbes d'un onglet caché ne sont lues qu'à son ouverture.
+
+## 67. Ping refusé sur le collecteur, code HTTP affiché (19/11) **[Fait, à valider]**
+
+**Vu le 19/11** : « dhcp-dns02 ping · Échec : ping impossible sans droits
+(réglage net.ipv4.ping_group_range) : socket: permission denied ».
+- Cause : le collecteur (utilisateur `mirador-collector`, sans aucun droit)
+  pingue par un socket ICMP « datagramme », que le noyau n'ouvre qu'aux
+  groupes de `net.ipv4.ping_group_range`. Dans un conteneur LXC, systemd
+  n'applique pas son réglage par défaut (`0 2147483647`) : la plage reste
+  vide (`1 0`).
+- Correction (script d'installation du collecteur) :
+  - plage élargie au seul groupe du collecteur si besoin (jamais réduite),
+    écrite dans `/etc/sysctl.d/60-mirador-collector-ping.conf` ;
+  - réappliquée à chaque démarrage par l'unité
+    (`ExecStartPre=-+/usr/sbin/sysctl -q -p …`) : un LXC n'applique pas
+    `/etc/sysctl.d` au démarrage ;
+  - fichier retiré à la désinstallation.
+- Choix : pas de `CAP_NET_RAW` donné au collecteur (socket brut : il
+  pourrait forger des paquets) ; le socket « datagramme » ne fait que de
+  l'écho ICMP.
+- Collecteur déjà installé : relancer le script d'installation (mêmes
+  options), ou les 3 commandes de l'aide.
+
+**Retour du 19/11** : « pour le HTTPS, rajouter le code retour » : l'état
+d'une sonde HTTP(S) affiche le code reçu : « OK · 200 · 5 ms » (série
+`mirador_sonde_code_http`, déjà envoyée ; une requête de plus à
+l'ouverture de la page Sondes ou machine).
