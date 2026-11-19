@@ -286,7 +286,7 @@ func fonctions() template.FuncMap {
 		// choix enregistré) : Site et Type seulement s'il y a un seul site ou
 		// un seul type dans le parc (retour du 19/11, SPEC § 71).
 		"colonnesParcCachees": colonnesParcCachees,
-		"entier": func(f float64) int64 { return int64(f) },
+		"entier":              func(f float64) int64 { return int64(f) },
 	}
 }
 
