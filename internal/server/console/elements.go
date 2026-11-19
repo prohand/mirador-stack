@@ -79,7 +79,7 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 		if c.opt.Alertes != nil {
 			enCours = c.opt.Alertes.EnCours()
 		}
-		etatsServices = servicesmetier.Calculer(ctx, c.lecteur, enCours, r.ReglesPanne, svcs, t)
+		etatsServices = servicesmetier.Calculer(ctx, c.lecteurServices(), enCours, r.ReglesPanne, svcs, t)
 		for _, s := range svcs {
 			for _, x := range s.Composants {
 				k := map[string]string{servicesmetier.Machine: "m:", servicesmetier.Conteneur: "c:", servicesmetier.Sonde: "s:"}[x.Sorte] + x.Nom

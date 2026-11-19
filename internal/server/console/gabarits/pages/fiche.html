@@ -10,5 +10,20 @@
 {{if .Admin}}<form method="post" action="/etiquettes" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="element" value="{{$e.Cle}}"><input type="hidden" name="retour" value="{{.D.Retour}}">
 <label>Changer (clé=valeur, séparées par des virgules) <input name="etiquettes" value="{{.D.Etiquettes}}" maxlength="1200" placeholder="critique=oui, role=domotique"></label><div class="ligne"><button class="secondaire">Enregistrer</button></div></form>{{end}}</section>
 </div>
+{{with .D.Sonde}}{{if $.Admin}}<section class="carte" id="modifier"><h2>Modifier la sonde</h2>
+<form method="post" action="/sondes" class="pile large">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="modifier"><input type="hidden" name="ancien" value="{{.Nom}}">
+<div class="ligne"><label>Nom <input name="nom" required maxlength="48" value="{{.Nom}}"></label>
+<label>Type <select name="type"><option value="http"{{if eq .Type "http"}} selected{{end}}>HTTP(S)</option><option value="tcp"{{if eq .Type "tcp"}} selected{{end}}>TCP (port ouvert)</option><option value="ping"{{if eq .Type "ping"}} selected{{end}}>Ping</option><option value="dns"{{if eq .Type "dns"}} selected{{end}}>DNS</option></select></label>
+<label>Faite depuis <select name="depuis">{{$dep := .Depuis}}{{range $.D.Depuis}}<option value="{{.}}"{{if eq . $dep}} selected{{end}}>{{if eq . "serveur"}}Serveur mirador (extérieur){{else}}Collecteur « {{.}} »{{end}}</option>{{end}}</select></label>
+<label>Toutes les <input name="intervalle" value="{{.Intervalle}}" placeholder="60s" size="6" maxlength="10"></label></div>
+<label>Cible <input name="cible" required maxlength="500" value="{{.Cible}}" placeholder="https://dns02.lan/ · hôte:port · hôte · serveur DNS"></label>
+<div class="ligne"><label>Code attendu (HTTP) <input name="code_http" size="5" maxlength="3" value="{{if .Code}}{{.Code}}{{end}}" placeholder="200"></label>
+<label>Contenu attendu (facultatif) <input name="contenu" maxlength="200" value="{{.Contenu}}" placeholder="texte de la page, ou adresse IP (DNS)"></label>
+<label>Nom à demander (DNS) <input name="question" maxlength="253" value="{{.Question}}" placeholder="nas.lan"></label>
+<label>Lente au-delà de <input name="lente" value="{{.Lente}}" placeholder="1s" size="5" maxlength="10"></label></div>
+<label class="case"><input type="checkbox" name="non_verifie" value="1"{{if .NonVerifie}} checked{{end}}> Ne pas vérifier le certificat (service du LAN au certificat fait maison, ou adresse IP)</label>
+{{template "code2fa"}}<div class="ligne"><button data-code>Enregistrer</button></div>
+<small class="aide">Pour vérifier le certificat HTTPS, viser le nom du site (ex. <code>https://dns02.lan/</code>) et décocher « Ne pas vérifier ». Renommer : la sonde suit dans les services et les étiquettes ; l'historique des mesures repart sous le nouveau nom.</small>
+</form></section>{{end}}{{end}}
 <section class="carte"><h2>Derniers événements (7 jours)</h2>{{range .D.Evenements}}<div class="ev-ligne"><span class="t">{{heureCourte .Le}}</span><span class="sans-coupure"><span class="puce-ev {{.Classe}}"></span>{{.Titre}}</span><span>{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</span><span class="doux">{{dateCourte .Le}}</span></div>{{else}}<p class="vide">Rien depuis 7 jours.</p>{{end}}</section>
 {{end}}

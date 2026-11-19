@@ -6264,3 +6264,40 @@ téléchargé ni installé.
 l'agent garde ses restrictions). Les adresses tapées à la main sont
 vérifiées (adresse IP ou nom d'hôte simple) et revérifiées à
 l'enregistrement.
+
+## 63. Bloc « Changements » compact (retour du 19/11) **[Fait, à valider]**
+
+« Changements prend trop de place » (20 lignes sur 7 jours, long texte) :
+- une ligne d'explication, le détail dans l'aide (`aide.md#changements`) ;
+- 5 lignes montrées, le reste replié (« N plus anciens ») ;
+- changements identiques le même jour (même type, même détail) regroupés
+  en une ligne « ×N » ;
+- détail coupé à 90 caractères (liste de paquets), entier d'un clic ;
+- plus de colonne « Source » (en survol de l'heure), plus de champ de
+  filtre sur ce petit tableau.
+Rien de plus côté serveur (même lecture, regroupement en mémoire).
+
+## 64. Modifier et renommer une sonde (retour du 19/11) **[Fait, à valider]**
+
+« Je ne peux pas modifier l'URL pour le HTTPS ; il faudrait pouvoir
+renommer la sonde » : jusqu'ici une sonde s'ajoutait et se retirait
+seulement (le texte d'aide renvoyait à tort vers la page Sondes).
+- Fiche de la sonde (`/sondes/NOM#modifier`) : formulaire **Modifier la
+  sonde** prérempli (nom, type, faite depuis, rythme, cible, code et
+  contenu attendus, nom DNS, seuil « lente », certificat non vérifié).
+  Liens « Modifier » sur la page Sondes et dans le bloc Sondes de la page
+  machine. Administrateurs, code 2FA (ou mode administration), audit.
+- Mêmes vérifications qu'à l'ajout (`flotte.EnregistrerSondes` : nom
+  unique, cible, collecteur approuvé) ; la machine de rangement (§ 60) est
+  gardée.
+- Renommage : le nouveau nom suit dans les services (§ 50) et les
+  étiquettes (§ 59). Les séries déjà enregistrées gardent l'ancien nom :
+  l'historique des mesures repart sous le nouveau (dit à l'écran).
+- Corrigé au passage : la fiche d'un élément plantait sans base de
+  métriques (pointeur nul glissé dans une interface, tests seulement).
+- Bloc Sondes de la machine (retour « je ne peux pas décocher une sonde
+  cochée ») : une sonde ou un ping déjà créé **pour cette machine** est une
+  case cochée ; la décocher puis « Enregistrer » la retire. Une sonde créée
+  ailleurs (page Sondes, autre machine) garde la pastille ✓ et ne se retire
+  pas d'ici. Le ping et les sondes proposées ont chacun leurs champs (un
+  enregistrement ne touche pas l'autre partie).

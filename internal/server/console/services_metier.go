@@ -38,7 +38,7 @@ func (c *Console) pageServices(q *req) {
 	if c.opt.Alertes != nil {
 		enCours = c.opt.Alertes.EnCours()
 	}
-	etats := servicesmetier.Calculer(ctx, c.lecteur, enCours, r.ReglesPanne, svcs, q.t)
+	etats := servicesmetier.Calculer(ctx, c.lecteurServices(), enCours, r.ReglesPanne, svcs, q.t)
 	debut := q.t.Add(-30 * 24 * time.Hour)
 	pannes := c.pannes(ctx, r.ReglesPanne, debut, q.t)
 	maint := c.maintenancesMachines(ctx, debut, q.t)
@@ -113,4 +113,14 @@ func (c *Console) postServices(q *req) {
 	default:
 		c.retour(q, "/services", errors.New("action inconnue"), "")
 	}
+}
+
+// lecteurServices : lecteur des métriques pour servicesmetier.Calculer, ou
+// nil (vraie interface nulle) sans base de métriques : un pointeur nul
+// glissé dans l'interface passerait le test « l == nil » et planterait.
+func (c *Console) lecteurServices() servicesmetier.Lecteur {
+	if c.lecteur == nil {
+		return nil
+	}
+	return c.lecteur
 }

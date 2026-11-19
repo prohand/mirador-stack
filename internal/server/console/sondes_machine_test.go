@@ -38,7 +38,7 @@ func TestSondesMachine(t *testing.T) {
 	for _, attendu := range []string{`id="sondes"`, `<option value="coll-maison" selected>site « maison » · collecteur coll-maison</option>`,
 		`<input type="checkbox" name="adresse" value="192.168.1.5" checked> <code>192.168.1.5</code> <span class="doux">eth0 · route par défaut</span>`,
 		`<input type="checkbox" name="adresse" value="10.10.0.5"> <code>10.10.0.5</code>`, "HTTPS · port 5001 (DSM)", "https://192.168.1.5:5001/", "nas DSM 5001", "http://192.168.1.5/",
-		"SSH · port 22", "nas SSH 22", "TCP · port 53 (DNS)", "Activer le ping"} {
+		"SSH · port 22", "nas SSH 22", "TCP · port 53 (DNS)", "Enregistrer le ping"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("bloc Sondes : %q absent", attendu)
 		}
@@ -85,15 +85,36 @@ func TestSondesMachine(t *testing.T) {
 		t.Errorf("pings : %v", noms)
 	}
 	_, corps, _ = b.get(cl, "/machines/nas")
-	if !strings.Contains(corps, "3 pings") || !strings.Contains(corps, `title="déjà pinguée par « nas ping 10.10.0.5 »"`) ||
-		!strings.Contains(corps, `title="déjà sondé par « nas DSM 5001 »"`) {
-		t.Error("après ajout : 3 pings, adresses et propositions marquées « déjà »")
+	if !strings.Contains(corps, "3 pings") || !strings.Contains(corps, `name="garder_a" value="nas ping 10.10.0.5" checked`) ||
+		!strings.Contains(corps, `name="garder_p" value="nas DSM 5001" checked`) {
+		t.Error("après ajout : 3 pings, adresses et propositions déjà créées en cases cochées")
 	}
+	// Décocher une sonde déjà créée la retire (retour du 19/11) ; le ping
+	// n'est pas touché par l'enregistrement des sondes proposées.
+	envoyer(url.Values{"action": {"ajouter"}, "depuis": {"coll-maison"},
+		"present_p": {"nas DSM 5001", "nas SSH 22"}, "garder_p": {"nas SSH 22"},
+		"present_a": {"nas ping 10.10.0.5"}})
+	l, _ = flotte.LireSondes(ctx, b.c.db)
+	reste := map[string]bool{}
+	for _, s := range l {
+		reste[s.Nom] = true
+	}
+	if reste["nas DSM 5001"] || !reste["nas SSH 22"] || !reste["nas ping 10.10.0.5"] || len(l) != 4 {
+		t.Fatalf("après décochage : %v", reste)
+	}
+	// Une sonde d'une autre machine (ou sans machine) ne se retire pas d'ici.
+	_ = flotte.EnregistrerSondes(ctx, b.c.db, append(l, essais.Sonde{Nom: "Ailleurs", Type: essais.TCP, Cible: "10.0.0.9:22", Depuis: "coll-maison"}), "test", b.h.maintenant())
+	envoyer(url.Values{"action": {"ajouter"}, "depuis": {"coll-maison"}, "present_p": {"Ailleurs"}})
+	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 5 {
+		t.Fatalf("sonde d'ailleurs retirée : %+v", l)
+	}
+	// (« Ailleurs » remis de côté pour la suite.)
+	_ = flotte.EnregistrerSondes(ctx, b.c.db, l, "test", b.h.maintenant())
 	// Plus rien de nouveau : refusé avec un message clair.
 	envoyer(url.Values{"action": {"ping"}, "depuis": {"coll-maison"}, "adresse": {"10.10.0.5"}})
 	// Retrait.
 	envoyer(url.Values{"action": {"retirer"}, "sonde": {"nas ping 10.10.0.5"}})
-	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 4 {
+	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 3 {
 		t.Errorf("retrait : %+v", l)
 	}
 

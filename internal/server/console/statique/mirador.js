@@ -1070,13 +1070,19 @@ document.addEventListener("change", function (e) {
       texte.textContent = "Saisir le code 2FA. Il ouvre aussi le mode administration : plus de code pendant quelques minutes.";
       // Champ « nom d'utilisateur » sans nom : pour que le gestionnaire de
       // mots de passe propose le bon code (jamais envoyé au serveur).
+      // Mêmes repères que la page de connexion (Bitwarden / Vaultwarden
+      // cherchent « username » puis un champ « totp » / « one-time-code ») :
+      // sans nom ni id, Bitwarden ne proposait pas le code ici (19/11).
+      // Formulaire « dialog » : rien n'est envoyé au serveur par ce biais.
       var u = document.createElement("input");
-      u.type = "text"; u.autocomplete = "username"; u.readOnly = true; u.hidden = true; u.tabIndex = -1;
+      u.type = "text"; u.name = "username"; u.autocomplete = "username"; u.readOnly = true; u.hidden = true; u.tabIndex = -1;
       u.value = document.body.getAttribute("data-utilisateur") || "";
       var label = document.createElement("label");
       label.className = "code toujours";
       label.textContent = "Code 2FA ";
       champ = document.createElement("input");
+      champ.id = "totp-boite"; champ.name = "totp";
+      champ.setAttribute("aria-label", "Code 2FA à usage unique (TOTP)");
       champ.type = "text"; champ.inputMode = "numeric"; champ.autocomplete = "one-time-code";
       champ.pattern = "[0-9 ]{6,7}"; champ.maxLength = 7; champ.required = true; champ.placeholder = "123456";
       label.appendChild(champ);

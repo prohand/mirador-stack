@@ -1047,6 +1047,27 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Modifier et renommer une sonde (SPEC § 64, 19/11) : fait, à valider
+
+- Fiche de la sonde › « Modifier la sonde » (lien « Modifier » sur la page
+  Sondes et dans le bloc Sondes de la machine) : cible HTTPS vers le nom du
+  site, renommage (suivi par les services et les étiquettes).
+- Bloc Sondes de la machine : décocher une sonde ou un ping déjà créé puis
+  « Enregistrer » le retire.
+
+## Code 2FA de la boîte « Action protégée » et Bitwarden (19/11) : corrigé, à valider
+
+- Bitwarden ne proposait pas le code dans la boîte (champ sans nom ni id,
+  contrairement à la page de connexion). Champ maintenant `id="totp-boite"`,
+  `name="totp"`, `autocomplete="one-time-code"`, et compte `name="username"`.
+- À vérifier : clic sur une action protégée, l'icône Bitwarden propose le
+  code dans le champ.
+
+## Bloc « Changements » compact (SPEC § 63, 19/11) : fait, à valider
+
+- 5 lignes montrées, le reste replié ; identiques du même jour regroupés
+  (×N) ; détail long coupé ; une ligne d'explication.
+
 ## « cet appareil » affiché sur tous les appareils (19/11) : corrigé, à valider
 
 - Mon compte › Notifications : la pastille « cet appareil » s'affichait sur

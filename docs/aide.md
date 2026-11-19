@@ -196,6 +196,22 @@ section de cette page.
   des notifications change, tous les appareils doivent être réabonnés.
 
 
+## Changements
+
+- **Ce que c'est** : bloc de la page d'une machine (SPEC § 47) : ce qui a
+  changé sur 7 jours :
+  - paquets installés ou mis à jour (lus dans `/var/log/dpkg.log` par
+    l'agent) ;
+  - redémarrages et noyau ;
+  - version de l'agent ;
+  - conteneurs recréés ou redémarrés à la main ;
+  - réglages faits dans mirador pour la machine.
+- **Affichage** : les 5 plus récents ; les autres repliés (« N plus
+  anciens »). Les changements identiques du même jour sont regroupés (×N).
+  Un détail long (liste de paquets) se déplie d'un clic.
+- **Sur les courbes** : traits pointillés (survol pour le nom).
+- Ouvert d'office s'il y a eu un changement depuis 24 h.
+
 ## Sondes
 
 - **Ce que c'est** : un essai régulier d'un service, comme le ferait un
@@ -216,6 +232,9 @@ section de cette page.
   `net.ipv4.ping_group_range` (ouvert par défaut sur Debian 12 et Ubuntu).
   Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
   `0 2147483647`.
+- **Modifier, renommer** : lien « Modifier » (page Sondes, bloc Sondes de
+  la machine) ou fiche de la sonde. Le nouveau nom suit dans les services et
+  les étiquettes ; l'historique des mesures repart sous le nouveau nom.
 - **Collecteur ancien** : il ne connaît pas les sondes ; elles lui sont
   retirées de sa configuration jusqu'à sa mise à jour.
 - **Depuis la page d'une machine** (bloc *Sondes*, SPEC § 60) :
@@ -226,9 +245,11 @@ section de cette page.
     (séparées par des virgules) : un ping par adresse ;
   - *Sondes proposées* : l'agent liste les ports ouverts et essaie chacun
     une fois, en local, pour savoir s'il parle HTTPS, HTTP ou SSH ; cocher
-    et *Ajouter les sondes cochées* ;
+    et *Enregistrer les sondes* ; décocher une sonde déjà créée pour la
+    machine la retire (même chose pour un ping) ;
   - HTTPS par adresse IP : certificat non vérifié (il ne peut pas
-    correspondre à une adresse) ; pour vérifier le certificat, modifier la
-    sonde sur la page Sondes avec le nom du site ;
+    correspondre à une adresse) ; pour vérifier le certificat : « Modifier »
+    (fiche de la sonde), viser le nom du site et décocher « Ne pas
+    vérifier » ;
   - un agent ancien (avant 0.3.9) ne donne pas ses adresses : le ping
     reste possible en tapant l'adresse.

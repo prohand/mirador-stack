@@ -6,6 +6,7 @@ import (
 	"context"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"mirador-stack/internal/server/changements"
@@ -19,11 +20,46 @@ type ligneChangement struct {
 	Le                    time.Time
 	Titre, Classe, Detail string
 	Source                string
+	Nombre                int    // changements identiques le même jour, regroupés (×N)
+	DetailCourt           string // détail coupé (le reste en dépliant)
 }
 
 type vueChangements struct {
-	Lignes []ligneChangement
-	Recent bool // au moins un changement depuis 24 h : bloc ouvert d'office
+	Lignes    []ligneChangement // regroupées, les plus récentes d'abord
+	Recentes  []ligneChangement // montrées d'office
+	Anciennes []ligneChangement // repliées (« N plus anciens »)
+	Total     int               // changements avant regroupement
+	Recent    bool              // au moins un changement depuis 24 h : bloc ouvert d'office
+}
+
+// Bloc compact (retour du 19/11 : « prend trop de place ») : 5 lignes
+// montrées, le reste replié ; changements identiques du même jour
+// regroupés ; détail coupé à 90 caractères.
+const (
+	changementsMontres = 5
+	detailCourtMax     = 90
+)
+
+// regrouperChangements : lignes triées (récentes d'abord) ; même jour, même
+// type, même détail → une ligne « ×N » (heure de la plus récente).
+func regrouperChangements(ls []ligneChangement) []ligneChangement {
+	loc := fuseau.Load()
+	var out []ligneChangement
+	index := map[string]int{}
+	for _, l := range ls {
+		cle := l.Le.In(loc).Format("2006-01-02") + "\x00" + l.Titre + "\x00" + l.Detail
+		if i, ok := index[cle]; ok {
+			out[i].Nombre++
+			continue
+		}
+		l.Nombre = 1
+		if r := []rune(l.Detail); len(r) > detailCourtMax {
+			l.DetailCourt = strings.TrimSpace(string(r[:detailCourtMax])) + "…"
+		}
+		index[cle] = len(out)
+		out = append(out, l)
+	}
+	return out
 }
 
 // dureeChangements : période montrée.
@@ -59,10 +95,16 @@ func (c *Console) changementsMachine(ctx context.Context, instance string, t tim
 		v.Lignes = append(v.Lignes, ligneChangement{Le: time.Unix(e.T, 0), Titre: "Réglage", Detail: e.Nom, Source: "audit mirador"})
 	}
 	sort.SliceStable(v.Lignes, func(i, j int) bool { return v.Lignes[i].Le.After(v.Lignes[j].Le) })
+	v.Total = len(v.Lignes)
 	for _, l := range v.Lignes {
 		if t.Sub(l.Le) < 24*time.Hour {
 			v.Recent = true
 		}
+	}
+	v.Lignes = regrouperChangements(v.Lignes)
+	v.Recentes = v.Lignes
+	if len(v.Lignes) > changementsMontres {
+		v.Recentes, v.Anciennes = v.Lignes[:changementsMontres], v.Lignes[changementsMontres:]
 	}
 	return v
 }
