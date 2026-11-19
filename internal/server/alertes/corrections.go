@@ -46,6 +46,22 @@ var correctionsExpr = map[string]correction{
 	},
 }
 
+// correctionsPour : règles mirador posées sans durée « pendant » alors
+// qu'il en faut une (expression d'origine → durée et note). Appliqué
+// seulement si la règle n'a toujours aucune durée (pas modifiée).
+var correctionsPour = map[string]struct {
+	pour Duree
+	note string
+}{
+	// MiseAJourAgentEchouee (vu le 19/11, proxmoxbackup) : un agent signale
+	// aussi « vérification impossible » (HTTP 502 du proxy pendant un
+	// redémarrage du serveur) ; corrigé au prochain essai, 15 min après.
+	// 30 min : une coupure courte ne fait plus d'alerte ; un vrai échec
+	// (retour arrière) dure, lui, jusqu'à la version suivante.
+	"mirador_machine_maj_echec == 1": {Duree(30 * time.Minute),
+		"durée « pendant » ajoutée par mirador (SPEC § 61) : une vérification ratée une fois ne fait plus d'alerte"},
+}
+
 // normaliserExpr : espaces et retours à la ligne réduits à un espace.
 func normaliserExpr(expr string) string {
 	return strings.Join(strings.Fields(expr), " ")
@@ -67,14 +83,26 @@ func CorrigerRegles(ctx context.Context, db *sql.DB, maintenant time.Time) (int,
 		return 0, err
 	}
 	var aCorriger []Regle
+	ajouterNote := func(r *Regle, note string) {
+		if r.Note == "" {
+			r.Note = note
+		} else {
+			r.Note += " ; " + note
+		}
+	}
 	for _, r := range regles {
+		corrigee := false
 		if nouvelle, note, ok := corrigerExpr(r.Expr); ok {
 			r.Expr = nouvelle
-			if r.Note == "" {
-				r.Note = note
-			} else {
-				r.Note += " ; " + note
-			}
+			ajouterNote(&r, note)
+			corrigee = true
+		}
+		if c, ok := correctionsPour[normaliserExpr(r.Expr)]; ok && r.Pour == 0 {
+			r.Pour = c.pour
+			ajouterNote(&r, c.note)
+			corrigee = true
+		}
+		if corrigee {
 			aCorriger = append(aCorriger, r)
 		}
 	}

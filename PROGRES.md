@@ -1047,6 +1047,17 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Alerte « mise à jour échouée » sur un HTTP 502 (SPEC § 61, 19/11) : corrigé, à valider
+
+- Vu sur proxmoxbackup (déjà en 0.3.7) : la vérification de version a reçu
+  un 502 du proxy (serveur indisponible un instant), signalée à tort comme
+  un échec de mise à jour. L'alerte se ferme seule au prochain essai
+  (15 min).
+- Corrigé : l'agent ne signale une vérification impossible qu'après 6 h ;
+  la règle attend 30 min (règle déjà en base corrigée au démarrage).
+- Vérification : après mise à jour du serveur, page Alertes › Règles ›
+  MiseAJourAgentEchouee : « pendant 30m » et la note « § 61 ».
+
 ## Sondes depuis la page machine (SPEC § 60, 19/11) : fait, à valider
 
 - Agent : adresses IP et ports ouverts (lus dans `/proc/net/tcp`), protocole

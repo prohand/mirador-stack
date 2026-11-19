@@ -6187,3 +6187,32 @@ ou mode administrateur) :
   50 sondes au plus) ; réservé aux administrateurs, audit.
 - Aucune commande à distance : le collecteur reçoit seulement la liste des
   sondes, comme au § 48.
+
+## 61. « Mise à jour échouée » sur une simple vérification ratée (19/11) **[Fait, à valider]**
+
+**Vu le 19/11** : alerte « La mise à jour de l'agent a échoué sur
+proxmoxbackup (version version assignée : HTTP 502) », agent pourtant en
+0.3.7, la dernière.
+
+**Cause** : l'agent demande toutes les 15 min environ la version assignée.
+Le serveur ne répondait pas (redémarrage, ou coupure courte) : le proxy
+devant lui a répondu 502. L'agent signalait **toute** erreur de cette
+question comme un échec de mise à jour, et la règle
+MiseAJourAgentEchouee n'avait pas de durée « pendant » : alerte tout de
+suite, fermée au prochain essai réussi (15 min plus tard). Rien n'avait été
+téléchargé ni installé.
+
+**Correction** :
+- Agent : une vérification impossible (erreur réseau, HTTP 5xx, 429)
+  n'est plus signalée comme un échec ; seulement notée dans le journal de
+  l'agent. Si elle dure 6 h d'affilée, elle est signalée : « vérification
+  impossible depuis 6h0m0s : … ». Un vrai échec (signature refusée,
+  téléchargement, retour arrière) est signalé tout de suite, comme avant.
+- Serveur : MiseAJourAgentEchouee « pendant 30 min ». Corrige aussi la
+  règle déjà en base au démarrage (§ 45), si elle n'a toujours aucune
+  durée (une durée choisie par l'utilisateur n'est pas touchée). Protège
+  dès la mise à jour du serveur, avant celle des agents.
+- Coût : aucun (un horodatage dans l'agent).
+
+**Menaces** : aucune nouvelle. Une panne longue du serveur reste visible
+(AgentMuet côté serveur ; message au bout de 6 h côté agent).

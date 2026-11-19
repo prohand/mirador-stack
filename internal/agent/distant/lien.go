@@ -396,8 +396,12 @@ func (l *Lien) boucleMaj(ctx context.Context) {
 	if !attendre(ctx, l.etale()+l.premierDelai) {
 		return
 	}
+	var rateeDepuis time.Time // première vérification ratée d'affilée
 	for {
-		err := l.mettreAJour(ctx)
+		brute := l.mettreAJour(ctx)
+		var passager bool
+		var err error
+		rateeDepuis, passager, err = filtrerVerification(brute, rateeDepuis, time.Now())
 		l.mu.Lock()
 		if err != nil {
 			l.echecMaj = err.Error()
@@ -405,7 +409,10 @@ func (l *Lien) boucleMaj(ctx context.Context) {
 			l.echecMaj = "" // plus d'erreur : le serveur ne garde pas un vieux message
 		}
 		l.mu.Unlock()
-		if err != nil {
+		switch {
+		case passager:
+			l.Journal.Warn("vérification de mise à jour impossible, nouvel essai plus tard", "erreur", brute)
+		case err != nil:
 			l.Journal.Error("mise à jour impossible", "erreur", err)
 		}
 		// Prochaine vérification : au rythme habituel, ou tout de suite si
@@ -418,6 +425,37 @@ func (l *Lien) boucleMaj(ctx context.Context) {
 		}
 	}
 }
+
+// dureeVerifRatee : une vérification de mise à jour impossible (réseau,
+// serveur indisponible) n'est signalée au serveur qu'après ce temps.
+const dureeVerifRatee = 6 * time.Hour
+
+// filtrerVerification : une vérification impossible (réseau, serveur qui
+// redémarre : HTTP 502 du proxy) n'est pas un échec de mise à jour, rien
+// n'a été essayé. Elle n'est signalée au serveur que si elle dure
+// dureeVerifRatee (SPEC § 61). Renvoie le début des vérifications
+// ratées d'affilée, vrai si l'erreur est passée sous silence, et l'erreur
+// à signaler au serveur (nil sinon).
+func filtrerVerification(err error, depuis, maintenant time.Time) (time.Time, bool, error) {
+	var verif *errVerification
+	if !errors.As(err, &verif) {
+		return time.Time{}, false, err
+	}
+	if depuis.IsZero() {
+		depuis = maintenant
+	}
+	if maintenant.Sub(depuis) < dureeVerifRatee {
+		return depuis, true, nil
+	}
+	return depuis, false, fmt.Errorf("vérification impossible depuis %s : %w", dureeVerifRatee, err)
+}
+
+// errVerification : la question « quelle version ? » n'a pas eu de
+// réponse ; rien n'a été téléchargé ni installé.
+type errVerification struct{ err error }
+
+func (e *errVerification) Error() string { return e.err.Error() }
+func (e *errVerification) Unwrap() error { return e.err }
 
 // reveilMaj : canal signalé quand une actualisation arrive (SPEC § 44).
 func (l *Lien) reveilMaj() chan struct{} {
@@ -444,7 +482,10 @@ func (l *Lien) mettreAJour(ctx context.Context) error {
 	}
 	resp, brut, err := l.requete(ctx, http.MethodGet, protocole.CheminMaj, nil, nil, 16<<10)
 	if err != nil {
-		return err
+		return &errVerification{err}
+	}
+	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+		return &errVerification{fmt.Errorf("version assignée : HTTP %d", resp.StatusCode)}
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("version assignée : HTTP %d", resp.StatusCode)
