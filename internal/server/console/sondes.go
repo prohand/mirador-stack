@@ -140,6 +140,7 @@ func (c *Console) pageSondes(q *req) {
 	// Panneau d'ajout : machine choisie → son bloc (adresses, ports proposés).
 	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
 		choisie := q.r.URL.Query().Get("ajouter")
+		d.Ajout.Ouvert = q.r.URL.Query().Get("ajout") != "" || choisie != "" // bouton « + Ajouter une sonde »
 		for _, m := range ms {
 			if m.Type != "agent" || m.Statut != "approuvee" {
 				continue

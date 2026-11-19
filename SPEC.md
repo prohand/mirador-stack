@@ -6394,7 +6394,7 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
 
 ## 69. Ajouter une sonde depuis la page Sondes ; majuscules (retours du 19/11) **[Fait, à valider]**
 
-- « En bas de la page des sondes, ce n'est pas pratique » : bouton
+- « En bas de la page des sondes, ce n'est pas pratique » : bouton (même style et même place que « + Ajouter une machine », à droite du titre)
   **+ Ajouter une sonde** en haut de la page, qui ouvre un panneau à deux
   onglets :
   - **Depuis une machine** : choix de la machine (liste des machines avec

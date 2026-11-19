@@ -178,7 +178,11 @@ func TestAjoutSondeDepuisPageSondes(t *testing.T) {
 	})
 	cl, secret := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(cl, "/sondes")
-	for _, attendu := range []string{`id="ajouter"`, "+ Ajouter une sonde", `data-onglet="machine"`, `data-onglet="manuel"`, "<option>nas</option>", `name="cible"`} {
+	if !strings.Contains(corps, `<a class="bouton" href="/sondes?ajout=1#ajouter">+ Ajouter une sonde</a>`) || strings.Contains(corps, `id="ajouter"`) {
+		t.Error("bouton « + Ajouter une sonde » (comme « Ajouter une machine »), panneau fermé")
+	}
+	_, corps, _ = b.get(cl, "/sondes?ajout=1")
+	for _, attendu := range []string{`id="ajouter"`, "Fermer", `data-onglet="machine"`, `data-onglet="manuel"`, "<option>nas</option>", `name="cible"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page Sondes : %q absent", attendu)
 		}
@@ -187,7 +191,7 @@ func TestAjoutSondeDepuisPageSondes(t *testing.T) {
 		t.Error("un collecteur n'est pas une machine à sonder ici")
 	}
 	_, corps, _ = b.get(cl, "/sondes?ajouter=nas")
-	for _, attendu := range []string{`id="ajouter" open`, `data-onglet-force="machine"`, `<option selected>nas</option>`,
+	for _, attendu := range []string{`id="ajouter"`, `data-onglet-force="machine"`, `<option selected>nas</option>`,
 		`action="/machines/nas/sondes"`, `name="retour" value="sondes"`, "https://192.168.1.5/", `value="192.168.1.5" checked`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page Sondes, nas choisie : %q absent", attendu)
