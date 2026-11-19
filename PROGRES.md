@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Bloc « Changements » compact (SPEC § 63, 19/11) : fait, à valider
+
+- 5 lignes montrées, le reste replié ; identiques du même jour regroupés
+  (×N) ; détail long coupé ; une ligne d'explication.
+
 ## « cet appareil » affiché sur tous les appareils (19/11) : corrigé, à valider
 
 - Mon compte › Notifications : la pastille « cet appareil » s'affichait sur

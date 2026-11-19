@@ -1222,3 +1222,9 @@ dialog.aller-boite li.aller-section { display: block; font-size: 11px; font-weig
 fieldset.adresses-ping { border: 0; padding: 0; margin: .8rem 0; min-width: 0; }
 fieldset.adresses-ping legend { font-weight: 600; padding: 0; }
 fieldset.adresses-ping label.case { margin: .35rem 0; flex-wrap: wrap; }
+details.plus-anciens { margin-top: .6rem; }
+details.plus-anciens > summary { cursor: pointer; color: var(--doux); font-size: 13px; }
+details.detail-long > summary { cursor: pointer; list-style: none; }
+details.detail-long > summary::-webkit-details-marker { display: none; }
+details.detail-long[open] > summary { display: none; }
+table.changements td:last-child { overflow-wrap: anywhere; }

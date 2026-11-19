@@ -196,6 +196,22 @@ section de cette page.
   des notifications change, tous les appareils doivent être réabonnés.
 
 
+## Changements
+
+- **Ce que c'est** : bloc de la page d'une machine (SPEC § 47) : ce qui a
+  changé sur 7 jours :
+  - paquets installés ou mis à jour (lus dans `/var/log/dpkg.log` par
+    l'agent) ;
+  - redémarrages et noyau ;
+  - version de l'agent ;
+  - conteneurs recréés ou redémarrés à la main ;
+  - réglages faits dans mirador pour la machine.
+- **Affichage** : les 5 plus récents ; les autres repliés (« N plus
+  anciens »). Les changements identiques du même jour sont regroupés (×N).
+  Un détail long (liste de paquets) se déplie d'un clic.
+- **Sur les courbes** : traits pointillés (survol pour le nom).
+- Ouvert d'office s'il y a eu un changement depuis 24 h.
+
 ## Sondes
 
 - **Ce que c'est** : un essai régulier d'un service, comme le ferait un

@@ -274,3 +274,5 @@
 </section>{{else}}<section class="carte"><p class="vide">Rien à montrer ici.</p></section>{{end}}
 <p class="sous">Une case par élément, couleur = pire état en cours ; survol : le détail ; clic : la fiche. Le choix Résumé / Ruche est retenu par ce navigateur.</p>
 {{end}}
+{{/* Une ligne du bloc « Changements » de la page machine (SPEC § 47, § 63). */}}
+{{define "ligne-changement"}}<tr><td class="sans-coupure" title="{{.Source}}">{{date .Le}}</td><td class="sans-coupure"><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Titre}}</span>{{if gt .Nombre 1}} <small class="doux">×{{.Nombre}}</small>{{end}}</td><td>{{if .DetailCourt}}<details class="detail-long"><summary>{{.DetailCourt}}</summary>{{.Detail}}</details>{{else}}{{.Detail}}{{end}}</td></tr>{{end}}

@@ -6264,3 +6264,15 @@ téléchargé ni installé.
 l'agent garde ses restrictions). Les adresses tapées à la main sont
 vérifiées (adresse IP ou nom d'hôte simple) et revérifiées à
 l'enregistrement.
+
+## 63. Bloc « Changements » compact (retour du 19/11) **[Fait, à valider]**
+
+« Changements prend trop de place » (20 lignes sur 7 jours, long texte) :
+- une ligne d'explication, le détail dans l'aide (`aide.md#changements`) ;
+- 5 lignes montrées, le reste replié (« N plus anciens ») ;
+- changements identiques le même jour (même type, même détail) regroupés
+  en une ligne « ×N » ;
+- détail coupé à 90 caractères (liste de paquets), entier d'un clic ;
+- plus de colonne « Source » (en survol de l'heure), plus de champ de
+  filtre sur ce petit tableau.
+Rien de plus côté serveur (même lecture, regroupement en mémoire).
