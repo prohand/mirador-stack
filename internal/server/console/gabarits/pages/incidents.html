@@ -1,11 +1,11 @@
 {{define "contenu"}}
 <h1>Incidents</h1>
 {{template "onglets-alertes" "incidents"}}
-<p class="sous">Un incident regroupe les alertes d'un même problème : elles commencent à moins de 10 minutes les unes des autres et touchent la même machine, le même site ou un même service. Calculé à partir de l'historique des alertes (30 jours). Clic : la frise, les alertes, les logs d'erreur et les notes.</p>
-<section class="carte">{{if .D.Incidents}}<div class="defile"><table data-cartes><thead><tr><th>Incident</th><th>État</th><th>Début</th><th>Durée</th><th class="nombre">Alertes</th><th>Machines et services</th></tr></thead><tbody>
+<p class="sous">Un incident regroupe les alertes d'un même problème : elles commencent à moins de 10 minutes les unes des autres et touchent la même machine, le même site ou une même application. Calculé à partir de l'historique des alertes (30 jours). Clic : la frise, les alertes, les logs d'erreur et les notes.</p>
+<section class="carte">{{if .D.Incidents}}<div class="defile"><table data-cartes><thead><tr><th>Incident</th><th>État</th><th>Début</th><th>Durée</th><th class="nombre">Alertes</th><th>Machines et applications</th></tr></thead><tbody>
 {{range .D.Incidents}}<tr><td>{{template "gravite" .Gravite}} <a href="/incidents/{{.ID}}"><strong>{{.Titre}}</strong></a></td>
 <td>{{if .EnCours}}<span class="pastille erreur">En cours</span>{{else}}<span class="pastille ok">Résolu</span>{{end}}{{if .Prise}} <small class="doux">{{.Prise}}</small>{{end}}</td>
 <td class="sans-coupure">{{date .Debut}}</td><td class="sans-coupure">{{.DureeTexte}}</td><td class="nombre">{{len .Alertes}}</td>
-<td>{{joindre .Machines}}{{if .Services}}{{if .Machines}} · {{end}}service {{joindre .Services}}{{end}}</td></tr>{{end}}
+<td>{{joindre .Machines}}{{if .Services}}{{if .Machines}} · {{end}}application {{joindre .Services}}{{end}}</td></tr>{{end}}
 </tbody></table></div>{{else}}<p class="vide">Aucun incident sur 30 jours.</p>{{end}}</section>
 {{end}}

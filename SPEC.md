@@ -6301,3 +6301,46 @@ seulement (le texte d'aide renvoyait à tort vers la page Sondes).
   ailleurs (page Sondes, autre machine) garde la pastille ✓ et ne se retire
   pas d'ici. Le ping et les sondes proposées ont chacun leurs champs (un
   enregistrement ne touche pas l'autre partie).
+
+## 65. « Services » renommés « Applications » (19/11) **[Fait, à valider]**
+
+« Services » faisait penser aux services systemd vérifiés sur les machines.
+Choix de l'utilisateur : **Applications**, règles renommées aussi.
+- Interface : menu, page `/applications` (et `/applications/NOM`),
+  fiches, Ctrl+K, page Éléments, incidents (« application Domotique »).
+  Les anciennes adresses `/services…` redirigent (301).
+- Règles : ServiceEnPanne → **ApplicationEnPanne**, ServiceDegrade →
+  **ApplicationDegradee**. Au démarrage du serveur, avant la pose des
+  règles par défaut (`alertes.RenommerRegles`) : la règle en base change de
+  nom, réglages gardés (activation, durée, gravité, expression), résumé et
+  description remplacés seulement s'ils sont d'origine ; une note le dit.
+  Une règle supprimée sous l'ancien nom ne revient pas sous le nouveau.
+  Alertes passées : ancien nom ; une alerte en cours est fermée et rouverte
+  sous le nouveau nom au cycle suivant.
+- Interne inchangé : série `mirador_service_etat{service}`, étiquette
+  `service` des alertes, paquet `servicesmetier`, clé `v:` des étiquettes.
+- État « Dégradée » (féminin).
+
+## 66. Page d'une machine en onglets (retour du 19/11 : « tout est mélangé ») **[Fait, à valider]**
+
+Choix de l'utilisateur : onglets. En haut, toujours visibles : nom, bandeau,
+alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
+
+| Onglet | Contenu |
+|---|---|
+| Vue d'ensemble | En ce moment, Les plus gourmands, courbes (sommaire et période) |
+| Collecte (collecteur seulement) | Équipements relevés, Syslog TLS et certificat, SNMP / UniFi / sondes de certificats |
+| Activité | Changements, Paquets à mettre à jour, Services systemd, Volume des logs |
+| Sondes et liens | Sondes (ping, proposées), Liens, Étiquettes, collecteur qui relève |
+| Réglages | Surveillance et modèles, Détails, Modifier la machine |
+
+- Pastilles sur les onglets : services en échec et paquets de sécurité
+  (Activité), sondes en échec (Sondes et liens), à valider et modèles
+  détectés (Réglages).
+- Un seul panneau visible ; l'onglet est dans l'adresse (`#activite`) et
+  retenu par le navigateur ; un lien vers un bloc (`#modeles`, `#sondes`…)
+  ouvre son onglet. Un onglet sans contenu n'est pas montré (collecteur :
+  Collecte, Activité, Réglages).
+- Sans JavaScript : tous les panneaux restent visibles, l'un sous l'autre.
+- Rien de plus côté serveur (mêmes données, rangées autrement) ; les
+  courbes d'un onglet caché ne sont lues qu'à son ouverture.

@@ -41,13 +41,21 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
-	m.HandleFunc("GET /services", c.lecture(c.pageServices))
+	// « Services » renommés « Applications » le 19/11 (SPEC § 65) : les
+	// anciennes adresses mènent aux nouvelles.
+	m.HandleFunc("GET /applications", c.lecture(c.pageServices))
+	m.HandleFunc("GET /services", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/applications", http.StatusMovedPermanently)
+	})
 	m.HandleFunc("GET /elements", c.lecture(c.pageElements))
 	m.HandleFunc("GET /sondes/{nom}", c.lecture(c.ficheSonde))
-	m.HandleFunc("GET /services/{nom}", c.lecture(c.ficheService))
+	m.HandleFunc("GET /applications/{nom}", c.lecture(c.ficheService))
+	m.HandleFunc("GET /services/{nom}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/applications/"+url.PathEscape(r.PathValue("nom")), http.StatusMovedPermanently)
+	})
 	m.HandleFunc("GET /conteneurs/{machine}/{nom}", c.lecture(c.ficheConteneur))
 	m.HandleFunc("POST /etiquettes", c.admin(c.postEtiquettes))
-	m.HandleFunc("POST /services", c.admin(c.postServices))
+	m.HandleFunc("POST /applications", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
@@ -1421,7 +1429,7 @@ func (c *Console) donneesAller(q *req) {
 		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
-		{"Sondes", "Page", "/sondes"}, {"Services", "Page", "/services"}, {"Éléments", "Page", "/elements"},
+		{"Sondes", "Page", "/sondes"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
 		{"Coupures", "Page", "/coupures"},
 	}
@@ -1434,7 +1442,7 @@ func (c *Console) donneesAller(q *req) {
 	}
 	if svcs, err := servicesmetier.Lire(ctx, c.db); err == nil {
 		for _, s := range svcs {
-			out = append(out, destination{s.Nom, "Service", "/services/" + url.PathEscape(s.Nom)})
+			out = append(out, destination{s.Nom, "Application", "/applications/" + url.PathEscape(s.Nom)})
 		}
 	}
 	if c.lecteur != nil {

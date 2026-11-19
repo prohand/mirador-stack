@@ -111,3 +111,71 @@ func CorrigerRegles(ctx context.Context, db *sql.DB, maintenant time.Time) (int,
 	}
 	return Enregistrer(ctx, db, aCorriger, "mirador", maintenant)
 }
+
+// --- Règles renommées (SPEC § 65) -------------------------------------------------
+
+// textesApplication : résumé et description des règles des applications.
+var textesApplication = map[string][2]string{
+	"ApplicationEnPanne": {"Application {{ $labels.service }} en panne",
+		"Un élément « clé » de l'application a un problème (machine muette, conteneur arrêté ou non sain, " +
+			"sonde en échec). Détail sur la page Applications."},
+	"ApplicationDegradee": {"Application {{ $labels.service }} dégradée",
+		"Un élément de l'application a un problème, mais l'application marche encore. Détail sur la page Applications."},
+}
+
+// reglesRenommees : ancien nom → nouveau, avec les textes d'origine (remplacés
+// seulement s'ils n'ont pas été changés par l'utilisateur).
+var reglesRenommees = []struct {
+	ancien, nouveau               string
+	resumeAvant, descriptionAvant string
+}{
+	{"ServiceEnPanne", "ApplicationEnPanne", "Service {{ $labels.service }} en panne",
+		"Un élément « clé » du service a un problème (machine muette, conteneur arrêté ou non sain, sonde en échec). Détail sur la page Services."},
+	{"ServiceDegrade", "ApplicationDegradee", "Service {{ $labels.service }} dégradé",
+		"Un élément du service a un problème, mais le service marche encore. Détail sur la page Services."},
+}
+
+// RenommerRegles : règles déjà en base sous leur ancien nom (« Services »
+// renommés « Applications » le 19/11) passées sous le nouveau, réglages de
+// l'utilisateur gardés (activation, durée, gravité, expression). À appeler
+// avant PoserDefauts (sinon la règle serait posée une seconde fois). Les
+// alertes passées gardent l'ancien nom ; une alerte en cours est fermée et
+// rouverte sous le nouveau nom au cycle suivant.
+func RenommerRegles(ctx context.Context, db *sql.DB, maintenant time.Time) (int, error) {
+	regles, err := ListerRegles(ctx, db)
+	if err != nil {
+		return 0, err
+	}
+	parNom := map[string]Regle{}
+	for _, r := range regles {
+		parNom[r.Nom] = r
+	}
+	n := 0
+	for _, x := range reglesRenommees {
+		r, ok := parNom[x.ancien]
+		if _, deja := parNom[x.nouveau]; !ok || deja {
+			continue
+		}
+		r.Nom = x.nouveau
+		if r.Resume == x.resumeAvant {
+			r.Resume = textesApplication[x.nouveau][0]
+		}
+		if r.Description == x.descriptionAvant {
+			r.Description = textesApplication[x.nouveau][1]
+		}
+		note := "renommée par mirador (SPEC § 65) : ancien nom " + x.ancien
+		if r.Note == "" {
+			r.Note = note
+		} else {
+			r.Note += " ; " + note
+		}
+		if _, err := Enregistrer(ctx, db, []Regle{r}, "mirador", maintenant); err != nil {
+			return n, err
+		}
+		if err := Supprimer(ctx, db, x.ancien, "mirador", maintenant); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}

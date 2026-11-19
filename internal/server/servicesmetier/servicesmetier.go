@@ -5,7 +5,8 @@
 // marcher : machines, conteneurs, sondes. Son état : en panne si un
 // élément « clé » a un problème, dégradé si un autre en a un, OK sinon.
 // Même calcul pour la page Services et pour la série interne
-// mirador_service_etat (règles ServiceEnPanne et ServiceDegrade).
+// mirador_service_etat (règles ApplicationEnPanne et ApplicationDegradee ;
+// « services » renommés « applications » dans l'interface le 19/11, § 65).
 package servicesmetier
 
 import (
@@ -336,7 +337,7 @@ func Texte(etat int) (string, string) {
 	case Panne:
 		return "En panne", "erreur"
 	case Degrade:
-		return "Dégradé", "attention"
+		return "Dégradée", "attention"
 	}
 	return "OK", "ok"
 }

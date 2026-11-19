@@ -70,7 +70,7 @@ func TestIncidents(t *testing.T) {
 	b.post(cl, lien, url.Values{"csrf": {b.csrf(cl, lien)}, "note": {"retour au noyau précédent"}})
 	_, corps, _ := b.get(cl, lien)
 	for _, attendu := range []string{"Domotique : AgentMuet", `class="frise"`, "Paquets : 2 paquets mis à jour", "retour au noyau précédent",
-		"SondeEnEchec", "service Domotique"} {
+		"SondeEnEchec", "application Domotique"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page de l'incident : %q absent", attendu)
 		}

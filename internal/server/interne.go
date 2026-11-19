@@ -181,7 +181,7 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 	}
 
 	// Services (SPEC § 50) : état de chaque service (0 OK, 1 dégradé,
-	// 2 en panne), lu par les règles ServiceEnPanne et ServiceDegrade.
+	// 2 en panne), lu par les règles ApplicationEnPanne et ApplicationDegradee (§ 65).
 	if svcs, err := servicesmetier.Lire(ctx, s.db); err == nil && len(svcs) > 0 && s.alertes != nil {
 		if i.lecteur == nil {
 			i.lecteur = alertes.NouveauLecteur(s.met.Requetes(), s.journal.With("composant", "services"))

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -146,7 +147,7 @@ func (c *Console) elementMachine(ctx context.Context, nom string) *blocElementMa
 			for _, x := range s.Composants {
 				m, _, _ := strings.Cut(x.Nom, "/")
 				if (x.Sorte == servicesmetier.Machine && x.Nom == nom) || (x.Sorte == servicesmetier.Conteneur && m == nom) {
-					b.Liens = append(b.Liens, lienElement{"fait partie de", s.Nom, "/services/" + s.Nom})
+					b.Liens = append(b.Liens, lienElement{"fait partie de", s.Nom, "/applications/" + url.PathEscape(s.Nom)})
 					break
 				}
 			}

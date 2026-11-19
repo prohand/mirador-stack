@@ -31,12 +31,12 @@ const (
 	sorteEquipement = "équipement"
 	sorteConteneur  = "conteneur"
 	sorteSonde      = "sonde"
-	sorteService    = "service"
+	sorteService    = "application"
 )
 
 // lienElement : relation vers un autre élément.
 type lienElement struct {
-	Quoi, Nom, Lien string // « fait partie de », « Domotique », « /services »
+	Quoi, Nom, Lien string // « fait partie de », « Domotique », « /applications »
 }
 
 // element : un élément surveillé.
@@ -90,7 +90,7 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 	partieDe := func(k string) []lienElement {
 		var l []lienElement
 		for _, s := range parties[k] {
-			l = append(l, lienElement{"fait partie de", s, "/services"})
+			l = append(l, lienElement{"fait partie de", s, "/applications"})
 		}
 		return l
 	}
@@ -172,8 +172,8 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 	}
 	for _, s := range etatsServices {
 		classe := map[int]string{servicesmetier.OK: "ok", servicesmetier.Degrade: "av", servicesmetier.Panne: "cr"}[s.Etat]
-		e := element{Cle: "v:" + s.Nom, Nom: s.Nom, Sorte: sorteService, Etat: s.Texte, Classe: classe, Sous: s.Texte, Groupe: "Services",
-			Lien: "/services/" + url.PathEscape(s.Nom)}
+		e := element{Cle: "v:" + s.Nom, Nom: s.Nom, Sorte: sorteService, Etat: s.Texte, Classe: classe, Sous: s.Texte, Groupe: "Applications",
+			Lien: "/applications/" + url.PathEscape(s.Nom)}
 		for _, x := range s.Composants {
 			e.Liens = append(e.Liens, lienElement{"comprend", x.Sorte + " " + x.Nom, ""})
 		}

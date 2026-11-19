@@ -69,6 +69,7 @@ type vueSondesMachine struct {
 	SansSite     bool // la machine n'a pas de site : on choisit
 	SiteSansColl bool // site sans collecteur
 	NbPings      int  // sondes ping de la machine
+	NbEchec      int  // sondes de la machine en échec (pastille de l'onglet)
 	Propositions []propositionSonde
 	AgentAncien  bool // pas d'adresses : agent à mettre à jour
 }
@@ -157,7 +158,11 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 			continue
 		}
 		l := ligneSondeMachine{Nom: s.Nom, Type: s.Type, Cible: s.Cible, Depuis: s.Depuis}
-		l.Etat, l.Classe, _ = etatSondeLue(lues, s)
+		var bilan int
+		l.Etat, l.Classe, bilan = etatSondeLue(lues, s)
+		if bilan == bilanEchec {
+			v.NbEchec++
+		}
 		v.Sondes = append(v.Sondes, l)
 		if s.Type == essais.Ping {
 			v.NbPings++

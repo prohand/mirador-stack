@@ -145,9 +145,9 @@ func (c *Console) ficheElement(q *req, cle string) {
 		}
 		d.Tuiles = []tuileFiche{{"État", e.Etat, e.Pastille()}, {"Disponibilité 30 j", dispo(iv), ""},
 			{"Éléments", strconv.Itoa(len(e.Liens)), ""}, {"Alertes en cours", nbAlertes, ""}}
-		d.TitreCourbe = "État du service — 24 h (0 : OK, 1 : dégradé, 2 : en panne)"
+		d.TitreCourbe = "État de l'application — 24 h (0 : OK, 1 : dégradée, 2 : en panne)"
 		courbe(`max(mirador_service_etat{service="`+echapperPromQL(e.Nom)+`"})`, math.NaN())
-		d.Raccourcis = []raccourciFiche{{"Page Services", "/services"}, {"Incidents", "/incidents"}}
+		d.Raccourcis = []raccourciFiche{{"Page Applications", "/applications"}, {"Incidents", "/incidents"}}
 	case strings.HasPrefix(cle, "c:"):
 		sel := `{instance="` + echapperPromQL(e.Groupe) + `", name="` + echapperPromQL(e.Nom) + `"}`
 		cpu, mem, redem := "—", "—", "0"

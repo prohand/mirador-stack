@@ -146,20 +146,21 @@ func ReglesMirador() []Regle {
 			Gravite:     Avertissement,
 			Resume:      "Sonde {{ $labels.sonde }} lente depuis 5 min ({{ $labels.cible }})",
 			Description: "Le service répond, mais plus lentement que le seuil réglé pour la sonde (page Sondes)."}),
-		// Services (SPEC § 50) : état calculé chaque minute par le serveur.
-		m(Regle{Nom: "ServiceEnPanne", Groupe: "services",
-			Expr:    `max by (service) (mirador_service_etat) == 2`,
-			Pour:    Duree(2 * time.Minute),
-			Gravite: Critique,
-			Resume:  "Service {{ $labels.service }} en panne",
-			Description: "Un élément « clé » du service a un problème (machine muette, conteneur arrêté ou non sain, " +
-				"sonde en échec). Détail sur la page Services."}),
-		m(Regle{Nom: "ServiceDegrade", Groupe: "services",
+		// Applications (SPEC § 50, appelées « services » jusqu'au 19/11,
+		// § 65) : état calculé chaque minute par le serveur. La série et son
+		// étiquette gardent le nom « service » (interne).
+		m(Regle{Nom: "ApplicationEnPanne", Groupe: "services",
+			Expr:        `max by (service) (mirador_service_etat) == 2`,
+			Pour:        Duree(2 * time.Minute),
+			Gravite:     Critique,
+			Resume:      textesApplication["ApplicationEnPanne"][0],
+			Description: textesApplication["ApplicationEnPanne"][1]}),
+		m(Regle{Nom: "ApplicationDegradee", Groupe: "services",
 			Expr:        `max by (service) (mirador_service_etat) == 1`,
 			Pour:        Duree(10 * time.Minute),
 			Gravite:     Avertissement,
-			Resume:      "Service {{ $labels.service }} dégradé",
-			Description: "Un élément du service a un problème, mais le service marche encore. Détail sur la page Services."}),
+			Resume:      textesApplication["ApplicationDegradee"][0],
+			Description: textesApplication["ApplicationDegradee"][1]}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),
@@ -233,6 +234,13 @@ func PoserRegles(ctx context.Context, db *sql.DB, maintenant time.Time, fournies
 		}
 		for _, n := range noms {
 			poses[n] = true
+		}
+	}
+	// Règle déjà posée sous son ancien nom (§ 65) : posée aussi sous le
+	// nouveau (supprimée par l'utilisateur, elle ne revient pas).
+	for _, x := range reglesRenommees {
+		if poses[x.ancien] {
+			poses[x.nouveau] = true
 		}
 	}
 	existantes, err := ListerRegles(ctx, db)
