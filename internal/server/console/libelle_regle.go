@@ -252,15 +252,24 @@ func dureeFr(v any) string {
 	return strings.Join(mots, " ")
 }
 
+// libellesMasquages : noms des modèles de masquage des logs (agent) → en
+// clair. Ce sont des libellés d'affichage, aucun secret.
+var libellesMasquages = map[string]string{ // #nosec G101 -- libellés d'affichage, pas des secrets
+	"mots_de_passe": "Mots de passe", "tokens": "Jetons", "cles_api": "Clés API",
+	"autorisation": "En-têtes Authorization", "cartes": "Cartes bancaires", "emails": "Adresses e-mail",
+}
+
 // motTechnique : mots techniques courants montrés tels quels dans des
 // listes (type d'envoi, canal, action de l'historique) → en clair.
 // Inconnu : première lettre en majuscule.
 func motTechnique(m string) string {
+	if l, ok := libellesMasquages[m]; ok {
+		return l
+	}
 	if l, ok := map[string]string{
 		"debut": "Début", "fin": "Fin", "securite": "Sécurité", "test": "Test", // types d'envoi
 		"ombre": "Mode ombre (rien envoyé)", "file": "File d'attente", "telegram": "Telegram", "olvid": "Olvid", "email": "E-mail", // canaux
 		"regle": "Règle", "regle_supprimee": "Règle supprimée", "regle_desactivee": "Règle désactivée", "regle_activee": "Règle activée", // historique
-		"mots_de_passe": "Mots de passe", "tokens": "Jetons", "cles_api": "Clés API", "autorisation": "En-têtes Authorization", "cartes": "Cartes bancaires", "emails": "Adresses e-mail", // masquages des logs
 		"planifiee": "Planifiée", "manuelle": "Manuelle", "ok": "OK", "Ok": "OK", "erreur": "Erreur", "echec": "Échec", // sauvegardes
 	}[m]; ok {
 		return l
