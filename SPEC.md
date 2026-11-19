@@ -6454,3 +6454,8 @@ l'utilisateur) :
   « OK · 200 · 6 ms » (retour du 19/11).
 - Code de retour en couleur (retour du 19/11) : 2xx vert, 3xx bleu,
   4xx orange, 5xx rouge.
+- Téléphone (page Sondes en cartes, retour du 19/11) : le trait de
+  couleur passe sur le bord gauche de la carte (il mordait sur le nom) ;
+  carte allégée (ni le détail « code 200 à 399 · chaque minute… », ni la
+  petite courbe : ils restent sur la fiche et sur ordinateur). Même trait
+  pour une alerte en cours dans « Dernières alertes ».
