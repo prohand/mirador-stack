@@ -122,6 +122,7 @@
 </section>{{end}}
 </div>{{end}}
 <div class="panneau-onglet" data-panneau-onglet="activite">
+{{with .D.Dernieres}}{{template "dernieres-alertes" .}}{{end}}
 {{with .D.Changements}}<details class="carte section-surveillance" id="changements" data-memoire-ouvert="changements"{{if .Recent}} data-ouvrir{{end}}><summary><h2>Changements</h2> <span class="pastille">{{.Total}} sur 7 jours</span></summary>
 <p class="sous">Paquets, redémarrages, noyau, agent, conteneurs et réglages des 7 derniers jours (aussi en pointillés sur les courbes). {{template "plus" "aide.md#changements"}}</p>
 {{if .Lignes}}<div class="defile"><table data-cartes data-sans-filtre class="changements"><thead><tr><th>Quand</th><th>Type</th><th>Détail</th></tr></thead><tbody>
@@ -152,7 +153,7 @@
 {{with .D.Sondes}}<details class="carte section-surveillance" id="sondes" data-memoire-ouvert="sondes"><summary><h2>Sondes</h2>{{if .NbPings}} <span class="pastille ok">{{.NbPings}} ping{{if gt .NbPings 1}}s{{end}}</span>{{end}}{{if .Sondes}} <span class="pastille">{{len .Sondes}} {{accord (len .Sondes) "sonde(s)"}}</span>{{end}}{{if .Propositions}} <span class="pastille info">{{len .Propositions}} {{accord (len .Propositions) "port(s) ouvert(s)"}}</span>{{end}}</summary>
 <p class="sous">La machine vue du réseau : ping et services essayés depuis un collecteur de son site (ou depuis le serveur pour une adresse publique). Les ports ouverts sont trouvés par l'agent, qui essaie chacun une fois pour savoir s'il parle HTTPS, HTTP ou SSH. {{template "plus" "aide.md#sondes"}}</p>
 {{if .Sondes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Cible</th><th>Depuis</th><th>Dernier essai</th>{{if $.Admin}}<th></th>{{end}}</tr></thead><tbody>
-{{range .Sondes}}<tr><td><a href="/sondes/{{.Nom}}"><strong>{{.Nom}}</strong></a></td><td><code>{{.Cible}}</code></td><td class="doux">{{.Depuis}}</td><td><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Etat}}</span></td>{{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.Nom}}#modifier">Modifier</a> <form method="post" action="/machines/{{$.D.M.Nom}}/sondes" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="retirer"><input type="hidden" name="sonde" value="{{.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
+{{range .Sondes}}<tr><td><a href="/sondes/{{.Nom}}"><strong>{{.Nom}}</strong></a></td><td><code>{{.Cible}}</code></td><td class="doux">{{.Depuis}}</td><td class="sans-coupure"><span class="pastille{{if .Classe}} {{.Classe}}{{end}}"{{if .Code}} title="{{.Code}}"{{end}}>{{.Etat}}</span>{{if .Code}}<br><small class="doux code-sonde">{{.Code}}</small>{{end}}</td>{{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.Nom}}#modifier">Modifier</a> <form method="post" action="/machines/{{$.D.M.Nom}}/sondes" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="retirer"><input type="hidden" name="sonde" value="{{.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
 </tbody></table></div>{{end}}
 {{if $.Admin}}{{template "form-sondes-machine" (dict "S" . "CSRF" $.CSRF "Retour" "")}}{{end}}
 </details>{{end}}

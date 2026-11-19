@@ -25,5 +25,6 @@
 {{template "code2fa"}}<div class="ligne"><button data-code>Enregistrer</button></div>
 <small class="aide">Pour vérifier le certificat HTTPS, viser le nom du site (ex. <code>https://dns02.lan/</code>) et décocher « Ne pas vérifier ». Renommer : la sonde suit dans les applications et les étiquettes ; l'historique des mesures repart sous le nouveau nom.</small>
 </form></section>{{end}}{{end}}
+{{with .D.Dernieres}}{{template "dernieres-alertes" .}}{{end}}
 <section class="carte"><h2>Derniers événements (7 jours)</h2>{{range .D.Evenements}}<div class="ev-ligne"><span class="t">{{heureCourte .Le}}</span><span class="sans-coupure"><span class="puce-ev {{.Classe}}"></span>{{.Titre}}</span><span>{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</span><span class="doux">{{dateCourte .Le}}</span></div>{{else}}<p class="vide">Rien depuis 7 jours.</p>{{end}}</section>
 {{end}}

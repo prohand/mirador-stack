@@ -242,6 +242,9 @@ type Filtre struct {
 	// Étiquette exacte (fiches, SPEC § 68) : sonde, service (application),
 	// name (conteneur). Clés fixes : jamais tirées de la requête.
 	Sonde, Application, Conteneur string
+	// Activees : seulement les alertes passées en alerte (pas les
+	// conditions restées en attente), pour « Dernières alertes » (§ 72).
+	Activees bool
 }
 
 // HistoriqueFiltre : alertes (toutes, en cours comprises), plus récentes d'abord.
@@ -263,6 +266,9 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 	if f.Machine != "" {
 		q += ` AND json_extract(etiquettes, '$.instance') = ?`
 		args = append(args, f.Machine)
+	}
+	if f.Activees {
+		q += ` AND active_le > 0`
 	}
 	if f.Gravite != "" {
 		q += ` AND gravite = ?`

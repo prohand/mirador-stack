@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Dernières alertes de chaque élément (SPEC § 72, 19/11) : fait, à valider
+
+- Machines (onglet Activité), sondes, applications, conteneurs : 10
+  dernières alertes avec le retour à la normale.
+- Colonne « Mises à jour » : se cache maintenant quand on la décoche.
+
 ## Colonnes Site et Type du parc (SPEC § 71, 19/11) : fait, à valider
 
 - Triables, dans « Colonnes » ; montrées d'office s'il y a plusieurs sites
