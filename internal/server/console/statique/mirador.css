@@ -1230,3 +1230,7 @@ details.detail-long[open] > summary { display: none; }
 table.changements td:last-child { overflow-wrap: anywhere; }
 .onglets-machine { margin: 8px 0 18px; }
 .onglets-machine .pastille { margin-left: 4px; padding: 0 7px; font-size: 11px; }
+.ajout-sonde > summary.bouton { display: inline-flex; width: fit-content; list-style: none; cursor: pointer; }
+.ajout-sonde > summary.bouton::-webkit-details-marker { display: none; }
+.ajout-sonde[open] > summary.bouton { margin-bottom: 12px; }
+details.carte.ajout-sonde:not([open]) { background: none; border: 0; box-shadow: none; padding: 0; }

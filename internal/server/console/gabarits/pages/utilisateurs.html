@@ -11,11 +11,11 @@
 <thead><tr><th>Compte</th><th>Rôle</th><th>Connexion</th><th>État</th><th>Dernière connexion</th><th aria-label="Actions"></th></tr></thead>
 <tbody>
 {{range $d.Lignes}}<tr{{if .Desactive}} class="desactive"{{end}}>
-  <td><span class="avatar-compte" aria-hidden="true">{{initiale .Nom}}</span><strong>{{.Nom}}</strong>{{if .Moi}} <span class="pastille">vous</span>{{end}}</td>
+  <td><span class="avatar-compte" aria-hidden="true">{{initiale .Nom}}</span><strong>{{.Nom}}</strong>{{if .Moi}} <span class="pastille">Vous</span>{{end}}</td>
   <td><span class="pastille{{if egal .Role "admin"}} info{{end}}">{{.Role}}</span></td>
   <td>{{if .TOTP}}<span class="pastille ok">2FA</span>{{else}}<span class="pastille attention">2FA à créer</span>{{end}}
     {{if .Passkeys}}<span class="pastille ok">{{.Passkeys}} {{accord .Passkeys "passkey(s)"}}</span>{{end}}
-    {{if and .TOTP (not .Secours)}}<span class="pastille" title="Codes de secours : « Mon compte » de la personne">pas de codes de secours</span>{{end}}</td>
+    {{if and .TOTP (not .Secours)}}<span class="pastille" title="Codes de secours : « Mon compte » de la personne">Pas de codes de secours</span>{{end}}</td>
   <td>{{if .Desactive}}<span class="pastille">Désactivé</span>{{else}}<span class="pastille ok">Actif</span>{{end}}</td>
   <td>{{if .ConnecteLe}}{{depuisS .ConnecteLe}}{{else}}<span class="doux">jamais</span>{{end}}</td>
   <td>

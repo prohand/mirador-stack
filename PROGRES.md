@@ -1047,6 +1047,13 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Ajouter une sonde depuis la page Sondes ; majuscules (SPEC § 69, 19/11) : fait, à valider
+
+- « + Ajouter une sonde » en haut : « Depuis une machine » (même bloc que la
+  page machine) ou « À la main ».
+- Majuscules : pastilles et sortes d'éléments.
+- Couleurs de la page Sondes : maquette montrée, en attente de validation.
+
 ## Liens des fiches filtrés sur l'élément (SPEC § 68, 19/11) : fait, à valider
 
 - Fiches sonde, application, conteneur : Alertes, Incidents, Événements,

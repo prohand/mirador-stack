@@ -6391,3 +6391,20 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
 - Sondes, Applications, Disponibilité, Incidents : liste réduite à
   l'élément ; Sondes accepte aussi `?machine=` (sondes d'une machine).
 - Coût : aucun (mêmes lectures, une condition de plus).
+
+## 69. Ajouter une sonde depuis la page Sondes ; majuscules (retours du 19/11) **[Fait, à valider]**
+
+- « En bas de la page des sondes, ce n'est pas pratique » : bouton
+  **+ Ajouter une sonde** en haut de la page, qui ouvre un panneau à deux
+  onglets :
+  - **Depuis une machine** : choix de la machine (liste des machines avec
+    agent), puis le même bloc que la page machine (ping par adresse,
+    sondes proposées d'après les ports) ; après l'enregistrement, retour
+    sur la page Sondes, machine toujours choisie ;
+  - **À la main** : l'ancien formulaire.
+  Le bloc est un seul gabarit (`form-sondes-machine`) pour les deux pages.
+- Majuscules oubliées : première lettre des pastilles (« Tout va bien »,
+  « Jamais reçue », « Vous », « Cette session », « Sensible »…) et des
+  sortes d'éléments (« Sonde HTTP », « Conteneur », « Machine ») sur les
+  pages Éléments, Disponibilité et les fiches (affichage seulement : la
+  valeur des filtres ne change pas).

@@ -10,9 +10,9 @@
 {{range .D.EnAttente}}{{$id := printf "ap-%s" .Nom}}<tr>
 <td>{{if $.Admin}}<input form="{{$id}}" name="nouveau_nom" value="{{.Nom}}" required maxlength="63" size="13" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" aria-label="Nom de la machine">{{else}}<strong>{{.Nom}}</strong>{{end}}
 <small>{{if .NomDuJeton}}nom choisi au jeton{{else}}proposé par la machine{{end}}</small>
-{{if .NomBanal}}<span class="pastille attention" title="Nom d'hôte trop courant : une alerte « {{.Nom}} ne répond plus » ne dira pas de quelle machine il s'agit. Le changer avant d'approuver.">nom à changer ?</span>{{end}}</td>
+{{if .NomBanal}}<span class="pastille attention" title="Nom d'hôte trop courant : une alerte « {{.Nom}} ne répond plus » ne dira pas de quelle machine il s'agit. Le changer avant d'approuver.">Nom à changer ?</span>{{end}}</td>
 <td><code>{{.IPEnrolement}}</code><small>{{depuisS .CreeLe}}</small>
-{{if .AdresseInconnue}}<span class="pastille attention" title="Aucune machine approuvée n'a été vue sur ce réseau. Normal pour un nouvel hébergeur ; si vous n'attendiez pas de machine, refusez (jeton peut-être fuité).">adresse inconnue</span>{{end}}</td>
+{{if .AdresseInconnue}}<span class="pastille attention" title="Aucune machine approuvée n'a été vue sur ce réseau. Normal pour un nouvel hébergeur ; si vous n'attendiez pas de machine, refusez (jeton peut-être fuité).">Adresse inconnue</span>{{end}}</td>
 {{if $.Admin}}<td>{{template "choix-liste-form" (dict "Nom" "site" "Actuel" .Site "Valeurs" $.D.Listes.Sites "Form" $id)}}</td>
 <td>{{template "choix-liste-form" (dict "Nom" "env" "Actuel" .Env "Valeurs" $.D.Listes.Types "Form" $id)}}</td>
 <td>{{template "choix-liste-form" (dict "Nom" "groupe" "Actuel" .Groupe "Valeurs" $.D.Listes.Groupes "Form" $id)}}</td>
@@ -42,7 +42,7 @@
 {{range .D.Groupes}}{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines" open>
 <summary><strong class="titre-bloc">{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</strong>
 <span class="doux">· {{len .Machines}} {{accord (len .Machines) "machine(s)"}}</span>
-{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">tout va bien</span>{{end}}</summary>{{end}}
+{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}</summary>{{end}}
 <div class="defile"><table data-cartes><thead><tr><th>Nom</th>{{if ne $f.Vue "site"}}<th>Site</th>{{end}}<th>Type</th>{{if ne $f.Vue "groupe"}}<th>Groupe</th>{{end}}<th>Version</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
 {{range .Machines}}<tr{{if .Sous}} class="sous-ligne"{{end}}>
 <td>{{if .Sous}}<span class="doux" aria-hidden="true">↳ </span>{{end}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if .Collecteur}} <span class="pastille info">Collecteur</span>{{end}}{{if .ReleveePar}} <small class="doux">relevé par {{.ReleveePar}}</small>{{end}}</td>
@@ -50,7 +50,7 @@
 <td>{{if .Env}}{{.Env}}{{else}}<span class="doux">—</span>{{end}}</td>
 {{if ne $f.Vue "groupe"}}<td>{{if .Groupe}}{{.Groupe}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
 <td>{{if .Version}}{{.Version}}{{else}}<span class="doux">—</span>{{end}}{{if .MajEchec}} <a class="pastille erreur" href="/machines/{{.Nom}}#maj" title="{{.MajEchec}} — cliquer pour réessayer">Mise à jour en échec</a>{{end}}</td>
-<td>{{if not .VuLe}}<span class="pastille erreur">jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
+<td>{{if not .VuLe}}<span class="pastille erreur">Jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">Muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
 <td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td>
 </tr>{{end}}</tbody></table></div>
 {{if eq $f.Vue "liste"}}</section>{{else}}</details>{{end}}{{else}}{{if .D.Approuvees}}{{template "vide" "Aucune machine ne correspond à ce choix."}}<p><a href="/machines">Tout afficher</a></p>{{else}}<section class="carte">{{template "vide" "Aucune machine approuvée."}}{{if .Admin}}<p><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></p>{{end}}</section>{{end}}{{end}}

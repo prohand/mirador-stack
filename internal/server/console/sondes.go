@@ -47,6 +47,17 @@ type donneesSondes struct {
 	Mediane                   string
 	Depuis                    []string // serveur + collecteurs (formulaire)
 	FiltreSur                 filtreSur
+	Ajout                     ajoutSonde
+}
+
+// ajoutSonde : panneau « + Ajouter une sonde » en haut de la page (retour du
+// 19/11, SPEC § 69) : « Depuis une machine » (même bloc que la page machine)
+// ou « À la main ».
+type ajoutSonde struct {
+	Ouvert   bool
+	Machines []string          // machines avec agent (approuvées)
+	Choisie  string            // machine choisie (?ajouter=NOM)
+	Bloc     *vueSondesMachine // ses adresses et ports proposés
 }
 
 // cleSonde : séries d'une sonde (instance = depuis, sonde = nom).
@@ -119,6 +130,21 @@ func (c *Console) pageSondes(q *req) {
 		d.FiltreSur = filtreSur{"la sonde « " + nom + " »", "/sondes"}
 		if nom == "" {
 			d.FiltreSur.Texte = "la machine « " + machine + " »"
+		}
+	}
+	// Panneau d'ajout : machine choisie → son bloc (adresses, ports proposés).
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		choisie := q.r.URL.Query().Get("ajouter")
+		for _, m := range ms {
+			if m.Type != "agent" || m.Statut != "approuvee" {
+				continue
+			}
+			d.Ajout.Machines = append(d.Ajout.Machines, m.Nom)
+			if m.Nom == choisie {
+				d.Ajout.Choisie, d.Ajout.Ouvert = m.Nom, true
+				_, releveur, _ := flotte.CollecteurDe(ctx, c.db, m.ID)
+				d.Ajout.Bloc = c.sondesMachine(ctx, m, releveur, q.t)
+			}
 		}
 	}
 	lues := c.sondesLues(ctx, q.t)

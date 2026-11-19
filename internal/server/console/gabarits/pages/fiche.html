@@ -1,5 +1,5 @@
 {{define "contenu"}}{{$e := .D.E}}
-<div class="fiche-tete"><span class="sorte">{{$e.Sorte}}</span><h1>{{$e.Nom}}</h1><span class="pastille{{if $e.Pastille}} {{$e.Pastille}}{{end}}">{{$e.Etat}}</span></div>
+<div class="fiche-tete"><span class="sorte">{{sorte $e.Sorte}}</span><h1>{{$e.Nom}}</h1><span class="pastille{{if $e.Pastille}} {{$e.Pastille}}{{end}}">{{$e.Etat}}</span></div>
 <p class="onglets">{{range .D.Raccourcis}}<a href="{{.Lien}}">{{.Titre}}</a>{{end}}</p>
 <div class="resume-alertes kpis4">{{range .D.Tuiles}}<span class="tuile{{if eq .Classe "erreur"}} critique{{else if eq .Classe "attention"}} avert{{end}}"><small>{{.Titre}}</small><b>{{.Valeur}}</b></span>{{end}}</div>
 {{if .D.Courbe}}<section class="carte"><h2>{{.D.TitreCourbe}}</h2><div class="courbe-fiche">{{.D.Courbe}}</div></section>{{end}}

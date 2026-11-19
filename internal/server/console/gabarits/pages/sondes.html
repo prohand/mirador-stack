@@ -1,6 +1,30 @@
 {{define "contenu"}}
 <h1>Sondes</h1>
 {{template "filtre-sur" .D.FiltreSur}}
+{{if .Admin}}<details class="carte ajout-sonde" id="ajouter"{{if .D.Ajout.Ouvert}} open{{end}}><summary class="bouton">+ Ajouter une sonde</summary>
+<nav class="onglets" data-onglets-panneaux="ajout-sonde"{{if .D.Ajout.Choisie}} data-onglet-force="machine"{{end}} aria-label="Façon d'ajouter"><a href="#ajout-machine" data-onglet="machine">Depuis une machine</a><a href="#ajout-manuel" data-onglet="manuel">À la main</a></nav>
+<div class="panneau-onglet" data-panneau-onglet="machine">
+<form method="get" action="/sondes#ajouter" class="ligne"><label>Machine <select name="ajouter" data-envoi-auto required><option value="">— choisir —</option>{{range .D.Ajout.Machines}}<option{{if eq . $.D.Ajout.Choisie}} selected{{end}}>{{.}}</option>{{end}}</select></label><button class="secondaire">Voir ses adresses et ports</button></form>
+{{with .D.Ajout.Bloc}}<p class="sous">Machine <a href="/machines/{{.Machine}}#sondes">{{.Machine}}</a>{{if .Sondes}} : {{len .Sondes}} {{accord (len .Sondes) "sonde(s)"}} déjà{{end}}. Ping et sondes proposées d'après ce que l'agent a trouvé. {{template "plus" "aide.md#sondes"}}</p>
+{{template "form-sondes-machine" (dict "S" . "CSRF" $.CSRF "Retour" "sondes")}}{{else}}<p class="vide">Choisir une machine : ses adresses (ping) et ses ports ouverts (HTTPS, HTTP, SSH…) sont proposés, à cocher.</p>{{end}}
+</div>
+<div class="panneau-onglet" data-panneau-onglet="manuel">
+<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter">
+<div class="ligne"><label>Nom <input name="nom" required maxlength="48" placeholder="Home Assistant"></label>
+<label>Type <select name="type"><option value="http">HTTP(S)</option><option value="tcp">TCP (port ouvert)</option><option value="ping">Ping</option><option value="dns">DNS</option></select></label>
+<label>Faite depuis <select name="depuis">{{range .D.Depuis}}<option value="{{.}}">{{if eq . "serveur"}}Serveur mirador (extérieur){{else}}Collecteur « {{.}} »{{end}}</option>{{end}}</select></label>
+<label>Toutes les <input name="intervalle" placeholder="60s" size="6" maxlength="10"></label></div>
+<label>Cible <input name="cible" required maxlength="500" placeholder="https://ha.lan:8123/ · hôte:port · hôte · serveur DNS"></label>
+<div class="ligne"><label>Code attendu (HTTP) <input name="code_http" size="5" maxlength="3" placeholder="200"></label>
+<label>Contenu attendu (facultatif) <input name="contenu" maxlength="200" placeholder="texte de la page, ou adresse IP (DNS)"></label>
+<label>Nom à demander (DNS) <input name="question" maxlength="253" placeholder="nas.lan"></label>
+<label>Lente au-delà de <input name="lente" placeholder="1s" size="5" maxlength="10"></label></div>
+<label class="case"><input type="checkbox" name="non_verifie" value="1"> Ne pas vérifier le certificat (service du LAN au certificat fait maison)</label>
+{{template "code2fa"}}<div class="ligne"><button data-code>Ajouter</button></div>
+<small class="aide">Depuis le serveur : adresses locales et privées refusées (le serveur ne se sonde pas lui-même). Depuis un collecteur : il faut une version du collecteur qui connaît les sondes (sinon elles sont ignorées). Ping : autorisé sans droits par le réglage <code>net.ipv4.ping_group_range</code> (ouvert par défaut sur Debian et Ubuntu récents). {{template "plus" "aide.md#sondes"}}</small>
+</form>
+</div>
+</details>{{end}}
 <p class="sous">Essais faits depuis le collecteur du LAN, ou depuis le serveur pour la vue de l'extérieur : la page répond-elle, en combien de temps, avec le bon contenu ; le port est-il ouvert ; la machine répond-elle au ping ; le DNS répond-il. Alertes fournies : SondeEnEchec (deux essais ratés de suite), SondeLente (5 min).</p>
 <div class="resume-alertes">
  <span class="tuile"><small>Sondes</small><b>{{.D.Total}}</b></span>
@@ -15,20 +39,6 @@
 <td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
 <td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{.Dispo}}</td>
 {{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.S.Nom}}#modifier">Modifier</a> <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
-</tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} Ajouter la première ci-dessous.{{end}}</p>{{end}}</section>
-{{if .Admin}}<section class="carte"><h2>Ajouter une sonde</h2>
-<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter">
-<div class="ligne"><label>Nom <input name="nom" required maxlength="48" placeholder="Home Assistant"></label>
-<label>Type <select name="type"><option value="http">HTTP(S)</option><option value="tcp">TCP (port ouvert)</option><option value="ping">Ping</option><option value="dns">DNS</option></select></label>
-<label>Faite depuis <select name="depuis">{{range .D.Depuis}}<option value="{{.}}">{{if eq . "serveur"}}Serveur mirador (extérieur){{else}}Collecteur « {{.}} »{{end}}</option>{{end}}</select></label>
-<label>Toutes les <input name="intervalle" placeholder="60s" size="6" maxlength="10"></label></div>
-<label>Cible <input name="cible" required maxlength="500" placeholder="https://ha.lan:8123/ · hôte:port · hôte · serveur DNS"></label>
-<div class="ligne"><label>Code attendu (HTTP) <input name="code_http" size="5" maxlength="3" placeholder="200"></label>
-<label>Contenu attendu (facultatif) <input name="contenu" maxlength="200" placeholder="texte de la page, ou adresse IP (DNS)"></label>
-<label>Nom à demander (DNS) <input name="question" maxlength="253" placeholder="nas.lan"></label>
-<label>Lente au-delà de <input name="lente" placeholder="1s" size="5" maxlength="10"></label></div>
-<label class="case"><input type="checkbox" name="non_verifie" value="1"> Ne pas vérifier le certificat (service du LAN au certificat fait maison)</label>
-{{template "code2fa"}}<div class="ligne"><button data-code>Ajouter</button></div>
-<small class="aide">Depuis le serveur : adresses locales et privées refusées (le serveur ne se sonde pas lui-même). Depuis un collecteur : il faut une version du collecteur qui connaît les sondes (sinon elles sont ignorées). Ping : autorisé sans droits par le réglage <code>net.ipv4.ping_group_range</code> (ouvert par défaut sur Debian et Ubuntu récents). {{template "plus" "aide.md#sondes"}}</small>
-</form></section>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} « + Ajouter une sonde » ci-dessus.{{end}}</p>{{end}}</section>
+
 {{end}}

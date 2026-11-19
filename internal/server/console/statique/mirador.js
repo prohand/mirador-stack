@@ -1417,7 +1417,10 @@ document.addEventListener("change", function (e) {
     }
     return false;
   }
-  if (!depuisAdresse()) {
+  var force = nav.getAttribute("data-onglet-force");
+  if (force && existe(force)) {
+    montrer(force, false); // choisi par la page (ex. machine choisie dans « Ajouter une sonde »)
+  } else if (!depuisAdresse()) {
     var memo = "";
     try { memo = window.localStorage.getItem(cle) || ""; } catch (e) { /* stockage refusé */ }
     montrer(existe(memo) ? memo : liens[0].getAttribute("data-onglet"), false);
@@ -1432,3 +1435,10 @@ document.addEventListener("change", function (e) {
   });
   window.addEventListener("hashchange", depuisAdresse);
 })();
+
+// Liste qui envoie son formulaire dès qu'on choisit (data-envoi-auto) : le
+// bouton reste pour un navigateur sans JavaScript.
+document.addEventListener("change", function (ev) {
+  var c = ev.target;
+  if (c && c.hasAttribute && c.hasAttribute("data-envoi-auto") && c.form && c.value) { c.form.submit(); }
+});
