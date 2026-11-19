@@ -82,10 +82,16 @@ func TestCorrigerRegles(t *testing.T) {
 	if _, err := Enregistrer(ctx, db, []Regle{
 		r("AgentMuet", "min by (instance)\n  (lag(node_uname_info[1d])) >  60"), // espaces différents : reconnue
 		r("AutreMuet", "min by (instance) (lag(node_uname_info[1d])) > 120"),    // changée par l'utilisateur : intacte
+		r("MiseAJourAgentEchouee", "mirador_machine_maj_echec == 1"),            // sans durée : 30 min ajoutées (§ 61)
+		func() Regle {
+			x := r("MajPerso", "mirador_machine_maj_echec == 1")
+			x.Pour = Duree(5 * time.Minute)
+			return x
+		}(), // durée choisie : intacte
 	}, "test", maintenant); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := CorrigerRegles(ctx, db, maintenant); err != nil || n != 1 {
+	if n, err := CorrigerRegles(ctx, db, maintenant); err != nil || n != 2 {
 		t.Fatalf("1re fois : %d, %v", n, err)
 	}
 	if n, err := CorrigerRegles(ctx, db, maintenant); err != nil || n != 0 {
@@ -103,6 +109,14 @@ func TestCorrigerRegles(t *testing.T) {
 			}
 			if _, err := x.Valider(); err != nil {
 				t.Error(err)
+			}
+		case "MiseAJourAgentEchouee":
+			if x.Pour != Duree(30*time.Minute) || !strings.Contains(x.Note, "§ 61") {
+				t.Errorf("MiseAJourAgentEchouee : pendant %v (%q)", x.Pour, x.Note)
+			}
+		case "MajPerso":
+			if x.Pour != Duree(5*time.Minute) {
+				t.Errorf("durée choisie par l'utilisateur modifiée : %v", x.Pour)
 			}
 		case "AutreMuet":
 			if strings.Contains(x.Expr, MetriqueDerniereReception) {

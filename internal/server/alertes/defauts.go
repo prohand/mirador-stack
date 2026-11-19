@@ -189,6 +189,7 @@ func ReglesMirador() []Regle {
 				"Vérifier NTP (timedatectl) sur la machine."}),
 		m(Regle{Nom: "MiseAJourAgentEchouee", Groupe: "mirador",
 			Expr:    `mirador_machine_maj_echec == 1`,
+			Pour:    Duree(30 * time.Minute), // SPEC § 61 : pas d'alerte pour une vérification ratée une fois
 			Gravite: Avertissement,
 			Resume:  "La mise à jour de l'agent a échoué sur {{ $labels.instance }} (version {{ $labels.version }})",
 			Description: "L'agent est revenu à sa version précédente. Cette version ne sera pas retentée sur cette " +
