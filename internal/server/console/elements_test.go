@@ -43,7 +43,7 @@ func TestElementsFichesEtiquettes(t *testing.T) {
 	}
 	_, corps, _ := b.get(cl, "/elements")
 	for _, attendu := range []string{"<h1>Éléments</h1>", `href="/machines/web1"`, `href="/conteneurs/web1/ha"`, `href="/sondes/Nextcloud"`,
-		`href="/services/Cloud"`, "fait partie de", "<b>critique</b>"} {
+		`href="/applications/Cloud"`, "fait partie de", "<b>critique</b>"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("éléments : %q absent", attendu)
 		}
@@ -54,7 +54,7 @@ func TestElementsFichesEtiquettes(t *testing.T) {
 	}
 	for chemin, attendus := range map[string][]string{
 		"/sondes/Nextcloud":   {"Disponibilité 30 j", "Échec", "fait partie de", "Page Sondes"},
-		"/services/Cloud":     {"En panne", "comprend", "Page Services"},
+		"/applications/Cloud":     {"En panne", "comprend", "Page Applications"},
 		"/conteneurs/web1/ha": {"Redémarrages 24 h", "sur la machine", "Logs du conteneur"},
 		"/machines/web1":      {`id="etiquettes"`, "<b>role</b>", "fait partie de"},
 	} {

@@ -1,6 +1,6 @@
 {{define "contenu"}}
 <h1>Éléments</h1>
-<p class="sous">Tout ce que mirador surveille, au même endroit : machines, collecteurs, équipements, conteneurs, sondes, services, avec leur état, leurs liens et leurs étiquettes. Problèmes en premier ; clic : la fiche.</p>
+<p class="sous">Tout ce que mirador surveille, au même endroit : machines, collecteurs, équipements, conteneurs, sondes, applications, avec leur état, leurs liens et leurs étiquettes. Problèmes en premier ; clic : la fiche.</p>
 <p class="onglets"><a {{if not .D.Sorte}}class="actif"{{end}} href="/elements{{if .D.Filtre}}?etiquette={{.D.Filtre}}{{end}}">Tout <small>{{index .D.Compte ""}}</small></a>{{range .D.Sortes}}<a {{if eq . $.D.Sorte}}class="actif"{{end}} href="/elements?sorte={{.}}{{if $.D.Filtre}}&amp;etiquette={{$.D.Filtre}}{{end}}">{{majuscule .}}s <small>{{index $.D.Compte .}}</small></a>{{end}}</p>
 <form method="get" action="/elements" class="ligne filtres-evenements">{{if .D.Sorte}}<input type="hidden" name="sorte" value="{{.D.Sorte}}">{{end}}<label>Étiquette <input name="etiquette" value="{{.D.Filtre}}" placeholder="critique=oui" maxlength="100"></label><button class="secondaire">Filtrer</button>{{if .D.Filtre}} <a href="/elements">Tout voir</a>{{end}}</form>
 <section class="carte">{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Élément</th><th>Sorte</th><th>État</th><th>Liens</th><th>Étiquettes</th></tr></thead><tbody>

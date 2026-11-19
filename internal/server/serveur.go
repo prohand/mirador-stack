@@ -115,6 +115,13 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 
 	// Alertes : règles mirador posées une fois, puis moteur (règles relues
 	// à chaud quand elles changent en base).
+	// Règles renommées (SPEC § 65) : avant de poser les défauts, sinon la
+	// règle serait posée une seconde fois sous son nouveau nom.
+	if n, err := alertes.RenommerRegles(ctx, s.db, time.Now()); err != nil {
+		journal.Warn("renommage des règles", "erreur", err)
+	} else if n > 0 {
+		journal.Info("règles d'alerte renommées (SPEC § 65)", "nombre", n)
+	}
 	if n, err := alertes.PoserDefauts(ctx, s.db, time.Now()); err != nil {
 		return echec(fmt.Errorf("règles par défaut : %w", err))
 	} else if n > 0 {

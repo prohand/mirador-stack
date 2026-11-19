@@ -165,3 +165,54 @@ func BenchmarkAgentMuet(b *testing.B) {
 		})
 	}
 }
+
+// « Services » renommés « Applications » (SPEC § 65) : règle déjà en base
+// passée sous le nouveau nom, réglages gardés, textes d'origine remplacés ;
+// PoserDefauts ne la pose pas une seconde fois.
+func TestRenommerRegles(t *testing.T) {
+	ctx := context.Background()
+	db := baseTest(t)
+	maintenant := time.Now()
+	ancienne := Regle{Nom: "ServiceEnPanne", Groupe: "services", Expr: `max by (service) (mirador_service_etat) == 2`,
+		Pour: Duree(5 * time.Minute), Gravite: Critique, Active: true, Origine: "mirador",
+		Resume: reglesRenommees[0].resumeAvant, Description: "texte changé par l'utilisateur"}
+	if _, err := Enregistrer(ctx, db, []Regle{ancienne}, "test", maintenant); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := RenommerRegles(ctx, db, maintenant); err != nil || n != 1 {
+		t.Fatalf("renommage : %d %v", n, err)
+	}
+	if n, _ := RenommerRegles(ctx, db, maintenant); n != 0 {
+		t.Fatalf("2e passage : %d", n)
+	}
+	if _, err := PoserDefauts(ctx, db, maintenant); err != nil {
+		t.Fatal(err)
+	}
+	regles, _ := ListerRegles(ctx, db)
+	trouvees := map[string]Regle{}
+	for _, r := range regles {
+		trouvees[r.Nom] = r
+	}
+	if _, ok := trouvees["ServiceEnPanne"]; ok {
+		t.Error("ancienne règle encore là")
+	}
+	r := trouvees["ApplicationEnPanne"]
+	if r.Pour != Duree(5*time.Minute) || r.Resume != "Application {{ $labels.service }} en panne" ||
+		r.Description != "texte changé par l'utilisateur" || !strings.Contains(r.Note, "§ 65") {
+		t.Errorf("règle renommée : %+v", r)
+	}
+	if _, ok := trouvees["ApplicationDegradee"]; !ok {
+		t.Error("ApplicationDegradee non posée (installation sans l'ancienne règle)")
+	}
+	// Règle supprimée par l'utilisateur sous son ancien nom : ne revient
+	// pas sous le nouveau.
+	db2 := baseTest(t)
+	if _, err := PoserDefauts(ctx, db2, maintenant); err != nil {
+		t.Fatal(err)
+	}
+	_ = Supprimer(ctx, db2, "ApplicationDegradee", "test", maintenant)
+	_, _ = db2.ExecContext(ctx, `UPDATE reglages SET valeur = replace(valeur, '"ApplicationDegradee"', '"ServiceDegrade"') WHERE cle = ?`, cleDefautsPoses)
+	if n, _ := PoserDefauts(ctx, db2, maintenant); n != 0 {
+		t.Errorf("règle supprimée reposée : %d", n)
+	}
+}

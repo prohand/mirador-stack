@@ -74,18 +74,18 @@ func (c *Console) pageServices(q *req) {
 			d.Cartes[j], d.Cartes[j-1] = d.Cartes[j-1], d.Cartes[j]
 		}
 	}
-	c.rendre(q, "services", "Services", "services", d)
+	c.rendre(q, "services", "Applications", "services", d)
 }
 
 func (c *Console) postServices(q *req) {
 	ctx := q.r.Context()
 	if err := c.verifierCode(q); err != nil {
-		c.retour(q, "/services", err, "")
+		c.retour(q, "/applications", err, "")
 		return
 	}
 	liste, err := servicesmetier.Lire(ctx, c.db)
 	if err != nil {
-		c.retour(q, "/services", err, "")
+		c.retour(q, "/applications", err, "")
 		return
 	}
 	f := champs{q}
@@ -101,17 +101,17 @@ func (c *Console) postServices(q *req) {
 	case "enregistrer":
 		cs, err := servicesmetier.LireLignes(q.r.PostFormValue("elements"))
 		if err != nil {
-			c.retour(q, "/services", err, "")
+			c.retour(q, "/applications", err, "")
 			return
 		}
 		liste = append(liste, servicesmetier.Service{Nom: nom, Composants: cs})
 		err = servicesmetier.Enregistrer(ctx, c.db, liste, q.qui(), q.ip.String(), q.t)
-		c.retour(q, "/services", err, "service « "+nom+" » enregistré")
+		c.retour(q, "/applications", err, "application « "+nom+" » enregistrée")
 	case "supprimer":
 		err = servicesmetier.Enregistrer(ctx, c.db, liste, q.qui(), q.ip.String(), q.t)
-		c.retour(q, "/services", err, "service « "+ancien+" » supprimé")
+		c.retour(q, "/applications", err, "application « "+ancien+" » supprimée")
 	default:
-		c.retour(q, "/services", errors.New("action inconnue"), "")
+		c.retour(q, "/applications", errors.New("action inconnue"), "")
 	}
 }
 

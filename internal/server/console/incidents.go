@@ -227,7 +227,7 @@ func (c *Console) completerIncident(inc *incident, services map[string][]string)
 		if a.Regle == "AgentMuet" {
 			muettes++
 		}
-		if strings.HasPrefix(a.Regle, "ServiceEnPanne") && a.Service != "" {
+		if (strings.HasPrefix(a.Regle, "ApplicationEnPanne") || strings.HasPrefix(a.Regle, "ServiceEnPanne")) && a.Service != "" {
 			service = a.Service
 		}
 	}

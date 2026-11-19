@@ -6301,3 +6301,22 @@ seulement (le texte d'aide renvoyait à tort vers la page Sondes).
   ailleurs (page Sondes, autre machine) garde la pastille ✓ et ne se retire
   pas d'ici. Le ping et les sondes proposées ont chacun leurs champs (un
   enregistrement ne touche pas l'autre partie).
+
+## 65. « Services » renommés « Applications » (19/11) **[Fait, à valider]**
+
+« Services » faisait penser aux services systemd vérifiés sur les machines.
+Choix de l'utilisateur : **Applications**, règles renommées aussi.
+- Interface : menu, page `/applications` (et `/applications/NOM`),
+  fiches, Ctrl+K, page Éléments, incidents (« application Domotique »).
+  Les anciennes adresses `/services…` redirigent (301).
+- Règles : ServiceEnPanne → **ApplicationEnPanne**, ServiceDegrade →
+  **ApplicationDegradee**. Au démarrage du serveur, avant la pose des
+  règles par défaut (`alertes.RenommerRegles`) : la règle en base change de
+  nom, réglages gardés (activation, durée, gravité, expression), résumé et
+  description remplacés seulement s'ils sont d'origine ; une note le dit.
+  Une règle supprimée sous l'ancien nom ne revient pas sous le nouveau.
+  Alertes passées : ancien nom ; une alerte en cours est fermée et rouverte
+  sous le nouveau nom au cycle suivant.
+- Interne inchangé : série `mirador_service_etat{service}`, étiquette
+  `service` des alertes, paquet `servicesmetier`, clé `v:` des étiquettes.
+- État « Dégradée » (féminin).

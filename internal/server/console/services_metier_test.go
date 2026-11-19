@@ -27,15 +27,15 @@ func TestPageServices(t *testing.T) {
 	b.machinesApprouvees(t, "docker01")
 	cl, secret := b.premierAdmin("admin", mdpAdmin)
 	poster := func(v url.Values) {
-		v.Set("csrf", b.csrf(cl, "/services"))
+		v.Set("csrf", b.csrf(cl, "/applications"))
 		v.Set("code", b.code(secret))
-		b.post(cl, "/services", v)
+		b.post(cl, "/applications", v)
 		b.h.avancer(31 * time.Second) // code TOTP suivant
 	}
 	poster(url.Values{"action": {"enregistrer"}, "nom": {"Domotique"}, "elements": {"clé sonde HA\nconteneur docker01/ha\nmachine docker01"}})
-	_, corps, _ := b.get(cl, "/services")
-	for _, attendu := range []string{"<h1>Services</h1>", "Domotique", `<span class="pastille attention">Dégradé</span>`,
-		"OK · 41 ms", "Non sain", `<span class="cle">clé</span>`, "30 j : 100 %", `href="/services"`} {
+	_, corps, _ := b.get(cl, "/applications")
+	for _, attendu := range []string{"<h1>Applications</h1>", "Domotique", `<span class="pastille attention">Dégradée</span>`,
+		"OK · 41 ms", "Non sain", `<span class="cle">clé</span>`, "30 j : 100 %", `href="/applications"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page : %q absent", attendu)
 		}

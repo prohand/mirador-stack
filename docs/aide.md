@@ -233,7 +233,7 @@ section de cette page.
   Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
   `0 2147483647`.
 - **Modifier, renommer** : lien « Modifier » (page Sondes, bloc Sondes de
-  la machine) ou fiche de la sonde. Le nouveau nom suit dans les services et
+  la machine) ou fiche de la sonde. Le nouveau nom suit dans les applications et
   les étiquettes ; l'historique des mesures repart sous le nouveau nom.
 - **Collecteur ancien** : il ne connaît pas les sondes ; elles lui sont
   retirées de sa configuration jusqu'à sa mise à jour.

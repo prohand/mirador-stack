@@ -1047,6 +1047,14 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## « Services » renommés « Applications » (SPEC § 65, 19/11) : fait, à valider
+
+- Menu, page, fiches, Ctrl+K, incidents ; anciennes adresses redirigées.
+- Règles ApplicationEnPanne / ApplicationDegradee (renommées au démarrage du
+  serveur, réglages gardés).
+- À vérifier après mise à jour du serveur : Alertes › Règles, plus de
+  ServiceEnPanne, ApplicationEnPanne avec la note « § 65 ».
+
 ## Modifier et renommer une sonde (SPEC § 64, 19/11) : fait, à valider
 
 - Fiche de la sonde › « Modifier la sonde » (lien « Modifier » sur la page
