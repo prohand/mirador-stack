@@ -44,6 +44,7 @@ type ligneSonde struct {
 	ClasseLigne string
 	DispoClasse string
 	Code        string // « Code 200 » sous l'état (HTTP)
+	CodeClasse  string // ok, info, attention, erreur
 	DispoPct    int
 }
 
@@ -182,7 +183,7 @@ func (c *Console) pageSondes(q *req) {
 			durees = append(durees, lues["duree"][k].Valeur*1000)
 		}
 		l.ClasseLigne = map[int]string{bilanOK: "ok", bilanLente: "lente", bilanEchec: "echec"}[bilan]
-		l.Code = codeSondeLu(lues, s)
+		l.Code, l.CodeClasse = codeSondeLu(lues, s)
 		if v, ok := lues["dispo"][k]; ok && !math.IsNaN(v.Valeur) {
 			l.Dispo = virgule(strconv.FormatFloat(100*v.Valeur, 'f', dispoDecimales(v.Valeur), 64)) + " %"
 			l.DispoPct = int(math.Round(100 * v.Valeur))
@@ -259,15 +260,28 @@ func (c *Console) renommerSonde(ctx context.Context, q *req, ancien, nouveau str
 }
 
 // codeSondeLu : HTTP(S), code de retour du dernier essai (« Code 200 »),
-// montré sous l'état (retour du 19/11) ; vide sinon.
-func codeSondeLu(lues map[string]map[string]alertes.Echantillon, s essais.Sonde) string {
+// montré sous l'état (retour du 19/11), et sa couleur : ok (2xx), info
+// (3xx), attention (4xx), erreur (5xx). Vides sinon.
+func codeSondeLu(lues map[string]map[string]alertes.Echantillon, s essais.Sonde) (texte, classe string) {
 	if s.Type != essais.HTTP {
-		return ""
+		return "", ""
 	}
-	if c, ok := lues["code"][cleSonde(instanceDe(s), s.Nom)]; ok && c.Valeur >= 100 && c.Valeur <= 599 {
-		return "Code " + strconv.Itoa(int(c.Valeur))
+	c, ok := lues["code"][cleSonde(instanceDe(s), s.Nom)]
+	if !ok || c.Valeur < 100 || c.Valeur > 599 {
+		return "", ""
 	}
-	return ""
+	code := int(c.Valeur)
+	switch {
+	case code >= 500:
+		classe = "erreur"
+	case code >= 400:
+		classe = "attention"
+	case code >= 300:
+		classe = "info"
+	case code >= 200:
+		classe = "ok"
+	}
+	return "Code " + strconv.Itoa(code), classe
 }
 
 // Bilan du dernier essai d'une sonde.
