@@ -68,6 +68,7 @@ func (c *Console) sondesLues(ctx context.Context, t time.Time) map[string]map[st
 		"duree":  `max by (instance, sonde) (mirador_sonde_duree_secondes)`,
 		"lente":  `max by (instance, sonde) (mirador_sonde_lente)`,
 		"erreur": `max by (instance, sonde, erreur) (mirador_sonde_erreur)`,
+		"code":   `max by (instance, sonde) (mirador_sonde_code_http)`, // HTTP(S) : code reçu (retour du 19/11)
 		"dispo":  `avg by (instance, sonde) (avg_over_time(mirador_sonde_succes[24h]))`,
 	} {
 		ech, err := c.instant(ctx, expr, t)
@@ -213,10 +214,15 @@ func etatSondeLue(lues map[string]map[string]alertes.Echantillon, s essais.Sonde
 		return "Pas encore d'essai", "", bilanSansEssai
 	case succes.Valeur == 1:
 		ms := strconv.FormatFloat(lues["duree"][k].Valeur*1000, 'f', 0, 64)
-		if lues["lente"][k].Valeur == 1 {
-			return "Lente · " + ms + " ms", "attention", bilanLente
+		// HTTP(S) : code de retour reçu (« OK · 200 · 5 ms »).
+		code := ""
+		if c, ok := lues["code"][k]; ok && s.Type == essais.HTTP && c.Valeur >= 100 && c.Valeur <= 599 {
+			code = strconv.Itoa(int(c.Valeur)) + " · "
 		}
-		return "OK · " + ms + " ms", "ok", bilanOK
+		if lues["lente"][k].Valeur == 1 {
+			return "Lente · " + code + ms + " ms", "attention", bilanLente
+		}
+		return "OK · " + code + ms + " ms", "ok", bilanOK
 	}
 	raison := "échec"
 	if e, ok := lues["erreur"][k]; ok {

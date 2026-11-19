@@ -1047,6 +1047,14 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Ping refusé sur le collecteur, code HTTP affiché (SPEC § 67, 19/11) : fait, à valider
+
+- « ping impossible sans droits » : plage `net.ipv4.ping_group_range` vide
+  sur le collecteur (LXC). Le script d'installation l'élargit au groupe du
+  collecteur et l'unité la réapplique au démarrage. Collecteur déjà
+  installé : commandes données à l'utilisateur.
+- Sondes HTTP(S) : « OK · 200 · 5 ms ».
+
 ## Page d'une machine en onglets (SPEC § 66, 19/11) : fait, à valider
 
 - Vue d'ensemble · Activité · Sondes et liens · Réglages (Collecte pour un

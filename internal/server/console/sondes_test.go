@@ -23,7 +23,7 @@ func TestPageSondes(t *testing.T) {
 		s("Nextcloud", "mirador_sonde_succes", 0), s("Nextcloud", "mirador_sonde_duree_secondes", 0.9),
 		s("Nextcloud", "mirador_sonde_erreur", 1, "erreur", "code 502"),
 		s("Vaultwarden", "mirador_sonde_succes", 1), s("Vaultwarden", "mirador_sonde_duree_secondes", 0.041),
-		s("Vaultwarden", "mirador_sonde_lente", 0),
+		s("Vaultwarden", "mirador_sonde_lente", 0), s("Vaultwarden", "mirador_sonde_code_http", 200),
 	})
 	cl, secret := b.premierAdmin("admin", mdpAdmin)
 	ajouter := func(champs url.Values) string {
@@ -38,7 +38,7 @@ func TestPageSondes(t *testing.T) {
 		"code_http": {"200"}, "contenu": {"installed"}})
 	b.h.avancer(31 * time.Second) // code TOTP suivant (anti-rejeu)
 	corps := ajouter(url.Values{"nom": {"Vaultwarden"}, "type": {"http"}, "cible": {"https://pass.exemple.fr/alive"}, "depuis": {"serveur"}})
-	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 41 ms", "code 200 · contient « installed »",
+	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 200 · 41 ms", "code 200 · contient « installed »",
 		`class="tuile critique"`, "Temps de réponse médian", `name="nom" value="Nextcloud"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des sondes : %q absent", attendu)

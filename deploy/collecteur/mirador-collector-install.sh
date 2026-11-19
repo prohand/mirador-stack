@@ -9,7 +9,8 @@
 #   - utilisateur système « mirador-collector » (sans droits root) ;
 #   - binaire dans /var/lib/mirador-collector/bin (lien « current ») ;
 #   - configuration dans /etc/mirador-collector ;
-#   - unités systemd durcies : collecteur, retour arrière.
+#   - unités systemd durcies : collecteur, retour arrière ;
+#   - ping sans droits pour son groupe (net.ipv4.ping_group_range, sondes).
 #
 # Usage :
 #   MIRADOR_JETON=mirador_enrol_… bash mirador-collector-install.sh \
@@ -74,6 +75,7 @@ if [ "$MODE" = desinstaller ]; then
   info "Arrêt et suppression de mirador-collector"
   systemctl disable --now mirador-collector.service >/dev/null 2>&1 || true
   rm -f "$UNITES/mirador-collector.service" "$UNITES/mirador-collector-retour.service"
+  rm -f /etc/sysctl.d/60-mirador-collector-ping.conf
   systemctl daemon-reload
   rm -rf -- "$ETC" "$VARLIB"
   if id "$UTILISATEUR" >/dev/null 2>&1; then userdel "$UTILISATEUR" 2>/dev/null || true; fi
@@ -128,6 +130,10 @@ OnFailure=mirador-collector-retour.service
 [Service]
 User=mirador-collector
 Group=mirador-collector
+# Ping sans droits (sondes, SPEC § 67) : réglage réappliqué à chaque démarrage
+# (« + » : en root, hors du bac à sable ; « - » : sans fichier, rien). Un
+# conteneur LXC n'applique pas /etc/sysctl.d au démarrage.
+ExecStartPre=-+/usr/sbin/sysctl -q -p /etc/sysctl.d/60-mirador-collector-ping.conf
 ExecStart=/var/lib/mirador-collector/bin/current -config /etc/mirador-collector/collector.conf -dossier-bin /var/lib/mirador-collector/bin
 Restart=always
 RestartSec=10
@@ -256,6 +262,35 @@ if ! id "$UTILISATEUR" >/dev/null 2>&1; then
   useradd --system --no-create-home --home-dir "$VARLIB" --shell /usr/sbin/nologin "$UTILISATEUR"
 fi
 install -d -o root -g "$UTILISATEUR" -m 0750 "$ETC"
+
+# ---------------------------------------------------------------- ping sans droits
+# Sondes ping (SPEC § 48, § 67) : le collecteur, sans droits, ouvre un socket
+# ICMP « datagramme ». Le noyau ne l'accepte que pour les groupes de
+# net.ipv4.ping_group_range ; souvent vide (« 1 0 ») dans un conteneur LXC.
+# La plage est élargie au groupe du collecteur, jamais réduite ; gardée dans
+# /etc/sysctl.d et réappliquée au démarrage du collecteur (unité).
+FICHIER_PING=/etc/sysctl.d/60-mirador-collector-ping.conf
+GID_COLL=$(id -g "$UTILISATEUR")
+PLAGE=$(sysctl -n net.ipv4.ping_group_range 2>/dev/null | tr -s ' \t' ' ' || true)
+BAS=${PLAGE%% *}; HAUT=${PLAGE##* }
+if [ -n "$PLAGE" ] && [ "$BAS" -le "$GID_COLL" ] && [ "$GID_COLL" -le "$HAUT" ]; then
+  info "Ping sans droits déjà permis au groupe $UTILISATEUR ($PLAGE)"
+elif [ -n "$PLAGE" ]; then
+  if [ "$BAS" -gt "$HAUT" ]; then
+    BAS=$GID_COLL; HAUT=$GID_COLL # plage vide : le seul groupe du collecteur
+  else
+    if [ "$GID_COLL" -lt "$BAS" ]; then BAS=$GID_COLL; fi
+    if [ "$GID_COLL" -gt "$HAUT" ]; then HAUT=$GID_COLL; fi
+  fi
+  { echo "# mirador-collector : ping sans droits pour le groupe $UTILISATEUR (sondes ping)"
+    echo "net.ipv4.ping_group_range = $BAS $HAUT"; } > "$FICHIER_PING"
+  chmod 0644 "$FICHIER_PING"
+  if sysctl -q -p "$FICHIER_PING"; then
+    info "Ping sans droits permis au groupe $UTILISATEUR (net.ipv4.ping_group_range = $BAS $HAUT)"
+  else
+    echo "ATTENTION : réglage net.ipv4.ping_group_range refusé : les sondes ping de ce collecteur échoueront."
+  fi
+fi
 install -d -o "$UTILISATEUR" -g "$UTILISATEUR" -m 0750 "$VARLIB"
 install -d -o "$UTILISATEUR" -g "$UTILISATEUR" -m 0750 "$BIN_DIR"
 

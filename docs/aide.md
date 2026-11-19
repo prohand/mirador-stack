@@ -228,10 +228,17 @@ section de cette page.
 - **Alertes fournies** : *SondeEnEchec* (deux essais ratés de suite),
   *SondeLente* (plus lente que le seuil pendant 5 min). La raison d'un
   échec est sur la page Sondes.
-- **Ping depuis un collecteur** : autorisé sans droits par le réglage
-  `net.ipv4.ping_group_range` (ouvert par défaut sur Debian 12 et Ubuntu).
-  Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
-  `0 2147483647`.
+- **Ping depuis un collecteur** : le collecteur, sans droits, pingue grâce
+  au réglage `net.ipv4.ping_group_range`, qui doit contenir son groupe.
+  Le script d'installation le règle (fichier
+  `/etc/sysctl.d/60-mirador-collector-ping.conf`, réappliqué à chaque
+  démarrage du collecteur : un conteneur LXC ne l'applique pas tout seul).
+  Erreur « ping impossible sans droits » sur un collecteur déjà installé :
+  relancer le script d'installation, ou en root sur le collecteur :
+  `G=$(id -g mirador-collector)`, puis
+  `echo "net.ipv4.ping_group_range = $G $G" > /etc/sysctl.d/60-mirador-collector-ping.conf`,
+  puis `sysctl -p /etc/sysctl.d/60-mirador-collector-ping.conf` (si
+  `sysctl net.ipv4.ping_group_range` affiche `1 0`, plage vide).
 - **Modifier, renommer** : lien « Modifier » (page Sondes, bloc Sondes de
   la machine) ou fiche de la sonde. Le nouveau nom suit dans les applications et
   les étiquettes ; l'historique des mesures repart sous le nouveau nom.
