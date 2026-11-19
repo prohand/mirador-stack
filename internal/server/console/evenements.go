@@ -232,6 +232,8 @@ type donneesEvenements struct {
 	SansAuto      bool
 	Types         [][2]string // code, titre
 	Total         int
+	Element       string // événements qui citent cet élément (fiches, § 68)
+	FiltreSur     filtreSur
 }
 
 func (c *Console) pageEvenements(q *req) {
@@ -255,6 +257,16 @@ func (c *Console) pageEvenements(q *req) {
 		}
 	}
 	evs := c.journalEvenements(ctx, f)
+	if d.Element = strings.TrimSpace(v.Get("element")); d.Element != "" && len(d.Element) <= 200 {
+		garde := evs[:0]
+		for _, e := range evs {
+			if strings.Contains(e.Texte, d.Element) {
+				garde = append(garde, e)
+			}
+		}
+		evs = garde
+		d.FiltreSur = filtreSur{"« " + d.Element + " »", "/evenements"}
+	}
 	d.Total = len(evs)
 	loc := fuseau.Load()
 	for _, e := range evs {

@@ -6371,3 +6371,23 @@ alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
 d'une sonde HTTP(S) affiche le code reçu : « OK · 200 · 5 ms » (série
 `mirador_sonde_code_http`, déjà envoyée ; une requête de plus à
 l'ouverture de la page Sondes ou machine).
+
+## 68. Liens des fiches filtrés sur l'élément (retour du 19/11) **[Fait, à valider]**
+
+« Les onglets des éléments et des sondes pointent sur des pages directes et
+non filtrées. » Les liens en haut d'une fiche mènent maintenant aux pages
+filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
+
+| Fiche | Liens |
+|---|---|
+| Sonde | Page Sondes (`?sonde=`), Disponibilité (`?element=s:…`), Alertes (`?sonde=`), Incidents (`?sonde=`), Événements (`?element=`), Machine (bloc Sondes) |
+| Application | Page Applications (`?nom=`), Incidents (`?application=`), Alertes (`?application=`), Événements (`?element=`) |
+| Conteneur | Logs (déjà filtrés), Machine, Page Conteneurs (`?machine=`), Alertes (`?machine=&conteneur=`), Événements (`?machine=&element=`) |
+
+- Alertes : filtre sur une étiquette exacte (`sonde`, `service`, `name`),
+  clés fixes dans le code (jamais tirées de la requête), valeur en
+  paramètre SQL ; gardé dans « Plus anciennes » et le formulaire.
+- Événements : ceux dont le texte cite l'élément (comme le bloc de la fiche).
+- Sondes, Applications, Disponibilité, Incidents : liste réduite à
+  l'élément ; Sondes accepte aussi `?machine=` (sondes d'une machine).
+- Coût : aucun (mêmes lectures, une condition de plus).

@@ -1,5 +1,6 @@
 {{define "contenu"}}
 <h1>Sondes</h1>
+{{template "filtre-sur" .D.FiltreSur}}
 <p class="sous">Essais faits depuis le collecteur du LAN, ou depuis le serveur pour la vue de l'extérieur : la page répond-elle, en combien de temps, avec le bon contenu ; le port est-il ouvert ; la machine répond-elle au ping ; le DNS répond-il. Alertes fournies : SondeEnEchec (deux essais ratés de suite), SondeLente (5 min).</p>
 <div class="resume-alertes">
  <span class="tuile"><small>Sondes</small><b>{{.D.Total}}</b></span>

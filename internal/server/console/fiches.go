@@ -128,7 +128,12 @@ func (c *Console) ficheElement(q *req, cle string) {
 			{"État", e.Etat, e.Pastille()}, {"Alertes en cours", nbAlertes, ""}}
 		d.TitreCourbe = "Temps de réponse — 24 h (secondes, pointillé : seuil « lente »)"
 		courbe(`max(mirador_sonde_duree_secondes`+sel+`)`, 1)
-		d.Raccourcis = []raccourciFiche{{"Page Sondes", "/sondes"}, {"Disponibilité", "/disponibilite"}, {"Alertes", "/alertes"}}
+		n := url.QueryEscape(e.Nom)
+		d.Raccourcis = []raccourciFiche{{"Page Sondes", "/sondes?sonde=" + n}, {"Disponibilité", "/disponibilite?element=" + url.QueryEscape(cle)},
+			{"Alertes", "/alertes?sonde=" + n}, {"Incidents", "/incidents?sonde=" + n}, {"Événements", "/evenements?element=" + n}}
+		if d.Sonde != nil && d.Sonde.Machine != "" {
+			d.Raccourcis = append(d.Raccourcis, raccourciFiche{"Machine " + d.Sonde.Machine, "/machines/" + url.PathEscape(d.Sonde.Machine) + "#sondes"})
+		}
 	case strings.HasPrefix(cle, "v:"):
 		var iv []intervalle
 		for _, l := range e.Liens {
@@ -147,7 +152,9 @@ func (c *Console) ficheElement(q *req, cle string) {
 			{"Éléments", strconv.Itoa(len(e.Liens)), ""}, {"Alertes en cours", nbAlertes, ""}}
 		d.TitreCourbe = "État de l'application — 24 h (0 : OK, 1 : dégradée, 2 : en panne)"
 		courbe(`max(mirador_service_etat{service="`+echapperPromQL(e.Nom)+`"})`, math.NaN())
-		d.Raccourcis = []raccourciFiche{{"Page Applications", "/applications"}, {"Incidents", "/incidents"}}
+		n := url.QueryEscape(e.Nom)
+		d.Raccourcis = []raccourciFiche{{"Page Applications", "/applications?nom=" + n}, {"Incidents", "/incidents?application=" + n},
+			{"Alertes", "/alertes?application=" + n}, {"Événements", "/evenements?element=" + n}}
 	case strings.HasPrefix(cle, "c:"):
 		sel := `{instance="` + echapperPromQL(e.Groupe) + `", name="` + echapperPromQL(e.Nom) + `"}`
 		cpu, mem, redem := "—", "—", "0"
@@ -165,7 +172,9 @@ func (c *Console) ficheElement(q *req, cle string) {
 		courbe(`max(100 * rate(node_docker_container_cpu_seconds_total`+sel+`[5m]))`, math.NaN())
 		qs := url.Values{"host": {e.Groupe}, "container": {e.Nom}}
 		d.Raccourcis = []raccourciFiche{{"Logs du conteneur", "/logs?" + qs.Encode()}, {"Machine " + e.Groupe, "/machines/" + url.PathEscape(e.Groupe)},
-			{"Page Conteneurs", "/conteneurs?machine=" + url.QueryEscape(e.Groupe)}}
+			{"Page Conteneurs", "/conteneurs?machine=" + url.QueryEscape(e.Groupe)},
+			{"Alertes", "/alertes?" + url.Values{"machine": {e.Groupe}, "conteneur": {e.Nom}}.Encode()},
+			{"Événements", "/evenements?" + url.Values{"machine": {e.Groupe}, "element": {e.Nom}}.Encode()}}
 	}
 	// Derniers événements (7 jours) qui le citent.
 	for _, ev := range c.journalEvenements(ctx, filtreEvenements{Debut: q.t.Add(-7 * 24 * time.Hour), Fin: q.t, SansAuto: true, Max: 300}) {

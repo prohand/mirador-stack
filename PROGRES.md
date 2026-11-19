@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Liens des fiches filtrés sur l'élément (SPEC § 68, 19/11) : fait, à valider
+
+- Fiches sonde, application, conteneur : Alertes, Incidents, Événements,
+  Disponibilité, page de la liste… filtrés sur l'élément, bandeau
+  « Filtré sur … · tout voir ».
+
 ## Ping refusé sur le collecteur, code HTTP affiché (SPEC § 67, 19/11) : fait, à valider
 
 - « ping impossible sans droits » : plage `net.ipv4.ping_group_range` vide

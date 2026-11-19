@@ -53,6 +53,8 @@ type donneesDispo struct {
 	Lignes      []ligneDispo
 	NbJours     int
 	ReglesPanne string
+	FiltreSur   filtreSur
+	Element     string // clé (m:, s:) : un seul élément (fiches, § 68)
 }
 
 // intervalle : [debut, fin) en secondes Unix.
@@ -255,6 +257,16 @@ func (c *Console) pageDisponibilite(q *req) {
 		for _, s := range ss {
 			els = append(els, element{"s:" + s.Nom, s.Nom, "sonde " + s.Type, "/sondes", time.Time{}})
 		}
+	}
+	if d.Element = q.r.URL.Query().Get("element"); d.Element != "" {
+		garde := els[:0]
+		for _, e := range els {
+			if e.cle == d.Element {
+				garde = append(garde, e)
+				d.FiltreSur = filtreSur{e.sorte + " « " + e.nom + " »", "/disponibilite?periode=" + d.Periode}
+			}
+		}
+		els = garde
 	}
 	for _, e := range els {
 		iv := reunir(retirer(pannes[e.cle], maint[e.cle]))

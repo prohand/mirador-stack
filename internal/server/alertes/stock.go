@@ -239,6 +239,9 @@ type Filtre struct {
 	Machine string // étiquette instance exacte
 	Gravite string
 	Limite  int // 200 au plus
+	// Étiquette exacte (fiches, SPEC § 68) : sonde, service (application),
+	// name (conteneur). Clés fixes : jamais tirées de la requête.
+	Sonde, Application, Conteneur string
 }
 
 // HistoriqueFiltre : alertes (toutes, en cours comprises), plus récentes d'abord.
@@ -264,6 +267,12 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 	if f.Gravite != "" {
 		q += ` AND gravite = ?`
 		args = append(args, f.Gravite)
+	}
+	for _, x := range []struct{ cle, val string }{{"sonde", f.Sonde}, {"service", f.Application}, {"name", f.Conteneur}} {
+		if x.val != "" {
+			q += ` AND json_extract(etiquettes, '$.` + x.cle + `') = ?`
+			args = append(args, x.val)
+		}
 	}
 	q += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, f.Limite)

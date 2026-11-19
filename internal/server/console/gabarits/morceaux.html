@@ -276,3 +276,5 @@
 {{end}}
 {{/* Une ligne du bloc « Changements » de la page machine (SPEC § 47, § 63). */}}
 {{define "ligne-changement"}}<tr><td class="sans-coupure" title="{{.Source}}">{{date .Le}}</td><td class="sans-coupure"><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Titre}}</span>{{if gt .Nombre 1}} <small class="doux">×{{.Nombre}}</small>{{end}}</td><td>{{if .DetailCourt}}<details class="detail-long"><summary>{{.DetailCourt}}</summary>{{.Detail}}</details>{{else}}{{.Detail}}{{end}}</td></tr>{{end}}
+{{/* Page filtrée depuis une fiche (SPEC § 68) : rappel et lien « tout voir ». */}}
+{{define "filtre-sur"}}{{if .Texte}}<p class="message filtre-sur">Filtré sur <strong>{{.Texte}}</strong> · <a href="{{.ToutVoir}}">tout voir</a></p>{{end}}{{end}}
