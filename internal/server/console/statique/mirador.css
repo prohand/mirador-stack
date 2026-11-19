@@ -50,6 +50,10 @@
 }
 
 * { box-sizing: border-box; }
+/* Attribut hidden toujours respecté (19/11) : sinon une classe qui donne un
+   « display » (ex. .pastille) l'emporte et l'élément reste visible
+   (« cet appareil » affiché sur chaque appareil de la liste des notifications). */
+[hidden] { display: none !important; }
 body { margin: 0; font: 14px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--fond); color: var(--texte); }
 a { color: var(--accent-texte); }
 h1 { font-family: var(--titres); font-size: 1.4rem; font-weight: 650; letter-spacing: -.015em; margin: 0 0 1rem; }
