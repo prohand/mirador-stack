@@ -6488,6 +6488,10 @@ l'utilisateur) :
     (`disque_plein_nas` → « Disque plein nas »).
   - Coût : un calcul de chaîne par ligne affichée (quelques µs), rien en
     base, rien de stocké.
+  - Même idée pour l'état : « active » → « En cours », « en_attente » →
+    « En attente » (historique, page d'une alerte).
+  - Téléphone : historique et « Les plus bruyantes » en cartes (les noms
+    étaient coupés en plein mot dans les colonnes étroites).
 - CI : le fuzzing (16 cibles × 15 s dans une seule tâche, 6 min 15)
   était la tâche la plus longue. Coupé en deux tâches parallèles (agent /
   serveur, 8 cibles chacune, ~3 min 15) : la CI passe de ~6 min 45 à

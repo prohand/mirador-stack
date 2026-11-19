@@ -33,3 +33,11 @@ func TestLibelleRegle(t *testing.T) {
 		}
 	}
 }
+
+func TestEtatAlerte(t *testing.T) {
+	for e, attendu := range map[string]string{"active": "En cours", "en_attente": "En attente", "resolue": "Terminée", "autre": "Autre"} {
+		if got := etatAlerte(e); got != attendu {
+			t.Errorf("etatAlerte(%q) = %q, attendu %q", e, got, attendu)
+		}
+	}
+}

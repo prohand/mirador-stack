@@ -174,3 +174,16 @@ func estSigle(m string) bool {
 	}
 	return n >= 2
 }
+
+// etatAlerte : état d'une alerte en clair (SPEC § 73).
+func etatAlerte(etat string) string {
+	switch etat {
+	case "active":
+		return "En cours"
+	case "en_attente":
+		return "En attente"
+	case "resolue":
+		return "Terminée"
+	}
+	return majusculeDebut(etat)
+}

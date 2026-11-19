@@ -257,6 +257,8 @@ func fonctions() template.FuncMap {
 		// nomAlerte : « MiseAJourAgentEchouee » → « Mise à jour de l'agent
 		// échouée » (libelle_regle.go, SPEC § 73).
 		"nomAlerte": libelleRegle,
+		// etatAlerte : « en_attente » → « En attente », « active » → « En cours ».
+		"etatAlerte": etatAlerte,
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s
