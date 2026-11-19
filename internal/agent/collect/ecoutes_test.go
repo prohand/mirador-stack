@@ -3,6 +3,7 @@
 package collect
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -153,5 +154,62 @@ func TestEcoutesCollecter(t *testing.T) {
 	e.Collecter(b)
 	if essais != 1 {
 		t.Errorf("%d essais, attendu 1 (déjà connu)", essais)
+	}
+}
+
+// Adresses lues dans /proc (SPEC § 62) : nœud Proxmox avec pont vmbr0
+// (route par défaut), second réseau sur vmbr1, docker0 ignoré, IPv6
+// globale gardée, temporaire et lien local écartées.
+func TestAdressesLocales(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "net"), 0o755)
+	route := "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n" +
+		"vmbr0\t00000000\t0101A8C0\t0003\t0\t0\t0\t00000000\t0\t0\t0\n" +
+		"vmbr0\t0001A8C0\t00000000\t0001\t0\t0\t0\t00FFFFFF\t0\t0\t0\n" +
+		"vmbr1\t00000A0A\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n" +
+		"docker0\t000011AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n"
+	fib := `Main:
+  +-- 0.0.0.0/0 3 0 5
+     |-- 0.0.0.0
+        /0 universe UNICAST
+     +-- 10.10.0.0/16 2 0 2
+        |-- 10.10.0.1
+           /32 host LOCAL
+     +-- 127.0.0.0/8 2 0 2
+        +-- 127.0.0.0/31 1 0 0
+           |-- 127.0.0.0
+              /8 host LOCAL
+           |-- 127.0.0.1
+              /32 host LOCAL
+     +-- 172.17.0.0/16 2 0 2
+        |-- 172.17.0.1
+           /32 host LOCAL
+     +-- 192.168.1.0/24 2 0 2
+        |-- 192.168.1.0
+           /24 link UNICAST
+        |-- 192.168.1.10
+           /32 host LOCAL
+        |-- 192.168.1.255
+           /32 link BROADCAST
+Local:
+     +-- 192.168.1.0/24 2 0 2
+        |-- 192.168.1.10
+           /32 host LOCAL
+`
+	inet6 := "00000000000000000000000000000001 01 80 10 80       lo\n" +
+		"fe80000000000000021122fffe334455 03 40 20 80    vmbr0\n" +
+		"20010db8000000000211 03 40 00 80    vmbr0\n" + // ligne abîmée : ignorée
+		"20010db8000000000211223344556677 03 40 00 80    vmbr0\n" +
+		"20010db80000000099aabbccddeeff00 03 40 00 01    vmbr0\n" // temporaire
+	os.WriteFile(filepath.Join(dir, "net", "route"), []byte(route), 0o644)
+	os.WriteFile(filepath.Join(dir, "net", "fib_trie"), []byte(fib), 0o644)
+	os.WriteFile(filepath.Join(dir, "net", "if_inet6"), []byte(inet6), 0o644)
+	var got []string
+	for _, a := range adressesLocales(dir) {
+		got = append(got, fmt.Sprintf("%s %s %v", a.iface, a.ip, a.principale))
+	}
+	want := "vmbr0 192.168.1.10 true|vmbr0 2001:db8::211:2233:4455:6677 true|vmbr1 10.10.0.1 false"
+	if strings.Join(got, "|") != want {
+		t.Errorf("adresses :\n %q\nattendu\n %q", strings.Join(got, "|"), want)
 	}
 }

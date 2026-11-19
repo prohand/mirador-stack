@@ -51,6 +51,7 @@ type Flotte struct {
 
 	mu         sync.Mutex
 	battements map[int64]battement // écrits en base une fois par minute
+	connus     map[int64]string    // dernier état écrit (version, démarrage, essai, échec…)
 }
 
 type battement struct {
@@ -74,6 +75,7 @@ func Nouvelle(opt Options) *Flotte {
 		demandes:   ingestion.NouveauLimiteur(1, 20, 10_000),
 		echecs:     ingestion.NouveauLimiteur(0.1, 10, 10_000),
 		battements: make(map[int64]battement),
+		connus:     make(map[int64]string),
 	}
 }
 

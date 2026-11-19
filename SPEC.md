@@ -6216,3 +6216,51 @@ téléchargé ni installé.
 
 **Menaces** : aucune nouvelle. Une panne longue du serveur reste visible
 (AgentMuet côté serveur ; message au bout de 6 h côté agent).
+
+## 62. Adresses à pinguer données par l'agent, plusieurs pings, battement écrit tout de suite (19/11) **[Fait, à valider]**
+
+**Retours du 19/11** :
+1. « Adresse à pinguer » vide : il fallait la taper.
+2. « Faire attention si plusieurs IP », « possibilité d'ajouter plusieurs
+   adresses ».
+3. Après « Mettre à jour maintenant », la page montrait encore l'ancienne
+   version : « il faudrait que dès un démarrage il envoie un battement ».
+
+**Causes** :
+1. L'agent lisait ses adresses avec `net.Interfaces()`, qui passe par
+   netlink ; le service systemd durci l'interdit
+   (`RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`) : aucune adresse.
+   Les ports (lus dans `/proc`) arrivaient bien.
+3. L'agent envoie déjà un battement dès son démarrage (09:33:48 sur
+   proxmoxbackup, « mise à jour confirmée » juste après) ; c'est le serveur
+   qui ne les écrivait en base qu'une fois par minute, tous ensemble.
+
+**Corrections** :
+- Agent : adresses lues dans `/proc` (aucun droit en plus, service inchangé) :
+  - IPv4 : `/proc/net/fib_trie` (lignes « /32 host LOCAL »), interface tirée
+    de `/proc/net/route` (route la plus précise) ;
+  - IPv6 : `/proc/net/if_inet6`, portée globale, hors adresses temporaires
+    et périmées ;
+  - nouvelle étiquette `principale="1"` : interface de la route par défaut
+    (d'ordinaire l'adresse du réseau local) ; mise en premier.
+- Page machine › Sondes › **Ping** : chaque adresse de l'agent en case à
+  cocher (interface, « route par défaut », ✓ « déjà pinguée »), la
+  première cochée d'office si la machine n'a aucun ping ; champ « Autres
+  adresses » (plusieurs, séparées par des virgules). Un ping par adresse :
+  « nas ping » s'il n'y en a qu'un, sinon « nas ping 192.168.1.10 »
+  (le deux-points est maintenant permis dans un nom de sonde, pour IPv6).
+  Les sondes proposées visent l'adresse principale.
+- Serveur : un battement qui change quelque chose (version, démarrage,
+  essai ou échec de mise à jour, capacités) est écrit tout de suite ; les
+  autres restent dans le lot de la minute. Coût : une écriture par
+  redémarrage d'agent (et une par agent au démarrage du serveur).
+- Message de « Mettre à jour maintenant » : « la nouvelle version
+  s'affiche dès son premier battement ; recharger la page dans une minute ».
+
+**Coût mesuré** : lecture de `fib_trie`, `route`, `if_inet6` toutes les
+5 min (quelques Kio) ; négligeable à côté de `/proc/net/tcp`.
+
+**Menaces** : rien de nouveau (mêmes données qu'au § 60 ; le service de
+l'agent garde ses restrictions). Les adresses tapées à la main sont
+vérifiées (adresse IP ou nom d'hôte simple) et revérifiées à
+l'enregistrement.

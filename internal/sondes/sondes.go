@@ -63,7 +63,9 @@ type Sonde struct {
 	Machine string `json:"machine,omitempty"`
 }
 
-var reNom = regexp.MustCompile(`^[\pL\pN][\pL\pN _.()'-]{0,47}$`)
+// Le deux-points est permis pour nommer un ping d'adresse IPv6 (« nas ping
+// 2001:db8::1 », SPEC § 62).
+var reNom = regexp.MustCompile(`^[\pL\pN][\pL\pN _.:()'-]{0,47}$`)
 
 // Durees : intervalle et seuil « lente » effectifs.
 func (s *Sonde) Durees() (intervalle, lente time.Duration) {
@@ -81,7 +83,7 @@ func (s *Sonde) Durees() (intervalle, lente time.Duration) {
 func (s *Sonde) Valider() error {
 	var errs []error
 	if !reNom.MatchString(s.Nom) {
-		errs = append(errs, fmt.Errorf("nom %q invalide (48 caractères au plus : lettres, chiffres, espace, . _ - ( ) ')", s.Nom))
+		errs = append(errs, fmt.Errorf("nom %q invalide (48 caractères au plus : lettres, chiffres, espace, . : _ - ( ) ')", s.Nom))
 	}
 	if s.Depuis == "" {
 		errs = append(errs, errors.New("« faite depuis » manquant"))

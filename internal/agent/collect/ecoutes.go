@@ -56,7 +56,10 @@ type Ecoutes struct {
 	enCours   bool
 }
 
-type adresseIP struct{ iface, ip string }
+type adresseIP struct {
+	iface, ip  string
+	principale bool // interface de la route par défaut
+}
 
 type portEcoute struct {
 	port    uint16
@@ -90,12 +93,16 @@ func (e *Ecoutes) Collecter(b *metrics.Batch) error {
 	var err error
 	if e.lu.IsZero() || t.Sub(e.lu) >= relectureEcoutes {
 		e.lu = t
-		e.adresses = adressesLocales()
+		e.adresses = adressesLocales(e.proc)
 		e.ports, err = lirePortsEcoute(e.proc)
 		e.lancerDetection()
 	}
 	for _, a := range e.adresses {
-		b.Add("mirador_adresse_info", 1, metrics.L("interface", a.iface), metrics.L("adresse", a.ip))
+		p := "0"
+		if a.principale {
+			p = "1"
+		}
+		b.Add("mirador_adresse_info", 1, metrics.L("interface", a.iface), metrics.L("adresse", a.ip), metrics.L("principale", p))
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -259,32 +266,158 @@ func ligneEcoute(l string) (netip.Addr, uint16, bool) {
 // interfacesIgnorees : réseaux internes (conteneurs, ponts virtuels).
 var interfacesIgnorees = []string{"docker", "br-", "veth", "virbr", "cni", "flannel", "cali", "vnet", "tap", "fwbr", "fwpr", "fwln"}
 
-// adressesLocales : adresses des interfaces actives (hors boucle locale,
-// lien local et réseaux de conteneurs), 16 au plus.
-func adressesLocales() []adresseIP {
-	ifs, err := net.Interfaces()
-	if err != nil {
-		return nil
-	}
+// adressesLocales : adresses des interfaces (hors boucle locale, lien local
+// et réseaux de conteneurs), 16 au plus, celle de la route par défaut en
+// premier (marquée « principale »).
+//
+// Lues dans /proc (SPEC § 62) et non par net.Interfaces() : ce dernier
+// passe par netlink, refusé par le service systemd durci de l'agent
+// (RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX).
+//   - IPv4 : /proc/net/fib_trie (« /32 host LOCAL ») pour les adresses,
+//     /proc/net/route pour l'interface et la route par défaut ;
+//   - IPv6 : /proc/net/if_inet6 (portée globale, hors adresses temporaires).
+func adressesLocales(proc string) []adresseIP {
+	routes, defaut := lireRoutes(proc)
 	var out []adresseIP
-	for _, i := range ifs {
-		if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 || ignoree(i.Name) {
-			continue
+	vu := map[string]bool{}
+	ajouter := func(a adresseIP) {
+		if vu[a.ip] || a.iface == "" || ignoree(a.iface) || len(out) >= maxAdressesIP {
+			return
 		}
-		as, err := i.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, a := range as {
-			n, ok := a.(*net.IPNet)
-			if !ok || n.IP.IsLoopback() || n.IP.IsLinkLocalUnicast() {
-				continue
-			}
-			out = append(out, adresseIP{iface: i.Name, ip: n.IP.String()})
-			if len(out) == maxAdressesIP {
-				return out
+		vu[a.ip] = true
+		a.principale = a.iface == defaut
+		out = append(out, a)
+	}
+	if b, err := os.ReadFile(filepath.Join(proc, "net", "fib_trie")); err == nil { // #nosec G304 -- chemin fixe sous /proc
+		for _, ip := range adressesFibTrie(string(b)) {
+			if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() {
+				ajouter(adresseIP{iface: routes.interfaceDe(ip), ip: ip.String()})
 			}
 		}
+	}
+	if b, err := os.ReadFile(filepath.Join(proc, "net", "if_inet6")); err == nil { // #nosec G304 -- chemin fixe sous /proc
+		for _, a := range adressesInet6(string(b)) {
+			ajouter(a)
+		}
+	}
+	// Route par défaut d'abord : c'est d'ordinaire l'adresse du réseau local.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].principale && !out[j].principale })
+	return out
+}
+
+// adressesFibTrie : adresses locales IPv4 (lignes « /32 host LOCAL » qui
+// suivent « |-- 192.168.1.10 »), sans doublon (tables Main et Local).
+func adressesFibTrie(contenu string) []netip.Addr {
+	var out []netip.Addr
+	vu := map[netip.Addr]bool{}
+	var derniere string
+	for _, l := range strings.Split(contenu, "\n") {
+		t := strings.TrimSpace(l)
+		if adr, ok := strings.CutPrefix(t, "|-- "); ok {
+			derniere = adr
+			continue
+		}
+		if strings.HasPrefix(t, "/32 host LOCAL") {
+			if ip, err := netip.ParseAddr(derniere); err == nil && ip.Is4() && !vu[ip] {
+				vu[ip] = true
+				out = append(out, ip)
+			}
+		}
+	}
+	return out
+}
+
+// routeIPv4 : une ligne de /proc/net/route.
+type routeIPv4 struct {
+	iface  string
+	reseau netip.Prefix
+}
+
+type routesIPv4 []routeIPv4
+
+// interfaceDe : interface de la route la plus précise qui contient ip.
+func (rs routesIPv4) interfaceDe(ip netip.Addr) string {
+	meilleure, bits := "", -1
+	for _, r := range rs {
+		if r.reseau.Bits() > 0 && r.reseau.Contains(ip) && r.reseau.Bits() > bits {
+			meilleure, bits = r.iface, r.reseau.Bits()
+		}
+	}
+	return meilleure
+}
+
+// lireRoutes : routes IPv4 et interface de la route par défaut.
+func lireRoutes(proc string) (routesIPv4, string) {
+	b, err := os.ReadFile(filepath.Join(proc, "net", "route")) // #nosec G304 -- chemin fixe sous /proc
+	if err != nil {
+		return nil, ""
+	}
+	var rs routesIPv4
+	defaut := ""
+	for i, l := range strings.Split(string(b), "\n") {
+		ch := strings.Fields(l)
+		if i == 0 || len(ch) < 8 {
+			continue
+		}
+		dest, ok1 := ipv4Hex(ch[1])
+		masque, ok2 := ipv4Hex(ch[7])
+		if !ok1 || !ok2 {
+			continue
+		}
+		bits := 0
+		for _, o := range masque.As4() {
+			for k := 7; k >= 0; k-- {
+				if o&(1<<k) != 0 {
+					bits++
+				}
+			}
+		}
+		if bits == 0 {
+			if defaut == "" {
+				defaut = ch[0]
+			}
+			continue
+		}
+		rs = append(rs, routeIPv4{iface: ch[0], reseau: netip.PrefixFrom(dest, bits).Masked()})
+	}
+	return rs, defaut
+}
+
+// ipv4Hex : « 0101A8C0 » (ordre de la machine) → 192.168.1.1.
+func ipv4Hex(h string) (netip.Addr, bool) {
+	brut, err := hex.DecodeString(h)
+	if err != nil || len(brut) != 4 {
+		return netip.Addr{}, false
+	}
+	var o [4]byte
+	binary.BigEndian.PutUint32(o[:], binary.NativeEndian.Uint32(brut))
+	return netip.AddrFrom4(o), true
+}
+
+// adressesInet6 : lignes de /proc/net/if_inet6
+// « 20010db8000000000000000000000001 02 40 00 80 eth0 » (adresse, index,
+// préfixe, portée, drapeaux, interface) : portée globale (00) seulement,
+// hors adresses temporaires (drapeau 0x01) et périmées (0x20).
+func adressesInet6(contenu string) []adresseIP {
+	var out []adresseIP
+	for _, l := range strings.Split(contenu, "\n") {
+		ch := strings.Fields(l)
+		if len(ch) < 6 || ch[3] != "00" {
+			continue
+		}
+		drapeaux, err := strconv.ParseUint(ch[4], 16, 32)
+		if err != nil || drapeaux&0x21 != 0 {
+			continue
+		}
+		brut, err := hex.DecodeString(ch[0])
+		if err != nil || len(brut) != 16 {
+			continue
+		}
+		ip := netip.AddrFrom16([16]byte(brut))
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, adresseIP{iface: ch[5], ip: ip.String()})
 	}
 	return out
 }

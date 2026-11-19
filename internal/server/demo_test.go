@@ -235,8 +235,9 @@ func TestDemoInterface(t *testing.T) {
 	}
 	for _, inst := range []string{"vm-docker", "portable"} {
 		ip := map[string]string{"vm-docker": "192.168.1.20", "portable": "192.168.50.7"}[inst]
-		ajout(inst, "mirador_adresse_info", "interface", "eth0", "adresse", ip)
-		ajout(inst, "mirador_adresse_info", "interface", "eth0", "adresse", "fd00::20")
+		ajout(inst, "mirador_adresse_info", "interface", "vmbr0", "adresse", ip, "principale", "1")
+		ajout(inst, "mirador_adresse_info", "interface", "vmbr1", "adresse", "10.10.0.20", "principale", "0")
+		ajout(inst, "mirador_adresse_info", "interface", "vmbr0", "adresse", "fd00::20", "principale", "1")
 		for _, p := range [][2]string{{"22", "ssh"}, {"80", "http"}, {"443", "https"}, {"8123", "http"}, {"9443", "https"}, {"5432", "tcp"}, {"111", "tcp"}} {
 			ajout(inst, "mirador_port_ecoute", "port", p[0], "adresse", "*", "protocole", p[1])
 		}
