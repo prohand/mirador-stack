@@ -269,3 +269,28 @@ func TestPanneauDetail(t *testing.T) {
 		}
 	}
 }
+
+// Colonnes Site et Type du tableau du parc (retour du 19/11, SPEC § 71) :
+// cachées d'office s'il n'y a qu'un site (ou qu'un type), triables.
+func TestColonnesSiteType(t *testing.T) {
+	if c := colonnesParcCachees([]ligneParc{{Site: "maison", Env: "vm"}, {Site: "maison", Env: "physique"}}); c != "site" {
+		t.Errorf("un site, deux types : %q", c)
+	}
+	if c := colonnesParcCachees([]ligneParc{{Site: "maison", Env: "vm"}, {Site: "bureau", Env: "physique"}}); c != "" {
+		t.Errorf("deux sites, deux types : %q", c)
+	}
+	if c := colonnesParcCachees([]ligneParc{{Site: "maison", Env: "vm"}}); c != "site,type" {
+		t.Errorf("une machine : %q", c)
+	}
+	b := nouveauBanc(t)
+	b.machinesApprouvees(t, "web1", "nas")
+	_, _ = b.c.db.Exec(`UPDATE machines SET site = 'maison', env = CASE nom WHEN 'web1' THEN 'vm' ELSE 'physique' END`)
+	cl, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(cl, "/")
+	for _, attendu := range []string{`data-colonnes-cachees="site"`, `data-tri="site">Site</th>`, `data-tri="type">Type</th>`,
+		`data-site="maison" data-type="vm"`, `<td class="col-type masque-tel">Physique</td>`, `data-colonne="site"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("vue d'ensemble : %q absent", attendu)
+		}
+	}
+}
