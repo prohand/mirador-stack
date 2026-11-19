@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/servicesmetier"
 	essais "mirador-stack/internal/sondes"
@@ -38,7 +39,7 @@ func TestPageSondes(t *testing.T) {
 		"code_http": {"200"}, "contenu": {"installed"}})
 	b.h.avancer(31 * time.Second) // code TOTP suivant (anti-rejeu)
 	corps := ajouter(url.Values{"nom": {"Vaultwarden"}, "type": {"http"}, "cible": {"https://pass.exemple.fr/alive"}, "depuis": {"serveur"}})
-	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 41 ms", `<small class="doux code-sonde">Code 200</small>`, "code 200 · contient « installed »",
+	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 41 ms", `<small class="code-sonde code-ok">Code 200</small>`, "code 200 · contient « installed »",
 		`class="tuile critique"`, "Temps de réponse médian", `name="nom" value="Nextcloud"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des sondes : %q absent", attendu)
@@ -115,5 +116,19 @@ func TestModifierSonde(t *testing.T) {
 		"nom": {"DNS02 interface"}, "type": {"ping"}, "cible": {"192.168.35.1"}, "depuis": {"lan"}})
 	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 2 {
 		t.Errorf("nom en double accepté : %+v", l)
+	}
+}
+
+// Couleur du code de retour HTTP sous l'état (retour du 19/11).
+func TestCouleurCodeSonde(t *testing.T) {
+	s := essais.Sonde{Nom: "S", Type: essais.HTTP, Depuis: "lan"}
+	for code, classe := range map[float64]string{200: "ok", 204: "ok", 301: "info", 404: "attention", 503: "erreur"} {
+		lues := map[string]map[string]alertes.Echantillon{"code": {cleSonde("lan", "S"): {Valeur: code}}}
+		if txt, c := codeSondeLu(lues, s); c != classe || !strings.HasPrefix(txt, "Code ") {
+			t.Errorf("code %v : %q %q, attendu %q", code, txt, c, classe)
+		}
+	}
+	if txt, _ := codeSondeLu(map[string]map[string]alertes.Echantillon{}, essais.Sonde{Type: essais.TCP}); txt != "" {
+		t.Error("TCP : pas de code")
 	}
 }

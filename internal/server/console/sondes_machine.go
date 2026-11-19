@@ -37,6 +37,7 @@ type ligneSondeMachine struct {
 	Nom, Type, Cible, Depuis string
 	Etat, Classe             string
 	Code                     string // « Code 200 » sous l'état (HTTP)
+	CodeClasse               string // ok, info, attention, erreur
 }
 
 type propositionSonde struct {
@@ -161,7 +162,7 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 		l := ligneSondeMachine{Nom: s.Nom, Type: s.Type, Cible: s.Cible, Depuis: s.Depuis}
 		var bilan int
 		l.Etat, l.Classe, bilan = etatSondeLue(lues, s)
-		l.Code = codeSondeLu(lues, s)
+		l.Code, l.CodeClasse = codeSondeLu(lues, s)
 		if bilan == bilanEchec {
 			v.NbEchec++
 		}

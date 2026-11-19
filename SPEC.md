@@ -6452,3 +6452,5 @@ l'utilisateur) :
 - Sondes HTTP(S) : le code de retour passe sous l'état, en petit
   (« OK · 6 ms » puis « Code 200 », aussi en infobulle), au lieu de
   « OK · 200 · 6 ms » (retour du 19/11).
+- Code de retour en couleur (retour du 19/11) : 2xx vert, 3xx bleu,
+  4xx orange, 5xx rouge.
