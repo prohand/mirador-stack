@@ -1047,6 +1047,18 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Adresses à pinguer, plusieurs pings, battement immédiat (SPEC § 62, 19/11) : fait, à valider
+
+- Adresse à pinguer vide : l'agent ne pouvait pas lire ses interfaces
+  (netlink interdit par le service durci). Lues maintenant dans `/proc`.
+- Page machine › Sondes › Ping : adresses de l'agent en cases à cocher
+  (route par défaut en premier), « Autres adresses », un ping par adresse.
+- La mise à jour forcée marchait (proxmoxbackup en 0.3.8 en 10 s) ; la
+  page tardait : le serveur écrit maintenant tout de suite un battement qui
+  change quelque chose (nouvelle version, redémarrage).
+- À faire chez l'utilisateur : nouvelle version de l'agent (tag) pour les
+  adresses ; serveur pour le reste.
+
 ## Alerte « mise à jour échouée » sur un HTTP 502 (SPEC § 61, 19/11) : corrigé, à valider
 
 - Vu sur proxmoxbackup (déjà en 0.3.7) : la vérification de version a reçu

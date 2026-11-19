@@ -48,19 +48,27 @@ type propositionSonde struct {
 	Inconnu bool // port sans nom connu (replié)
 }
 
+// adresseMachine : adresse donnée par l'agent (SPEC § 62).
+type adresseMachine struct {
+	IP, Interface string
+	Principale    bool   // interface de la route par défaut
+	Deja          string // sonde ping qui la vise déjà
+	Coche         bool
+}
+
 type vueSondesMachine struct {
 	Machine      string
 	Site         string
 	Sondes       []ligneSondeMachine
-	Adresses     []string
-	Adresse      string // adresse proposée (privée IPv4 d'abord)
+	Adresses     []adresseMachine
+	Adresse      string // adresse des sondes proposées (route par défaut, sinon privée IPv4 d'abord)
 	Depuis       []depuisSonde
 	DepuisDefaut string
-	SansSite     bool   // la machine n'a pas de site : on choisit
-	SiteSansColl bool   // site sans collecteur
-	Ping         string // nom de la sonde ping existante
+	SansSite     bool // la machine n'a pas de site : on choisit
+	SiteSansColl bool // site sans collecteur
+	NbPings      int  // sondes ping de la machine
 	Propositions []propositionSonde
-	AgentAncien  bool // ni adresses ni ports : agent à mettre à jour
+	AgentAncien  bool // pas d'adresses : agent à mettre à jour
 }
 
 // nomsPorts : services connus (affichage et nom de la sonde).
@@ -108,9 +116,15 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 	var ports []port
 	if c.lecteur != nil {
 		sel := `{instance=` + strconv.Quote(m.Nom) + `}`
-		if ech, err := c.instant(ctx, `max by (adresse) (mirador_adresse_info`+sel+`)`, t); err == nil {
+		if ech, err := c.instant(ctx, `max by (adresse, interface, principale) (mirador_adresse_info`+sel+`)`, t); err == nil {
+			vu := map[string]bool{}
 			for _, e := range ech {
-				v.Adresses = append(v.Adresses, e.Etiquettes.Get("adresse"))
+				ip := e.Etiquettes.Get("adresse")
+				if !vu[ip] {
+					vu[ip] = true
+					v.Adresses = append(v.Adresses, adresseMachine{IP: ip, Interface: e.Etiquettes.Get("interface"),
+						Principale: e.Etiquettes.Get("principale") == "1"})
+				}
 			}
 		}
 		if ech, err := c.instant(ctx, `max by (port, adresse, protocole) (mirador_port_ecoute`+sel+`)`, t); err == nil {
@@ -124,9 +138,9 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 	}
 	trierAdresses(v.Adresses)
 	if len(v.Adresses) > 0 {
-		v.Adresse = v.Adresses[0]
+		v.Adresse = v.Adresses[0].IP
 	}
-	v.AgentAncien = len(v.Adresses) == 0 && len(ports) == 0
+	v.AgentAncien = len(v.Adresses) == 0 // agent d'avant 0.3.9 : pas d'adresses (SPEC § 62)
 
 	// Sondes existantes : celles rangées sous la machine, et toutes les
 	// cibles (une proposition déjà faite n'est pas reproposée).
@@ -142,8 +156,15 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 		l.Etat, l.Classe, _ = etatSondeLue(lues, s)
 		v.Sondes = append(v.Sondes, l)
 		if s.Type == essais.Ping {
-			v.Ping = s.Nom
+			v.NbPings++
 		}
+	}
+	// Adresses déjà pinguées (par n'importe quelle sonde) ; la première
+	// adresse cochée d'office si la machine n'a encore aucun ping.
+	for i := range v.Adresses {
+		a := &v.Adresses[i]
+		a.Deja = cibles[cleCible(essais.Ping, a.IP)]
+		a.Coche = a.Deja == "" && v.NbPings == 0 && i == 0
 	}
 
 	sort.Slice(ports, func(i, j int) bool { return ports[i].num < ports[j].num })
@@ -170,21 +191,28 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 	return v
 }
 
-// trierAdresses : IPv4 privées d'abord, puis IPv4, puis IPv6.
-func trierAdresses(as []string) {
-	rang := func(s string) int {
-		a, err := netip.ParseAddr(s)
+// trierAdresses : route par défaut d'abord, puis IPv4 privées, IPv4,
+// IPv6.
+func trierAdresses(as []adresseMachine) {
+	rang := func(x adresseMachine) int {
+		a, err := netip.ParseAddr(x.IP)
+		r := 0
 		switch {
 		case err != nil:
-			return 9
+			r = 9
 		case a.Is4() && a.IsPrivate():
-			return 0
+			r = 0
 		case a.Is4():
-			return 1
+			r = 1
 		case a.IsPrivate():
-			return 2
+			r = 2
+		default:
+			r = 3
 		}
-		return 3
+		if !x.Principale {
+			r += 10
+		}
+		return r
 	}
 	sort.SliceStable(as, func(i, j int) bool { return rang(as[i]) < rang(as[j]) })
 }
@@ -299,12 +327,46 @@ func (c *Console) postSondesMachine(q *req) {
 	var ajout []essais.Sonde
 	switch f.texte("action") {
 	case "ping":
-		adresse := f.texte("adresse")
-		if _, err := netip.ParseAddr(adresse); err != nil && !nomHoteValide(adresse) {
-			c.retour(q, retour, fmt.Errorf("adresse %q illisible", adresse), "")
+		// Adresses cochées (données par l'agent) et adresses tapées en plus
+		// (séparées par des virgules ou des espaces) : un ping par adresse.
+		adresses := append([]string{}, q.r.PostForm["adresse"]...)
+		adresses = append(adresses, strings.FieldsFunc(f.texte("autre"), func(r rune) bool { return r == ',' || r == ' ' || r == ';' })...)
+		existants := map[string]bool{}
+		pings := 0
+		for _, s := range liste {
+			if s.Type == essais.Ping {
+				existants[cleCible(essais.Ping, s.Cible)] = true
+				if s.Machine == m.Nom {
+					pings++
+				}
+			}
+		}
+		var nouvelles []string
+		for _, a := range adresses {
+			a = strings.TrimSpace(a)
+			if a == "" || existants[cleCible(essais.Ping, a)] {
+				continue
+			}
+			if _, err := netip.ParseAddr(a); err != nil && !nomHoteValide(a) {
+				c.retour(q, retour, fmt.Errorf("adresse %q illisible", a), "")
+				return
+			}
+			existants[cleCible(essais.Ping, a)] = true
+			nouvelles = append(nouvelles, a)
+		}
+		if len(nouvelles) == 0 {
+			c.retour(q, retour, errors.New("aucune adresse nouvelle à pinguer (cocher une adresse ou en taper une)"), "")
 			return
 		}
-		ajout = append(ajout, essais.Sonde{Nom: nomSonde(m.Nom, "ping"), Type: essais.Ping, Cible: adresse, Depuis: depuis, Machine: m.Nom})
+		for _, a := range nouvelles {
+			// Une seule adresse pour la machine : « nas ping » ; plusieurs :
+			// « nas ping 192.168.1.10 », « nas ping 10.10.0.1 ».
+			nom := nomSonde(m.Nom, "ping")
+			if pings+len(nouvelles) > 1 {
+				nom = nomSonde(m.Nom, "ping "+a)
+			}
+			ajout = append(ajout, essais.Sonde{Nom: nom, Type: essais.Ping, Cible: a, Depuis: depuis, Machine: m.Nom})
+		}
 	case "ajouter":
 		for _, v := range q.r.PostForm["p"] {
 			p := strings.SplitN(v, "|", 4)

@@ -28,14 +28,16 @@ func TestSondesMachine(t *testing.T) {
 	}
 	b.metriquesSimulees(t, []serieTest{
 		{[]string{"__name__", "mirador_adresse_info", "instance", "nas", "interface", "eth0", "adresse", "fd00::5"}, constante(1)},
-		{[]string{"__name__", "mirador_adresse_info", "instance", "nas", "interface", "eth0", "adresse", "192.168.1.5"}, constante(1)},
+		{[]string{"__name__", "mirador_adresse_info", "instance", "nas", "interface", "eth0", "adresse", "192.168.1.5", "principale", "1"}, constante(1)},
+		{[]string{"__name__", "mirador_adresse_info", "instance", "nas", "interface", "eth1", "adresse", "10.10.0.5", "principale", "0"}, constante(1)},
 		p("22", "*", "ssh"), p("5001", "*", "https"), p("80", "*", "http"), p("111", "*", "tcp"),
 		p("53", "192.168.1.5", "tcp"), p("40123", "*", "tcp"),
 	})
 	cl, secret := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(cl, "/machines/nas")
 	for _, attendu := range []string{`id="sondes"`, `<option value="coll-maison" selected>site « maison » · collecteur coll-maison</option>`,
-		`value="192.168.1.5"`, "HTTPS · port 5001 (DSM)", "https://192.168.1.5:5001/", "nas DSM 5001", "http://192.168.1.5/",
+		`<input type="checkbox" name="adresse" value="192.168.1.5" checked> <code>192.168.1.5</code> <span class="doux">eth0 · route par défaut</span>`,
+		`<input type="checkbox" name="adresse" value="10.10.0.5"> <code>10.10.0.5</code>`, "HTTPS · port 5001 (DSM)", "https://192.168.1.5:5001/", "nas DSM 5001", "http://192.168.1.5/",
 		"SSH · port 22", "nas SSH 22", "TCP · port 53 (DNS)", "Activer le ping"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("bloc Sondes : %q absent", attendu)
@@ -61,28 +63,37 @@ func TestSondesMachine(t *testing.T) {
 	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 0 {
 		t.Fatalf("adresse privée acceptée depuis le serveur : %+v", l)
 	}
-	envoyer(url.Values{"action": {"ping"}, "depuis": {"coll-maison"}, "adresse": {"192.168.1.5"}})
+	// Deux adresses cochées et une tapée (déjà cochée : une seule fois) :
+	// un ping par adresse, nommé avec l'adresse.
+	envoyer(url.Values{"action": {"ping"}, "depuis": {"coll-maison"}, "adresse": {"192.168.1.5", "10.10.0.5"}, "autre": {"fd00::5, 192.168.1.5"}})
 	envoyer(url.Values{"action": {"ajouter"}, "depuis": {"coll-maison"},
 		"p": {"http|https://192.168.1.5:5001/|nas DSM 5001|true", "tcp|192.168.1.5:22|nas SSH 22|false"}})
 	l, _ := flotte.LireSondes(ctx, b.c.db)
-	if len(l) != 3 {
+	if len(l) != 5 {
 		t.Fatalf("sondes : %+v", l)
 	}
+	noms := map[string]string{}
 	for _, s := range l {
 		if s.Machine != "nas" || s.Depuis != "coll-maison" {
 			t.Errorf("sonde mal rangée : %+v", s)
 		}
-		if s.Type == essais.Ping && (s.Nom != "nas ping" || s.Cible != "192.168.1.5") {
-			t.Errorf("ping : %+v", s)
+		if s.Type == essais.Ping {
+			noms[s.Cible] = s.Nom
 		}
 	}
-	_, corps, _ = b.get(cl, "/machines/nas")
-	if !strings.Contains(corps, "ping actif") || strings.Contains(corps, "Activer le ping") || !strings.Contains(corps, `title="déjà sondé par « nas DSM 5001 »"`) {
-		t.Error("après ajout : ping actif et propositions marquées « déjà sondé »")
+	if noms["192.168.1.5"] != "nas ping 192.168.1.5" || noms["10.10.0.5"] != "nas ping 10.10.0.5" || noms["fd00::5"] != "nas ping fd00::5" {
+		t.Errorf("pings : %v", noms)
 	}
+	_, corps, _ = b.get(cl, "/machines/nas")
+	if !strings.Contains(corps, "3 pings") || !strings.Contains(corps, `title="déjà pinguée par « nas ping 10.10.0.5 »"`) ||
+		!strings.Contains(corps, `title="déjà sondé par « nas DSM 5001 »"`) {
+		t.Error("après ajout : 3 pings, adresses et propositions marquées « déjà »")
+	}
+	// Plus rien de nouveau : refusé avec un message clair.
+	envoyer(url.Values{"action": {"ping"}, "depuis": {"coll-maison"}, "adresse": {"10.10.0.5"}})
 	// Retrait.
-	envoyer(url.Values{"action": {"retirer"}, "sonde": {"nas ping"}})
-	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 2 {
+	envoyer(url.Values{"action": {"retirer"}, "sonde": {"nas ping 10.10.0.5"}})
+	if l, _ := flotte.LireSondes(ctx, b.c.db); len(l) != 4 {
 		t.Errorf("retrait : %+v", l)
 	}
 
@@ -122,9 +133,9 @@ func TestProposerSonde(t *testing.T) {
 	if n := nomSonde(strings.Repeat("très-long-nom-", 6)+"x/y", "ping"); len([]rune(n)) > 48 || !strings.HasSuffix(n, " ping") {
 		t.Errorf("nom trop long : %q", n)
 	}
-	as := []string{"fd00::5", "203.0.113.9", "192.168.1.5"}
+	as := []adresseMachine{{IP: "fd00::5"}, {IP: "203.0.113.9"}, {IP: "192.168.1.5"}, {IP: "10.0.0.9", Principale: true}}
 	trierAdresses(as)
-	if as[0] != "192.168.1.5" || as[1] != "203.0.113.9" {
+	if as[0].IP != "10.0.0.9" || as[1].IP != "192.168.1.5" || as[2].IP != "203.0.113.9" {
 		t.Errorf("ordre des adresses : %v", as)
 	}
 	if !adressePrivee(essais.Sonde{Cible: "https://10.0.0.2:8443/"}) || adressePrivee(essais.Sonde{Cible: "203.0.113.9:22"}) {

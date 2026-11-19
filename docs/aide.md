@@ -221,12 +221,14 @@ section de cette page.
 - **Depuis la page d'une machine** (bloc *Sondes*, SPEC § 60) :
   - *Activer le ping* : fait depuis le collecteur du site de la machine,
     choisi d'office ; si la machine n'a pas de site, choisir le site (le
-    collecteur) dans la liste ;
+    collecteur) dans la liste ; cocher une ou plusieurs adresses données par
+    l'agent (celle de la route par défaut en premier), ou en taper d'autres
+    (séparées par des virgules) : un ping par adresse ;
   - *Sondes proposées* : l'agent liste les ports ouverts et essaie chacun
     une fois, en local, pour savoir s'il parle HTTPS, HTTP ou SSH ; cocher
     et *Ajouter les sondes cochées* ;
   - HTTPS par adresse IP : certificat non vérifié (il ne peut pas
     correspondre à une adresse) ; pour vérifier le certificat, modifier la
     sonde sur la page Sondes avec le nom du site ;
-  - un agent ancien ne donne ni adresses ni ports : le ping reste possible
-    en tapant l'adresse.
+  - un agent ancien (avant 0.3.9) ne donne pas ses adresses : le ping
+    reste possible en tapant l'adresse.

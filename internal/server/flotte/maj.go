@@ -15,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -325,13 +327,60 @@ func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
 			f.opt.Journal.Warn("demande de certificat du syslog refusée", "collecteur", m.Nom, "erreur", err)
 		}
 	}
+	x := battement{le: f.opt.Maintenant().Unix(), b: b, capacites: capacitesDe(r)}
 	f.mu.Lock()
-	f.battements[m.ID] = battement{le: f.opt.Maintenant().Unix(), b: b, capacites: capacitesDe(r)}
+	nouveau := f.connus[m.ID] != x.etat()
+	if nouveau {
+		delete(f.battements, m.ID) // un battement plus ancien du lot n'écrasera pas celui-ci
+	} else {
+		f.battements[m.ID] = x
+	}
 	f.mu.Unlock()
+	// Quelque chose a changé (nouvelle version, redémarrage, essai ou échec
+	// de mise à jour, capacités) : écrit tout de suite, pour que la page de
+	// la machine le montre aussitôt (SPEC § 62). Sinon : lot de la minute.
+	if nouveau {
+		if err := f.ecrireBattement(r.Context(), f.opt.DB, m.ID, x); err != nil {
+			f.mu.Lock()
+			f.battements[m.ID] = x // réessayé avec le lot de la minute
+			f.mu.Unlock()
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// EcrireBattements : une transaction par minute pour toutes les machines.
+// etat : ce qui, dans un battement, mérite d'être écrit tout de suite s'il
+// change (l'heure seule, non).
+func (x battement) etat() string {
+	return strings.Join([]string{x.b.Version, x.b.Architecture, strconv.FormatInt(x.b.Demarrage.Unix(), 10),
+		x.b.MajEssai, x.b.MajEchec, x.capacites}, "\x00")
+}
+
+// execution : base ou transaction.
+type execution interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// ecrireBattement : écrit un battement et le note comme connu.
+func (f *Flotte) ecrireBattement(ctx context.Context, db execution, id int64, x battement) error {
+	demarrage := int64(0)
+	if !x.b.Demarrage.IsZero() {
+		demarrage = x.b.Demarrage.Unix()
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE machines SET battement_le = ?, version_agent = ?,
+		architecture = CASE WHEN ? = '' THEN architecture ELSE ? END,
+		demarrage_le = ?, maj_essai = ?, maj_echec = ?, capacites = ? WHERE id = ?`,
+		x.le, x.b.Version, x.b.Architecture, x.b.Architecture, demarrage, x.b.MajEssai, x.b.MajEchec, x.capacites, id); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	f.connus[id] = x.etat()
+	f.mu.Unlock()
+	return nil
+}
+
+// EcrireBattements : une transaction par minute pour toutes les machines
+// (battements sans changement ; les autres sont déjà écrits).
 func (f *Flotte) EcrireBattements(ctx context.Context) error {
 	f.mu.Lock()
 	lot := f.battements
@@ -346,14 +395,7 @@ func (f *Flotte) EcrireBattements(ctx context.Context) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
 	for id, x := range lot {
-		demarrage := int64(0)
-		if !x.b.Demarrage.IsZero() {
-			demarrage = x.b.Demarrage.Unix()
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE machines SET battement_le = ?, version_agent = ?,
-			architecture = CASE WHEN ? = '' THEN architecture ELSE ? END,
-			demarrage_le = ?, maj_essai = ?, maj_echec = ?, capacites = ? WHERE id = ?`,
-			x.le, x.b.Version, x.b.Architecture, x.b.Architecture, demarrage, x.b.MajEssai, x.b.MajEchec, x.capacites, id); err != nil {
+		if err := f.ecrireBattement(ctx, tx, id, x); err != nil {
 			return err
 		}
 	}

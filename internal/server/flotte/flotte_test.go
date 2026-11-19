@@ -262,6 +262,36 @@ func TestBattement(t *testing.T) {
 	if version != "1.2.3" || arch != "arm64" || echec == "" || le != t0.Unix() || demarrage != t0.Add(-time.Hour).Unix() {
 		t.Fatalf("en base : %s %s %q %d %d", version, arch, echec, le, demarrage)
 	}
+	// SPEC § 62 : un changement (nouvelle version après mise à jour) est
+	// écrit tout de suite, sans attendre le lot de la minute ; un battement
+	// sans changement attend le lot.
+	envoyer := func(v protocole.Battement) {
+		t.Helper()
+		c, _ := json.Marshal(v)
+		if w := b.requete(http.MethodPost, protocole.CheminBattement, token, c, ""); w.Code != http.StatusNoContent {
+			t.Fatalf("battement : %d", w.Code)
+		}
+	}
+	lireVersion := func() (v string, le int64) {
+		_ = b.db.QueryRow(`SELECT version_agent, battement_le FROM machines WHERE nom = 'pc'`).Scan(&v, &le)
+		return
+	}
+	h := t0
+	b.f.opt.Maintenant = func() time.Time { return h }
+	h = h.Add(time.Minute)
+	envoyer(protocole.Battement{Version: "1.2.4", Architecture: "arm64", Demarrage: t0.Add(time.Minute)})
+	if v, le := lireVersion(); v != "1.2.4" || le != t0.Add(time.Minute).Unix() {
+		t.Fatalf("nouvelle version pas écrite tout de suite : %s %d", v, le)
+	}
+	h = h.Add(time.Minute)
+	envoyer(protocole.Battement{Version: "1.2.4", Architecture: "arm64", Demarrage: t0.Add(time.Minute)})
+	if _, le := lireVersion(); le != t0.Add(time.Minute).Unix() {
+		t.Fatalf("battement sans changement écrit hors du lot : %d", le)
+	}
+	_ = b.f.EcrireBattements(ctx)
+	if _, le := lireVersion(); le != t0.Add(2*time.Minute).Unix() {
+		t.Fatalf("lot de la minute : %d", le)
+	}
 	for _, mauvais := range []string{`{"version":"1.0; rm -rf /"}`, `{"version":"1.0","architecture":"sparc"}`, `{"version":"1.0","pirate":1}`} {
 		if w := b.requete(http.MethodPost, protocole.CheminBattement, token, []byte(mauvais), ""); w.Code != http.StatusBadRequest {
 			t.Errorf("%s : %d", mauvais, w.Code)

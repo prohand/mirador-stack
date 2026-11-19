@@ -885,7 +885,7 @@ func (c *Console) postMachine(q *req) {
 		vers += "#maj"
 		if id, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
 			if err = flotte.ForcerMaj(ctx, c.db, id, q.qui(), q.t); err == nil {
-				ok = "mise à jour demandée : l'agent vérifie tout de suite (moins d'une minute), télécharge la version assignée, la vérifie (signature) et redémarre. Recharger la page dans 2 minutes."
+				ok = "mise à jour demandée : l'agent vérifie tout de suite (moins d'une minute), télécharge la version assignée, la vérifie (signature) et redémarre : la nouvelle version s'affiche dès son premier battement. Recharger la page dans une minute."
 			}
 		}
 	case "cible":

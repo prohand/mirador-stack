@@ -1215,3 +1215,6 @@ dialog.aller-boite li.aller-section { display: block; font-size: 11px; font-weig
 .aller-favori:hover { color: var(--attention); }
 .sondes-machine .ligne { margin: .6rem 0; }
 .sondes-machine h3 { margin: 1rem 0 .4rem; font-size: 1rem; }
+fieldset.adresses-ping { border: 0; padding: 0; margin: .8rem 0; min-width: 0; }
+fieldset.adresses-ping legend { font-weight: 600; padding: 0; }
+fieldset.adresses-ping label.case { margin: .35rem 0; flex-wrap: wrap; }
