@@ -5,6 +5,7 @@ package console
 import (
 	"fmt"
 	"html/template"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -21,8 +22,41 @@ import (
 // segment : morceau de texte affiché, variable (« IP », « N ») ou surligné.
 type segment struct {
 	Texte  string
-	Var    bool // partie variable d'un message type
-	Marque bool // mot cherché
+	Var    bool   // partie variable d'un message type
+	Marque bool   // mot cherché
+	Genre  string // « ip » ou « err » : couleur discrète (SPEC § 77)
+}
+
+// Couleurs discrètes dans les messages (SPEC § 77) : adresses IP (avec le
+// port) et mots qui annoncent un échec.
+var reColorer = regexp.MustCompile(`\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b|(?i)\b(?:failed|failure|error|errors|fatal|panic|denied|refused|emerg|critical|timed out|timeout|unreachable)\b`)
+
+// colorer : découpe les morceaux non surlignés autour des adresses IP et
+// des mots d'échec (Genre « ip » ou « err »). Message trop long : inchangé.
+func colorer(segs []segment) []segment {
+	var out []segment
+	for _, s := range segs {
+		if s.Marque || len(s.Texte) > surlignageMax {
+			out = append(out, s)
+			continue
+		}
+		debut := 0
+		for _, m := range reColorer.FindAllStringIndex(s.Texte, -1) {
+			if m[0] > debut {
+				out = append(out, segment{Texte: s.Texte[debut:m[0]]})
+			}
+			g := "err"
+			if c := s.Texte[m[0]]; c >= '0' && c <= '9' {
+				g = "ip"
+			}
+			out = append(out, segment{Texte: s.Texte[m[0]:m[1]], Genre: g})
+			debut = m[1]
+		}
+		if debut < len(s.Texte) {
+			out = append(out, segment{Texte: s.Texte[debut:]})
+		}
+	}
+	return out
 }
 
 // --- Gravité ------------------------------------------------------------------------

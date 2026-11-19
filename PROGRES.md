@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Logs plus lisibles (SPEC § 77, 20/11) : fait, à valider
+
+- Trait et pastille pour erreurs et avertissements, machine + origine,
+  IP et mots d'échec colorés, lignes semblables repliées, filtres d'un clic.
+
 ## Courbe d'une alerte et températures de la machine (SPEC § 76, 19/11) : fait, à valider
 
 - Page d'une alerte : vraie courbe (axes, °C, seuil du modèle en pointillé).

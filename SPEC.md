@@ -6589,3 +6589,30 @@ l'utilisateur) :
   modifié dans l'interface, la rangée n'est pas ajoutée (copie gardée).
 - Coût : une requête de plus à l'ouverture de la page d'une alerte (288
   points) ; trois courbes de plus sur la page machine.
+
+## 77. Logs plus lisibles (retour du 20/11, maquette validée) **[Fait, à valider]**
+
+- **Niveau visible d'un coup d'œil** : trait rouge (erreur) ou orange
+  (avertissement) à gauche de la ligne, pastille « Erreur » / « Avert. »
+  (niveau d'origine en infobulle), message d'une erreur en rouge. Plus de
+  pastille « info » sur chaque ligne normale.
+- **Machine et origine dans une colonne** : machine en gras, service ou
+  conteneur dessous en gris ; une colonne de moins pour le message.
+- **Couleurs discrètes dans le message** : adresses IP (avec le port) en
+  violet, mots d'échec (failed, error, denied, refused, timeout…) en rouge
+  gras. Calcul côté serveur, sur les messages de moins de 4 Kio (comme le
+  surlignage de la recherche) ; un mot cherché garde son surlignage.
+- **Lignes semblables repliées** : 3 lignes ou plus qui se suivent, même
+  origine, même message aux chiffres près, le même jour → la première
+  reste, puis « ▸ N lignes semblables repliées, jusqu'à HH:MM:SS ·
+  machines · tout voir ». Case « Replier les lignes semblables » (retenue
+  par le navigateur). Sans JavaScript, tout reste affiché. Différent du
+  réglage « Ne pas replier les répétitions » (même ligne exacte répétée).
+- **Filtres d'un clic** : « Tout », « Avertissements et erreurs »,
+  « Erreurs », avec leur nombre.
+- **Téléphone** : chaque ligne sur deux lignes (heure, machine · origine,
+  pastille ; puis le message).
+- Mode « Direct » : les nouvelles lignes ont la même forme.
+- Coût : une expression régulière par message affiché (300 lignes au plus
+  par page) et une passe pour le repli : moins d'une milliseconde ; rien de
+  stocké.
