@@ -6464,3 +6464,36 @@ l'utilisateur) :
 - Corrigé : la classe `en-cartes` est posée aussi sur ordinateur ; les
   règles « carte allégée » du téléphone cachaient la ligne de réglages et
   la courbe sur ordinateur. Elles ne valent plus que sous 640 px.
+
+## 73. Noms d'alertes lisibles ; CI plus rapide (19/11) **[Fait, à valider]**
+
+- Retour : « le nom des alertes est perturbant » (`SondeEnEchec`,
+  `MiseAJourAgentEchouee`…). La console affiche maintenant un **libellé
+  lisible** : « Sonde en échec », « Mise à jour de l'agent échouée »,
+  « OPNsense : CPU élevé ».
+  - Affichage seulement : le nom technique reste l'identifiant (règles,
+    filtres, liens, export YAML, notifications, étiquette `alertname`).
+    Il s'affiche en infobulle (« Règle MiseAJourAgentEchouee »), sur la
+    page d'une alerte (« Voir la règle `…` ») et sous le libellé dans la
+    liste des règles. La recherche des listes trouve les deux.
+  - Où : listes d'alertes (en cours, groupées, en attente, masquées,
+    prises en charge, dernières alertes, historique, bruyantes), page
+    d'une alerte, incidents (titres compris), fiches, événements, écran
+    mural, frise.
+  - Comment (`console/libelle_regle.go`) : libellés écrits à la main pour
+    une vingtaine de règles ; sinon le nom est coupé aux majuscules et les
+    mots connus reprennent accents, sigles et marques (« echouee » →
+    « échouée », « cpu » → « CPU », « opnsense » → « OPNsense »). Une
+    règle créée à la main donne donc aussi un libellé correct
+    (`disque_plein_nas` → « Disque plein nas »).
+  - Coût : un calcul de chaîne par ligne affichée (quelques µs), rien en
+    base, rien de stocké.
+  - Même idée pour l'état : « active » → « En cours », « en_attente » →
+    « En attente » (historique, page d'une alerte).
+  - Téléphone : historique et « Les plus bruyantes » en cartes (les noms
+    étaient coupés en plein mot dans les colonnes étroites).
+- CI : le fuzzing (16 cibles × 15 s dans une seule tâche, 6 min 15)
+  était la tâche la plus longue. Coupé en deux tâches parallèles (agent /
+  serveur, 8 cibles chacune, ~3 min 15) : la CI passe de ~6 min 45 à
+  ~4 min (durée des tests). Prix : une tâche de plus, soit ~1 min de
+  forfait en plus par passage. Même couverture (mêmes cibles, même durée).

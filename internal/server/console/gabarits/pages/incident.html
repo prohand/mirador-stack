@@ -7,7 +7,7 @@
 {{range .D.Points}}<a class="ev{{if .Haut}} haut{{end}}" href="{{.Lien}}" data-x="{{printf "%.1f" .X}}" title="{{.Titre}} : {{.Txt}}">{{if .Haut}}{{.Heure}}<br><b>{{.Titre}}</b><br>{{.Txt}}<i class="{{.Classe}}"></i>{{else}}<i class="{{.Classe}}"></i>{{.Heure}}<br><b>{{.Titre}}</b><br>{{.Txt}}{{end}}</a>{{end}}</div>
 <p class="sous legende-tableau">{{.D.DebutFrise}} → {{.D.FinFrise}} (30 min avant le début, pour voir ce qui a changé). Bande rouge : durée de l'incident. Violet : changement · rouge : alerte · bleu : sonde · vert : fin · gris : note.</p></section>
 <div class="grille-services">
-<section class="carte"><h2>Alertes de l'incident</h2><ul class="composants">{{range $i.Alertes}}<li><span>{{template "gravite" .Gravite}} <a href="/alertes/{{.ID}}"><b>{{.Regle}}</b></a> {{if .Machine}}{{.Machine}}{{else if .Sonde}}{{.Sonde}}{{else}}{{.Service}}{{end}}</span><span class="pastille">{{date .Debut}}</span></li>{{end}}</ul></section>
+<section class="carte"><h2>Alertes de l'incident</h2><ul class="composants">{{range $i.Alertes}}<li><span>{{template "gravite" .Gravite}} <a href="/alertes/{{.ID}}" title="Règle {{.Regle}}"><b>{{nomAlerte .Regle}}</b></a> {{if .Machine}}{{.Machine}}{{else if .Sonde}}{{.Sonde}}{{else}}{{.Service}}{{end}}</span><span class="pastille">{{date .Debut}}</span></li>{{end}}</ul></section>
 <section class="carte"><h2>Logs d'erreur pendant l'incident</h2>{{if .D.Logs}}<pre class="logs-incident">{{range .D.Logs}}{{.Heure}} {{.Hote}}  {{.Msg}}
 {{end}}</pre>{{else}}<p class="vide">Aucune ligne d'erreur sur les machines de l'incident.</p>{{end}}</section>
 <section class="carte"><h2>Notes</h2>{{range .D.Notes}}<p><b>{{heureCourte .Le}}</b> {{.Qui}} : {{.Txt}}</p>{{else}}<p class="vide">Aucune note.</p>{{end}}

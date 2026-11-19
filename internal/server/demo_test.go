@@ -173,6 +173,17 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Alertes aux noms techniques variés : libellés lisibles (SPEC § 73).
+	for i, x := range [][4]string{
+		{"MiseAJourAgentEchouee", "pve1", "warning", "La mise à jour de l'agent a échoué sur pve1"},
+		{"SondeEnEchec", "nas-backup", "critical", "Sonde nas-backup ping en échec"},
+		{"OpnsenseCpuEleve", "vm-docker", "warning", "CPU à 92 % sur le pare-feu"},
+		{"AgentMuet", "srv-test", "critical", "srv-test ne remonte plus de métriques"},
+	} {
+		_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
+			VALUES (?, ?, ?, 'active', ?, ?, ?, 1)`, x[0], `{"alertname":"`+x[0]+`","instance":"`+x[1]+`","severity":"`+x[2]+`"}`, x[2],
+			now.Add(-time.Duration(20+i*15)*time.Minute).UnixMilli(), now.Add(-time.Duration(18+i*15)*time.Minute).UnixMilli(), x[3])
+	}
 	// Collecteur du LAN, certificat du syslog en cours (avancement, SPEC § 32) ;
 	// compte DNS fictif (jamais utilisé : la démarche est simulée).
 	_ = certsyslog.DefinirReglages(ctx, s.db, s.cle, certsyslog.Saisie{Fournisseur: "desec", Domaine: "exemple.org",

@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Noms d'alertes lisibles ; CI plus rapide (SPEC § 73, 19/11) : fait, à valider
+
+- « MiseAJourAgentEchouee » s'affiche « Mise à jour de l'agent échouée »
+  (nom technique en infobulle). Coût : quelques µs par ligne affichée.
+- CI : fuzzing en 2 tâches parallèles, ~6 min 45 → ~4 min.
+
 ## Dernières alertes de chaque élément (SPEC § 72, 19/11) : fait, à valider
 
 - Machines (onglet Activité), sondes, applications, conteneurs : 10

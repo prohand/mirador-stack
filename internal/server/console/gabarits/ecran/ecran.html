@@ -6,11 +6,11 @@
 <div class="mur-compteur{{if $d.Muettes}} attention{{end}}"><b>{{$d.Muettes}}</b><span>muette{{if gt $d.Muettes 1}}s{{end}}</span></div>
 <div class="mur-compteur ok"><b>{{$d.Machines}}</b><span>machine{{if gt $d.Machines 1}}s{{end}}</span></div>
 </section>
-{{if $d.Alertes}}<section class="mur-alertes"><h2>Alertes en cours</h2><ul>{{range $i, $a := $d.Alertes}}{{if lt $i 8}}<li class="g-{{$a.Gravite}}"><b>{{$a.Machine}}</b> {{if $a.Resume}}{{$a.Resume}}{{else}}{{$a.Regle}}{{end}} <small>depuis {{sansIlYA (depuisMs $a.Depuis)}}</small></li>{{end}}{{end}}</ul>
+{{if $d.Alertes}}<section class="mur-alertes"><h2>Alertes en cours</h2><ul>{{range $i, $a := $d.Alertes}}{{if lt $i 8}}<li class="g-{{$a.Gravite}}"><b>{{$a.Machine}}</b> {{if $a.Resume}}{{$a.Resume}}{{else}}{{nomAlerte $a.Regle}}{{end}} <small>depuis {{sansIlYA (depuisMs $a.Depuis)}}</small></li>{{end}}{{end}}</ul>
 {{if gt (len $d.Alertes) 8}}<p class="mur-plus">… et {{len $d.Alertes}} en tout</p>{{end}}</section>
 {{else if $d.Prises}}<section class="mur-calme"><b>Rien à traiter</b><span>aucune nouvelle alerte · {{len $d.Prises}} prise{{if gt (len $d.Prises) 1}}s{{end}} en charge ci-dessous</span></section>
 {{else}}<section class="mur-calme"><b>Tout va bien</b><span>aucune alerte en cours</span></section>{{end}}
-{{if $d.Prises}}<section class="mur-prises"><h2>Prises en charge ({{len $d.Prises}}) <small>acquittées : pas de rappel pour l'instant, mais pas réglées</small></h2><ul>{{range $i, $a := $d.Prises}}{{if lt $i 6}}<li class="g-{{$a.Gravite}}"><b>{{$a.Machine}}</b> {{if $a.Resume}}{{$a.Resume}}{{else}}{{$a.Regle}}{{end}} <small>par {{$a.AcquitteePar}} · {{if $a.AcquitteeJusqua}}jusqu'au {{$a.AcquitteeJusqua}}{{else}}jusqu'à la fin{{end}} · depuis {{sansIlYA (depuisMs $a.Depuis)}}</small></li>{{end}}{{end}}</ul>
+{{if $d.Prises}}<section class="mur-prises"><h2>Prises en charge ({{len $d.Prises}}) <small>acquittées : pas de rappel pour l'instant, mais pas réglées</small></h2><ul>{{range $i, $a := $d.Prises}}{{if lt $i 6}}<li class="g-{{$a.Gravite}}"><b>{{$a.Machine}}</b> {{if $a.Resume}}{{$a.Resume}}{{else}}{{nomAlerte $a.Regle}}{{end}} <small>par {{$a.AcquitteePar}} · {{if $a.AcquitteeJusqua}}jusqu'au {{$a.AcquitteeJusqua}}{{else}}jusqu'à la fin{{end}} · depuis {{sansIlYA (depuisMs $a.Depuis)}}</small></li>{{end}}{{end}}</ul>
 {{if gt (len $d.Prises) 6}}<p class="mur-plus">… et {{len $d.Prises}} en tout</p>{{end}}</section>{{end}}
 <section class="mur-machines">{{range $d.Parc}}<div class="mur-machine etat-{{if .Muette}}muette{{else}}{{.ClasseEtat}}{{end}}">
 <b>{{.Nom}}</b><span class="mur-etat">{{.Etat}}{{if .Alertes}} · {{.Alertes}} alerte{{if gt .Alertes 1}}s{{end}}{{end}}</span>

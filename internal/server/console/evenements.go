@@ -105,14 +105,14 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			if strings.HasPrefix(regle, "Sonde") {
 				typ = evSonde
 			}
-			texte := regle
+			texte := libelleRegle(regle)
 			if resume != "" {
 				texte += " — " + resume
 			}
 			lien := "/alertes/" + strconv.FormatInt(id, 10)
 			ajouter(evenement{Le: time.UnixMilli(active), Type: typ, Gravite: gravite, Texte: texte, Objet: machine, Lien: lien, Machine: machine})
 			if fin > 0 {
-				ajouter(evenement{Le: time.UnixMilli(fin), Type: evResolu, Texte: regle + " terminée (" + dureeLisible(time.Duration(fin-active)*time.Millisecond) + ")",
+				ajouter(evenement{Le: time.UnixMilli(fin), Type: evResolu, Texte: libelleRegle(regle) + " : terminée (" + dureeLisible(time.Duration(fin-active)*time.Millisecond) + ")",
 					Objet: machine, Lien: lien, Machine: machine})
 			}
 		}

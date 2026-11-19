@@ -289,7 +289,7 @@ func TestMurPrisesEnCharge(t *testing.T) {
 		return w.Body.String()
 	}
 	corps := rendre(donneesAccueil{Prises: prises})
-	for _, attendu := range []string{"Rien à traiter", "Prises en charge (1)", "<b>nas</b> DisqueFaible", "par web:admin", "jusqu'au 15/11 18:05"} {
+	for _, attendu := range []string{"Rien à traiter", "Prises en charge (1)", "<b>nas</b> Disque faible", "par web:admin", "jusqu'au 15/11 18:05"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("écran mural : %q absent", attendu)
 		}
