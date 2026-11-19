@@ -244,13 +244,13 @@ func (c *Console) completerIncident(inc *incident, services map[string][]string)
 			inc.Titre = "Site " + s + " injoignable (" + strconv.Itoa(muettes) + " machines)"
 		}
 	case len(inc.Services) == 1 && len(inc.Alertes) > 1:
-		inc.Titre = inc.Services[0] + " : " + premiere.Regle
+		inc.Titre = inc.Services[0] + " : " + libelleRegle(premiere.Regle)
 	case premiere.Machine != "":
-		inc.Titre = premiere.Machine + " : " + premiere.Regle
+		inc.Titre = premiere.Machine + " : " + libelleRegle(premiere.Regle)
 	case premiere.Sonde != "":
-		inc.Titre = "Sonde " + premiere.Sonde + " : " + premiere.Regle
+		inc.Titre = "Sonde " + premiere.Sonde + " : " + libelleRegle(premiere.Regle)
 	default:
-		inc.Titre = premiere.Regle
+		inc.Titre = libelleRegle(premiere.Regle)
 	}
 	if n := len(inc.Alertes); n > 1 {
 		inc.Titre += fmt.Sprintf(" · %d alertes", n)

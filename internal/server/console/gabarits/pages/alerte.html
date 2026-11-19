@@ -1,6 +1,6 @@
 {{define "contenu"}}
 {{$a := .D.A}}
-<h1>{{template "gravite" $a.Gravite}} {{$a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
+<h1>{{template "gravite" $a.Gravite}} {{nomAlerte $a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
 {{template "onglets-alertes" ""}}
 <div class="grille">
 <section class="carte"><h2>État</h2><table>
@@ -15,7 +15,7 @@
 <tr><th>Prise en charge</th><td>{{if $a.AcquitteePar}}par {{$a.AcquitteePar}} le {{date $a.AcquitteeLe}}, {{if $a.AcquitteeJusqua.IsZero}}jusqu'à la fin de l'alerte{{else}}jusqu'au {{date $a.AcquitteeJusqua}}{{end}}{{if $a.Commentaire}} — {{$a.Commentaire}}{{end}}{{if and $.Admin $.D.EnCours}} <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="reprendre"><button class="secondaire petit">Reprendre</button></form>{{end}}{{else}}Non{{end}}</td></tr>
 </table></section>
 <section class="carte"><h2>Étiquettes</h2><table>{{range .D.Etiquettes}}<tr><th>{{.Nom}}</th><td><code>{{.Valeur}}</code></td></tr>{{end}}</table>
-<p><a href="/regles/modifier/{{$a.Regle}}">Voir la règle</a> · <a href="/alertes?regle={{$a.Regle}}">Historique de cette règle</a></p></section>
+<p><a href="/regles/modifier/{{$a.Regle}}">Voir la règle <code>{{$a.Regle}}</code></a> · <a href="/alertes?regle={{$a.Regle}}">Historique de cette règle</a></p></section>
 </div>
 {{if .D.Courbe}}<section class="carte" id="graphique"><h2>Valeur suivie sur 24 h</h2><div class="courbe-grande">{{.D.Courbe}}</div><p><small>Pointillé : le seuil de la règle pour cette machine.</small></p></section>{{end}}
 {{if and .Admin .D.EnCours}}<div class="grille">

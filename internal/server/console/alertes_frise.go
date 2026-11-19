@@ -116,7 +116,7 @@ func (c *Console) frise(ctx context.Context, periode string, t time.Time) donnee
 		}
 		l.Nb++
 		l.Barres = append(l.Barres, barreFrise{ID: a.ID, X: x, L: w, Classe: a.Gravite,
-			Titre: a.Regle + " — " + a.ActiveLe.In(loc).Format("02/01 15:04") + ", " + dureeLisible(a2.Sub(a.ActiveLe))})
+			Titre: libelleRegle(a.Regle) + " — " + a.ActiveLe.In(loc).Format("02/01 15:04") + ", " + dureeLisible(a2.Sub(a.ActiveLe))})
 		r := parRegle[a.Regle]
 		if r == nil {
 			r = &regleBruyante{Regle: a.Regle, LienHistorique: "/alertes?regle=" + url.QueryEscape(a.Regle)}

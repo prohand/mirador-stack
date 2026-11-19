@@ -15,7 +15,7 @@
 </div>
 <h3>Les plus bruyantes</h3>
 <div class="defile"><table><thead><tr><th>Règle</th><th class="nombre">Fois</th><th class="nombre">Machines</th><th class="nombre">Durée totale</th><th>Pour moins de bruit</th></tr></thead><tbody>
-{{range $f.Bruyantes}}<tr><td><a href="{{.LienHistorique}}#liste-historique">{{.Regle}}</a></td><td class="nombre">{{.Fois}}</td><td class="nombre">{{.Machines}}</td><td class="nombre">{{duree .Duree}}</td>
+{{range $f.Bruyantes}}<tr><td><a href="{{.LienHistorique}}#liste-historique" title="Règle {{.Regle}}">{{nomAlerte .Regle}}</a></td><td class="nombre">{{.Fois}}</td><td class="nombre">{{.Machines}}</td><td class="nombre">{{duree .Duree}}</td>
 <td>{{if .LienRegler}}<a href="{{.LienRegler}}">Régler {{.Regler}}</a>{{end}}</td></tr>{{end}}
 </tbody></table></div>
 {{else}}<p class="vide">Aucune alerte sur la période.</p>{{end}}
@@ -29,7 +29,7 @@
   <button>Filtrer</button>
 </form>
 {{if .D.Historique}}<div class="defile"><table><thead><tr><th>N°</th><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Début</th><th>Fin</th><th>Durée</th><th>Valeur max</th><th>Acquittée par</th></tr></thead><tbody>
-{{range .D.Historique}}<tr><td><a href="/alertes/{{.ID}}">{{.ID}}</a></td><td>{{template "gravite" .Gravite}}</td><td>{{.Regle}}</td><td>{{.Machine}}</td>
+{{range .D.Historique}}<tr><td><a href="/alertes/{{.ID}}">{{.ID}}</a></td><td>{{template "gravite" .Gravite}}</td><td title="Règle {{.Regle}}">{{nomAlerte .Regle}}</td><td>{{.Machine}}</td>
 <td>{{date .Debut}}</td><td>{{if egal .Etat "resolue"}}{{date .Fin}}{{else}}<span class="pastille attention">{{.Etat}}</span>{{end}}</td>
 <td>{{if egal .Etat "resolue"}}{{duree (ecart .Debut .Fin)}}{{end}}</td><td class="nombre">{{printf "%.4g" .ValeurMax}}</td><td>{{.AcquitteePar}}</td></tr>{{end}}
 </tbody></table></div>

@@ -8,10 +8,11 @@
 #
 # Économie de minutes (11/11 : 90 % du forfait mensuel utilisé) :
 #   - un push qui ne touche que la documentation ne lance rien ;
-#   - 4 tâches au lieu de 8 (GitHub arrondit CHAQUE tâche à la minute) ;
+#   - 5 tâches au lieu de 8 (GitHub arrondit CHAQUE tâche à la minute ;
+#     le fuzzing est en 2 tâches depuis le 19/11 pour aller plus vite) ;
 #   - test de sauvegarde / restauration plus lancé deux fois ;
 #   - benchmarks seulement à la demande (Actions › ci › Run workflow).
-# Durée totale inchangée (~7 min : celle des tests).
+# Durée totale ~4 min (celle des tests et d'un lot de fuzzing).
 #
 # Économie de stockage (15-16/11 : les 0,5 Go du mois remplis par les
 # binaires de 42 Mo envoyés à chaque push et gardés 30 jours) :
@@ -101,13 +102,39 @@ jobs:
         run: go test -race ./...
 
   # Fuzzing : à chaque envoi sur une branche (pas pour un tag : le commit
-  # étiqueté est déjà passé par ici). 14 cibles × 15 s dans UNE tâche, en
-  # parallèle des tests (plus courte qu'eux : durée totale inchangée).
+  # étiqueté est déjà passé par ici). 16 cibles × 15 s, coupées en DEUX
+  # tâches parallèles de 8 cibles (19/11) : seule, la tâche durait 6 min 15
+  # et ralentissait toute la CI ; en deux, ~3 min 15 chacune, moins que les
+  # tests (durée totale ~6 min 45 → ~4 min, pour ~1 min de forfait en plus).
   # Chaque ligne : paquet:Cible.
   fuzzing:
-    name: fuzzing court
+    name: fuzzing court (${{ matrix.lot }})
     if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lot: agent
+            cibles: >-
+              ./internal/agent/config:FuzzLire
+              ./internal/agent/collect:FuzzLecturesProc
+              ./internal/agent/racine:FuzzAnalyses
+              ./internal/agent/journal:FuzzAnalyser
+              ./internal/agent/logs:FuzzMasquerEtJSON
+              ./internal/agent/dockerlogs:FuzzMultiplexe
+              ./internal/agent/distant:FuzzDecoder
+              ./internal/collecteur/syslog:FuzzSyslog
+          - lot: serveur
+            cibles: >-
+              ./internal/server/ingestion:FuzzDecoderRemoteWrite
+              ./internal/server/ingestion:FuzzDecoderJsonline
+              ./internal/server/ingestion:FuzzDecoderInflux
+              ./internal/server/stockage/journaux:FuzzLireEntete
+              ./internal/server/sauvegarde:FuzzLecture
+              ./internal/server/alertes:FuzzImporter
+              ./internal/server/alertes:FuzzExpr
+              ./internal/server/notif:FuzzCible
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,23 +145,7 @@ jobs:
           cache: true
       - name: Fuzzing court (15 s par cible)
         env:
-          CIBLES: >-
-            ./internal/agent/config:FuzzLire
-            ./internal/agent/collect:FuzzLecturesProc
-            ./internal/agent/racine:FuzzAnalyses
-            ./internal/agent/journal:FuzzAnalyser
-            ./internal/agent/logs:FuzzMasquerEtJSON
-            ./internal/agent/dockerlogs:FuzzMultiplexe
-            ./internal/agent/distant:FuzzDecoder
-            ./internal/server/ingestion:FuzzDecoderRemoteWrite
-            ./internal/server/ingestion:FuzzDecoderJsonline
-            ./internal/server/ingestion:FuzzDecoderInflux
-            ./internal/collecteur/syslog:FuzzSyslog
-            ./internal/server/stockage/journaux:FuzzLireEntete
-            ./internal/server/sauvegarde:FuzzLecture
-            ./internal/server/alertes:FuzzImporter
-            ./internal/server/alertes:FuzzExpr
-            ./internal/server/notif:FuzzCible
+          CIBLES: ${{ matrix.cibles }}
         run: |
           set -eu
           for c in $CIBLES; do

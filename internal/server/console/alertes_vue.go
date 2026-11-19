@@ -103,7 +103,7 @@ func (c *Console) enCoursVue(ctx context.Context, vue string, t time.Time) donne
 	for _, r := range rs {
 		cle, titre, lien := r.Machine, r.Machine, "/machines/"+url.PathEscape(r.Machine)
 		if d.Vue == "regle" || r.Machine == "" {
-			cle, titre, lien = "r:"+r.Regle, r.Regle, "/alertes?regle="+url.QueryEscape(r.Regle)
+			cle, titre, lien = "r:"+r.Regle, libelleRegle(r.Regle), "/alertes?regle="+url.QueryEscape(r.Regle)
 		}
 		i, ok := index[cle]
 		if !ok {

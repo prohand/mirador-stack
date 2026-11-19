@@ -60,7 +60,7 @@ func TestIncidents(t *testing.T) {
 	for _, i := range incs {
 		titres[i.Titre] = len(i.Alertes)
 	}
-	for titre, n := range map[string]int{"Domotique : AgentMuet · 2 alertes": 2, "Site maison injoignable (2 machines) · 2 alertes": 2, "nas : DisquePlein · 2 alertes": 2} {
+	for titre, n := range map[string]int{"Domotique : Agent muet · 2 alertes": 2, "Site maison injoignable (2 machines) · 2 alertes": 2, "nas : Disque plein · 2 alertes": 2} {
 		if titres[titre] != n {
 			t.Errorf("%q : %d alertes (%v)", titre, titres[titre], titres)
 		}
@@ -69,7 +69,7 @@ func TestIncidents(t *testing.T) {
 	lien := "/incidents/" + strconv.FormatInt(premier, 10)
 	b.post(cl, lien, url.Values{"csrf": {b.csrf(cl, lien)}, "note": {"retour au noyau précédent"}})
 	_, corps, _ := b.get(cl, lien)
-	for _, attendu := range []string{"Domotique : AgentMuet", `class="frise"`, "Paquets : 2 paquets mis à jour", "retour au noyau précédent",
+	for _, attendu := range []string{"Domotique : Agent muet", `class="frise"`, "Paquets : 2 paquets mis à jour", "retour au noyau précédent",
 		"SondeEnEchec", "application Domotique"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page de l'incident : %q absent", attendu)
