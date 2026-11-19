@@ -6434,3 +6434,18 @@ l'utilisateur) :
   cachées, réaffichables par « Colonnes ».
 - Les deux montrées (écran large) : plus de petite ligne « site · type »
   sous le nom. Sur téléphone : colonnes cachées, petite ligne gardée.
+
+## 72. Dernières alertes de chaque élément ; colonne « Mises à jour » masquable (19/11) **[Fait, à valider]**
+
+- Demande : « sur chaque machine, sonde, etc., afficher les dernières
+  alertes remontées avec le retour à la normale ». Bloc **Dernières
+  alertes** : page d'une machine (onglet Activité, tous types : agent,
+  collecteur, équipement) et fiches (sonde, application, conteneur).
+  - Les 10 dernières alertes passées en alerte (pas les conditions restées
+    en attente) : gravité, alerte (lien), résumé, début, **retour à la
+    normale** (« ✓ date » ou « En cours »), durée, prise en charge.
+  - « Tout l'historique » : page Alertes filtrée sur l'élément (§ 68).
+  - Coût : une requête SQL de 10 lignes à l'ouverture de la page.
+- Défaut corrigé : décocher « Mises à jour » dans « Colonnes » ne la
+  cachait pas (règle CSS manquante). Un test vérifie maintenant que chaque
+  colonne du choix a sa règle.

@@ -294,3 +294,17 @@ func TestColonnesSiteType(t *testing.T) {
 		}
 	}
 }
+
+// Chaque colonne du choix « Colonnes » a sa règle de masquage (retour du
+// 19/11 : « Mises à jour » décochée restait visible).
+func TestColonnesParcToutesMasquables(t *testing.T) {
+	css, err := fichiers.ReadFile("statique/mirador.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for c := range fonctions()["colonnesParc"].(func() map[string]string)() {
+		if !strings.Contains(string(css), "table.sans-"+c+" .col-"+c) {
+			t.Errorf("colonne %q : pas de règle « table.sans-%s .col-%s »", c, c, c)
+		}
+	}
+}

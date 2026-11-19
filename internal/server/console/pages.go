@@ -634,17 +634,18 @@ type donneesMachine struct {
 	NomsAnciens []string // historique rattaché à la machine
 	M           vueMachine
 	Alertes     []resumeAlerte
-	Attente     []resumeAlerte      // conditions pas encore des alertes
-	Prises      []resumeAlerte      // prises en charge (SPEC § 30)
-	Masquees    []resumeAlerte      // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine      // « En ce moment » (SPEC § 29)
-	Gourmands   *vueGourmands       // conteneurs les plus gourmands (SPEC § 31)
-	Services    *vueServices        // bloc « Services » (SPEC § 42.2)
-	Maj         vueMaj              // bloc « Mise à jour » (SPEC § 44)
-	Paquets     *vuePaquets         // bloc « Paquets à mettre à jour » (SPEC § 42.3)
-	Changements *vueChangements     // bloc « Changements » (SPEC § 47)
-	Sondes      *vueSondesMachine   // bloc « Sondes » (SPEC § 60)
-	Element     *blocElementMachine // liens et étiquettes (SPEC § 56, § 59)
+	Attente     []resumeAlerte        // conditions pas encore des alertes
+	Prises      []resumeAlerte        // prises en charge (SPEC § 30)
+	Masquees    []resumeAlerte        // conséquences d'une alerte plus grave (bloc replié)
+	Maintenant  []jaugeMachine        // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands         // conteneurs les plus gourmands (SPEC § 31)
+	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
+	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
+	Paquets     *vuePaquets           // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Changements *vueChangements       // bloc « Changements » (SPEC § 47)
+	Sondes      *vueSondesMachine     // bloc « Sondes » (SPEC § 60)
+	Dernieres   *blocDernieresAlertes // « Dernières alertes » (SPEC § 72)
+	Element     *blocElementMachine   // liens et étiquettes (SPEC § 56, § 59)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -690,6 +691,7 @@ func (c *Console) pageMachine(q *req) {
 	d.Alertes, d.Prises = separerPrises(d.Alertes)
 	d.Alertes, d.Masquees = separerMasquees(d.Alertes)
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
+	d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Machine: m.Nom}, "/alertes?machine="+url.QueryEscape(m.Nom), q.t)
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)
 		d.Gourmands = c.gourmands(ctx, m, q.t)

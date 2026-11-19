@@ -122,6 +122,7 @@
 </section>{{end}}
 </div>{{end}}
 <div class="panneau-onglet" data-panneau-onglet="activite">
+{{with .D.Dernieres}}{{template "dernieres-alertes" .}}{{end}}
 {{with .D.Changements}}<details class="carte section-surveillance" id="changements" data-memoire-ouvert="changements"{{if .Recent}} data-ouvrir{{end}}><summary><h2>Changements</h2> <span class="pastille">{{.Total}} sur 7 jours</span></summary>
 <p class="sous">Paquets, redémarrages, noyau, agent, conteneurs et réglages des 7 derniers jours (aussi en pointillés sur les courbes). {{template "plus" "aide.md#changements"}}</p>
 {{if .Lignes}}<div class="defile"><table data-cartes data-sans-filtre class="changements"><thead><tr><th>Quand</th><th>Type</th><th>Détail</th></tr></thead><tbody>

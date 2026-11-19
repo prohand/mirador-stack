@@ -39,6 +39,8 @@ type donneesFiche struct {
 	// Sonde : formulaire « Modifier la sonde » (retour du 19/11).
 	Sonde  *essais.Sonde
 	Depuis []string // serveur + collecteurs
+	// Dernières alertes de l'élément, avec le retour à la normale (§ 72).
+	Dernieres *blocDernieresAlertes
 }
 
 func (c *Console) ficheElement(q *req, cle string) {
@@ -175,6 +177,16 @@ func (c *Console) ficheElement(q *req, cle string) {
 			{"Page Conteneurs", "/conteneurs?machine=" + url.QueryEscape(e.Groupe)},
 			{"Alertes", "/alertes?" + url.Values{"machine": {e.Groupe}, "conteneur": {e.Nom}}.Encode()},
 			{"Événements", "/evenements?" + url.Values{"machine": {e.Groupe}, "element": {e.Nom}}.Encode()}}
+	}
+	// Dernières alertes de l'élément (§ 72).
+	switch {
+	case strings.HasPrefix(cle, "s:"):
+		d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Sonde: e.Nom}, "/alertes?sonde="+url.QueryEscape(e.Nom), q.t)
+	case strings.HasPrefix(cle, "v:"):
+		d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Application: e.Nom}, "/alertes?application="+url.QueryEscape(e.Nom), q.t)
+	case strings.HasPrefix(cle, "c:"):
+		d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Machine: e.Groupe, Conteneur: e.Nom},
+			"/alertes?"+url.Values{"machine": {e.Groupe}, "conteneur": {e.Nom}}.Encode(), q.t)
 	}
 	// Derniers événements (7 jours) qui le citent.
 	for _, ev := range c.journalEvenements(ctx, filtreEvenements{Debut: q.t.Add(-7 * 24 * time.Hour), Fin: q.t, SansAuto: true, Max: 300}) {
