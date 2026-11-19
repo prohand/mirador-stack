@@ -279,9 +279,14 @@ func fonctions() template.FuncMap {
 		// Colonnes que l'on peut masquer dans le tableau de la vue d'ensemble.
 		"colonnesParc": func() map[string]string {
 			return map[string]string{"courbe": "Courbe CPU", "cpu": "CPU", "memoire": "Mémoire", "disque": "Disque",
-				"alertes": "Alertes", "valider": "À valider", "majs": "Mises à jour", "vu": "Vu"}
+				"alertes": "Alertes", "valider": "À valider", "majs": "Mises à jour", "vu": "Vu",
+				"site": "Site", "type": "Type"}
 		},
-		"entier": func(f float64) int64 { return int64(f) },
+		// colonnesParcCachees : colonnes masquées d'office (navigateur sans
+		// choix enregistré) : Site et Type seulement s'il y a un seul site ou
+		// un seul type dans le parc (retour du 19/11, SPEC § 71).
+		"colonnesParcCachees": colonnesParcCachees,
+		"entier":              func(f float64) int64 { return int64(f) },
 	}
 }
 
@@ -606,4 +611,21 @@ func sorteLisible(s string) string {
 		}
 	}
 	return majusculeDebut(strings.Join(mots, " "))
+}
+
+// colonnesParcCachees : « site,type », « site », « type » ou « » selon le
+// nombre de sites et de types différents du parc.
+func colonnesParcCachees(parc []ligneParc) string {
+	sites, types := map[string]bool{}, map[string]bool{}
+	for _, l := range parc {
+		sites[l.Site], types[l.Env] = true, true
+	}
+	var c []string
+	if len(sites) < 2 {
+		c = append(c, "site")
+	}
+	if len(types) < 2 {
+		c = append(c, "type")
+	}
+	return strings.Join(c, ",")
 }

@@ -6424,3 +6424,13 @@ l'utilisateur) :
 - Courbe du temps de réponse verte quand la sonde est OK ; état sur une
   ligne (« OK · 200 · 5 ms »).
 - Couleurs tirées des variables du thème : lisibles en clair et en sombre.
+
+## 71. Colonnes Site et Type dans le tableau du parc (19/11) **[Fait, à valider]**
+
+- Vue d'ensemble › Machines : colonnes **Site** et **Type**, triables
+  (A → Z, puis Z → A), dans le choix « Colonnes » (retenu par le navigateur).
+- Montrées d'office seulement s'il y a au moins deux sites (ou deux types)
+  dans le parc, une machine sans site comptant comme une valeur ; sinon
+  cachées, réaffichables par « Colonnes ».
+- Les deux montrées (écran large) : plus de petite ligne « site · type »
+  sous le nom. Sur téléphone : colonnes cachées, petite ligne gardée.

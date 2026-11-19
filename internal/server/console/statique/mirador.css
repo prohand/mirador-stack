@@ -452,7 +452,10 @@ a.cloche .icone { width: 16px; height: 16px; }
 a.cloche.attention { color: var(--attention); } a.cloche.erreur { color: var(--erreur); }
 a.pastille { text-decoration: none; }
 table.sans-courbe .col-courbe, table.sans-cpu .col-cpu, table.sans-memoire .col-memoire, table.sans-disque .col-disque,
-table.sans-alertes .col-alertes, table.sans-valider .col-valider, table.sans-vu .col-vu { display: none; }
+table.sans-alertes .col-alertes, table.sans-valider .col-valider, table.sans-vu .col-vu,
+table.sans-site .col-site, table.sans-type .col-type { display: none; }
+/* Colonnes Site et Type montrées (écran large) : plus de petite ligne sous le nom (§ 71). */
+@media (min-width: 641px) { table.parc:not(.sans-site):not(.sans-type) td.nom-machine .sous { display: none; } }
 
 /* --- Page machine : bandeau et bloc « À surveiller » ------------------------------ */
 .bandeau-machine { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; }

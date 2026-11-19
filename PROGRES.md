@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Colonnes Site et Type du parc (SPEC § 71, 19/11) : fait, à valider
+
+- Triables, dans « Colonnes » ; montrées d'office s'il y a plusieurs sites
+  ou plusieurs types.
+
 ## Ajouter une sonde depuis la page Sondes ; majuscules (SPEC § 69, 19/11) : fait, à valider
 
 - « + Ajouter une sonde » en haut : « Depuis une machine » (même bloc que la

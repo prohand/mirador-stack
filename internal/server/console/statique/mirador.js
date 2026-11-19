@@ -292,7 +292,11 @@ document.addEventListener("change", function (e) {
     var tri = lire(cleTri, "").split(":"), col = tri[0], sens = tri[1] === "asc" ? 1 : -1;
     var corps = table.tBodies[0], lignes = Array.prototype.slice.call(corps.rows);
     lignes.sort(function (a, b) {
-      if (col === "nom") { return sens * a.getAttribute("data-nom").localeCompare(b.getAttribute("data-nom")); }
+      if (col === "nom" || col === "site" || col === "type") {
+        var ta = a.getAttribute("data-" + col), tb = b.getAttribute("data-" + col);
+        if (ta !== tb) { return sens * ta.localeCompare(tb); }
+        return a.getAttribute("data-nom").localeCompare(b.getAttribute("data-nom"));
+      }
       if (col) {
         var x = parseFloat(a.getAttribute("data-" + col)), y = parseFloat(b.getAttribute("data-" + col));
         if (x !== y) { return sens * (x - y); }
@@ -330,7 +334,9 @@ document.addEventListener("change", function (e) {
     if (vide) { vide.hidden = visibles > 0; }
     chaleur(lignes, etat !== "" || mots.length > 0);
     // Colonnes masquées.
-    var masquees = lire(cleCol, "").split(",").filter(Boolean);
+    // Sans choix enregistré : colonnes cachées d'office par la page
+    // (Site et Type quand le parc n'a qu'un site ou qu'un type).
+    var masquees = lire(cleCol, table.getAttribute("data-colonnes-cachees") || "").split(",").filter(Boolean);
     zone.querySelectorAll("[data-colonne]").forEach(function (c) {
       var nom = c.getAttribute("data-colonne"), masquee = masquees.indexOf(nom) >= 0;
       c.checked = !masquee;
@@ -378,7 +384,8 @@ document.addEventListener("change", function (e) {
     if (!b) { return; }
     var col = b.parentNode.getAttribute("data-tri"), tri = lire(cleTri, "").split(":");
     // 1er clic : du plus grand au plus petit (noms : A → Z) ; 2e : l'inverse ; 3e : ordre du serveur.
-    var premier = col === "nom" ? "asc" : "desc", second = col === "nom" ? "desc" : "asc";
+    var texte = col === "nom" || col === "site" || col === "type";
+    var premier = texte ? "asc" : "desc", second = texte ? "desc" : "asc";
     var suivant = tri[0] !== col ? col + ":" + premier : (tri[1] === premier ? col + ":" + second : "");
     ecrire(cleTri, suivant);
     appliquer();
