@@ -25,6 +25,7 @@ type carteService struct {
 type donneesServices struct {
 	Cartes                   []carteService
 	NbPanne, NbDegrade, NbOK int
+	FiltreSur                filtreSur
 }
 
 func (c *Console) pageServices(q *req) {
@@ -38,11 +39,23 @@ func (c *Console) pageServices(q *req) {
 	if c.opt.Alertes != nil {
 		enCours = c.opt.Alertes.EnCours()
 	}
+	if nom := q.r.URL.Query().Get("nom"); nom != "" { // depuis une fiche (§ 68)
+		garde := svcs[:0]
+		for _, s := range svcs {
+			if s.Nom == nom {
+				garde = append(garde, s)
+			}
+		}
+		svcs = garde
+	}
 	etats := servicesmetier.Calculer(ctx, c.lecteurServices(), enCours, r.ReglesPanne, svcs, q.t)
 	debut := q.t.Add(-30 * 24 * time.Hour)
 	pannes := c.pannes(ctx, r.ReglesPanne, debut, q.t)
 	maint := c.maintenancesMachines(ctx, debut, q.t)
 	var d donneesServices
+	if nom := q.r.URL.Query().Get("nom"); nom != "" {
+		d.FiltreSur = filtreSur{"l'application « " + nom + " »", "/applications"}
+	}
 	for _, e := range etats {
 		var iv []intervalle
 		for _, x := range e.Service.Composants {

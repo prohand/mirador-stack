@@ -56,11 +56,16 @@ type donneesAlertes struct {
 	Filtre     alertes.Filtre
 	Suivant    int64
 	Requete    string
+	FiltreSur  filtreSur
 }
+
+// filtreSur : page filtrée depuis une fiche (bandeau « Filtré sur … »).
+type filtreSur struct{ Texte, ToutVoir string }
 
 func (c *Console) pageAlertes(q *req) {
 	v := q.r.URL.Query()
-	f := alertes.Filtre{Regle: v.Get("regle"), Machine: v.Get("machine"), Gravite: v.Get("gravite"), Limite: 100}
+	f := alertes.Filtre{Regle: v.Get("regle"), Machine: v.Get("machine"), Gravite: v.Get("gravite"), Limite: 100,
+		Sonde: v.Get("sonde"), Application: v.Get("application"), Conteneur: v.Get("conteneur")}
 	f.Avant, _ = strconv.ParseInt(v.Get("avant"), 10, 64)
 	d := donneesAlertes{Vue: c.enCoursVue(q.r.Context(), v.Get("vue"), q.t), Frise: c.frise(q.r.Context(), v.Get("hp"), q.t), Filtre: f}
 	hs, err := alertes.HistoriqueFiltre(q.r.Context(), c.db, f)
@@ -74,12 +79,21 @@ func (c *Console) pageAlertes(q *req) {
 		d.Suivant = hs[len(hs)-1].ID
 	}
 	qs := url.Values{}
-	for k, x := range map[string]string{"regle": f.Regle, "machine": f.Machine, "gravite": f.Gravite} {
+	for k, x := range map[string]string{"regle": f.Regle, "machine": f.Machine, "gravite": f.Gravite,
+		"sonde": f.Sonde, "application": f.Application, "conteneur": f.Conteneur} {
 		if x != "" {
 			qs.Set(k, x)
 		}
 	}
 	d.Requete = qs.Encode()
+	switch {
+	case f.Sonde != "":
+		d.FiltreSur = filtreSur{"la sonde « " + f.Sonde + " »", "/alertes"}
+	case f.Application != "":
+		d.FiltreSur = filtreSur{"l'application « " + f.Application + " »", "/alertes"}
+	case f.Conteneur != "":
+		d.FiltreSur = filtreSur{"le conteneur « " + f.Conteneur + " »", "/alertes"}
+	}
 	c.rendre(q, "alertes", "Alertes", "alertes", d)
 }
 

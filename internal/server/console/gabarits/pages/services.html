@@ -1,5 +1,6 @@
 {{define "contenu"}}
 <h1>Applications</h1>
+{{template "filtre-sur" .D.FiltreSur}}
 <p class="sous">Une application (Domotique, Nextcloud, Sauvegardes…) regroupe ce qui la fait marcher : machines, conteneurs, sondes. À ne pas confondre avec les services systemd des machines. Son état : <strong>en panne</strong> si un élément « clé » a un problème, <strong>dégradée</strong> si un autre en a un. Alertes fournies : ApplicationEnPanne (2 min), ApplicationDegradee (10 min). Disponibilité sur 30 jours : d'après les pannes des éléments clés (machines et sondes).</p>
 {{if .D.Cartes}}<div class="resume-alertes">
  <span class="tuile{{if .D.NbPanne}} critique{{end}}"><small>En panne</small><b>{{.D.NbPanne}}</b></span>

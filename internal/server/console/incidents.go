@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -261,10 +262,35 @@ func (c *Console) completerIncident(inc *incident, services map[string][]string)
 type donneesIncidents struct {
 	Incidents []*incident
 	EnCours   int
+	FiltreSur filtreSur
 }
 
 func (c *Console) pageIncidents(q *req) {
 	d := donneesIncidents{Incidents: c.incidentsDe(q.r.Context(), q.t.Add(-periodeIncidents), q.t)}
+	// Depuis une fiche (§ 68) : incidents d'une application, d'une sonde ou
+	// d'une machine.
+	v := q.r.URL.Query()
+	if app, sonde, machine := v.Get("application"), v.Get("sonde"), v.Get("machine"); app != "" || sonde != "" || machine != "" {
+		garde := d.Incidents[:0]
+		for _, i := range d.Incidents {
+			ok := (app != "" && slices.Contains(i.Services, app)) || (machine != "" && slices.Contains(i.Machines, machine))
+			for _, a := range i.Alertes {
+				ok = ok || (sonde != "" && a.Sonde == sonde)
+			}
+			if ok {
+				garde = append(garde, i)
+			}
+		}
+		d.Incidents = garde
+		switch {
+		case app != "":
+			d.FiltreSur = filtreSur{"l'application « " + app + " »", "/incidents"}
+		case sonde != "":
+			d.FiltreSur = filtreSur{"la sonde « " + sonde + " »", "/incidents"}
+		default:
+			d.FiltreSur = filtreSur{"la machine « " + machine + " »", "/incidents"}
+		}
+	}
 	for _, i := range d.Incidents {
 		if i.EnCours() {
 			d.EnCours++

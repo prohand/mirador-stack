@@ -46,6 +46,7 @@ type donneesSondes struct {
 	Total, OK, Echecs, Lentes int
 	Mediane                   string
 	Depuis                    []string // serveur + collecteurs (formulaire)
+	FiltreSur                 filtreSur
 }
 
 // cleSonde : séries d'une sonde (instance = depuis, sonde = nom).
@@ -105,6 +106,20 @@ func (c *Console) pageSondes(q *req) {
 	liste, err := flotte.LireSondes(ctx, c.db)
 	if err != nil {
 		c.flash(q, "", err.Error())
+	}
+	// Depuis une fiche (§ 68) : une seule sonde, ou celles d'une machine.
+	if nom, machine := q.r.URL.Query().Get("sonde"), q.r.URL.Query().Get("machine"); nom != "" || machine != "" {
+		garde := liste[:0]
+		for _, s := range liste {
+			if (nom != "" && s.Nom == nom) || (machine != "" && s.Machine == machine) {
+				garde = append(garde, s)
+			}
+		}
+		liste = garde
+		d.FiltreSur = filtreSur{"la sonde « " + nom + " »", "/sondes"}
+		if nom == "" {
+			d.FiltreSur.Texte = "la machine « " + machine + " »"
+		}
 	}
 	lues := c.sondesLues(ctx, q.t)
 	courbes := map[string]alertes.Courbe{}

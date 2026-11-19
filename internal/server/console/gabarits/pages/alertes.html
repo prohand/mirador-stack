@@ -21,7 +21,8 @@
 {{else}}<p class="vide">Aucune alerte sur la période.</p>{{end}}
 </section>
 <section class="carte" id="liste-historique"><h2>Toutes les alertes passées</h2>
-<form method="get" class="ligne filtres">
+{{template "filtre-sur" .D.FiltreSur}}
+<form method="get" class="ligne filtres">{{with .D.Filtre}}{{if .Sonde}}<input type="hidden" name="sonde" value="{{.Sonde}}">{{end}}{{if .Application}}<input type="hidden" name="application" value="{{.Application}}">{{end}}{{if .Conteneur}}<input type="hidden" name="conteneur" value="{{.Conteneur}}">{{end}}{{end}}
   <label>Règle <input name="regle" value="{{.D.Filtre.Regle}}" maxlength="64"></label>
   <label>Machine <input name="machine" value="{{.D.Filtre.Machine}}" maxlength="128"></label>
   <label>Gravité <select name="gravite"><option value="">Toutes</option>{{$g := .D.Filtre.Gravite}}{{range $x := (liste "critical" "warning" "info")}}<option {{if egal $x $g}}selected{{end}}>{{$x}}</option>{{end}}</select></label>
