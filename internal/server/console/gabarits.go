@@ -264,6 +264,7 @@ func fonctions() template.FuncMap {
 		"groupeRegle":  groupeRegle,
 		"dureeFr":      dureeFr,
 		"motTechnique": motTechnique,
+		"quiLisible":   quiLisible,
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s

@@ -169,12 +169,33 @@ func clesChangees(avant, apres string) []changement {
 			out = append(out, changement{Cle: k, Avant: court(ja[k]), Apres: court(jb[k])})
 		}
 	case avant != apres:
-		out = append(out, changement{Avant: court(avant), Apres: court(apres)})
+		out = append(out, changement{Avant: court(resumeJSON(avant)), Apres: court(resumeJSON(apres))})
 	}
 	if len(out) > 8 {
 		out = append(out[:8], changement{Cle: "…", Apres: fmt.Sprintf("%d autres", len(out)-8)})
 	}
 	return out
+}
+
+// resumeJSON : liste JSON en texte court (« cron.service, ssh.service », ou
+// « 3 éléments » pour une liste d'objets) ; « null » → rien ; autre texte
+// inchangé (audit lisible, SPEC § 75).
+func resumeJSON(s string) string {
+	t := strings.TrimSpace(s)
+	if t == "null" {
+		return ""
+	}
+	if !strings.HasPrefix(t, "[") {
+		return s
+	}
+	var l []any
+	if json.Unmarshal([]byte(t), &l) != nil {
+		return s
+	}
+	if r, ok := aplatir(`{"l":` + t + `}`); ok {
+		return r["l"]
+	}
+	return s
 }
 
 // aplatir : document JSON objet → clés « a.b » et valeurs en texte.
@@ -199,6 +220,24 @@ func aplatir(s string) (map[string]string, bool) {
 				marcher(k, y)
 			}
 		case nil:
+		case []any:
+			// Liste : textes à la suite ; objets comptés (au lieu du JSON brut).
+			var mots []string
+			for _, y := range t {
+				if s, ok := y.(string); ok {
+					mots = append(mots, s)
+				}
+			}
+			switch {
+			case len(t) == 0:
+				out[p] = "(vide)"
+			case len(mots) == len(t):
+				out[p] = strings.Join(mots, ", ")
+			case len(t) == 1:
+				out[p] = "1 élément"
+			default:
+				out[p] = strconv.Itoa(len(t)) + " éléments"
+			}
 		default:
 			b, _ := json.Marshal(t)
 			out[p] = strings.Trim(string(b), `"`)
@@ -349,10 +388,14 @@ func (c *Console) pageAudit(q *req) {
 		c.flash(q, "", err.Error())
 	}
 	jour := ""
+	noms := c.nomsMachinesParID(q.r.Context())
 	for _, l := range ls {
 		t := time.Unix(l.Le, 0).In(fuseau.Load())
-		v := ligneAuditVue{ligneAudit: l, Heure: t.Format("15:04"), Cat: categorieDe(l.Action), Phrase: phraseAudit(l.Action, l.Objet),
+		v := ligneAuditVue{ligneAudit: l, Heure: t.Format("15:04"), Cat: categorieDe(l.Action), Phrase: remplacerPortees(phraseAudit(l.Action, l.Objet), noms),
 			Lien: lienAudit(l.Action, l.Objet), Sensible: estSensible(l.Action), Changes: clesChangees(l.Avant, l.Apres)}
+		for i := range v.Changes { // « machine:2 » → nom, aussi dans les valeurs
+			v.Changes[i].Avant, v.Changes[i].Apres = remplacerPortees(v.Changes[i].Avant, noms), remplacerPortees(v.Changes[i].Apres, noms)
+		}
 		if j := libelleJour(t, q.t); j != jour {
 			v.Jour, jour = j, j
 		}

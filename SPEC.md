@@ -6543,3 +6543,29 @@ l'utilisateur) :
   en français) ; barre « Enregistrer » au milieu des captures pleine page.
 - Coût : CSS et un peu de JavaScript au chargement (étiquetage des
   tableaux, rangement de la frise : quelques ms) ; rien côté serveur.
+
+## 75. Six améliorations d'affichage (19/11, demandées : « Tout ») **[Fait, à valider]**
+
+1. **Courbe sans données** : cadre réduit en pointillés avec « Aucune donnée
+   sur la période », au lieu d'un grand rectangle blanc.
+2. **Onglets sur téléphone** : une seule ligne qui défile de côté (Alertes
+   en avait 8 sur 3 lignes) ; l'onglet actif est amené dans l'écran.
+3. **Longues aides sur téléphone** : aides et paragraphes d'introduction de
+   plus de 140 caractères repliés sur 2 lignes, avec « Lire la suite ». Le
+   bouton « Sans aides » du menu les cache toujours toutes.
+4. **Audit et Réglages › Agents lisibles** : « machine:2 » → nom de la
+   machine, « groupe:lan » → « groupe lan », « defaut » → « Par défaut » ;
+   listes JSON → « cron.service, ssh.service » ou « 3 éléments » ; auteur
+   « web:admin » → « admin ». Le détail brut reste dans « Détail ». Noms
+   des masquages des logs en clair (« Clés API »…). L'identifiant stocké
+   ne change pas (stable si la machine est renommée).
+5. **Zones tactiles** : au doigt, petits boutons à 40 px, pastilles-liens à
+   36 px, cases à cocher à 22 px (avant 22 à 28 px pour certains boutons).
+6. **Tablette (641-899 px)** : menu à gauche replié en icônes, comme sur
+   grand écran, au lieu de la barre du bas du téléphone (≤ 640 px
+   seulement). Le choix « replié / déplié » du grand écran n'est pas
+   touché.
+- Contrôle : audit complet relancé (300 captures) : aucune page plus large
+  que l'écran, aucune erreur JavaScript ni blocage CSP.
+- Coût : CSS et quelques lignes de JavaScript au chargement ; côté
+  serveur, une requête « id, nom des machines » par page Audit ou Agents.

@@ -260,6 +260,7 @@ func motTechnique(m string) string {
 		"debut": "Début", "fin": "Fin", "securite": "Sécurité", "test": "Test", // types d'envoi
 		"ombre": "Mode ombre (rien envoyé)", "file": "File d'attente", "telegram": "Telegram", "olvid": "Olvid", "email": "E-mail", // canaux
 		"regle": "Règle", "regle_supprimee": "Règle supprimée", "regle_desactivee": "Règle désactivée", "regle_activee": "Règle activée", // historique
+		"mots_de_passe": "Mots de passe", "tokens": "Jetons", "cles_api": "Clés API", "autorisation": "En-têtes Authorization", "cartes": "Cartes bancaires", "emails": "Adresses e-mail", // masquages des logs
 		"planifiee": "Planifiée", "manuelle": "Manuelle", "ok": "OK", "Ok": "OK", "erreur": "Erreur", "echec": "Échec", // sauvegardes
 	}[m]; ok {
 		return l

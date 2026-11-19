@@ -23,13 +23,23 @@ document.addEventListener("click", function (e) {
   var appli = document.getElementById("appli");
   var bouton = document.querySelector("[data-replier]");
   if (!appli || !bouton) { return; }
-  var petit = window.matchMedia ? window.matchMedia("(max-width: 899px)") : { matches: false };
+  var petit = window.matchMedia ? window.matchMedia("(max-width: 640px)") : { matches: false };
+  // Tablette (641-899 px) : menu à gauche replié en icônes, sans toucher au
+  // choix retenu pour le grand écran (audit du 19/11 : la tablette avait la
+  // barre du bas du téléphone).
+  var tablette = window.matchMedia ? window.matchMedia("(min-width: 641px) and (max-width: 899px)") : { matches: false };
   var cle = "mirador.menu.replie";
   try {
     var v = window.localStorage.getItem(cle);
     if (v === "1") { appli.classList.add("replie"); }
     if (v === "0") { appli.classList.remove("replie"); }
   } catch (e) { /* stockage indisponible : réglage du serveur */ }
+  var choixGrand = appli.classList.contains("replie");
+  function suivreTablette() {
+    if (tablette.matches) { appli.classList.add("replie"); } else { appli.classList.toggle("replie", choixGrand); }
+  }
+  suivreTablette();
+  if (tablette.addEventListener) { tablette.addEventListener("change", suivreTablette); }
   bouton.addEventListener("click", function () {
     if (petit.matches) {
       appli.classList.toggle("ouvert");
@@ -37,6 +47,8 @@ document.addEventListener("click", function (e) {
       return;
     }
     var replie = appli.classList.toggle("replie");
+    if (tablette.matches) { return; }   // déplié à la demande, pas retenu
+    choixGrand = replie;
     try { window.localStorage.setItem(cle, replie ? "1" : "0"); } catch (e) { /* rien */ }
   });
 })();
@@ -1513,3 +1525,36 @@ document.addEventListener("change", function (ev) {
   var c = ev.target;
   if (c && c.hasAttribute && c.hasAttribute("data-envoi-auto") && c.form && c.value) { c.form.submit(); }
 });
+
+// Téléphone : l'onglet actif d'une ligne d'onglets qui défile de côté est
+// amené dans l'écran (audit du 19/11 : onglets sur une seule ligne).
+(function () {
+  document.querySelectorAll(".onglets").forEach(function (nav) {
+    var a = nav.querySelector(".actif, [aria-current]");
+    if (!a || nav.scrollWidth <= nav.clientWidth) { return; }
+    nav.scrollLeft = Math.max(0, a.offsetLeft - nav.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2);
+  });
+})();
+
+// Téléphone : longues aides (plus de 140 caractères) repliées sur deux
+// lignes, avec « Lire la suite » : les données arrivent dès le premier
+// écran (audit du 19/11). « Sans aides » (menu) les cache toujours toutes.
+(function () {
+  if (!window.matchMedia || !window.matchMedia("(max-width: 640px)").matches) { return; }
+  // Aides, et paragraphes d'introduction posés directement sous le titre.
+  document.querySelectorAll("main .aide, main > p.sous, main > p:not([class])").forEach(function (el) {
+    if (el.parentElement.closest(".aide") || el.closest("form, table, details") || el.textContent.trim().length <= 140) { return; }
+    el.classList.add("aide-repliee");
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "lien lire-suite";
+    b.textContent = "Lire la suite";
+    b.setAttribute("aria-expanded", "false");
+    b.addEventListener("click", function () {
+      var ouvert = el.classList.toggle("aide-repliee") === false;
+      b.textContent = ouvert ? "Réduire" : "Lire la suite";
+      b.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    });
+    el.insertAdjacentElement("afterend", b);
+  });
+})();

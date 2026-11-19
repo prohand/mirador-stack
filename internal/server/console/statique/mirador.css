@@ -112,7 +112,9 @@ main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 36px; }
 .appli.menu-haut .barre-pied { margin: 0 0 0 auto; padding: 0; border: 0; }
 .appli.menu-haut .txt, .appli.menu-haut .barre nav a { display: flex; }
 .appli.menu-haut .moi .txt { display: none; }
-@media (max-width: 899px) {
+/* Téléphone (≤ 640 px) : menu en haut, ouvert par « Plus ». La tablette
+   (641-899 px) garde le menu à gauche, replié en icônes (mirador.js). */
+@media (max-width: 640px) {
   .appli, .appli.replie { flex-direction: column; }
   .barre, .appli.replie .barre { width: auto; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--menu-bord); overflow: visible; }
   .barre-tete, .appli.replie .barre-tete { flex-direction: row; padding: 0; width: 100%; }
@@ -294,7 +296,7 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
 .u-legend { font-size: .78rem; }
 .diff-plus { color: var(--ok); } .diff-moins { color: var(--erreur); }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
-@media (max-width: 899px) {
+@media (max-width: 640px) {
   .appli.menu-haut .replier { display: inline-flex; }
   .appli.menu-haut .barre nav { flex-direction: column; }
   .appli.menu-haut.ouvert .barre-pied { margin: 8px 0 0; }
@@ -549,7 +551,7 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .appli.replie .themes { grid-template-columns: 1fr; width: 44px; }
 .appli.replie .themes button:not([aria-checked="true"]) { display: none; }
 .appli.menu-haut .themes { margin: 0; }
-@media (max-width: 899px) { .themes { display: none; } .appli.ouvert .themes { display: grid; width: 100%; } }
+@media (max-width: 640px) { .themes { display: none; } .appli.ouvert .themes { display: grid; width: 100%; } }
 
 /* --- Aides (SPEC § 26) : bouton « Avec aides / Sans aides » du menu ------- */
 /* « Sans aides » masque les aides (class="aide") ; les avertissements
@@ -565,7 +567,7 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .appli.replie .bascule-aides { grid-template-columns: 1fr; width: 44px; }
 .appli.replie .bascule-aides button:not([aria-checked="true"]) { display: none; }
 .appli.menu-haut .bascule-aides { margin: 0; }
-@media (max-width: 899px) { .bascule-aides { display: none; } .appli.ouvert .bascule-aides { display: grid; width: 100%; } }
+@media (max-width: 640px) { .bascule-aides { display: none; } .appli.ouvert .bascule-aides { display: grid; width: 100%; } }
 
 /* --- Mode ombre : pastille discrète en haut de la page ----------------------- */
 .etat-ombre { display: flex; justify-content: flex-end; margin: -10px 0 8px; }
@@ -873,6 +875,10 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .col-vu, td.nombre { white-space: nowrap; }              /* « il y a 6 min » sur une ligne */
 .bandeau.admin > span { min-width: 0; }
 .nav-bas { display: none; }
+/* Courbe sans données (graphes.js pose .vide) : cadre réduit, message centré,
+   au lieu d'un grand rectangle blanc (audit du 19/11). */
+[data-courbe].vide { display: flex; align-items: center; justify-content: center; min-height: 80px; height: auto !important;
+  border: 1px dashed var(--bord-champ); border-radius: 10px; color: var(--pale); font-size: 13px; text-align: center; padding: 12px; }
 
 /* --- Doigt (téléphone, tablette) : champs à 16 px (sinon iOS zoome à la saisie) et
        boutons d'au moins 44 px ------------------------------------------------------ */
@@ -886,13 +892,15 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   .outil-courbe { min-height: 36px; min-width: 40px; font-size: 12px; }
   .replier, .sortir button { width: 44px; height: 44px; }
   .themes button, .bascule-aides button { min-height: 40px; }
-  a.pastille { padding: 6px 12px; }
+  a.pastille { padding: 6px 12px; min-height: 36px; }
+  button.petit, .bouton.petit, select.petit { min-height: 40px; padding: 0 12px; }
+  label.case input[type="checkbox"], td > input[type="checkbox"] { width: 22px; height: 22px; }
   label.case { min-height: 40px; align-items: center; }
   th[data-tri] button { min-height: 44px; }
 }
 
-/* --- Téléphone et petite tablette : en-tête sur une ligne, barre du bas, menu « Plus » -- */
-@media (max-width: 899px) {
+/* --- Téléphone : en-tête sur une ligne, barre du bas, menu « Plus » ---------------- */
+@media (max-width: 640px) {
   /* En-tête : logo à gauche, recherche (loupe) à droite. Le bouton « replier »
      ne sert plus : le menu s'ouvre par « Plus », en bas. */
   .barre, .appli.replie .barre, .appli.menu-haut .barre { flex-wrap: nowrap; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
@@ -924,7 +932,10 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   .appli.ouvert .groupe { width: 100%; }
   .appli.ouvert .moi .txt { display: block; }
   .appli.ouvert .themes, .appli.ouvert .bascule-aides { margin-top: 10px; }
+}
 
+/* --- Téléphone et tablette : contenu plus serré ---------------------------------- */
+@media (max-width: 899px) {
   /* Bandeaux : une ligne courte, marges de la page. */
   .bandeau { padding: 8px 16px; }
   .bandeau.admin { flex-wrap: nowrap; }
@@ -948,6 +959,14 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 /* --- Téléphone : tableaux marqués data-cartes en cartes (mirador.js pose data-label) ---- */
 @media (max-width: 640px) {
   table.en-cartes, table.en-cartes > tbody { display: block; width: 100%; }
+  /* Onglets : une seule ligne qui défile de côté (avant : jusqu'à 3 lignes). */
+  .onglets { flex-wrap: nowrap; overflow-x: auto; width: 100%; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .onglets::-webkit-scrollbar { display: none; }
+  .onglets > * { flex: none; }
+  /* Longues aides repliées sur deux lignes (mirador.js ajoute « Lire la suite »). */
+  .aide-repliee { display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  button.lire-suite { display: block; margin: -4px 0 12px; font-size: 13px; }
+  .sans-aides button.lire-suite { display: none; }
   .carte > .defile:has(> table.en-cartes), .carte > table.en-cartes { margin: 0; width: 100%; }   /* plus de débord jusqu'au bord de la carte */
   table.en-cartes > thead { display: none; }
   table.en-cartes > tbody > tr { display: block; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--bord); border-radius: 12px; }
