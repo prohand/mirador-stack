@@ -930,6 +930,11 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   /* Rien ne dépasse de l'écran : mots longs coupés, blocs de code défilants. */
   main { overflow-wrap: anywhere; }
   .carte { min-width: 0; }
+  /* Formulaires : un champ large (size="60", longue option de liste) ne
+     pousse plus son libellé ni son cadre hors de l'écran. Un fieldset a par
+     défaut une largeur minimale égale à son contenu : remise à 0. */
+  fieldset { min-width: 0; max-width: 100%; }
+  label { min-width: 0; max-width: 100%; }
   .titre-page .actions { margin-left: 0; width: 100%; }
   .titre-page .actions > * { flex: 1 1 auto; justify-content: center; }
 }
