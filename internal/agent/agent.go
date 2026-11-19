@@ -107,6 +107,8 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces, cfg.IgnorerInterfaces...),
 		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant, cfg.IgnorerMontages...),
 		collect.NewUname(),
+		// Adresses et ports ouverts : sondes proposées dans l'interface (SPEC § 60).
+		collect.NewEcoutes(cfg.RacineProc),
 		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
 		// sinon seulement signalés à l'interface (SPEC.md § 19).
 		collect.NewMateriel(cfg.RacineSys, cfg.RacineProc, cfg.Ventilateurs, cfg.ZFS, cfg.Mdraid),

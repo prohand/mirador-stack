@@ -6114,3 +6114,76 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - **Actions** (administrateurs) : « Mettre pve1 en maintenance… » ouvre
   le formulaire de maintenance prérempli.
 - Tout est inséré comme texte ; seuls les liens internes sont suivis.
+
+## 60. Sondes depuis la page machine : ping et propositions (demande du 19/11) **[Fait, à valider]**
+
+**Demande** : activer le ping d'une machine depuis un collecteur du même
+site ; si la machine n'a pas de site, choisir le site ; proposer ou
+détecter des sondes HTTPS et TCP.
+
+**Agent** (collecteur `ecoutes`, tourne au rythme lent, relu toutes les 5 min) :
+- `mirador_adresse_info{interface, adresse}` : adresses des interfaces
+  actives (hors boucle locale, lien local, ponts Docker / libvirt / Proxmox),
+  16 au plus. Sert d'adresse au ping (le serveur ne connaît que l'adresse
+  publique vue depuis Internet).
+- `mirador_port_ecoute{port, adresse, protocole}` : ports TCP en écoute lus
+  dans `/proc/net/tcp` et `tcp6` (lisibles par tous, aucun programme
+  lancé), hors ports réservés à 127.0.0.1 / ::1, 64 au plus.
+- **Détection du protocole**, une seule fois par port (au démarrage de
+  l'agent ou quand le port s'ouvre), dans une tâche à part (la collecte
+  n'attend pas), en local :
+  1. connexion et 0,5 s d'attente : un service qui parle le premier
+     (SSH, SMTP, FTP) → `ssh` ou `tcp` ;
+  2. poignée de main TLS (certificat non vérifié : seul le protocole
+     compte), puis ALPN ou « HEAD / » → `https` (sinon `tls`) ;
+  3. « HEAD / » en clair → `http`, sinon `tcp`.
+  Aucune donnée envoyée hormis ces questions ; rien n'est écrit.
+- Choix : la lecture de `/proc` plutôt qu'un balayage des ports depuis le
+  collecteur (un balayage est bruyant, lent, et déclenche les détections
+  d'intrusion) ; l'essai en local plutôt qu'une simple table « port →
+  protocole » (5001 peut être HTTP ou HTTPS selon la machine).
+
+**Serveur** : bloc « Sondes » de la page machine (administrateurs, code 2FA
+ou mode administrateur) :
+- **Depuis** : collecteur du site de la machine choisi d'office (premier
+  par nom s'il y en a plusieurs) ; sinon le collecteur qui relève déjà la
+  machine (§ 23.13) ; sinon « — choisir le site — » (liste « site · collecteur »
+  de tous les collecteurs). Le serveur mirador reste possible pour une
+  adresse publique ; une adresse privée depuis le serveur est refusée à
+  l'ajout (et non au premier essai).
+- **Ping** : adresse proposée = première adresse IPv4 privée de l'agent
+  (liste des autres adresses en suggestion, saisie libre pour un agent
+  ancien) ; sonde « *machine* ping ».
+- **Sondes proposées** : un port par ligne, nom du service connu (SSH, DSM,
+  Home Assistant, PostgreSQL…), cible et nom de sonde (« nas DSM 5001 »).
+  Cochées d'office : HTTPS, HTTP, SSH. HTTPS par adresse IP : certificat non
+  vérifié (il ne peut pas correspondre à une adresse ; la sonde se modifie
+  pour viser le nom). Pas proposés : rpcbind (111), ports hauts sans nom
+  (≥ 32768, souvent tirés au hasard). Un port déjà sondé (même cible) est
+  marqué ✓ avec le nom de la sonde.
+- Les sondes ainsi créées portent le champ `machine` : listées sur la page
+  de la machine, lien depuis la page Sondes, et leurs alertes vont dans les
+  incidents de la machine (§ 54) au lieu de ceux du collecteur. Ce champ
+  n'est jamais envoyé au collecteur (un ancien collecteur refuse les clés
+  inconnues).
+
+**Coût mesuré** :
+- Agent : relecture des ports 0,28 ms et 300 Kio passagers toutes les
+  5 min pour 40 ports et 2 000 connexions (les connexions établies sont
+  sautées sans découpage) ; détection : au plus 3 connexions locales par
+  port, une fois ; 2 à 70 séries de plus par machine.
+- Serveur : 2 requêtes instantanées de plus à l'ouverture de la page
+  machine (séries de la machine seulement) ; rien en continu.
+
+**Menaces** :
+- La liste des ports ouverts et des adresses part au serveur : même niveau
+  que le reste des métriques (canal TLS, token de la machine) ; elle ne
+  sort pas du serveur.
+- Détection : connexions vers la machine elle-même seulement, jamais vers
+  une autre ; un service peut noter une connexion fermée tôt dans son
+  journal, une fois par port.
+- Les valeurs des cases cochées reviennent du navigateur : tout est
+  revérifié par `EnregistrerSondes` (type, cible, nom, collecteur approuvé,
+  50 sondes au plus) ; réservé aux administrateurs, audit.
+- Aucune commande à distance : le collecteur reçoit seulement la liste des
+  sondes, comme au § 48.

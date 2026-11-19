@@ -58,6 +58,9 @@ type Sonde struct {
 	Contenu    string `json:"contenu,omitempty"`     // HTTP : texte attendu dans la page
 	NonVerifie bool   `json:"non_verifie,omitempty"` // HTTP : certificat non vérifié (LAN fait maison)
 	Question   string `json:"question,omitempty"`    // DNS : nom demandé
+	// Machine sondée (SPEC § 60) : rangement seulement (page de la
+	// machine, incidents). Jamais envoyé au collecteur.
+	Machine string `json:"machine,omitempty"`
 }
 
 var reNom = regexp.MustCompile(`^[\pL\pN][\pL\pN _.()'-]{0,47}$`)
@@ -108,6 +111,9 @@ func (s *Sonde) Valider() error {
 		}
 	default:
 		errs = append(errs, fmt.Errorf("type %q inconnu (http, tcp, ping, dns)", s.Type))
+	}
+	if len(s.Machine) > 64 || strings.ContainsAny(s.Machine, "\x00\r\n") {
+		errs = append(errs, errors.New("nom de machine invalide"))
 	}
 	if len(s.Contenu) > tailleMaxContenu {
 		errs = append(errs, errors.New("contenu attendu trop long (200 caractères au plus)"))

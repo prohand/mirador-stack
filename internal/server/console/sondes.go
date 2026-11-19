@@ -115,29 +115,19 @@ func (c *Console) pageSondes(q *req) {
 	for _, s := range liste {
 		k := cleSonde(instanceDe(s), s.Nom)
 		l := ligneSonde{S: s, Depuis: s.Depuis, Attendu: attenduSonde(s), Dispo: "—"}
-		succes, ok := lues["succes"][k]
-		switch {
-		case !ok:
-			l.Etat, l.SansDonnee = "Pas encore d'essai", true
-		case succes.Valeur == 1:
-			ms := lues["duree"][k].Valeur * 1000
-			durees = append(durees, ms)
-			l.Etat, l.ClasseEtat = "OK · "+strconv.FormatFloat(ms, 'f', 0, 64)+" ms", "ok"
-			if lues["lente"][k].Valeur == 1 {
-				l.Etat, l.ClasseEtat, l.Probleme = "Lente · "+strconv.FormatFloat(ms, 'f', 0, 64)+" ms", "attention", true
-				d.Lentes++
-			} else {
-				d.OK++
-			}
-		default:
-			raison := "échec"
-			for kk, e := range lues["erreur"] {
-				if kk == k {
-					raison = e.Etiquettes.Get("erreur")
-				}
-			}
-			l.Etat, l.ClasseEtat, l.Probleme = "Échec : "+raison, "erreur", true
+		var bilan int
+		l.Etat, l.ClasseEtat, bilan = etatSondeLue(lues, s)
+		l.SansDonnee, l.Probleme = bilan == bilanSansEssai, bilan == bilanLente || bilan == bilanEchec
+		switch bilan {
+		case bilanOK:
+			d.OK++
+		case bilanLente:
+			d.Lentes++
+		case bilanEchec:
 			d.Echecs++
+		}
+		if bilan == bilanOK || bilan == bilanLente {
+			durees = append(durees, lues["duree"][k].Valeur*1000)
 		}
 		if v, ok := lues["dispo"][k]; ok && !math.IsNaN(v.Valeur) {
 			l.Dispo = virgule(strconv.FormatFloat(100*v.Valeur, 'f', dispoDecimales(v.Valeur), 64)) + " %"
@@ -161,6 +151,36 @@ func (c *Console) pageSondes(q *req) {
 		d.Mediane = strconv.FormatFloat(durees[len(durees)/2], 'f', 0, 64) + " ms"
 	}
 	c.rendre(q, "sondes", "Sondes", "sondes", d)
+}
+
+// Bilan du dernier essai d'une sonde.
+const (
+	bilanSansEssai = iota
+	bilanOK
+	bilanLente
+	bilanEchec
+)
+
+// etatSondeLue : texte et couleur du dernier essai (« OK · 12 ms »,
+// « Échec : délai dépassé »…).
+func etatSondeLue(lues map[string]map[string]alertes.Echantillon, s essais.Sonde) (etat, classe string, bilan int) {
+	k := cleSonde(instanceDe(s), s.Nom)
+	succes, ok := lues["succes"][k]
+	switch {
+	case !ok:
+		return "Pas encore d'essai", "", bilanSansEssai
+	case succes.Valeur == 1:
+		ms := strconv.FormatFloat(lues["duree"][k].Valeur*1000, 'f', 0, 64)
+		if lues["lente"][k].Valeur == 1 {
+			return "Lente · " + ms + " ms", "attention", bilanLente
+		}
+		return "OK · " + ms + " ms", "ok", bilanOK
+	}
+	raison := "échec"
+	if e, ok := lues["erreur"][k]; ok {
+		raison = e.Etiquettes.Get("erreur")
+	}
+	return "Échec : " + raison, "erreur", bilanEchec
 }
 
 func dispoDecimales(v float64) int {

@@ -55,6 +55,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
 	m.HandleFunc("GET /machines/{nom}", c.lecture(c.pageMachine))
 	m.HandleFunc("POST /machines/{nom}", c.admin(c.postMachine))
+	m.HandleFunc("POST /machines/{nom}/sondes", c.admin(c.postSondesMachine))
 	m.HandleFunc("GET /mises-a-jour", c.lecture(c.pageMisesAJour))
 	m.HandleFunc("POST /mises-a-jour", c.admin(c.postMisesAJour))
 	m.HandleFunc("POST /mises-a-jour/publier", c.admin(c.postPublier))
@@ -634,6 +635,7 @@ type donneesMachine struct {
 	Maj         vueMaj              // bloc « Mise à jour » (SPEC § 44)
 	Paquets     *vuePaquets         // bloc « Paquets à mettre à jour » (SPEC § 42.3)
 	Changements *vueChangements     // bloc « Changements » (SPEC § 47)
+	Sondes      *vueSondesMachine   // bloc « Sondes » (SPEC § 60)
 	Element     *blocElementMachine // liens et étiquettes (SPEC § 56, § 59)
 	Rangees     []vueRangee
 	Periode     string
@@ -689,6 +691,8 @@ func (c *Console) pageMachine(q *req) {
 		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
 		d.Paquets = c.paquetsMachine(ctx, m, q.t)
 		d.Changements = c.changementsMachine(ctx, m.Nom, q.t)
+		_, releveur, _ := flotte.CollecteurDe(ctx, c.db, m.ID)
+		d.Sondes = c.sondesMachine(ctx, m, releveur, q.t)
 		d.Element = c.elementMachine(ctx, m.Nom)
 		if d.Paquets != nil {
 			// Ouvert d'office quand l'alerte des mises à jour de sécurité est en cours.

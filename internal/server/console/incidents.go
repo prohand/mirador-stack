@@ -113,6 +113,15 @@ func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*inci
 			}
 		}
 	}
+	// Sonde rangée sous une machine (SPEC § 60) : son alerte va avec la machine.
+	machineSonde := map[string]string{}
+	if ss, err := flotte.LireSondes(ctx, c.db); err == nil {
+		for _, s := range ss {
+			if s.Machine != "" {
+				machineSonde[s.Nom] = s.Machine
+			}
+		}
+	}
 	rows, err := c.db.QueryContext(ctx, `SELECT id, regle, etiquettes, gravite, active_le, fin, resume, acquittee_par, acquittee_le FROM alertes
 		WHERE active_le > 0 AND active_le <= ? AND (fin = 0 OR fin >= ?) AND gravite IN ('critical', 'warning')
 		ORDER BY active_le LIMIT ?`, fin.UnixMilli(), debut.UnixMilli(), maxAlertesLues)
@@ -135,6 +144,9 @@ func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*inci
 		a.Machine, a.Sonde, a.Service = e["instance"], e["sonde"], e["service"]
 		if a.Machine == "mirador-server" && a.Sonde != "" {
 			a.Machine = ""
+		}
+		if m := machineSonde[a.Sonde]; a.Sonde != "" && m != "" {
+			a.Machine = m
 		}
 		a.Site = sites[a.Machine]
 		a.Debut = time.UnixMilli(d)
