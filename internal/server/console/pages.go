@@ -1119,7 +1119,7 @@ func (c *Console) pageMisesAJour(q *req) {
 	// importent) ; en cas d'échec, le champ à taper reste là.
 	if q.admin() && e6 == nil {
 		if vs, err := c.versionsGitHub(ctx, d.Depot, q.t); err != nil {
-			d.ListeGitHub = "liste des versions de GitHub indisponible (" + err.Error() + ") : taper le numéro"
+			d.ListeGitHub = "Liste des versions de GitHub indisponible (" + err.Error() + ") : taper le numéro"
 		} else {
 			for _, v := range vs {
 				p := versionProposee{Tag: v.Tag, Importee: vu[strings.TrimPrefix(v.Tag, "v")] || vu[v.Tag]}

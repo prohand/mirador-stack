@@ -346,7 +346,7 @@
         if (!d) { return; }
         if (!d.series || d.series.length === 0) {
           if (el.u) { el.u.destroy(); el.u = null; }
-          el.textContent = d.erreur || "aucune donnée sur la période";
+          el.textContent = d.erreur || "Aucune donnée sur la période";
           el.classList.add("vide");
           marquerVide(el, true);
           return;

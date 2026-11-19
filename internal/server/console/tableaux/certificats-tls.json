@@ -27,7 +27,7 @@
         },
         {
           "type": "chiffre",
-          "titre": "Expires",
+          "titre": "Expirés",
           "description": "Certificats dont la date de fin est déjà passée.",
           "unite": "short",
           "seuils": [

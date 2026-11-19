@@ -6497,3 +6497,49 @@ l'utilisateur) :
   serveur, 8 cibles chacune, ~3 min 15) : la CI passe de ~6 min 45 à
   ~4 min (durée des tests). Prix : une tâche de plus, soit ~1 min de
   forfait en plus par passage. Même couverture (mêmes cibles, même durée).
+
+## 74. Audit d'affichage de toute l'interface (19/11) **[Fait, à valider]**
+
+- Demande : « corrige tous les bugs d'affichage, navigateur normal ou PWA ».
+  Méthode : 60 pages × 5 affichages (ordinateur clair et sombre, tablette
+  768 px, téléphone en PWA clair et sombre), soit 300 captures, plus des
+  contrôles automatiques (page plus large que l'écran, erreurs JavaScript,
+  blocages CSP, images cassées). Relecture des captures par page.
+- Avant : 13 captures plus larges que l'écran (téléphone et tablette).
+  Après : aucune ; aucune erreur JavaScript ni blocage CSP.
+- Causes communes corrigées :
+  - la règle « couper les mots n'importe où » (prévue pour le téléphone)
+    valait jusqu'à 899 px : sur tablette, les tableaux se tassaient et
+    coupaient les mots (« Applic/ation »). Elle ne vaut plus dans un tableau
+    qui défile ; il défile dans son cadre ;
+  - téléphone : tout tableau d'au moins 3 colonnes dans un cadre à
+    défilement passe en cartes (avant : seulement ceux marqués) ; dans une
+    carte, texte + pastille + lien restent ensemble à droite ;
+  - boutons jamais coupés en plein mot ; un fieldset ou un champ large ne
+    dépasse plus de l'écran.
+- Corrections précises :
+  - frise d'un incident : heure et titre de chaque point n'étaient jamais
+    affichés (un commentaire Go les avalait) ; les textes se
+    superposaient : ils sont maintenant rangés en lignes sans
+    chevauchement, dans le cadre, la frise grandit si besoin ;
+  - Silences : liste « machine en panne » en zone de texte (débordait) ;
+  - Disponibilité : la bande des 31 jours prend la largeur de la carte ;
+  - écran mural : une longue adresse revient à la ligne ;
+  - collecteur : message quand il n'y a encore ni SNMP ni UniFi (titres
+    vides) ; flux bloqués : « Aucun. » dans les cartes vides ;
+  - menu : sur une fiche sonde, application ou conteneur, c'est Sondes,
+    Applications ou Conteneurs qui est en surbrillance ;
+  - Nouvelle règle : exemple de nom juste pour chaque sorte (avant
+    « ex. serviceEleve ») ;
+  - sombre : pastilles de niveau des logs, boutons « danger » et bandeau
+    rouge lisibles ; légende « Aucun » de la carte du monde ; ronds
+    d'étape à venir et fond des jauges de disponibilité visibles ;
+  - libellés : durées en français dans les règles (« 3 j », « 1 sem. »),
+    groupes « Hôte », « Matériel », parties d'export, types et canaux
+    d'envoi, origine et statut des sauvegardes, « Expirés », majuscules.
+- Faux défauts écartés : graphiques « vides » (dessinés seulement quand on
+  les voit, la capture pleine page ne défilait pas) ; « Choose File » et
+  heures « AM » (langue du navigateur de test, en français sur un appareil
+  en français) ; barre « Enregistrer » au milieu des captures pleine page.
+- Coût : CSS et un peu de JavaScript au chargement (étiquetage des
+  tableaux, rangement de la frise : quelques ms) ; rien côté serveur.

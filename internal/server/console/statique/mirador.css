@@ -15,7 +15,7 @@
 :root {
   --fond: #F7F7F8; --carte: #FFFFFF; --survol: #F3F3F5; --entete-table: #FAFAFB;
   --texte: #18181B; --doux: #4A4A52; --pale: #6B6B74; --bord: #E6E6EA; --bord-doux: #F0F0F3; --champ: #FFFFFF; --bord-champ: #D4D4DA;
-  --accent: #3E63DD; --accent-texte: #3456C8; --accent-fond: #EEF2FF; --sur-accent: #FFFFFF;
+  --accent: #3E63DD; --accent-texte: #3456C8; --accent-fond: #EEF2FF; --sur-accent: #FFFFFF; --sur-erreur: #FFFFFF;
   --ok: #15803D; --ok-fond: #E9F7EF; --attention: #A14A06; --attention-fond: #FFF4E5;
   --erreur: #B42318; --erreur-fond: #FDEDEC; --info: #3456C8; --info-fond: #EEF2FF;
   --ombre-texte: #7A4B00; --ombre-fond: #FFF4E5; --ombre-bord: #F5DDA8;
@@ -30,7 +30,7 @@
   :root:not([data-theme="clair"]) {
     --fond: #0C0D10; --carte: #15161A; --survol: #1C1D22; --entete-table: #131418;
     --texte: #EDEDF0; --doux: #B4B4BC; --pale: #8E8E98; --bord: #26272D; --bord-doux: #1D1E23; --champ: #0F1013; --bord-champ: #34353C;
-    --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10;
+    --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10; --sur-erreur: #0C0D10;
     --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210;
     --erreur: #F87171; --erreur-fond: #2E1517; --info: #97B0FF; --info-fond: #1C2442;
     --ombre-texte: #F5B83D; --ombre-fond: #2B2210; --ombre-bord: #4A3B12;
@@ -41,7 +41,7 @@
 :root[data-theme="sombre"] {
     --fond: #0C0D10; --carte: #15161A; --survol: #1C1D22; --entete-table: #131418;
     --texte: #EDEDF0; --doux: #B4B4BC; --pale: #8E8E98; --bord: #26272D; --bord-doux: #1D1E23; --champ: #0F1013; --bord-champ: #34353C;
-    --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10;
+    --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10; --sur-erreur: #0C0D10;
     --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210;
     --erreur: #F87171; --erreur-fond: #2E1517; --info: #97B0FF; --info-fond: #1C2442;
     --ombre-texte: #F5B83D; --ombre-fond: #2B2210; --ombre-bord: #4A3B12;
@@ -131,9 +131,9 @@ main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 36px; }
 .bandeau { padding: 9px 36px; font-size: 13px; }
 .bandeau.ombre { background: var(--ombre-fond); color: var(--ombre-texte); border-bottom: 1px solid var(--ombre-bord); }
 .bandeau.ombre a { color: inherit; font-weight: 600; }
-.bandeau.aconfirmer { background: var(--erreur); color: #FFFFFF; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.bandeau.aconfirmer button { background: #FFFFFF; color: var(--erreur); border-color: #FFFFFF; }
-.message { padding: .7rem .9rem; border-radius: 10px; border: 1px solid; margin: 0 0 1rem; }
+.bandeau.aconfirmer { background: var(--erreur); color: var(--sur-erreur); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bandeau.aconfirmer button { background: var(--sur-erreur); color: var(--erreur); border-color: var(--sur-erreur); }
+.message { padding: .7rem .9rem; border-radius: 10px; border: 1px solid var(--bord); margin: 0 0 1rem; }
 .message.ok { border-color: var(--ok); color: var(--ok); background: var(--ok-fond); }
 .message.erreur { border-color: var(--erreur); color: var(--erreur); background: var(--erreur-fond); }
 
@@ -176,17 +176,20 @@ form.ligne, .ligne { display: flex; gap: .6rem; flex-wrap: wrap; align-items: en
 form.enligne { display: inline; }
 label { display: flex; flex-direction: column; gap: .3rem; font-size: 13px; font-weight: 500; color: var(--doux); }
 label.case { flex-direction: row; align-items: center; gap: .5rem; color: var(--texte); font-weight: 400; }
+label.pleine { flex: 1 1 100%; } label.pleine > input, label.pleine > textarea { width: 100%; }
+/* Code dans un texte (sélecteurs, chemins) : peut couper plutôt que déborder. */
+td code, li code, p code { overflow-wrap: anywhere; }
 small { color: var(--pale); font-weight: 400; font-size: 12px; }
 input, select, textarea, button { font: inherit; color: inherit; }
 input, select, textarea { padding: .45rem .65rem; min-height: 36px; border: 1px solid var(--bord-champ); border-radius: 8px; background: var(--champ); color: var(--texte); max-width: 100%; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 input[type="checkbox"], input[type="radio"] { min-height: 0; width: 16px; height: 16px; accent-color: var(--accent); }
 textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
-button { min-height: 36px; padding: 0 14px; border: 1px solid var(--accent); background: var(--accent); color: var(--sur-accent); border-radius: 8px; font-weight: 600; cursor: pointer; }
+button { white-space: nowrap; min-height: 36px; padding: 0 14px; border: 1px solid var(--accent); background: var(--accent); color: var(--sur-accent); border-radius: 8px; font-weight: 600; cursor: pointer; }
 button:hover { filter: brightness(1.08); }
 button.secondaire { background: var(--carte); color: var(--texte); border-color: var(--bord-champ); font-weight: 500; }
 button.secondaire:hover { background: var(--survol); filter: none; }
-button.danger, .bouton.danger { background: var(--erreur); border-color: var(--erreur); color: #FFFFFF; }
+button.danger, .bouton.danger { background: var(--erreur); border-color: var(--erreur); color: var(--sur-erreur); }
 button.lien { background: none; border: none; color: var(--accent-texte); padding: 0; min-height: 0; text-decoration: underline; font-weight: 500; }
 label.code input { width: 9.5rem; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
 fieldset { border: 1px solid var(--bord); border-radius: 8px; padding: .6rem .8rem; }
@@ -216,7 +219,7 @@ meter { width: 100%; height: .8rem; }
 body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; overflow-x: hidden;
   --fond: #0A0E1A; --carte: rgba(20, 26, 44, .78); --survol: #182038; --texte: #E8EBF5; --doux: #9AA3BC; --pale: #7D879F;
   --bord: rgba(255, 255, 255, .09); --bord-doux: rgba(255, 255, 255, .06); --champ: #0D1222; --bord-champ: #262E46;
-  --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0A0E1A;
+  --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0A0E1A; --sur-erreur: #0A0E1A;
   --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --erreur: #F87171; --erreur-fond: #2E1517;
   background: #0A0E1A; color: var(--texte); color-scheme: dark; }
 body.seule::before { content: ""; position: fixed; inset: 0; pointer-events: none;
@@ -296,7 +299,7 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
   .appli.menu-haut .barre nav { flex-direction: column; }
   .appli.menu-haut.ouvert .barre-pied { margin: 8px 0 0; }
 }
-a.bouton { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: var(--sur-accent); font-weight: 600; text-decoration: none; border: 1px solid var(--accent); }
+a.bouton { white-space: nowrap; display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: var(--sur-accent); font-weight: 600; text-decoration: none; border: 1px solid var(--accent); }
 a.bouton.secondaire { background: var(--carte); color: var(--texte); border-color: var(--bord-champ); font-weight: 500; }
 .entete-carte { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
 .entete-carte h2 { margin: 0; }
@@ -413,7 +416,9 @@ details.assistant .ligne { margin-top: 10px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .niveau-0 { fill: #283041; } }
 .legende-carte { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--doux); }
 .legende-carte span { display: inline-block; width: 18px; height: 12px; border-radius: 3px; }
-.legende-carte .niveau-0 { background: #E4E7EC; } .legende-carte .niveau-1 { background: #FDE7D3; }
+.legende-carte .niveau-0 { background: #E4E7EC; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .legende-carte .niveau-0 { background: #283041; } }
+:root[data-theme="sombre"] .legende-carte .niveau-0 { background: #283041; } .legende-carte .niveau-1 { background: #FDE7D3; }
 .legende-carte .niveau-3 { background: #F79552; } .legende-carte .niveau-5 { background: #B42318; }
 
 /* --- Vue d'ensemble : barres, tri, filtre, colonnes (SPEC § 19) -------------------- */
@@ -729,7 +734,7 @@ body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 3
 .mur-alertes, .mur-calme { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; }
 .mur-alertes h2 { margin: 0 0 8px; font-size: 18px; color: var(--doux); }
 .mur-alertes ul { list-style: none; margin: 0; padding: 0; }
-.mur-alertes li { font-size: 22px; padding: 8px 0 8px 14px; border-left: 5px solid var(--info); margin-bottom: 6px; }
+.mur-alertes li { font-size: 22px; padding: 8px 0 8px 14px; border-left: 5px solid var(--info); margin-bottom: 6px; overflow-wrap: anywhere; }
 .mur-alertes li.g-critical { border-color: var(--erreur); } .mur-alertes li.g-warning { border-color: var(--attention); }
 .mur-alertes li small { color: var(--pale); font-size: 15px; margin-left: 8px; }
 .mur-calme { display: flex; align-items: baseline; gap: 14px; } .mur-calme b { font-size: 30px; color: var(--ok); } .mur-calme span { font-size: 18px; color: var(--doux); }
@@ -748,7 +753,7 @@ body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 3
 .avancement li > div { display: flex; flex-direction: column; gap: 2px; }
 .avancement small { color: var(--pale); }
 .av-puce { flex: 0 0 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; border: 2px solid var(--bord); color: var(--pale); background: var(--carte); z-index: 1; }
+  font-size: 12px; font-weight: 700; border: 2px solid var(--bord-champ); color: var(--pale); background: var(--carte); z-index: 1; }
 .av-fait .av-puce { background: var(--ok); border-color: var(--ok); color: var(--carte); }
 .av-fait .av-puce::before { content: "✓"; }
 .av-encours .av-puce { border-color: var(--attention); color: var(--attention); }
@@ -821,7 +826,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-table tr.nouvelle td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
 .logs-table tr.ouvert td { border-bottom: 0; }
 .logs-niv { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--survol); color: var(--doux); }
-.logs-niv.err { background: var(--erreur); color: #fff; } .logs-niv.warn { background: var(--attention); color: #fff; }
+.logs-niv.err { background: var(--erreur-fond); color: var(--erreur); font-weight: 600; } .logs-niv.warn { background: var(--attention-fond); color: var(--attention); font-weight: 600; }
 .logs-table mark { background: #FDE68A; color: #18181B; padding: 0 1px; border-radius: 2px; }
 .logs-rep { font-size: 12px; padding: 1px 6px; border-radius: 999px; background: var(--survol); color: var(--doux); font-family: var(--titres); }
 .logs-detail td { padding: 4px 8px 14px; white-space: normal; }
@@ -929,6 +934,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   h1 { font-size: 1.25rem; }
   /* Rien ne dépasse de l'écran : mots longs coupés, blocs de code défilants. */
   main { overflow-wrap: anywhere; }
+  .defile th, .defile td { overflow-wrap: normal; }
   .carte { min-width: 0; }
   /* Formulaires : un champ large (size="60", longue option de liste) ne
      pousse plus son libellé ni son cadre hors de l'écran. Un fieldset a par
@@ -956,6 +962,18 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   table.en-cartes > tbody > tr:has(> td[colspan]) { margin: 6px 0; padding: 0; border: 0; }
   table.en-cartes > tbody > tr > td[data-label=""] { justify-content: flex-start; flex-wrap: wrap; }
   table.en-cartes .sous { display: inline; margin-left: 6px; }
+  .defile table.en-cartes td { overflow-wrap: anywhere; }
+  /* Disponibilité : la bande des jours prend toute la largeur de la carte. */
+  table.en-cartes > tbody > tr > td:has(> .barres-jours) { display: block; }
+  table.en-cartes > tbody > tr > td:has(> .barres-jours)::before { display: block; max-width: none; margin-bottom: 4px; }
+  table.en-cartes .barres-jours { display: flex; width: 100%; }
+  table.en-cartes .barres-jours i { flex: 1 1 0; width: auto; min-width: 2px; }
+  /* Plusieurs morceaux d'une valeur (texte + pastille) : ensemble, à droite. */
+  table.en-cartes .valeur-carte { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 6px; min-width: 0; }
+  table.en-cartes > tbody > tr > td:first-child > .valeur-carte { justify-content: flex-start; }
+  /* En carte, une pastille ou une cellule « sans coupure » peut passer à la ligne. */
+  table.en-cartes td.sans-coupure, table.en-cartes .pastille { white-space: normal; }
+  table.en-cartes .valeur-carte { max-width: 100%; }
   .defile:has(> table.en-cartes) { overflow-x: visible; }
   /* Cartes serrées (longues listes : règles) : les valeurs à la suite, sur une ou deux lignes. */
   table.en-cartes[data-cartes="serrees"] > tbody > tr > td { display: inline-flex; min-height: 0; margin-right: 12px; gap: 5px; font-size: 13px; }
@@ -1120,9 +1138,9 @@ fieldset.bloc-absence legend { padding: 0 6px; font-weight: 600; }
 fieldset.bloc-absence .aide { margin: 0 0 8px; }
 
 /* --- Sondes (SPEC § 48) ---------------------------------------------------------- */
-.cible-sonde { max-width: 360px; }
+.cible-sonde { max-width: 360px; min-width: 200px; }
 .url-sonde { word-break: break-all; }
-.cible-sonde + td + td .pastille { white-space: normal; max-width: 260px; }
+.cible-sonde + td + td .pastille { white-space: normal; max-width: 260px; min-width: 120px; }
 
 /* --- Disponibilité (SPEC § 49) ----------------------------------------------------- */
 .barres-jours { display: inline-flex; gap: 2px; }
@@ -1198,6 +1216,12 @@ fieldset.bloc-absence .aide { margin: 0 0 8px; }
 .frise .ev { position: absolute; top: 93px; transform: translateX(-50%); text-align: center; width: 130px; font-size: 11px; color: var(--doux); text-decoration: none; line-height: 1.3; }
 .frise .ev b { color: var(--texte); }
 .frise .ev.haut { top: auto; bottom: 93px; }
+.frise .ev { display: flex; flex-direction: column; align-items: center; }
+.frise .ev.haut { flex-direction: column-reverse; }
+/* Rangée par mirador.js : textes en lignes sans chevauchement, points sur l'axe. */
+.frise.rangee-js .ev { top: auto; bottom: auto; transform: none; display: block; }
+.frise.rangee-js .ev > i { display: none; }
+.frise .pt { position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--carte); box-shadow: 0 0 0 1px var(--bord); }
 .frise .ev i { display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 6px; border: 3px solid var(--carte); box-shadow: 0 0 0 1px var(--bord); }
 .frise .ev.haut i { margin: 6px auto 0; }
 .logs-incident { font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 320px; overflow: auto; }
@@ -1251,7 +1275,7 @@ tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur);
 tr.ligne-sonde.echec { background: var(--erreur-fond); }
 .dispo-sonde { font-weight: 700; }
 .dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
-.jauge-dispo { width: 70px; margin-left: auto; height: 5px; } .jauge-dispo i { height: 5px; }
+.jauge-dispo { width: 70px; margin-left: auto; height: 5px; outline: 1px solid var(--bord-champ); outline-offset: -1px; } .jauge-dispo i { height: 5px; }
 table.dernieres-alertes tr.en-cours > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
 /* Code de retour HTTP : même bulle que l'état, en dessous (retour du 19/11) ;
    état et code (ou dispo et jauge) restent ensemble, aussi en carte. */

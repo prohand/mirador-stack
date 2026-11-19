@@ -42,7 +42,7 @@
 <section class="carte" id="dependances"><h2>Dépendances</h2>
 <p class="aide"><small class="aide">Quand le parent est en panne, les alertes de l'enfant sont mises en sourdine.</small></p>
 <form method="post" action="/reglages/notifications" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="regles_panne">
-<label title="Une de ces alertes sur le parent veut dire « en panne »">Règles qui veulent dire « machine en panne » <input name="regles_panne" value="{{range $i, $e := .D.ReglesPanne}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="1000" size="50" {{if not .Admin}}readonly{{end}}></label>
+<label class="pleine" title="Une de ces alertes sur le parent veut dire « en panne »">Règles qui veulent dire « machine en panne » <textarea name="regles_panne" rows="2" maxlength="1000" spellcheck="false" {{if not .Admin}}readonly{{end}}>{{range $i, $e := .D.ReglesPanne}}{{if $i}}, {{end}}{{$e}}{{end}}</textarea></label>
 {{if .Admin}}{{template "code2fa"}}<button class="secondaire">Enregistrer</button>{{end}}</form>
 <table>{{range .D.Dependances}}<tr><td><code>{{.Enfant}}</code> dépend de <code>{{.Parent}}</code><br><small>{{.Commentaire}}</small></td>
 <td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="dependances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}</table>

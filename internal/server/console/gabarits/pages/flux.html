@@ -8,11 +8,11 @@
 </section>{{end}}
 {{if .D.Tronque}}<p class="message erreur">Résultat partiel (10 000 lignes lues au plus) : choisir une période plus courte.</p>{{end}}
 <div class="grille">
-<section class="carte"><h2>Adresses sources</h2><table>{{range .D.ParIP}}<tr><td><code>{{.Nom}}</code></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+<section class="carte"><h2>Adresses sources</h2>{{if .D.ParIP}}<table>{{range .D.ParIP}}<tr><td><code>{{.Nom}}</code></td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
 {{if .D.ParPays}}<section class="carte"><h2>Pays</h2><table>{{range .D.ParPays}}<tr><td>{{drapeau .Nom}} {{nomPays .Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>{{end}}
-<section class="carte"><h2>Ports visés</h2><table>{{range .D.ParPort}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
-<section class="carte"><h2>Par règle</h2><table>{{range .D.ParRegle}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
-<section class="carte"><h2>Par machine</h2><table>{{range .D.ParMachine}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>
+<section class="carte"><h2>Ports visés</h2>{{if .D.ParPort}}<table>{{range .D.ParPort}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+<section class="carte"><h2>Par règle</h2>{{if .D.ParRegle}}<table>{{range .D.ParRegle}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+<section class="carte"><h2>Par machine</h2>{{if .D.ParMachine}}<table>{{range .D.ParMachine}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
 </div>
 <section class="carte"><h2>Derniers flux</h2>{{if .D.Derniers}}<div class="defile"><table><thead><tr><th>Heure</th><th>Machine</th><th>Règle</th><th>Interface</th><th>Source</th><th>Pays</th><th>Port</th></tr></thead><tbody>
 {{range .D.Derniers}}<tr><td class="mono">{{dateMs .T}}</td><td>{{.Machine}}</td><td>{{.Regle}}</td><td>{{.Interface}}</td><td><code>{{.IP}}</code></td><td>{{drapeau .Pays}} {{.Pays}}</td><td>{{.Proto}}/{{.Port}}</td></tr>{{end}}

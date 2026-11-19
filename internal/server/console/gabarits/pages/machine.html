@@ -74,7 +74,7 @@
 {{if $n.Cibles}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Adresse</th><th>Préréglage</th><th>Utilisateur</th><th>Sécurité</th><th>Intervalle</th><th></th></tr></thead><tbody>
 {{range $n.Cibles}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td><td><code>{{.Adresse}}</code></td><td>{{.Prereglage}}</td><td>{{.Utilisateur}}</td><td><small>{{.Auth}} / {{.Chiffrement}}</small></td><td><small>{{if .Intervalle}}{{.Intervalle}}{{else}}60s{{end}}</small></td>
 <td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}">{{template "code2fa"}}<button class="secondaire petit">Retirer</button></form>{{end}}</td></tr>{{end}}
-</tbody></table></div>{{end}}
+</tbody></table></div>{{else if not .D.Equipements}}<p class="vide">Aucun relevé SNMP. Il faut d'abord un équipement rattaché à ce collecteur (Machines › Ajouter une machine › Équipement).</p>{{end}}
 {{if and .Admin .D.Equipements}}<details{{if not $n.Cibles}} open{{end}}><summary>Ajouter ou modifier un relevé SNMP</summary>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="snmp">
 <div class="ligne">
@@ -93,6 +93,7 @@
 <small class="aide">Même équipement : relevé remplacé (mots de passe vides = gardés). Synology : Terminal et SNMP › SNMP v3.</small>
 </form></details>{{end}}
 <h3>Contrôleur UniFi</h3>
+{{if and (not $n.UniFi) (not .D.Equipements)}}<p class="vide">Aucun contrôleur relevé (même condition : un équipement rattaché).</p>{{end}}
 {{if $n.UniFi}}<p>Relevé : <a href="/machines/{{$n.UniFi.Machine}}">{{$n.UniFi.Machine}}</a>, <code>{{$n.UniFi.Adresse}}</code>, {{if $n.UniFiCle}}clé API{{else}}compte <code>{{$n.UniFi.Utilisateur}}</code>{{end}}{{if $n.UniFi.Empreinte}}, certificat épinglé{{end}}{{if $n.UniFi.Sites}}, sites {{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}.</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi_retirer">{{template "code2fa"}}<button class="secondaire">Arrêter le relevé UniFi</button></form>{{end}}{{end}}
 {{if and .Admin .D.Equipements}}<details{{if not $n.UniFi}} open{{end}}><summary>{{if $n.UniFi}}Modifier{{else}}Relever un contrôleur UniFi (remplace unpoller){{end}}</summary>

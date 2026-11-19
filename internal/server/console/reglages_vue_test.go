@@ -185,7 +185,7 @@ func TestReglagesGeneralRanges(t *testing.T) {
 		t.Errorf("lien : %q, retour %q", r.Lien, ent.Get("Location"))
 	}
 	// Dépendances : depuis Silences et maintenances.
-	if _, corps, _ = b.get(c, "/sourdine"); !strings.Contains(corps, `name="regles_panne" value="AgentMuet"`) {
+	if _, corps, _ = b.get(c, "/sourdine"); !strings.Contains(corps, `name="regles_panne" rows="2" maxlength="1000" spellcheck="false" >AgentMuet`) {
 		t.Error("règles « machine en panne » absentes de Silences et maintenances")
 	}
 	b.post(c, "/reglages/notifications", url.Values{"csrf": {csrf}, "action": {"regles_panne"}, "regles_panne": {"AgentMuet, ProxmoxMuet"}})

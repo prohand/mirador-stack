@@ -4,7 +4,7 @@
 <p class="sous">Du {{date $i.Debut}}{{if not $i.EnCours}} au {{date $i.Fin}}{{end}} ({{$i.DureeTexte}}) · {{len $i.Alertes}} {{accord (len $i.Alertes) "alerte(s)"}}{{if $i.Machines}} · {{joindre $i.Machines}}{{end}}{{if $i.Services}} · application {{joindre $i.Services}}{{end}}{{if $i.Prise}} · {{$i.Prise}}{{end}}</p>
 <section class="carte"><h2>Frise</h2>
 <div class="frise" role="img" aria-label="Frise de l'incident"><div class="axe"></div><div class="bande largeur-pos" data-x="{{printf "%.1f" .D.BandeX}}" data-l="{{printf "%.1f" .D.BandeL}}"></div>
-{{range .D.Points}}<a class="ev{{if .Haut}} haut{{end}}" href="{{.Lien}}" data-x="{{printf "%.1f" .X}}" title="{{.Titre}} : {{.Txt}}">{{if .Haut}}{{.Heure}}<br><b>{{.Titre}}</b><br>{{.Txt}}<i class="{{.Classe}}"></i>{{else}}<i class="{{.Classe}}"></i>{{.Heure}}<br><b>{{.Titre}}</b><br>{{.Txt}}{{end}}</a>{{end}}</div>
+{{range .D.Points}}<a class="ev{{if .Haut}} haut{{end}}" href="{{.Lien}}" data-x="{{printf "%.1f" .X}}" title="{{.Titre}} : {{.Txt}}"><i class="{{.Classe}}"></i><span>{{.Heure}}<br><b>{{.Titre}}</b><br>{{.Txt}}</span></a>{{end}}</div>
 <p class="sous legende-tableau">{{.D.DebutFrise}} → {{.D.FinFrise}} (30 min avant le début, pour voir ce qui a changé). Bande rouge : durée de l'incident. Violet : changement · rouge : alerte · bleu : sonde · vert : fin · gris : note.</p></section>
 <div class="grille-services">
 <section class="carte"><h2>Alertes de l'incident</h2><ul class="composants">{{range $i.Alertes}}<li><span>{{template "gravite" .Gravite}} <a href="/alertes/{{.ID}}" title="Règle {{.Regle}}"><b>{{nomAlerte .Regle}}</b></a> {{if .Machine}}{{.Machine}}{{else if .Sonde}}{{.Sonde}}{{else}}{{.Service}}{{end}}</span><span class="pastille">{{date .Debut}}</span></li>{{end}}</ul></section>

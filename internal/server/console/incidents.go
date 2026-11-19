@@ -379,7 +379,10 @@ func (c *Console) pageIncident(q *req) {
 		pts = pts[len(pts)-14:]
 	}
 	for k, e := range pts {
-		d.Points = append(d.Points, pointFrise{X: min(94, max(6, pos(e.Le))), Haut: k%2 == 0, // textes entiers près des bords Heure: e.Le.In(loc).Format("15:04"), Titre: e.Titre(),
+		// X borné à 6..94 % : sans JavaScript, les textes restent entiers près
+		// des bords (avec, mirador.js les range sans chevauchement).
+		d.Points = append(d.Points, pointFrise{X: min(94, max(6, pos(e.Le))), Haut: k%2 == 0,
+			Heure: e.Le.In(loc).Format("15:04"), Titre: e.Titre(),
 			Txt: raccourcirTexte(e.Texte, 60), Classe: e.Classe(), Lien: e.Lien})
 	}
 	// Logs d'erreur des machines de l'incident pendant la fenêtre (20 au plus).

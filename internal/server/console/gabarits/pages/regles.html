@@ -11,10 +11,10 @@
 {{template "code2fa"}}{{if eq .D.NbCouvertes 1}}<button data-confirmer="Retirer la règle importée qui ne sert plus ?">Retirer la règle qui ne sert plus</button>{{else}}<button data-confirmer="Retirer les {{.D.NbCouvertes}} règles importées qui ne servent plus ?">Retirer les {{.D.NbCouvertes}} règles qui ne servent plus</button>{{end}}</form>{{end}}
 <p class="aide"><small class="aide">« Sert encore » : le modèle est détecté sur ces machines sans y être coché. Avant de retirer : export YAML (onglet Import / export) pour revenir en arrière.</small></p>
 </details>{{end}}
-{{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{$g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>
+{{range $g := .D.Noms}}<details class="carte" open><summary><strong>{{groupeRegle $g}}</strong> ({{len (index $.D.Groupes $g)}})</summary>
 <div class="defile"><table data-cartes="serrees"><thead><tr><th>Nom</th><th>Gravité</th><th>Pendant</th><th>Active</th><th>Dernière évaluation</th><th>En alerte</th><th></th></tr></thead><tbody>
 {{range index $.D.Groupes $g}}<tr><td>{{if .Modele}}{{.R.Nom}} <a class="pastille" href="{{.Lien}}" title="Règle gérée par le modèle : seuils et expression se règlent dans le modèle">Modèle {{.Modele.Titre}}</a>{{else}}<a href="/regles/modifier/{{.R.Nom}}">{{.R.Nom}}</a>{{end}}<br><small class="doux">{{nomAlerte .R.Nom}}</small>{{if .Sante.Erreur}}<br><small class="erreur">{{.Sante.Erreur}}</small>{{end}}</td>
-<td>{{template "gravite" .R.Gravite}}</td><td>{{.R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
+<td>{{template "gravite" .R.Gravite}}</td><td>{{dureeFr .R.Pour}}</td><td>{{if .R.Active}}Oui{{else}}<span class="pastille">Non</span>{{end}}</td>
 <td>{{if not .Sante.Derniere.IsZero}}{{date .Sante.Derniere}} ({{duree .Sante.Duree}}){{end}}</td><td class="nombre">{{.Sante.EnAlerte}}</td>
 <td>{{if $.Admin}}<form method="post" action="/regles/action" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.R.Nom}}">
 {{if .R.Active}}<button name="action" value="desactiver" class="secondaire" data-code>Désactiver</button>{{else}}<button name="action" value="activer" class="secondaire">Activer</button>{{end}}</form>{{end}}</td></tr>{{end}}

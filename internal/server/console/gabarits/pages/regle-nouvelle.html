@@ -4,7 +4,7 @@
 <div class="grille">
 {{range .D.Modeles}}<section class="carte"><h2>{{.Titre}}</h2><p><small>{{.Aide}}</small></p>
 {{if $.Admin}}<form method="post" action="/regles/nouvelle" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="modele" value="{{.Cle}}">
-<label>Nom <input name="nom" required pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64" placeholder="ex. {{.Cle}}Eleve"></label>
+<label>Nom <input name="nom" required pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64" placeholder="ex. {{nomRegleDe .Titre}}"></label>
 <label>Machines <input name="cible" value="toutes" list="cibles" maxlength="80"></label>
 {{if .Unite}}<label>Seuil ({{.Unite}}) <input name="seuil" value="{{.Seuil}}" inputmode="decimal" required maxlength="20"></label>{{end}}
 {{if .Parametre}}<label>{{.Parametre}} <input name="parametre" value="{{.ParamDefaut}}" maxlength="200"></label>{{end}}
