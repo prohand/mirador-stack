@@ -1047,6 +1047,13 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## « cet appareil » affiché sur tous les appareils (19/11) : corrigé, à valider
+
+- Mon compte › Notifications : la pastille « cet appareil » s'affichait sur
+  l'iPhone en étant sur le PC. Cause : `.pastille { display: inline-flex }`
+  l'emportait sur l'attribut `hidden`. Correction : `[hidden] { display:
+  none !important; }` pour toute la console (vérifié dans Chromium).
+
 ## Adresses à pinguer, plusieurs pings, battement immédiat (SPEC § 62, 19/11) : fait, à valider
 
 - Adresse à pinguer vide : l'agent ne pouvait pas lire ses interfaces
