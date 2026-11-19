@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
 )
 
@@ -41,6 +43,7 @@ type interne struct {
 	erreurVm   string
 	purgeeLe   time.Time
 	mesureeLe  time.Time
+	lecteur    *alertes.Lecteur // états des services (SPEC § 50)
 }
 
 // delaiServicesAttendus : sans donnée reçue d'une machine depuis ce temps,
@@ -107,6 +110,7 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 
 	// Machines : décalage d'horloge, mise à jour en échec.
 	if ms, err := flotte.ListerMachines(ctx, s.db); err == nil {
+		s.vus.remplacer(ms)                                  // vu_le relu chaque minute (SPEC § 46)
 		releves, _ := flotte.RelevesParCollecteur(ctx, s.db) // équipements (nom → collecteur)
 		for _, m := range ms {
 			if m.Statut != "approuvee" {
@@ -174,6 +178,41 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 				}
 			}
 		}
+	}
+
+	// Services (SPEC § 50) : état de chaque service (0 OK, 1 dégradé,
+	// 2 en panne), lu par les règles ServiceEnPanne et ServiceDegrade.
+	if svcs, err := servicesmetier.Lire(ctx, s.db); err == nil && len(svcs) > 0 && s.alertes != nil {
+		if i.lecteur == nil {
+			i.lecteur = alertes.NouveauLecteur(s.met.Requetes(), s.journal.With("composant", "services"))
+		}
+		r, _ := notif.LireReglages(ctx, s.db)
+		for _, e := range servicesmetier.Calculer(ctx, i.lecteur, s.alertes.EnCours(), r.ReglesPanne, svcs, t) {
+			ajout("mirador_service_etat", float64(e.Etat), "service", e.Nom)
+		}
+	}
+
+	// Étiquettes libres (SPEC § 59) : une série par étiquette, pour les
+	// règles (« and on (instance) mirador_element_etiquette{cle="critique", valeur="oui"} »).
+	var brutEtq string
+	if s.db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = 'etiquettes_elements'`).Scan(&brutEtq) == nil {
+		var etq map[string]map[string]string
+		if json.Unmarshal([]byte(brutEtq), &etq) == nil {
+			for el, kv := range etq {
+				for k, v := range kv {
+					if nom, ok := strings.CutPrefix(el, "m:"); ok {
+						ajout("mirador_element_etiquette", 1, "instance", nom, "cle", k, "valeur", v)
+					} else {
+						ajout("mirador_element_etiquette", 1, "element", el, "cle", k, "valeur", v)
+					}
+				}
+			}
+		}
+	}
+
+	// Motifs de logs gardés par le registre (SPEC § 52, 5 000 au plus).
+	if s.motifs != nil {
+		ajout("mirador_logs_motifs", float64(s.motifs.Nombre()))
 	}
 
 	// Volume des logs : lignes reçues par hôte (compteur depuis le démarrage).

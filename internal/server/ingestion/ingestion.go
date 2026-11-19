@@ -59,6 +59,10 @@ type Options struct {
 	LignesMinute      int     // lignes de logs par minute et par machine (rafale : 1 minute)
 
 	Maintenant func() time.Time // remplaçable dans les tests
+
+	// ApresLignes : lignes de logs écrites (registre des motifs, SPEC § 52) ;
+	// nil : rien. Appelé dans la requête : doit rester rapide.
+	ApresLignes func([]stockage.Ligne)
 }
 
 func (o *Options) completer() {
@@ -127,6 +131,10 @@ type Ingestion struct {
 	// recues : heure (secondes Unix) des dernières métriques écrites pour
 	// chaque machine (règle AgentMuet au-delà de 24 h, SPEC § 45).
 	recues map[int64]int64
+	// recuesNom : même chose par nom (étiquette instance), équipements
+	// relevés par un collecteur compris (« si les données disparaissent »,
+	// SPEC § 46). Une entrée par machine du parc.
+	recuesNom map[string]int64
 	// lignesHote : lignes de logs reçues par hôte (host) depuis le démarrage
 	// (courbes de volume des logs, SPEC § 18.20). 2 000 hôtes au plus.
 	lignesHote map[string]uint64
@@ -152,6 +160,7 @@ func Nouvelle(opt Options) *Ingestion {
 		lignes:     NouveauLimiteur(lm/60, lm, maxCles),
 		decalages:  make(map[int64]time.Duration),
 		recues:     make(map[int64]int64),
+		recuesNom:  make(map[string]int64),
 		lignesHote: make(map[string]uint64),
 		enCours:    make(map[int64]int),
 		avertis:    make(map[int64]time.Time),
@@ -176,6 +185,15 @@ func (g *Ingestion) DerniereReception(machine int64) (int64, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	t, ok := g.recues[machine]
+	return t, ok
+}
+
+// DerniereDonneeNom : heure des dernières métriques reçues pour une machine
+// ou un équipement, par nom, depuis le démarrage du serveur.
+func (g *Ingestion) DerniereDonneeNom(nom string) (int64, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	t, ok := g.recuesNom[nom]
 	return t, ok
 }
 
@@ -533,6 +551,10 @@ func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, se
 	if len(series) > 0 {
 		g.mu.Lock()
 		g.recues[m.ID] = maintenant.Unix()
+		g.recuesNom[m.Nom] = maintenant.Unix() // la machine (ou le collecteur) elle-même
+		for eq := range vusEq {
+			g.recuesNom[eq] = maintenant.Unix()
+		}
 		g.mu.Unlock()
 	}
 	g.Compteurs.Series.Add(uint64(len(series)))
@@ -611,6 +633,9 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 			g.opt.Journal.Error("écriture des logs", "machine", m.Nom, "erreur", err)
 			g.refuser(w, http.StatusServiceUnavailable, "stockage indisponible", 10)
 			return
+		}
+		if g.opt.ApresLignes != nil {
+			g.opt.ApresLignes(lignes)
 		}
 	}
 	g.Compteurs.Lignes.Add(uint64(len(lignes)))

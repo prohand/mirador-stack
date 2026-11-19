@@ -36,6 +36,7 @@ import (
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/geoip"
 	"mirador-stack/internal/server/ingestion"
+	"mirador-stack/internal/server/motifs"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/stockage/journaux"
 	"mirador-stack/internal/server/stockage/metriques"
@@ -57,7 +58,8 @@ type Options struct {
 	Metriques  *metriques.Moteur
 	Logs       *journaux.Moteur
 	Ingestion  *ingestion.Ingestion
-	GeoIP      *geoip.Base // pays des adresses (peut être nil)
+	Motifs     *motifs.Registre // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
+	GeoIP      *geoip.Base      // pays des adresses (peut être nil)
 	// Niveau : niveau du journal du serveur (mode debug temporaire) ; peut être nil.
 	Niveau *slog.LevelVar
 	// Maintenant : horloge (remplaçable dans les tests).

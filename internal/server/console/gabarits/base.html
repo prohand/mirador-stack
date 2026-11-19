@@ -30,6 +30,9 @@
       {{template "lien-menu" (menu "/" "ensemble" "Vue d'ensemble" .Menu "accueil" 0)}}
       {{template "lien-menu" (menuAValider "/machines" "machines" "Machines" .Menu "machines" .NbAValider "Machines où l'agent a trouvé quelque chose de nouveau à surveiller")}}
       {{template "lien-menu" (menuAValider "/conteneurs" "conteneur" "Conteneurs" .Menu "conteneurs" .NbConteneurs "Conteneurs non sains ou arrêtés alors qu'ils devraient redémarrer")}}
+      {{template "lien-menu" (menu "/services" "activite" "Services" .Menu "services" 0)}}
+      {{template "lien-menu" (menu "/elements" "base" "Éléments" .Menu "elements" 0)}}
+      {{template "lien-menu" (menu "/sondes" "globe" "Sondes" .Menu "sondes" .NbSondes)}}
       {{template "lien-menu" (menu "/alertes" "alertes" "Alertes" .Menu "alertes" .NbAlertes)}}
       {{template "lien-menu" (menu "/logs" "logs" "Logs" .Menu "logs" 0)}}
       {{template "lien-menu" (menu "/tableaux" "tableaux" "Tableaux" .Menu "tableaux" 0)}}

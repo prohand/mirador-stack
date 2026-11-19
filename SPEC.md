@@ -5665,3 +5665,452 @@ Menaces :
 - Une machine compromise pourrait envoyer cette série sous son propre nom
   et retarder sa propre alerte : elle le peut déjà en envoyant
   `node_uname_info`. Pas de risque nouveau.
+
+## 46. Si les données disparaissent (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« loss of signal ») : idée seulement, service
+fermé, aucun code. Maquette validée le 18/11.
+
+### 46.1 Le besoin
+
+- Avant : quand une machine s'arrête, la série d'une alerte disparaît au
+  bout de 5 min (fenêtre de PromQL) et l'alerte se **ferme** : faux
+  « Résolu » (disque plein, mémoire…) alors que rien n'est réglé.
+- Même défaut de fond que celui d'AgentMuet (§ 45), pour toutes les règles.
+
+### 46.2 Le réglage (par règle)
+
+- « Que faire » :
+  - **Garder l'alerte ouverte** (défaut, choix du 18/11, pour toutes les
+    règles, importées comprises) : tant que la machine n'envoie rien,
+    l'alerte reste ouverte, marquée « Données absentes depuis… » ;
+  - **Fermer l'alerte** : comportement d'avant ;
+  - **Ouvrir une alerte « données absentes »** : une alerte part aussi pour
+    une machine qui avait les métriques de la règle et n'envoie plus rien
+    depuis le délai « au bout de » (10 min par défaut, 24 h au plus).
+- Champs `absence` (vide = garder, `fermer`, `ouvrir`) et `absence_apres`
+  dans la règle (base, export et import YAML mirador).
+
+### 46.3 Fonctionnement
+
+- « Machine muette » : plus aucune donnée depuis 90 s (deux relevés de
+  30 s et une marge), pour la machine de l'étiquette `instance`.
+- Heure des dernières données : tenue par l'ingestion à chaque envoi de
+  métriques accepté (machine, collecteur et chaque équipement relevé) ;
+  avant le premier envoi depuis le démarrage du serveur : `vu_le` en base
+  (relu chaque minute).
+- Alerte sans `instance`, ou machine supprimée du parc : jamais « muette »,
+  l'alerte suit sa série comme avant.
+- Retour de la machine : l'alerte est évaluée normalement (résolue si la
+  condition est fausse, sinon elle continue).
+- « Ouvrir » : une requête de plus pour ces règles seulement :
+  `group by (instance) (present_over_time({__name__=~"métriques de la règle"}[délai + 30 min]))`.
+  L'alerte ouverte porte `{instance}` et le résumé
+  « <machine> : données absentes (règle …) ».
+- Pas d'alerte pendant le délai de démarrage (3 min) : rien n'est ouvert
+  pendant que les agents vident leur file.
+
+### 46.4 Affichage et messages
+
+- Listes d'alertes et page d'une alerte : pastille « Données absentes depuis
+  26 h » (avec l'heure des dernières données sur la page de l'alerte).
+- Message : ligne « 📡 Données absentes depuis 18/11 10:31 (26 h) : la
+  machine n'envoie plus rien » quand l'alerte part déjà dans cet état.
+- État tenu en mémoire par le moteur (recalculé à chaque évaluation, rien
+  de plus en base).
+
+### 46.5 Coût
+
+- Par évaluation : une recherche en mémoire par alerte dont la série a
+  disparu (rien sinon).
+- « Ouvrir » : une requête de plus par évaluation de la règle (séries des
+  métriques de la règle sur 40 min). À réserver à quelques règles.
+- Mémoire : une entrée (nom, heure) par machine.
+
+### 46.6 Menaces
+
+- Rien de nouveau exposé. Une machine ne peut agir que sur son propre nom
+  (nom imposé à l'ingestion) : elle peut retarder la fermeture de ses
+  propres alertes en se taisant, pas celles d'une autre.
+- Une alerte gardée ouverte ne renvoie pas de message (pas de répétition
+  hors rappels réglés).
+
+## 47. Suivi des changements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« change tracking ») : idée seulement, aucun
+code. Maquette validée le 18/11.
+
+### 47.1 Ce qui est repéré
+
+| Type | Comment | Source |
+|---|---|---|
+| Paquets | lignes « upgrade » et « install » de `/var/log/dpkg.log`, lues au fil de l'eau par l'agent : `apt_package_installed{package, from, to}` = heure (48 h, 200 au plus) | agent (nouveau) |
+| Redémarrage | nouvelle valeur de `node_boot_time_seconds` (le noyau changé y est cité) | métriques existantes |
+| Noyau | `release` de `node_uname_info` changé sans redémarrage vu (rare) | métriques existantes |
+| Agent | nouvelle version de `mirador_agent_info` | métriques existantes |
+| Conteneur | heure de démarrage changée **sans** que le compteur de redémarrages automatiques bouge (redémarré à la main ou recréé) ; « recréé : image A → B » si l'image a changé (`node_docker_container_info{image}`, nouveau) | agent |
+| Réglage | changements faits dans mirador pour la machine (audit, hors actions automatiques) | audit (existant) |
+
+- Un plantage suivi d'un redémarrage automatique n'est **pas** un
+  changement (déjà couvert par les alertes des conteneurs).
+- Paquets installés à moins de 30 min les uns des autres : une seule ligne.
+- Machine vue pour la première fois (ou tout premier tour) : rien n'est
+  signalé, l'état est seulement noté.
+- Après une installation, l'agent recalcule la liste « à mettre à jour »
+  2 min plus tard au lieu d'attendre 6 h.
+
+### 47.2 Fonctionnement
+
+- Le serveur compare chaque minute (7 requêtes instantanées) avec la
+  dernière valeur vue, gardée en base (`changements_etat`) : rien n'est
+  répété après un redémarrage du serveur.
+- Table `changements` (machine, heure, type, détail), gardée **90 jours**
+  (migration 0027).
+
+### 47.3 Affichage et messages
+
+- Fiche machine : bloc repliable « Changements » (7 jours) : quand, type,
+  détail, source ; ouvert d'office s'il y a eu un changement depuis 24 h.
+- Courbes de la machine : traits pointillés existants (§ 31.1), avec en plus
+  paquets, noyau et conteneurs (nom au survol).
+- Message d'alerte : « 🔧 12m avant : 14 paquets mis à jour » quand la
+  machine a changé dans l'heure qui précède le début de l'alerte.
+
+### 47.4 Coût
+
+- Agent : un `stat()` de dpkg.log par minute ; lecture des seules lignes
+  nouvelles (4 Mio au plus au premier passage) ; quelques séries de plus
+  (paquets des dernières 48 h, une série par conteneur pour l'image).
+- Serveur : 7 requêtes instantanées par minute, quelques lignes en base
+  par jour.
+
+### 47.5 Menaces
+
+- dpkg.log est lisible par tous sur Debian/Ubuntu : aucun droit de plus
+  pour l'agent ; aucun programme lancé.
+- Textes venus des machines (noms de paquets, images, versions) : bornés
+  (128 et 200 caractères, détail 4 000 au plus), échappés à l'affichage
+  (gabarits HTML, messages).
+- Une machine ne peut écrire que sous son propre nom (nom imposé à
+  l'ingestion).
+
+## 48. Sondes de services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« synthetics ») : idée seulement, aucun code.
+Maquette validée le 18/11.
+
+### 48.1 Types d'essai
+
+| Type | Essai | Réussi si |
+|---|---|---|
+| HTTP(S) | GET, 3 redirections au plus, corps lu jusqu'à 1 Mio | code attendu (200 à 399 par défaut), texte attendu présent ; certificat vérifié sauf case « ne pas vérifier » (LAN) |
+| TCP | ouverture de connexion | connexion acceptée |
+| Ping | un écho ICMP par le socket « ping » sans droits de Linux | réponse reçue |
+| DNS | question A/AAAA posée au serveur choisi | au moins une adresse (ou l'adresse attendue) |
+
+- Délai d'un essai : 10 s. Rythme : 60 s par défaut (30 s à 1 h).
+  Seuil « lente » : 1 s par défaut (10 s au plus).
+- 50 sondes au plus ; noms uniques.
+
+### 48.2 Qui fait l'essai
+
+- **Collecteur** (services du LAN) : la liste lui arrive dans sa
+  configuration (`collecteur.services`), posée par le serveur. Un
+  collecteur qui n'annonce pas la capacité `sondes` ne la reçoit pas (il
+  refuserait toute la configuration).
+- **Serveur** (vue de l'extérieur) : liste relue toutes les 30 s, une
+  tâche par sonde. Adresses refusées après résolution : boucle locale,
+  réseaux privés, lien local, multicast, adresse non spécifiée.
+- Même code pour les deux (`internal/sondes`).
+
+### 48.3 Données et alertes
+
+- Séries (job="sondes", instance = collecteur ou `mirador-server`,
+  étiquettes `sonde`, `type`, `cible`) : `mirador_sonde_succes`,
+  `mirador_sonde_duree_secondes`, `mirador_sonde_lente`,
+  `mirador_sonde_code_http`, et `mirador_sonde_erreur{erreur}` en cas
+  d'échec (raison courte).
+- Règles fournies : **SondeEnEchec** (critique, 1 min, soit deux essais),
+  **SondeLente** (avertissement, 5 min).
+- Liste gardée en base (réglage `sondes`), changements dans l'audit,
+  collecteurs prévenus tout de suite (configuration en direct).
+
+### 48.4 Interface
+
+- Menu Supervision › **Sondes** (compteur des sondes en échec).
+- Tuiles (total, OK, en échec, lentes, temps médian), tableau (problèmes
+  en premier) : cible et ce qui est vérifié, depuis, état et raison,
+  temps de réponse sur 1 h, disponibilité sur 24 h ; retrait.
+- Ajout : administrateurs, code 2FA (ou mode administration).
+
+### 48.5 Coût
+
+- Collecteur et serveur : un essai par sonde et par minute (une requête
+  réseau), 4 à 5 séries par sonde.
+- Page : 6 requêtes à l'ouverture ; menu : une requête de plus par page.
+
+### 48.6 Menaces
+
+- Sondes du serveur : il ne peut viser ni lui-même ni le réseau Docker ou
+  privé (refus après résolution du nom, à chaque connexion : un nom qui
+  change d'adresse ne contourne pas le refus).
+- Seuls les administrateurs (code 2FA) créent des sondes ; audit.
+- Essais en lecture seule (GET, connexion, écho, question DNS), délai
+  10 s, corps lu 1 Mio au plus : pas de charge sur les services visés.
+- Certificat non vérifié seulement sur demande explicite (case cochée,
+  montrée dans la liste).
+- Textes venus des essais (raison de l'échec) : bornés à 160 caractères,
+  échappés à l'affichage.
+
+## 49. Disponibilité (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« service levels ») : idée seulement, aucun
+code. Maquette validée le 18/11.
+
+### 49.1 Ce qui est mesuré
+
+- Par machine (agents, collecteurs, équipements) et par sonde : part du
+  temps sans panne sur la période (30 jours, 90 jours, ce mois-ci).
+- Panne d'une machine : alerte d'une « règle de panne » (Réglages ›
+  Notifications : AgentMuet, ProxmoxMuet… les mêmes que pour les
+  dépendances) portant son nom ; panne d'une sonde : SondeEnEchec.
+- Maintenances ponctuelles déclarées pour la machine (`machine:NOM`) :
+  retirées du temps d'arrêt. Les maintenances récurrentes et par sélecteur
+  ne sont pas retirées (à faire si besoin).
+- Une machine ajoutée pendant la période est comptée depuis son ajout.
+
+### 49.2 Affichage
+
+- Alertes › **Disponibilité** : objectif, taux atteint, un carré par jour
+  (vert : aucun arrêt ; orange : moins d'une heure ; rouge : une heure ou
+  plus ; gris : pas encore suivi ; détail au survol), arrêt / permis,
+  marge restante (barre), « Dépassé de… ». Éléments sous l'objectif en
+  premier.
+- Objectif : 99,5 % par défaut, réglable par élément (administrateurs,
+  code 2FA, entre 50 et 100 %), audit.
+
+### 49.3 Coût
+
+- Aucune nouvelle donnée : une requête SQL sur les alertes de la période
+  et une sur les maintenances, calcul en mémoire à l'ouverture de la page.
+
+### 49.4 Menaces
+
+- Lecture seule pour tous les rôles ; objectifs réservés aux
+  administrateurs (code 2FA), valeur bornée, audit.
+
+## 50. Services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« workloads ») : idée seulement, aucun code.
+Maquette validée le 18/11.
+
+### 50.1 Principe
+
+- Un service regroupe ce qui le fait marcher : machines, conteneurs
+  (`machine/conteneur`), sondes (§ 48). Un élément peut être « clé ».
+- État :
+  - **en panne** : un élément clé a un problème (machine muette ou avec
+    une alerte critique, conteneur arrêté ou non sain, sonde en échec, ou
+    élément clé dont on ne reçoit rien) ;
+  - **dégradé** : un autre élément a un problème, ou un élément clé n'a
+    qu'un avertissement (sonde lente, alerte « warning ») ;
+  - **OK** sinon.
+- 30 services, 30 éléments par service au plus ; réglage `services_metier`
+  en base, audit.
+
+### 50.2 Alertes
+
+- Le serveur calcule l'état chaque minute (même code que la page) et
+  l'écrit dans `mirador_service_etat{service}` (0, 1, 2).
+- Règles fournies : **ServiceEnPanne** (critique, 2 min), **ServiceDegrade**
+  (avertissement, 10 min).
+- Les alertes des éléments partent toujours (pas de masquage
+  automatique) : à régler avec les inhibitions existantes si besoin.
+
+### 50.3 Interface
+
+- Supervision › **Services** : tuiles (en panne, dégradés, OK), une carte
+  par service (problèmes en premier) : état, disponibilité sur 30 jours
+  (pannes des éléments clés : machines et sondes, maintenances retirées),
+  éléments avec leur état.
+- Création, modification (nom, éléments : une ligne
+  `[clé] machine|conteneur|sonde NOM`), suppression : administrateurs,
+  code 2FA.
+
+### 50.4 Coût
+
+- Serveur : au plus 5 requêtes instantanées par minute (seulement s'il y a
+  des services), une série par service.
+- Page : les mêmes requêtes et deux requêtes SQL (disponibilité).
+
+### 50.5 Menaces
+
+- Lecture seule pour tous ; changements réservés aux administrateurs,
+  validés (sortes connues, noms bornés), audit.
+- Noms d'éléments affichés échappés (gabarits HTML).
+
+## 51. Vue « ruche » (idée de New Relic, choix du 18/11 : onglet B) **[Fait, à valider]**
+
+Idée reprise de New Relic (« Navigator ») : idée seulement, aucun code.
+Emplacement choisi le 18/11 parmi 3 maquettes : **onglet de la vue
+d'ensemble** (B).
+
+- Vue d'ensemble : onglets **Résumé** / **Ruche** ; le choix est retenu
+  par le navigateur (stockage local), la page s'ouvre ensuite sur lui.
+- Ruche : une case hexagonale par élément, couleur = pire état en cours
+  (vert OK, orange avertissement, rouge critique, gris muette ou inconnue,
+  bleu maintenance) ; nom et petite info (CPU, état, temps de réponse) ;
+  survol : le détail ; clic : la fiche.
+- Filtres : Machines (par site), Conteneurs (par machine), Sondes (par
+  origine), Tout. Problèmes en premier dans chaque groupe ; rangées
+  décalées (nid d'abeille), plus petites sur téléphone.
+- Rechargée toutes les 60 s comme le résumé (même fragment, avec la vue).
+- Coût : rien de plus que les pages existantes (parc de la vue
+  d'ensemble, page Conteneurs, page Sondes) ; une requête SQL pour les
+  maintenances en cours.
+- Menaces : lecture seule ; noms affichés échappés.
+
+## 52. Motifs de logs (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+Idée reprise de New Relic (« log patterns ») : idée seulement, aucun
+code. Mesurée avant de décider (PROGRES, 18/11), validée ensuite :
+amélioration de l'onglet existant « Messages regroupés » (§ 33).
+
+### 52.1 Regroupement
+
+- Étape 1 (comme avant) : parties variables remplacées (UUID, IP, HEX,
+  N). Les expressions ne sont essayées que sur les mots qui contiennent un
+  chiffre, et chacune seulement si un test rapide le permet (3 points pour
+  une IPv4, « :: » pour une IPv6…).
+- Étape 2 (nouveau, méthode « Drain ») : messages de même forme (même
+  nombre de mots, même premier mot) qui ont au moins 60 % de mots en
+  commun : les mots qui changent deviennent **MOT**
+  (« Invalid user ‹MOT› from ‹IP› port ‹N› »).
+- Même code pour la page et pour le registre (`internal/server/motifs`).
+
+### 52.2 Registre des motifs
+
+- Toutes les lignes reçues passent par le registre (à l'ingestion) :
+  première et dernière fois vu, nombre de lignes ; 5 000 motifs au plus
+  (les moins récemment vus sont oubliés) ; écrit en base toutes les
+  5 minutes (table `motifs_logs`, migration 0028) et à l'arrêt.
+- « **Nouveau** » : vu la première fois depuis moins de 24 h, et rien
+  d'équivalent dans les 7 jours d'avant. Pendant les 7 premiers jours du
+  registre (apprentissage), rien n'est « nouveau » (la page le dit).
+- Série interne `mirador_logs_motifs` (nombre de motifs gardés).
+
+### 52.3 Onglet « Messages regroupés »
+
+- Colonnes en plus : **Évolution** (30 barres sur la période cherchée,
+  rouges pour les erreurs) et **Vu la 1re fois** (avec la pastille
+  « nouveau » et la ligne surlignée).
+- Tri en plus : « Nouveaux d'abord ».
+- « Ces lignes » : lignes du motif (même regroupement).
+
+### 52.4 Coût (mesuré)
+
+- Registre : **7 µs par ligne** sur des lignes réalistes chargées en
+  chiffres (banc `BenchmarkRegistre`), soit ≈ 0,01 % d'un cœur au débit
+  actuel (16 lignes/s), 0,35 % à 500 lignes/s ; 25 µs avant les deux
+  optimisations.
+- Mémoire : 4 Mo au plus (5 000 motifs) ; disque : quelques milliers de
+  lignes en base.
+
+### 52.5 Menaces
+
+- Textes des logs bornés (2 000 caractères, 64 mots) avant regroupement ;
+  affichés échappés. Une machine bavarde ne peut pas remplir la mémoire
+  (plafond de 5 000 motifs, oubli des plus anciens).
+- Une règle « nouveau motif d'erreur » reste possible plus tard (non
+  faite).
+
+## 53. Journal d'événements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- Un seul point d'entrée dans le code (`journalEvenements`) qui lit les
+  historiques existants, sans rien garder de plus : alertes (début et
+  fin ; sondes à part), changements (§ 47), maintenances, réglages
+  (audit, réglages automatiques masqués par défaut), sauvegardes, notes
+  d'incident (§ 54).
+- Lu par : la page **Alertes › Événements** (filtres machine, type,
+  période 24 h / 7 j / 30 j ; 500 au plus, regroupés par jour), la frise
+  des incidents (§ 54) et les repères des courbes (§ 31.1 : réglages,
+  changements, maintenances).
+- Coût : 6 requêtes SQL bornées à l'ouverture.
+
+## 54. Incidents (idée de New Relic « issues », demande du 18/11) **[Fait, à valider]**
+
+- Calculés à partir de l'historique des alertes (30 jours, critiques et
+  avertissements) : une alerte rejoint un incident si elle commence au plus
+  10 min après la fin (ou pendant) d'une de ses alertes, et touche la même
+  machine, le même site ou un même service (§ 50).
+- Numéro : celui de la première alerte ; titre : « Domotique en panne »,
+  « Site maison injoignable (2 machines) », « vm-docker : AgentMuet »…
+- Page **Alertes › Incidents** (en cours d'abord) et page d'un incident :
+  frise (30 min avant le début pour voir ce qui a changé, jusqu'à 5 min
+  après la fin ; 14 points au plus ; bande rouge = durée), alertes, logs
+  d'erreur des machines (20 lignes), **notes** (administrateurs, gardées
+  en base, migration 0029, visibles dans le journal), tout ce qui s'est
+  passé. La page d'une alerte mène à son incident.
+- Coût : une requête SQL sur les alertes de 30 jours (3 000 au plus) à
+  l'ouverture ; recherche de logs d'erreur bornée.
+- Menaces : notes réservées aux administrateurs, 1 000 caractères,
+  affichées échappées.
+
+## 55. Registre des éléments (idée de New Relic « entities », demande du 18/11) **[Fait, à valider]**
+
+- Une seule construction dans le code (`elementsDuParc`) : machines,
+  collecteurs, équipements, conteneurs, sondes, services, avec état
+  (même code couleur que la ruche), groupe, fiche et **liens** (relevé
+  par, sur la machine, faite depuis, fait partie de, comprend) et
+  étiquettes (§ 59).
+- Lue par la ruche (§ 51, qui ne refait plus sa liste), la page
+  **Supervision › Éléments** (onglets par sorte, filtre par étiquette,
+  problèmes en premier) et les fiches (§ 56).
+- Coût : les requêtes de la vue d'ensemble, de la page Conteneurs et de la
+  page Sondes, à l'ouverture.
+
+## 56. Fiches identiques (idée de New Relic « entity overview », demande du 18/11) **[Fait, à valider]**
+
+- Même fiche pour une sonde (`/sondes/NOM`), un service (`/services/NOM`)
+  et un conteneur (`/conteneurs/MACHINE/NOM`) : en-tête (sorte, nom,
+  état), raccourcis (logs, pages, disponibilité, événements), 4 tuiles,
+  courbe sur 24 h, alertes en cours, liens, étiquettes, derniers
+  événements (7 jours).
+- Fiche machine : blocs **Liens** et **Étiquettes** en plus.
+- Les noms des pages Sondes, Services, Conteneurs et Éléments mènent aux
+  fiches.
+
+## 59. Étiquettes libres (idée de New Relic « tags », demande du 18/11) **[Fait, à valider]**
+
+- `clé=valeur` sur n'importe quel élément (16 au plus ; clé : minuscules,
+  chiffres, `_` ; valeur : 64 caractères), en plus de site, type, groupe.
+  Réglage `etiquettes_elements`, administrateurs, audit.
+- Affichées sur les fiches et la page Éléments (clic : filtre).
+- Règles : série interne `mirador_element_etiquette{instance|element,
+  cle, valeur}` (chaque minute), par exemple
+  `… and on (instance) mirador_element_etiquette{cle="critique", valeur="oui"}`.
+- Pas encore dans les sélecteurs des silences ni des groupes de
+  notification (les étiquettes ne sont pas sur les alertes) : à faire si
+  besoin.
+
+## 57. Période commune (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- La période choisie sur une fiche machine, un tableau ou la page Logs
+  est retenue par le navigateur et reprise par les autres pages
+  (périodes communes : 1h, 6h, 24h, 7d, 30d). Un lien qui en donne une, un
+  zoom (« de / a ») ou une recherche de motif passe avant.
+- « Comparer avec la semaine dernière » (§ 31) : en plus du bouton « −7 j »
+  de chaque courbe, une case pour toutes les courbes de la page, à côté du
+  choix de la période, retenue par le navigateur.
+- Rien côté serveur (stockage local du navigateur).
+
+## 58. Ctrl+K enrichi (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+
+- Recherche aussi dans les sondes, services et conteneurs (leurs fiches,
+  § 56) et dans les nouvelles pages (Sondes, Services, Éléments,
+  Incidents, Événements, Disponibilité, Coupures).
+- Champ vide : **favoris** (☆ sur chaque ligne, 20 au plus) et **pages
+  récentes** (5), retenus par le navigateur.
+- **Actions** (administrateurs) : « Mettre pve1 en maintenance… » ouvre
+  le formulaire de maintenance prérempli.
+- Tout est inséré comme texte ; seuls les liens internes sont suivis.

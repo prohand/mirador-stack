@@ -17,7 +17,7 @@
 <button class="secondaire">Afficher</button>{{if or .D.Machine .D.Etat}} <a href="/conteneurs">Tout voir</a>{{end}}
 </form></div>
 {{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur</th><th>Mémoire</th><th class="nombre">Redémarrages 24 h</th><th>Depuis</th><th></th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><strong>{{.Nom}}</strong>{{if .Projet}}<br><small class="doux">{{.Projet}}</small>{{end}}</td>
+{{range .D.Lignes}}<tr><td><a href="/conteneurs/{{.Machine}}/{{.Nom}}"><strong>{{.Nom}}</strong></a>{{if .Projet}}<br><small class="doux">{{.Projet}}</small>{{end}}</td>
 <td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
 <td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}{{if .OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
 <td>{{if .Sante}}<span class="pastille {{.ClasseSante}}">{{.Sante}}</span>{{else}}<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>{{end}}</td>

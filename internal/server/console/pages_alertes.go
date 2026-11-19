@@ -31,6 +31,12 @@ func (c *Console) routesAlertes() {
 	m.HandleFunc("GET /envois", c.lecture(c.pageEnvois))
 	m.HandleFunc("GET /comparaison", c.lecture(c.pageComparaison))
 	m.HandleFunc("GET /coupures", c.lecture(c.pageCoupures))
+	m.HandleFunc("GET /disponibilite", c.lecture(c.pageDisponibilite))
+	m.HandleFunc("GET /evenements", c.lecture(c.pageEvenements))
+	m.HandleFunc("GET /incidents", c.lecture(c.pageIncidents))
+	m.HandleFunc("GET /incidents/{id}", c.lecture(c.pageIncident))
+	m.HandleFunc("POST /incidents/{id}", c.admin(c.postNoteIncident))
+	m.HandleFunc("POST /disponibilite", c.admin(c.postDisponibilite))
 	m.HandleFunc("GET /comparaison.csv", c.lecture(c.csvComparaison))
 	c.routesRegles()
 }
@@ -87,6 +93,8 @@ type donneesAlerte struct {
 	EnCours    bool
 	Selecteur  string        // pour le silence en un clic
 	Courbe     template.HTML // valeur suivie sur 24 h et seuil (SPEC § 28)
+	Absente    string        // données absentes depuis (SPEC § 46), vide sinon
+	Incident   *incident     // incident dont l'alerte fait partie (SPEC § 54)
 }
 
 func (c *Console) pageAlerte(q *req) {
@@ -97,6 +105,16 @@ func (c *Console) pageAlerte(q *req) {
 		return
 	}
 	d := donneesAlerte{A: a, Machine: a.Machine(), EnCours: a.Etat != "resolue", Selecteur: selecteurSilence(&a)}
+	if inc := c.incidentPar(q.r.Context(), a.ID, q.t); inc != nil && len(inc.Alertes) > 1 {
+		d.Incident = inc
+	}
+	if d.EnCours && c.opt.Alertes != nil { // état tenu par le moteur, pas en base
+		for _, x := range c.opt.Alertes.EnCours() {
+			if x.ID == a.ID && !x.AbsenteDepuis.IsZero() {
+				d.Absente = dureeLisible(c.maintenant().Sub(x.AbsenteDepuis)) + " (dernières données le " + x.AbsenteDepuis.In(fuseau.Load()).Format("02/01 15:04") + ")"
+			}
+		}
+	}
 	if c.lecteur != nil {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, r := range rs {
@@ -188,6 +206,7 @@ func (c *Console) postAlerte(q *req) {
 // --- Sourdine : silences, maintenances, inhibitions, dépendances ---------------------
 
 type donneesSourdine struct {
+	Prerempli    string // cible de maintenance proposée (Ctrl+K, SPEC § 58)
 	Silences     []notif.Silence
 	Maintenances []notif.Maintenance
 	Inhibitions  []notif.Inhibition
@@ -202,6 +221,9 @@ type donneesSourdine struct {
 func (c *Console) pageSourdine(q *req) {
 	ctx := q.r.Context()
 	var d donneesSourdine
+	if m := q.r.URL.Query().Get("maintenance"); len(m) <= 200 && strings.HasPrefix(m, "machine:") {
+		d.Prerempli = m
+	}
 	var e [5]error
 	d.Silences, e[0] = notif.ListerSilences(ctx, c.db, false, q.t)
 	d.Maintenances, e[1] = notif.ListerMaintenances(ctx, c.db)

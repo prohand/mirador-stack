@@ -845,6 +845,11 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
   .logs-table tr.logs-ligne-log td { border: 0; padding: 0; background: none !important; }
   .logs-table tr.logs-ligne-log td:nth-child(4) { display: none; }
   .logs-table tr.logs-ligne-log td.logs-msg { grid-column: 1 / -1; }
+  /* Trait « nouvelle » / « ciblée » : sur la ligne entière, texte décalé
+     (sur la case, sans marge, il cachait le premier chiffre de l'heure). */
+  .logs-table tr.logs-ligne-log.nouvelle td:first-child, .logs-table tr.logs-ligne-log.cible td:first-child { box-shadow: none; }
+  .logs-table tr.logs-ligne-log.nouvelle { box-shadow: inset 3px 0 0 var(--ok); padding-left: 12px; }
+  .logs-table tr.logs-ligne-log.cible { box-shadow: inset 3px 0 0 var(--accent); padding-left: 12px; background: var(--accent-fond); }
   .logs-table tr.logs-jour, .logs-table tr.logs-detail:not([hidden]) { display: block; }
   .logs-table tr.logs-jour td, .logs-table tr.logs-detail td { display: block; }
   .logs-filtres label { flex: 1 1 140px; }
@@ -1096,3 +1101,115 @@ a.jauge-machine:hover, a.jauge-machine:focus-visible { border-color: var(--accen
 .mesure-large > span { width: 72px; }
 .sans-test { color: var(--pale); }
 .legende-tableau { margin: 10px 0 0; font-size: 13px; }
+
+/* --- Si les données disparaissent (SPEC § 46) ------------------------------------ */
+fieldset.bloc-absence { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 14px 12px; margin: 4px 0; }
+fieldset.bloc-absence legend { padding: 0 6px; font-weight: 600; }
+fieldset.bloc-absence .aide { margin: 0 0 8px; }
+
+/* --- Sondes (SPEC § 48) ---------------------------------------------------------- */
+.cible-sonde { max-width: 360px; }
+.url-sonde { word-break: break-all; }
+.cible-sonde + td + td .pastille { white-space: normal; max-width: 260px; }
+
+/* --- Disponibilité (SPEC § 49) ----------------------------------------------------- */
+.barres-jours { display: inline-flex; gap: 2px; }
+.barres-jours i { width: 7px; height: 22px; border-radius: 2px; background: #22C55E; }
+.barres-jours.serrees { gap: 1px; } .barres-jours.serrees i { width: 3px; }
+.barres-jours i.a { background: #F59E0B; } .barres-jours i.k { background: #EF4444; } .barres-jours i.n { background: var(--bord); }
+.budget { width: 110px; height: 8px; background: var(--bord); border-radius: 4px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
+.budget i { display: block; height: 100%; background: #22C55E; } .budget i.a { background: #F59E0B; } .budget i.k { background: #EF4444; }
+.texte-erreur { color: var(--erreur); }
+.objectif-dispo input { width: 4.5em; text-align: right; padding: 4px 6px; }
+.objectif-dispo button { margin-left: 4px; }
+
+/* --- Services (SPEC § 50) ------------------------------------------------------------ */
+.grille-services { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.grille-services .carte { margin: 0; }
+.service-dispo { margin: 4px 0 0; }
+.composants { list-style: none; padding: 0; margin: 10px 0; }
+.composants li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--bord-doux); }
+.composants .cle { font-size: 11px; color: var(--pale); margin-left: 6px; }
+.modifier-service summary { list-style: none; display: inline-block; cursor: pointer; }
+.modifier-service summary::-webkit-details-marker { display: none; }
+.modifier-service form { margin-top: 10px; }
+
+/* --- Ruche de la vue d'ensemble (SPEC § 51) ---------------------------------------- */
+.onglets-accueil { margin-top: 4px; }
+.entete-ruche { margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
+.legende-ruche { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--doux); }
+.legende-ruche span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legende-ruche .l-ok::before { background: #16A34A; } .legende-ruche .l-av::before { background: #D97706; }
+.legende-ruche .l-cr::before { background: #DC2626; } .legende-ruche .l-mu::before { background: #6B7280; }
+.legende-ruche .l-ma::before { background: #2563EB; }
+.resume-ruche { font-weight: 400; font-size: 14px; }
+.ruche { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; }
+.ruche + .ruche { margin-top: -14px; }
+.ruche:nth-of-type(even) { margin-left: 45px; }
+.ruche .h { width: 86px; height: 76px; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.2;
+  color: #FFFFFF; font-size: 11px; font-weight: 600; text-decoration: none; padding: 0 10px; overflow: hidden; word-break: break-word; }
+.ruche .h small { color: #FFFFFF; opacity: .92; font-weight: 400; font-size: 10px; }
+.ruche .h:hover, .ruche .h:focus-visible { filter: brightness(1.12); }
+.ruche .h.ok { background: #16A34A; } .ruche .h.av { background: #D97706; } .ruche .h.cr { background: #DC2626; }
+.ruche .h.mu { background: #6B7280; } .ruche .h.ma { background: #2563EB; }
+@media (max-width: 640px) {
+  .ruche .h { width: 70px; height: 62px; font-size: 10px; padding: 0 8px; }
+  .ruche .h small { font-size: 9px; }
+  .ruche:nth-of-type(even) { margin-left: 37px; }
+  .ruche + .ruche { margin-top: -10px; }
+}
+.entete-ruche .onglets { margin: 0; }
+
+/* --- Motifs de logs (SPEC § 52) ---------------------------------------------------- */
+.logs-groupes tr.motif-nouveau td { background: var(--attention-fond); }
+.evolution-motif { display: block; }
+
+/* --- Événements et incidents (SPEC § 53, § 54) -------------------------------------- */
+.filtres-evenements { margin-bottom: 12px; flex-wrap: wrap; }
+.jour-ev { font-weight: 600; color: var(--doux); margin: 14px 0 6px; font-size: 13px; }
+.jour-ev:first-child { margin-top: 0; }
+.ev-ligne { display: grid; grid-template-columns: 56px 130px 1fr minmax(0, 200px); gap: 10px; padding: 8px 0; border-top: 1px solid var(--bord-doux); align-items: baseline; font-size: 14px; }
+.ev-ligne .t { color: var(--pale); font-variant-numeric: tabular-nums; }
+.ev-ligne > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.puce-ev { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.c-ch { background: #7C3AED; } .c-al { background: #DC2626; } .c-av { background: #D97706; } .c-ok { background: #16A34A; }
+.c-lg { background: #6B7280; } .c-so { background: #2563EB; } .c-ma { background: #0EA5E9; }
+@media (max-width: 640px) {
+  .ev-ligne { grid-template-columns: 48px 1fr; }
+  .ev-ligne > span:nth-child(3) { grid-column: 1 / -1; }
+  .ev-ligne > span:last-child { display: none; }
+}
+.frise { position: relative; height: 200px; margin: 10px 0 6px; border-left: 1px solid var(--bord); border-right: 1px solid var(--bord); overflow: hidden; }
+.frise .axe { position: absolute; left: 0; right: 0; top: 99px; height: 2px; background: var(--bord); }
+.frise .bande { position: absolute; top: 94px; height: 12px; border-radius: 6px; background: rgba(239, 68, 68, .2); border: 1px solid #EF4444; }
+.frise .ev { position: absolute; top: 93px; transform: translateX(-50%); text-align: center; width: 130px; font-size: 11px; color: var(--doux); text-decoration: none; line-height: 1.3; }
+.frise .ev b { color: var(--texte); }
+.frise .ev.haut { top: auto; bottom: 93px; }
+.frise .ev i { display: block; width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 6px; border: 3px solid var(--carte); box-shadow: 0 0 0 1px var(--bord); }
+.frise .ev.haut i { margin: 6px auto 0; }
+.logs-incident { font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 320px; overflow: auto; }
+.fiche-tete { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.fiche-tete h1 { margin: 0; }
+.sorte { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--pale); border: 1px solid var(--bord); border-radius: 6px; padding: 2px 8px; }
+h2.enligne { display: inline; }
+
+/* --- Éléments et étiquettes (SPEC § 55, § 59) ------------------------------------- */
+.etiq { display: inline-flex; border: 1px solid var(--bord); border-radius: 999px; overflow: hidden; font-size: 12px; margin: 2px; text-decoration: none; color: var(--texte); }
+.etiq b { background: var(--survol); padding: 2px 8px; font-weight: 600; } .etiq span { padding: 2px 8px; }
+.kpis4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+@media (max-width: 760px) { .kpis4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.courbe-fiche svg { width: 100%; height: 140px; }
+.relations { display: flex; flex-wrap: wrap; gap: 8px; }
+.relations a, .relations > span { text-decoration: none; border: 1px solid var(--bord); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--texte); background: var(--carte); }
+.relations small { color: var(--pale); margin-right: 4px; }
+.grille-deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } .grille-deux h2 { margin-top: 0; }
+@media (max-width: 760px) { .grille-deux { grid-template-columns: 1fr; } }
+.comparer-tout { margin-left: 12px; font-size: 13px; color: var(--doux); white-space: nowrap; }
+
+/* --- Ctrl+K enrichi (SPEC § 58) ----------------------------------------------------- */
+dialog.aller-boite li { display: flex; align-items: center; gap: 4px; }
+dialog.aller-boite li a.aller-lien { flex: 1; }
+dialog.aller-boite li.aller-section { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pale); padding: 10px 10px 4px; }
+.aller-favori { background: none; border: 0; color: var(--pale); font-size: 16px; cursor: pointer; padding: 4px 8px; min-height: 0; box-shadow: none; }
+.aller-favori:hover { color: var(--attention); }

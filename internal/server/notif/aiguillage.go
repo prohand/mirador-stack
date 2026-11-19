@@ -37,6 +37,9 @@ type Options struct {
 	Maintenant func() time.Time
 	// Logs : recherche des extraits joints aux messages (nil : aucun).
 	Logs ChercheurLogs
+	// Changement : dernier changement de la machine dans l'heure qui
+	// précède le début de l'alerte (SPEC § 47), texte court ; nil : aucun.
+	Changement func(ctx context.Context, machine string, avant time.Time) (quand time.Time, texte string, ok bool)
 }
 
 type suivi struct {
@@ -255,6 +258,7 @@ func (g *Aiguilleur) Tour(ctx context.Context) {
 
 	for _, m := range messages {
 		g.ajouterExtraits(ctx, m, &r, t)
+		g.ajouterChangements(ctx, m)
 		if r.Mode == Ombre {
 			noterOmbre(ctx, g.opt.DB, m, &r, g.opt.Journal)
 			continue

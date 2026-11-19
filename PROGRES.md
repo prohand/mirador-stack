@@ -945,6 +945,124 @@ de plus (les alertes prises en charge étaient déjà lues).
 Coût : affichage seulement (quelques lectures en base à l'ouverture des
 pages) ; rien de collecté ni gardé en mémoire.
 
+## Idées reprises de New Relic (18/11)
+
+Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
+(motifs de logs) à mesurer avant de décider.
+
+### Idée 1 — Si les données disparaissent (SPEC § 46) : fait, à valider
+
+- Réglage par règle : garder (défaut), fermer, ouvrir ; pastille
+  « Données absentes depuis… » ; ligne dans le message.
+- Tests : `TestAbsenceDeDonnees` (garder 10 min à 3 h puis retour, fermer,
+  machine supprimée, ouvrir après le délai sans doublon, machine qui
+  répond sans alerte).
+- Coût : aucune requête de plus sauf pour les règles « ouvrir ».
+
+### Idée 2 — Suivi des changements (SPEC § 47) : fait, à valider
+
+- Agent : paquets installés lus dans dpkg.log (`apt_package_installed`),
+  image des conteneurs (`node_docker_container_info`) ; liste « à mettre
+  à jour » recalculée 2 min après une installation. **Agent à mettre à
+  jour** pour les paquets et les images.
+- Serveur : comparaison chaque minute (paquets, redémarrage + noyau,
+  agent, conteneur recréé ou redémarré à la main), table `changements`
+  (90 jours, migration 0027).
+- Fiche machine : bloc « Changements » (7 jours, audit compris) ; traits
+  sur les courbes ; ligne « 🔧 12m avant : … » dans le message d'alerte.
+- Tests : `TestJournalDpkg` (lecture, ajout, rotation, 48 h),
+  `TestDetecteur` (premier tour muet, nuit de mises à jour complète,
+  plantage ignoré, regroupement des paquets, redémarrage du serveur sans
+  doublon), `TestChangementEtAbsenceDansLeMessage`.
+- Coût : agent, un stat() par minute ; serveur, 7 requêtes instantanées
+  par minute.
+
+### Idée 3 — Sondes de services (SPEC § 48) : fait, à valider
+
+- HTTP(S), TCP, ping, DNS ; depuis un collecteur (LAN) ou le serveur
+  (extérieur, adresses privées refusées) ; page Supervision › Sondes ;
+  règles SondeEnEchec et SondeLente.
+- **Collecteur à mettre à jour** pour les sondes du LAN.
+- Tests : `internal/sondes` (validation, HTTP code/contenu/lente/refus,
+  TCP, DNS avec un faux serveur, ping sauté ici faute de droit),
+  `TestSondesCollecteur` (liste, part du collecteur, collecteur ancien,
+  audit), `TestLotSonde`, `TestPageSondes`.
+- Coût : un essai par sonde et par minute ; 4 à 5 séries par sonde.
+
+### Idée 4 — Disponibilité (SPEC § 49) : fait, à valider
+
+- Alertes › Disponibilité : machines et sondes, 30 j / 90 j / ce mois-ci,
+  objectifs réglables (99,5 % par défaut), maintenances retirées.
+- Tests : `TestIntervallesDispo`, `TestPageDisponibilite` (panne de 2 h
+  dont 1 h en maintenance, objectif 99,9 % dépassé de 16 min).
+- Coût : aucune nouvelle donnée ; deux requêtes SQL à l'ouverture.
+
+### Idée 6 — Services (SPEC § 50) : fait, à valider
+
+- Supervision › Services : regroupements machines / conteneurs / sondes,
+  éléments clés, état, disponibilité 30 j ; série
+  `mirador_service_etat` et règles ServiceEnPanne / ServiceDegrade.
+- Tests : `TestLignes`, `TestCalculer` (5 services : panne, dégradé, OK,
+  élément inconnu), `TestPageServices` (création, état, renommage,
+  refus, suppression). Le test a trouvé un défaut de format des
+  pourcentages (« 100 » affiché « 10 ») : corrigé, aussi sur la page
+  Disponibilité.
+- Coût : 5 requêtes par minute au plus, une série par service.
+
+### Idée 5 — Ruche (SPEC § 51) : fait, à valider
+
+- Onglet Résumé / Ruche de la vue d'ensemble (choix B du 18/11), choix
+  retenu par le navigateur ; filtres Machines, Conteneurs, Sondes, Tout.
+- Tests : `TestRuche` (résumé par défaut, ruche des machines et des
+  conteneurs, fragment « tout »), vérifié dans Chromium (ordinateur et
+  téléphone, onglet retenu).
+
+### Idée 7 — Motifs de logs (SPEC § 52) : fait, à valider
+
+- Onglet « Messages regroupés » amélioré : mots qui changent fusionnés
+  (MOT), colonnes Évolution et Vu la 1re fois, « nouveau », tri
+  « Nouveaux d'abord » ; registre des motifs alimenté à l'ingestion.
+- Mesure dans le serveur : 7 µs par ligne (25 µs avant optimisation),
+  ≈ 0,01 % d'un cœur au débit actuel ; 4 Mo au plus.
+- Tests : `TestRegroupeur`, `TestRegistre` (relu après redémarrage,
+  nouveau, apprentissage), `TestRegistrePlafond`, `TestRegrouper`,
+  `TestRegrouperMotifs`.
+- Mesure d'avant la décision (prototype) :
+
+- Regroupement façon Drain, écrit pour la mesure : nombres, adresses et
+  identifiants remplacés par ‹n›, mots qui changent par ‹*›.
+- Jeu réaliste d'une journée (1,4 million de lignes, profil du § 1 :
+  traefik, Home Assistant, zigbee2mqtt, Nextcloud, journal, sshd, dnsmasq…) :
+  - **1,2 µs par ligne** (1,7 s pour la journée entière) ;
+  - 33 motifs, lisibles (« Invalid user ‹*› from ‹n› port ‹n› »,
+    « DHCPACK(eth‹n›) ‹n› ‹n› ‹*› ») ;
+  - pire cas (lignes toutes différentes, 5 000 motifs, éviction
+    continue) : 0,8 à 3,9 µs par ligne.
+- Au débit actuel (16 lignes/s) : **≈ 0,002 % d'un cœur** ; à 500 lignes/s :
+  0,06 % (0,2 % au pire).
+- Mémoire : **4,2 Mo** au plus (5 000 motifs, plafond), 192 octets
+  passagers par ligne.
+- Disque : compteurs par heure gardés en base toutes les 5 min (quelques
+  centaines de lignes), négligeable.
+- Conclusion : coût faible, **faisable**. Décision à prendre par
+  l'utilisateur.
+
+## Design et architecture repris de New Relic (18/11, SPEC § 53 à 59)
+
+Demande du 18/11 : « fais tout ». Ordre : journal d'événements, incident,
+registre des éléments, fiches, période commune, Ctrl+K, étiquettes.
+
+- § 53 Journal d'événements : fait (`TestEvenements`).
+- § 54 Incidents : fait (`TestIncidents` : regroupement par service et par
+  site, alerte isolée, frise avec le changement d'avant, note, lien depuis
+  l'alerte, note dans le journal).
+- § 55 Registre des éléments, § 56 fiches, § 59 étiquettes : faits
+  (`TestElementsFichesEtiquettes`, `TestRuche` qui passe par le registre).
+- § 57 Période commune et § 58 Ctrl+K : faits, vérifiés dans Chromium
+  (période reprise par Logs et une autre machine, case « Comparer »
+  retenue, favori, récents, Entrée sur une sonde → sa fiche ; aucune
+  erreur JavaScript).
+
 ## AgentMuet au-delà de 24 h (SPEC § 45, 18/11)
 
 - Défaut : la règle se fermait seule après 24 h sans données (`lag(...[1d])`).
@@ -1107,7 +1225,11 @@ Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
 au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
 (AgentMuet au-delà de 24 h, vérifié sur le serveur).
 
-1. À valider : § 39 (message unique « Site injoignable », pas encore vu).
+1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
+   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services), § 51 (ruche),
+   § 52 (motifs de logs), § 53 à 59 (design et architecture : journal
+   d'événements, incidents, éléments, fiches, période commune, Ctrl+K,
+   étiquettes).
 2. Étape 6, partie 7 : bascule du collecteur sur le LAN
    (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
    d'abord, puis installation, quelques jours en parallèle, mesures 24 h

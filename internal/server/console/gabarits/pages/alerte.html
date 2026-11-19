@@ -4,8 +4,8 @@
 {{template "onglets-alertes" ""}}
 <div class="grille">
 <section class="carte"><h2>État</h2><table>
-<tr><th>Numéro</th><td>{{$a.ID}}</td></tr>
-<tr><th>État</th><td>{{$a.Etat}}{{if .D.Sourdine}} <span class="pastille info">Sourdine : {{.D.Sourdine}}</span>{{end}}</td></tr>
+<tr><th>Numéro</th><td>{{$a.ID}}{{with .D.Incident}} · fait partie de l'<a href="/incidents/{{.ID}}">incident {{.ID}} : {{.Titre}}</a>{{end}}</td></tr>
+<tr><th>État</th><td>{{$a.Etat}}{{if .D.Absente}} <span class="pastille attention">Données absentes depuis {{.D.Absente}}</span>{{end}}{{if .D.Sourdine}} <span class="pastille info">Sourdine : {{.D.Sourdine}}</span>{{end}}</td></tr>
 <tr><th>Condition vraie depuis</th><td>{{date $a.Debut}}</td></tr>
 <tr><th>Passée en alerte</th><td>{{date $a.ActiveLe}}</td></tr>
 <tr><th>Fin</th><td>{{date $a.Fin}}</td></tr>

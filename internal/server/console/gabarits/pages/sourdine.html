@@ -18,8 +18,8 @@
 {{range .D.Maintenances}}<tr><td><code>{{.Cible}}</code></td><td>{{if .Recurrence}}chaque {{range .Recurrence.Jours}}{{.}} {{end}}à {{.Recurrence.Heure}} pendant {{.Recurrence.Duree}}{{else}}{{date .Debut}} → {{date .Fin}}{{end}}</td><td>{{.Auteur}}</td><td>{{.Commentaire}}</td>
 <td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="maintenances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune maintenance."}}{{end}}
-{{if .Admin}}<details><summary>Nouvelle maintenance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenance">
-<label>Cible <input name="cible" required maxlength="1024" list="machines" placeholder="machine:pve1, groupe:proxmox ou {site=&quot;bureau&quot;}"></label>
+{{if .Admin}}<details id="maintenance"{{if .D.Prerempli}} open{{end}}><summary>Nouvelle maintenance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenance">
+<label>Cible <input name="cible" required maxlength="1024" list="machines" value="{{.D.Prerempli}}" placeholder="machine:pve1, groupe:proxmox ou {site=&quot;bureau&quot;}"></label>
 <datalist id="machines">{{range .D.Machines}}<option value="machine:{{.}}">{{end}}</datalist>
 <label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
 <label>Durée <input name="duree" value="2h" required maxlength="10"></label>

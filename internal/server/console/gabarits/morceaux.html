@@ -27,7 +27,7 @@
 <thead><tr><th data-tri="gravite">Gravité</th><th data-tri="regle">Alerte</th><th data-tri="machine">Machine</th><th>Résumé</th><th data-tri="depuis">Depuis</th><th>État</th></tr></thead>
 <tbody>{{range $i, $a := .}}<tr data-rang="{{$i}}" data-gravite="{{if egal .Gravite "critical"}}3{{else if egal .Gravite "warning"}}2{{else}}1{{end}}" data-regle="{{.Regle}}" data-machine="{{.Machine}}" data-depuis="{{.Depuis}}" data-texte="{{.Regle}} {{.Machine}} {{.Resume}}"><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}">{{.Regle}}</a></td>
 <td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{.Resume}}</td><td>{{depuisMs .Depuis}}</td>
-<td>{{if egal .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td></tr>{{end}}</tbody>
+<td>{{if .Absente}}<span class="pastille attention" title="La machine n'envoie plus rien : l'alerte reste ouverte jusqu'au retour des données">Données absentes depuis {{.Absente}}</span>{{end}}{{if egal .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td></tr>{{end}}</tbody>
 </table></div><p class="vide" data-alertes-vide hidden>Aucune alerte ne correspond aux filtres.</p></div>{{else}}<p class="vide">Aucune alerte en cours.</p>{{end}}{{end}}
 {{define "corps-accueil"}}
 <div class="titre-page">
@@ -36,6 +36,8 @@
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
 </div>
+<p class="onglets onglets-accueil"><a {{if ne .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=resume" data-vue-accueil="resume">Résumé</a><a {{if eq .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=ruche" data-vue-accueil="ruche">Ruche</a></p>
+{{if eq .D.Vue "ruche"}}{{template "ruche" .D.Ruche}}{{else}}
 <div class="kpis">
   <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
@@ -104,7 +106,8 @@
   <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
 </div>
 {{end}}
-{{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "coupures"}}class="actif"{{end}} href="/coupures">Coupures</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
+{{end}}
+{{define "onglets-alertes"}}<p class="onglets"><a {{if egal . "alertes"}}class="actif"{{end}} href="/alertes">Alertes</a><a {{if egal . "sourdine"}}class="actif"{{end}} href="/sourdine">Silences et maintenances</a><a {{if egal . "envois"}}class="actif"{{end}} href="/envois">Envois</a><a {{if egal . "coupures"}}class="actif"{{end}} href="/coupures">Coupures</a><a {{if egal . "incidents"}}class="actif"{{end}} href="/incidents">Incidents</a><a {{if egal . "evenements"}}class="actif"{{end}} href="/evenements">Événements</a><a {{if egal . "disponibilite"}}class="actif"{{end}} href="/disponibilite">Disponibilité</a><a {{if egal . "comparaison"}}class="actif"{{end}} href="/comparaison">Comparaison vmalert</a></p>{{end}}
 {{define "onglets-regles"}}<p class="onglets"><a {{if egal . "regles"}}class="actif"{{end}} href="/regles">Règles</a><a {{if egal . "nouvelle"}}class="actif"{{end}} href="/regles/nouvelle">Nouvelle règle</a><a {{if egal . "historique"}}class="actif"{{end}} href="/regles/historique">Modifications</a><a href="/regles/export.yaml">Exporter en YAML</a></p>{{end}}
 {{define "form-regle"}}<section class="carte"><h2>Définition</h2>
 <form method="post" action="/regles/enregistrer" class="pile large">{{template "csrf" .CSRF}}{{if .D.Nouvelle}}<input type="hidden" name="nouvelle" value="1">{{end}}
@@ -115,6 +118,12 @@
 <label>Pendant au moins <input name="pour" value="{{.D.R.Pour}}" maxlength="10" size="6"></label>
 <label>Garder active encore <input name="garder" value="{{.D.R.Garder}}" maxlength="10" size="6"></label>
 <label>Gravité <select name="gravite">{{$g := .D.R.Gravite}}<option value="critical" {{if egal $g "critical"}}selected{{end}}>Critique</option><option value="warning" {{if egal $g "warning"}}selected{{end}}>Avertissement</option><option value="info" {{if egal $g "info"}}selected{{end}}>Info</option></select></label></div>
+<fieldset class="bloc-absence"><legend>Si les données disparaissent</legend>
+<p class="aide">La machine de l'alerte (étiquette <code>instance</code>) n'envoie plus rien : machine éteinte, lien coupé, agent ou collecteur arrêté.</p>
+<div class="ligne"><label>Que faire <select name="absence">{{$ab := .D.R.Absence}}<option value="" {{if egal $ab ""}}selected{{end}}>Garder l'alerte ouverte (recommandé)</option><option value="fermer" {{if egal $ab "fermer"}}selected{{end}}>Fermer l'alerte (comportement d'avant)</option><option value="ouvrir" {{if egal $ab "ouvrir"}}selected{{end}}>Ouvrir une alerte « données absentes »</option></select></label>
+<label>Au bout de (pour « ouvrir ») <input name="absence_apres" value="{{if .D.R.AbsenceApres}}{{.D.R.AbsenceApres}}{{end}}" placeholder="10m" maxlength="10" size="6"></label></div>
+<small class="aide">« Garder » : une alerte ouverte reste ouverte tant que rien ne revient, avec « données absentes depuis… ». « Ouvrir » : une alerte part aussi pour une machine qui avait ces données et n'envoie plus rien depuis le délai (utile pour les équipements et les sondes). Machine supprimée du parc : l'alerte se ferme.</small>
+</fieldset>
 <label>Résumé (modèle : {{"{{ $labels.instance }}"}}, {{"{{ $value | humanize }}"}}) <input name="resume" value="{{.D.R.Resume}}" maxlength="1024"></label>
 <label>Description <textarea name="description" rows="2" maxlength="1024">{{.D.R.Description}}</textarea></label>
 <label>Étiquettes ajoutées (nom=valeur, une par ligne) <textarea name="etiquettes" rows="2" maxlength="2000">{{.D.Etiq}}</textarea></label>
@@ -224,7 +233,7 @@
 <div class="defile"><table class="table-alertes" data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
 {{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
 <td><a class="titre" href="/alertes/{{.ID}}">{{.Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>
-{{if eq .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td>
+{{if .Absente}}<span class="pastille attention" title="La machine n'envoie plus rien : l'alerte reste ouverte jusqu'au retour des données">Données absentes depuis {{.Absente}}</span>{{end}}{{if eq .Etat "en_attente"}}<span class="pastille">En attente</span>{{end}}{{if .Acquittee}}<span class="pastille ok">Acquittée</span>{{end}}{{if .Sourdine}}<span class="pastille info">Sourdine : {{.Sourdine}}</span>{{end}}</td>
 <td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{depuisMs .Depuis}}</td>
 <td>{{template "action-alerte" (dict "Admin" $.Admin "CSRF" $.CSRF "A" . "Retour" $v.Retour)}}</td></tr>{{end}}
 </tbody></table></div></details>{{end}}
@@ -257,3 +266,11 @@
 {{range $d.Blocs}}<section class="bloc-detail"><h3>{{.Titre}}{{if .Note}} <small class="doux">· {{.Note}}</small>{{end}}</h3>
 {{if .Lignes}}<table class="barres">{{range .Lignes}}<tr><td>{{.Nom}}</td><td class="nombre">{{.Texte}}</td><td>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée.</p>{{end}}</section>{{end}}
 {{if not $d.Blocs}}<p class="vide">Aucune donnée pour cette machine.</p>{{end}}{{end}}
+{{define "ruche"}}{{/* Vue « ruche » de la vue d'ensemble (SPEC § 51) : une case par élément. */}}
+<div class="ligne entete-ruche"><p class="onglets">{{$f := .Filtre}}{{range $x := (liste "machines" "conteneurs" "sondes" "tout")}}<a {{if eq $x $f}}class="actif" aria-current="page"{{end}} href="/?vue=ruche&amp;ruche={{$x}}">{{if eq $x "machines"}}Machines{{else if eq $x "conteneurs"}}Conteneurs{{else if eq $x "sondes"}}Sondes{{else}}Tout{{end}}</a>{{end}}</p>
+<span class="legende-ruche"><span class="l-ok">OK</span><span class="l-av">Avertissement</span><span class="l-cr">Critique</span><span class="l-mu">Muette ou inconnue</span><span class="l-ma">Maintenance</span></span></div>
+{{range .Groupes}}<section class="carte"><h2>{{.Titre}} <span class="doux resume-ruche">· {{.Resume}}</span></h2>
+{{range .Lignes}}<div class="ruche">{{range .}}<a class="h {{.Classe}}" href="{{.Lien}}" title="{{.Titre}}">{{.Nom}}{{if .Sous}}<small>{{.Sous}}</small>{{end}}</a>{{end}}</div>{{end}}
+</section>{{else}}<section class="carte"><p class="vide">Rien à montrer ici.</p></section>{{end}}
+<p class="sous">Une case par élément, couleur = pire état en cours ; survol : le détail ; clic : la fiche. Le choix Résumé / Ruche est retenu par ce navigateur.</p>
+{{end}}

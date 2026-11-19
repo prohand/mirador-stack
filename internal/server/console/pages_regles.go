@@ -318,8 +318,9 @@ func texteEtiquettes(m map[string]string) string {
 func regleDuFormulaire(q *req) (alertes.Regle, error) {
 	f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
 	r := alertes.Regle{Nom: f("nom"), Groupe: f("groupe"), Expr: f("expr"), Gravite: f("gravite"), Resume: f("resume"),
-		Description: f("description"), Active: f("active") != "", Origine: f("origine"), Note: f("note")}
-	var e1, e2, e3 error
+		Description: f("description"), Active: f("active") != "", Origine: f("origine"), Note: f("note"),
+		Absence: f("absence")}
+	var e1, e2, e3, e4 error
 	r.Intervalle, e1 = alertes.LireDuree(f("intervalle"))
 	if f("pour") != "" {
 		r.Pour, e2 = alertes.LireDuree(f("pour"))
@@ -327,7 +328,10 @@ func regleDuFormulaire(q *req) (alertes.Regle, error) {
 	if f("garder") != "" {
 		r.Garder, e3 = alertes.LireDuree(f("garder"))
 	}
-	if err := errors.Join(e1, e2, e3); err != nil {
+	if f("absence_apres") != "" {
+		r.AbsenceApres, e4 = alertes.LireDuree(f("absence_apres"))
+	}
+	if err := errors.Join(e1, e2, e3, e4); err != nil {
 		return r, errors.New("durées illisibles (ex. 30s, 5m, 1h)")
 	}
 	for _, l := range strings.Split(f("etiquettes"), "\n") {

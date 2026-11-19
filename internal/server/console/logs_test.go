@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/motifs"
 	"mirador-stack/internal/server/stockage"
 )
 
@@ -63,18 +64,59 @@ func TestRegrouper(t *testing.T) {
 		l("nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)", "err", "vps-web", 7),
 		l("request failed, retrying in 2 s", "warning", "vm-docker", 6),
 	}
-	g := regrouper(ls, "")
+	g := regrouper(ls, "", 0, 11000, nil, time.Now())
 	if len(g) != 3 || g[0].N != 3 || g[0].TexteMachines() != "3 machines" || g[0].Largeur != 100 || g[0].Derniere != 10000 {
 		t.Fatalf("plus fréquents : %+v", g)
 	}
-	if g = regrouper(ls, "erreurs"); g[0].Classe != "err" || g[1].Classe != "warn" {
+	if g = regrouper(ls, "erreurs", 0, 11000, nil, time.Now()); g[0].Classe != "err" || g[1].Classe != "warn" {
 		t.Errorf("erreurs d'abord : %v %v", g[0].Niveau, g[1].Niveau)
 	}
-	if g = regrouper(ls, "rares"); g[0].N != 1 {
+	if g = regrouper(ls, "rares", 0, 11000, nil, time.Now()); g[0].N != 1 {
 		t.Errorf("rares d'abord : %d", g[0].N)
 	}
-	if n := len(lignesDuMotif(ls, regrouper(ls, "")[0].Cle)); n != 3 {
+	if n := len(lignesDuMotif(ls, regrouper(ls, "", 0, 11000, nil, time.Now())[0].Cle)); n != 3 {
 		t.Errorf("lignes du message type : %d", n)
+	}
+	if g[0].Evolution == "" {
+		t.Error("petite courbe absente")
+	}
+}
+
+// Motifs (SPEC § 52) : mots qui changent fusionnés, « nouveau » d'après le
+// registre, tri « nouveaux d'abord ».
+func TestRegrouperMotifs(t *testing.T) {
+	ctx := t.Context()
+	b := nouveauBanc(t)
+	t0 := time.Now().Add(-20 * 24 * time.Hour)
+	reg, err := motifs.OuvrirRegistre(ctx, b.c.db, nil, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	maintenant := time.Now()
+	reg.Ajouter("Invalid user admin from 203.0.113.5 port 51234", t0.Add(time.Hour).Unix())
+	reg.Ajouter("kernel: ata3.00: exception Emask 0x0 SAct 0x1 frozen", maintenant.Add(-time.Hour).Unix())
+	l := func(msg string, s int) stockage.Ligne {
+		return stockage.Ligne{T: maintenant.Add(time.Duration(-s) * time.Minute).UnixMilli(), Msg: msg, Champs: map[string]string{"host": "vps"}}
+	}
+	ls := []stockage.Ligne{
+		l("Invalid user oracle from 198.51.100.7 port 4022", 1),
+		l("Invalid user git from 192.0.2.1 port 60000", 2),
+		l("kernel: ata3.00: exception Emask 0x0 SAct 0x1 frozen", 3),
+	}
+	g := regrouper(ls, "nouveaux", maintenant.Add(-time.Hour).UnixMilli(), maintenant.UnixMilli(), reg, maintenant)
+	if len(g) != 2 || !g[0].Nouveau || g[1].Nouveau || g[1].N != 2 || g[1].PremierVu == "" {
+		t.Fatalf("groupes : %+v", g)
+	}
+	var texte strings.Builder
+	for _, s := range g[1].Motif {
+		if s.Var {
+			texte.WriteString("‹" + s.Texte + "›")
+		} else {
+			texte.WriteString(s.Texte)
+		}
+	}
+	if texte.String() != "Invalid user ‹MOT› from ‹IP› port ‹N›" {
+		t.Errorf("motif : %q", texte.String())
 	}
 }
 

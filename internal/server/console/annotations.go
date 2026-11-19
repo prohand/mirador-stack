@@ -116,22 +116,15 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 			}
 		}
 	}
-	// Changements faits dans l'interface pour cette machine (audit).
-	var id int64
-	if err := c.db.QueryRowContext(ctx, `SELECT id FROM machines WHERE nom = ?`, instance).Scan(&id); err == nil {
-		porte := "machine:" + strconv.FormatInt(id, 10)
-		rows, err := c.db.QueryContext(ctx, `SELECT le, action, objet FROM audit WHERE le >= ? AND le <= ? AND (objet = ? OR objet = ? OR objet LIKE ?)
-			AND qui NOT IN ('mirador', 'auto') ORDER BY le LIMIT ?`, debut.Unix(), fin.Unix(), instance, porte, porte+" %", maxEvenements)
-		if err == nil {
-			for rows.Next() {
-				var le int64
-				var action, objet string
-				if rows.Scan(&le, &action, &objet) == nil {
-					out.Evenements = append(out.Evenements, evenementCourbe{T: le, Nom: phraseAudit(action, objet)})
-				}
-			}
-			_ = rows.Close()
+	// Réglages faits pour la machine, changements repérés (paquets, noyau,
+	// conteneurs ; redémarrages et agent sont lus ci-dessus) et maintenances :
+	// lus dans le journal d'événements (SPEC § 53).
+	for _, e := range c.journalEvenements(ctx, filtreEvenements{Debut: debut, Fin: fin, Machine: instance, SansAuto: true, Max: 4 * maxEvenements,
+		Types: map[string]bool{evReglage: true, evChangement: true, evMaintenance: true}}) {
+		if e.Type == evChangement && (strings.HasPrefix(e.Texte, "Redémarrage") || strings.HasPrefix(e.Texte, "Agent")) {
+			continue
 		}
+		out.Evenements = append(out.Evenements, evenementCourbe{T: e.Le.Unix(), Nom: e.Texte})
 	}
 	sort.Slice(out.Evenements, func(a, b int) bool { return out.Evenements[a].T < out.Evenements[b].T })
 	if len(out.Evenements) > maxEvenements {

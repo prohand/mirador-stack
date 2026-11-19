@@ -1,0 +1,170 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package sondes
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
+)
+
+func TestValider(t *testing.T) {
+	bonnes := []Sonde{
+		{Nom: "Nextcloud", Type: HTTP, Cible: "https://cloud.exemple.fr/status.php", Depuis: "serveur", Code: 200, Contenu: "installed"},
+		{Nom: "SSH du VPS", Type: TCP, Cible: "vps.exemple.fr:22", Depuis: "lan"},
+		{Nom: "Box", Type: Ping, Cible: "192.168.1.254", Depuis: "lan", Intervalle: "2m"},
+		{Nom: "DNS interne", Type: DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "lan"},
+	}
+	for _, s := range bonnes {
+		if err := s.Valider(); err != nil {
+			t.Errorf("%s : %v", s.Nom, err)
+		}
+	}
+	mauvaises := []Sonde{
+		{Nom: "", Type: HTTP, Cible: "https://a", Depuis: "x"},
+		{Nom: "a", Type: HTTP, Cible: "ftp://a", Depuis: "x"},
+		{Nom: "a", Type: TCP, Cible: "hote-sans-port", Depuis: "x"},
+		{Nom: "a", Type: DNS, Cible: "1.1.1.1", Depuis: "x"},
+		{Nom: "a", Type: "smtp", Cible: "a:25", Depuis: "x"},
+		{Nom: "a", Type: TCP, Cible: "a:1", Depuis: "x", Intervalle: "5s"},
+		{Nom: "a", Type: TCP, Cible: "a:1", Depuis: ""},
+		{Nom: "<script>", Type: TCP, Cible: "a:1", Depuis: "x"},
+	}
+	for i, s := range mauvaises {
+		if err := s.Valider(); err == nil {
+			t.Errorf("mauvaise %d acceptée : %+v", i, s)
+		}
+	}
+}
+
+func TestHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ok":
+			_, _ = w.Write([]byte(`{"installed":true}`))
+		case "/lent":
+			time.Sleep(60 * time.Millisecond)
+			_, _ = w.Write([]byte("ok"))
+		default:
+			w.WriteHeader(http.StatusBadGateway)
+		}
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+	s := Sonde{Nom: "a", Type: HTTP, Cible: srv.URL + "/ok", Contenu: `"installed":true`}
+	if r := Essayer(ctx, s, Options{}); !r.OK || r.Code != 200 {
+		t.Fatalf("ok : %+v", r)
+	}
+	s.Contenu = "absent"
+	if r := Essayer(ctx, s, Options{}); r.OK || r.Erreur != "contenu attendu absent" {
+		t.Fatalf("contenu : %+v", r)
+	}
+	s.Cible, s.Contenu = srv.URL+"/panne", ""
+	if r := Essayer(ctx, s, Options{}); r.OK || r.Code != 502 || r.Texte() != "Échec : code 502" {
+		t.Fatalf("502 : %+v", r)
+	}
+	s.Cible, s.Lente = srv.URL+"/lent", "20ms"
+	r := Essayer(ctx, s, Options{})
+	if v := Valeurs(s, r); v["mirador_sonde_succes"] != 1 || v["mirador_sonde_lente"] != 1 || v["mirador_sonde_code_http"] != 200 {
+		t.Fatalf("lente : %+v %+v", r, v)
+	}
+	// Depuis le serveur : adresses locales refusées.
+	refus := Options{Refuser: func(ip net.IP) bool { return ip.IsLoopback() }}
+	if r := Essayer(ctx, Sonde{Type: HTTP, Cible: srv.URL + "/ok"}, refus); r.OK || !strings.Contains(r.Erreur, "refusée") {
+		t.Fatalf("refus : %+v", r)
+	}
+}
+
+func TestTCP(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adr := l.Addr().String()
+	ctx := context.Background()
+	if r := Essayer(ctx, Sonde{Type: TCP, Cible: adr}, Options{}); !r.OK {
+		t.Fatalf("ouvert : %+v", r)
+	}
+	l.Close()
+	if r := Essayer(ctx, Sonde{Type: TCP, Cible: adr}, Options{}); r.OK || r.Erreur != "connexion refusée (port fermé)" {
+		t.Fatalf("fermé : %+v", r)
+	}
+	// Nom inconnu : message court (pas tout le texte de Go).
+	if r := Essayer(ctx, Sonde{Type: HTTP, Cible: "http://nom-inconnu.invalid/"}, Options{}); r.OK || len(r.Erreur) > 60 {
+		t.Fatalf("nom inconnu : %+v", r)
+	}
+}
+
+// serveurDNS : répond nas.lan → 192.168.1.10, NXDOMAIN sinon.
+func serveurDNS(t *testing.T) string {
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { pc.Close() })
+	go func() {
+		b := make([]byte, 1500)
+		for {
+			n, adr, err := pc.ReadFrom(b)
+			if err != nil {
+				return
+			}
+			var m dnsmessage.Message
+			if m.Unpack(b[:n]) != nil || len(m.Questions) == 0 {
+				continue
+			}
+			q := m.Questions[0]
+			m.Header.Response, m.Header.Authoritative = true, true
+			if q.Name.String() == "nas.lan." && q.Type == dnsmessage.TypeA {
+				m.Answers = []dnsmessage.Resource{{Header: dnsmessage.ResourceHeader{Name: q.Name, Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET, TTL: 60},
+					Body: &dnsmessage.AResource{A: [4]byte{192, 168, 1, 10}}}}
+			} else if q.Name.String() != "nas.lan." {
+				m.Header.RCode = dnsmessage.RCodeNameError
+			}
+			if rep, err := m.Pack(); err == nil {
+				_, _ = pc.WriteTo(rep, adr)
+			}
+		}
+	}()
+	return pc.LocalAddr().String()
+}
+
+func TestDNS(t *testing.T) {
+	adr := serveurDNS(t)
+	ctx := context.Background()
+	s := Sonde{Type: DNS, Cible: adr, Question: "nas.lan"}
+	if r := Essayer(ctx, s, Options{}); !r.OK {
+		t.Fatalf("ok : %+v", r)
+	}
+	s.Contenu = "192.168.1.10"
+	if r := Essayer(ctx, s, Options{}); !r.OK {
+		t.Fatalf("adresse attendue : %+v", r)
+	}
+	s.Contenu = "10.0.0.1"
+	if r := Essayer(ctx, s, Options{}); r.OK {
+		t.Fatalf("mauvaise adresse : %+v", r)
+	}
+	s.Question, s.Contenu = "inconnu.lan", ""
+	if r := Essayer(ctx, s, Options{}); r.OK || r.Erreur != "nom inconnu du serveur DNS" {
+		t.Fatalf("inconnu : %+v", r)
+	}
+}
+
+func TestPing(t *testing.T) {
+	r := Essayer(context.Background(), Sonde{Type: Ping, Cible: "127.0.0.1"}, Options{})
+	if !r.OK && strings.Contains(r.Erreur, "ping impossible") {
+		t.Skip("socket ping interdit sur cette machine : " + r.Erreur)
+	}
+	if !r.OK {
+		t.Fatalf("ping : %+v", r)
+	}
+	if r := Essayer(context.Background(), Sonde{Type: Ping, Cible: "127.0.0.1"}, Options{Refuser: func(ip net.IP) bool { return ip.IsLoopback() }}); r.OK {
+		t.Fatal("ping local accepté depuis le serveur")
+	}
+}

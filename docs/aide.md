@@ -169,8 +169,10 @@ section de cette page.
 - **Deux réglages** (Réglages › Notifications › Application) :
   - *Actif* : le canal existe ; il peut être choisi comme canal principal
     ou de secours ;
-  - *Copie* : quand un autre canal (Telegram…) porte le message, les
-    appareils le reçoivent aussi. La copie ne compte pas pour la bascule.
+  - *Recevoir aussi les alertes en notification sur les appareils, en plus
+    de Telegram* (le nom du canal principal s'affiche) : quand un autre
+    canal porte le message, les appareils le reçoivent aussi. Ces
+    notifications en plus ne comptent pas pour la bascule.
 - **Chaque personne abonne ses appareils** dans « Mon compte » ›
   Notifications sur cet appareil (code 2FA ou mode administration). Dix
   appareils au plus par compte.
@@ -185,7 +187,7 @@ section de cette page.
   `*.push.apple.com`, `*.push.services.mozilla.com` et
   `*.notify.windows.com` (pare-feu du serveur).
 - **Pastille** : mise à jour à chaque notification, et à chaque ouverture
-  de l'application. Sans notification (mode ombre, copie décochée), elle
+  de l'application. Sans notification (mode ombre, case « Recevoir aussi les alertes… » décochée), elle
   ne bouge qu'à l'ouverture.
 - **Un appareil ne reçoit plus rien** : « Envoyer une notification
   d'essai » ; sinon le retirer et le réabonner. Un abonnement refusé par le
@@ -193,3 +195,26 @@ section de cette page.
 - **Serveur restauré sans sa base, ou clé des secrets changée** : la clé
   des notifications change, tous les appareils doivent être réabonnés.
 
+
+## Sondes
+
+- **Ce que c'est** : un essai régulier d'un service, comme le ferait un
+  utilisateur (SPEC § 48) :
+  - *HTTP(S)* : la page répond-elle avec le bon code (200 à 399 par défaut),
+    et contient-elle le texte attendu ;
+  - *TCP* : le port est-il ouvert (SSH, base de données…) ;
+  - *Ping* : la machine répond-elle ;
+  - *DNS* : le serveur DNS répond-il pour un nom (et avec la bonne adresse).
+- **Faite depuis** :
+  - un *collecteur* : services du LAN (Home Assistant, NAS, box…) ;
+  - le *serveur mirador* : vue de l'extérieur (Nextcloud, site public…).
+    Adresses locales et privées refusées.
+- **Alertes fournies** : *SondeEnEchec* (deux essais ratés de suite),
+  *SondeLente* (plus lente que le seuil pendant 5 min). La raison d'un
+  échec est sur la page Sondes.
+- **Ping depuis un collecteur** : autorisé sans droits par le réglage
+  `net.ipv4.ping_group_range` (ouvert par défaut sur Debian 12 et Ubuntu).
+  Vérifier : `sysctl net.ipv4.ping_group_range` doit afficher
+  `0 2147483647`.
+- **Collecteur ancien** : il ne connaît pas les sondes ; elles lui sont
+  retirées de sa configuration jusqu'à sa mise à jour.

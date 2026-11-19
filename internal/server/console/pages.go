@@ -30,6 +30,7 @@ import (
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/sauvegarde"
+	"mirador-stack/internal/server/servicesmetier"
 )
 
 // routesPages : pages de supervision et de réglage.
@@ -39,6 +40,15 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /mur", c.lecture(c.pageMur))
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
+	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
+	m.HandleFunc("GET /services", c.lecture(c.pageServices))
+	m.HandleFunc("GET /elements", c.lecture(c.pageElements))
+	m.HandleFunc("GET /sondes/{nom}", c.lecture(c.ficheSonde))
+	m.HandleFunc("GET /services/{nom}", c.lecture(c.ficheService))
+	m.HandleFunc("GET /conteneurs/{machine}/{nom}", c.lecture(c.ficheConteneur))
+	m.HandleFunc("POST /etiquettes", c.admin(c.postEtiquettes))
+	m.HandleFunc("POST /services", c.admin(c.postServices))
+	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
@@ -78,6 +88,9 @@ type resumeAlerte struct {
 	// Prise en charge (SPEC § 30), lue en base (le moteur ne la connaît
 	// pas) : par qui, quand, jusqu'à quand (vide = jusqu'à la fin).
 	AcquitteePar, AcquitteeLe, AcquitteeJusqua string
+	// Absente : la machine n'envoie plus rien depuis ce temps (« 26 h »),
+	// l'alerte reste ouverte (SPEC § 46). Vide : données à jour.
+	Absente string
 }
 
 // separerMasquees : alertes à montrer d'un côté ; de l'autre, celles qui ne
@@ -168,15 +181,27 @@ type donneesAccueil struct {
 	PctStockage                  int
 	Depuis                       int64
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
+	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
+	Ruche                        *vueRuche
 }
 
 func (c *Console) pageAccueil(q *req) {
-	c.rendre(q, "accueil", "Vue d'ensemble", "accueil", c.donneesAccueil(q))
+	c.rendre(q, "accueil", "Vue d'ensemble", "accueil", c.donneesAccueilVue(q))
+}
+
+// donneesAccueilVue : résumé ou ruche (onglet, SPEC § 51).
+func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
+	d := c.donneesAccueil(q)
+	if q.r.URL.Query().Get("vue") == "ruche" {
+		d.Vue = "ruche"
+		d.Ruche = c.ruche(q.r.Context(), q.r.URL.Query().Get("ruche"), d.Parc, q.t)
+	}
+	return d
 }
 
 // fragmentAccueil : même contenu, sans le cadre (rechargé toutes les 60 s).
 func (c *Console) fragmentAccueil(q *req) {
-	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueil(q)})
+	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q)})
 }
 
 const delaiMuette = 5 * time.Minute
@@ -269,6 +294,9 @@ func (c *Console) alertesEnCours(machine string) []resumeAlerte {
 		}
 		r := resumeAlerte{ID: a.ID, Regle: a.Regle, Gravite: a.Gravite, Machine: a.Machine(), Resume: a.Resume,
 			Etat: a.Etat, Depuis: a.Debut.UnixMilli()}
+		if !a.AbsenteDepuis.IsZero() {
+			r.Absente = dureeLisible(c.maintenant().Sub(a.AbsenteDepuis))
+		}
 		if p, ok := prises[a.ID]; ok {
 			r.Acquittee, r.AcquitteePar = true, p.Par
 			r.AcquitteeLe = time.UnixMilli(p.Le).In(loc).Format("15:04")
@@ -597,14 +625,16 @@ type donneesMachine struct {
 	NomsAnciens []string // historique rattaché à la machine
 	M           vueMachine
 	Alertes     []resumeAlerte
-	Attente     []resumeAlerte // conditions pas encore des alertes
-	Prises      []resumeAlerte // prises en charge (SPEC § 30)
-	Masquees    []resumeAlerte // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine // « En ce moment » (SPEC § 29)
-	Gourmands   *vueGourmands  // conteneurs les plus gourmands (SPEC § 31)
-	Services    *vueServices   // bloc « Services » (SPEC § 42.2)
-	Maj         vueMaj         // bloc « Mise à jour » (SPEC § 44)
-	Paquets     *vuePaquets    // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Attente     []resumeAlerte      // conditions pas encore des alertes
+	Prises      []resumeAlerte      // prises en charge (SPEC § 30)
+	Masquees    []resumeAlerte      // conséquences d'une alerte plus grave (bloc replié)
+	Maintenant  []jaugeMachine      // « En ce moment » (SPEC § 29)
+	Gourmands   *vueGourmands       // conteneurs les plus gourmands (SPEC § 31)
+	Services    *vueServices        // bloc « Services » (SPEC § 42.2)
+	Maj         vueMaj              // bloc « Mise à jour » (SPEC § 44)
+	Paquets     *vuePaquets         // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Changements *vueChangements     // bloc « Changements » (SPEC § 47)
+	Element     *blocElementMachine // liens et étiquettes (SPEC § 56, § 59)
 	Rangees     []vueRangee
 	Periode     string
 	Periodes    []string
@@ -658,6 +688,8 @@ func (c *Console) pageMachine(q *req) {
 		d.Identite = c.identite(ctx, m, ech, q.t)
 		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
 		d.Paquets = c.paquetsMachine(ctx, m, q.t)
+		d.Changements = c.changementsMachine(ctx, m.Nom, q.t)
+		d.Element = c.elementMachine(ctx, m.Nom)
 		if d.Paquets != nil {
 			// Ouvert d'office quand l'alerte des mises à jour de sécurité est en cours.
 			for _, a := range d.Alertes {
@@ -1385,6 +1417,31 @@ func (c *Console) donneesAller(q *req) {
 		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
+		{"Sondes", "Page", "/sondes"}, {"Services", "Page", "/services"}, {"Éléments", "Page", "/elements"},
+		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
+		{"Coupures", "Page", "/coupures"},
+	}
+	ctx := q.r.Context()
+	// Sondes, services, conteneurs (SPEC § 58) : leurs fiches.
+	if ss, err := flotte.LireSondes(ctx, c.db); err == nil {
+		for _, s := range ss {
+			out = append(out, destination{s.Nom, "Sonde", "/sondes/" + url.PathEscape(s.Nom)})
+		}
+	}
+	if svcs, err := servicesmetier.Lire(ctx, c.db); err == nil {
+		for _, s := range svcs {
+			out = append(out, destination{s.Nom, "Service", "/services/" + url.PathEscape(s.Nom)})
+		}
+	}
+	if c.lecteur != nil {
+		if ech, err := c.instant(ctx, `max by (instance, name) (node_docker_container_running)`, q.t); err == nil {
+			for _, e := range ech {
+				m, n := e.Etiquettes.Get("instance"), e.Etiquettes.Get("name")
+				if m != "" && n != "" {
+					out = append(out, destination{n + " (" + m + ")", "Conteneur", "/conteneurs/" + url.PathEscape(m) + "/" + url.PathEscape(n)})
+				}
+			}
+		}
 	}
 	if q.admin() {
 		out = append(out, destination{"Mises à jour des agents", "Page", "/mises-a-jour"},
@@ -1394,10 +1451,14 @@ func (c *Console) donneesAller(q *req) {
 			destination{"Sauvegardes", "Page", "/reglages/sauvegardes"},
 			destination{"Utilisateurs", "Page", "/utilisateurs"}, destination{"Sécurité", "Page", "/securite"})
 	}
-	if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				out = append(out, destination{m.Nom, "Machine", "/machines/" + url.PathEscape(m.Nom)})
+				if q.admin() {
+					out = append(out, destination{"Mettre " + m.Nom + " en maintenance…", "Action",
+						"/sourdine?maintenance=" + url.QueryEscape("machine:"+m.Nom) + "#maintenance"})
+				}
 			}
 		}
 	}

@@ -90,6 +90,11 @@ const CapaciteCollecteur = "collecteur"
 // refusent tout champ inconnu).
 const CapaciteReessai = "reessai"
 
+// CapaciteSondes : mirador-collector fait les sondes de services (clé
+// « services » de « collecteur », SPEC § 48). Un collecteur plus ancien
+// refuserait la clé : le serveur la lui retire.
+const CapaciteSondes = "sondes"
+
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
 const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai
 

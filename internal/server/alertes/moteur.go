@@ -11,12 +11,14 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -48,6 +50,9 @@ type Alerte struct {
 	AcquitteeLe               time.Time
 	AcquitteeJusqua           time.Time // fin de la prise en charge (zéro : jusqu'à la fin), SPEC § 30
 	AcquitteePar, Commentaire string
+	// AbsenteDepuis : la machine de l'alerte n'envoie plus rien depuis
+	// cette heure ; l'alerte reste ouverte (SPEC § 46). Zéro : données à jour.
+	AbsenteDepuis time.Time
 
 	vueLe   time.Time // dernière évaluation où la condition était vraie
 	aEcrire bool      // état changé depuis la dernière écriture en base
@@ -93,7 +98,15 @@ type Options struct {
 	// pour les machines qui le portent. Elles sont évaluées avec
 	// « unless on (instance) mirador_machine_regle_remplacee{regle="…"} ».
 	Remplacees func(regle string) bool
+	// DerniereDonnee : heure des dernières données reçues d'une machine
+	// (étiquette instance) ; false si la machine est inconnue. Sert à
+	// « si les données disparaissent » (SPEC § 46). nil : rien n'est gardé.
+	DerniereDonnee func(instance string) (time.Time, bool)
 }
+
+// SilenceMin : sans aucune donnée depuis ce temps, une machine est muette
+// (deux relevés de 30 s manqués et une marge, comme AgentMuet).
+const SilenceMin = 90 * time.Second
 
 // etatRegle : une règle chargée et son état d'évaluation.
 type etatRegle struct {
@@ -456,6 +469,12 @@ func (m *Moteur) requete(ctx context.Context, expr string, ts time.Time) ([]resu
 func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Evenement, bool) {
 	t0 := time.Now()
 	res, err := m.requete(ctx, m.exprEvaluee(&r.def), ts)
+	// « Ouvrir » (SPEC § 46) : machines qui avaient des données pour cette
+	// règle peu avant. Requête faite seulement pour ces règles (rares).
+	var recentes []string
+	if err == nil && r.def.Absence == AbsenceOuvrir && m.opt.DerniereDonnee != nil {
+		recentes = m.machinesRecentes(ctx, r, ts)
+	}
 	duree := time.Since(t0)
 
 	m.mu.Lock()
@@ -495,7 +514,7 @@ func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Eve
 				Debut: ts, ValeurMax: x.valeur, aEcrire: true}
 			r.alertes[h] = a
 		}
-		a.Valeur, a.vueLe = x.valeur, ts
+		a.Valeur, a.vueLe, a.AbsenteDepuis = x.valeur, ts, time.Time{}
 		if x.valeur > a.ValeurMax || math.IsNaN(a.ValeurMax) {
 			a.ValeurMax = x.valeur
 		}
@@ -517,6 +536,17 @@ func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Eve
 		if a.Etat == Active && ts.Sub(a.vueLe) < time.Duration(r.def.Garder) {
 			continue // « garder » : encore active un moment
 		}
+		// Si les données disparaissent (SPEC § 46) : la série a disparu parce
+		// que la machine n'envoie plus rien ; l'alerte reste ouverte tant que
+		// rien ne revient (sauf réglage « fermer »).
+		if a.Etat == Active && r.def.Absence != AbsenceFermer {
+			if derniere, muette := m.muette(a.Etiquettes.Get("instance"), ts); muette {
+				if a.AbsenteDepuis.IsZero() {
+					a.AbsenteDepuis = derniere
+				}
+				continue
+			}
+		}
 		if a.Etat == Active {
 			evs = append(evs, m.resoudre(a, ts))
 		} else {
@@ -525,7 +555,76 @@ func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Eve
 		}
 		delete(r.alertes, h)
 	}
+	// « Ouvrir » : une alerte pour chaque machine muette depuis le délai
+	// réglé, qui avait des données pour cette règle juste avant.
+	if !enGrace {
+		apres := r.def.apresAbsence()
+		for _, inst := range recentes {
+			derniere, muette := m.muette(inst, ts)
+			if !muette || ts.Sub(derniere) < apres || r.instanceEnAlerte(inst) {
+				continue
+			}
+			etq := etiquettesAlerte(labels.FromStrings("instance", inst), &r.def)
+			a := &Alerte{Regle: r.def.Nom, Etiquettes: etq, Gravite: r.def.Gravite, Etat: Active,
+				Debut: derniere, ActiveLe: ts, Valeur: 0, ValeurDebut: 0, ValeurMax: 0,
+				AbsenteDepuis: derniere, vueLe: ts, aEcrire: true,
+				Resume: inst + " : données absentes (règle " + r.def.Nom + ")"}
+			r.alertes[etq.Hash()] = a
+			evs = append(evs, Evenement{Type: "debut", Alerte: *a})
+		}
+	}
 	return evs, true
+}
+
+// muette : la machine n'envoie plus rien depuis au moins SilenceMin.
+// Renvoie l'heure de ses dernières données. Machine inconnue (supprimée,
+// pas d'étiquette instance) : jamais muette, l'alerte suit sa série.
+func (m *Moteur) muette(instance string, ts time.Time) (time.Time, bool) {
+	if instance == "" || m.opt.DerniereDonnee == nil {
+		return time.Time{}, false
+	}
+	t, ok := m.opt.DerniereDonnee(instance)
+	if !ok || t.IsZero() {
+		return time.Time{}, false
+	}
+	return t, ts.Sub(t) >= SilenceMin
+}
+
+// instanceEnAlerte (sous verrou) : une alerte de la règle porte déjà cette machine.
+func (r *etatRegle) instanceEnAlerte(instance string) bool {
+	for _, a := range r.alertes {
+		if a.Etiquettes.Get("instance") == instance {
+			return true
+		}
+	}
+	return false
+}
+
+// machinesRecentes : machines qui ont envoyé une des métriques lues par la
+// règle pendant le délai d'absence + 30 min avant ts. Une alerte « données
+// absentes » n'est ouverte que pour elles : une machine qui n'a jamais eu
+// ces métriques n'est pas concernée.
+func (m *Moteur) machinesRecentes(ctx context.Context, r *etatRegle, ts time.Time) []string {
+	noms := metriquesLues(r.expr)
+	if len(noms) == 0 {
+		return nil
+	}
+	for i, n := range noms {
+		noms[i] = regexp.QuoteMeta(n)
+	}
+	fenetre := model.Duration(r.def.apresAbsence() + 30*time.Minute)
+	expr := fmt.Sprintf(`group by (instance) (present_over_time({__name__=~%q}[%s]))`, strings.Join(noms, "|"), fenetre)
+	res, err := m.requete(ctx, expr, ts)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(res))
+	for _, x := range res {
+		if v := x.etq.Get("instance"); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // etiquettesAlerte : étiquettes de la série sans __name__, + celles de la

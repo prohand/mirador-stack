@@ -30,7 +30,7 @@ func TestLancer(t *testing.T) {
 		t.Fatalf("-version : %d %q", code, sortie.String())
 	}
 	// Ce binaire se présente comme collecteur (mises à jour et serveur).
-	if majagent.ProduitCourant != protocole.ProduitCollecteur || distant.Capacites != protocole.CapaciteCollecteur {
+	if majagent.ProduitCourant != protocole.ProduitCollecteur || distant.Capacites != protocole.CapaciteCollecteur+","+protocole.CapaciteSondes {
 		t.Errorf("produit %q, capacités %q", majagent.ProduitCourant, distant.Capacites)
 	}
 	conf := ecrireConf(t, "MIRADOR_NOM=collecteur-test\nMIRADOR_SERVEUR=https://mirador.exemple.invalid\n"+

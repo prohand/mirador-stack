@@ -95,6 +95,29 @@ type Regle struct {
 	Active      bool              `json:"active" yaml:"active"`
 	Origine     string            `json:"origine,omitempty" yaml:"origine,omitempty"` // vmalert, mirador, modèle…
 	Note        string            `json:"note,omitempty" yaml:"note,omitempty"`       // commentaire libre
+	// Si les données disparaissent (SPEC § 46) : que faire quand la machine
+	// de l'alerte (étiquette instance) n'envoie plus rien. "" = garder
+	// l'alerte ouverte (défaut), "fermer" (comportement d'avant), "ouvrir"
+	// (ouvrir une alerte « données absentes » au bout d'AbsenceApres).
+	Absence      string `json:"absence,omitempty" yaml:"absence,omitempty"`
+	AbsenceApres Duree  `json:"absence_apres,omitempty" yaml:"absence_apres,omitempty"` // « ouvrir » : 10 min par défaut
+}
+
+// Actions possibles si les données disparaissent (SPEC § 46).
+const (
+	AbsenceGarder = ""       // l'alerte ouverte reste ouverte (défaut)
+	AbsenceFermer = "fermer" // l'alerte se ferme quand sa série disparaît
+	AbsenceOuvrir = "ouvrir" // une alerte s'ouvre aussi pour une machine muette
+	// AbsenceApresDefaut : délai de « ouvrir » quand rien n'est réglé.
+	AbsenceApresDefaut = 10 * time.Minute
+)
+
+// apresAbsence : délai effectif de « ouvrir ».
+func (r *Regle) apresAbsence() time.Duration {
+	if r.AbsenceApres > 0 {
+		return time.Duration(r.AbsenceApres)
+	}
+	return AbsenceApresDefaut
 }
 
 var (
@@ -139,6 +162,14 @@ func (r *Regle) Valider() (parser.Expr, error) {
 	}
 	if g := time.Duration(r.Garder); g < 0 || g > 24*time.Hour {
 		errs = append(errs, fmt.Errorf("durée « garder » %s hors bornes (0 à 24 h)", r.Garder))
+	}
+	switch r.Absence {
+	case AbsenceGarder, AbsenceFermer, AbsenceOuvrir:
+	default:
+		errs = append(errs, fmt.Errorf("absence %q invalide (vide = garder, fermer, ouvrir)", r.Absence))
+	}
+	if a := time.Duration(r.AbsenceApres); a < 0 || a > 24*time.Hour {
+		errs = append(errs, fmt.Errorf("délai d'absence %s hors bornes (0 à 24 h)", r.AbsenceApres))
 	}
 	switch r.Gravite {
 	case Critique, Avertissement, Info:

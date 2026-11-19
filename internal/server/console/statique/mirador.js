@@ -398,17 +398,33 @@ document.addEventListener("change", function (e) {
   appliquer();
 })();
 
-// Recherche rapide (Ctrl+K ou bouton « Aller à… ») : machines, tableaux et
-// pages. La liste est lue une fois (/donnees/aller) ; le filtrage se fait
-// ici. Tout est inséré comme TEXTE. Flèches et Entrée pour choisir.
+// Recherche rapide (Ctrl+K ou bouton « Aller à… », SPEC § 58) : machines,
+// conteneurs, sondes, services, tableaux, pages et actions. La liste est lue
+// une fois (/donnees/aller) ; le filtrage se fait ici. Champ vide : favoris
+// (☆ pour en ajouter) et pages récentes, retenus par ce navigateur. Tout est
+// inséré comme TEXTE. Flèches et Entrée pour choisir.
 (function () {
   var boite = null, champ = null, liste = null, tout = null, choix = 0;
+  var cleRecents = "mirador-recents", cleFavoris = "mirador-favoris";
+  function lire(cle) {
+    try { var v = JSON.parse(window.localStorage.getItem(cle) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  }
+  function ecrire(cle, v) { try { window.localStorage.setItem(cle, JSON.stringify(v)); } catch (e) { /* stockage refusé */ } }
+  function interne(l) { return typeof l === "string" && l.charAt(0) === "/" && l.charAt(1) !== "/"; }
+  // Page récente : notée à chaque ouverture (8 au plus, sans doublon).
+  (function () {
+    var titre = document.title.replace(/ — mirador$/, ""), lien = window.location.pathname + window.location.search;
+    if (/^\/(connexion|premier-admin|fragments|donnees)/.test(window.location.pathname)) { return; }
+    var r = lire(cleRecents).filter(function (x) { return x && x.lien !== lien; });
+    r.unshift({ titre: titre, lien: lien, genre: "Récent" });
+    ecrire(cleRecents, r.slice(0, 8));
+  })();
   function construire() {
     boite = document.createElement("dialog");
     boite.className = "aller-boite";
     champ = document.createElement("input");
     champ.type = "search";
-    champ.placeholder = "Machine, tableau ou page…";
+    champ.placeholder = "Machine, conteneur, sonde, service, tableau, page…";
     champ.setAttribute("aria-label", "Aller à");
     champ.maxLength = 63;
     liste = document.createElement("ul");
@@ -417,33 +433,69 @@ document.addEventListener("change", function (e) {
     document.body.appendChild(boite);
     champ.addEventListener("input", function () { choix = 0; afficher(); });
     champ.addEventListener("keydown", function (e) {
-      var n = liste.children.length;
+      var liens = liste.querySelectorAll("a.aller-lien"), n = liens.length;
       if (e.key === "ArrowDown" && n) { choix = (choix + 1) % n; marquer(); e.preventDefault(); }
       if (e.key === "ArrowUp" && n) { choix = (choix + n - 1) % n; marquer(); e.preventDefault(); }
-      if (e.key === "Enter" && liste.children[choix]) { window.location = liste.children[choix].firstChild.getAttribute("href"); }
+      if (e.key === "Enter" && liens[choix]) { window.location = liens[choix].getAttribute("href"); }
     });
     boite.addEventListener("click", function (e) { if (e.target === boite) { boite.close(); } });
   }
   function marquer() {
-    Array.prototype.forEach.call(liste.children, function (li, i) { li.classList.toggle("choisi", i === choix); });
-    if (liste.children[choix]) { liste.children[choix].scrollIntoView({ block: "nearest" }); }
+    var liens = liste.querySelectorAll("a.aller-lien");
+    Array.prototype.forEach.call(liens, function (a, i) { a.parentNode.classList.toggle("choisi", i === choix); });
+    if (liens[choix]) { liens[choix].scrollIntoView({ block: "nearest" }); }
+  }
+  function estFavori(lien) { return lire(cleFavoris).some(function (f) { return f.lien === lien; }); }
+  function basculerFavori(d) {
+    var f = lire(cleFavoris);
+    if (estFavori(d.lien)) { f = f.filter(function (x) { return x.lien !== d.lien; }); } else { f.push({ titre: d.titre, lien: d.lien, genre: d.genre }); }
+    ecrire(cleFavoris, f.slice(-20));
+    afficher();
+    champ.focus();
+  }
+  function section(titre) {
+    var li = document.createElement("li");
+    li.className = "aller-section";
+    li.textContent = titre;
+    liste.appendChild(li);
+  }
+  function ligne(d) {
+    var li = document.createElement("li"), a = document.createElement("a"), g = document.createElement("span"), etoile = document.createElement("button");
+    a.className = "aller-lien";
+    a.setAttribute("href", d.lien);
+    a.textContent = d.titre;
+    g.textContent = d.genre;
+    a.appendChild(g);
+    etoile.type = "button";
+    etoile.className = "aller-favori";
+    var fav = estFavori(d.lien);
+    etoile.textContent = fav ? "★" : "☆";
+    etoile.title = fav ? "Retirer des favoris" : "Ajouter aux favoris";
+    etoile.setAttribute("aria-label", etoile.title);
+    etoile.addEventListener("click", function (e) { e.preventDefault(); basculerFavori(d); });
+    li.appendChild(a);
+    li.appendChild(etoile);
+    liste.appendChild(li);
   }
   function afficher() {
     var mots = champ.value.toLowerCase().split(/\s+/).filter(Boolean);
     liste.textContent = "";
-    (tout || []).filter(function (d) {
-      var t = (d.titre + " " + d.genre).toLowerCase();
-      return mots.every(function (m) { return t.indexOf(m) >= 0; });
-    }).slice(0, 12).forEach(function (d) {
-      var li = document.createElement("li"), a = document.createElement("a"), g = document.createElement("span");
-      a.setAttribute("href", d.lien);
-      a.textContent = d.titre;
-      g.textContent = d.genre;
-      a.appendChild(g);
-      li.appendChild(a);
-      liste.appendChild(li);
-    });
-    if (!liste.children.length) {
+    if (!mots.length) {
+      var fav = lire(cleFavoris).filter(function (x) { return x && interne(x.lien); });
+      var rec = lire(cleRecents).filter(function (x) { return x && interne(x.lien) && !estFavori(x.lien); }).slice(0, 5);
+      if (fav.length) { section("Favoris"); fav.forEach(ligne); }
+      if (rec.length) { section("Récents"); rec.forEach(ligne); }
+      if (tout) { section("Pages"); tout.filter(function (d) { return d.genre === "Page"; }).slice(0, 6).forEach(ligne); }
+    } else {
+      var trouves = (tout || []).filter(function (d) {
+        var t = (d.titre + " " + d.genre).toLowerCase();
+        return mots.every(function (m) { return t.indexOf(m) >= 0; });
+      });
+      var actions = trouves.filter(function (d) { return d.genre === "Action"; });
+      trouves.filter(function (d) { return d.genre !== "Action"; }).slice(0, 12).forEach(ligne);
+      if (actions.length) { section("Actions"); actions.slice(0, 4).forEach(ligne); }
+    }
+    if (!liste.querySelector("a.aller-lien")) {
       var vide = document.createElement("li");
       vide.className = "vide";
       vide.textContent = tout ? "Rien ne correspond." : "Chargement…";
@@ -464,7 +516,7 @@ document.addEventListener("change", function (e) {
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (d) {
         // Liens internes seulement (jamais une adresse complète).
-        tout = (d || []).filter(function (x) { return typeof x.lien === "string" && x.lien.charAt(0) === "/" && x.lien.charAt(1) !== "/"; });
+        tout = (d || []).filter(function (x) { return interne(x.lien); });
         afficher();
       })
       .catch(function () { tout = []; afficher(); });
@@ -1264,4 +1316,53 @@ document.addEventListener("change", function (e) {
     }
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { fermer(); } });
+})();
+
+// Vue d'ensemble : onglet Résumé / Ruche retenu par ce navigateur (SPEC § 51).
+(function () {
+  var cle = "mirador-vue-accueil";
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest("[data-vue-accueil]") : null;
+    if (a) { try { window.localStorage.setItem(cle, a.getAttribute("data-vue-accueil")); } catch (e) { /* stockage refusé */ } }
+  });
+  if (window.location.pathname === "/" && !window.location.search) {
+    try { if (window.localStorage.getItem(cle) === "ruche") { window.location.replace("/?vue=ruche"); } } catch (e) { /* stockage refusé */ }
+  }
+})();
+
+// Frise d'un incident (SPEC § 54) : position des points et de la bande
+// (data-x, data-l en %), posée par le script (pas de style dans la page).
+(function () {
+  document.querySelectorAll(".frise [data-x]").forEach(function (e) {
+    var x = parseFloat(e.getAttribute("data-x"));
+    if (isNaN(x)) { return; }
+    e.style.left = Math.max(0, Math.min(100, x)) + "%";
+    var l = parseFloat(e.getAttribute("data-l"));
+    if (!isNaN(l)) { e.style.width = Math.max(0.5, Math.min(100 - x, l)) + "%"; }
+  });
+})();
+
+// Période commune (SPEC § 57) : la période choisie sur une fiche machine,
+// un tableau ou la page Logs est retenue par ce navigateur et reprise par
+// les autres pages qui en ont une (seulement les périodes qu'elles ont
+// toutes : 1h, 6h, 24h, 7d, 30d). Un lien qui en donne une (ou un zoom
+// « de / a ») passe avant.
+(function () {
+  var cle = "mirador-periode", communes = ["1h", "6h", "24h", "7d", "30d"];
+  var p = window.location.pathname;
+  if (!/^\/(machines\/[^/]+|tableaux\/[^/]+|logs)$/.test(p)) { return; }
+  var q = new URLSearchParams(window.location.search);
+  var actuelle = q.get("periode");
+  try {
+    if (actuelle) {
+      if (communes.indexOf(actuelle) >= 0) { window.localStorage.setItem(cle, actuelle); }
+      return;
+    }
+    if (q.get("de") || q.get("avant") || q.get("motif")) { return; }
+    var retenue = window.localStorage.getItem(cle);
+    if (retenue && communes.indexOf(retenue) >= 0) {
+      q.set("periode", retenue);
+      window.location.replace(p + "?" + q.toString() + window.location.hash);
+    }
+  } catch (e) { /* stockage refusé : période par défaut */ }
 })();

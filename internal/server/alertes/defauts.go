@@ -131,6 +131,35 @@ func ReglesMirador() []Regle {
 				"désinstallé, ou nom faux dans la liste du modèle (Machines › Modèles). Aussi si la collecte systemd " +
 				"est coupée pour cette machine.",
 			Note: "SPEC § 24.7"}),
+		// Sondes de services (SPEC § 48) : HTTP, TCP, ping, DNS, depuis le
+		// collecteur ou le serveur. Deux essais ratés de suite (1 min).
+		m(Regle{Nom: "SondeEnEchec", Groupe: "sondes", Intervalle: Duree(30 * time.Second),
+			Expr:    `max by (instance, sonde, type, cible) (mirador_sonde_succes) == 0`,
+			Pour:    Duree(time.Minute),
+			Gravite: Critique,
+			Resume:  "Sonde {{ $labels.sonde }} en échec ({{ $labels.cible }})",
+			Description: "L'essai ne passe plus (pas de réponse, mauvais code, contenu attendu absent…). " +
+				"La raison est sur la page Sondes. Faite depuis {{ $labels.instance }}."}),
+		m(Regle{Nom: "SondeLente", Groupe: "sondes",
+			Expr:        `max by (instance, sonde, type, cible) (mirador_sonde_lente) == 1`,
+			Pour:        Duree(5 * time.Minute),
+			Gravite:     Avertissement,
+			Resume:      "Sonde {{ $labels.sonde }} lente depuis 5 min ({{ $labels.cible }})",
+			Description: "Le service répond, mais plus lentement que le seuil réglé pour la sonde (page Sondes)."}),
+		// Services (SPEC § 50) : état calculé chaque minute par le serveur.
+		m(Regle{Nom: "ServiceEnPanne", Groupe: "services",
+			Expr:    `max by (service) (mirador_service_etat) == 2`,
+			Pour:    Duree(2 * time.Minute),
+			Gravite: Critique,
+			Resume:  "Service {{ $labels.service }} en panne",
+			Description: "Un élément « clé » du service a un problème (machine muette, conteneur arrêté ou non sain, " +
+				"sonde en échec). Détail sur la page Services."}),
+		m(Regle{Nom: "ServiceDegrade", Groupe: "services",
+			Expr:        `max by (service) (mirador_service_etat) == 1`,
+			Pour:        Duree(10 * time.Minute),
+			Gravite:     Avertissement,
+			Resume:      "Service {{ $labels.service }} dégradé",
+			Description: "Un élément du service a un problème, mais le service marche encore. Détail sur la page Services."}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),
