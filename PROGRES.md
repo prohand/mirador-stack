@@ -1047,6 +1047,14 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Code 2FA de la boîte « Action protégée » et Bitwarden (19/11) : corrigé, à valider
+
+- Bitwarden ne proposait pas le code dans la boîte (champ sans nom ni id,
+  contrairement à la page de connexion). Champ maintenant `id="totp-boite"`,
+  `name="totp"`, `autocomplete="one-time-code"`, et compte `name="username"`.
+- À vérifier : clic sur une action protégée, l'icône Bitwarden propose le
+  code dans le champ.
+
 ## Bloc « Changements » compact (SPEC § 63, 19/11) : fait, à valider
 
 - 5 lignes montrées, le reste replié ; identiques du même jour regroupés
