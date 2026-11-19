@@ -62,6 +62,32 @@ func TestCourbeAlerte(t *testing.T) {
 	}
 }
 
+// Grande courbe d'une alerte de modèle (retour du 19/11) : seuil par
+// machine (série job="mirador") trouvé malgré job="node" sur l'alerte,
+// données pour graphes.js (axes, unité °C, seuil).
+func TestCourbeAlerteModele(t *testing.T) {
+	b := nouveauBanc(t)
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	maintenant := b.h.maintenant()
+	app := db.Appender(context.Background())
+	for i, ts := 0, maintenant.Add(-6*time.Hour); !ts.After(maintenant); i, ts = i+1, ts.Add(5*time.Minute) {
+		_, _ = app.Append(0, labels.FromStrings("__name__", "smartctl_device_temperature", "instance", "nas", "job", "node", "device", "nvme0", "temperature_type", "current"), ts.UnixMilli(), float64(40+i%25))
+		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_modele_parametre", "instance", "nas", "job", "mirador", "modele", "physique", "parametre", "disque_temp_max"), ts.UnixMilli(), 55)
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	expr := `smartctl_device_temperature{temperature_type="current"} > on (instance) group_left () mirador_modele_parametre{modele="physique", parametre="disque_temp_max"}`
+	al := labels.FromStrings("alertname", "PhysiqueDisqueChaud", "instance", "nas", "job", "node", "device", "nvme0", "temperature_type", "current")
+	j := b.c.courbeAlerteJSON(context.Background(), expr, "Physique disque chaud", al, maintenant, 6*time.Hour)
+	if !strings.Contains(j, `"seuil":55`) || !strings.Contains(j, `"unite":"celsius"`) || !strings.Contains(j, `"series":[{"nom":"Physique disque chaud"`) {
+		t.Fatalf("courbe JSON : %.300s", j)
+	}
+}
+
 // Page Alertes et fragment rechargé : compteurs, choix de la vue.
 func TestPageAlertesVue(t *testing.T) {
 	b := nouveauBanc(t)

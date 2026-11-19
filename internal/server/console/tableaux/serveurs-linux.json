@@ -647,6 +647,58 @@
       ]
     },
     {
+      "titre": "Températures",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Capteurs",
+          "description": "Processeur, carte mère, NVMe… (hwmon). Pointillé : seuil du modèle « Machine physique ».",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_hwmon_temp_celsius{instance=~\"$instance\"}",
+              "legende": "{{chip}} {{sensor}}"
+            }
+          ],
+          "seuil_modele": {
+            "modele": "physique",
+            "parametre": "temp_max"
+          }
+        },
+        {
+          "type": "courbe",
+          "titre": "Disques (SMART)",
+          "description": "Température lue par smartctl (assistant root). Au-delà de 50 °C, un disque vieillit plus vite.",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "smartctl_device_temperature{instance=~\"$instance\", temperature_type=\"current\"}",
+              "legende": "{{device}}"
+            }
+          ],
+          "seuil_modele": {
+            "modele": "physique",
+            "parametre": "disque_temp_max"
+          }
+        },
+        {
+          "type": "courbe",
+          "titre": "Zones thermiques",
+          "description": "Capteurs du noyau (Raspberry Pi, portables…).",
+          "unite": "celsius",
+          "requetes": [
+            {
+              "id": "A",
+              "expr": "node_thermal_zone_temp{instance=~\"$instance\"}",
+              "legende": "{{type}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "titre": "Services et sécurité",
       "panneaux": [
         {

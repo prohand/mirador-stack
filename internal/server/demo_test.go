@@ -123,8 +123,16 @@ func TestDemoInterface(t *testing.T) {
 		if m == "pve1" { // machine physique : capteurs, disques, et des nouveautés à valider
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 54 }, "chip", "coretemp", "sensor", "temp1")
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 43 }, "chip", "nct6798", "sensor", "temp2")
-			for _, d := range []string{"sda", "sdb", "nvme0"} {
+			for i, d := range []string{"sda", "sdb", "nvme0"} {
 				mk("smartctl_device_smart_status", un, "device", d)
+				base := 36 + 6*float64(i) // nvme0 plus chaud, qui monte à la fin (alerte « Disque chaud »)
+				mk("smartctl_device_temperature", func(k int) float64 {
+					v := base + 2*math.Sin(float64(k)/40)
+					if d == "nvme0" && k > 700 {
+						v = 60
+					}
+					return v
+				}, "device", d, "temperature_type", "current")
 			}
 			mk("ssl_certs_found_total", func(int) float64 { return 2 })
 			// Détail par élément (SPEC § 21).
@@ -173,6 +181,11 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Disque chaud (règle d'un modèle, seuil par machine) : grande courbe
+	// avec axes et seuil sur la page de l'alerte (retour du 19/11).
+	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
+		VALUES ('PhysiqueDisqueChaud', '{"alertname":"PhysiqueDisqueChaud","instance":"pve1","job":"integrations/unix","device":"nvme0","temperature_type":"current","severity":"warning"}', 'warning', 'active', ?, ?, 'Disque nvme0 à 60 °C sur pve1', 60)`,
+		now.Add(-30*time.Minute).UnixMilli(), now.Add(-10*time.Minute).UnixMilli())
 	// Alertes aux noms techniques variés : libellés lisibles (SPEC § 73).
 	for i, x := range [][4]string{
 		{"MiseAJourAgentEchouee", "pve1", "warning", "La mise à jour de l'agent a échoué sur pve1"},

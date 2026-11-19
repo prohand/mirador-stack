@@ -107,6 +107,7 @@ type donneesAlerte struct {
 	EnCours    bool
 	Selecteur  string        // pour le silence en un clic
 	Courbe     template.HTML // valeur suivie sur 24 h et seuil (SPEC § 28)
+	CourbeJSON string        // la même pour graphes.js (axes, survol, seuil)
 	Absente    string        // données absentes depuis (SPEC § 46), vide sinon
 	Incident   *incident     // incident dont l'alerte fait partie (SPEC § 54)
 }
@@ -137,7 +138,10 @@ func (c *Console) pageAlerte(q *req) {
 					if !d.EnCours && !a.Fin.IsZero() {
 						fin = a.Fin.Add(2 * time.Hour)
 					}
-					d.Courbe = c.courbeAlerte(q.r.Context(), r.Expr, a.Etiquettes, a.Gravite, fin, 24*time.Hour, 720, 160)
+					d.CourbeJSON = c.courbeAlerteJSON(q.r.Context(), r.Expr, libelleRegle(a.Regle), a.Etiquettes, fin, 24*time.Hour)
+					if d.CourbeJSON == "" { // repli : simple trait
+						d.Courbe = c.courbeAlerte(q.r.Context(), r.Expr, a.Etiquettes, a.Gravite, fin, 24*time.Hour, 720, 160)
+					}
 				}
 			}
 		}
