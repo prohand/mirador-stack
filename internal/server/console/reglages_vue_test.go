@@ -215,7 +215,7 @@ func TestReglagesUtilisateursSecurite(t *testing.T) {
 		}
 	}
 	_, corps, _ = b.get(c, "/utilisateurs")
-	for _, attendu := range []string{`<strong>admin</strong> <span class="pastille">vous</span>`, "2FA à créer", "1 sans 2FA", `href="#nouveau"`,
+	for _, attendu := range []string{`<strong>admin</strong> <span class="pastille">Vous</span>`, "2FA à créer", "1 sans 2FA", `href="#nouveau"`,
 		`value="desactiver"`, `value="supprimer"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("utilisateurs : %q absent", attendu)
@@ -223,7 +223,7 @@ func TestReglagesUtilisateursSecurite(t *testing.T) {
 	}
 	_, corps, _ = b.get(c, "/securite")
 	for _, attendu := range []string{"1 compte n&#39;a pas encore créé sa 2FA (lea)", "Interface ouverte à toutes les adresses", `name="inactivite" value="30"`,
-		`name="duree_max" value="12"`, "cette session"} {
+		`name="duree_max" value="12"`, "Cette session"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("sécurité : %q absent", attendu)
 		}

@@ -251,6 +251,9 @@ func fonctions() template.FuncMap {
 		"pagesLieesReglages": func() []sectionReglages { return pagesLieesReglages },
 		// accord : « alerte(s) » → « alerte » ou « alertes » selon le nombre.
 		"accord": accorder,
+		// sorte : « sonde http » → « Sonde HTTP », « conteneur » → « Conteneur »
+		// (affichage seulement ; la valeur sert aux filtres).
+		"sorte": sorteLisible,
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s
@@ -588,4 +591,19 @@ func drapeau(code string) string {
 		return ""
 	}
 	return string([]rune{rune(code[0]) - 'A' + 0x1F1E6, rune(code[1]) - 'A' + 0x1F1E6})
+}
+
+// sorteLisible : sorte d'un élément pour l'affichage (majuscule, sigles).
+func sorteLisible(s string) string {
+	if s == "" {
+		return s
+	}
+	mots := strings.Fields(s)
+	for i, m := range mots {
+		switch m {
+		case "http", "tcp", "dns":
+			mots[i] = strings.ToUpper(m)
+		}
+	}
+	return majusculeDebut(strings.Join(mots, " "))
 }

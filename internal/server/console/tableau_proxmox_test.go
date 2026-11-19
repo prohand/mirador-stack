@@ -329,7 +329,7 @@ func TestModelesEquipementEtReglesCouvertes(t *testing.T) {
 	}
 	c, _ := b.premierAdmin("admin", mdpAdmin)
 	// Avant : détecté, pas porté → la règle importée sert encore.
-	if _, corps, _ := b.get(c, "/regles"); !strings.Contains(corps, `id="couvertes"`) || !strings.Contains(corps, "sert encore") || !strings.Contains(corps, "<code>nas1</code>") {
+	if _, corps, _ := b.get(c, "/regles"); !strings.Contains(corps, `id="couvertes"`) || !strings.Contains(corps, "Sert encore") || !strings.Contains(corps, "<code>nas1</code>") {
 		t.Fatal("règle importée remplacée : état « sert encore » absent")
 	}
 	// Application automatique générale coupée : le modèle d'équipement est appliqué quand même.

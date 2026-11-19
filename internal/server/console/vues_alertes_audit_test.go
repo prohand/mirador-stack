@@ -96,7 +96,7 @@ func TestAuditLisible(t *testing.T) {
 	}
 	_, corps, _ := b.get(c, "/audit")
 	for _, attendu := range []string{"Règle CpuEleve créée ou modifiée", `href="/regles/modifier/CpuEleve"`, "pour : <del>5m</del> → <ins>10m</ins>",
-		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">sensible</span>`, "Aujourd&#39;hui · ", " masquée"} {
+		`cat-audit regles`, "Passkey ajoutée au compte admin", `<span class="pastille erreur">Sensible</span>`, "Aujourd&#39;hui · ", " masquée"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("audit : %q absent", attendu)
 		}

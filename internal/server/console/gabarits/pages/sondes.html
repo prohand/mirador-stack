@@ -1,22 +1,14 @@
 {{define "contenu"}}
-<h1>Sondes</h1>
+<div class="titre-page"><h1>Sondes</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="/sondes?ajout=1#ajouter">+ Ajouter une sonde</a></div>{{end}}</div>
 {{template "filtre-sur" .D.FiltreSur}}
-<p class="sous">Essais faits depuis le collecteur du LAN, ou depuis le serveur pour la vue de l'extérieur : la page répond-elle, en combien de temps, avec le bon contenu ; le port est-il ouvert ; la machine répond-elle au ping ; le DNS répond-il. Alertes fournies : SondeEnEchec (deux essais ratés de suite), SondeLente (5 min).</p>
-<div class="resume-alertes">
- <span class="tuile"><small>Sondes</small><b>{{.D.Total}}</b></span>
- <span class="tuile"><small>OK</small><b>{{.D.OK}}</b></span>
- <span class="tuile{{if .D.Echecs}} critique{{end}}"><small>En échec</small><b>{{.D.Echecs}}</b></span>
- <span class="tuile{{if .D.Lentes}} avert{{end}}"><small>Lentes</small><b>{{.D.Lentes}}</b></span>
- <span class="tuile"><small>Temps de réponse médian</small><b>{{if .D.Mediane}}{{.D.Mediane}}{{else}}—{{end}}</b></span>
+{{if and .Admin .D.Ajout.Ouvert}}<section class="carte ajout-sonde" id="ajouter"><div class="entete-carte"><h2>Ajouter une sonde</h2><a class="pastille" href="/sondes">Fermer</a></div>
+<nav class="onglets" data-onglets-panneaux="ajout-sonde"{{if .D.Ajout.Choisie}} data-onglet-force="machine"{{end}} aria-label="Façon d'ajouter"><a href="#ajout-machine" data-onglet="machine">Depuis une machine</a><a href="#ajout-manuel" data-onglet="manuel">À la main</a></nav>
+<div class="panneau-onglet" data-panneau-onglet="machine">
+<form method="get" action="/sondes#ajouter" class="ligne"><label>Machine <select name="ajouter" data-envoi-auto required><option value="">— choisir —</option>{{range .D.Ajout.Machines}}<option{{if eq . $.D.Ajout.Choisie}} selected{{end}}>{{.}}</option>{{end}}</select></label><button class="secondaire">Voir ses adresses et ports</button></form>
+{{with .D.Ajout.Bloc}}<p class="sous">Machine <a href="/machines/{{.Machine}}#sondes">{{.Machine}}</a>{{if .Sondes}} : {{len .Sondes}} {{accord (len .Sondes) "sonde(s)"}} déjà{{end}}. Ping et sondes proposées d'après ce que l'agent a trouvé. {{template "plus" "aide.md#sondes"}}</p>
+{{template "form-sondes-machine" (dict "S" . "CSRF" $.CSRF "Retour" "sondes")}}{{else}}<p class="vide">Choisir une machine : ses adresses (ping) et ses ports ouverts (HTTPS, HTTP, SSH…) sont proposés, à cocher.</p>{{end}}
 </div>
-<section class="carte">{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Type</th><th>Cible</th><th>Depuis</th><th>État</th><th>Temps de réponse (1 h)</th><th class="nombre">Dispo 24 h</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><a href="/sondes/{{.S.Nom}}"><strong>{{.S.Nom}}</strong></a></td><td>{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</td>
-<td class="cible-sonde"><span class="url-sonde">{{.S.Cible}}</span><br><small class="doux">{{.Attendu}}{{if .S.Machine}} · machine <a href="/machines/{{.S.Machine}}#sondes">{{.S.Machine}}</a>{{end}}</small></td><td>{{.Depuis}}</td>
-<td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
-<td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{.Dispo}}</td>
-{{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.S.Nom}}#modifier">Modifier</a> <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
-</tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} Ajouter la première ci-dessous.{{end}}</p>{{end}}</section>
-{{if .Admin}}<section class="carte"><h2>Ajouter une sonde</h2>
+<div class="panneau-onglet" data-panneau-onglet="manuel">
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter">
 <div class="ligne"><label>Nom <input name="nom" required maxlength="48" placeholder="Home Assistant"></label>
 <label>Type <select name="type"><option value="http">HTTP(S)</option><option value="tcp">TCP (port ouvert)</option><option value="ping">Ping</option><option value="dns">DNS</option></select></label>
@@ -30,5 +22,23 @@
 <label class="case"><input type="checkbox" name="non_verifie" value="1"> Ne pas vérifier le certificat (service du LAN au certificat fait maison)</label>
 {{template "code2fa"}}<div class="ligne"><button data-code>Ajouter</button></div>
 <small class="aide">Depuis le serveur : adresses locales et privées refusées (le serveur ne se sonde pas lui-même). Depuis un collecteur : il faut une version du collecteur qui connaît les sondes (sinon elles sont ignorées). Ping : autorisé sans droits par le réglage <code>net.ipv4.ping_group_range</code> (ouvert par défaut sur Debian et Ubuntu récents). {{template "plus" "aide.md#sondes"}}</small>
-</form></section>{{end}}
+</form>
+</div>
+</section>{{end}}
+<p class="sous">Essais faits depuis le collecteur du LAN, ou depuis le serveur pour la vue de l'extérieur : la page répond-elle, en combien de temps, avec le bon contenu ; le port est-il ouvert ; la machine répond-elle au ping ; le DNS répond-il. Alertes fournies : SondeEnEchec (deux essais ratés de suite), SondeLente (5 min).</p>
+<div class="resume-alertes">
+ <span class="tuile info"><small>Sondes</small><b>{{.D.Total}}</b></span>
+ <span class="tuile bon"><small>OK</small><b>{{.D.OK}}</b></span>
+ <span class="tuile critique"><small>En échec</small><b>{{.D.Echecs}}</b></span>
+ <span class="tuile avert"><small>Lentes</small><b>{{.D.Lentes}}</b></span>
+ <span class="tuile"><small>Temps de réponse médian</small><b>{{if .D.Mediane}}{{.D.Mediane}}{{else}}—{{end}}</b></span>
+</div>
+<section class="carte">{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Sonde</th><th>Type</th><th>Cible</th><th>Depuis</th><th>État</th><th>Temps de réponse (1 h)</th><th class="nombre">Dispo 24 h</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range .D.Lignes}}<tr{{if .ClasseLigne}} class="ligne-sonde {{.ClasseLigne}}"{{end}}><td><a href="/sondes/{{.S.Nom}}"><strong>{{.S.Nom}}</strong></a></td><td><span class="type-sonde type-{{.S.Type}}">{{if eq .S.Type "http"}}HTTP(S){{else if eq .S.Type "tcp"}}TCP{{else if eq .S.Type "ping"}}Ping{{else}}DNS{{end}}</span></td>
+<td class="cible-sonde"><span class="url-sonde">{{.S.Cible}}</span><br><small class="doux">{{.Attendu}}{{if .S.Machine}} · machine <a href="/machines/{{.S.Machine}}#sondes">{{.S.Machine}}</a>{{end}}</small></td><td>{{.Depuis}}</td>
+<td class="sans-coupure">{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}</td>
+<td>{{if .Courbe}}{{.Courbe}}{{else}}<span class="pale">—</span>{{end}}</td><td class="nombre">{{if .DispoClasse}}<span class="dispo-sonde {{.DispoClasse}}">{{.Dispo}}</span><div class="jauge {{.DispoClasse}} jauge-dispo"><i class="largeur-{{.DispoPct}}"></i></div>{{else}}{{.Dispo}}{{end}}</td>
+{{if $.Admin}}<td class="sans-coupure"><a class="pastille" href="/sondes/{{.S.Nom}}#modifier">Modifier</a> <form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="nom" value="{{.S.Nom}}"><button class="secondaire petit" data-code data-confirmer="Retirer la sonde « {{.S.Nom}} » ?">Retirer</button></form></td>{{end}}</tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune sonde pour l'instant.{{if .Admin}} « + Ajouter une sonde » ci-dessus.{{end}}</p>{{end}}</section>
+
 {{end}}

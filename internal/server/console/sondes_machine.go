@@ -315,6 +315,9 @@ func (c *Console) postSondesMachine(q *req) {
 	ctx := q.r.Context()
 	nom := q.r.PathValue("nom")
 	retour := "/machines/" + url.PathEscape(nom) + "#sondes"
+	if q.r.PostFormValue("retour") == "sondes" { // envoyé depuis la page Sondes (§ 69)
+		retour = "/sondes?ajouter=" + url.QueryEscape(nom) + "#ajouter"
+	}
 	if err := c.verifierCode(q); err != nil {
 		c.retour(q, retour, err, "")
 		return

@@ -48,7 +48,7 @@
 {{if $d.Groupes}}<div class="defile"><table class="logs-groupes" data-sans-tri><thead><tr><th>Nombre</th><th></th><th>Niveau</th><th>Message type</th><th>Évolution</th><th>Machines</th><th>Vu la 1re fois</th><th>Dernière</th><th></th></tr></thead><tbody>
 {{range $d.Groupes}}<tr class="{{if and (eq .N 1) (egal .Classe "err")}}rare{{end}}{{if .Nouveau}} motif-nouveau{{end}}"><td class="nombre">{{.N}}</td><td><div class="logs-jauge"><i class="largeur-{{.Largeur}}"></i></div></td>
 <td>{{if .Niveau}}<span class="logs-niv {{.Classe}}">{{.Niveau}}</span>{{end}}</td><td class="logs-motif">{{range .Motif}}{{if .Var}}<span class="var">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{end}}</td>
-<td>{{.Evolution}}</td><td>{{.TexteMachines}}</td><td class="sans-coupure">{{if .PremierVu}}{{.PremierVu}}{{else}}<span class="pale">—</span>{{end}}{{if .Nouveau}} <span class="pastille attention">nouveau</span>{{end}}</td><td class="mono">{{heureLog .Derniere}}</td><td><a href="/logs?{{$d.Requete}}&amp;motif={{.Cle}}">Ces lignes</a></td></tr>{{end}}
+<td>{{.Evolution}}</td><td>{{.TexteMachines}}</td><td class="sans-coupure">{{if .PremierVu}}{{.PremierVu}}{{else}}<span class="pale">—</span>{{end}}{{if .Nouveau}} <span class="pastille attention">Nouveau</span>{{end}}</td><td class="mono">{{heureLog .Derniere}}</td><td><a href="/logs?{{$d.Requete}}&amp;motif={{.Cle}}">Ces lignes</a></td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune ligne."}}{{end}}
 {{else}}
 <div class="logs-nouvelles" data-logs-nouvelles hidden></div>

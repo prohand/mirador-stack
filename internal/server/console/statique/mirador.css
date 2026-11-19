@@ -1230,3 +1230,17 @@ details.detail-long[open] > summary { display: none; }
 table.changements td:last-child { overflow-wrap: anywhere; }
 .onglets-machine { margin: 8px 0 18px; }
 .onglets-machine .pastille { margin-left: 4px; padding: 0 7px; font-size: 11px; }
+/* Page Sondes en couleurs (retour du 19/11, SPEC § 70). */
+.resume-alertes .tuile.bon { border-left: 4px solid var(--ok); }
+.type-sonde { display: inline-flex; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.type-http { background: var(--info-fond); color: var(--info); }
+.type-tcp { background: rgba(105, 65, 198, .12); color: #7F56D9; }
+.type-ping { background: rgba(14, 122, 107, .12); color: #0E9384; }
+.type-dns { background: var(--attention-fond); color: var(--attention); }
+tr.ligne-sonde.ok > td:first-child { box-shadow: inset 4px 0 0 var(--ok); }
+tr.ligne-sonde.lente > td:first-child { box-shadow: inset 4px 0 0 var(--attention); }
+tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+tr.ligne-sonde.echec { background: var(--erreur-fond); }
+.dispo-sonde { font-weight: 700; }
+.dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
+.jauge-dispo { width: 70px; margin-left: auto; height: 5px; } .jauge-dispo i { height: 5px; }

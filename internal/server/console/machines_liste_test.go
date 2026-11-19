@@ -142,14 +142,14 @@ func TestPageMachines(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, corps, _ := b.get(c, "/machines")
-	for _, attendu := range []string{"À approuver (2)", "nom à changer ?", "adresse inconnue", `href="/machines/ajouter"`,
+	for _, attendu := range []string{"À approuver (2)", "Nom à changer ?", "Adresse inconnue", `href="/machines/ajouter"`,
 		"Problèmes (1)", ">ovh<", ">maison<", "refusée", `form="ap-debian"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("absent de /machines : %q", attendu)
 		}
 	}
 	// Une seule pastille de chaque : srv-mail a un nom choisi et vient d'un réseau connu.
-	if strings.Count(corps, "nom à changer ?") != 1 || strings.Count(corps, ">adresse inconnue<") != 1 {
+	if strings.Count(corps, "Nom à changer ?") != 1 || strings.Count(corps, ">Adresse inconnue<") != 1 {
 		t.Error("pastilles en trop")
 	}
 	// Plus ancienne demande d'abord.

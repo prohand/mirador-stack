@@ -265,7 +265,7 @@ func svgCourbeEchelle(ts []int64, vs []float64, debut, fin time.Time, seuil floa
 			pts = append(pts, fmt.Sprintf("%.1f,%.1f", x(ts[i]), y(v)))
 		}
 	}
-	couleur := map[string]string{alertes.Critique: "var(--erreur)", alertes.Avertissement: "var(--attention)"}[gravite]
+	couleur := map[string]string{alertes.Critique: "var(--erreur)", alertes.Avertissement: "var(--attention)", "ok": "var(--ok)"}[gravite]
 	if couleur == "" {
 		couleur = "var(--info)"
 	}

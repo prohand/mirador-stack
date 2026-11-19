@@ -6391,3 +6391,36 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
 - Sondes, Applications, Disponibilité, Incidents : liste réduite à
   l'élément ; Sondes accepte aussi `?machine=` (sondes d'une machine).
 - Coût : aucun (mêmes lectures, une condition de plus).
+
+## 69. Ajouter une sonde depuis la page Sondes ; majuscules (retours du 19/11) **[Fait, à valider]**
+
+- « En bas de la page des sondes, ce n'est pas pratique » : bouton (même style et même place que « + Ajouter une machine », à droite du titre)
+  **+ Ajouter une sonde** en haut de la page, qui ouvre un panneau à deux
+  onglets :
+  - **Depuis une machine** : choix de la machine (liste des machines avec
+    agent), puis le même bloc que la page machine (ping par adresse,
+    sondes proposées d'après les ports) ; après l'enregistrement, retour
+    sur la page Sondes, machine toujours choisie ;
+  - **À la main** : l'ancien formulaire.
+  Le bloc est un seul gabarit (`form-sondes-machine`) pour les deux pages.
+- Majuscules oubliées : première lettre des pastilles (« Tout va bien »,
+  « Jamais reçue », « Vous », « Cette session », « Sensible »…) et des
+  sortes d'éléments (« Sonde HTTP », « Conteneur », « Machine ») sur les
+  pages Éléments, Disponibilité et les fiches (affichage seulement : la
+  valeur des filtres ne change pas).
+
+## 70. Page Sondes en couleurs (retour du 19/11) **[Fait, à valider]**
+
+Maquette montrée, puis tuiles « comme la page Alertes » (demande de
+l'utilisateur) :
+- Tuiles : trait de couleur à gauche, comme Alertes (Sondes bleu, OK vert,
+  En échec rouge, Lentes orange ; temps médian sans trait).
+- Type : pastille de couleur (HTTP(S) bleu, TCP violet, Ping vert d'eau,
+  DNS orange).
+- Ligne : trait à gauche selon l'état (vert OK, orange lente, rouge échec,
+  fond rosé en échec).
+- Disponibilité 24 h : chiffre coloré et petite jauge (vert ≥ 99,9 %,
+  orange ≥ 99 %, rouge en dessous).
+- Courbe du temps de réponse verte quand la sonde est OK ; état sur une
+  ligne (« OK · 200 · 5 ms »).
+- Couleurs tirées des variables du thème : lisibles en clair et en sombre.

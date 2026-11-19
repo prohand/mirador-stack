@@ -37,7 +37,7 @@
 {{if gt (len .D.Sessions) 1}}<form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="autres"><button class="secondaire petit" data-confirmer="Fermer toutes les sessions sauf celle-ci ?">Fermer toutes les autres</button></form>{{end}}</div>
 <div class="defile"><table data-cartes>
 <thead><tr><th>Compte</th><th>Adresse</th><th>Ouverte</th><th>Dernière requête</th><th aria-label="Action"></th></tr></thead>
-<tbody>{{range .D.Sessions}}<tr><td><strong>{{.Nom}}</strong>{{if eq .Ref $.D.MaSession}} <span class="pastille ok">cette session</span>{{end}}</td><td><code>{{.Adresse}}</code></td><td title="{{date .Creee}}">{{depuisS .Creee.Unix}}</td><td title="{{date .Vue}}">{{depuisS .Vue.Unix}}</td>
+<tbody>{{range .D.Sessions}}<tr><td><strong>{{.Nom}}</strong>{{if eq .Ref $.D.MaSession}} <span class="pastille ok">Cette session</span>{{end}}</td><td><code>{{.Adresse}}</code></td><td title="{{date .Creee}}">{{depuisS .Creee.Unix}}</td><td title="{{date .Vue}}">{{depuisS .Vue.Unix}}</td>
 <td>{{if ne .Ref $.D.MaSession}}<form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire petit">Fermer</button></form>{{end}}</td></tr>{{end}}</tbody>
 </table></div>
 <p class="aide"><small class="aide">Un redémarrage du serveur ferme toutes les sessions.</small></p>

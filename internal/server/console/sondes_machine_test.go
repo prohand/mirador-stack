@@ -163,3 +163,46 @@ func TestProposerSonde(t *testing.T) {
 		t.Error("adressePrivee")
 	}
 }
+
+// Page Sondes › « + Ajouter une sonde » › « Depuis une machine » (SPEC § 69) :
+// même bloc que la page machine, retour sur la page Sondes.
+func TestAjoutSondeDepuisPageSondes(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, site, cree_le, vu_le) VALUES
+		('coll', 'approuvee', 'collecteur', 'maison', 1, 1), ('nas', 'approuvee', 'agent', 'maison', 1, 1)`); err != nil {
+		t.Fatal(err)
+	}
+	b.metriquesSimulees(t, []serieTest{
+		{[]string{"__name__", "mirador_adresse_info", "instance", "nas", "interface", "eth0", "adresse", "192.168.1.5", "principale", "1"}, constante(1)},
+		{[]string{"__name__", "mirador_port_ecoute", "instance", "nas", "port", "443", "adresse", "*", "protocole", "https"}, constante(1)},
+	})
+	cl, secret := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(cl, "/sondes")
+	if !strings.Contains(corps, `<a class="bouton" href="/sondes?ajout=1#ajouter">+ Ajouter une sonde</a>`) || strings.Contains(corps, `id="ajouter"`) {
+		t.Error("bouton « + Ajouter une sonde » (comme « Ajouter une machine »), panneau fermé")
+	}
+	_, corps, _ = b.get(cl, "/sondes?ajout=1")
+	for _, attendu := range []string{`id="ajouter"`, "Fermer", `data-onglet="machine"`, `data-onglet="manuel"`, "<option>nas</option>", `name="cible"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("page Sondes : %q absent", attendu)
+		}
+	}
+	if strings.Contains(corps, "<option>coll</option>") {
+		t.Error("un collecteur n'est pas une machine à sonder ici")
+	}
+	_, corps, _ = b.get(cl, "/sondes?ajouter=nas")
+	for _, attendu := range []string{`id="ajouter"`, `data-onglet-force="machine"`, `<option selected>nas</option>`,
+		`action="/machines/nas/sondes"`, `name="retour" value="sondes"`, "https://192.168.1.5/", `value="192.168.1.5" checked`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("page Sondes, nas choisie : %q absent", attendu)
+		}
+	}
+	_, _, h := b.post(cl, "/machines/nas/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "code": {b.code(secret)}, "retour": {"sondes"},
+		"action": {"ping"}, "depuis": {"coll"}, "adresse": {"192.168.1.5"}})
+	if loc := h.Get("Location"); !strings.HasPrefix(loc, "/sondes?ajouter=nas") {
+		t.Errorf("retour après ajout : %q", loc)
+	}
+	if l, _ := flotte.LireSondes(t.Context(), b.c.db); len(l) != 1 || l[0].Machine != "nas" {
+		t.Errorf("ping non ajouté : %+v", l)
+	}
+}
