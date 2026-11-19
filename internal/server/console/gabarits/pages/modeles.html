@@ -34,7 +34,7 @@
 <section class="carte" id="perso">
 <h2>Modèles personnels</h2>
 <p>Créer un modèle pour une application à soi (adresses, ports, processus, fichiers à tester, seuils, règles), partir d'un modèle livré (« Dupliquer », dans son détail plus bas), ou importer le JSON exporté d'un autre serveur.</p>
-{{if $.Admin}}<p><a class="bouton" href="/modeles/nouveau">Nouveau modèle</a></p>
+{{if $.Admin}}<p><a class="bouton" href="/modeles/nouveau">+ Nouveau modèle</a></p>
 <details><summary>Importer un modèle (JSON)</summary>
 <form method="post" action="/modeles/perso" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
 <textarea name="json" rows="8" cols="80" maxlength="65536" spellcheck="false" required placeholder='{"version": 1, "nom": "mon-appli", "titre": "Mon application", …}'></textarea>

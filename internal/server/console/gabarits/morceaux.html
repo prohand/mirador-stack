@@ -34,7 +34,7 @@
   <div><h1>Vue d'ensemble</h1>
   <p>{{sub .D.Machines .D.Muettes}} {{accord (sub .D.Machines .D.Muettes) "machine(s)"}} sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} {{accord .D.Actives "alerte(s)"}} à regarder{{else}} · aucune alerte active{{end}}</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
-  <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines#ajouter">Ajouter une machine</a>{{end}}</div>
+  <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a>{{end}}</div>
 </div>
 <p class="onglets onglets-accueil"><a {{if ne .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=resume" data-vue-accueil="resume">Résumé</a><a {{if eq .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=ruche" data-vue-accueil="ruche">Ruche</a></p>
 {{if eq .D.Vue "ruche"}}{{template "ruche" .D.Ruche}}{{else}}
