@@ -213,7 +213,7 @@ func TestDemoInterface(t *testing.T) {
 			nom   string
 			duree float64
 		}{{"Home Assistant", 0.035 + float64(k%7)/1000}, {"DNS interne", 0.002 + float64(k%3)/1000}} {
-			for nom, v := range map[string]float64{"mirador_sonde_succes": 1, "mirador_sonde_duree_secondes": x.duree, "mirador_sonde_lente": 0} {
+			for nom, v := range map[string]float64{"mirador_sonde_succes": 1, "mirador_sonde_duree_secondes": x.duree, "mirador_sonde_lente": 0, "mirador_sonde_code_http": 200} {
 				sondesDemo = append(sondesDemo, stockage.Serie{Labels: []stockage.Label{{Nom: "__name__", Valeur: nom}, {Nom: "cible", Valeur: "-"},
 					{Nom: "instance", Valeur: "collecteur-lan"}, {Nom: "job", Valeur: "sondes"}, {Nom: "sonde", Valeur: x.nom}},
 					Points: []stockage.Point{{T: ts, V: v}}})

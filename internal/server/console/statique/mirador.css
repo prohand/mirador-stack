@@ -1248,15 +1248,21 @@ tr.ligne-sonde.echec { background: var(--erreur-fond); }
 .dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
 .jauge-dispo { width: 70px; margin-left: auto; height: 5px; } .jauge-dispo i { height: 5px; }
 table.dernieres-alertes tr.en-cours > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
-.code-sonde { font-size: 11px; font-weight: 600; display: inline-block; margin-top: 3px; color: var(--doux); }
-.code-sonde.code-ok { color: var(--ok); } .code-sonde.code-info { color: var(--info); }
-.code-sonde.code-attention { color: var(--attention); } .code-sonde.code-erreur { color: var(--erreur); }
+/* Code de retour HTTP : même bulle que l'état, en dessous (retour du 19/11) ;
+   état et code (ou dispo et jauge) restent ensemble, aussi en carte. */
+.pile-sonde { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.pile-sonde.pile-droite { align-items: flex-end; }
+table.en-cartes .pile-sonde { align-items: flex-end; }
+.jauge-dispo { display: block; }
 /* Téléphone (tableau en cartes, retour du 19/11) : le trait de couleur passe
-   sur le bord de la carte (il mordait sur le nom) ; carte allégée. */
-table.en-cartes tr.ligne-sonde.ok > td:first-child, table.en-cartes tr.ligne-sonde.lente > td:first-child,
-table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child { box-shadow: none; }
-table.en-cartes > tbody > tr.ligne-sonde.ok { border-left: 4px solid var(--ok); }
-table.en-cartes > tbody > tr.ligne-sonde.lente { border-left: 4px solid var(--attention); }
-table.en-cartes > tbody > tr.ligne-sonde.echec { border-left: 4px solid var(--erreur); }
-table.en-cartes.dernieres-alertes > tbody > tr.en-cours { border-left: 4px solid var(--erreur); }
-table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
+   sur le bord de la carte (il mordait sur le nom) ; carte allégée. Seulement sous 640 px :
+   la classe en-cartes est posée aussi sur ordinateur. */
+@media (max-width: 640px) {
+  table.en-cartes tr.ligne-sonde.ok > td:first-child, table.en-cartes tr.ligne-sonde.lente > td:first-child,
+  table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child { box-shadow: none; }
+  table.en-cartes > tbody > tr.ligne-sonde.ok { border-left: 4px solid var(--ok); }
+  table.en-cartes > tbody > tr.ligne-sonde.lente { border-left: 4px solid var(--attention); }
+  table.en-cartes > tbody > tr.ligne-sonde.echec { border-left: 4px solid var(--erreur); }
+  table.en-cartes.dernieres-alertes > tbody > tr.en-cours { border-left: 4px solid var(--erreur); }
+  table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
+}
