@@ -23,13 +23,23 @@ document.addEventListener("click", function (e) {
   var appli = document.getElementById("appli");
   var bouton = document.querySelector("[data-replier]");
   if (!appli || !bouton) { return; }
-  var petit = window.matchMedia ? window.matchMedia("(max-width: 899px)") : { matches: false };
+  var petit = window.matchMedia ? window.matchMedia("(max-width: 640px)") : { matches: false };
+  // Tablette (641-899 px) : menu à gauche replié en icônes, sans toucher au
+  // choix retenu pour le grand écran (audit du 19/11 : la tablette avait la
+  // barre du bas du téléphone).
+  var tablette = window.matchMedia ? window.matchMedia("(min-width: 641px) and (max-width: 899px)") : { matches: false };
   var cle = "mirador.menu.replie";
   try {
     var v = window.localStorage.getItem(cle);
     if (v === "1") { appli.classList.add("replie"); }
     if (v === "0") { appli.classList.remove("replie"); }
   } catch (e) { /* stockage indisponible : réglage du serveur */ }
+  var choixGrand = appli.classList.contains("replie");
+  function suivreTablette() {
+    if (tablette.matches) { appli.classList.add("replie"); } else { appli.classList.toggle("replie", choixGrand); }
+  }
+  suivreTablette();
+  if (tablette.addEventListener) { tablette.addEventListener("change", suivreTablette); }
   bouton.addEventListener("click", function () {
     if (petit.matches) {
       appli.classList.toggle("ouvert");
@@ -37,6 +47,8 @@ document.addEventListener("click", function (e) {
       return;
     }
     var replie = appli.classList.toggle("replie");
+    if (tablette.matches) { return; }   // déplié à la demande, pas retenu
+    choixGrand = replie;
     try { window.localStorage.setItem(cle, replie ? "1" : "0"); } catch (e) { /* rien */ }
   });
 })();
@@ -1168,8 +1180,18 @@ document.addEventListener("change", function (e) {
 // ligne), chaque valeur précédée du titre de sa colonne. Le titre est copié
 // ici dans data-label ; sans JavaScript, le tableau reste un tableau que
 // l'on fait défiler de côté.
+//
+// Aussi, sans marque : tout tableau d'au moins 3 colonnes posé dans un cadre
+// à défilement (.defile), sauf les tableaux-formulaires, les matrices et
+// ceux marqués data-sans-cartes (audit d'affichage du 19/11 : sur téléphone,
+// ces tableaux écrasaient leurs colonnes).
 (function () {
+  var AUTO = ".defile > table:not([data-cartes]):not([data-sans-cartes]):not(.formulaire):not(.matrice):not(.logs-groupes)";
   function etiqueter() {
+    document.querySelectorAll(AUTO).forEach(function (t) {
+      var tete = t.tHead && t.tHead.rows[0];
+      if (tete && tete.cells.length >= 3) { t.setAttribute("data-cartes", ""); }
+    });
     document.querySelectorAll("table[data-cartes]").forEach(function (t) {
       var tete = t.tHead && t.tHead.rows[0];
       if (!tete) { return; }
@@ -1181,6 +1203,16 @@ document.addEventListener("change", function (e) {
             // Texte long (phrase de l'audit, résumé…) : titre au-dessus,
             // texte sur toute la largeur, au lieu d'une colonne étroite.
             if (i > 0 && c.textContent.trim().length > 36) { c.setAttribute("data-long", ""); }
+            // Plusieurs morceaux (texte + pastille, texte + lien) : regroupés
+            // dans un seul bloc aligné à droite, sinon la carte les écarte
+            // aux deux bords (« 0.5.0 ……… Mise à jour en échec »).
+            if (i > 0 && !c.hasAttribute("data-groupe") && c.childNodes.length > 1) {
+              var bloc = document.createElement("span");
+              bloc.className = "valeur-carte";
+              while (c.firstChild) { bloc.appendChild(c.firstChild); }
+              c.appendChild(bloc);
+              c.setAttribute("data-groupe", "");
+            }
           });
         });
       });
@@ -1353,6 +1385,50 @@ document.addEventListener("change", function (e) {
     var l = parseFloat(e.getAttribute("data-l"));
     if (!isNaN(l)) { e.style.width = Math.max(0.5, Math.min(100 - x, l)) + "%"; }
   });
+  // Textes de la frise rangés en lignes, au-dessus et au-dessous de l'axe :
+  // chacun va sur la première ligne où il ne touche pas son voisin, et
+  // reste dans le cadre (audit du 19/11 : textes superposés et coupés).
+  // Les points restent sur l'axe ; la frise grandit si besoin.
+  function ranger(f) {
+    var W = f.clientWidth, evs = Array.prototype.slice.call(f.querySelectorAll(".ev[data-x]"));
+    if (!W || !evs.length) { return; }
+    f.classList.add("rangee-js");
+    f.querySelectorAll(".pt").forEach(function (p) { p.remove(); });
+    var larg = Math.min(130, Math.max(90, W * 0.3)), fins = { haut: [], bas: [] };
+    evs.sort(function (a, b) { return parseFloat(a.getAttribute("data-x")) - parseFloat(b.getAttribute("data-x")); });
+    evs.forEach(function (e, k) {
+      e.style.width = larg + "px";
+      var cx = parseFloat(e.getAttribute("data-x")) / 100 * W;
+      var g = Math.max(0, Math.min(W - larg, cx - larg / 2));
+      e.cx = cx; e.g = g;
+      var cotes = k % 2 ? ["bas", "haut"] : ["haut", "bas"];
+      for (var n = 0; ; n++) {
+        var pris = cotes.find(function (c) { return fins[c][n] === undefined || fins[c][n] + 6 <= g; });
+        if (pris) { e.cote = pris; e.ligne = n; fins[pris][n] = g + larg; break; }
+      }
+      e.classList.toggle("haut", e.cote === "haut");
+    });
+    var hauteurs = { haut: [], bas: [] };
+    evs.forEach(function (e) { var h = hauteurs[e.cote]; h[e.ligne] = Math.max(h[e.ligne] || 0, e.offsetHeight); });
+    function cumul(t, n) { var s = 0; for (var i = 0; i < n; i++) { s += (t[i] || 0) + 8; } return s; }
+    var y = 10 + cumul(hauteurs.haut, hauteurs.haut.length) + 10;
+    f.style.height = (y + 10 + cumul(hauteurs.bas, hauteurs.bas.length) + 6) + "px";
+    var axe = f.querySelector(".axe"), bande = f.querySelector(".bande");
+    if (axe) { axe.style.top = (y - 1) + "px"; }
+    if (bande) { bande.style.top = (y - 6) + "px"; }
+    evs.forEach(function (e) {
+      e.style.left = e.g + "px";
+      e.style.top = (e.cote === "haut" ? y - 12 - cumul(hauteurs.haut, e.ligne) - (hauteurs.haut[e.ligne] || 0) : y + 12 + cumul(hauteurs.bas, e.ligne)) + "px";
+      var i = e.querySelector("i"), p = document.createElement("span");
+      p.className = "pt " + (i ? i.className : "");
+      p.style.left = (e.cx - 7) + "px"; p.style.top = (y - 7) + "px";
+      f.appendChild(p);
+    });
+  }
+  function tout() { document.querySelectorAll(".frise").forEach(ranger); }
+  tout();
+  var minuteur;
+  window.addEventListener("resize", function () { clearTimeout(minuteur); minuteur = setTimeout(tout, 150); });
 })();
 
 // Période commune (SPEC § 57) : la période choisie sur une fiche machine,
@@ -1449,3 +1525,36 @@ document.addEventListener("change", function (ev) {
   var c = ev.target;
   if (c && c.hasAttribute && c.hasAttribute("data-envoi-auto") && c.form && c.value) { c.form.submit(); }
 });
+
+// Téléphone : l'onglet actif d'une ligne d'onglets qui défile de côté est
+// amené dans l'écran (audit du 19/11 : onglets sur une seule ligne).
+(function () {
+  document.querySelectorAll(".onglets").forEach(function (nav) {
+    var a = nav.querySelector(".actif, [aria-current]");
+    if (!a || nav.scrollWidth <= nav.clientWidth) { return; }
+    nav.scrollLeft = Math.max(0, a.offsetLeft - nav.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2);
+  });
+})();
+
+// Téléphone : longues aides (plus de 140 caractères) repliées sur deux
+// lignes, avec « Lire la suite » : les données arrivent dès le premier
+// écran (audit du 19/11). « Sans aides » (menu) les cache toujours toutes.
+(function () {
+  if (!window.matchMedia || !window.matchMedia("(max-width: 640px)").matches) { return; }
+  // Aides, et paragraphes d'introduction posés directement sous le titre.
+  document.querySelectorAll("main .aide, main > p.sous, main > p:not([class])").forEach(function (el) {
+    if (el.parentElement.closest(".aide") || el.closest("form, table, details") || el.textContent.trim().length <= 140) { return; }
+    el.classList.add("aide-repliee");
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "lien lire-suite";
+    b.textContent = "Lire la suite";
+    b.setAttribute("aria-expanded", "false");
+    b.addEventListener("click", function () {
+      var ouvert = el.classList.toggle("aide-repliee") === false;
+      b.textContent = ouvert ? "Réduire" : "Lire la suite";
+      b.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    });
+    el.insertAdjacentElement("afterend", b);
+  });
+})();

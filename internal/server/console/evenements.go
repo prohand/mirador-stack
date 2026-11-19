@@ -176,7 +176,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 				continue
 			}
 			machine := noms[strings.SplitN(objet, " ", 2)[0]]
-			texte := phraseAudit(action, objet)
+			texte := remplacerPortees(phraseAudit(action, objet), noms)
 			if qui != "" {
 				texte += " (" + strings.TrimPrefix(qui, "web:") + ")"
 			}

@@ -258,7 +258,13 @@ func fonctions() template.FuncMap {
 		// échouée » (libelle_regle.go, SPEC § 73).
 		"nomAlerte": libelleRegle,
 		// etatAlerte : « en_attente » → « En attente », « active » → « En cours ».
-		"etatAlerte": etatAlerte,
+		"etatAlerte":   etatAlerte,
+		"nomRegleDe":   nomRegleDe,
+		"partieExport": partieExport,
+		"groupeRegle":  groupeRegle,
+		"dureeFr":      dureeFr,
+		"motTechnique": motTechnique,
+		"quiLisible":   quiLisible,
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s

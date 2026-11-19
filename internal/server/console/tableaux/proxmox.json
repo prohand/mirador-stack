@@ -2,7 +2,7 @@
  "version": 1,
  "nom": "proxmox",
  "titre": "Proxmox VE",
- "description": "Nœuds Proxmox et leurs invités, lus par mirador-agent installé sur chaque nœud (cgroups, sans API ni metric server ; SPEC § 23.7).",
+ "description": "Nœuds Proxmox et leurs invités, lus par mirador-agent installé sur chaque nœud (cgroups, sans API ni metric server).",
  "periode": "6h",
  "icone": "machines",
  "teinte": "orange",

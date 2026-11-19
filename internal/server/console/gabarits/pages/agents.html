@@ -3,10 +3,10 @@
 {{template "onglets-machines" "agents"}}
 <p>Trois niveaux : <strong>défaut</strong> → <strong>groupe</strong> → <strong>machine</strong>. Un champ vide hérite du niveau au-dessus. Valeurs typées et vérifiées avec le code de l'agent : jamais de commande ni de chemin d'exécutable.</p>
 <form method="get" class="ligne filtres"><label>Portée <input name="portee" value="{{.D.Portee}}" list="portees" maxlength="80"></label>
-<datalist id="portees"><option value="defaut">{{range .D.Groupes}}<option value="groupe:{{.Nom}}">{{end}}{{range .D.Machines}}<option value="machine:{{.ID}}">{{.Nom}}</option>{{end}}</datalist><button>Afficher</button>
+<datalist id="portees"><option value="defaut">Par défaut</option>{{range .D.Groupes}}<option value="groupe:{{.Nom}}">{{end}}{{range .D.Machines}}<option value="machine:{{.ID}}">{{.Nom}}</option>{{end}}</datalist><button>Afficher</button>
 {{if .D.Groupes}}<small>Groupes de configuration : {{range .D.Groupes}}<a href="/reglages/agents?portee=groupe:{{.Nom}}">{{.Nom}}</a> ({{if .Machines}}{{range $i, $m := .Machines}}{{if $i}}, {{end}}{{$m}}{{end}}{{else}}aucune machine{{end}}) {{end}}— <a href="/reglages/sites">gérer la liste</a></small><br>{{end}}
-{{if .D.Portees}}<small>Portées réglées : {{range .D.Portees}}<a href="/reglages/agents?portee={{.}}">{{.}}</a> {{end}}</small>{{end}}</form>
-<section class="carte"><h2>{{.D.Portee}}</h2>
+{{if .D.Portees}}<small>Portées réglées : {{range $i, $p := .D.Portees}}{{if $i}} · {{end}}<a href="/reglages/agents?portee={{$p.Valeur}}">{{$p.Titre}}</a>{{end}}</small>{{end}}</form>
+<section class="carte"><h2>{{.D.PorteeTitre}}</h2>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="portee" value="{{.D.Portee}}">
 {{range .D.Champs}}<label>{{.Titre}}{{if .Aide}} <small class="aide">{{.Aide}}</small>{{end}}
 {{if egal .Genre "bool"}}<select name="{{.Nom}}"><option value="">(hérité)</option><option value="oui" {{if egal .Valeur "true"}}selected{{end}}>Oui</option><option value="non" {{if egal .Valeur "false"}}selected{{end}}>Non</option></select>
@@ -17,7 +17,7 @@
 <section class="carte"><h2>Tester le masquage</h2>
 <form method="post" action="/reglages/agents/masquage" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="portee" value="{{.D.Portee}}">
 <label>Ligne de log <textarea name="ligne" rows="2" maxlength="4096">{{.D.Ligne}}</textarea></label>
-<fieldset><legend>Modèles</legend><div class="ligne">{{range .D.Modeles}}<label class="case"><input type="checkbox" name="modeles" value="{{.}}" checked> {{.}}</label>{{end}}</div></fieldset>
+<fieldset><legend>Modèles</legend><div class="ligne">{{range .D.Modeles}}<label class="case"><input type="checkbox" name="modeles" value="{{.}}" checked> {{motTechnique .}}</label>{{end}}</div></fieldset>
 <label>Expressions personnalisées (une par ligne) <textarea name="perso" rows="2" maxlength="3000"></textarea></label>
 <button>Tester</button></form>
 {{if .D.Ligne}}<p>Résultat :</p><pre>{{.D.Masq}}</pre>{{end}}</section>

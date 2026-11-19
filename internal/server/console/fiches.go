@@ -197,7 +197,17 @@ func (c *Console) ficheElement(q *req, cle string) {
 			}
 		}
 	}
-	c.rendre(q, "fiche", e.Nom, "elements", d)
+	// Lien du menu en surbrillance : la liste de cette sorte d'élément.
+	menu := "elements"
+	switch {
+	case strings.HasPrefix(cle, "s:"):
+		menu = "sondes"
+	case strings.HasPrefix(cle, "v:"):
+		menu = "services"
+	case strings.HasPrefix(cle, "c:"):
+		menu = "conteneurs"
+	}
+	c.rendre(q, "fiche", e.Nom, menu, d)
 }
 
 func (c *Console) ficheSonde(q *req)   { c.ficheElement(q, "s:"+q.r.PathValue("nom")) }

@@ -377,7 +377,7 @@ func TestImportGitHubInterface(t *testing.T) {
 	}))
 	defer srv.Close()
 	// Sans GitHub joignable (adresse fermée du banc) : le champ à taper.
-	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, `name="tag" required`) || !strings.Contains(corps, "liste des versions de GitHub indisponible") {
+	if _, corps, _ := b.get(c, "/mises-a-jour"); !strings.Contains(corps, `name="tag" required`) || !strings.Contains(corps, "Liste des versions de GitHub indisponible") {
 		t.Error("GitHub injoignable : champ à taper et message attendus")
 	}
 	b.c.sourceGitHub = flotte.SourceGitHub{Base: srv.URL, Client: srv.Client()}

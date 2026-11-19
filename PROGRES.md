@@ -1047,6 +1047,18 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Six améliorations d'affichage (SPEC § 75, 19/11) : fait, à valider
+
+- Courbes vides, onglets sur une ligne, aides repliées, audit lisible,
+  zones tactiles, menu en icônes sur tablette.
+
+## Audit d'affichage de toute l'interface (SPEC § 74, 19/11) : fait, à valider
+
+- 300 captures (ordinateur, tablette, téléphone PWA, clair et sombre) :
+  13 pages plus larges que l'écran avant, aucune après.
+- Tableaux sur tablette et téléphone, frise des incidents, thème sombre,
+  libellés bruts : corrigés.
+
 ## Noms d'alertes lisibles ; CI plus rapide (SPEC § 73, 19/11) : fait, à valider
 
 - « MiseAJourAgentEchouee » s'affiche « Mise à jour de l'agent échouée »

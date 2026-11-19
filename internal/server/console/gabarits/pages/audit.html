@@ -14,7 +14,7 @@
 <tr class="ligne-audit"><td class="nombre">{{.Heure}}</td><td><span class="cat-audit {{.Cat.Cle}}">{{.Cat.Titre}}</span></td>
 <td><span class="phrase">{{if .Lien}}<a href="{{.Lien}}">{{.Phrase}}</a>{{else}}{{.Phrase}}{{end}}</span>{{if .Sensible}} <span class="pastille erreur">Sensible</span>{{end}}
 {{if .Changes}}<div class="diff-audit">{{range .Changes}}<div>{{if .Cle}}{{.Cle}} : {{end}}{{if .Avant}}<del>{{.Avant}}</del>{{end}}{{if and .Avant .Apres}} → {{end}}{{if .Apres}}<ins>{{.Apres}}</ins>{{end}}</div>{{end}}</div>{{end}}</td>
-<td class="qui-audit">{{.Qui}}{{if .Adresse}} · {{.Adresse}}{{end}}</td>
+<td class="qui-audit" title="{{.Qui}}">{{quiLisible .Qui}}{{if .Adresse}} · {{.Adresse}}{{end}}</td>
 <td>{{if or .Avant .Apres}}<details class="detail-audit"><summary>Détail</summary>{{if .Avant}}<p><small>Avant</small></p><pre>{{.Avant}}</pre>{{end}}{{if .Apres}}<p><small>Après</small></p><pre>{{.Apres}}</pre>{{end}}</details>{{end}}</td></tr>{{end}}
 </tbody></table></div>
 {{if $d.Suivant}}<p><a href="/audit?avant={{$d.Suivant}}&amp;{{$d.Requete}}">Plus anciennes →</a></p>{{end}}

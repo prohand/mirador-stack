@@ -8,7 +8,7 @@
 {{if .Admin}}<section class="carte"><h2>Importer</h2>
 <form method="post" action="/reglages/importer" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier exporté <input type="file" name="fichier" accept=".yaml,.yml" required></label>
-<fieldset><legend>Parties à appliquer</legend><div class="ligne">{{range $x := (liste "regles" "notifications" "conservation" "securite" "sauvegarde" "agents" "machines" "sourdine" "interface")}}<label class="case"><input type="checkbox" name="parties" value="{{$x}}"> {{$x}}</label>{{end}}</div></fieldset>
+<fieldset><legend>Parties à appliquer</legend><div class="ligne">{{range $x := (liste "regles" "notifications" "conservation" "securite" "sauvegarde" "agents" "machines" "sourdine" "interface")}}<label class="case"><input type="checkbox" name="parties" value="{{$x}}"> {{partieExport $x}}</label>{{end}}</div></fieldset>
 <small>« *** » = secret actuel gardé. Inhibitions, dépendances et maintenances sont ajoutées, pas remplacées.</small>
-<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label><small class="aide">Code obligatoire si la partie « securite » est cochée ; sinon le mode administration suffit.</small><button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
+<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label><small class="aide">Code obligatoire si la partie « Sécurité » est cochée ; sinon le mode administration suffit.</small><button data-confirmer="Appliquer ces parties de la configuration ?">Importer</button></form></section>{{end}}
 {{end}}

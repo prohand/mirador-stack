@@ -540,14 +540,18 @@ var champsAgent = []champAgent{
 }
 
 type donneesAgents struct {
-	Portee, Doc string
-	Portees     []string
-	Champs      []champAgent
-	Machines    []flotte.InfoMachine
-	Modeles     []string
-	Ligne, Masq string
-	Groupes     []groupeAgents // groupes de configuration et leurs machines
+	Portee, Doc  string
+	PorteeTitre  string        // « Machine pve1 » au lieu de « machine:2 »
+	Portees      []porteeAgent // portées déjà réglées
+	nomsMachines map[string]string
+	Champs       []champAgent
+	Machines     []flotte.InfoMachine
+	Modeles      []string
+	Ligne, Masq  string
+	Groupes      []groupeAgents // groupes de configuration et leurs machines
 }
+
+type porteeAgent struct{ Valeur, Titre string }
 
 type groupeAgents struct {
 	Nom      string
@@ -568,6 +572,8 @@ func (c *Console) donneesAgents(q *req, portee string) donneesAgents {
 		portee = "defaut"
 	}
 	d := donneesAgents{Portee: portee, Modeles: logs.ModelesDisponibles()}
+	d.nomsMachines = c.nomsMachinesParID(ctx)
+	d.PorteeTitre = porteeLisible(portee, d.nomsMachines)
 	vals := c.lirePortee(ctx, portee)
 	for _, ch := range champsAgent {
 		if v, ok := vals[ch.Nom]; ok {
@@ -593,7 +599,7 @@ func (c *Console) donneesAgents(q *req, portee string) donneesAgents {
 		for rows.Next() {
 			var p string
 			if rows.Scan(&p) == nil {
-				d.Portees = append(d.Portees, p)
+				d.Portees = append(d.Portees, porteeAgent{Valeur: p, Titre: porteeLisible(p, d.nomsMachines)})
 			}
 		}
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
