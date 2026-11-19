@@ -54,7 +54,7 @@ func TestElementsFichesEtiquettes(t *testing.T) {
 	}
 	for chemin, attendus := range map[string][]string{
 		"/sondes/Nextcloud":   {"Disponibilité 30 j", "Échec", "fait partie de", "Page Sondes"},
-		"/applications/Cloud":     {"En panne", "comprend", "Page Applications"},
+		"/applications/Cloud": {"En panne", "comprend", "Page Applications"},
 		"/conteneurs/web1/ha": {"Redémarrages 24 h", "sur la machine", "Logs du conteneur"},
 		"/machines/web1":      {`id="etiquettes"`, "<b>role</b>", "fait partie de"},
 	} {
