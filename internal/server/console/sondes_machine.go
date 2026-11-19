@@ -44,6 +44,7 @@ type propositionSonde struct {
 	Quoi    string // « HTTPS · port 443 (web) »
 	Cible   string
 	Deja    string // nom de la sonde qui le fait déjà
+	DejaIci bool   // … rangée sous cette machine : décocher la retire
 	Coche   bool
 	Inconnu bool // port sans nom connu (replié)
 }
@@ -53,6 +54,7 @@ type adresseMachine struct {
 	IP, Interface string
 	Principale    bool   // interface de la route par défaut
 	Deja          string // sonde ping qui la vise déjà
+	DejaIci       bool   // … rangée sous cette machine : décocher la retire
 	Coche         bool
 }
 
@@ -147,8 +149,10 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 	liste, _ := flotte.LireSondes(ctx, c.db)
 	lues := c.sondesLues(ctx, t)
 	cibles := map[string]string{}
+	ici := map[string]bool{} // sondes rangées sous cette machine
 	for _, s := range liste {
 		cibles[cleCible(s.Type, s.Cible)] = s.Nom
+		ici[s.Nom] = s.Machine == m.Nom
 		if s.Machine != m.Nom {
 			continue
 		}
@@ -164,6 +168,7 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 	for i := range v.Adresses {
 		a := &v.Adresses[i]
 		a.Deja = cibles[cleCible(essais.Ping, a.IP)]
+		a.DejaIci = a.Deja != "" && ici[a.Deja]
 		a.Coche = a.Deja == "" && v.NbPings == 0 && i == 0
 	}
 
@@ -184,6 +189,7 @@ func (c *Console) sondesMachine(ctx context.Context, m flotte.InfoMachine, relev
 		}
 		pr := proposer(m.Nom, hote, p.num, p.protocol)
 		pr.Deja = cibles[cleCible(typeDeValeur(pr.Valeur), pr.Cible)]
+		pr.DejaIci = pr.Deja != "" && ici[pr.Deja]
 		pr.Inconnu = !connu
 		pr.Coche = pr.Deja == "" && (p.protocol == "https" || p.protocol == "http" || p.protocol == "ssh")
 		v.Propositions = append(v.Propositions, pr)
@@ -324,6 +330,42 @@ func (c *Console) postSondesMachine(q *req) {
 		c.retour(q, retour, errors.New("choisir d'où faire la sonde (site et collecteur)"), "")
 		return
 	}
+	// Sondes déjà créées pour la machine et décochées (retour du 19/11 :
+	// « je ne peux pas décocher une sonde cochée ») : retirées. Chaque partie
+	// du bloc a ses champs (le ping n'enlève pas les sondes proposées, et
+	// l'inverse).
+	decochees := func(present, garder string) map[string]bool {
+		g := map[string]bool{}
+		for _, n := range q.r.PostForm[garder] {
+			g[n] = true
+		}
+		r := map[string]bool{}
+		for _, n := range q.r.PostForm[present] {
+			if !g[n] {
+				r[n] = true
+			}
+		}
+		return r
+	}
+	var retraits map[string]bool
+	switch f.texte("action") {
+	case "ping":
+		retraits = decochees("present_a", "garder_a")
+	case "ajouter":
+		retraits = decochees("present_p", "garder_p")
+	}
+	var retirees []string
+	if len(retraits) > 0 {
+		garde := liste[:0:0]
+		for _, x := range liste {
+			if retraits[x.Nom] && x.Machine == m.Nom {
+				retirees = append(retirees, "« "+x.Nom+" »")
+				continue
+			}
+			garde = append(garde, x)
+		}
+		liste = garde
+	}
 	var ajout []essais.Sonde
 	switch f.texte("action") {
 	case "ping":
@@ -354,8 +396,8 @@ func (c *Console) postSondesMachine(q *req) {
 			existants[cleCible(essais.Ping, a)] = true
 			nouvelles = append(nouvelles, a)
 		}
-		if len(nouvelles) == 0 {
-			c.retour(q, retour, errors.New("aucune adresse nouvelle à pinguer (cocher une adresse ou en taper une)"), "")
+		if len(nouvelles) == 0 && len(retirees) == 0 {
+			c.retour(q, retour, errors.New("rien à changer (cocher une adresse, en taper une, ou décocher un ping pour le retirer)"), "")
 			return
 		}
 		for _, a := range nouvelles {
@@ -375,8 +417,8 @@ func (c *Console) postSondesMachine(q *req) {
 			}
 			ajout = append(ajout, essais.Sonde{Type: p[0], Cible: p[1], Nom: p[2], NonVerifie: p[3] == "true", Depuis: depuis, Machine: m.Nom})
 		}
-		if len(ajout) == 0 {
-			c.retour(q, retour, errors.New("aucune sonde cochée"), "")
+		if len(ajout) == 0 && len(retirees) == 0 {
+			c.retour(q, retour, errors.New("rien à changer (cocher une sonde à ajouter, ou décocher une sonde pour la retirer)"), "")
 			return
 		}
 	case "retirer":
@@ -409,7 +451,14 @@ func (c *Console) postSondesMachine(q *req) {
 		noms = append(noms, "« "+s.Nom+" »")
 	}
 	err = flotte.EnregistrerSondes(ctx, c.db, append(liste, ajout...), q.qui(), q.t)
-	c.retour(q, retour, err, strings.Join(noms, ", ")+" "+accordSimple(len(ajout), "ajoutée", "ajoutées")+" : premier essai dans la minute")
+	var msg []string
+	if len(noms) > 0 {
+		msg = append(msg, strings.Join(noms, ", ")+" "+accordSimple(len(ajout), "ajoutée", "ajoutées")+" (premier essai dans la minute)")
+	}
+	if len(retirees) > 0 {
+		msg = append(msg, strings.Join(retirees, ", ")+" "+accordSimple(len(retirees), "retirée", "retirées"))
+	}
+	c.retour(q, retour, err, strings.Join(msg, " ; "))
 }
 
 func accordSimple(n int, un, plusieurs string) string {

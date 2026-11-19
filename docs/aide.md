@@ -245,7 +245,8 @@ section de cette page.
     (séparées par des virgules) : un ping par adresse ;
   - *Sondes proposées* : l'agent liste les ports ouverts et essaie chacun
     une fois, en local, pour savoir s'il parle HTTPS, HTTP ou SSH ; cocher
-    et *Ajouter les sondes cochées* ;
+    et *Enregistrer les sondes* ; décocher une sonde déjà créée pour la
+    machine la retire (même chose pour un ping) ;
   - HTTPS par adresse IP : certificat non vérifié (il ne peut pas
     correspondre à une adresse) ; pour vérifier le certificat : « Modifier »
     (fiche de la sonde), viser le nom du site et décocher « Ne pas

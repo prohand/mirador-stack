@@ -6295,3 +6295,9 @@ seulement (le texte d'aide renvoyait à tort vers la page Sondes).
   l'historique des mesures repart sous le nouveau (dit à l'écran).
 - Corrigé au passage : la fiche d'un élément plantait sans base de
   métriques (pointeur nul glissé dans une interface, tests seulement).
+- Bloc Sondes de la machine (retour « je ne peux pas décocher une sonde
+  cochée ») : une sonde ou un ping déjà créé **pour cette machine** est une
+  case cochée ; la décocher puis « Enregistrer » la retire. Une sonde créée
+  ailleurs (page Sondes, autre machine) garde la pastille ✓ et ne se retire
+  pas d'ici. Le ping et les sondes proposées ont chacun leurs champs (un
+  enregistrement ne touche pas l'autre partie).

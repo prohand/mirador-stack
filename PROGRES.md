@@ -1052,6 +1052,8 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Fiche de la sonde › « Modifier la sonde » (lien « Modifier » sur la page
   Sondes et dans le bloc Sondes de la machine) : cible HTTPS vers le nom du
   site, renommage (suivi par les services et les étiquettes).
+- Bloc Sondes de la machine : décocher une sonde ou un ping déjà créé puis
+  « Enregistrer » le retire.
 
 ## Code 2FA de la boîte « Action protégée » et Bitwarden (19/11) : corrigé, à valider
 
