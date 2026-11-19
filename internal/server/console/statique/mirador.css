@@ -1248,3 +1248,4 @@ tr.ligne-sonde.echec { background: var(--erreur-fond); }
 .dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
 .jauge-dispo { width: 70px; margin-left: auto; height: 5px; } .jauge-dispo i { height: 5px; }
 table.dernieres-alertes tr.en-cours > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+.code-sonde { font-size: 11px; display: inline-block; margin-top: 3px; }

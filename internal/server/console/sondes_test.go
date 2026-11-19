@@ -38,7 +38,7 @@ func TestPageSondes(t *testing.T) {
 		"code_http": {"200"}, "contenu": {"installed"}})
 	b.h.avancer(31 * time.Second) // code TOTP suivant (anti-rejeu)
 	corps := ajouter(url.Values{"nom": {"Vaultwarden"}, "type": {"http"}, "cible": {"https://pass.exemple.fr/alive"}, "depuis": {"serveur"}})
-	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 200 · 41 ms", "code 200 · contient « installed »",
+	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 41 ms", `<small class="doux code-sonde">Code 200</small>`, "code 200 · contient « installed »",
 		`class="tuile critique"`, "Temps de réponse médian", `name="nom" value="Nextcloud"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des sondes : %q absent", attendu)

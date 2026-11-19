@@ -6449,3 +6449,6 @@ l'utilisateur) :
 - Défaut corrigé : décocher « Mises à jour » dans « Colonnes » ne la
   cachait pas (règle CSS manquante). Un test vérifie maintenant que chaque
   colonne du choix a sa règle.
+- Sondes HTTP(S) : le code de retour passe sous l'état, en petit
+  (« OK · 6 ms » puis « Code 200 », aussi en infobulle), au lieu de
+  « OK · 200 · 6 ms » (retour du 19/11).
