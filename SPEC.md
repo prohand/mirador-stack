@@ -6459,3 +6459,8 @@ l'utilisateur) :
   carte allégée (ni le détail « code 200 à 399 · chaque minute… », ni la
   petite courbe : ils restent sur la fiche et sur ordinateur). Même trait
   pour une alerte en cours dans « Dernières alertes ».
+- Code de retour dans la même bulle que l'état (« Code 200 » vert,
+  dessous), état et code groupés, aussi sur téléphone (retour du 19/11).
+- Corrigé : la classe `en-cartes` est posée aussi sur ordinateur ; les
+  règles « carte allégée » du téléphone cachaient la ligne de réglages et
+  la courbe sur ordinateur. Elles ne valent plus que sous 640 px.
