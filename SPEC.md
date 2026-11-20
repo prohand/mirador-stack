@@ -682,6 +682,8 @@ Unité systemd : `Nice=19`, `CPUWeight=10`, `IOSchedulingClass=idle`,
 - Envoi groupé toutes les 10 s (métriques) / 5 s (logs), compressé.
 - Tampon **en mémoire, borné** (ex. 8 Mio métriques, 4 Mio logs). Plein → on jette
   les plus anciens et on compte les pertes. Jamais d'écriture disque intensive.
+  *(Complété le 20/11, § 100 : tampon disque borné à 20 Mo, utilisé seulement
+  pendant une coupure.)*
   *(Différence avec Alloy, qui garde 4 h de WAL sur disque.)*
 - Reprise avec délai croissant + aléa quand le serveur est injoignable.
 - Tampons réutilisés, pas de réflexion ni de `fmt` dans les boucles de collecte.
@@ -7282,3 +7284,85 @@ Partie 2 des améliorations des agents et du temps réel.
 - D-Bus : lecture seule (signaux, `Subscribe`) ; aucune méthode qui agit sur
   les unités n'est appelée.
 - Noms de processus affichés échappés (html/template).
+
+## 99. Logs en direct poussés par le serveur (20/11, maquette validée) **[Fait, à valider]**
+
+Partie 3 des améliorations des agents et du temps réel.
+
+- Avant : bouton « Direct » de la page Logs = le navigateur redemandait les
+  nouvelles lignes toutes les 5 s (même s'il n'y en avait pas).
+- Maintenant : flux `GET /logs/flux?<filtres de la page>` (EventSource). Le
+  moteur de logs signale chaque écriture de lignes (canal fermé et remplacé,
+  comme la configuration en temps réel, § 22) ; le flux cherche alors les
+  lignes arrivées depuis la dernière envoyée (mêmes filtres que la page) et
+  les pousse. Entre deux, rien ne tourne.
+- Délai : celui de l'agent (lots de logs toutes les 2 s) + 1 s au plus.
+- Page : nouvelles lignes en haut, surlignées un instant ; quand on lit plus
+  bas, qu'on survole le tableau ou qu'une ligne est ouverte, elles attendent
+  (bandeau « ↑ N nouvelles lignes : afficher », collé en haut, cliquable) et
+  s'affichent en remontant. 2 000 lignes en attente au plus.
+- Bornes : une recherche par seconde et par page au plus ; 30 min par flux ;
+  20 pages en direct en même temps ; navigateur sans EventSource : l'ancien
+  mode (5 s) reste.
+- Coût : aucun quand rien n'arrive ; sinon une recherche sur quelques
+  secondes (bloc en mémoire) par page et par seconde au plus.
+- Menaces : flux réservé aux personnes connectées (rôle lecture), mêmes
+  filtres et mêmes droits que la page ; lignes posées avec `textContent`.
+- Lisibilité (retour du 20/11 : « on ne voit pas bien la séparation entre
+  les lignes ») : trait normal entre les lignes au lieu du trait très pâle,
+  un peu plus d'air, une ligne visible sur deux légèrement teintée
+  (recalculée quand on replie, filtre ou reçoit des lignes en direct).
+- Titres des colonnes (retour du 20/11 : « il manque les colonnes ») :
+  Heure, Machine · origine, Niveau, Message (ordinateur ; sur téléphone,
+  les lignes sont des blocs). Tableau exclu du tri, des cartes et du
+  filtre automatiques (il a les siens).
+
+
+## 100. Tampon disque et envoi allégé (20/11, maquette validée) **[Fait, à valider]**
+
+Partie 4 des améliorations des agents et du temps réel.
+
+### 100.1 Tampon disque (coupures réseau)
+- Avant : file en mémoire (8 Mo métriques, 4 Mo logs) ; pleine pendant une
+  coupure, les plus anciens lots étaient perdus.
+- Maintenant : ce qui déborde de la mémoire est écrit dans
+  `/var/lib/mirador-agent/tampon/{metriques,logs}` (un fichier par lot, 0600,
+  dossier 0700), 20 Mo au plus (70 % métriques, 30 % logs) ; au-delà, les
+  plus anciens du disque sont jetés (comptés). Au retour du réseau, le
+  disque part en premier : l'ordre est gardé. À l'arrêt de l'agent sans
+  réseau, la mémoire va sur disque et repart au démarrage suivant.
+- Le serveur accepte des points jusqu'à 24 h en retard (`Retard`) : les
+  lots d'une coupure de quelques heures sont acceptés.
+- Réglages : `MIRADOR_TAMPON_DISQUE` (octets, 0 = désactivé, 256 Mio au
+  plus), `MIRADOR_DOSSIER_TAMPON`. Activé par mirador-agent seulement (ni
+  par mirador-collector, ni par les tests).
+- Combien de temps ça couvre : ~1,2 Ko par lot de métriques compressé toutes
+  les 30 s sur une petite machine → 14 Mo ≈ 4 jours ; nœud Proxmox chargé
+  (~20 Ko par lot) ≈ 6 h ; plus la mémoire (8 Mo).
+- Disque : rien d'écrit tant que les envois réussissent (règle § 6.3 gardée).
+- Suivi : `mirador_agent_tampon_disque_octets{flux}`.
+
+### 100.2 Envoi allégé
+- Une jauge dont la valeur n'a pas changé n'est renvoyée qu'au plus toutes
+  les 2 min (les requêtes regardent 5 min en arrière : courbes et alertes
+  retrouvent toujours la valeur).
+- Jamais allégés : compteurs (`_total`, `_count`, `_sum`, `_bucket` :
+  `rate()` a besoin de deux points récents), `node_uname_info` (compté par
+  l'analyse des coupures, § 18.27), métriques de l'agent.
+- Limite à connaître : une règle personnalisée sur une jauge avec une
+  fenêtre de moins de 2 min (`max_over_time(x[1m])`) ou `count_over_time`
+  verra moins de points ; les règles fournies n'en ont pas (vérifié).
+- Mesure sur la machine de test : −20 % d'octets envoyés (davantage
+  attendu sur un nœud Proxmox, beaucoup de jauges fixes : à mesurer).
+  Coût : ~60 ns par point, aucune allocation.
+- Réglage : `MIRADOR_ENVOI_ALLEGE=non` pour le couper.
+- Suivi : `mirador_agent_points_economises_total`.
+
+### 100.3 Modèle de menaces
+- Tampon disque : dossier de l'agent (déjà en écriture pour lui), droits
+  0700/0600 ; seuls les fichiers `<numéro>.lot` sont relus, taille bornée ;
+  le contenu est ce que l'agent aurait envoyé (mêmes données, rien de plus).
+  Un fichier modifié par un tiers ne fait qu'envoyer de fausses mesures au
+  serveur avec le token de la machine (même risque qu'avant : il faudrait
+  déjà être root ou l'utilisateur de l'agent).
+- Envoi allégé : aucun changement de sécurité.

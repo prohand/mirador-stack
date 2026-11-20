@@ -1655,3 +1655,28 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .cause-probable li { padding: 3px 0; }
 .evt-rapide { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
 .evt-rapide time { color: var(--pale); font-variant-numeric: tabular-nums; min-width: 66px; }
+
+/* Logs en direct (SPEC § 99) : lignes du dernier lot surlignées un instant ;
+   bandeau cliquable quand des lignes attendent (on lit plus bas). */
+.logs-table tr.logs-ligne-log.toute-neuve td { animation: logs-neuve 2.5s ease-out; }
+@keyframes logs-neuve { from { background: rgba(62, 99, 221, .16); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .logs-table tr.logs-ligne-log.toute-neuve td { animation: none; } }
+.logs-nouvelles.attente { position: sticky; top: 8px; z-index: 5; cursor: pointer; background: var(--accent); color: var(--sur-accent); font-weight: 600; }
+
+/* Logs : séparation des lignes plus visible (retour du 20/11) : trait
+   normal au lieu du trait très pâle, un peu plus d'air, et un fond très
+   léger une ligne sur deux (les lignes d'erreur et d'avertissement gardent
+   leur couleur). */
+.logs-table td { border-bottom-color: var(--bord); padding-top: 7px; padding-bottom: 7px; }
+.logs-table tr.logs-ligne-log.pair:not(.err):not(.warn):not(.cible) td { background: var(--entete-table); }
+.logs-table tr.logs-ligne-log:hover td { background: var(--survol); }
+@media (max-width: 640px) {
+  .logs-table tr.logs-ligne-log { border-bottom-color: var(--bord); padding-top: 9px; padding-bottom: 9px; }
+  .logs-table tr.logs-ligne-log.pair:not(.err):not(.warn):not(.cible) { background: var(--entete-table); }
+}
+
+/* Logs : titres des colonnes (retour du 20/11 : « il manque les colonnes »).
+   Sur téléphone, les lignes sont des blocs : pas de titres. */
+.logs-table thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--pale); padding: 6px 8px; border-bottom: 1px solid var(--bord); background: var(--carte); white-space: nowrap; }
+.logs-table thead th:first-child { padding-left: 12px; }
+@media (max-width: 640px) { .logs-table thead.logs-tete-colonnes { display: none; } }

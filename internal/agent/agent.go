@@ -44,6 +44,8 @@ type Agent struct {
 	interne interne
 	// reveil : panne vue (SPEC § 98) : un relevé tout de suite, sans attendre.
 	reveil chan struct{}
+	// allegeur : envoi allégé (SPEC § 100) ; nil = désactivé.
+	allegeur *mm.Allegeur
 }
 
 // Nouveau prépare l'agent (rien ne tourne encore).
@@ -83,6 +85,9 @@ func NouveauAvec(cfg config.Agent, token string, journal *slog.Logger, opt Optio
 		erreurs:     make(map[string]uint64),
 	}
 	a.interne.init(cfg.RacineProc)
+	if cfg.EnvoiAllege {
+		a.allegeur = mm.NouvelAllegeur((2 * time.Minute).Milliseconds())
+	}
 	a.logs = nouvelleChaineLogs(cfg, token, journal)
 	a.exp = envoi.NewExpediteur(a.file, envoi.Options{
 		URL:   cfg.URLMetriques,
@@ -199,6 +204,29 @@ func (a *Agent) Tourner(ctx context.Context) {
 	}
 }
 
+// ActiverTamponDisque (SPEC § 100) : les lots qui ne tiennent plus en
+// mémoire pendant une coupure vont sur disque (70 % pour les métriques,
+// 30 % pour les logs). Appelé par mirador-agent au démarrage seulement
+// (jamais par les tests ni par mirador-collector).
+func (a *Agent) ActiverTamponDisque() {
+	cfg := a.cfg
+	if cfg.TamponDisque <= 0 || cfg.DossierTampon == "" {
+		return
+	}
+	if d, err := envoi.OuvrirDebord(filepath.Join(cfg.DossierTampon, "metriques"), int64(cfg.TamponDisque)*7/10, cfg.TamponMetriques); err == nil {
+		a.file.AvecDisque(d)
+	} else {
+		a.journal.Warn("tampon disque des métriques indisponible", "erreur", err)
+	}
+	if a.logs != nil {
+		if d, err := envoi.OuvrirDebord(filepath.Join(cfg.DossierTampon, "logs"), int64(cfg.TamponDisque)*3/10, cfg.TamponLogs); err == nil {
+			a.logs.file.AvecDisque(d)
+		} else {
+			a.journal.Warn("tampon disque des logs indisponible", "erreur", err)
+		}
+	}
+}
+
 // Reveiller : un relevé tout de suite (panne vue, SPEC § 98). Sans effet
 // si un relevé est déjà demandé.
 func (a *Agent) Reveiller() {
@@ -211,6 +239,9 @@ func (a *Agent) Reveiller() {
 // Cycle fait une collecte complète et met le lot dans la file d'envoi.
 func (a *Agent) Cycle(maintenant time.Time, avecLents bool) {
 	a.Remplir(maintenant, avecLents)
+	if a.allegeur != nil {
+		a.allegeur.Filtrer(a.lot)
+	}
 	donnees := a.enc.Encode(a.file.Prendre(), a.lot)
 	if !a.file.Ajouter(donnees) {
 		a.journal.Warn("lot trop gros pour le tampon, abandonné", "octets", len(donnees))
@@ -222,6 +253,9 @@ func (a *Agent) Cycle(maintenant time.Time, avecLents bool) {
 // tout de suite.
 func (a *Agent) cycleUrgent(maintenant time.Time) {
 	a.remplir(maintenant, func(c collect.Collecteur) bool { return !c.Lent() || c.Nom() == "systemd" })
+	if a.allegeur != nil {
+		a.allegeur.Filtrer(a.lot)
+	}
 	donnees := a.enc.Encode(a.file.Prendre(), a.lot)
 	if !a.file.Ajouter(donnees) {
 		a.journal.Warn("lot trop gros pour le tampon, abandonné", "octets", len(donnees))
@@ -305,6 +339,14 @@ func (a *Agent) ajouterInternes() {
 	b := a.lot
 	b.Add("mirador_agent_info", 1, mm.L("version", version.Version))
 	b.Add("mirador_agent_resident_memory_bytes", a.interne.rss())
+	// Envoi allégé et tampon disque (SPEC § 100).
+	if a.allegeur != nil {
+		b.Add("mirador_agent_points_economises_total", float64(a.allegeur.Economises))
+	}
+	b.Add("mirador_agent_tampon_disque_octets", float64(a.file.OctetsDisque()), mm.L("flux", "metriques"))
+	if a.logs != nil {
+		b.Add("mirador_agent_tampon_disque_octets", float64(a.logs.file.OctetsDisque()), mm.L("flux", "logs"))
+	}
 
 	var ru syscall.Rusage
 	if syscall.Getrusage(syscall.RUSAGE_SELF, &ru) == nil {
@@ -357,6 +399,12 @@ func (a *Agent) Vider(delai time.Duration) {
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	// Serveur injoignable à l'arrêt : ce qui reste en mémoire va sur le
+	// tampon disque (s'il est activé) et partira au prochain démarrage.
+	a.file.Sauver()
+	if a.logs != nil {
+		a.logs.file.Sauver()
 	}
 }
 

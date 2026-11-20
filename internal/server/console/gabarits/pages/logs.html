@@ -1,6 +1,6 @@
 {{define "contenu"}}{{$d := .D}}
 <div class="logs-tete"><h1>Logs</h1>
-{{if not $d.Autour}}<button type="button" class="logs-direct" data-logs-direct="/logs/direct?{{$d.Requete}}" aria-pressed="false" title="Nouvelles lignes toutes les 5 s"><i aria-hidden="true"></i><span>Direct</span></button>
+{{if not $d.Autour}}<button type="button" class="logs-direct" data-logs-direct="/logs/direct?{{$d.Requete}}" data-logs-flux="/logs/flux?{{$d.Requete}}" aria-pressed="false" title="Nouvelles lignes dès qu'elles arrivent"><i aria-hidden="true"></i><span>Direct</span></button>
 <details class="logs-menu"><summary>★ Enregistrer la recherche</summary>
 <form method="post" action="/logs/recherches" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter"><input type="hidden" name="requete" value="{{$d.Requete}}">
 <label>Nom <input name="nom" required maxlength="60" placeholder="SSH refusé"></label><button>Enregistrer</button></form></details>
@@ -56,13 +56,13 @@
 <div class="logs-nouvelles" data-logs-nouvelles hidden></div>
 {{if $d.Lignes}}{{template "lignes-logs" $d.Lignes}}
 {{if $d.LienPlusAncien}}<p class="logs-plus-ancien"><a class="bouton secondaire" href="{{$d.LienPlusAncien}}">Charger plus ancien</a></p>{{end}}
-{{else}}<table class="logs-table" data-logs-table hidden><tbody></tbody></table>{{template "vide" "Aucune ligne."}}{{end}}
+{{else}}<table class="logs-table" data-logs-table data-sans-tri data-sans-cartes data-sans-filtre hidden><thead class="logs-tete-colonnes"><tr><th>Heure</th><th>Machine · origine</th><th>Niveau</th><th>Message</th></tr></thead><tbody></tbody></table>{{template "vide" "Aucune ligne."}}{{end}}
 {{end}}
 {{end}}
 {{end}}
 {{end}}
 
-{{define "lignes-logs"}}<div class="defile"><table class="logs-table" data-logs-table><tbody>
+{{define "lignes-logs"}}<div class="defile"><table class="logs-table" data-logs-table data-sans-tri data-sans-cartes data-sans-filtre><thead class="logs-tete-colonnes"><tr><th>Heure</th><th>Machine · origine</th><th>Niveau</th><th>Message</th></tr></thead><tbody>
 {{range .}}{{if .Jour}}<tr class="logs-jour"><td colspan="4">{{.Jour}}</td></tr>{{end}}<tr class="logs-ligne-log {{.Classe}}{{if .Cible}} cible{{end}}{{if .Semblable}} logs-semblable{{end}}"{{if .Semblable}} data-groupe="{{.Semblable}}"{{end}} data-logs-ouvrir data-t="{{.T}}" tabindex="0" aria-expanded="false">
 <td class="mono logs-heure">{{.Heure}}</td><td class="logs-qui"><b>{{.Host}}</b><small>{{if .Origine}}{{.Origine}}{{else}}{{.Job}}{{end}}</small></td><td class="logs-niveau">{{if .LibelleNiveau}}<span class="logs-niv {{.Classe}}" title="Niveau : {{.Niveau}}">{{.LibelleNiveau}}</span>{{end}}</td>
 <td class="logs-msg">{{range .Segments}}{{if .Marque}}<mark>{{.Texte}}</mark>{{else if .Genre}}<span class="logs-{{.Genre}}">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{end}}{{if gt .Repetitions 1}} <span class="logs-rep">× {{.Repetitions}}</span>{{end}}</td></tr>

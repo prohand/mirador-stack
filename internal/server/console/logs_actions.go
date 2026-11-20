@@ -7,10 +7,12 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -35,8 +37,38 @@ type ligneDirect struct {
 	Msg     string `json:"msg"`
 }
 
-// logsDirect : lignes arrivées depuis « depuis » (millisecondes), mêmes
-// filtres que la page ; lues par le navigateur toutes les 5 s.
+type reponseDirect struct {
+	Lignes []ligneDirect `json:"lignes"`
+	Fin    int64         `json:"fin"`
+}
+
+// lignesDepuis : lignes arrivées après « depuis » (millisecondes), mêmes
+// filtres que la page.
+func (c *Console) lignesDepuis(ctx context.Context, f filtresLogs, depuis int64, t time.Time) (reponseDirect, error) {
+	f.Fin = t.UnixMilli()
+	f.Debut = max(depuis+1, t.Add(-directRecul).UnixMilli())
+	out := reponseDirect{Lignes: []ligneDirect{}, Fin: max(depuis, f.Debut-1)}
+	res, err := c.chercherLogs(ctx, f.requete(directLignesMax))
+	if err != nil {
+		return out, err
+	}
+	loc := fuseau.Load()
+	for _, l := range res.Lignes {
+		o := l.Champs["unit"]
+		if o == "" {
+			o = l.Champs["container"]
+		}
+		out.Lignes = append(out.Lignes, ligneDirect{T: l.T, Heure: time.UnixMilli(l.T).In(loc).Format("15:04:05"), Host: l.Champs["host"],
+			Job: l.Champs["job"], Niveau: l.Champs["level"], Origine: o, Classe: classeNiveau(l.Champs["level"]), Msg: l.Msg})
+		if l.T > out.Fin {
+			out.Fin = l.T
+		}
+	}
+	return out, nil
+}
+
+// logsDirect : lignes arrivées depuis « depuis » (navigateur sans
+// EventSource : lu toutes les 5 s).
 func (c *Console) logsDirect(q *req) {
 	w := q.w
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -49,31 +81,96 @@ func (c *Console) logsDirect(q *req) {
 		return
 	}
 	depuis, _ := strconv.ParseInt(v.Get("depuis"), 10, 64)
-	f.Fin = q.t.UnixMilli()
-	f.Debut = max(depuis+1, q.t.Add(-directRecul).UnixMilli())
-	res, err := c.chercherLogs(q.r.Context(), f.requete(directLignesMax))
+	out, err := c.lignesDepuis(q.r.Context(), f, depuis, q.t)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]string{"erreur": err.Error()})
 		return
 	}
-	loc := fuseau.Load()
-	out := struct {
-		Lignes []ligneDirect `json:"lignes"`
-		Fin    int64         `json:"fin"`
-	}{Lignes: []ligneDirect{}, Fin: f.Fin}
-	for _, l := range res.Lignes {
-		o := l.Champs["unit"]
-		if o == "" {
-			o = l.Champs["container"]
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// Logs en direct poussés par le serveur (SPEC § 99) : la page ouvre un flux
+// (EventSource) ; le serveur le réveille quand des lignes arrivent (au plus
+// une recherche par seconde et par page), et ne fait rien entre deux. 30 min
+// au plus ; 20 pages au plus en même temps.
+const (
+	dureeMaxFluxLogs = 30 * time.Minute
+	maxFluxLogs      = 20
+)
+
+var nbFluxLogs atomic.Int32
+
+func (c *Console) logsFlux(q *req) {
+	v := q.r.URL.Query()
+	f, err := lireFiltresLogs(v, q.t)
+	if err != nil || c.opt.Logs == nil {
+		http.Error(q.w, "recherche invalide", http.StatusBadRequest)
+		return
+	}
+	if nbFluxLogs.Add(1) > maxFluxLogs {
+		nbFluxLogs.Add(-1)
+		http.Error(q.w, "trop de pages de logs en direct", http.StatusTooManyRequests)
+		return
+	}
+	defer nbFluxLogs.Add(-1)
+	depuis, _ := strconv.ParseInt(v.Get("depuis"), 10, 64)
+	if depuis <= 0 {
+		depuis = c.maintenant().Add(-time.Minute).UnixMilli()
+	}
+	h := q.w.Header()
+	h.Set("Content-Type", "text/event-stream; charset=utf-8")
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Accel-Buffering", "no")
+	rc := http.NewResponseController(q.w)
+	ecrire := func(s string) bool {
+		_ = rc.SetWriteDeadline(time.Now().Add(delaiEcritFlux))
+		if _, err := io.WriteString(q.w, s); err != nil {
+			return false
 		}
-		out.Lignes = append(out.Lignes, ligneDirect{T: l.T, Heure: time.UnixMilli(l.T).In(loc).Format("15:04:05"), Host: l.Champs["host"],
-			Job: l.Champs["job"], Niveau: l.Champs["level"], Origine: o, Classe: classeNiveau(l.Champs["level"]), Msg: l.Msg})
-		if l.T > out.Fin {
-			out.Fin = l.T
+		return rc.Flush() == nil
+	}
+	q.w.WriteHeader(http.StatusOK)
+	if !ecrire(": \n\n") {
+		return
+	}
+	fin := time.NewTimer(dureeMaxFluxLogs)
+	defer fin.Stop()
+	bat := time.NewTicker(battementFlux)
+	defer bat.Stop()
+	var derniere time.Time
+	for {
+		arrivees := c.opt.Logs.Arrivees()
+		// Lignes déjà là (ouverture, ou arrivées pendant la recherche précédente).
+		if pause := time.Second - time.Since(derniere); pause > 0 {
+			select {
+			case <-q.r.Context().Done():
+				return
+			case <-time.After(pause):
+			}
+		}
+		derniere = time.Now()
+		out, err := c.lignesDepuis(q.r.Context(), f, depuis, c.maintenant())
+		if err == nil && len(out.Lignes) > 0 {
+			depuis = out.Fin
+			b, _ := json.Marshal(out)
+			if !ecrire("event: lignes\ndata: " + string(b) + "\n\n") {
+				return
+			}
+		}
+		select {
+		case <-q.r.Context().Done():
+			return
+		case <-arrivees:
+		case <-bat.C:
+			if !ecrire(": \n\n") {
+				return
+			}
+		case <-fin.C:
+			ecrire("event: fin\ndata: {}\n\n")
+			return
 		}
 	}
-	_ = json.NewEncoder(w).Encode(out)
 }
 
 // --- Export ---------------------------------------------------------------------------
