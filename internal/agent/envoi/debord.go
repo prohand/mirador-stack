@@ -79,7 +79,7 @@ func (d *Debord) chemin(n uint64) string {
 
 // ecrire : un lot de plus sur disque. Renvoie le nombre de lots jetés pour
 // tenir dans Max (les plus anciens du disque).
-func (d *Debord) ecrire(lot []byte) (jetes int, err error) {
+func (d *Debord) ecrire(lot []byte) (jetes uint64, err error) {
 	if int64(len(lot)) > d.Max {
 		return 1, nil
 	}

@@ -50,7 +50,7 @@ func (f *File) Sauver() {
 	}
 	for _, l := range f.lots {
 		n, _ := f.disque.ecrire(l)
-		f.jetes += uint64(n)
+		f.jetes += n
 	}
 	f.lots, f.taille = nil, 0
 }
@@ -84,7 +84,7 @@ func (f *File) Ajouter(lot []byte) bool {
 		if f.disque != nil {
 			// Débordement sur disque (SPEC § 100) ; jeté si le disque refuse.
 			n, _ := f.disque.ecrire(f.lots[0])
-			f.jetes += uint64(n)
+			f.jetes += n
 		} else {
 			f.jetes++
 		}
