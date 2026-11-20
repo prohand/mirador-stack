@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/taches"
 )
 
 var reURLPing = regexp.MustCompile(`<code id="url-ping">([^<]+)</code>`)
@@ -133,5 +134,23 @@ func TestDescriptionTache(t *testing.T) {
 		if got := descriptionTache(c.source, c.nom); got != c.attendu {
 			t.Errorf("%s %s : %q", c.source, c.nom, got)
 		}
+	}
+}
+
+// Prochaine exécution (retour du 20/11) : annoncée par le timer ou le
+// planning, sinon estimée (dernière fin + fréquence).
+func TestProchaineTache(t *testing.T) {
+	m := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	if p, est := prochaineTache(taches.Releve{Prochaine: m.Add(9 * time.Hour), Fin: m.Add(-time.Hour)}, 24*time.Hour); !p.Equal(m.Add(9*time.Hour)) || est {
+		t.Errorf("annoncée : %v %v", p, est)
+	}
+	if p, est := prochaineTache(taches.Releve{Fin: m.Add(-time.Hour)}, 24*time.Hour); !p.Equal(m.Add(23*time.Hour)) || !est {
+		t.Errorf("estimée : %v %v", p, est)
+	}
+	if p, _ := prochaineTache(taches.Releve{}, 24*time.Hour); !p.IsZero() {
+		t.Errorf("sans dernière fin : %v", p)
+	}
+	if prochaineTexte(m.Add(9*time.Hour), m) != "dans 9 h" || prochaineTexte(m.Add(-2*time.Hour), m) != "prévue il y a 2 h" || prochaineTexte(time.Time{}, m) != "" {
+		t.Error("texte de la prochaine exécution")
 	}
 }

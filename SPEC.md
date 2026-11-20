@@ -7010,3 +7010,13 @@ ci-dessous.
 - Correction : valeurs de légende de largeur fixe (chiffres de même
   largeur), ligne d'annotation de hauteur fixe, gardée même vide (0 px
   mesuré).
+
+## 92. Tâches planifiées : prochaine exécution (20/11, retour) **[Fait, à valider]**
+
+- Colonne « Prochaine » (tâches suivies et détectées, page de la machine,
+  résumé de la Vue d'ensemble de la machine) : « dans 9 h » et la date.
+- Source : annoncée par le timer systemd ou le planning Proxmox (lus par
+  l'agent) ; sinon estimée, « vers … », d'après la dernière fin et la
+  fréquence attendue (tâches curl, « chaque jour »…). Inconnue : « — »
+  (conteneur ponctuel sans fréquence, tâche jamais vue).
+- Coût : aucun (déjà lu).

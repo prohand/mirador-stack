@@ -125,6 +125,11 @@ type ligneTache struct {
 	// conteneurs… », retour du 20/11 : « à quoi correspond cette tâche ? »).
 	Description string
 	Puces       []puceTache // infos courtes (sauvegardes Proxmox, SPEC § 89)
+	// Prochaine exécution (retour du 20/11) : annoncée par le timer ou le
+	// planning Proxmox, sinon estimée (dernière fin + fréquence).
+	Prochaine        time.Time
+	ProchaineTexte   string // « dans 9 h », « prévue il y a 2 h »
+	ProchaineEstimee bool
 }
 
 type tacheDetectee struct {
@@ -133,8 +138,44 @@ type tacheDetectee struct {
 	Fin         time.Time
 	Code        int
 	Systeme     bool // tâche du système (apt, logrotate…) : rangée à part
-	Description string
-	Puces       []puceTache
+	Description    string
+	Puces          []puceTache
+	Prochaine      time.Time
+	ProchaineTexte string
+}
+
+// prochaineTache : prochaine exécution annoncée (timer systemd, planning
+// Proxmox) ; sinon estimée d'après la dernière fin et la fréquence attendue.
+func prochaineTache(r taches.Releve, periode time.Duration) (time.Time, bool) {
+	if !r.Prochaine.IsZero() {
+		return r.Prochaine, false
+	}
+	if periode > 0 && !r.Fin.IsZero() {
+		return r.Fin.Add(periode), true
+	}
+	return time.Time{}, false
+}
+
+// prochaineTexte : « dans 9 h », « prévue il y a 2 h » ("" : inconnue).
+func prochaineTexte(p, maintenant time.Time) string {
+	switch {
+	case p.IsZero():
+		return ""
+	case !p.Before(maintenant):
+		return "dans " + dureeCourteTache(p.Sub(maintenant))
+	}
+	return "prévue il y a " + dureeCourteTache(maintenant.Sub(p))
+}
+
+// dureeCourteTache : « 2 j », « 9 h », « 25 min ».
+func dureeCourteTache(d time.Duration) string {
+	switch {
+	case d >= 48*time.Hour:
+		return strconv.Itoa(int(d/(24*time.Hour))) + " j"
+	case d >= time.Hour:
+		return strconv.Itoa(int(d/time.Hour)) + " h"
+	}
+	return strconv.Itoa(max(1, int(d/time.Minute))) + " min"
 }
 
 // puceTache : info courte affichée sous une tâche.
@@ -267,6 +308,8 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 		}
 		l := ligneTache{T: t, Etat: taches.Calculer(t, t.Releve, q.t), Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message,
 			Description: descriptionTache(t.Source, t.Nom), Puces: pucesTache(t.Releve)}
+		l.Prochaine, l.ProchaineEstimee = prochaineTache(t.Releve, t.Periode)
+		l.ProchaineTexte = prochaineTexte(l.Prochaine, q.t)
 		l.Attendue = periodeTexte(t.Periode) + ", marge " + dureeLisible(t.Marge)
 		if t.Periode == 0 && t.Source == "pve" {
 			l.Attendue = "selon le planning Proxmox, marge " + dureeLisible(t.Marge)
@@ -295,7 +338,8 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 			continue
 		}
 		td := tacheDetectee{Detectee: *x, SourceTexte: textesSources[x.Source], Fin: x.Releve.Fin, Code: x.Releve.Code,
-			Systeme: x.Source == "systemd" && timerSysteme(x.Nom), Description: descriptionTache(x.Source, x.Nom), Puces: pucesTache(x.Releve)}
+			Systeme: x.Source == "systemd" && timerSysteme(x.Nom), Description: descriptionTache(x.Source, x.Nom), Puces: pucesTache(x.Releve),
+			Prochaine: x.Releve.Prochaine, ProchaineTexte: prochaineTexte(x.Releve.Prochaine, q.t)}
 		if td.Systeme {
 			d.DuSysteme = append(d.DuSysteme, td)
 		} else {
