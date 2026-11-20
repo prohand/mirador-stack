@@ -212,7 +212,8 @@ func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
 
 // fragmentAccueil : même contenu, sans le cadre (rechargé toutes les 60 s).
 func (c *Console) fragmentAccueil(q *req) {
-	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q)})
+	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q),
+		ClassesAccueil: classesAccueil(q.u)})
 }
 
 const delaiMuette = 5 * time.Minute

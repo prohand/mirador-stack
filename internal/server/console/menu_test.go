@@ -105,3 +105,54 @@ func TestPostMenu(t *testing.T) {
 		t.Fatalf("sans CSRF : %v", resp.StatusCode)
 	}
 }
+
+// Vue d'ensemble réorganisable (SPEC § 83) : enregistrement par mode,
+// classes de la page et du fragment, menu gardé, retour par défaut.
+func TestPostAccueil(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/")
+	envoyer := func(chemin, corps string) int {
+		r, _ := http.NewRequest(http.MethodPost, b.srv.URL+chemin, strings.NewReader(corps))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-CSRF", csrf)
+		resp, err := c.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if code := envoyer("/compte/menu", `{"mode":"ordi","caches":["audit"]}`); code != http.StatusNoContent {
+		t.Fatalf("menu : %d", code)
+	}
+	if code := envoyer("/compte/accueil", `{"mode":"ordi","ordre":["stockage","machines","parc","tuiles"],"caches":["chaleur","alertes"]}`); code != http.StatusNoContent {
+		t.Fatalf("enregistrement : %d", code)
+	}
+	for _, chemin := range []string{"/", "/fragments/accueil"} {
+		_, corps, _ := b.get(c, chemin)
+		for _, attendu := range []string{`class="kpi o-0 t-3" data-bloc="stockage"`, `class="kpi o-1 t-0" data-bloc="machines"`,
+			`class="kpi o-2 t-1 cache-o" data-bloc="alertes"`, `class="carte o-0 t-6" data-parc data-bloc="parc"`, `class="kpis o-1 t-0" data-bloc="tuiles"`,
+			`data-bloc="chaleur"`} {
+			if !strings.Contains(corps, attendu) {
+				t.Errorf("%s : %q absent", chemin, attendu)
+			}
+		}
+	}
+	if _, corps, _ := b.get(c, "/"); !strings.Contains(corps, "cache-o") || !strings.Contains(corps, `data-modifier-accueil`) {
+		t.Error("menu masqué perdu ou bouton absent")
+	}
+	for _, mauvais := range []string{`{"mode":"ordi","ordre":["inconnu"]}`, `{"mode":"ordi","ordre":["parc","parc"]}`, `{"mode":"montre"}`,
+		`{"mode":"tel","caches":["machines","alertes","notifications","stockage","tuiles","sites","alertes-cours","prises","masquees","attente","parc","chaleur","bas"]}`} {
+		if code := envoyer("/compte/accueil", mauvais); code != http.StatusBadRequest {
+			t.Errorf("%s accepté : %d", mauvais, code)
+		}
+	}
+	envoyer("/compte/accueil", `{"mode":"ordi","defaut":true}`)
+	envoyer("/compte/menu", `{"mode":"ordi","defaut":true}`)
+	var menu string
+	_ = b.db.QueryRow(`SELECT menu FROM utilisateurs WHERE nom = 'admin'`).Scan(&menu)
+	if menu != "" {
+		t.Fatalf("par défaut : %q", menu)
+	}
+}

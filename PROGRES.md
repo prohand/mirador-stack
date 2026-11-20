@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Vue d'ensemble réorganisable (SPEC § 83, 20/11) : fait, à valider
+
+- « Modifier la vue » : déplacer ou masquer les tuiles et les blocs ; une
+  disposition pour l'ordinateur, une pour le téléphone, avec le compte.
+- Mesures : rien de mesurable en plus (une lecture du compte déjà chargé).
+
 ## Modèles des messages (SPEC § 82, 20/11) : fait, à valider
 
 - Réglages › Notifications › Modèles : titre et texte par type de message

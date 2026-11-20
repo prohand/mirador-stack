@@ -60,7 +60,7 @@ document.addEventListener("click", function (e) {
     // Pas de rechargement pendant une saisie ou un menu ouvert dans la zone
     // (filtre et colonnes de la vue d'ensemble) : il reviendra au tour suivant.
     var actif = document.activeElement;
-    if ((actif && z.el.contains(actif) && actif.matches("input, select, textarea")) || z.el.querySelector("details.colonnes[open]")) { return; }
+    if ((actif && z.el.contains(actif) && actif.matches("input, select, textarea")) || z.el.querySelector("details.colonnes[open]") || z.el.querySelector(".edition-accueil")) { return; }
     z.enCours = true;
     fetch(z.url, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
       .then(function (r) {
@@ -1723,4 +1723,127 @@ document.addEventListener("change", function (ev) {
     nav.insertBefore(glisse, e.clientY > r.top + r.height / 2 ? a.nextElementSibling : a);
   });
   nav.addEventListener("dragend", function () { if (glisse) { glisse.classList.remove("glisse"); glisse = null; } });
+})();
+
+// Vue d'ensemble réorganisable (SPEC § 83) : « Modifier la vue » passe les
+// cartes en édition. Ordinateur : glisser une carte (les tuiles entre
+// elles, les blocs entre eux) ; téléphone : flèches ↑ ↓. L'œil masque une
+// carte. « Terminé » enregistre pour ce mode, avec le compte.
+(function () {
+  var csrf = (document.querySelector('input[name="csrf"]') || {}).value || "";
+  var enEdition = false, glisse = null;
+  function tel() { return window.matchMedia && window.matchMedia("(max-width: 640px)").matches; }
+  function rang(el, p) { var m = (" " + el.className + " ").match(new RegExp(" " + p + "-(\\d+) ")); return m ? parseInt(m[1], 10) : 0; }
+  function zone() { return document.querySelector("[data-accueil]"); }
+  function cartes(parent) { return Array.prototype.slice.call(parent.children).filter(function (x) { return x.hasAttribute("data-bloc"); }); }
+  function oeil(b) {
+    var o = b.querySelector(":scope > .outils-bloc [data-oeil]");
+    if (o) { o.textContent = b.classList.contains("masque") ? "🙈" : "👁"; o.title = b.classList.contains("masque") ? "Afficher" : "Masquer"; }
+  }
+  function fleches(parent) {
+    var l = cartes(parent).filter(function (x) { return !x.classList.contains("vide-edition"); });
+    l.forEach(function (b, i) {
+      var h = b.querySelector(":scope > .outils-bloc [data-haut]"), d = b.querySelector(":scope > .outils-bloc [data-bas]");
+      if (h) { h.disabled = i === 0; }
+      if (d) { d.disabled = i === l.length - 1; }
+    });
+  }
+  function commencer() {
+    var z = zone();
+    if (!z) { return; }
+    enEdition = true;
+    var mode = tel() ? "tel" : "ordi", p = mode === "tel" ? "t" : "o";
+    var racine = z.parentElement;
+    racine.classList.add("edition-accueil");
+    [z, z.querySelector(".kpis")].forEach(function (parent) {
+      if (!parent) { return; }
+      var l = cartes(parent);
+      l.sort(function (x, y) { return rang(x, p) - rang(y, p); });
+      l.forEach(function (b) {
+        parent.appendChild(b);
+        if (b.classList.contains("cache-" + p)) { b.classList.add("masque"); }
+        b.classList.remove("cache-o", "cache-t");
+        if (!b.textContent.trim() && !b.querySelector("table, svg")) { b.classList.add("vide-edition"); return; }
+        if (b.tagName === "DIV" && !b.classList.contains("grille") && (b.classList.contains("kpis") || !b.querySelector("h2"))) {
+          var t = document.createElement("span");
+          t.className = "titre-bloc-edition";
+          t.textContent = b.getAttribute("data-titre");
+          b.insertBefore(t, b.firstChild);
+        }
+        var outils = document.createElement("span");
+        outils.className = "outils-bloc";
+        outils.innerHTML = (mode === "tel" ? '<button type="button" data-haut aria-label="Monter">↑</button><button type="button" data-bas aria-label="Descendre">↓</button>'
+          : '<span class="poignee" aria-hidden="true" title="Glisser">⋮⋮</span>') + '<button type="button" data-oeil></button>';
+        b.appendChild(outils);
+        b.setAttribute("draggable", mode === "ordi" ? "true" : "false");
+        oeil(b);
+      });
+      fleches(parent);
+    });
+    var tete = document.createElement("div");
+    tete.className = "bandeau-edition-accueil";
+    tete.innerHTML = "<b>Vue d'ensemble · " + (mode === "tel" ? "téléphone — flèches pour déplacer" : "ordinateur — glisser les cartes (par ⋮⋮ pour les grands blocs)") + ", œil pour masquer</b>" +
+      '<button type="button" class="secondaire" data-annuler>Annuler</button><button type="button" class="secondaire" data-defaut>Par défaut</button><button type="button" data-termine>Terminé</button>';
+    z.parentElement.insertBefore(tete, z);
+    var b = document.querySelector("[data-modifier-accueil]");
+    if (b) { b.hidden = true; }
+  }
+  function envoyer(corps) {
+    fetch("/compte/accueil", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRF": csrf, "X-Requested-With": "mirador" }, body: JSON.stringify(corps) })
+      .then(function (r) {
+        if (r.ok) { window.location.reload(); return; }
+        return r.text().then(function (t) { window.alert("Vue non enregistrée : " + t); });
+      })
+      .catch(function () { window.alert("Vue non enregistrée : serveur injoignable"); });
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("button, a");
+    if (!t) { return; }
+    if (t.hasAttribute("data-modifier-accueil")) { e.preventDefault(); if (!enEdition) { commencer(); } return; }
+    if (!enEdition || !t.closest(".edition-accueil")) { return; }
+    e.preventDefault(); // en édition, une carte ne s'ouvre pas
+    var z = zone(), b = t.closest("[data-bloc]");
+    var mode = z.querySelector("[data-haut]") ? "tel" : "ordi";
+    if (t.hasAttribute("data-oeil") && b) { b.classList.toggle("masque"); oeil(b); }
+    else if (t.hasAttribute("data-haut") && b) {
+      var pr = b.previousElementSibling;
+      while (pr && pr.classList.contains("vide-edition")) { pr = pr.previousElementSibling; }
+      if (pr && pr.hasAttribute("data-bloc")) { b.parentElement.insertBefore(b, pr); }
+      fleches(b.parentElement);
+    }
+    else if (t.hasAttribute("data-bas") && b) {
+      var n = b.nextElementSibling;
+      while (n && n.classList.contains("vide-edition")) { n = n.nextElementSibling; }
+      if (n && n.hasAttribute("data-bloc")) { b.parentElement.insertBefore(n, b); }
+      fleches(b.parentElement);
+    }
+    else if (t.hasAttribute("data-annuler")) { window.location.reload(); }
+    else if (t.hasAttribute("data-defaut")) { envoyer({ mode: mode, defaut: true }); }
+    else if (t.hasAttribute("data-termine")) {
+      var tous = cartes(z.querySelector(".kpis") || z).concat(cartes(z));
+      if (tous.every(function (x) { return x.classList.contains("masque") || x.classList.contains("vide-edition"); })) { window.alert("Garder au moins une carte."); return; }
+      envoyer({ mode: mode, ordre: tous.map(function (x) { return x.getAttribute("data-bloc"); }),
+        caches: tous.filter(function (x) { return x.classList.contains("masque"); }).map(function (x) { return x.getAttribute("data-bloc"); }) });
+    }
+  }, true);
+  document.addEventListener("keydown", function (e) { if (enEdition && e.key === "Escape") { window.location.reload(); } });
+  document.addEventListener("dragstart", function (e) {
+    var b = enEdition && e.target.closest && e.target.closest("[data-bloc]");
+    if (!b || !b.closest(".edition-accueil")) { return; }
+    glisse = b;
+    b.classList.add("glisse");
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", b.getAttribute("data-bloc")); }
+  });
+  document.addEventListener("dragover", function (e) {
+    if (!glisse) { return; }
+    var b = e.target.closest && e.target.closest("[data-bloc]");
+    // Une tuile reste parmi les tuiles, un bloc parmi les blocs.
+    while (b && b.parentElement !== glisse.parentElement) { b = b.parentElement && b.parentElement.closest("[data-bloc]"); }
+    if (!b || b === glisse) { return; }
+    e.preventDefault();
+    var r = b.getBoundingClientRect();
+    var apres = glisse.parentElement.classList.contains("kpis") ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    glisse.parentElement.insertBefore(glisse, apres ? b.nextElementSibling : b);
+  });
+  document.addEventListener("dragend", function () { if (glisse) { glisse.classList.remove("glisse"); glisse = null; } });
 })();

@@ -6836,3 +6836,27 @@ Idée seulement (nyx-stack : lecture seule, aucun code repris).
   | Modèle cassé qui fait perdre des alertes | validé à l'enregistrement (rendu d'essai) ; à l'envoi, une erreur ou un texte vide → mise en forme de mirador |
   | Modification discrète des messages | administrateurs seulement ; changement inscrit au journal d'audit (réglages des notifications) |
   | Fonctions dangereuses dans le modèle | aucune fonction ajoutée ; seules celles de base de Go (comparaison, `len`, `printf`) ; données en lecture seule |
+
+## 83. Vue d'ensemble réorganisable (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+- Bouton « Modifier la vue » (onglet Résumé de la vue d'ensemble) : chaque
+  tuile du haut (Machines, Alertes, Notifications, Stockage) et chaque
+  bloc (tuiles, sites injoignables, alertes en cours, prises en charge,
+  masquées, en attente, tableau des machines, parc sur 24 h, sauvegarde et
+  canaux) peut être déplacé ou masqué. Ordinateur : glisser (les grands
+  blocs par leur poignée ⋮⋮) ; téléphone : flèches ↑ ↓. « Annuler »,
+  « Par défaut », « Terminé ».
+- Deux dispositions (ordinateur, téléphone), gardées avec le compte, dans
+  le même document que le menu (§ 79, colonne `utilisateurs.menu`,
+  4 Kio au plus) : aucune migration.
+- Affichage sans script : classes d'ordre `o-N` / `t-N` et `cache-o` /
+  `cache-t` (CSS `order` selon la largeur), comme le menu ; le
+  rafraîchissement automatique de la page garde la disposition et se met
+  en pause pendant l'édition.
+- Un bloc vide (ex. aucune alerte en cours) garde sa place mais n'est pas
+  montré en édition.
+- Menaces : préférence d'affichage d'un compte (aucun droit en plus) ;
+  `POST /compte/accueil` avec jeton CSRF ; clés vérifiées contre la liste
+  connue, sans doublon ; tout masquer est refusé ; taille bornée.
+- Coût : une lecture JSON du compte déjà chargé par page ; 40 règles CSS
+  d'ordre (3 Ko).

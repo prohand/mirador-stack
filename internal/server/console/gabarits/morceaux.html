@@ -34,31 +34,32 @@
   <div><h1>Vue d'ensemble</h1>
   <p>{{sub .D.Machines .D.Muettes}} {{accord (sub .D.Machines .D.Muettes) "machine(s)"}} sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} {{accord .D.Actives "alerte(s)"}} à regarder{{else}} · aucune alerte active{{end}}</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
-  <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a>{{end}}</div>
+  <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a>{{end}}{{if ne .D.Vue "ruche"}}<button type="button" class="secondaire" data-modifier-accueil title="Déplacer ou masquer les cartes de cette page">Modifier la vue</button>{{end}}</div>
 </div>
 <p class="onglets onglets-accueil"><a {{if ne .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=resume" data-vue-accueil="resume">Résumé</a><a {{if eq .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=ruche" data-vue-accueil="ruche">Ruche</a></p>
 {{if eq .D.Vue "ruche"}}{{template "ruche" .D.Ruche}}{{else}}
-<div class="kpis">
-  <a class="kpi" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
+<div class="blocs-accueil" data-accueil>
+<div class="kpis {{index $.ClassesAccueil "tuiles"}}" data-bloc="tuiles" data-titre="Tuiles du haut">
+  <a class="kpi {{index $.ClassesAccueil "machines"}}" data-bloc="machines" data-titre="Machines" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
     <div class="kpi-bas {{if .D.Muettes}}rouge{{else}}vert{{end}}">{{if .D.Muettes}}{{.D.Muettes}} {{accord .D.Muettes "muette(s)"}} depuis plus de 5 min{{else}}Toutes répondent{{end}}</div></a>
-  <a class="kpi" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
+  <a class="kpi {{index $.ClassesAccueil "alertes"}}" data-bloc="alertes" data-titre="Alertes" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
     <div class="kpi-valeur">{{.D.Actives}}</div>
     <div class="kpi-bas">{{.D.Critiques}} {{accord .D.Critiques "critique(s)"}} · {{.D.Avertissements}} {{accord .D.Avertissements "avertissement(s)"}}</div></a>
-  <a class="kpi" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
+  <a class="kpi {{index $.ClassesAccueil "notifications"}}" data-bloc="notifications" data-titre="Notifications" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
     {{if .D.Principal.Nom}}<div class="kpi-valeur moyen">{{majuscule .D.Principal.Nom}}</div>
     <div class="kpi-bas {{if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}">Principal {{if .D.Principal.EnPanne}}en panne{{else}}OK{{end}}{{if .D.Secours.Nom}} · secours {{majuscule .D.Secours.Nom}} {{if .D.Secours.EnPanne}}en panne{{else}}OK{{end}}{{end}}</div>
     {{else}}<div class="kpi-valeur moyen">Aucun canal</div><div class="kpi-bas rouge">À configurer</div>{{end}}</a>
-  <a class="kpi" href="/reglages/conservation"><div class="kpi-tete"><span class="puce violet"><svg class="icone"><use href="#i-stockage"></use></svg></span>Stockage</div>
+  <a class="kpi {{index $.ClassesAccueil "stockage"}}" data-bloc="stockage" data-titre="Stockage" href="/reglages/conservation"><div class="kpi-tete"><span class="puce violet"><svg class="icone"><use href="#i-stockage"></use></svg></span>Stockage</div>
     <div class="kpi-valeur">{{enGo (somme .D.Metriques .D.Logs)}}<span> Go{{if .D.Plafond}} / {{enGoEntier .D.Plafond}}{{end}}</span></div>
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
 </div>
-{{template "sites-injoignables" .D.Sites}}
-{{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}
-{{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}
-{{template "liste-masquees" .D.Masquees}}
-{{template "liste-attente" .D.Attente}}
-<section class="carte" data-parc>
+<div class="{{index $.ClassesAccueil "sites"}}" data-bloc="sites" data-titre="Sites injoignables">{{template "sites-injoignables" .D.Sites}}</div>
+<div class="{{index $.ClassesAccueil "alertes-cours"}}" data-bloc="alertes-cours" data-titre="Alertes en cours">{{if .D.Alertes}}<section class="carte"><h2>Alertes en cours</h2>{{template "liste-alertes" .D.Alertes}}</section>{{end}}</div>
+<div class="{{index $.ClassesAccueil "prises"}}" data-bloc="prises" data-titre="Alertes prises en charge">{{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}</div>
+<div class="{{index $.ClassesAccueil "masquees"}}" data-bloc="masquees" data-titre="Alertes masquées">{{template "liste-masquees" .D.Masquees}}</div>
+<div class="{{index $.ClassesAccueil "attente"}}" data-bloc="attente" data-titre="En attente">{{template "liste-attente" .D.Attente}}</div>
+<section class="carte {{index $.ClassesAccueil "parc"}}" data-parc data-bloc="parc" data-titre="Machines">
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
       <label>Afficher <select data-filtre-etat>
@@ -95,17 +96,18 @@
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
 </section>
-{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
+<div class="{{index $.ClassesAccueil "chaleur"}}" data-bloc="chaleur" data-titre="Le parc sur 24 h">{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
 <div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur" data-chaleur><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur" data-sans-tri>
 <colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
 <tbody>{{range .Lignes}}<tr data-nom="{{.Nom}}" data-texte="{{.Texte}}"><th><a href="/machines/{{.Nom}}" title="{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div>
 <p class="chaleur-pied"><button type="button" class="secondaire petit" data-chaleur-plus hidden></button>{{if .Cachees}} <small class="doux" data-chaleur-cachees>+ {{.Cachees}} {{accord .Cachees "machine(s) non affichée(s)"}} (les moins chargées)</small>{{end}}</p></div>{{end}}</div>
 <p class="vide" data-chaleur-vide hidden>Aucune machine ne correspond aux filtres.</p>
-<p class="legende-chaleur"><span class="ch-0"></span> &lt; 20 % <span class="ch-1"></span> 20 % <span class="ch-2"></span> 40 % <span class="ch-3"></span> 60 % <span class="ch-4"></span> 75 % <span class="ch-5"></span> ≥ 90 % <span class="ch-vide"></span> pas de données</p></section>{{end}}
-<div class="grille">
+<p class="legende-chaleur"><span class="ch-0"></span> &lt; 20 % <span class="ch-1"></span> 20 % <span class="ch-2"></span> 40 % <span class="ch-3"></span> 60 % <span class="ch-4"></span> 75 % <span class="ch-5"></span> ≥ 90 % <span class="ch-vide"></span> pas de données</p></section>{{end}}</div>
+<div class="grille {{index $.ClassesAccueil "bas"}}" data-bloc="bas" data-titre="Sauvegarde et canaux">
   <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>
   <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
+</div>
 </div>
 {{end}}
 {{end}}

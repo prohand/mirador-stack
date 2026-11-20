@@ -16,7 +16,8 @@ import (
 
 func (c *Console) routesTheme() {
 	c.mux.HandleFunc("POST /compte/theme", c.lecture(c.postTheme))
-	c.mux.HandleFunc("POST /compte/menu", c.lecture(c.postMenu)) // menu réorganisé (SPEC § 79)
+	c.mux.HandleFunc("POST /compte/menu", c.lecture(c.postMenu))       // menu réorganisé (SPEC § 79)
+	c.mux.HandleFunc("POST /compte/accueil", c.lecture(c.postAccueil)) // vue d'ensemble réorganisée (SPEC § 83)
 	c.mux.HandleFunc("POST /compte/aides", c.lecture(c.postAides))
 }
 

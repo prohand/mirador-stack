@@ -70,6 +70,8 @@ type prefMode struct {
 type prefMenu struct {
 	Ordi prefMode `json:"ordi"`
 	Tel  prefMode `json:"tel"`
+	// Accueil : disposition de la vue d'ensemble (SPEC § 83).
+	Accueil prefAccueil `json:"accueil,omitempty"`
 }
 
 func lirePrefMenu(s string) prefMenu {
@@ -263,7 +265,7 @@ func (c *Console) postMenu(q *req) {
 	}
 	b, _ := json.Marshal(pref)
 	texte := string(b)
-	if pref.Ordi.vide() && pref.Tel.vide() {
+	if pref.Ordi.vide() && pref.Tel.vide() && pref.Accueil.Ordi.vide() && pref.Accueil.Tel.vide() {
 		texte = ""
 	}
 	if err := auth.DefinirMenu(q.r.Context(), c.db, q.u.ID, texte); err != nil {
