@@ -147,7 +147,7 @@ func TestCanalApplication(t *testing.T) {
 	if err := json.Unmarshal(clair, &c); err != nil {
 		t.Fatal(err)
 	}
-	if c.Titre != "AgentMuet · pve1" || c.Lien != "/alertes/42" || c.Pastille != 1 || !c.Son || c.Groupe != "g1" ||
+	if c.Titre != "Agent muet · pve1" || c.Lien != "/alertes/42" || c.Pastille != 1 || !c.Son || c.Groupe != "g1" ||
 		!strings.Contains(c.Corps, "pve1 ne remonte plus") || strings.Contains(c.Corps, "http") {
 		t.Fatalf("contenu de la notification : %+v", c)
 	}
@@ -275,10 +275,10 @@ func TestChargeDe(t *testing.T) {
 		t.Errorf("message système : %+v", c)
 	}
 	deux := []alertes.Alerte{{ID: 1, Regle: "CpuEleve", Etiquettes: labels.FromStrings("instance", "a")}, {ID: 2, Regle: "CpuEleve", Etiquettes: labels.FromStrings("instance", "b")}}
-	if c := chargeDe(&Message{Actives: deux, Gravite: alertes.Avertissement}, o, 2); c.Lien != "/alertes" || c.Titre != "CpuEleve · a (+1)" {
+	if c := chargeDe(&Message{Actives: deux, Gravite: alertes.Avertissement}, o, 2); c.Lien != "/alertes" || c.Titre != "CPU élevé · a (+1)" {
 		t.Errorf("deux alertes : %+v", c)
 	}
-	if c := chargeDe(&Message{Resolues: deux[:1]}, o, 0); c.Titre != "Résolu : CpuEleve · a" || c.Pastille != 0 {
+	if c := chargeDe(&Message{Resolues: deux[:1]}, o, 0); c.Titre != "Résolu : CPU élevé · a" || c.Pastille != 0 {
 		t.Errorf("résolution : %+v", c)
 	}
 	long := &Message{Systeme: strings.Repeat("très long ", 400)}

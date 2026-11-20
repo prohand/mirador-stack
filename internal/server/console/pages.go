@@ -41,6 +41,8 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
+	m.HandleFunc("GET /taches", c.lecture(c.pageTaches)) // tâches planifiées (SPEC § 80)
+	m.HandleFunc("POST /taches", c.admin(c.postTaches))
 	// « Services » renommés « Applications » le 19/11 (SPEC § 65) : les
 	// anciennes adresses mènent aux nouvelles.
 	m.HandleFunc("GET /applications", c.lecture(c.pageServices))
@@ -210,7 +212,8 @@ func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
 
 // fragmentAccueil : même contenu, sans le cadre (rechargé toutes les 60 s).
 func (c *Console) fragmentAccueil(q *req) {
-	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q)})
+	c.pages.executer(q.w, http.StatusOK, "accueil-fragment", Page{CSRF: q.s.CSRF, Admin: q.admin(), D: c.donneesAccueilVue(q),
+		ClassesAccueil: classesAccueil(q.u)})
 }
 
 const delaiMuette = 5 * time.Minute
@@ -642,6 +645,7 @@ type donneesMachine struct {
 	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
 	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
 	Paquets     *vuePaquets           // bloc « Paquets à mettre à jour » (SPEC § 42.3)
+	Taches      *donneesTaches        // bloc « Tâches planifiées » (SPEC § 80)
 	Changements *vueChangements       // bloc « Changements » (SPEC § 47)
 	Sondes      *vueSondesMachine     // bloc « Sondes » (SPEC § 60)
 	Dernieres   *blocDernieresAlertes // « Dernières alertes » (SPEC § 72)
@@ -700,6 +704,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Identite = c.identite(ctx, m, ech, q.t)
 		d.Services = c.servicesMachine(ctx, m, d.Surv, q.t)
 		d.Paquets = c.paquetsMachine(ctx, m, q.t)
+		d.Taches = c.tachesMachine(q, m.Nom)
 		d.Changements = c.changementsMachine(ctx, m.Nom, q.t)
 		_, releveur, _ := flotte.CollecteurDe(ctx, c.db, m.ID)
 		d.Sondes = c.sondesMachine(ctx, m, releveur, q.t)
@@ -1431,7 +1436,7 @@ func (c *Console) donneesAller(q *req) {
 		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
-		{"Sondes", "Page", "/sondes"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
+		{"Sondes", "Page", "/sondes"}, {"Tâches planifiées", "Page", "/taches"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
 		{"Coupures", "Page", "/coupures"},
 	}

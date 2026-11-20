@@ -33,6 +33,7 @@ var entreesMenu = []entreeMenu{
 	{Cle: "accueil", Href: "/", Icone: "ensemble", Libelle: "Vue d'ensemble"},
 	{Cle: "machines", Href: "/machines", Icone: "machines", Libelle: "Machines"},
 	{Cle: "conteneurs", Href: "/conteneurs", Icone: "conteneur", Libelle: "Conteneurs"},
+	{Cle: "taches", Href: "/taches", Icone: "calendrier", Libelle: "Tâches planifiées"},
 	{Cle: "services", Href: "/applications", Icone: "activite", Libelle: "Applications"},
 	{Cle: "elements", Href: "/elements", Icone: "base", Libelle: "Éléments"},
 	{Cle: "sondes", Href: "/sondes", Icone: "globe", Libelle: "Sondes"},
@@ -69,6 +70,8 @@ type prefMode struct {
 type prefMenu struct {
 	Ordi prefMode `json:"ordi"`
 	Tel  prefMode `json:"tel"`
+	// Accueil : disposition de la vue d'ensemble (SPEC § 83).
+	Accueil prefAccueil `json:"accueil,omitempty"`
 }
 
 func lirePrefMenu(s string) prefMenu {
@@ -184,6 +187,8 @@ func (p *Page) lienDe(e entreeMenu) lienMenu {
 		l.Compteur, l.ClasseCompteur, l.AideCompteur = p.NbConteneurs, "attention", "Conteneurs non sains ou arrêtés alors qu'ils devraient redémarrer"
 	case "sondes":
 		l.Compteur = p.NbSondes
+	case "taches":
+		l.Compteur, l.AideCompteur = p.NbTaches, "Tâches suivies en échec ou en retard"
 	case "alertes":
 		l.Compteur = p.NbAlertes
 	}
@@ -260,7 +265,7 @@ func (c *Console) postMenu(q *req) {
 	}
 	b, _ := json.Marshal(pref)
 	texte := string(b)
-	if pref.Ordi.vide() && pref.Tel.vide() {
+	if pref.Ordi.vide() && pref.Tel.vide() && pref.Accueil.Ordi.vide() && pref.Accueil.Tel.vide() {
 		texte = ""
 	}
 	if err := auth.DefinirMenu(q.r.Context(), c.db, q.u.ID, texte); err != nil {

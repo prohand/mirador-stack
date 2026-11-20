@@ -93,6 +93,11 @@ type Mise struct {
 	Fuseau *time.Location // heures affichées
 	Lien   string         // adresse de l'interface ("" = pas de lien)
 	Max    int            // longueur maximale (0 = sans limite) ; au-delà : coupé proprement
+	// Modèles des messages (SPEC § 82) et canal qui envoie ; TitreAPart :
+	// le canal montre le titre à part (ntfy, e-mail, téléphone, Gotify).
+	Modeles    map[string]Modele
+	Canal      string
+	TitreAPart bool
 }
 
 // Texte met un message en forme.
@@ -136,6 +141,10 @@ func Texte(m *Message, o Mise) string {
 	if m.CanalEnPanne != "" {
 		fmt.Fprintf(&b, "⚠️ %s (canal %s en panne)\n\n", e("Envoyé par le canal de secours "+m.Secours), e(m.CanalEnPanne))
 	}
+	if txt, ok := texteModele(m, o); ok { // modèle de l'administrateur (SPEC § 82)
+		b.WriteString(txt)
+		return finir(b.String(), o)
+	}
 	switch {
 	case m.Escalade:
 		b.WriteString("⏫ " + gras("Escalade") + " : pas prise en charge à temps\n\n")
@@ -151,7 +160,7 @@ func Texte(m *Message, o Mise) string {
 		if depuis.IsZero() {
 			depuis = a.Debut
 		}
-		fmt.Fprintf(&b, "%s %s\n", pastille(a.Gravite), gras(a.Regle))
+		fmt.Fprintf(&b, "%s %s\n", pastille(a.Gravite), gras(alertes.Libelle(alertes.Libelle(a.Regle))))
 		if a.Resume != "" {
 			b.WriteString(e(a.Resume) + "\n")
 		}
@@ -190,7 +199,7 @@ func Texte(m *Message, o Mise) string {
 		b.WriteString("\n")
 	}
 	for _, a := range m.Resolues {
-		fmt.Fprintf(&b, "✅ %s : %s\n", gras("Résolu"), e(a.Regle))
+		fmt.Fprintf(&b, "✅ %s : %s\n", gras("Résolu"), e(alertes.Libelle(a.Regle)))
 		if a.Resume != "" {
 			b.WriteString(e(a.Resume) + "\n")
 		}

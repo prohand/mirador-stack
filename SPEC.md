@@ -1037,7 +1037,7 @@ VictoriaMetrics 248, VictoriaLogs 187), § 2.1.
 | Interface React + Vite (build Node) | rendu serveur Go + peu de JS : rien à compiler côté front, maintenable seul |
 | Graphiques en SVG fait main | gardé en tête comme alternative ; uPlot (canvas) préféré pour les longues séries (moins de nœuds DOM, plus fluide sur téléphone) |
 | Partie « Manager » (IPAM, inventaire, Kanban, tâches), Nextcloud, EDF Tempo, prises Meross, lien noVNC, serveur MCP | hors périmètre supervision, surface d'attaque en plus |
-| Pages de statut publiques, murs d'écran | exposition publique ; murs d'écran éventuellement plus tard (clé dans le `#` de l'URL : bonne idée à garder) |
+| Pages de statut publiques, murs d'écran | exposition publique (page de statut finalement acceptée le 20/11 avec protections : § 84) ; murs d'écran éventuellement plus tard (clé dans le `#` de l'URL : bonne idée à garder) |
 | Suivi de tunnels VPN | pas de VPN dans cette infrastructure |
 | Sondes ping / HTTP / DNS depuis le serveur | un outil externe s'en charge déjà |
 | Proxmox via `pvesh` lancé par l'agent | mirador garde le metric server natif (InfluxDB) + agent sur le nœud |
@@ -6682,3 +6682,213 @@ l'utilisateur) :
   le menu.
 - Coût : rien en plus par page (le compte est déjà lu) ; 120 règles CSS
   d'ordre (2 Ko).
+
+## 80. Tâches planifiées (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+- Demande : suivre les sauvegardes, crons et timers : « la tâche a-t-elle
+  tourné à temps, et a-t-elle réussi ? ». Choix de l'utilisateur : l'agent
+  les voit lui-même quand c'est possible, un appel `curl` pour le reste ;
+  sauvegardes Proxmox comprises dès la première version.
+- Ce que l'agent voit seul (rien à installer, rien à configurer) :
+  - **timers systemd** : D-Bus en lecture (`LastTriggerUSec`,
+    `NextElapseUSecRealtime`, et le service lié : `Result`,
+    `ExecMainStatus`, début et fin) ; 100 timers au plus, relus toutes les
+    5 min ;
+  - **conteneurs Docker ponctuels** : conteneur arrêté avec la politique de
+    redémarrage `no` ou `on-failure` (`State.FinishedAt`, `ExitCode`) ;
+  - **Proxmox VE et Proxmox Backup Server** : l'assistant root lit la fin
+    (256 Kio) du journal des tâches (`/var/log/pve/tasks/index`,
+    `/var/log/proxmox-backup/tasks/archive`) : vzdump ; backup,
+    garbage_collection, verify, prune, sync. Format de l'assistant : 4
+    (exigé seulement sur un nœud Proxmox).
+  - Métriques envoyées : `mirador_tache_debut|fin|prochaine_timestamp_seconds`,
+    `mirador_tache_code`, `mirador_tache_message` (étiquettes `source`,
+    `tache`).
+- Tâche signalée par `curl` (cron classique, NAS Synology, machine sans
+  agent, service externe) : `/ping/<jeton>` (fin réussie), `/echec`,
+  `/debut`, `/code/<n>`, `?duree=<s>&message=…`. L'adresse est affichée
+  **une seule fois** ; « Nouvelle adresse » en crée une autre.
+- Suivi : rien n'est suivi d'office (trop de timers système). Page
+  « Tâches planifiées » (entrée du menu à part depuis le retour du 20/11,
+  plus dans Sondes ; compteur des tâches en échec ou en retard) et bloc
+  « Tâches planifiées » dans l'onglet Activité de chaque machine (ses
+  tâches suivies et détectées). « Suivre » une tâche détectée, ou en créer une à
+  signaler ; réglages : période attendue (ou « selon le timer »), marge,
+  gravité. Les timers du système (apt, logrotate, fstrim…) sont repliés.
+- Alertes (groupe « Tâches planifiées », 4 règles par défaut) :
+  - échec : `mirador_tache_code != 0` sur une tâche suivie ;
+  - retard : échéance dépassée = dernière fin (ou date de suivi) + période
+    + marge ; sans période : prochain passage annoncé par le timer + marge.
+  - Le serveur écrit chaque minute `mirador_tache_suivie` et
+    `mirador_tache_echeance_timestamp_seconds` (et les séries des tâches
+    `curl`), comme ses autres métriques internes : les règles restent des
+    règles ordinaires (sourdine, maintenance, notifications).
+- Pourquoi pas un `curl` partout (comme Checkmate) : il faut modifier
+  chaque tâche, et une tâche qui ne se lance plus du tout ne dit rien ; le
+  timer, lui, annonce son prochain passage.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | `/ping` public (servi avant la liste d'adresses autorisées, sans session) | il ne fait qu'une chose : noter « la tâche a tourné » ; aucune donnée renvoyée (texte « OK ») ; rien d'autre n'est joignable sans session |
+  | Deviner un jeton | 144 bits aléatoires ; jeton inconnu = 404 identique |
+  | Vol de la base | seule l'empreinte SHA-256 du jeton est gardée |
+  | Fuite de l'adresse (script partagé, historique) | « Nouvelle adresse » invalide l'ancienne ; au pire, une fausse réussite ou un faux échec sur cette tâche seule |
+  | Aperçu de lien (messagerie) qui appelle l'adresse | ne la coller que dans la tâche ; au pire, une fausse réussite sur cette tâche |
+  | Inondation | 60 appels par minute et par adresse IP (429) ; message coupé à 200 octets, une ligne, sans caractère de contrôle ; corps lu sur 200 octets au plus |
+  | Exécution à distance | aucune : l'agent lit seulement (D-Bus, API Docker en lecture, fichiers de journal) |
+  | Journal Proxmox piégé | lu par l'assistant root en lecture seule, 256 Kio au plus, lignes mal formées ignorées ; seuls les types connus sont gardés |
+- Coût mesuré :
+  - assistant root : 1,3 ms pour 256 Kio de journal, toutes les 15 min ;
+  - agent : 2 appels D-Bus par timer toutes les 5 min (une vingtaine de
+    timers sur une Debian ordinaire), 5 séries par tâche ;
+  - serveur : une lecture SQL et quelques séries par tâche suivie, chaque
+    minute ; une ligne par tâche suivie (migration 0032).
+
+## 81. Petits ajouts repris de Checkmate (20/11, maquette validée) **[Fait, à valider]**
+
+Idées seulement (Checkmate est sous AGPL-3.0 : aucun code repris).
+
+### 81.1 Maintenance récurrente et par site
+- « Répéter » : une seule fois, chaque jour, chaque semaine (jours
+  cochés), chaque mois (jour 1 à 31 ; 31 = dernier jour des mois plus
+  courts) ; heures « de » et « à » (« à » plus tôt : le lendemain).
+- Liste : texte lisible (« le 1er de chaque mois à 03:00 pendant 2h »),
+  prochaine fenêtre, « en cours jusqu'à … », « finie ».
+- Nouvelle cible `site:NOM` (demande du 20/11) : machines du site, et
+  équipements relevés par le collecteur du site, et alertes portant
+  l'étiquette `site`. Le champ propose les sites, groupes et machines.
+- Commande : `maintenance -jours tous` (chaque jour), `-jours mois:15`.
+- Ancien format (jours de la semaine) relu tel quel : rien à migrer.
+- Coût : une requête SQL de plus au rechargement de la sourdine (machine
+  → site) ; calcul de la prochaine fenêtre à l'affichage seulement.
+
+### 81.2 Sondes HTTP : champ JSON et certificat
+- « Champ JSON » (chemin simple : `status`, `checks.db.status`,
+  `items.0.etat`) et « Doit valoir » (vide : le champ doit exister).
+  Nombres et booléens comparés comme écrits en JSON. Message clair :
+  « champ JSON status = « degraded », attendu « ok » ».
+- « Alerter N jours avant l'expiration du certificat du site » (HTTPS,
+  14 j par défaut, 1 à 90) : la sonde remonte la fin du certificat ;
+  règle `SondeCertificatBientotExpire` (avertissement, 1 h). Pas de
+  doublon avec les certificats de l'agent (fichiers sur disque) : ici,
+  le certificat vu depuis le réseau (site hébergé ailleurs, appareil).
+- Fonctionne aussi avec « Ne pas vérifier le certificat » (la date est
+  lue quand même).
+- Sondes faites par un collecteur : il faut sa nouvelle version (sinon
+  les deux réglages sont ignorés, sans erreur).
+- Coût : corps lu (1 Mio au plus, déjà le cas pour « contenu attendu »)
+  et décodé seulement si un champ JSON est demandé ; deux séries de plus
+  par sonde avec alerte certificat.
+
+### 81.3 Canal « Webhook »
+- Formats : JSON mirador (type, gravité, titre, texte, alertes avec
+  machine, état, valeur, lien, étiquettes), Discord, Gotify, Matrix,
+  Slack / Mattermost. Canal principal, de secours, ou testé seul.
+- En-tête secret facultatif : `Authorization: Bearer …` (JSON, Matrix),
+  `X-Gotify-Key` (Gotify).
+- Vérification sans message : connexion (et poignée de main TLS) au
+  serveur ; pas d'adresse de santé commune à tous les webhooks.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Fuite de l'adresse (le jeton Discord / Slack / Home Assistant y est) | adresse chiffrée en base, jamais montrée (ni à un admin), masquée dans l'audit et l'export |
+  | Secret envoyé ailleurs après changement d'adresse | nouvelle adresse = en-tête secret à ressaisir (comme ntfy, e-mail, Olvid) |
+  | SSRF (adresse interne) | refusée, sauf case « réseau local permis » ; vérifiée sur l'adresse réellement jointe ; redirections non suivies |
+  | Alertes en clair sur le réseau | `http://` seulement avec « réseau local permis » ; sinon `https://`, TLS 1.2 au moins |
+  | Serveur lent ou hostile | délais (15 s), réponse lue sur 64 Kio au plus |
+- Coût : un appel HTTP par message, comme ntfy.
+
+### 81.4 Tâches planifiées hors de Sondes (retour du 20/11)
+- Voir § 80 : entrée de menu à part, bloc sur la page de la machine.
+
+## 82. Modèles des messages (20/11, idée reprise de nyx-stack, maquette validée) **[Fait, à valider]**
+
+Idée seulement (nyx-stack : lecture seule, aucun code repris).
+
+- Réglages › Notifications › « Modifier les modèles » : un modèle (titre +
+  texte) par type de message (alerte, résolution, rappel, escalade, site
+  injoignable), pour tous les canaux ou un seul (le canal passe avant).
+  Sans modèle : mise en forme de mirador, inchangée.
+- Variables : `.Nb`, `.Icone`, `.Alertes` (en cours puis résolues),
+  `.Actives`, `.Resolues`, `.Site`, `.Lien` ; par alerte : `.Titre`
+  (libellé lisible), `.Regle`, `.Machine`, `.Gravite`, `.Resume`,
+  `.Description`, `.Valeur`, `.Depuis`, `.Duree`, `.Fin`, `.Lien`, `.Logs`,
+  `.Changement`, `.Acquittee`, `.Resolue`.
+- Titre : à part pour ntfy, e-mail (sujet), téléphone, Gotify, webhook
+  JSON ; en première ligne ailleurs (en gras sur Telegram).
+- Aperçu par canal sans enregistrer ; « Enregistrer et envoyer un essai »
+  (alertes d'exemple sur le canal choisi) ; « Revenir au modèle par
+  défaut ».
+- Aussi : les messages par défaut montrent désormais le libellé lisible
+  des règles (« CPU élevé » au lieu de « CpuEleve », § 73), comme
+  l'interface ; le calcul des libellés est passé dans le paquet `alertes`.
+- Non fait (maquette) : l'e-mail en HTML (l'e-mail reste en texte brut).
+- Choix : syntaxe des modèles de Go (`text/template`, déjà dans la
+  bibliothèque standard : aucune dépendance, rien en RAM tant qu'aucun
+  modèle n'est réglé). Modèle analysé à chaque envoi : 27 µs
+  et 17 Kio alloués par message mesurés (banc d'essai), un message par
+  groupe d'alertes : négligeable.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Injection HTML dans Telegram (valeurs d'alerte, texte du modèle) | sortie du modèle entièrement échappée ; seule balise ajoutée : `<b>` autour du titre échappé. Aperçu : balises vérifiées une à une (b, i, code, pre) |
+  | Modèle qui ne s'arrête pas ou remplit la mémoire | `define`, `template`, `block` refusés (pas de récursion) ; boucles seulement sur les alertes du message ; sortie bornée à 32 Kio ; titre 300 et texte 4 000 caractères |
+  | Modèle cassé qui fait perdre des alertes | validé à l'enregistrement (rendu d'essai) ; à l'envoi, une erreur ou un texte vide → mise en forme de mirador |
+  | Modification discrète des messages | administrateurs seulement ; changement inscrit au journal d'audit (réglages des notifications) |
+  | Fonctions dangereuses dans le modèle | aucune fonction ajoutée ; seules celles de base de Go (comparaison, `len`, `printf`) ; données en lecture seule |
+
+## 83. Vue d'ensemble réorganisable (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+- Bouton « Modifier la vue » (onglet Résumé de la vue d'ensemble) : chaque
+  tuile du haut (Machines, Alertes, Notifications, Stockage) et chaque
+  bloc (tuiles, sites injoignables, alertes en cours, prises en charge,
+  masquées, en attente, tableau des machines, parc sur 24 h, sauvegarde et
+  canaux) peut être déplacé ou masqué. Ordinateur : glisser (les grands
+  blocs par leur poignée ⋮⋮) ; téléphone : flèches ↑ ↓. « Annuler »,
+  « Par défaut », « Terminé ».
+- Deux dispositions (ordinateur, téléphone), gardées avec le compte, dans
+  le même document que le menu (§ 79, colonne `utilisateurs.menu`,
+  4 Kio au plus) : aucune migration.
+- Affichage sans script : classes d'ordre `o-N` / `t-N` et `cache-o` /
+  `cache-t` (CSS `order` selon la largeur), comme le menu ; le
+  rafraîchissement automatique de la page garde la disposition et se met
+  en pause pendant l'édition.
+- Un bloc vide (ex. aucune alerte en cours) garde sa place mais n'est pas
+  montré en édition.
+- Menaces : préférence d'affichage d'un compte (aucun droit en plus) ;
+  `POST /compte/accueil` avec jeton CSRF ; clés vérifiées contre la liste
+  connue, sans doublon ; tout masquer est refusé ; taille bornée.
+- Coût : une lecture JSON du compte déjà chargé par page ; 40 règles CSS
+  d'ordre (3 Ko).
+
+## 84. Page de statut publique (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+Revient sur le § 12.2 (écartée) : acceptée le 20/11, avec les protections
+ci-dessous.
+
+- Réglages › Interface › Page de statut publique : activée ou non, titre,
+  applications à montrer (cases), adresse `/statut/<jeton>` (Copier,
+  Ouvrir, Nouvelle adresse).
+- Page : bandeau (« Tous les services fonctionnent », « Un service
+  perturbé : Nextcloud »…), pour chaque application : état actuel,
+  disponibilité sur 90 jours en %, une barre par jour (vert, orange
+  perturbé, rouge en panne, infobulle), puis incidents (en cours, terminés
+  des 14 derniers jours, 10 au plus). Rechargée chaque minute (balise
+  `meta refresh`), thème clair / sombre selon l'appareil.
+- Calcul : état actuel = série `mirador_service_etat` (§ 50) ; historique
+  = alertes `ApplicationEnPanne` / `ApplicationDegradee` en base (gardées
+  plus longtemps que les métriques brutes). Une période « perturbée »
+  compte comme disponible.
+- Non fait (maquette) : note d'incident publiée à la main.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Fuite d'informations du réseau | seuls les noms d'applications choisis paraissent ; ni machine, ni IP, ni message d'alerte, ni log ; étiquettes jamais affichées |
+  | Accès sans compte, hors liste d'adresses | voulu (page à partager) ; seule l'adresse `/statut/<jeton>` (144 bits, comparée à temps constant) et la feuille de style passent ; tout le reste de l'interface reste derrière la liste et la connexion |
+  | Adresse partagée trop largement | « Nouvelle adresse » coupe l'ancienne ; « Activée » décochée : 404 |
+  | Indexation par un moteur de recherche | `X-Robots-Tag: noindex`, balise `robots`, `Referrer-Policy: no-referrer` |
+  | Inondation | 60 lectures par minute et par adresse IP (429) ; page légère (une lecture SQL et une requête de métriques) |
+  | Script ou cookie sur une page publique | aucun script, aucun cookie, aucune session ; CSP stricte de l'interface ; feuille de style à part, sans ressource externe |
+  | Changement discret du réglage | administrateurs seulement ; inscrit au journal d'audit |
+- Coût : rien tant que personne ne l'ouvre ; une lecture SQL des alertes
+  d'applications sur 90 jours et une requête de métriques par affichage.

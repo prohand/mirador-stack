@@ -350,6 +350,58 @@ func TestRecurrence(t *testing.T) {
 	}
 }
 
+// Rythmes jour et mois, prochaine fenêtre, texte (SPEC § 81).
+func TestRecurrenceRythmes(t *testing.T) {
+	paris, _ := time.LoadLocation("Europe/Paris")
+	a := func(txt string) time.Time {
+		t0, _ := time.ParseInLocation("2006-01-02 15:04", txt, paris)
+		return t0
+	}
+	jour := Recurrence{Rythme: "jour", Jours: []string{"lun"}, Heure: "02:00", Duree: alertes.Duree(time.Hour)}
+	mois := Recurrence{Rythme: "mois", JourMois: 31, Heure: "03:00", Duree: alertes.Duree(2 * time.Hour)}
+	for _, r := range []*Recurrence{&jour, &mois} {
+		if err := r.Valider(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if jour.Jours != nil || !jour.enCours(a("2026-11-19 02:30")) || jour.enCours(a("2026-11-19 03:00")) {
+		t.Errorf("chaque jour : %+v", jour)
+	}
+	// 31 = dernier jour : 30/11 en novembre, 28/02 en 2027.
+	for txt, attendu := range map[string]bool{"2026-11-30 04:00": true, "2026-11-29 04:00": false,
+		"2026-12-31 03:10": true, "2027-02-28 03:00": true, "2027-03-01 01:00": false} {
+		if got := mois.enCours(a(txt)); got != attendu {
+			t.Errorf("mois %s : %v, attendu %v", txt, got, attendu)
+		}
+	}
+	if d, f := mois.Prochaine(a("2026-11-20 10:00")); !d.Equal(a("2026-11-30 03:00")) || !f.Equal(a("2026-11-30 05:00")) {
+		t.Errorf("prochaine mensuelle : %v → %v", d, f)
+	}
+	sem := Recurrence{Jours: []string{"dim"}, Heure: "03:00", Duree: alertes.Duree(time.Hour)}
+	_ = sem.Valider()
+	// 22/11/2026 est un dimanche ; une fenêtre en cours est rendue telle quelle.
+	for depuis, attendu := range map[string]string{"2026-11-20 10:00": "2026-11-22 03:00", "2026-11-22 03:30": "2026-11-22 03:00",
+		"2026-11-22 04:00": "2026-11-29 03:00"} {
+		if d, _ := sem.Prochaine(a(depuis)); !d.Equal(a(attendu)) {
+			t.Errorf("prochaine hebdo depuis %s : %v", depuis, d)
+		}
+	}
+	for r, attendu := range map[*Recurrence]string{&jour: "chaque jour à 02:00 pendant 1h", &mois: "le dernier jour de chaque mois à 03:00 pendant 2h",
+		&sem: "chaque dim à 03:00 pendant 1h"} {
+		if got := r.Texte(); got != attendu {
+			t.Errorf("texte %q, attendu %q", got, attendu)
+		}
+	}
+	for _, mauvaise := range []Recurrence{
+		{Rythme: "mois", JourMois: 0, Heure: "03:00", Duree: alertes.Duree(time.Hour)},
+		{Rythme: "an", Heure: "03:00", Duree: alertes.Duree(time.Hour)},
+	} {
+		if err := mauvaise.Valider(); err == nil {
+			t.Errorf("acceptée : %+v", mauvaise)
+		}
+	}
+}
+
 func TestRedemarrageEtFinJamaisAnnoncee(t *testing.T) {
 	b := nouveauBanc(t)
 	t0 := b.horloge
@@ -398,7 +450,7 @@ func TestTexte(t *testing.T) {
 	m := &Message{Le: t0.Add(90 * time.Minute), Type: TypeAlerte, Actives: []alertes.Alerte{a}, Nouvelles: 1}
 	paris, _ := time.LoadLocation("Europe/Paris")
 	h := Texte(m, Mise{HTML: true, Fuseau: paris, Lien: "https://mirador.example.org"})
-	for _, attendu := range []string{"🔴 <b>CpuEleve</b>", "&lt;script&gt;alert(1)&lt;/script&gt; &amp; co",
+	for _, attendu := range []string{"🔴 <b>CPU élevé</b>", "&lt;script&gt;alert(1)&lt;/script&gt; &amp; co",
 		"<code>pc&lt;1&gt;</code> · depuis 10/11 13:00 (1h 30m) · valeur 42", "https://mirador.example.org/alertes/7"} {
 		if !strings.Contains(h, attendu) {
 			t.Errorf("manque %q dans :\n%s", attendu, h)
@@ -448,5 +500,43 @@ func TestValidationReglages(t *testing.T) {
 	}
 	if _, err := AjouterDependance(context.Background(), db, "machine:a", "a", "t", "", time.Now()); err == nil {
 		t.Error("machine dépendante d'elle-même acceptée")
+	}
+}
+
+// Maintenance par site (SPEC § 81) : machines du site, équipements de son
+// collecteur, alertes portant l'étiquette site ; les autres sites partent.
+func TestMaintenanceSite(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO machines(id, nom, site, type, cree_le) VALUES (1, 'col-bureau', 'bureau', 'collecteur', 0)`,
+		`INSERT INTO machines(id, nom, site, cree_le) VALUES (2, 'pc-bureau', 'bureau', 0)`,
+		`INSERT INTO machines(id, nom, cree_le) VALUES (3, 'nas-bureau', 0)`,
+		`INSERT INTO equipements_collecteur(machine_id, collecteur_id, rattache_le) VALUES (3, 1, 0)`,
+		`INSERT INTO machines(id, nom, site, cree_le) VALUES (4, 'pc-maison', 'maison', 0)`,
+	} {
+		if _, err := b.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := AjouterMaintenance(ctx, b.db, "site:bureau", b.horloge, b.horloge.Add(time.Hour), nil, "moi", "", b.horloge); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Charger(ctx, b.db, nil, b.horloge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		a   alertes.Alerte
+		tue bool
+	}{
+		{alerte(1, "CpuEleve", alertes.Avertissement, "pc-bureau", b.horloge), true},
+		{alerte(2, "SynologyInjoignable", alertes.Critique, "nas-bureau", b.horloge), true},
+		{alerte(3, "SondeEnEchec", alertes.Critique, "lan", b.horloge, "site", "bureau"), true},
+		{alerte(4, "CpuEleve", alertes.Avertissement, "pc-maison", b.horloge), false},
+	} {
+		if got := s.Raison(&c.a, nil, b.horloge) != ""; got != c.tue {
+			t.Errorf("%s : en sourdine %v, attendu %v", c.a.Machine(), got, c.tue)
+		}
 	}
 }

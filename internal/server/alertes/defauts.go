@@ -146,6 +146,17 @@ func ReglesMirador() []Regle {
 			Gravite:     Avertissement,
 			Resume:      "Sonde {{ $labels.sonde }} lente depuis 5 min ({{ $labels.cible }})",
 			Description: "Le service répond, mais plus lentement que le seuil réglé pour la sonde (page Sondes)."}),
+		// Certificat du site d'une sonde HTTPS (SPEC § 81) : seulement si la
+		// case est cochée sur la sonde (le nombre de jours vient d'elle).
+		m(Regle{Nom: "SondeCertificatBientotExpire", Groupe: "sondes", Intervalle: Duree(15 * time.Minute),
+			Expr: `(max by (instance, sonde, cible) (mirador_sonde_certificat_fin_timestamp_seconds) - time()) / 86400` +
+				` < max by (instance, sonde, cible) (mirador_sonde_certificat_alerte_jours)`,
+			Pour:    Duree(time.Hour),
+			Gravite: Avertissement,
+			Resume:  "Le certificat de {{ $labels.cible }} expire dans {{ $value | humanize }} jours",
+			Description: "Certificat du site lu par la sonde {{ $labels.sonde }} : le renouveler (Let's Encrypt, " +
+				"hébergeur…). Une valeur négative : déjà expiré.",
+			Note: "SPEC § 81"}),
 		// Applications (SPEC § 50, appelées « services » jusqu'au 19/11,
 		// § 65) : état calculé chaque minute par le serveur. La série et son
 		// étiquette gardent le nom « service » (interne).
@@ -161,6 +172,29 @@ func ReglesMirador() []Regle {
 			Gravite:     Avertissement,
 			Resume:      textesApplication["ApplicationDegradee"][0],
 			Description: textesApplication["ApplicationDegradee"][1]}),
+		// Tâches planifiées suivies (SPEC § 80) : timers systemd, conteneurs
+		// ponctuels, sauvegardes Proxmox, signal « ping ». Gravité choisie
+		// par tâche : une règle par gravité.
+		m(Regle{Nom: "TacheEnEchec", Groupe: "taches",
+			Expr:        `mirador_tache_code != 0 and on (instance, source, tache) mirador_tache_suivie{gravite="warning"}`,
+			Gravite:     Avertissement,
+			Resume:      "Tâche {{ $labels.tache }} en échec sur {{ $labels.instance }} (code {{ $value }})",
+			Description: "La dernière exécution de la tâche planifiée a échoué. Détail et historique : Sondes › Tâches planifiées."}),
+		m(Regle{Nom: "TacheEnEchecCritique", Groupe: "taches",
+			Expr:        `mirador_tache_code != 0 and on (instance, source, tache) mirador_tache_suivie{gravite="critical"}`,
+			Gravite:     Critique,
+			Resume:      "Tâche {{ $labels.tache }} en échec sur {{ $labels.instance }} (code {{ $value }})",
+			Description: "La dernière exécution de la tâche planifiée a échoué. Détail et historique : Sondes › Tâches planifiées."}),
+		m(Regle{Nom: "TacheEnRetard", Groupe: "taches",
+			Expr:        `mirador_tache_echeance_timestamp_seconds{gravite="warning"} < time()`,
+			Gravite:     Avertissement,
+			Resume:      "Tâche {{ $labels.tache }} en retard sur {{ $labels.instance }}",
+			Description: "La tâche planifiée n'a pas tourné à temps (fréquence attendue et marge : Sondes › Tâches planifiées)."}),
+		m(Regle{Nom: "TacheEnRetardCritique", Groupe: "taches",
+			Expr:        `mirador_tache_echeance_timestamp_seconds{gravite="critical"} < time()`,
+			Gravite:     Critique,
+			Resume:      "Tâche {{ $labels.tache }} en retard sur {{ $labels.instance }}",
+			Description: "La tâche planifiée n'a pas tourné à temps (fréquence attendue et marge : Sondes › Tâches planifiées)."}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),

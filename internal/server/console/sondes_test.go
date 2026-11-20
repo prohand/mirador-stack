@@ -3,10 +3,14 @@
 package console
 
 import (
+	"context"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
@@ -38,8 +42,10 @@ func TestPageSondes(t *testing.T) {
 	ajouter(url.Values{"nom": {"Nextcloud"}, "type": {"http"}, "cible": {"https://cloud.exemple.fr/status.php"}, "depuis": {"serveur"},
 		"code_http": {"200"}, "contenu": {"installed"}})
 	b.h.avancer(31 * time.Second) // code TOTP suivant (anti-rejeu)
-	corps := ajouter(url.Values{"nom": {"Vaultwarden"}, "type": {"http"}, "cible": {"https://pass.exemple.fr/alive"}, "depuis": {"serveur"}})
+	corps := ajouter(url.Values{"nom": {"Vaultwarden"}, "type": {"http"}, "cible": {"https://pass.exemple.fr/alive"}, "depuis": {"serveur"},
+		"champ_json": {"status"}, "valeur_json": {"ok"}, "certificat": {"1"}, "certificat_jours": {"21"}})
 	for _, attendu := range []string{"<h1>Sondes</h1>", "Échec : code 502", "OK · 41 ms", `<span class="pastille code-sonde ok">Code 200</span>`, "code 200 · contient « installed »",
+		"JSON status = « ok » · alerte 21 j avant l&#39;expiration du certificat",
 		`class="tuile critique"`, "Temps de réponse médian", `name="nom" value="Nextcloud"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des sondes : %q absent", attendu)
@@ -131,4 +137,36 @@ func TestCouleurCodeSonde(t *testing.T) {
 	if txt, _ := codeSondeLu(map[string]map[string]alertes.Echantillon{}, essais.Sonde{Type: essais.TCP}); txt != "" {
 		t.Error("TCP : pas de code")
 	}
+}
+
+// Règle SondeCertificatBientotExpire (SPEC § 81) : seuil propre à chaque
+// sonde, valeur en jours.
+func TestRegleCertificatSonde(t *testing.T) {
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := time.Now()
+	app := db.Appender(context.Background())
+	ajout := func(sonde, nom string, v float64) {
+		_, _ = app.Append(0, labels.FromStrings("__name__", nom, "instance", "lan", "job", "sondes", "sonde", sonde, "type", "http", "cible", "https://"+sonde), m.UnixMilli(), v)
+	}
+	ajout("bientot", "mirador_sonde_certificat_fin_timestamp_seconds", float64(m.Add(10*24*time.Hour).Unix()))
+	ajout("bientot", "mirador_sonde_certificat_alerte_jours", 14)
+	ajout("loin", "mirador_sonde_certificat_fin_timestamp_seconds", float64(m.Add(10*24*time.Hour).Unix()))
+	ajout("loin", "mirador_sonde_certificat_alerte_jours", 7)
+	_ = app.Commit()
+	l := alertes.NouveauLecteur(db, nil)
+	for _, r := range alertes.ReglesMirador() {
+		if r.Nom != "SondeCertificatBientotExpire" {
+			continue
+		}
+		ech, err := l.Instant(context.Background(), r.Expr, m)
+		if err != nil || len(ech) != 1 || ech[0].Etiquettes.Get("sonde") != "bientot" || ech[0].Valeur < 9.9 || ech[0].Valeur > 10 {
+			t.Fatalf("%v %+v", err, ech)
+		}
+		return
+	}
+	t.Fatal("règle absente")
 }

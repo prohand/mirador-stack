@@ -195,6 +195,40 @@ section de cette page.
 - **Serveur restauré sans sa base, ou clé des secrets changée** : la clé
   des notifications change, tous les appareils doivent être réabonnés.
 
+<a id="modeles"></a>
+## Notifications : modèles des messages
+
+- **Où** : Réglages › Notifications › « Modifier les modèles ».
+- **Un modèle par type** : alerte, résolution, rappel, escalade, site
+  injoignable ; pour tous les canaux ou pour un seul (le modèle du canal
+  passe avant celui de « tous »).
+- **Syntaxe** : celle des modèles de Go. `{{.Nb}}` affiche une valeur ;
+  `{{range .Alertes}}…{{end}}` répète pour chaque alerte ;
+  `{{if .Machine}}…{{end}}` n'affiche que si la valeur existe.
+- **Titre** : à part pour ntfy, l'e-mail (sujet), le téléphone, Gotify et
+  le JSON du webhook ; en première ligne (en gras sur Telegram) ailleurs.
+- **Texte simple** : pas de balise HTML ; les émojis se tapent tels quels.
+- **Aperçu** : montre le message d'exemple sans rien enregistrer.
+  « Enregistrer et envoyer un essai » envoie les alertes d'exemple sur le
+  canal choisi.
+- **En cas d'erreur** : un modèle illisible est refusé à l'enregistrement ;
+  s'il échoue quand même à l'envoi, le message part avec la mise en forme
+  de mirador (aucune alerte perdue).
+<a id="statut"></a>
+## Page de statut publique
+
+- **Où** : Réglages › Interface › Page de statut publique.
+- **Ce qu'elle montre** : le titre choisi, l'état actuel de chaque
+  application cochée (Fonctionne, Perturbé, En panne), sa disponibilité
+  sur 90 jours (une barre par jour) et les incidents des 14 derniers jours.
+- **Ce qu'elle ne montre jamais** : noms de machines, adresses IP,
+  messages d'alerte, logs.
+- **Accès** : l'adresse secrète `/statut/<jeton>` suffit (pas de compte),
+  même hors de la liste d'adresses autorisées. « Nouvelle adresse » rend
+  l'ancienne inutilisable. Décocher « Activée » coupe la page.
+- **Disponibilité** : calculée depuis l'historique des alertes
+  « Application en panne » (une période « perturbée » compte comme
+  disponible, mais colore le jour en orange).
 
 ## Changements
 

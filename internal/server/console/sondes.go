@@ -230,9 +230,20 @@ func sondeDuFormulaire(f champs) (essais.Sonde, error) {
 			return essais.Sonde{}, errors.New("code attendu : un nombre (ex. 200)")
 		}
 	}
+	certificat := 0
+	if f.coche("certificat") {
+		certificat = 14
+		if v := f.texte("certificat_jours"); v != "" {
+			var err error
+			if certificat, err = strconv.Atoi(v); err != nil {
+				return essais.Sonde{}, errors.New("alerte certificat : un nombre de jours (ex. 14)")
+			}
+		}
+	}
 	return essais.Sonde{Nom: f.texte("nom"), Type: f.texte("type"), Cible: f.texte("cible"), Depuis: f.texte("depuis"),
 		Intervalle: f.texte("intervalle"), Lente: f.texte("lente"), Code: code, Contenu: f.texte("contenu"),
-		NonVerifie: f.coche("non_verifie"), Question: f.texte("question")}, nil
+		NonVerifie: f.coche("non_verifie"), Question: f.texte("question"),
+		ChampJSON: f.texte("champ_json"), ValeurJSON: f.texte("valeur_json"), Certificat: certificat}, nil
 }
 
 // renommerSonde : le nouveau nom suit dans les services (§ 50) et les
@@ -334,8 +345,18 @@ func attenduSonde(s essais.Sonde) string {
 		if s.Contenu != "" {
 			p = append(p, "contient « "+s.Contenu+" »")
 		}
+		if s.ChampJSON != "" {
+			if s.ValeurJSON != "" {
+				p = append(p, "JSON "+s.ChampJSON+" = « "+s.ValeurJSON+" »")
+			} else {
+				p = append(p, "JSON "+s.ChampJSON+" présent")
+			}
+		}
 		if s.NonVerifie {
 			p = append(p, "certificat non vérifié")
+		}
+		if s.Certificat > 0 {
+			p = append(p, "alerte "+strconv.Itoa(s.Certificat)+" j avant l'expiration du certificat")
 		}
 	case essais.DNS:
 		q := "demande " + s.Question

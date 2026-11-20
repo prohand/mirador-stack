@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Page de statut publique (SPEC § 84) : feuille à part, sans police ni image externes. */
+:root { --fond: #f6f7f9; --carte: #fff; --texte: #1d2433; --doux: #667085; --bord: #e4e7ec;
+  --ok: #12b76a; --ok-t: #027a48; --ok-f: #ecfdf3; --a: #f79009; --a-t: #b54708; --a-f: #fffaeb; --k: #f04438; --k-t: #b42318; --k-f: #fef3f2; --n: #d0d5dd; }
+@media (prefers-color-scheme: dark) { :root { --fond: #0f1420; --carte: #182031; --texte: #e6e9ef; --doux: #98a2b3; --bord: #2a3447;
+  --ok-f: #0b3b2a; --ok-t: #6ce9a6; --a-f: #3d2a07; --a-t: #fec84b; --k-f: #3f1512; --k-t: #fda29b; --n: #344054; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 820px; margin: 0 auto; padding: 28px 16px 40px; }
+h1 { display: flex; align-items: center; gap: 12px; font-size: 24px; margin: 0 0 20px; }
+.logo { width: 32px; height: 32px; border-radius: 8px; background: #3b5bdb; flex: none; }
+h2 { font-size: 16px; margin: 0 0 14px; }
+section { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.bandeau { border-radius: 12px; padding: 16px 18px; font-weight: 700; font-size: 17px; margin: 0 0 16px; background: var(--ok-f); color: var(--ok-t); }
+.bandeau.a { background: var(--a-f); color: var(--a-t); } .bandeau.k { background: var(--k-f); color: var(--k-t); } .bandeau.n { background: var(--carte); color: var(--doux); border: 1px solid var(--bord); }
+.app { padding: 12px 0; border-bottom: 1px solid var(--bord); } .app:last-child { border-bottom: 0; }
+.tete { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.etat { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; background: var(--ok-f); color: var(--ok-t); white-space: nowrap; }
+.etat.a { background: var(--a-f); color: var(--a-t); } .etat.k { background: var(--k-f); color: var(--k-t); }
+.jours { display: grid; grid-template-columns: repeat(90, 1fr); gap: 2px; height: 30px; }
+.jours i { display: block; border-radius: 2px; background: var(--ok); }
+.jours i.a { background: var(--a); } .jours i.k { background: var(--k); } .jours i.n { background: var(--n); }
+.pied { display: flex; justify-content: space-between; color: var(--doux); font-size: 12px; margin-top: 4px; }
+.incident { margin: 0 0 10px; } .doux { color: var(--doux); margin: 0; }
+.maj { text-align: center; color: var(--doux); font-size: 13px; }
+@media (max-width: 560px) { .jours { grid-template-columns: repeat(45, 1fr); } .jours i:nth-child(-n+45) { display: none; } .pied span:first-child { visibility: hidden; } }

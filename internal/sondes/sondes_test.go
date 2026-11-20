@@ -4,6 +4,7 @@ package sondes
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ func TestValider(t *testing.T) {
 		{Nom: "SSH du VPS", Type: TCP, Cible: "vps.exemple.fr:22", Depuis: "lan"},
 		{Nom: "Box", Type: Ping, Cible: "192.168.1.254", Depuis: "lan", Intervalle: "2m"},
 		{Nom: "DNS interne", Type: DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "lan"},
+		{Nom: "HA", Type: HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "lan", ChampJSON: "checks.0.status", ValeurJSON: "ok", Certificat: 14},
 	}
 	for _, s := range bonnes {
 		if err := s.Valider(); err != nil {
@@ -35,6 +37,11 @@ func TestValider(t *testing.T) {
 		{Nom: "a", Type: TCP, Cible: "a:1", Depuis: "x", Intervalle: "5s"},
 		{Nom: "a", Type: TCP, Cible: "a:1", Depuis: ""},
 		{Nom: "<script>", Type: TCP, Cible: "a:1", Depuis: "x"},
+		{Nom: "a", Type: TCP, Cible: "a:1", Depuis: "x", ChampJSON: "status"},
+		{Nom: "a", Type: HTTP, Cible: "https://a", Depuis: "x", ValeurJSON: "ok"},
+		{Nom: "a", Type: HTTP, Cible: "https://a", Depuis: "x", ChampJSON: "a..b"},
+		{Nom: "a", Type: HTTP, Cible: "http://a", Depuis: "x", Certificat: 14},
+		{Nom: "a", Type: HTTP, Cible: "https://a", Depuis: "x", Certificat: 400},
 	}
 	for i, s := range mauvaises {
 		if err := s.Valider(); err == nil {
@@ -166,5 +173,53 @@ func TestPing(t *testing.T) {
 	}
 	if r := Essayer(context.Background(), Sonde{Type: Ping, Cible: "127.0.0.1"}, Options{Refuser: func(ip net.IP) bool { return ip.IsLoopback() }}); r.OK {
 		t.Fatal("ping local accepté depuis le serveur")
+	}
+}
+
+// Champ JSON (SPEC § 81) : chemin, nombres, booléens, listes, erreurs lisibles.
+func TestVerifierJSON(t *testing.T) {
+	corps := []byte(`{"status":"ok","checks":{"db":{"status":"degraded"}},"items":[{"etat":1},{"etat":2.5}],"actif":true,"vide":null}`)
+	for _, c := range []struct{ champ, attendu, erreur string }{
+		{"status", "ok", ""},
+		{"status", "", ""},
+		{"checks.db.status", "ok", "champ JSON checks.db.status = « degraded », attendu « ok »"},
+		{"items.1.etat", "2.5", ""},
+		{"items.0.etat", "1", ""},
+		{"items.2.etat", "", "champ JSON items.2.etat absent"},
+		{"actif", "true", ""},
+		{"vide", "null", ""},
+		{"checks", "x", "champ JSON checks : objet ou liste, valeur simple attendue"},
+		{"status.x", "", "champ JSON status.x absent"},
+	} {
+		err := verifierJSON(corps, c.champ, c.attendu)
+		if got := fmt.Sprint(err); c.erreur == "" && err != nil || c.erreur != "" && got != c.erreur {
+			t.Errorf("%s=%s : %v", c.champ, c.attendu, err)
+		}
+	}
+	if err := verifierJSON([]byte("<html>"), "status", ""); err == nil || err.Error() != "réponse non JSON" {
+		t.Errorf("non JSON : %v", err)
+	}
+}
+
+// Essai HTTPS : champ JSON lu et fin du certificat remontée en métrique.
+func TestHTTPJSONCertificat(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"degraded"}`))
+	}))
+	defer srv.Close()
+	s := Sonde{Nom: "api", Type: HTTP, Cible: srv.URL, Depuis: "lan", NonVerifie: true, ChampJSON: "status", ValeurJSON: "ok", Certificat: 14}
+	r := Essayer(context.Background(), s, Options{})
+	if r.OK || r.Erreur != "champ JSON status = « degraded », attendu « ok »" || r.FinCertificat.IsZero() {
+		t.Fatalf("essai : %+v", r)
+	}
+	v := Valeurs(s, r)
+	if v["mirador_sonde_certificat_alerte_jours"] != 14 || v["mirador_sonde_certificat_fin_timestamp_seconds"] != float64(r.FinCertificat.Unix()) {
+		t.Errorf("valeurs : %v", v)
+	}
+	s.ValeurJSON, s.Certificat = "degraded", 0
+	if r := Essayer(context.Background(), s, Options{}); !r.OK {
+		t.Errorf("attendu OK : %+v", r)
+	} else if _, ok := Valeurs(s, r)["mirador_sonde_certificat_fin_timestamp_seconds"]; ok {
+		t.Error("certificat remonté sans alerte demandée")
 	}
 }

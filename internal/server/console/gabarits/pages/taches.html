@@ -1,0 +1,63 @@
+{{define "contenu"}}{{$d := .D}}
+<div class="titre-page"><h1>Tâches planifiées</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="#nouvelle">+ Ajouter une tâche à signaler</a></div>{{end}}</div>
+<p class="sous">Sauvegardes, crons, timers : la tâche doit tourner à temps et réussir. L'agent les voit lui-même (timers systemd, conteneurs Docker ponctuels, sauvegardes Proxmox VE et Proxmox Backup Server) ; sinon, la tâche le signale par un simple appel (curl).</p>
+{{with $d.Nouveau}}<section class="carte nouveau-ping" id="adresse"><h2>« {{.Nom}} » : adresse à coller dans la tâche</h2>
+<p class="message erreur">Affichée <strong>une seule fois</strong> : la copier maintenant. (« Nouvelle adresse » en crée une autre si elle est perdue.)</p>
+<div class="lien-ping"><code id="url-ping">{{.URL}}</code><button type="button" class="secondaire petit" data-copier="#url-ping">Copier</button></div>
+<p><small class="doux">Fin réussie :</small></p><pre>curl -fsS -m 10 {{.URL}}</pre>
+<p><small class="doux">Avec le résultat de la commande (0 = réussie, autre = échec) et sa durée :</small></p><pre>debut=$(date +%s); ma_tache; code=$?
+curl -fsS -m 10 "{{.URL}}/code/$code?duree=$(( $(date +%s) - debut ))"</pre>
+<p><small class="doux">Échec explicite, avec un message :</small></p><pre>curl -fsS -m 10 "{{.URL}}/echec?message=disque%20plein"</pre>
+<p class="aide"><small class="aide">L'adresse ne fait qu'une chose : noter « la tâche a tourné ». Pas de connexion ni d'autre droit. Synology : Panneau de configuration › Planificateur de tâches › « Script défini par l'utilisateur », ajouter la ligne curl à la fin du script.</small></p></section>{{end}}
+
+<div class="resume-alertes"><span class="tuile info"><small>Tâches suivies</small><b>{{len $d.Suivies}}</b></span><span class="tuile bon"><small>À l'heure</small><b>{{$d.NbOK}}</b></span><span class="tuile{{if $d.NbProbleme}} critique{{end}}"><small>En retard ou en échec</small><b>{{$d.NbProbleme}}</b></span></div>
+
+<section class="carte"><h2>Suivies</h2>
+{{if $d.Suivies}}<div class="defile"><table data-cartes class="table-taches"><thead><tr><th>Tâche</th><th>Attendue</th><th>Dernière fin</th><th>État</th><th class="nombre">Durée</th>{{if .Admin}}<th aria-label="Actions"></th>{{end}}</tr></thead><tbody>
+{{range $d.Suivies}}<tr class="ligne-sonde {{.Classe}}"><td><strong>{{.T.Nom}}</strong><br><small class="doux">{{.Source}}{{if .T.Machine}} · <a href="/machines/{{.T.Machine}}">{{.T.Machine}}</a>{{end}}{{if eq .T.Gravite "critical"}} · critique{{end}}</small></td>
+<td>{{.Attendue}}</td><td class="sans-coupure">{{if .Fin.IsZero}}<span class="doux">—</span>{{else}}{{depuisS .Fin.Unix}}<br><small class="doux">{{date .Fin}}</small>{{end}}</td>
+<td><span class="pastille {{.Etat.Classe}}"{{if .Message}} title="{{.Message}}"{{end}}>{{.Etat.Texte}}</span>{{if .Message}}<br><small class="doux">{{.Message}}</small>{{end}}</td><td class="nombre">{{if .Duree}}{{.Duree}}{{else}}<span class="doux">—</span>{{end}}</td>
+{{if $.Admin}}<td class="sans-coupure"><details class="modifier-tache"><summary class="pastille">Modifier</summary>
+<form method="post" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="modifier"><input type="hidden" name="id" value="{{.T.ID}}"><input type="hidden" name="source" value="{{.T.Source}}">
+{{if eq .T.Source "ping"}}<label>Nom <input name="nom" value="{{.T.Nom}}" maxlength="100" required></label>{{else}}<input type="hidden" name="nom" value="{{.T.Nom}}">{{end}}
+{{template "reglages-tache" (dict "T" .T)}}<button>Enregistrer</button></form>
+<div class="ligne">{{if eq .T.Source "ping"}}<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="jeton"><input type="hidden" name="id" value="{{.T.ID}}"><input type="hidden" name="nom" value="{{.T.Nom}}"><button class="secondaire petit" data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button></form>{{end}}
+<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="retirer"><input type="hidden" name="id" value="{{.T.ID}}"><input type="hidden" name="nom" value="{{.T.Nom}}"><button class="secondaire petit" data-confirmer="Ne plus suivre « {{.T.Nom}} » ?">Ne plus suivre</button></form></div>
+</details></td>{{end}}</tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune tâche suivie. Choisir parmi les tâches détectées ci-dessous, ou en ajouter une à signaler.</p>{{end}}
+</section>
+
+<section class="carte"><h2>Détectées sur les machines ({{len $d.Detectees}})</h2>
+{{if $d.Detectees}}<div class="defile"><table data-cartes><thead><tr><th>Tâche</th><th>Machine</th><th>Dernière fin</th><th>Résultat</th>{{if .Admin}}<th aria-label="Suivre"></th>{{end}}</tr></thead><tbody>
+{{range $d.Detectees}}{{template "ligne-detectee" (dict "X" . "Admin" $.Admin "CSRF" $.CSRF)}}{{end}}
+</tbody></table></div>{{else}}<p class="vide">Rien de détecté pour l'instant (agent 0.4 ou plus ; les sauvegardes Proxmox demandent l'assistant root à jour).</p>{{end}}
+{{if $d.DuSysteme}}<details><summary>Tâches du système ({{len $d.DuSysteme}}) : mises à jour apt, logrotate, fstrim…</summary>
+<div class="defile"><table data-cartes><thead><tr><th>Tâche</th><th>Machine</th><th>Dernière fin</th><th>Résultat</th>{{if .Admin}}<th aria-label="Suivre"></th>{{end}}</tr></thead><tbody>
+{{range $d.DuSysteme}}{{template "ligne-detectee" (dict "X" . "Admin" $.Admin "CSRF" $.CSRF)}}{{end}}
+</tbody></table></div></details>{{end}}
+</section>
+
+{{if .Admin}}<section class="carte" id="nouvelle"><h2>Nouvelle tâche à signaler (curl)</h2>
+<p class="sous">Pour ce que l'agent ne voit pas : cron classique, NAS Synology, script sur une machine sans agent, service externe.</p>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="creer">
+<div class="ligne"><label>Nom <input name="nom" required maxlength="100" placeholder="Sauvegarde NAS (Hyper Backup)" size="30"></label>
+<label>Machine liée <select name="machine"><option value="">(aucune)</option>{{range $d.Machines}}<option>{{.}}</option>{{end}}</select></label></div>
+{{template "reglages-tache" (dict "T" (tacheParDefaut))}}<button>Créer et afficher l'adresse</button></form></section>{{end}}
+{{end}}
+
+{{define "ligne-detectee"}}{{$x := .X}}<tr><td><strong>{{$x.Nom}}</strong><br><small class="doux">{{$x.SourceTexte}}</small></td><td><a href="/machines/{{$x.Machine}}">{{$x.Machine}}</a></td>
+<td class="sans-coupure">{{if $x.Fin.IsZero}}<span class="doux">pas encore</span>{{else}}{{depuisS $x.Fin.Unix}}{{end}}</td>
+<td>{{if $x.Fin.IsZero}}<span class="doux">—</span>{{else if $x.Code}}<span class="pastille erreur">Échec · code {{$x.Code}}</span>{{else}}<span class="pastille ok">OK</span>{{end}}</td>
+{{if .Admin}}<td class="sans-coupure"><details class="modifier-tache"><summary class="pastille">Suivre</summary>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="suivre"><input type="hidden" name="nom" value="{{$x.Nom}}"><input type="hidden" name="source" value="{{$x.Source}}"><input type="hidden" name="machine" value="{{$x.Machine}}">
+{{template "reglages-tache" (dict "T" (tacheDetecteeDefaut $x.Source))}}<button>Suivre</button></form></details></td>{{end}}</tr>{{end}}
+
+{{define "reglages-tache"}}{{$t := .T}}<div class="ligne">
+<label>Attendue <select name="periode">{{if eq $t.Source "systemd"}}<option value="0"{{if eq $t.Periode 0}} selected{{end}}>selon le timer</option>{{end}}
+<option value="3600"{{if eq (secondes $t.Periode) 3600}} selected{{end}}>chaque heure</option>
+<option value="86400"{{if eq (secondes $t.Periode) 86400}} selected{{end}}>chaque jour</option>
+<option value="604800"{{if eq (secondes $t.Periode) 604800}} selected{{end}}>chaque semaine</option>
+<option value="autre"{{if autrePeriode $t.Periode}} selected{{end}}>toutes les… (min)</option></select></label>
+<label>Minutes <input name="minutes" size="5" inputmode="numeric" value="{{if autrePeriode $t.Periode}}{{minutes $t.Periode}}{{end}}" placeholder="—"></label>
+<label>Marge <span class="unite"><input name="marge" size="4" inputmode="decimal" value="{{heures $t.Marge}}"> h</span></label>
+<label>Gravité <select name="gravite"><option value="warning"{{if eq $t.Gravite "warning"}} selected{{end}}>Avertissement</option><option value="critical"{{if eq $t.Gravite "critical"}} selected{{end}}>Critique</option></select></label></div>{{end}}

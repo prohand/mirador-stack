@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -226,11 +227,14 @@ func (c *Console) postAlerte(q *req) {
 type donneesSourdine struct {
 	Prerempli    string // cible de maintenance proposée (Ctrl+K, SPEC § 58)
 	Silences     []notif.Silence
-	Maintenances []notif.Maintenance
+	Maintenances []ligneMaintenance
 	Inhibitions  []notif.Inhibition
 	Dependances  []notif.Dependance
 	Machines     []string
+	Sites        []string // cibles « site:NOM » (SPEC § 81)
+	Groupes      []string
 	Jours        []string
+	JoursMois    []int
 	// ReglesPanne : règles qui veulent dire « machine en panne » (réglage
 	// des notifications, modifié ici depuis le 16/11, SPEC § 38).
 	ReglesPanne []string
@@ -239,20 +243,38 @@ type donneesSourdine struct {
 func (c *Console) pageSourdine(q *req) {
 	ctx := q.r.Context()
 	var d donneesSourdine
-	if m := q.r.URL.Query().Get("maintenance"); len(m) <= 200 && strings.HasPrefix(m, "machine:") {
+	if m := q.r.URL.Query().Get("maintenance"); len(m) <= 200 && (strings.HasPrefix(m, "machine:") || strings.HasPrefix(m, "site:")) {
 		d.Prerempli = m
 	}
 	var e [5]error
 	d.Silences, e[0] = notif.ListerSilences(ctx, c.db, false, q.t)
-	d.Maintenances, e[1] = notif.ListerMaintenances(ctx, c.db)
+	var mts []notif.Maintenance
+	mts, e[1] = notif.ListerMaintenances(ctx, c.db)
+	for _, m := range mts {
+		d.Maintenances = append(d.Maintenances, decrireMaintenance(m, q.t))
+	}
 	d.Inhibitions, e[2] = notif.ListerInhibitions(ctx, c.db)
 	d.Dependances, e[3] = notif.ListerDependances(ctx, c.db)
 	var ms []flotte.InfoMachine
 	ms, e[4] = flotte.ListerMachines(ctx, c.db)
+	vuS, vuG := map[string]bool{}, map[string]bool{}
 	for _, m := range ms {
 		d.Machines = append(d.Machines, m.Nom)
+		if m.Site != "" && !vuS[m.Site] {
+			vuS[m.Site] = true
+			d.Sites = append(d.Sites, m.Site)
+		}
+		if m.Groupe != "" && !vuG[m.Groupe] {
+			vuG[m.Groupe] = true
+			d.Groupes = append(d.Groupes, m.Groupe)
+		}
 	}
+	sort.Strings(d.Sites)
+	sort.Strings(d.Groupes)
 	d.Jours = []string{"lun", "mar", "mer", "jeu", "ven", "sam", "dim"}
+	for j := 1; j <= 31; j++ {
+		d.JoursMois = append(d.JoursMois, j)
+	}
 	if rn, err := notif.LireReglages(ctx, c.db); err == nil {
 		d.ReglesPanne = rn.ReglesPanne
 	}
@@ -260,6 +282,69 @@ func (c *Console) pageSourdine(q *req) {
 		c.flash(q, "", err.Error())
 	}
 	c.rendre(q, "sourdine", "Sourdine", "alertes", d)
+}
+
+// ligneMaintenance : une maintenance avec son texte et sa prochaine fenêtre
+// (SPEC § 81).
+type ligneMaintenance struct {
+	notif.Maintenance
+	Quand     string // « chaque dim à 03:00 pendant 2h » ou « 20/11 03:00 → 05:00 »
+	Prochaine string // « dim 23/11 03:00 → 04:00 » (récurrente, à venir)
+	EnCours   string // « jusqu'à dim 23/11 04:00 »
+	Finie     bool
+}
+
+func decrireMaintenance(m notif.Maintenance, t time.Time) ligneMaintenance {
+	loc := fuseau.Load()
+	l := ligneMaintenance{Maintenance: m}
+	debut, fin := m.Debut, m.Fin
+	if m.Recurrence != nil {
+		l.Quand = m.Recurrence.Texte()
+		debut, fin = m.Recurrence.Prochaine(t)
+	} else {
+		l.Quand = m.Debut.In(loc).Format("02/01 15:04") + " → " + m.Fin.In(loc).Format("02/01 15:04")
+	}
+	switch {
+	case debut.IsZero() || !fin.After(t):
+		l.Finie = true
+	case !t.Before(debut):
+		l.EnCours = "jusqu'à " + joursFr(fin.In(loc).Format("Mon 02/01 15:04"))
+	case m.Recurrence != nil:
+		l.Prochaine = joursFr(debut.In(loc).Format("Mon 02/01 15:04")) + " → " + fin.In(loc).Format("15:04")
+		if fin.Sub(debut) >= 24*time.Hour || fin.In(loc).Day() != debut.In(loc).Day() {
+			l.Prochaine = joursFr(debut.In(loc).Format("Mon 02/01 15:04")) + " → " + joursFr(fin.In(loc).Format("Mon 02/01 15:04"))
+		}
+	}
+	return l
+}
+
+// lireMaintenance : formulaire « Nouvelle maintenance » (SPEC § 81) :
+// une seule fois (début + durée), ou chaque jour / semaine / mois de
+// « de » à « à » (« à » plus tôt que « de » : le lendemain).
+func lireMaintenance(f func(string) string, jours []string, t time.Time) (debut time.Time, d time.Duration, rec *notif.Recurrence, err error) {
+	rythme := f("repeter")
+	if rythme == "" || rythme == "non" {
+		if debut, err = lireDebut(f("debut"), t); err != nil {
+			return
+		}
+		var dd alertes.Duree
+		dd, err = alertes.LireDuree(f("duree"))
+		return debut, time.Duration(dd), nil, err
+	}
+	de, err1 := time.Parse("15:04", f("de"))
+	a, err2 := time.Parse("15:04", f("a"))
+	if err1 != nil || err2 != nil {
+		return t, 0, nil, errors.New("heures « de » et « à » attendues (HH:MM)")
+	}
+	d = a.Sub(de)
+	if d <= 0 {
+		d += 24 * time.Hour
+	}
+	rec = &notif.Recurrence{Rythme: rythme, Jours: jours, Heure: f("de"), Duree: alertes.Duree(d), Fuseau: fuseau.Load().String()}
+	if rythme == "mois" {
+		rec.JourMois, _ = strconv.Atoi(f("jour_mois"))
+	}
+	return t, d, rec, rec.Valider()
 }
 
 // lireDebut : « AAAA-MM-JJTHH:MM » (champ datetime-local), heure de Paris ;
@@ -313,16 +398,9 @@ func (c *Console) postSourdine(q *req) {
 		err = notif.AnnulerSilence(ctx, c.db, id, q.qui(), q.t)
 		ok = "silence annulé"
 	case "maintenance":
-		var debut time.Time
-		var d alertes.Duree
-		if debut, err = lireDebut(f("debut"), q.t); err == nil {
-			if d, err = alertes.LireDuree(f("duree")); err == nil {
-				var rec *notif.Recurrence
-				if jours := q.r.PostForm["jours"]; len(jours) > 0 {
-					rec = &notif.Recurrence{Jours: jours, Heure: f("heure"), Duree: d, Fuseau: "Europe/Paris"}
-				}
-				_, err = notif.AjouterMaintenance(ctx, c.db, f("cible"), debut, debut.Add(time.Duration(d)), rec, q.qui(), f("commentaire"), q.t)
-			}
+		debut, d, rec, e := lireMaintenance(f, q.r.PostForm["jours"], q.t)
+		if err = e; err == nil {
+			_, err = notif.AjouterMaintenance(ctx, c.db, f("cible"), debut, debut.Add(d), rec, q.qui(), f("commentaire"), q.t)
 		}
 		ok = "maintenance enregistrée"
 	case "inhibition":

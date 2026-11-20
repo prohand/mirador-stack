@@ -14,10 +14,12 @@ import (
 	"io/fs"
 	"mime"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/taches"
 	"net/http"
 	"path"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -265,6 +267,23 @@ func fonctions() template.FuncMap {
 		"dureeFr":      dureeFr,
 		"motTechnique": motTechnique,
 		"quiLisible":   quiLisible,
+		// Tâches planifiées (SPEC § 80) : valeurs des formulaires.
+		"secondes": func(d time.Duration) int64 { return int64(d / time.Second) },
+		"minutes":  func(d time.Duration) int64 { return int64(d / time.Minute) },
+		"heures":   func(d time.Duration) string { return strconv.FormatFloat(d.Hours(), 'f', -1, 64) },
+		"autrePeriode": func(d time.Duration) bool {
+			return d != 0 && d != time.Hour && d != 24*time.Hour && d != 7*24*time.Hour
+		},
+		"tacheParDefaut": func() taches.Tache {
+			return taches.Tache{Source: taches.SourcePing, Periode: 24 * time.Hour, Marge: time.Hour, Gravite: "warning"}
+		},
+		"tacheDetecteeDefaut": func(source string) taches.Tache {
+			t := taches.Tache{Source: source, Periode: 24 * time.Hour, Marge: 2 * time.Hour, Gravite: "warning"}
+			if source == "systemd" {
+				t.Periode, t.Marge = 0, time.Hour
+			}
+			return t
+		},
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s
@@ -546,6 +565,9 @@ type Page struct {
 	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
 	NbConteneurs  int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
 	NbSondes      int    // sondes en échec (compteur du menu, SPEC § 48)
+	NbTaches      int    // tâches planifiées en échec ou en retard (SPEC § 80)
+	// ClassesAccueil : ordre et cartes masquées de la vue d'ensemble (SPEC § 83).
+	ClassesAccueil map[string]string
 	// Menu réorganisable (SPEC § 79) : entrées dans l'ordre par défaut avec
 	// leurs classes d'ordre ; barre du bas du téléphone.
 	MenuElements []elementMenu
@@ -602,8 +624,10 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 		p.NbAValider = len(c.aValider(q.r.Context(), q.t))
 		p.NbConteneurs = c.nbConteneursProblemes(q.r.Context(), q.t)
 		p.NbSondes = c.nbSondesEnEchec(q.r.Context(), q.t)
+		p.NbTaches = c.nbTachesEnProbleme(q.r.Context(), q.t)
 	}
 	construireMenu(&p, q.u)
+	p.ClassesAccueil = classesAccueil(q.u)
 	c.pages.executer(q.w, code, nom, p)
 }
 

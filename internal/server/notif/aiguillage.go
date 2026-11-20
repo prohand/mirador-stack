@@ -489,7 +489,7 @@ func PurgerEnvois(ctx context.Context, db *sql.DB, avant time.Time) (int64, erro
 // noterOmbre : mode ombre, le message est seulement noté (statut « ombre »).
 func noterOmbre(ctx context.Context, db *sql.DB, m *Message, r *Reglages, journal *slog.Logger) {
 	loc, _ := time.LoadLocation(r.Fuseau)
-	txt := Texte(m, Mise{Fuseau: loc, Lien: r.Lien})
+	txt := Texte(m, r.mise(loc, r.Canaux.Principal))
 	if err := NoterEnvoi(ctx, db, Envoi{Le: m.Le, Canal: "ombre", Groupe: m.Groupe, Gravite: m.Gravite, Type: m.Type,
 		Nb: m.Nb(), Statut: Ombre, Texte: txt}); err != nil {
 		journal.Error("historique des envois", "erreur", err)

@@ -86,9 +86,11 @@ type conteneurDetail struct {
 		} `json:"RestartPolicy"`
 	} `json:"HostConfig"`
 	State struct {
-		OOMKilled bool   `json:"OOMKilled"`
-		StartedAt string `json:"StartedAt"` // RFC 3339 ; « 0001-01-01… » si jamais démarré
-		Health    *struct {
+		OOMKilled  bool   `json:"OOMKilled"`
+		StartedAt  string `json:"StartedAt"`  // RFC 3339 ; « 0001-01-01… » si jamais démarré
+		FinishedAt string `json:"FinishedAt"` // RFC 3339 : dernière fin
+		ExitCode   int    `json:"ExitCode"`
+		Health     *struct {
 			Status string `json:"Status"`
 		} `json:"Health"`
 	} `json:"State"`
@@ -157,6 +159,16 @@ func (d *Docker) Collecter(b *metrics.Batch) error {
 			b.Add("node_docker_container_healthy", bool01(h.Status == "healthy"), base[:]...)
 		}
 		if c.State != "running" {
+			// Conteneur ponctuel (sauvegarde, tâche) : il tourne puis
+			// s'arrête, sans redémarrage automatique. Sa dernière exécution
+			// est une tâche planifiée (SPEC § 80).
+			if c.State == "exited" && (politique == "no" || politique == "on-failure") {
+				debut, e1 := time.Parse(time.RFC3339Nano, det.State.StartedAt)
+				fin, e2 := time.Parse(time.RFC3339Nano, det.State.FinishedAt)
+				if e1 == nil && e2 == nil && debut.Year() > 2000 && fin.Year() > 2000 {
+					AjouterTache(b, "docker", nom, debut, fin, det.State.ExitCode, time.Time{})
+				}
+			}
 			continue
 		}
 		// Démarré depuis (colonne « Depuis » de la page Conteneurs, SPEC § 42).

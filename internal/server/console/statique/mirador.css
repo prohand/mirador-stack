@@ -1382,3 +1382,49 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
 }
 .barre nav.edition > a .txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .barre nav.edition > a .menu-outils { flex: none; }
+
+/* --- Tâches planifiées (SPEC § 80) ------------------------------------------------ */
+.lien-ping { display: flex; gap: 8px; align-items: center; background: var(--entete-table); border: 1px solid var(--bord); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; }
+.lien-ping code { flex: 1; overflow-wrap: anywhere; font-size: 12.5px; }
+.nouveau-ping pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; }
+details.modifier-tache > summary { list-style: none; cursor: pointer; display: inline-flex; }
+details.modifier-tache > summary::-webkit-details-marker { display: none; }
+details.modifier-tache[open] { min-width: 280px; }
+details.modifier-tache form { margin-top: 8px; text-align: left; }
+tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+
+/* Nouvelle maintenance (SPEC § 81) : champs selon « Répéter », sans script. */
+form:has(.choix-repeter option[value="non"]:checked) :is(.si-repete, .si-semaine, .si-mois),
+form:has(.choix-repeter option[value="jour"]:checked) :is(.si-une-fois, .si-semaine, .si-mois),
+form:has(.choix-repeter option[value="semaine"]:checked) :is(.si-une-fois, .si-mois),
+form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-semaine) { display: none; }
+
+/* Modèles des messages (SPEC § 82). */
+.grille-modeles { align-items: start; }
+.grille-modeles textarea.code { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; width: 100%; }
+.apercu-message { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--survol); border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.45; }
+.apercu-message.sombre { background: #17212b; color: #f5f5f5; }
+.apercu-message pre { white-space: pre-wrap; margin: 4px 0; }
+.apercu-titre { margin: 8px 0 6px; }
+.var-liste p { margin: 6px 0; font-size: 13px; }
+
+/* Vue d'ensemble réorganisable (SPEC § 83) : ordre par mode, cartes masquées. */
+.blocs-accueil { display: flex; flex-direction: column; }
+.blocs-accueil > .kpis { margin-bottom: 22px; }
+@media (min-width: 641px) { .blocs-accueil > .o-0, .kpis > .o-0 { order: 0; } .blocs-accueil > .o-1, .kpis > .o-1 { order: 1; } .blocs-accueil > .o-2, .kpis > .o-2 { order: 2; } .blocs-accueil > .o-3, .kpis > .o-3 { order: 3; } .blocs-accueil > .o-4, .kpis > .o-4 { order: 4; } .blocs-accueil > .o-5, .kpis > .o-5 { order: 5; } .blocs-accueil > .o-6, .kpis > .o-6 { order: 6; } .blocs-accueil > .o-7, .kpis > .o-7 { order: 7; } .blocs-accueil > .o-8, .kpis > .o-8 { order: 8; } .blocs-accueil > .o-9, .kpis > .o-9 { order: 9; } .blocs-accueil > .o-10, .kpis > .o-10 { order: 10; } .blocs-accueil > .o-11, .kpis > .o-11 { order: 11; } .blocs-accueil > .o-12, .kpis > .o-12 { order: 12; } .blocs-accueil > .o-13, .kpis > .o-13 { order: 13; } .blocs-accueil > .o-14, .kpis > .o-14 { order: 14; } .blocs-accueil > .o-15, .kpis > .o-15 { order: 15; } .blocs-accueil > .o-16, .kpis > .o-16 { order: 16; } .blocs-accueil > .o-17, .kpis > .o-17 { order: 17; } .blocs-accueil > .o-18, .kpis > .o-18 { order: 18; } .blocs-accueil > .o-19, .kpis > .o-19 { order: 19; } .blocs-accueil > .cache-o, .kpis > .cache-o { display: none; } }
+@media (max-width: 640px) { .blocs-accueil > .t-0, .kpis > .t-0 { order: 0; } .blocs-accueil > .t-1, .kpis > .t-1 { order: 1; } .blocs-accueil > .t-2, .kpis > .t-2 { order: 2; } .blocs-accueil > .t-3, .kpis > .t-3 { order: 3; } .blocs-accueil > .t-4, .kpis > .t-4 { order: 4; } .blocs-accueil > .t-5, .kpis > .t-5 { order: 5; } .blocs-accueil > .t-6, .kpis > .t-6 { order: 6; } .blocs-accueil > .t-7, .kpis > .t-7 { order: 7; } .blocs-accueil > .t-8, .kpis > .t-8 { order: 8; } .blocs-accueil > .t-9, .kpis > .t-9 { order: 9; } .blocs-accueil > .t-10, .kpis > .t-10 { order: 10; } .blocs-accueil > .t-11, .kpis > .t-11 { order: 11; } .blocs-accueil > .t-12, .kpis > .t-12 { order: 12; } .blocs-accueil > .t-13, .kpis > .t-13 { order: 13; } .blocs-accueil > .t-14, .kpis > .t-14 { order: 14; } .blocs-accueil > .t-15, .kpis > .t-15 { order: 15; } .blocs-accueil > .t-16, .kpis > .t-16 { order: 16; } .blocs-accueil > .t-17, .kpis > .t-17 { order: 17; } .blocs-accueil > .t-18, .kpis > .t-18 { order: 18; } .blocs-accueil > .t-19, .kpis > .t-19 { order: 19; } .blocs-accueil > .cache-t, .kpis > .cache-t { display: none; } }
+.edition-accueil [data-bloc] { position: relative; outline: 2px dashed var(--accent, #3b5bdb); outline-offset: 3px; border-radius: var(--rayon); }
+.edition-accueil .kpis > [data-bloc] { cursor: grab; }
+.edition-accueil [data-bloc].masque { opacity: .35; }
+.edition-accueil .blocs-accueil > [data-bloc].vide-edition { display: none; }
+.edition-accueil .blocs-accueil > [data-bloc] { margin-bottom: 18px; }
+.edition-accueil .blocs-accueil > div[data-bloc]:not(.kpis):not(.grille) { min-height: 44px; padding: 10px 14px; }
+.outils-bloc { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; }
+.outils-bloc button, .outils-bloc .poignee { min-width: 36px; min-height: 36px; border-radius: 8px; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; font-size: 15px; }
+.outils-bloc .poignee { cursor: grab; }
+.titre-bloc-edition { font-weight: 600; font-size: 13px; color: var(--doux); }
+.bandeau-edition-accueil { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--info-fond); color: var(--info); border-radius: var(--rayon); padding: 10px 14px; margin-bottom: 16px; }
+.bandeau-edition-accueil b { flex: 1 1 260px; }
+.edition-accueil [data-bloc].glisse { opacity: .5; }
+.edition-accueil .blocs-accueil > .kpis { padding: 50px 10px 10px; }
+.edition-accueil .blocs-accueil > .kpis > .titre-bloc-edition { position: absolute; top: 16px; left: 14px; }

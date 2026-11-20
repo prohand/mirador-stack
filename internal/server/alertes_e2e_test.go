@@ -63,7 +63,7 @@ func TestAlertesDeBoutEnBout(t *testing.T) {
 		}
 	}
 	code, sortie = commande("regles")
-	if code != 0 || !strings.Contains(sortie, "171 règle(s), 170 active(s)") {
+	if code != 0 || !strings.Contains(sortie, "176 règle(s), 175 active(s)") {
 		t.Fatalf("après import :\n%s", sortie)
 	}
 	if code, sortie = commande("regle-desactiver", "TemperatureElevee"); code != 0 {
@@ -162,6 +162,8 @@ func TestAlertesDeBoutEnBout(t *testing.T) {
 		{[]string{"silences"}, `{instance="pc1"}`},
 		{[]string{"maintenance", "-jours", "dim", "-heure", "03:00", "-pendant", "2h", "groupe:proxmox"}, "maintenance n° 1"},
 		{[]string{"maintenances"}, "chaque dim à 03:00 pendant 2h"},
+		{[]string{"maintenance", "-jours", "mois:1", "-heure", "04:00", "-pendant", "1h", "machine:nas"}, "maintenance n° 2"},
+		{[]string{"maintenances"}, "le 1er de chaque mois à 04:00 pendant 1h"},
 		{[]string{"inhibitions"}, `{alertname="SynologyVolumeDegrade"}`},
 		{[]string{"dependances"}, "miradorcollector"},
 		{[]string{"dependance", "groupe:vms", "pve1"}, "dépendance n° 2"},

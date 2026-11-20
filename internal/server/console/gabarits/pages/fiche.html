@@ -22,6 +22,10 @@
 <label>Nom à demander (DNS) <input name="question" maxlength="253" value="{{.Question}}" placeholder="nas.lan"></label>
 <label>Lente au-delà de <input name="lente" value="{{.Lente}}" placeholder="1s" size="5" maxlength="10"></label></div>
 <label class="case"><input type="checkbox" name="non_verifie" value="1"{{if .NonVerifie}} checked{{end}}> Ne pas vérifier le certificat (service du LAN au certificat fait maison, ou adresse IP)</label>
+<div class="ligne"><label>Champ JSON (HTTP, facultatif) <input name="champ_json" maxlength="100" value="{{.ChampJSON}}" placeholder="status, checks.db.status"></label>
+<label>Doit valoir <input name="valeur_json" maxlength="200" value="{{.ValeurJSON}}" placeholder="ok" size="10"></label></div>
+<div class="ligne"><label class="case"><input type="checkbox" name="certificat" value="1"{{if .Certificat}} checked{{end}}> Alerter avant l'expiration du certificat du site (HTTPS)</label>
+<label>jours avant <input name="certificat_jours" value="{{if .Certificat}}{{.Certificat}}{{else}}14{{end}}" size="3" maxlength="2" inputmode="numeric"></label></div>
 {{template "code2fa"}}<div class="ligne"><button data-code>Enregistrer</button></div>
 <small class="aide">Pour vérifier le certificat HTTPS, viser le nom du site (ex. <code>https://dns02.lan/</code>) et décocher « Ne pas vérifier ». Renommer : la sonde suit dans les applications et les étiquettes ; l'historique des mesures repart sous le nouveau nom.</small>
 </form></section>{{end}}{{end}}

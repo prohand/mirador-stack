@@ -1047,6 +1047,53 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Page de statut publique (SPEC § 84, 20/11) : fait, à valider
+
+- Réglages › Interface : adresse secrète `/statut/<jeton>`, applications
+  choisies, 90 jours de disponibilité, incidents ; sans compte, sans
+  script ni cookie ; jamais de machine, d'IP ni de log.
+- Mesures : rien tant que la page n'est pas ouverte ; une lecture SQL et
+  une requête de métriques par affichage.
+- Non fait : note d'incident publiée à la main.
+
+## Vue d'ensemble réorganisable (SPEC § 83, 20/11) : fait, à valider
+
+- « Modifier la vue » : déplacer ou masquer les tuiles et les blocs ; une
+  disposition pour l'ordinateur, une pour le téléphone, avec le compte.
+- Mesures : rien de mesurable en plus (une lecture du compte déjà chargé).
+
+## Modèles des messages (SPEC § 82, 20/11) : fait, à valider
+
+- Réglages › Notifications › Modèles : titre et texte par type de message
+  et par canal, aperçu par canal, essai, retour au défaut.
+- Messages par défaut : libellés lisibles des règles (« CPU élevé »).
+- Mesures : rien en plus sans modèle ; avec modèle, 27 µs et 17 Kio
+  alloués par message envoyé (banc d'essai).
+- Non fait : e-mail en HTML.
+
+## Petits ajouts repris de Checkmate (SPEC § 81, 20/11) : fait, à valider
+
+- Maintenances : chaque jour / semaine / mois, prochaine fenêtre affichée,
+  cible `site:NOM` (tout un site, équipements du collecteur compris).
+- Sondes HTTP : champ JSON attendu ; alerte N jours avant l'expiration du
+  certificat du site.
+- Canal Webhook : JSON mirador, Discord, Gotify, Matrix, Slack / Mattermost.
+- Tâches planifiées : entrée de menu à part + bloc sur la page machine.
+- Mesures : rien de mesurable en plus (une requête SQL au rechargement de
+  la sourdine ; JSON décodé seulement si demandé ; un appel HTTP par
+  message webhook).
+
+## Tâches planifiées (SPEC § 80, 20/11) : fait, à valider
+
+- Page Sondes › Tâches planifiées : l'agent voit seul les timers systemd,
+  les conteneurs Docker ponctuels et les sauvegardes Proxmox VE / PBS ;
+  le reste se signale par `curl` sur une adresse secrète.
+- Alertes « en échec » et « en retard », avertissement ou critique.
+- Mesures : 1,3 ms par lecture du journal Proxmox (toutes les 15 min) ;
+  2 appels D-Bus par timer toutes les 5 min ; négligeable côté serveur.
+- Sur Proxmox, l'assistant root passe au format 4 : il se met à jour avec
+  l'agent (mises à jour automatiques) ou par la commande habituelle.
+
 ## Menu réorganisable (SPEC § 79, 20/11) : fait, à valider
 
 - « Modifier le menu » : ordre, entrées masquées, 4 raccourcis du bas ;

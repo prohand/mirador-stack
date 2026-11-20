@@ -21,6 +21,7 @@ import (
 	"mirador-stack/internal/server/sauvegarde"
 	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
+	"mirador-stack/internal/server/taches"
 )
 
 // Métriques internes (supervision de la supervision, SPEC.md § 17.3).
@@ -189,6 +190,19 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 		r, _ := notif.LireReglages(ctx, s.db)
 		for _, e := range servicesmetier.Calculer(ctx, i.lecteur, s.alertes.EnCours(), r.ReglesPanne, svcs, t) {
 			ajout("mirador_service_etat", float64(e.Etat), "service", e.Nom)
+		}
+	}
+
+	// Tâches planifiées suivies (SPEC § 80) : échéance de chacune (règle
+	// TacheEnRetard) et, pour les tâches « ping », leur dernier signal
+	// (règle TacheEnEchec).
+	if ts, err := taches.Lister(ctx, s.db); err == nil && len(ts) > 0 {
+		if i.lecteur == nil {
+			i.lecteur = alertes.NouveauLecteur(s.met.Requetes(), s.journal.With("composant", "services"))
+		}
+		det := taches.Detectees(func(expr string) ([]alertes.Echantillon, error) { return i.lecteur.Instant(ctx, expr, t) })
+		for _, se := range taches.Series(taches.AvecReleves(ts, det)) {
+			ajout(se.Nom, se.Valeur, se.Etiquettes...)
 		}
 	}
 

@@ -76,6 +76,8 @@ type Canaux struct {
 	Heartbeat *Heartbeat `json:"heartbeat,omitempty"`
 	// Application : notifications push vers les appareils abonnés (SPEC § 35).
 	Application *Application `json:"application,omitempty"`
+	// Webhook : appel HTTP par message (SPEC § 81).
+	Webhook *Webhook `json:"webhook,omitempty"`
 }
 
 // Telegram : bot et conversation (groupe).
@@ -164,7 +166,7 @@ var (
 )
 
 func nomsCanaux() []string {
-	return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid, NomApplication}
+	return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid, NomApplication, NomWebhook}
 }
 
 // configure : le canal nom est-il décrit et actif ?
@@ -180,6 +182,8 @@ func (c *Canaux) configure(nom string) bool {
 		return c.Olvid != nil && c.Olvid.Actif
 	case NomApplication:
 		return c.Application != nil && c.Application.Actif
+	case NomWebhook:
+		return c.Webhook != nil && c.Webhook.Actif
 	}
 	return false
 }
@@ -256,6 +260,11 @@ func (c *Canaux) Valider(exigerChoix bool) error {
 			errs = append(errs, err)
 		}
 	}
+	if w := c.Webhook; w != nil {
+		if err := w.valider(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if h := c.Heartbeat; h != nil {
 		if !secrets.EstChiffre(h.URL) && h.URL != "***" {
 			if err := urlHTTPS(h.URL, false); err != nil {
@@ -326,6 +335,11 @@ func (c Canaux) Masques() Canaux {
 		o := *c.Olvid
 		o.Cle = masque(o.Cle)
 		m.Olvid = &o
+	}
+	if c.Webhook != nil {
+		w := *c.Webhook
+		w.URL, w.Secret = masque(w.URL), masque(w.Secret)
+		m.Webhook = &w
 	}
 	return m
 }
@@ -409,6 +423,19 @@ func PreparerSecrets(nouveaux, anciens Canaux, cle []byte) (Canaux, error) {
 		}
 		o.Cle = prep(o.Cle, anc, usageOlvid, change, "clé client Olvid")
 		c.Olvid = &o
+	}
+	if c.Webhook != nil {
+		w := *c.Webhook
+		ancURL, ancSecret := "", ""
+		if anciens.Webhook != nil {
+			ancURL, ancSecret = anciens.Webhook.URL, anciens.Webhook.Secret
+		}
+		// Nouvelle adresse saisie : l'en-tête secret doit l'être aussi (il
+		// n'est jamais envoyé à une autre adresse que la sienne).
+		change := w.URL != "" && w.URL != "***" && w.URL != ancURL
+		w.URL = prep(w.URL, ancURL, usageWebhookURL, false, "adresse du webhook")
+		w.Secret = prep(w.Secret, ancSecret, usageWebhookSecret, change, "en-tête secret du webhook")
+		c.Webhook = &w
 	}
 	return c, err
 }
@@ -551,7 +578,7 @@ func boutons(m *Message) []map[string]string {
 		}
 		texte := "✔ Acquitter"
 		if len(m.Actives) > 1 {
-			texte = "✔ " + a.Regle + " " + a.Machine()
+			texte = "✔ " + alertes.Libelle(a.Regle) + " " + a.Machine()
 			if len(texte) > 40 {
 				texte = texte[:40]
 			}
@@ -639,7 +666,7 @@ func (n *ntfy) requete(ctx context.Context, methode, adresse string, corps io.Re
 }
 
 func (n *ntfy) Envoyer(ctx context.Context, m *Message, o Mise) error {
-	o.HTML, o.Max = false, 4000
+	o.HTML, o.Max, o.TitreAPart = false, 4000, true
 	req, err := n.requete(ctx, http.MethodPost, n.url, strings.NewReader(Texte(m, o)))
 	if err != nil {
 		return err
@@ -648,9 +675,12 @@ func (n *ntfy) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	if t := m.TitreSite(); t != "" {
 		titre += " : " + t
 	} else if len(m.Actives) > 0 {
-		titre += " : " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
+		titre += " : " + alertes.Libelle(m.Actives[0].Regle) + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
-		titre += " : résolu " + m.Resolues[0].Regle
+		titre += " : résolu " + alertes.Libelle(m.Resolues[0].Regle)
+	}
+	if t := TitreModele(m, o); t != "" { // modèle de l'administrateur (SPEC § 82)
+		titre = t
 	}
 	req.Header.Set("Title", mime.BEncoding.Encode("utf-8", titre))
 	prio := map[string]string{alertes.Critique: "urgent", alertes.Avertissement: "default", alertes.Info: "low"}[m.Gravite]
@@ -758,9 +788,9 @@ func (e *email) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	if t := m.TitreSite(); t != "" {
 		sujet += t
 	} else if len(m.Actives) > 0 {
-		sujet += m.Actives[0].Gravite + " " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
+		sujet += m.Actives[0].Gravite + " " + alertes.Libelle(m.Actives[0].Regle) + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
-		sujet += "résolu " + m.Resolues[0].Regle + " " + m.Resolues[0].Machine()
+		sujet += "résolu " + alertes.Libelle(m.Resolues[0].Regle) + " " + m.Resolues[0].Machine()
 	}
 	id := make([]byte, 12)
 	_, _ = rand.Read(id)
@@ -768,6 +798,10 @@ func (e *email) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	w, err := c.Data()
 	if err != nil {
 		return fmt.Errorf("smtp DATA : %w", err)
+	}
+	o.TitreAPart = true
+	if t := TitreModele(m, o); t != "" { // modèle de l'administrateur (SPEC § 82)
+		sujet = t
 	}
 	corps := Texte(m, o)
 	fmt.Fprintf(w, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s@%s>\r\nMIME-Version: 1.0\r\n"+
@@ -836,6 +870,13 @@ func fabriquer(c *Canaux, cle []byte) (map[string]Canal, error) {
 			return nil, err
 		}
 		out[NomOlvid] = ov
+	}
+	if w := c.Webhook; w != nil && w.Actif {
+		wh, err := fabriquerWebhook(c, cle)
+		if err != nil {
+			return nil, err
+		}
+		out[NomWebhook] = wh
 	}
 	return out, nil
 }

@@ -276,7 +276,7 @@ func chargeDe(m *Message, o Mise, pastille int) ChargePush {
 	case m.Site != "":
 		c.Titre, c.Lien = m.TitreSite(), "/coupures?site="+url.QueryEscape(m.Site)
 	case len(m.Actives) > 0:
-		c.Titre = m.Actives[0].Regle
+		c.Titre = alertes.Libelle(m.Actives[0].Regle)
 		if h := m.Actives[0].Machine(); h != "" {
 			c.Titre += " · " + h
 		}
@@ -286,14 +286,17 @@ func chargeDe(m *Message, o Mise, pastille int) ChargePush {
 			c.Lien = fmt.Sprintf("/alertes/%d", m.Actives[0].ID)
 		}
 	case len(m.Resolues) > 0:
-		c.Titre = "Résolu : " + m.Resolues[0].Regle
+		c.Titre = "Résolu : " + alertes.Libelle(m.Resolues[0].Regle)
 		if h := m.Resolues[0].Machine(); h != "" {
 			c.Titre += " · " + h
 		}
 	}
 	// Texte sans lien (le toucher ouvre la page) et court : un écran de
 	// téléphone, et un corps chiffré bien sous la limite des services.
-	o.HTML, o.Lien, o.Max = false, "", corpsPushMax
+	o.HTML, o.Lien, o.Max, o.TitreAPart = false, "", corpsPushMax, true
+	if t := TitreModele(m, o); t != "" { // modèle de l'administrateur (SPEC § 82)
+		c.Titre = t
+	}
 	c.Corps = Texte(m, o)
 	// Borne tenue ici aussi (un message système n'est pas coupé par Texte) :
 	// le corps chiffré doit rester sous la limite des services de push.

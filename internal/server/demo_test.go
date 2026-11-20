@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
+	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
@@ -123,6 +125,27 @@ func TestDemoInterface(t *testing.T) {
 		if m == "pve1" { // machine physique : capteurs, disques, et des nouveautés à valider
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 54 }, "chip", "coretemp", "sensor", "temp1")
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 43 }, "chip", "nct6798", "sensor", "temp2")
+			// Tâches planifiées (SPEC § 80) : timers, sauvegardes Proxmox.
+			for _, x := range []struct {
+				src, nom  string
+				il, duree time.Duration
+				code      int
+				proch     time.Duration
+			}{{"systemd", "sauvegarde-restic", 5 * time.Hour, 42 * time.Minute, 0, 19 * time.Hour}, {"systemd", "certbot", 3 * time.Hour, 20 * time.Second, 0, 9 * time.Hour},
+				{"systemd", "apt-daily", 2 * time.Hour, time.Minute, 0, 10 * time.Hour}, {"pve", "vzdump", 6 * time.Hour, 25 * time.Minute, 1, 0},
+				{"systemd", "logrotate", 8 * time.Hour, 3 * time.Second, 0, 16 * time.Hour}} {
+				fin := now.Add(-x.il)
+				mk("mirador_tache_fin_timestamp_seconds", func(int) float64 { return float64(fin.Unix()) }, "source", x.src, "tache", x.nom)
+				mk("mirador_tache_debut_timestamp_seconds", func(int) float64 { return float64(fin.Add(-x.duree).Unix()) }, "source", x.src, "tache", x.nom)
+				mk("mirador_tache_code", func(int) float64 { return float64(x.code) }, "source", x.src, "tache", x.nom)
+				if x.proch > 0 {
+					p := now.Add(x.proch)
+					mk("mirador_tache_prochaine_timestamp_seconds", func(int) float64 { return float64(p.Unix()) }, "source", x.src, "tache", x.nom)
+				}
+				if x.code != 0 {
+					mk("mirador_tache_message", un, "source", x.src, "tache", x.nom, "message", "job errors")
+				}
+			}
 			for i, d := range []string{"sda", "sdb", "nvme0"} {
 				mk("smartctl_device_smart_status", un, "device", d)
 				base := 36 + 6*float64(i) // nvme0 plus chaud, qui monte à la fin (alerte « Disque chaud »)
@@ -181,6 +204,14 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Tâches suivies (SPEC § 80) : un timer de pve1, la sauvegarde
+	// Proxmox, un ping en retard.
+	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, cree_le) VALUES
+		('pve1|systemd|sauvegarde-restic', 'sauvegarde-restic', 'systemd', 'pve1', 0, 3600, 'warning', ?),
+		('pve1|pve|vzdump', 'vzdump', 'pve', 'pve1', 86400, 7200, 'critical', ?)`, now.Add(-48*time.Hour).Unix(), now.Add(-48*time.Hour).Unix())
+	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, jeton, cree_le, debut, fin, code) VALUES
+		('ping|demo', 'Sauvegarde NAS (Hyper Backup)', 'ping', 'nas-backup', 86400, 3600, 'warning', 'x', ?, ?, ?, 0)`,
+		now.Add(-10*24*time.Hour).Unix(), now.Add(-50*time.Hour).Unix(), now.Add(-49*time.Hour).Unix())
 	// Disque chaud (règle d'un modèle, seuil par machine) : grande courbe
 	// avec axes et seuil sur la page de l'alerte (retour du 19/11).
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
@@ -227,9 +258,14 @@ func TestDemoInterface(t *testing.T) {
 	// échec), une depuis le collecteur, et des résultats simulés.
 	_ = flotte.EnregistrerSondes(ctx, s.db, []essais.Sonde{
 		{Nom: "Nextcloud", Type: essais.HTTP, Cible: "https://cloud.exemple.invalid/status.php", Depuis: essais.ServeurLocal, Code: 200, Contenu: "installed"},
-		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/", Depuis: "collecteur-lan", NonVerifie: true},
+		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "collecteur-lan", NonVerifie: true,
+			ChampJSON: "message", ValeurJSON: "API running.", Certificat: 14},
 		{Nom: "DNS interne", Type: essais.DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "collecteur-lan"},
 	}, "demo", now)
+	// Maintenances (SPEC § 81) : chaque mois, et tout un site.
+	_, _ = notif.AjouterMaintenance(ctx, s.db, "machine:pve1", now, now, &notif.Recurrence{Rythme: "mois", JourMois: 1, Heure: "03:00",
+		Duree: alertes.Duree(2 * time.Hour), Fuseau: "Europe/Paris"}, "admin", "mises à jour Proxmox", now)
+	_, _ = notif.AjouterMaintenance(ctx, s.db, "site:maison", now.Add(48*time.Hour), now.Add(52*time.Hour), nil, "admin", "coupure de courant prévue (EDF)", now)
 	var sondesDemo []stockage.Serie
 	for k := 0; k < 120; k++ {
 		ts := now.Add(time.Duration(-k) * 30 * time.Second).UnixMilli()
