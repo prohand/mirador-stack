@@ -1995,7 +1995,7 @@ document.addEventListener("change", function (ev) {
   var corps = bloc.querySelector("[data-direct-proc]");
   var FENETRE = 120000, MAXP = 130; // 2 min de courbe
   var W = 300, H = 86, SVG = "http://www.w3.org/2000/svg";
-  var points = [], src = null, ouvertLe = 0, arret = "", cacheLe = 0;
+  var points = [], src = null, arret = "", cacheLe = 0;
 
   function nombre(v, d) { return v.toLocaleString("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
   function octets(v) {
@@ -2005,10 +2005,6 @@ document.addEventListener("change", function (ev) {
   }
   function debit(v) { return octets(v) + "/s"; }
   function pct(v) { return nombre(v, 0) + " %"; }
-  function duree(ms) {
-    var s = Math.max(0, Math.round(ms / 1000));
-    return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + (s % 60 < 10 ? "0" : "") + (s % 60);
-  }
   function memPct(d) { return d.mem_totale ? 100 * d.mem_utilisee / d.mem_totale : 0; }
   // Échelle « ronde » au-dessus du maximum, dans l'unité affichée (Ko, Mo,
   // Go : puissances de 1024) : 1, 2, 5, 10, 20, 50, 100, 200, 500 × l'unité.
@@ -2168,9 +2164,10 @@ document.addEventListener("change", function (ev) {
   }
   function texteEtat() {
     if (arret) { return; }
-    // Le point rouge dit déjà « direct » : pas de redite à côté du titre
-    // « En ce moment » (retour du 20/11).
-    etat.textContent = points.length ? "une valeur par seconde · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent…";
+    // Le titre « En ce moment » et le point rouge suffisent : rien à côté
+    // quand tout va bien (retour du 20/11 : le texte redisait la même chose).
+    // Seuls les cas à signaler s'affichent : connexion, pause, arrêt.
+    etat.textContent = points.length ? "" : "connexion à l'agent…";
   }
   // garder : relevés des 2 dernières minutes (heure de l'agent).
   function garder() {
@@ -2182,7 +2179,6 @@ document.addEventListener("change", function (ev) {
     if (src) { return; }
     arret = "";
     bloc.classList.remove("arrete");
-    ouvertLe = Date.now();
     src = new EventSource(url);
     src.addEventListener("debut", function (e) {
       try { points = JSON.parse(e.data).points || []; } catch (x) { points = []; }
