@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/agent/racine"
 )
 
 // Tâches planifiées (SPEC § 80) : dernière exécution de chaque tâche, quelle
@@ -32,5 +33,37 @@ func AjouterTache(b *metrics.Batch, source, nom string, debut, fin time.Time, co
 	}
 	if !prochaine.IsZero() {
 		b.Add("mirador_tache_prochaine_timestamp_seconds", float64(prochaine.Unix()), l...)
+	}
+}
+
+// AjouterDetailSauvegarde : détail d'une sauvegarde Proxmox (SPEC § 89).
+//
+//	mirador_tache_info{source,tache,stockage,planning,commentaire} 1
+//	mirador_tache_vm{source,tache,vm,type,nom}           1 réussie, 0 en échec
+//	mirador_tache_vm_duree_secondes{source,tache,vm}
+//	mirador_tache_vm_octets{source,tache,vm}
+//	mirador_tache_vm_message{source,tache,vm,message}     1 (échec seulement)
+func AjouterDetailSauvegarde(b *metrics.Batch, source, nom string, d *racine.DetailSauvegarde) {
+	l := []metrics.Label{metrics.L("source", source), metrics.L("tache", nom)}
+	if d.Stockage != "" || d.Planning != "" || d.Commentaire != "" {
+		b.Add("mirador_tache_info", 1, append(l, metrics.L("stockage", d.Stockage), metrics.L("planning", d.Planning),
+			metrics.L("commentaire", d.Commentaire))...)
+	}
+	for _, v := range d.VMs {
+		lv := append(append([]metrics.Label{}, l...), metrics.L("vm", v.ID))
+		ok := 0.0
+		if v.OK {
+			ok = 1
+		}
+		b.Add("mirador_tache_vm", ok, append(append([]metrics.Label{}, lv...), metrics.L("type", v.Type), metrics.L("nom", v.Nom))...)
+		if v.Duree > 0 {
+			b.Add("mirador_tache_vm_duree_secondes", float64(v.Duree), lv...)
+		}
+		if v.Octets > 0 {
+			b.Add("mirador_tache_vm_octets", v.Octets, lv...)
+		}
+		if v.Message != "" {
+			b.Add("mirador_tache_vm_message", 1, append(append([]metrics.Label{}, lv...), metrics.L("message", v.Message))...)
+		}
 	}
 }

@@ -1499,3 +1499,16 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .liste-taches li:last-child { border-bottom: 0; }
 .machine-liee.depuis { background: var(--survol); color: var(--texte); }
 .machine-liee.depuis a { color: var(--accent-texte); text-decoration: none; }
+
+/* Tâches : infos courtes et détail des sauvegardes Proxmox (SPEC § 89). */
+.puces-tache { margin-top: 4px; }
+.puce-info { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--survol); color: var(--doux);
+  font-size: 12px; font-weight: 600; margin: 3px 4px 0 0; white-space: nowrap; }
+.puce-info.ok { background: var(--ok-fond); color: var(--ok); }
+.puce-info.at { background: var(--attention-fond); color: var(--attention); }
+.puce-info.er { background: var(--erreur-fond); color: var(--erreur); }
+.vms-tache { margin-top: 6px; font-size: 13px; }
+.vms-tache summary { cursor: pointer; color: var(--accent-texte); }
+.table-vms td { padding: 4px 10px 4px 0; border: 0; }
+.cible-sonde .url-sonde { font-weight: 600; overflow-wrap: anywhere; }
+.cible-sonde .cadenas { font-size: 12px; margin-right: 4px; }

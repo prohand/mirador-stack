@@ -1047,6 +1047,17 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Sondes allégées, tâches : nom affiché et détail Proxmox (SPEC § 89, 20/11) : fait, à valider
+
+- Sondes : colonne « Cible » en pastilles, jours restants du certificat.
+- Tâches : nom affiché ; sauvegardes vzdump : VM (OK / échec, durée,
+  taille), stockage, planning Proxmox, « Échec partiel ».
+- Mesures : un journal vzdump (256 Kio au plus) lu par passage de
+  l'assistant root ; ~5 séries par VM sauvegardée.
+- À faire chez l'utilisateur : mettre l'agent à jour sur les nœuds Proxmox
+  (assistant root format 5).
+- Corrigé aussi (§ 90) : « Context canceled » sur les tableaux.
+
 ## Tâches planifiées : description et page machine (SPEC § 88, 20/11) : fait, à valider
 
 - Description en clair de chaque tâche (vzdump, PBS, timers…) ; résumé

@@ -412,9 +412,9 @@ func Etiquettes(s Sonde) [][2]string {
 //   - mirador_sonde_duree_secondes : durée de l'essai ;
 //   - mirador_sonde_lente : 1 si réussi mais plus lent que le seuil ;
 //   - mirador_sonde_code_http : code HTTP reçu (HTTP seulement) ;
-//   - mirador_sonde_certificat_fin_timestamp_seconds et
-//     mirador_sonde_certificat_alerte_jours : si l'alerte certificat est
-//     demandée (SPEC § 81).
+//   - mirador_sonde_certificat_fin_timestamp_seconds : fin du certificat
+//     (HTTPS) ; mirador_sonde_certificat_alerte_jours : si l'alerte
+//     certificat est demandée (SPEC § 81, § 89).
 func Valeurs(s Sonde, r Resultat) map[string]float64 {
 	_, lente := s.Durees()
 	v := map[string]float64{
@@ -425,9 +425,13 @@ func Valeurs(s Sonde, r Resultat) map[string]float64 {
 	if s.Type == HTTP && r.Code > 0 {
 		v["mirador_sonde_code_http"] = float64(r.Code)
 	}
-	if s.Certificat > 0 && !r.FinCertificat.IsZero() {
+	// Fin du certificat : toujours (jours restants affichés, SPEC § 89) ;
+	// seuil d'alerte seulement si demandé sur la sonde.
+	if !r.FinCertificat.IsZero() {
 		v["mirador_sonde_certificat_fin_timestamp_seconds"] = float64(r.FinCertificat.Unix())
-		v["mirador_sonde_certificat_alerte_jours"] = float64(s.Certificat)
+		if s.Certificat > 0 {
+			v["mirador_sonde_certificat_alerte_jours"] = float64(s.Certificat)
+		}
 	}
 	return v
 }

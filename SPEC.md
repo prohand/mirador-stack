@@ -6955,3 +6955,46 @@ ci-dessous.
   (le détail reste dans Activité), pastille rouge sur l'onglet Activité
   si une tâche suivie est en échec ou en retard. Le lien machine de la
   page Tâches mène au bloc de la machine.
+
+## 89. Sondes : colonne « Cible » allégée ; tâches : nom affiché et détail des sauvegardes Proxmox (20/11, maquette validée) **[Fait, à valider]**
+
+- Sondes : adresse sans « https:// » (cadenas), puis pastilles : seulement
+  ce qui diffère des réglages par défaut (« chaque minute », « lente
+  au-delà de 1 s » masqués) et les infos utiles : jours restants du
+  certificat (toutes les sondes HTTPS ; orange sous 14 j ou sous le seuil
+  d'alerte de la sonde, rouge si expiré), « nas.lan → 192.168.1.5 » (DNS).
+  Détail complet en infobulle et dans la fiche. La sonde remonte désormais
+  la fin du certificat même sans alerte demandée (une série de plus par
+  sonde HTTPS).
+- Tâches : « Nom affiché » (migration 0033, colonne `libelle`) ; le nom
+  d'origine reste la clé et s'affiche dessous : renommer ne casse rien.
+- Sauvegardes Proxmox VE (assistant root, format 5) : pour la dernière
+  exécution de chaque sauvegarde vzdump, lecture seule de
+  - son journal (`/var/log/pve/tasks/<x>/<UPID>`, 256 Kio au plus, retrouvé
+    par l'UPID ; nom refusé s'il contient « / ») : stockage, chaque VM ou
+    conteneur (OK ou échec, durée, taille, message d'erreur) ;
+  - `/etc/pve/jobs.cfg` : planning, stockage, commentaire des travaux
+    actifs ; prochaine exécution calculée pour les plannings simples
+    (« HH:MM », « daily », « jours HH:MM », jours en liste ou plage).
+  Séries : `mirador_tache_info`, `mirador_tache_vm`,
+  `mirador_tache_vm_duree_secondes`, `mirador_tache_vm_octets`,
+  `mirador_tache_vm_message`.
+- Affichage : pastilles (« 5 VM/CT », « 1 en échec : 104 », taille, « vers
+  pbs-maison », « planning Proxmox : 02:00 », commentaire), détail par VM
+  repliable, état « Échec partiel · 1/5 ». Attendue : « selon le planning
+  Proxmox » possible (retard d'après la prochaine exécution lue).
+- Menaces : lecture seule de fichiers de Proxmox, chemins figés, journal
+  borné, textes coupés (64 à 120 caractères) ; aucun programme lancé.
+- Coût : un journal lu par sauvegarde vzdump à chaque passage de
+  l'assistant (15 min), quelques millisecondes ; ~5 séries par VM.
+- Non fait : détail des tâches Proxmox Backup Server (seule la dernière
+  exécution est suivie, comme avant).
+
+## 90. Tableaux : une requête annulée n'est plus gardée en cache (20/11, retour) **[Corrigé]**
+
+- Symptôme : « Context canceled » / « Query was canceled in query
+  execution » sur tous les panneaux du tableau Proxmox VE.
+- Cause : le cache des requêtes (20 s, partagé) gardait aussi les erreurs ;
+  une page quittée ou rechargée pendant le calcul annulait ses requêtes,
+  et l'erreur était resservie aux pages suivantes.
+- Correction : erreur due à l'annulation jamais gardée en cache (test).

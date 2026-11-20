@@ -146,6 +146,25 @@ func TestDemoInterface(t *testing.T) {
 					mk("mirador_tache_message", un, "source", x.src, "tache", x.nom, "message", "job errors")
 				}
 			}
+			// Détail de la sauvegarde vzdump (SPEC § 89).
+			mk("mirador_tache_info", un, "source", "pve", "tache", "vzdump", "stockage", "pbs-maison", "planning", "02:00", "commentaire", "Sauvegardes de nuit")
+			for _, vm := range []struct {
+				id, typ, nom string
+				ok           float64
+				duree, go_   float64
+				msg          string
+			}{{"101", "qemu", "web", 1, 181, 4.1, ""}, {"102", "qemu", "ha", 1, 130, 2.8, ""}, {"104", "qemu", "nextcloud", 0, 2, 0, "unable to create temporary directory"},
+				{"200", "lxc", "pihole", 1, 45, 0.6, ""}, {"201", "lxc", "unifi", 1, 70, 1.2, ""}} {
+				vm := vm
+				mk("mirador_tache_vm", func(int) float64 { return vm.ok }, "source", "pve", "tache", "vzdump", "vm", vm.id, "type", vm.typ, "nom", vm.nom)
+				mk("mirador_tache_vm_duree_secondes", func(int) float64 { return vm.duree }, "source", "pve", "tache", "vzdump", "vm", vm.id)
+				if vm.go_ > 0 {
+					mk("mirador_tache_vm_octets", func(int) float64 { return vm.go_ * (1 << 30) }, "source", "pve", "tache", "vzdump", "vm", vm.id)
+				}
+				if vm.msg != "" {
+					mk("mirador_tache_vm_message", un, "source", "pve", "tache", "vzdump", "vm", vm.id, "message", vm.msg)
+				}
+			}
 			for i, d := range []string{"sda", "sdb", "nvme0"} {
 				mk("smartctl_device_smart_status", un, "device", d)
 				base := 36 + 6*float64(i) // nvme0 plus chaud, qui monte à la fin (alerte « Disque chaud »)
@@ -209,6 +228,7 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, cree_le) VALUES
 		('pve1|systemd|sauvegarde-restic', 'sauvegarde-restic', 'systemd', 'pve1', 0, 3600, 'warning', ?),
 		('pve1|pve|vzdump', 'vzdump', 'pve', 'pve1', 86400, 7200, 'critical', ?)`, now.Add(-48*time.Hour).Unix(), now.Add(-48*time.Hour).Unix())
+	_, _ = s.db.Exec(`UPDATE taches SET libelle = 'Sauvegardes des VM (nuit)' WHERE cle = 'pve1|pve|vzdump'`)
 	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, jeton, cree_le, debut, fin, code) VALUES
 		('ping|demo', 'Sauvegarde NAS (Hyper Backup)', 'ping', 'nas-backup', 86400, 3600, 'warning', 'x', ?, ?, ?, 0)`,
 		now.Add(-10*24*time.Hour).Unix(), now.Add(-50*time.Hour).Unix(), now.Add(-49*time.Hour).Unix())
@@ -273,7 +293,11 @@ func TestDemoInterface(t *testing.T) {
 			nom   string
 			duree float64
 		}{{"Home Assistant", 0.035 + float64(k%7)/1000}, {"DNS interne", 0.002 + float64(k%3)/1000}} {
-			for nom, v := range map[string]float64{"mirador_sonde_succes": 1, "mirador_sonde_duree_secondes": x.duree, "mirador_sonde_lente": 0, "mirador_sonde_code_http": 200} {
+			vals := map[string]float64{"mirador_sonde_succes": 1, "mirador_sonde_duree_secondes": x.duree, "mirador_sonde_lente": 0, "mirador_sonde_code_http": 200}
+			if x.nom == "Home Assistant" {
+				vals["mirador_sonde_certificat_fin_timestamp_seconds"] = float64(now.Add(62*24*time.Hour + time.Hour).Unix())
+			}
+			for nom, v := range vals {
 				sondesDemo = append(sondesDemo, stockage.Serie{Labels: []stockage.Label{{Nom: "__name__", Valeur: nom}, {Nom: "cible", Valeur: "-"},
 					{Nom: "instance", Valeur: "collecteur-lan"}, {Nom: "job", Valeur: "sondes"}, {Nom: "sonde", Valeur: x.nom}},
 					Points: []stockage.Point{{T: ts, V: v}}})

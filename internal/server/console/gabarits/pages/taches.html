@@ -20,7 +20,7 @@ curl -fsS -m 10 "{{.URL}}/code/$code?duree=$(( $(date +%s) - debut ))"</pre>
 
 <section class="carte"><h2>Suivies</h2>
 {{if $d.Suivies}}<div class="defile"><table data-cartes class="table-taches"><thead><tr><th>Tâche</th><th>Attendue</th><th>Dernière fin</th><th>État</th><th class="nombre">Durée</th>{{if .Admin}}<th aria-label="Actions"></th>{{end}}</tr></thead><tbody>
-{{range $d.Suivies}}<tr class="ligne-sonde {{.Classe}}"><td><strong>{{.T.Nom}}</strong>{{with .Description}}<br><small class="desc-tache">{{.}}</small>{{end}}<br><small class="doux">{{.Source}}{{if .T.Machine}} · <a href="/machines/{{.T.Machine}}">{{.T.Machine}}</a>{{end}}{{if eq .T.Gravite "critical"}} · critique{{end}}</small></td>
+{{range $d.Suivies}}<tr class="ligne-sonde {{.Classe}}"><td><strong>{{.T.Affiche}}</strong>{{if .T.Libelle}} <small class="doux">nom d'origine <code>{{.T.Nom}}</code></small>{{end}}{{with .Description}}<br><small class="desc-tache">{{.}}</small>{{end}}<br><small class="doux">{{.Source}}{{if .T.Machine}} · <a href="/machines/{{.T.Machine}}">{{.T.Machine}}</a>{{end}}{{if eq .T.Gravite "critical"}} · critique{{end}}</small>{{template "puces-tache" .Puces}}{{template "vms-tache" .T.Releve.VMs}}</td>
 <td>{{.Attendue}}</td><td class="sans-coupure">{{if .Fin.IsZero}}<span class="doux">—</span>{{else}}{{depuisS .Fin.Unix}}<br><small class="doux">{{date .Fin}}</small>{{end}}</td>
 <td><span class="pastille {{.Etat.Classe}}"{{if .Message}} title="{{.Message}}"{{end}}>{{.Etat.Texte}}</span>{{if .Message}}<br><small class="doux">{{.Message}}</small>{{end}}</td><td class="nombre">{{if .Duree}}{{.Duree}}{{else}}<span class="doux">—</span>{{end}}</td>
 {{if $.Admin}}<td class="sans-coupure"><details class="modifier-tache"><summary class="pastille">Modifier</summary>
@@ -45,15 +45,15 @@ curl -fsS -m 10 "{{.URL}}/code/$code?duree=$(( $(date +%s) - debut ))"</pre>
 
 {{end}}
 
-{{define "ligne-detectee"}}{{$x := .X}}<tr><td><strong>{{$x.Nom}}</strong>{{with $x.Description}}<br><small class="desc-tache">{{.}}</small>{{end}}<br><small class="doux">{{$x.SourceTexte}}</small></td><td><a href="/machines/{{$x.Machine}}#taches">{{$x.Machine}}</a></td>
+{{define "ligne-detectee"}}{{$x := .X}}<tr><td><strong>{{$x.Nom}}</strong>{{with $x.Description}}<br><small class="desc-tache">{{.}}</small>{{end}}<br><small class="doux">{{$x.SourceTexte}}</small>{{template "puces-tache" $x.Puces}}{{template "vms-tache" $x.Releve.VMs}}</td><td><a href="/machines/{{$x.Machine}}#taches">{{$x.Machine}}</a></td>
 <td class="sans-coupure">{{if $x.Fin.IsZero}}<span class="doux">pas encore</span>{{else}}{{depuisS $x.Fin.Unix}}{{end}}</td>
 <td>{{if $x.Fin.IsZero}}<span class="doux">—</span>{{else if $x.Code}}<span class="pastille erreur">Échec · code {{$x.Code}}</span>{{else}}<span class="pastille ok">OK</span>{{end}}</td>
 {{if .Admin}}<td class="sans-coupure"><details class="modifier-tache"><summary class="pastille">Suivre</summary>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="suivre"><input type="hidden" name="nom" value="{{$x.Nom}}"><input type="hidden" name="source" value="{{$x.Source}}"><input type="hidden" name="machine" value="{{$x.Machine}}">
 {{template "reglages-tache" (dict "T" (tacheDetecteeDefaut $x.Source))}}<button>Suivre</button></form></details></td>{{end}}</tr>{{end}}
 
-{{define "reglages-tache"}}{{$t := .T}}<div class="ligne">
-<label>Attendue <select name="periode">{{if eq $t.Source "systemd"}}<option value="0"{{if eq $t.Periode 0}} selected{{end}}>selon le timer</option>{{end}}
+{{define "reglages-tache"}}{{$t := .T}}{{if ne $t.Source "ping"}}<label>Nom affiché <input name="libelle" value="{{$t.Libelle}}" maxlength="100" placeholder="{{$t.Nom}}"><small class="doux">vide = nom d'origine ({{$t.Nom}}), qui reste la clé</small></label>{{end}}<div class="ligne">
+<label>Attendue <select name="periode">{{if eq $t.Source "systemd"}}<option value="0"{{if eq $t.Periode 0}} selected{{end}}>selon le timer</option>{{else if eq $t.Source "pve"}}<option value="0"{{if eq $t.Periode 0}} selected{{end}}>selon le planning Proxmox</option>{{end}}
 <option value="3600"{{if eq (secondes $t.Periode) 3600}} selected{{end}}>chaque heure</option>
 <option value="86400"{{if eq (secondes $t.Periode) 86400}} selected{{end}}>chaque jour</option>
 <option value="604800"{{if eq (secondes $t.Periode) 604800}} selected{{end}}>chaque semaine</option>
