@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/agent/veille"
+	"mirador-stack/internal/protocole"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -147,6 +149,10 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		"destination", cfg.URLMetriques, "intervalle", cfg.Intervalle.String())
 
 	a := agent.Nouveau(cfg, token, journal)
+	// Pannes vues tout de suite (SPEC § 98) : relevé immédiat, et le serveur
+	// est prévenu (s'il est connu).
+	veilleur := &veille.Veilleur{Systemd: cfg.Systemd, Journal: journal, Garder: gardeServices(cfg),
+		Signaler: func(protocole.EvenementAgent) { a.Reveiller() }}
 	if cfg.Serveur != "" {
 		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal,
 			Empreinte:    config.EmpreinteMachine(""),
@@ -156,7 +162,13 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 				arreterCollecte() // arrêt propre ; systemd relance l'agent
 			}}
 		go lien.Tourner(ctxCollecte)
+		veilleur.Signaler = func(e protocole.EvenementAgent) {
+			journal.Info("panne vue", "type", e.Type, "objet", e.Objet)
+			a.Reveiller()
+			lien.Signaler(ctxCollecte, e)
+		}
 	}
+	go veilleur.Tourner(ctxCollecte)
 	ctxEnvoi, arreterEnvoi := context.WithCancel(context.Background())
 	defer arreterEnvoi()
 
@@ -238,4 +250,17 @@ func niveau(n string) slog.Level {
 		return slog.LevelInfo
 	}
 	return l
+}
+
+// gardeServices : services dont la panne est signalée tout de suite (mêmes
+// choix que le collecteur systemd : validation un par un si elle est active).
+func gardeServices(cfg config.Agent) func(string) bool {
+	if !cfg.SystemdValidation {
+		return nil
+	}
+	suivis := map[string]bool{}
+	for _, n := range cfg.SystemdSurveiller {
+		suivis[n] = true
+	}
+	return func(u string) bool { return suivis[u] }
 }

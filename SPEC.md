@@ -7230,3 +7230,55 @@ côté serveur ; relevé par l'agent dans /proc plutôt que de lancer `top`
   regarde sa machine ; il ne peut ni lancer le direct ni écrire dans la base.
 - Aucune commande, aucun port ouvert ; 50 pages en direct au plus ; une
   page qui ne lit plus est coupée (délai d'écriture de 10 s).
+
+## 98. Pannes vues tout de suite, cause probable (20/11, maquette validée) **[Fait, à valider]**
+
+Partie 2 des améliorations des agents et du temps réel.
+
+### 98.1 Pannes vues tout de suite
+- **Agent** (paquet `veille`, aucun programme lancé, sans root) :
+  - service systemd passé en échec : signal D-Bus de systemd
+    (`PropertiesChanged`, `ActiveState = failed`, abonnement `Subscribe`
+    permis à tout utilisateur) ; .service seulement, mêmes choix que le
+    collecteur systemd (validation un par un), une fois par minute et par unité ;
+  - processus tué faute de mémoire : compteur `oom_kill` de /proc/vmstat
+    relu toutes les 2 s.
+- À chaque panne, l'agent fait un relevé tout de suite (collecteurs rapides
+  + systemd) et prévient le serveur (`POST /api/agent/v1/evenement`).
+  Serveur trop ancien (404) : plus rien jusqu'au redémarrage.
+- **Serveur** : panne notée (table `pannes`, migration 0035 ; 30 jours,
+  500 lignes par machine, 30 par minute au plus), puis le moteur d'alertes
+  évalue toutes les règles 2 s plus tard (le temps que les métriques
+  arrivent ; au plus une fois toutes les 5 s).
+- Ce que ça change : la condition apparaît en quelques secondes au lieu de
+  30 à 90 s. Le « pour » de chaque règle reste appliqué (« service en échec » :
+  5 min par défaut contre les redémarrages rapides, réglable dans Règles) ;
+  l'alerte OOM (sans « pour ») part tout de suite.
+- **Affichage** : type « Panne » dans le journal des événements (page
+  Événements, frise des incidents) ; bloc « Vu tout de suite » sur la page
+  d'une alerte (pannes de la machine 10 min avant ou après le début).
+
+### 98.2 Cause probable
+- Agent : collecteur `processus` (chaque minute) : les 5 processus les plus
+  gourmands en CPU (sur la minute, ≥ 0,5 %) et en mémoire :
+  `mirador_processus_cpu_pourcent{rang,nom,groupe}`,
+  `mirador_processus_memoire_octets{rang,nom,groupe}` (nom seulement, pas
+  le pid : peu de séries).
+- Page d'une alerte de CPU, de charge ou de mémoire (d'après l'expression
+  et le nom de la règle) : « Cause probable », les 3 premiers processus du
+  relevé qui couvre la minute du début.
+
+### 98.3 Coût (mesuré)
+- Agent : relecture oom_kill 31 µs toutes les 2 s ; classement des
+  processus 0,9 ms par minute (82 processus) ; une connexion D-Bus ouverte
+  (aucun travail sans changement d'état) ; ~20 séries de plus par machine.
+- Serveur : une écriture par panne ; une évaluation des règles en plus par panne.
+
+### 98.4 Modèle de menaces
+- Événement accepté seulement avec le token de la machine ; type connu,
+  nom d'unité limité à `[A-Za-z0-9:_.@\-]` (128 caractères), texte borné ;
+  30 par minute et par machine (un agent bavard ne remplit pas la base ni
+  ne fait tourner le moteur en boucle : 5 s entre deux réveils).
+- D-Bus : lecture seule (signaux, `Subscribe`) ; aucune méthode qui agit sur
+  les unités n'est appelée.
+- Noms de processus affichés échappés (html/template).

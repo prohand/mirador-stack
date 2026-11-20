@@ -1510,6 +1510,16 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Suite : partie 2 (pannes vues tout de suite, cause probable), partie 3
   (logs en direct), partie 4 (tampon disque, envoi allégé).
 
+## Agents et temps réel, partie 2 : pannes vues tout de suite, cause probable (SPEC § 98, 20/11)
+- Agent : signal systemd (service en échec) et compteur OOM toutes les 2 s :
+  relevé immédiat et serveur prévenu ; processus les plus gourmands chaque minute.
+- Serveur : pannes notées (journal des événements, « Vu tout de suite » sur
+  l'alerte), règles évaluées 2 s après ; « Cause probable » sur les alertes
+  de CPU, charge, mémoire.
+- Mesures : 31 µs / 2 s (OOM), 0,9 ms / min (processus). Objectifs tenus.
+- Tests : veilleur (signaux, OOM), pannes côté serveur (limite, réveil),
+  cause probable, page d'alerte, journal ; démo vérifiée.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

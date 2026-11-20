@@ -150,6 +150,10 @@ type Moteur struct {
 	resolues   []*Alerte     // résolues depuis la dernière écriture (historique)
 	derniereOK time.Time     // dernière évaluation complète sans erreur de stockage
 	cumul      time.Duration // temps passé à évaluer depuis le démarrage
+	// reveil : panne vue par un agent (SPEC § 98) : toutes les règles sont
+	// évaluées tout de suite (au plus une fois toutes les 5 s).
+	reveil     chan struct{}
+	reveilleLe time.Time
 }
 
 // Nouveau crée le moteur, charge les règles et les alertes en cours.
@@ -169,7 +173,7 @@ func Nouveau(ctx context.Context, opt Options) (*Moteur, error) {
 	if opt.Delai <= 0 {
 		opt.Delai = 10 * time.Second
 	}
-	m := &Moteur{opt: opt, debut: opt.Maintenant(), regles: map[string]*etatRegle{}, generation: -1}
+	m := &Moteur{opt: opt, debut: opt.Maintenant(), regles: map[string]*etatRegle{}, generation: -1, reveil: make(chan struct{}, 1)}
 	m.moteur = promql.NewEngine(promql.EngineOpts{
 		Logger:        opt.Journal.With("composant", "promql"),
 		MaxSamples:    opt.MaxPoints,
@@ -360,8 +364,33 @@ func (m *Moteur) Boucle(ctx context.Context) {
 			}
 		case <-minuterie.C:
 			m.EvaluerDues(ctx, m.opt.Maintenant())
+		case <-m.reveil:
+			minuterie.Stop()
+			m.evaluerAuReveil(ctx, m.opt.Maintenant())
 		}
 	}
+}
+
+// Reveiller : une panne vient d'être vue par un agent (SPEC § 98) : les
+// règles sont évaluées dès que possible, sans attendre leur rythme.
+func (m *Moteur) Reveiller() {
+	select {
+	case m.reveil <- struct{}{}:
+	default: // déjà demandé
+	}
+}
+
+// evaluerAuReveil : toutes les règles, maintenant (au plus une fois toutes
+// les 5 s : une rafale de pannes ne fait pas tourner le moteur en boucle).
+func (m *Moteur) evaluerAuReveil(ctx context.Context, t time.Time) {
+	m.mu.Lock()
+	if t.Sub(m.reveilleLe) < 5*time.Second {
+		m.mu.Unlock()
+		return
+	}
+	m.reveilleLe = t
+	m.mu.Unlock()
+	m.EvaluerTout(ctx, t)
 }
 
 func (m *Moteur) prochaineEcheance() time.Time {

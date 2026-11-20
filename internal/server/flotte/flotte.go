@@ -44,6 +44,9 @@ type Options struct {
 	// Direct : relevés « en direct » des pages des machines (SPEC § 97) ;
 	// nil : pas de direct.
 	Direct *direct.Hub
+	// ReveilAlertes : évalue les règles d'alerte tout de suite (panne vue
+	// par un agent, SPEC § 98) ; nil : rien.
+	ReveilAlertes func()
 }
 
 // Flotte : points d'entrée des machines (hors métriques et logs).
@@ -56,6 +59,7 @@ type Flotte struct {
 	mu         sync.Mutex
 	battements map[int64]battement // écrits en base une fois par minute
 	connus     map[int64]string    // dernier état écrit (version, démarrage, essai, échec…)
+	pannes     limitePannes        // pannes vues par les agents, par minute (SPEC § 98)
 }
 
 type battement struct {
@@ -95,6 +99,7 @@ func (f *Flotte) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET "+protocole.CheminInstallationBinaire, f.binaireAInstaller)
 	m.HandleFunc("GET "+protocole.CheminCles, f.cles)
 	m.HandleFunc("POST "+protocole.CheminDirect, f.recevoirDirect)
+	m.HandleFunc("POST "+protocole.CheminEvenement, f.recevoirEvenement)
 }
 
 // Boucle : écrit les battements en base une fois par minute, et à l'arrêt.

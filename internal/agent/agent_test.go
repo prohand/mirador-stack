@@ -243,7 +243,7 @@ func TestLogsSeulement(t *testing.T) {
 	cfg.Metriques = false
 	a := Nouveau(cfg, "x", journalMuet())
 	a.Remplir(time.Now(), true)
-	if a.lot.Len() == 0 || a.lot.Len() > 40 {
+	if a.lot.Len() == 0 || a.lot.Len() > 50 { // métriques de l.agent : 2 par collecteur, plus quelques-unes
 		t.Fatalf("%d points", a.lot.Len())
 	}
 	for _, s := range a.lot.Samples {

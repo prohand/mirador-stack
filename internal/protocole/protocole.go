@@ -39,6 +39,8 @@ const (
 	CheminCles                   = "/api/agent/v1/cles" // GET : clés publiques de signature (texte)
 	// CheminDirect : relevé « en direct » de la page d'une machine (SPEC § 97).
 	CheminDirect = "/api/agent/v1/direct" // POST : JSON (Direct)
+	// CheminEvenement : panne vue par l'agent tout de suite (SPEC § 98).
+	CheminEvenement = "/api/agent/v1/evenement" // POST : JSON (EvenementAgent)
 )
 
 // En-têtes envoyés par l'agent.

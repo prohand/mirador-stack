@@ -42,6 +42,8 @@ type Agent struct {
 
 	cycle   uint64
 	interne interne
+	// reveil : panne vue (SPEC § 98) : un relevé tout de suite, sans attendre.
+	reveil chan struct{}
 }
 
 // Nouveau prépare l'agent (rien ne tourne encore).
@@ -71,7 +73,7 @@ func NouveauAvec(cfg config.Agent, token string, journal *slog.Logger, opt Optio
 	if cfg.Env != "" {
 		common = append(common, mm.L("env", cfg.Env))
 	}
-	a := &Agent{
+	a := &Agent{reveil: make(chan struct{}, 1),
 		cfg:         cfg,
 		journal:     journal,
 		collecteurs: opt.Collecteurs,
@@ -112,6 +114,8 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
 		// sinon seulement signalés à l'interface (SPEC.md § 19).
 		collect.NewMateriel(cfg.RacineSys, cfg.RacineProc, cfg.Ventilateurs, cfg.ZFS, cfg.Mdraid),
+		// Processus les plus gourmands, chaque minute : « cause probable » des alertes (SPEC § 98).
+		collect.NewProcessus(cfg.RacineProc),
 	}
 	if cfg.Temperatures {
 		liste = append(liste, collect.NewTemperatures(cfg.RacineSys))
@@ -182,7 +186,25 @@ func (a *Agent) Tourner(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-a.reveil:
+			// Panne vue (SPEC § 98) : relevé rapide tout de suite (les
+			// collecteurs lents gardent leur rythme), en plus du rythme habituel.
+			a.cycleUrgent(time.Now())
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
+	}
+}
+
+// Reveiller : un relevé tout de suite (panne vue, SPEC § 98). Sans effet
+// si un relevé est déjà demandé.
+func (a *Agent) Reveiller() {
+	select {
+	case a.reveil <- struct{}{}:
+	default:
 	}
 }
 
@@ -195,8 +217,23 @@ func (a *Agent) Cycle(maintenant time.Time, avecLents bool) {
 	}
 }
 
+// cycleUrgent : relevé après une panne vue (SPEC § 98) : collecteurs
+// rapides, plus systemd (lent d'habitude) pour que l'état « failed » parte
+// tout de suite.
+func (a *Agent) cycleUrgent(maintenant time.Time) {
+	a.remplir(maintenant, func(c collect.Collecteur) bool { return !c.Lent() || c.Nom() == "systemd" })
+	donnees := a.enc.Encode(a.file.Prendre(), a.lot)
+	if !a.file.Ajouter(donnees) {
+		a.journal.Warn("lot trop gros pour le tampon, abandonné", "octets", len(donnees))
+	}
+}
+
 // Remplir exécute les collecteurs et remplit le lot (sans l'envoyer).
 func (a *Agent) Remplir(maintenant time.Time, avecLents bool) *mm.Batch {
+	return a.remplir(maintenant, func(c collect.Collecteur) bool { return avecLents || !c.Lent() })
+}
+
+func (a *Agent) remplir(maintenant time.Time, garder func(collect.Collecteur) bool) *mm.Batch {
 	a.lot.Reset(maintenant.UnixMilli())
 	// Métriques désactivées (« logs seulement ») : seules les métriques de
 	// l'agent partent (il reste visible et supervisé).
@@ -204,7 +241,7 @@ func (a *Agent) Remplir(maintenant time.Time, avecLents bool) *mm.Batch {
 		if !a.cfg.Metriques {
 			break
 		}
-		if c.Lent() && !avecLents {
+		if !garder(c) {
 			continue
 		}
 		debut := time.Now()

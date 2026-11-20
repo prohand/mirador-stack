@@ -1648,3 +1648,10 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
   .direct-tete .doux { flex-basis: 100%; order: 3; }
   .top-proc .col-util, .top-proc .col-groupe, .barre-mini { display: none; }
 }
+
+/* Page d'une alerte : cause probable et pannes vues tout de suite (SPEC § 98). */
+.cause-probable { border-left: 3px solid #D97706; }
+.cause-probable ol { margin: 6px 0 0; padding-left: 20px; }
+.cause-probable li { padding: 3px 0; }
+.evt-rapide { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
+.evt-rapide time { color: var(--pale); font-variant-numeric: tabular-nums; min-width: 66px; }
