@@ -8,11 +8,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"mirador-stack/internal/majserveur"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/version"
 )
 
 // Réglages › Mise à jour du serveur (SPEC § 102) : service absent expliqué,
@@ -82,5 +85,68 @@ func TestMajServeur(t *testing.T) {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("état : %q absent", attendu)
 		}
+	}
+}
+
+// Mise à jour la nuit (réglage, désactivé par défaut) : demande déposée
+// seulement à l'heure choisie, une seule fois par version.
+func TestMajServeurNuit(t *testing.T) {
+	avant := version.Version
+	version.Version = "0.5.0"
+	defer func() { version.Version = avant }()
+	b := nouveauBanc(t)
+	gh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://github.com/prohand/mirador-stack/releases/tag/v0.6.0")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer gh.Close()
+	b.c.sourceGitHub = flotte.SourceGitHub{Base: gh.URL}
+	racine := t.TempDir()
+	b.c.opt.MajDemande, b.c.opt.MajEtat = filepath.Join(racine, "maj"), filepath.Join(racine, "maj-etat")
+	_ = os.MkdirAll(b.c.opt.MajDemande, 0o755)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	demande := filepath.Join(b.c.opt.MajDemande, majserveur.NomDemande)
+	ctx := t.Context()
+
+	// Désactivée par défaut : rien.
+	b.c.majNuit(ctx, b.h.maintenant())
+	if _, err := os.Stat(demande); err == nil {
+		t.Fatal("demande sans réglage")
+	}
+	// Activée pour une autre heure : rien.
+	h := b.h.maintenant().In(fuseau.Load()).Hour()
+	autre := (h + 5) % 24
+	b.post(c, "/reglages/serveur", url.Values{"csrf": {b.csrf(c, "/reglages/serveur")}, "action": {"nuit"}, "actif": {"1"}, "heure": {strconv.Itoa(autre)}, "code": {b.code(secret)}})
+	if lireMajNuit(ctx, b.db) != autre {
+		t.Fatal("réglage non enregistré")
+	}
+	b.c.dernierMajNuit = time.Time{}
+	b.c.majNuit(ctx, b.h.maintenant())
+	if _, err := os.Stat(demande); err == nil {
+		t.Fatal("demande hors de l'heure choisie")
+	}
+	// À la bonne heure : demandée, une seule fois.
+	b.post(c, "/reglages/serveur", url.Values{"csrf": {b.csrf(c, "/reglages/serveur")}, "action": {"nuit"}, "actif": {"1"}, "heure": {strconv.Itoa(h)}, "code": {b.code(secret)}})
+	b.c.dernierMajNuit = time.Time{}
+	b.c.majNuit(ctx, b.h.maintenant())
+	var d majserveur.Demande
+	if err := majserveur.LireJSON(demande, &d); err != nil || d.Version != "0.6.0" || d.Par != "nuit (automatique)" {
+		t.Fatalf("demande de nuit : %+v, %v", d, err)
+	}
+	_ = os.Remove(demande) // traitée (en échec, par exemple)
+	b.c.dernierMajNuit = time.Time{}
+	b.c.majNuit(ctx, b.h.maintenant())
+	if _, err := os.Stat(demande); err == nil {
+		t.Error("même version redemandée la nuit")
+	}
+	var n int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit WHERE action = 'maj_serveur_nuit'`).Scan(&n)
+	if n != 2 {
+		t.Errorf("réglage de nuit dans l'audit : %d lignes", n)
+	}
+	// Désactivation.
+	b.post(c, "/reglages/serveur", url.Values{"csrf": {b.csrf(c, "/reglages/serveur")}, "action": {"nuit"}, "code": {b.code(secret)}})
+	if lireMajNuit(ctx, b.db) != -1 {
+		t.Error("désactivation non enregistrée")
 	}
 }

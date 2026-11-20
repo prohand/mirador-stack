@@ -4,9 +4,11 @@ package console
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +53,86 @@ func (c *Console) derniereVersionServeur(ctx context.Context, depot string, t ti
 	return c.derniere.version, c.derniere.err
 }
 
+// --- Mise à jour la nuit (réglage, désactivé par défaut ; demande du 20/11) ---
+//
+// « Au bouton seulement, avec un réglage pour activer la mise à jour la nuit
+// si on veut. » Activée, la console vérifie toutes les 10 minutes pendant
+// l'heure choisie (heure du fuseau de l'interface) : une version plus récente
+// est publiée, le service du VPS est installé, rien n'est en cours → elle
+// dépose la demande elle-même (« nuit (automatique) », audit). Une version
+// déjà essayée la nuit n'est pas redemandée (un échec attend le bouton).
+
+const (
+	cleMajNuit        = "maj_serveur.nuit"         // heure (0 à 23) ; absent : désactivée
+	cleMajNuitEssayee = "maj_serveur.nuit_essayee" // dernière version demandée la nuit
+)
+
+// lireMajNuit : heure de la mise à jour de nuit (-1 : désactivée).
+func lireMajNuit(ctx context.Context, db *sql.DB) int {
+	var v string
+	if db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleMajNuit).Scan(&v) != nil {
+		return -1
+	}
+	h, err := strconv.Atoi(v)
+	if err != nil || h < 0 || h > 23 {
+		return -1
+	}
+	return h
+}
+
+func ecrireReglageAudit(ctx context.Context, db *sql.DB, cle, val, qui, action, avant string, t time.Time) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
+	if val == "" {
+		_, err = tx.ExecContext(ctx, `DELETE FROM reglages WHERE cle = ?`, cle)
+	} else {
+		_, err = tx.ExecContext(ctx, `INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, ?, ?, ?)
+			ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, modifie_le = excluded.modifie_le, modifie_par = excluded.modifie_par`,
+			cle, val, t.Unix(), qui)
+	}
+	if err != nil {
+		return err
+	}
+	if action != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO audit(le, qui, action, objet, avant, apres, adresse) VALUES (?, ?, ?, 'serveur', ?, ?, '')`,
+			t.Unix(), qui, action, avant, val); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// majNuit : appelée par Tour ; ne fait quelque chose qu'à l'heure réglée.
+func (c *Console) majNuit(ctx context.Context, t time.Time) {
+	if c.opt.MajDemande == "" || t.Sub(c.dernierMajNuit) < 10*time.Minute {
+		return
+	}
+	c.dernierMajNuit = t
+	h := lireMajNuit(ctx, c.db)
+	if h < 0 || t.In(fuseau.Load()).Hour() != h {
+		return
+	}
+	v := c.vueMajServeur(ctx, t, false)
+	if !v.Proposer || !v.ActuelleValide {
+		return
+	}
+	var essayee string
+	_ = c.db.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleMajNuitEssayee).Scan(&essayee)
+	if essayee == v.Derniere {
+		return // déjà demandée une nuit : un échec attend le bouton
+	}
+	d := majserveur.Demande{Version: v.Derniere, Le: t.Unix(), Par: "nuit (automatique)"}
+	if err := majserveur.EcrireJSON(c.opt.MajDemande, majserveur.NomDemande, d, 0o644); err != nil { // #nosec G306 -- lu par le service du VPS (root)
+		c.journal.Warn("mise à jour de nuit non demandée", "erreur", err)
+		return
+	}
+	_ = ecrireReglageAudit(ctx, c.db, cleMajNuitEssayee, v.Derniere, "nuit", "maj_serveur_demandee", v.Actuelle, t)
+	c.journal.Info("mise à jour du serveur demandée (nuit)", "de", v.Actuelle, "vers", v.Derniere)
+}
+
 type vueMajServeur struct {
 	Actuelle, Derniere, ErreurDerniere string
 	Depot, LienNotes                   string
@@ -63,10 +145,15 @@ type vueMajServeur struct {
 	Proposer                           bool   // une version plus récente peut être demandée
 	ActuelleValide                     bool   // version de ce serveur au format X.Y.Z (pas « dev »)
 	Classe, Texte                      string // pastille de l'état
+	Nuit                               int    // heure de la mise à jour de nuit (-1 : désactivée)
+	Heures                             []int
 }
 
 func (c *Console) vueMajServeur(ctx context.Context, t time.Time, forcer bool) vueMajServeur {
-	v := vueMajServeur{Actuelle: version.Version, Active: c.opt.MajDemande != ""}
+	v := vueMajServeur{Actuelle: version.Version, Active: c.opt.MajDemande != "", Nuit: lireMajNuit(ctx, c.db)}
+	for h := 0; h < 24; h++ {
+		v.Heures = append(v.Heures, h)
+	}
 	v.ActuelleValide = majserveur.ValiderVersion(v.Actuelle) == nil
 	v.Depot, _ = flotte.LireDepot(ctx, c.db)
 	v.Derniere, v.ErreurDerniere = c.derniereVersionServeur(ctx, v.Depot, t, forcer)
@@ -116,6 +203,10 @@ func (c *Console) pageMajServeur(q *req) {
 // postMajServeur : dépose la demande (version vérifiée ici aussi : le
 // service du VPS revérifie tout de son côté).
 func (c *Console) postMajServeur(q *req) {
+	if q.r.PostFormValue("action") == "nuit" {
+		c.postMajNuit(q)
+		return
+	}
 	err := func() error {
 		if c.opt.MajDemande == "" {
 			return errors.New("mise à jour depuis l'interface désactivée (MIRADOR_MAJ_DEMANDE)")
@@ -145,4 +236,30 @@ func (c *Console) postMajServeur(q *req) {
 		return err
 	}()
 	c.retour(q, "/reglages/serveur", err, "mise à jour demandée : le service du VPS la prend en charge (suivi ci-dessous)")
+}
+
+// postMajNuit : active (heure) ou désactive la mise à jour de nuit (code 2FA
+// frais, audit).
+func (c *Console) postMajNuit(q *req) {
+	ok := "mise à jour de nuit désactivée : au bouton seulement"
+	err := func() error {
+		if err := c.verifierCodeFrais(q); err != nil {
+			return err
+		}
+		val := ""
+		if q.r.PostFormValue("actif") == "1" {
+			h, err := strconv.Atoi(q.r.PostFormValue("heure"))
+			if err != nil || h < 0 || h > 23 {
+				return errors.New("heure : 0 à 23")
+			}
+			val = strconv.Itoa(h)
+			ok = "mise à jour de nuit activée, vers " + val + " h"
+		}
+		avant := ""
+		if h := lireMajNuit(q.r.Context(), c.db); h >= 0 {
+			avant = strconv.Itoa(h)
+		}
+		return ecrireReglageAudit(q.r.Context(), c.db, cleMajNuit, val, q.qui(), "maj_serveur_nuit", avant, q.t)
+	}()
+	c.retour(q, "/reglages/serveur", err, ok)
 }

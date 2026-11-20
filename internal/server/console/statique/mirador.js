@@ -2156,7 +2156,8 @@ document.addEventListener("change", function (ev) {
   function afficher() {
     var d = points[points.length - 1];
     if (!d) { return; }
-    poser("cpu", pct(d.cpu), (d.coeurs ? d.coeurs + " cœurs · " : "") + "charge " + nombre(d.charge, 1), classeSeuil("cpu", d.cpu));
+    // La charge est sur la ligne du bas (« Charge par cœur ») : pas ici aussi.
+    poser("cpu", pct(d.cpu), d.coeurs ? d.coeurs + " cœurs" : "", classeSeuil("cpu", d.cpu));
     var pm = memPct(d);
     poser("mem", pct(pm), octets(d.mem_utilisee) + " / " + octets(d.mem_totale), classeSeuil("mem", pm));
     poser("net", "↓ " + debit(d.net_recu), "↑ " + debit(d.net_envoye));

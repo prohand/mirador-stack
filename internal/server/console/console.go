@@ -100,6 +100,8 @@ type Console struct {
 
 	// derniere : dernière version du serveur publiée (SPEC § 102).
 	derniere cacheDerniere
+	// dernierMajNuit : dernier passage de la mise à jour de nuit (10 min).
+	dernierMajNuit time.Time
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -249,6 +251,7 @@ func (c *Console) Tour(ctx context.Context) {
 		c.appliquerAuto(ctx, t)
 	}
 	c.lireNomsAnciens(ctx)
+	c.majNuit(ctx, t)
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()

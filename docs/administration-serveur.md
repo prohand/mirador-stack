@@ -325,6 +325,11 @@ L'interface est coupée une à deux minutes. Le déroulé s'affiche sur la page
 (et la demande est notée dans l'audit). Code 2FA demandé, même en mode
 administration.
 
+Par défaut, au bouton seulement. Bloc « Mise à jour la nuit » : à activer
+si on veut, avec l'heure (fuseau de l'interface). Le serveur demande alors
+lui-même la dernière version pendant cette heure ; une version déjà essayée
+la nuit n'est pas redemandée (en cas d'échec, elle attend le bouton).
+
 ### Installation (une fois)
 
 La toute première version qui contient ce service (0.6.0) s'installe encore

@@ -7446,6 +7446,9 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
   surface remplie, repères, seuil du modèle en pointillé, échelle ronde
   (Ko/Mo/Go), deux courbes pour réseau (reçu/envoyé) et disques (lu/écrit),
   valeur au survol ou au doigt (sans ouvrir le détail).
+- Pas de redite (retour du 20/11) : la charge n'est plus dans la case
+  Processeur (elle est sur la ligne du bas) ; réseau et disques : un repère
+  de la couleur de la courbe devant chaque valeur, au lieu d'une légende.
 - Réseau et disques enregistrés : cartes physiques et disques entiers (comme
   le direct), pour ne pas compter deux fois (ponts, VLAN, partitions).
 - Coût mesuré : navigateur 1,4 ms de script par seconde de direct (20 s :
@@ -7468,6 +7471,12 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   sans suivre les liens (O_NOFOLLOW), fichier ordinaire, 16 Kio au plus,
   champs inconnus refusés ; écrits par fichier temporaire au nom tiré au
   sort puis renommage.
+- Au bouton seulement par défaut. Réglage « Mise à jour la nuit » (désactivé
+  par défaut, code 2FA frais, audit `maj_serveur_nuit`) : pendant l'heure
+  choisie (fuseau de l'interface), la console vérifie toutes les 10 min et
+  dépose elle-même la demande de la dernière version (« nuit (automatique) »).
+  Une version déjà demandée la nuit n'est pas redemandée : un échec attend
+  le bouton. Mêmes vérifications côté VPS.
 - Première mise à jour vers 0.6.0 (qui contient le service) : à la main.
 - Coût mesuré : binaire 6,9 Mio ; aucun processus au repos (systemd .path) ;
   un passage sans demande : 4 ms, 12,7 Mio de RSS au plus ; une mise à jour :

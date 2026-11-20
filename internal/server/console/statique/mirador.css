@@ -1677,12 +1677,13 @@ a.ecm-case:hover { border-color: var(--bord-champ); }
 .ecm-haut { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ecm-haut small { color: var(--pale); font-size: 12.5px; font-weight: 500; }
 .ecm-haut .seuil { margin-left: auto; font-size: 12px; color: var(--pale); }
-.ecm-leg { display: inline-flex; gap: 12px; font-size: 12px; color: var(--doux); }
-.ecm-leg i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 .ecm-val { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; margin: 2px 0 6px; }
 .ecm-val b { font-size: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ecm-val b.v-attention { color: var(--attention); } .ecm-val b.v-erreur { color: var(--erreur); }
 .ecm-val span { font-size: 13px; color: var(--doux); font-variant-numeric: tabular-nums; }
+/* Repère de couleur devant chaque valeur (réseau, disques) : même couleur
+   que sa courbe (remplace la légende, retour du 20/11). */
+.ecm-val .repere { display: inline-block; width: 12px; height: 4px; border-radius: 2px; align-self: center; margin-right: -4px; }
 .ecm-graphe { display: block; position: relative; height: 104px; cursor: crosshair; }
 .ecm-graphe[hidden] { display: none; }
 .ecm-graphe svg { display: block; width: 100%; height: 86px; overflow: visible; }

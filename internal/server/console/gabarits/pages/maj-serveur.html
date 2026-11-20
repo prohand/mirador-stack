@@ -25,4 +25,12 @@
 {{if .Message}}<p class="message {{if eq .Etat "ok"}}ok{{else if eq .Etat "en_cours"}}attention{{else}}erreur{{end}}">{{.Message}}</p>{{end}}
 <ol class="etapes-maj">{{range .Etapes}}<li><time>{{dateS .Le}}</time> {{.Texte}}</li>{{end}}</ol>{{end}}
 </section>
+{{if $d.Active}}<section class="carte"><div class="entete-carte"><h2>Mise à jour la nuit</h2><span class="pastille {{if ge $d.Nuit 0}}info{{end}}">{{if ge $d.Nuit 0}}Activée, vers {{$d.Nuit}} h{{else}}Désactivée : au bouton seulement{{end}}</span></div>
+<p class="sous">Activée, le serveur demande lui-même la dernière version publiée pendant l'heure choisie (mêmes vérifications, même retour automatique). Une version déjà essayée la nuit n'est pas redemandée : en cas d'échec, elle attend le bouton.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="nuit">
+<label class="case"><input type="checkbox" name="actif" value="1"{{if ge $d.Nuit 0}} checked{{end}}> Mettre à jour la nuit</label>
+<label>Vers <select name="heure">{{range $d.Heures}}<option value="{{.}}"{{if or (eq . $d.Nuit) (and (lt $d.Nuit 0) (eq . 3))}} selected{{end}}>{{.}} h</option>{{end}}</select></label>
+<label>Code 2FA <input name="code" required inputmode="numeric" autocomplete="one-time-code" size="8" maxlength="8" pattern="[0-9]{6,8}"></label>
+<button class="secondaire">Enregistrer</button></form>{{end}}
+</section>{{end}}
 {{end}}
