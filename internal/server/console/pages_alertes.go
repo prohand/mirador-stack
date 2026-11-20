@@ -3,6 +3,7 @@
 package console
 
 import (
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -111,7 +112,16 @@ type donneesAlerte struct {
 	CourbeJSON string        // la même pour graphes.js (axes, survol, seuil)
 	Absente    string        // données absentes depuis (SPEC § 46), vide sinon
 	Incident   *incident     // incident dont l'alerte fait partie (SPEC § 54)
+	// Cause probable (SPEC § 98) : processus les plus gourmands au début de
+	// l'alerte (relevé de l'agent chaque minute) ; CauseQuoi : « CPU » ou « mémoire ».
+	Cause     []processusCause
+	CauseQuoi string
+	CauseLe   time.Time
+	// VuToutDeSuite : pannes vues par l'agent autour du début (SPEC § 98).
+	VuToutDeSuite []flotte.Panne
 }
+
+type processusCause struct{ Nom, Groupe, Valeur string }
 
 func (c *Console) pageAlerte(q *req) {
 	id, _ := strconv.ParseInt(q.r.PathValue("id"), 10, 64)
@@ -131,6 +141,7 @@ func (c *Console) pageAlerte(q *req) {
 			}
 		}
 	}
+	exprRegle := ""
 	if c.lecteur != nil {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, r := range rs {
@@ -139,6 +150,7 @@ func (c *Console) pageAlerte(q *req) {
 					if !d.EnCours && !a.Fin.IsZero() {
 						fin = a.Fin.Add(2 * time.Hour)
 					}
+					exprRegle = r.Expr
 					d.CourbeJSON = c.courbeAlerteJSON(q.r.Context(), r.Expr, libelleRegle(a.Regle), a.Etiquettes, fin, 24*time.Hour)
 					if d.CourbeJSON == "" { // repli : simple trait
 						d.Courbe = c.courbeAlerte(q.r.Context(), r.Expr, a.Etiquettes, a.Gravite, fin, 24*time.Hour, 720, 160)
@@ -146,6 +158,12 @@ func (c *Console) pageAlerte(q *req) {
 				}
 			}
 		}
+	}
+	if c.lecteur != nil { // l'expression de la règle, et son nom (règle supprimée depuis)
+		d.Cause, d.CauseQuoi, d.CauseLe = c.causeProbable(q.r.Context(), d.Machine, exprRegle+" "+a.Regle, a.Debut)
+	}
+	if d.Machine != "" && !a.Debut.IsZero() {
+		d.VuToutDeSuite, _ = flotte.ListerPannes(q.r.Context(), c.db, d.Machine, a.Debut.Add(-10*time.Minute), a.Debut.Add(10*time.Minute), 5)
 	}
 	a.Etiquettes.Range(func(l labels.Label) { d.Etiquettes = append(d.Etiquettes, etiquette{l.Name, l.Value}) })
 	if c.opt.Aiguilleur != nil && d.EnCours {
@@ -502,4 +520,41 @@ func celluleSure(s string) string {
 		return "'" + s
 	}
 	return s
+}
+
+// causeProbable (SPEC § 98) : pour une alerte de CPU, de charge ou de
+// mémoire (d'après l'expression et le nom de la règle), les 3 processus les plus gourmands relevés par l'agent juste
+// après le début (relevé de la minute qui contient le début).
+func (c *Console) causeProbable(ctx context.Context, machine, expr string, debut time.Time) ([]processusCause, string, time.Time) {
+	if machine == "" || debut.IsZero() {
+		return nil, "", time.Time{}
+	}
+	e := strings.ToLower(expr)
+	serie, quoi := "", ""
+	switch {
+	case strings.Contains(e, "cpu") || strings.Contains(e, "load") || strings.Contains(e, "charge"):
+		serie, quoi = "mirador_processus_cpu_pourcent", "CPU"
+	case strings.Contains(e, "mem") || strings.Contains(e, "mém") || strings.Contains(e, "oom") || strings.Contains(e, "swap"):
+		serie, quoi = "mirador_processus_memoire_octets", "mémoire"
+	default:
+		return nil, "", time.Time{}
+	}
+	t := debut.Add(90 * time.Second) // le relevé qui couvre la minute du début
+	if t.After(c.maintenant()) {
+		t = c.maintenant()
+	}
+	ech, err := c.instant(ctx, `topk(3, `+serie+`{instance="`+echapperPromQL(machine)+`"})`, t)
+	if err != nil || len(ech) == 0 {
+		return nil, "", time.Time{}
+	}
+	sort.Slice(ech, func(i, j int) bool { return ech[i].Valeur > ech[j].Valeur })
+	var out []processusCause
+	for _, x := range ech {
+		v := strconv.FormatFloat(x.Valeur, 'f', 0, 64) + " %"
+		if quoi == "mémoire" {
+			v = tailleLisible(int64(x.Valeur))
+		}
+		out = append(out, processusCause{Nom: x.Etiquettes.Get("nom"), Groupe: x.Etiquettes.Get("groupe"), Valeur: v})
+	}
+	return out, quoi, t
 }

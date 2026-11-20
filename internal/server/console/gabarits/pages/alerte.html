@@ -2,6 +2,12 @@
 {{$a := .D.A}}
 <h1>{{template "gravite" $a.Gravite}} {{nomAlerte $a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
 {{template "onglets-alertes" ""}}
+{{if or .D.Cause .D.VuToutDeSuite}}<div class="grille">
+{{if .D.Cause}}<section class="carte cause-probable"><h2>Cause probable</h2><p class="sous">Processus qui prenaient le plus de {{.D.CauseQuoi}} vers {{heureCourte .D.CauseLe}} (relevé de l'agent, chaque minute) :</p>
+<ol>{{range .D.Cause}}<li><b>{{.Nom}}</b>{{with .Groupe}} <small class="doux">{{.}}</small>{{end}} — {{.Valeur}}</li>{{end}}</ol></section>{{end}}
+{{if .D.VuToutDeSuite}}<section class="carte"><h2>Vu tout de suite</h2><p class="sous">Signalé par l'agent dès que c'est arrivé (sans attendre le relevé suivant).</p>
+{{range .D.VuToutDeSuite}}<div class="evt-rapide"><time>{{heureSecondes .Le}}</time><span>{{textePanne .}}</span></div>{{end}}</section>{{end}}
+</div>{{end}}
 <div class="grille">
 <section class="carte"><h2>État</h2><table>
 <tr><th>Numéro</th><td>{{$a.ID}}{{with .D.Incident}} · fait partie de l'<a href="/incidents/{{.ID}}">incident {{.ID}} : {{.Titre}}</a>{{end}}</td></tr>

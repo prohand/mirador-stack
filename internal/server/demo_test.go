@@ -187,6 +187,14 @@ func TestDemoInterface(t *testing.T) {
 					mk("mirador_tache_vm_message", un, "source", "pve", "tache", "vzdump", "vm", vm.id, "message", vm.msg)
 				}
 			}
+			// Processus les plus gourmands, chaque minute (cause probable, SPEC § 98).
+			for _, x := range []struct {
+				rang, nom, groupe string
+				v                 float64
+			}{{"1", "vzdump", "", 86}, {"2", "kvm", "VM 102", 41}, {"3", "zstd", "", 30}} {
+				x := x
+				mk("mirador_processus_cpu_pourcent", func(int) float64 { return x.v }, "rang", x.rang, "nom", x.nom, "groupe", x.groupe)
+			}
 			// VM oubliée (SPEC § 95).
 			mk("mirador_pve_invite_sans_sauvegarde", un, "id", "105", "type", "qemu", "nom", "test-k8s")
 			for i, d := range []string{"sda", "sdb", "nvme0"} {
@@ -247,6 +255,11 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, resume, valeur_max)
 		VALUES ('ServiceEnEchec', '{"alertname":"ServiceEnEchec","instance":"vps-web","name":"nginx.service","severity":"warning"}', 'warning', 'active', ?, ?, 'Service nginx.service en échec sur vps-web', 1)`,
 		now.Add(-40*time.Minute).UnixMilli(), now.Add(-35*time.Minute).UnixMilli())
+	// Panne vue tout de suite par l'agent (SPEC § 98) : nginx de vps-web.
+	var idVps int64
+	_ = s.db.QueryRow(`SELECT id FROM machines WHERE nom = 'vps-web'`).Scan(&idVps)
+	_ = flotte.NoterPanne(ctx, s.db, idVps, now.Add(-40*time.Minute-2*time.Second),
+		protocole.EvenementAgent{Type: protocole.EvenementService, Objet: "nginx.service", Texte: "passé en échec"})
 	// Tâches suivies (SPEC § 80) : un timer de pve1, la sauvegarde
 	// Proxmox, un ping en retard.
 	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, cree_le) VALUES

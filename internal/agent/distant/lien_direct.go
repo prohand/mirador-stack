@@ -63,3 +63,30 @@ func (l *Lien) boucleDirect(ctx context.Context) {
 		}
 	}
 }
+
+// Signaler : une panne vue par l'agent (SPEC § 98) est envoyée au serveur,
+// qui la note et évalue les alertes tout de suite. Serveur trop ancien
+// (404) : plus rien n'est envoyé jusqu'au prochain démarrage.
+func (l *Lien) Signaler(ctx context.Context, e protocole.EvenementAgent) {
+	if l.sansEvenements.Load() {
+		return
+	}
+	corps, err := json.Marshal(e)
+	if err != nil {
+		return
+	}
+	go func() {
+		ctxReq, annuler := context.WithTimeout(ctx, 10*time.Second)
+		defer annuler()
+		resp, _, err := l.requete(ctxReq, http.MethodPost, protocole.CheminEvenement, corps,
+			map[string]string{"Content-Type": "application/json"}, 1<<10)
+		switch {
+		case err != nil:
+			l.Journal.Warn("panne non signalée au serveur", "erreur", err)
+		case resp.StatusCode == http.StatusNotFound:
+			l.sansEvenements.Store(true)
+		case resp.StatusCode/100 != 2:
+			l.Journal.Warn("panne non signalée au serveur", "statut", resp.StatusCode)
+		}
+	}()
+}

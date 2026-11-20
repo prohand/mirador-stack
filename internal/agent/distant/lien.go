@@ -74,6 +74,8 @@ type Lien struct {
 	derniereActualisation time.Time
 	// enDirect : les relevés « en direct » partent (SPEC § 97).
 	enDirect atomic.Bool
+	// sansEvenements : le serveur ne connaît pas les pannes vues (SPEC § 98).
+	sansEvenements atomic.Bool
 	// releveDirect : relevé en direct (remplacé dans les tests ; nil = /proc).
 	releveDirect func(time.Time) protocole.Direct
 }

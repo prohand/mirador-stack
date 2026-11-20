@@ -228,8 +228,8 @@ type proc struct {
 	cpu   float64
 }
 
-// lireProcessus : les processus les plus gourmands en CPU (puis en mémoire).
-func (r *Releveur) lireProcessus(premier bool, ecart float64, maintenant time.Time) []protocole.ProcessusDirect {
+// scanner : tous les processus, avec leur CPU depuis le passage précédent.
+func (r *Releveur) scanner(premier bool, ecart float64) []proc {
 	entrees, err := os.ReadDir(r.Proc)
 	if err != nil {
 		return nil
@@ -258,15 +258,11 @@ func (r *Releveur) lireProcessus(premier bool, ecart float64, maintenant time.Ti
 		liste = append(liste, p)
 	}
 	r.ticksProc = vus
-	sort.Slice(liste, func(i, j int) bool {
-		if liste[i].cpu != liste[j].cpu {
-			return liste[i].cpu > liste[j].cpu
-		}
-		return liste[i].rss > liste[j].rss
-	})
-	if len(liste) > protocole.DirectMaxProcessus {
-		liste = liste[:protocole.DirectMaxProcessus]
-	}
+	return liste
+}
+
+// annoter : utilisateur et VM / conteneur des processus retenus.
+func (r *Releveur) annoter(liste []proc, maintenant time.Time) []protocole.ProcessusDirect {
 	if maintenant.Sub(r.utilisatLu) > 5*time.Minute {
 		r.utilisat, r.utilisatLu = lirePasswd(r.Passwd), maintenant
 	}
@@ -287,6 +283,47 @@ func (r *Releveur) lireProcessus(premier bool, ecart float64, maintenant time.Ti
 		out = append(out, x)
 	}
 	return out
+}
+
+func parCPU(l []proc) {
+	sort.Slice(l, func(i, j int) bool {
+		if l[i].cpu != l[j].cpu {
+			return l[i].cpu > l[j].cpu
+		}
+		return l[i].rss > l[j].rss
+	})
+}
+
+// lireProcessus : les processus les plus gourmands en CPU (puis en mémoire).
+func (r *Releveur) lireProcessus(premier bool, ecart float64, maintenant time.Time) []protocole.ProcessusDirect {
+	liste := r.scanner(premier, ecart)
+	parCPU(liste)
+	return r.annoter(liste[:min(len(liste), protocole.DirectMaxProcessus)], maintenant)
+}
+
+// Classement : les n processus les plus gourmands en CPU (depuis l'appel
+// précédent) et les n plus gourmands en mémoire, en un seul passage dans
+// /proc (« cause probable » des alertes, SPEC § 98). Le premier appel ne
+// connaît pas encore le CPU.
+func (r *Releveur) Classement(maintenant time.Time, n int) (cpu, mem []protocole.ProcessusDirect) {
+	r.init()
+	ecart := maintenant.Sub(r.avant).Seconds()
+	premier := r.avant.IsZero() || ecart <= 0
+	liste := r.scanner(premier, ecart)
+	r.avant = maintenant
+	parCPU(liste)
+	if !premier {
+		var actifs []proc
+		for _, p := range liste[:min(len(liste), n)] {
+			if p.cpu >= 0.5 { // un processus endormi n'est pas une cause
+				actifs = append(actifs, p)
+			}
+		}
+		cpu = r.annoter(actifs, maintenant)
+	}
+	sort.Slice(liste, func(i, j int) bool { return liste[i].rss > liste[j].rss })
+	mem = r.annoter(liste[:min(len(liste), n)], maintenant)
+	return cpu, mem
 }
 
 func arrondi(v float64) float64 { return float64(int(v*10+0.5)) / 10 }

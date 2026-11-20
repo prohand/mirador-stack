@@ -155,8 +155,11 @@ func fonctions() template.FuncMap {
 			}
 			return time.UnixMilli(ms).In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
-		"heureCourte": func(t time.Time) string { return t.In(fuseau.Load()).Format("15:04") },
-		"dateCourte":  func(t time.Time) string { return t.In(fuseau.Load()).Format("02/01") },
+		"heureCourte":   func(t time.Time) string { return t.In(fuseau.Load()).Format("15:04") },
+		"heureSecondes": func(t time.Time) string { return t.In(fuseau.Load()).Format("15:04:05") },
+		// textePanne : panne vue par l'agent, en clair (SPEC § 98).
+		"textePanne": textePanne,
+		"dateCourte": func(t time.Time) string { return t.In(fuseau.Load()).Format("02/01") },
 		"date": func(t time.Time) string {
 			if t.IsZero() {
 				return "—"

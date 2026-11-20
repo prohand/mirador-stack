@@ -5,6 +5,8 @@ package console
 import (
 	"context"
 	"encoding/json"
+	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/flotte"
 	"net/url"
 	"sort"
 	"strconv"
@@ -32,13 +34,14 @@ const (
 	evReglage     = "reglage"
 	evSauvegarde  = "sauvegarde"
 	evNote        = "note"
+	evPanne       = "panne" // vue tout de suite par l'agent (SPEC § 98)
 )
 
 // titresEvenements : libellé et couleur de la puce de chaque type.
 var titresEvenements = map[string][2]string{
 	evAlerte: {"Alerte", "c-al"}, evResolu: {"Résolu", "c-ok"}, evSonde: {"Sonde", "c-so"},
 	evChangement: {"Changement", "c-ch"}, evMaintenance: {"Maintenance", "c-ma"}, evReglage: {"Réglage", "c-av"},
-	evSauvegarde: {"Sauvegarde", "c-ok"}, evNote: {"Note", "c-lg"},
+	evSauvegarde: {"Sauvegarde", "c-ok"}, evNote: {"Note", "c-lg"}, evPanne: {"Panne", "c-al"},
 }
 
 // evenement : une ligne du journal.
@@ -117,6 +120,13 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			}
 		}
 		_ = rows.Close()
+	}
+	// Pannes vues tout de suite par l'agent (SPEC § 98).
+	if ps, err := flotte.ListerPannes(ctx, c.db, f.Machine, f.Debut, f.Fin, f.Max); err == nil {
+		for _, p := range ps {
+			ajouter(evenement{Le: p.Le, Type: evPanne, Gravite: "critical", Texte: textePanne(p), Objet: p.Machine,
+				Lien: "/machines/" + url.PathEscape(p.Machine), Machine: p.Machine})
+		}
 	}
 	// Changements repérés (SPEC § 47).
 	if rows, err := c.db.QueryContext(ctx, `SELECT machine, le, type, detail FROM changements WHERE le BETWEEN ? AND ? ORDER BY le DESC LIMIT ?`,
@@ -303,4 +313,15 @@ func jourLisible(t, maintenant time.Time) string {
 		return "Hier · " + s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// textePanne : « nginx.service est passé en échec », « processus tué faute de mémoire (1) ».
+func textePanne(p flotte.Panne) string {
+	switch p.Type {
+	case protocole.EvenementService:
+		return p.Objet + " est passé en échec (vu par l'agent en direct)"
+	case protocole.EvenementOOM:
+		return "Processus tué faute de mémoire : " + p.Texte
+	}
+	return p.Type + " " + p.Objet
 }

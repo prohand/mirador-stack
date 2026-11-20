@@ -66,6 +66,18 @@ func TestRelever(t *testing.T) {
 	if p.Utilisateur == "" {
 		t.Error("utilisateur vide")
 	}
+	// Classement (cause probable, chaque minute) : kvm en tête du CPU ;
+	// sshd (0 % de CPU) absent du classement CPU mais présent en mémoire.
+	r2 := &Releveur{Proc: proc, Sys: sys, Passwd: filepath.Join(dir, "passwd")}
+	etape("1000", "9000", "0", "0", "0", "0", "100")
+	if cpu, mem := r2.Classement(t0, 5); cpu != nil || len(mem) != 2 {
+		t.Errorf("premier classement : %+v / %+v", cpu, mem)
+	}
+	etape("7000", "9000", "0", "0", "0", "0", "6100") // +6000 ticks en 60 s : 100 % d'un cœur
+	cpu, mem := r2.Classement(t0.Add(time.Minute), 5)
+	if len(cpu) != 1 || cpu[0].Nom != "kvm (vm) x" || cpu[0].CPU != 100 || len(mem) != 2 || mem[0].PID != 2210 || mem[1].Nom != "sshd" {
+		t.Errorf("classement : %+v / %+v", cpu, mem)
+	}
 }
 
 func TestGroupeCgroup(t *testing.T) {

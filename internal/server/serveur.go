@@ -179,7 +179,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	hubDirect := direct.Nouveau() // direct des pages des machines (SPEC § 97)
 	s.direct = hubDirect
 	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle,
-		Direct: hubDirect})
+		Direct: hubDirect, ReveilAlertes: s.alertes.Reveiller})
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}
