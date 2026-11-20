@@ -1344,3 +1344,41 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
   table.en-cartes.dernieres-alertes > tbody > tr.en-cours { border-left: 4px solid var(--erreur); }
   table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
 }
+
+/* --- Menu réorganisable (SPEC § 79) : un ordre pour l'ordinateur (o-N), un
+       pour le téléphone (t-N), entrées masquées (cache-o / cache-t). En mode
+       édition (mirador.js), les entrées sont rangées dans le document et tout
+       est visible. ------------------------------------------------------------ */
+@media (min-width: 641px) { .barre nav > .o-0 { order: 0; } .barre nav > .o-1 { order: 1; } .barre nav > .o-2 { order: 2; } .barre nav > .o-3 { order: 3; } .barre nav > .o-4 { order: 4; } .barre nav > .o-5 { order: 5; } .barre nav > .o-6 { order: 6; } .barre nav > .o-7 { order: 7; } .barre nav > .o-8 { order: 8; } .barre nav > .o-9 { order: 9; } .barre nav > .o-10 { order: 10; } .barre nav > .o-11 { order: 11; } .barre nav > .o-12 { order: 12; } .barre nav > .o-13 { order: 13; } .barre nav > .o-14 { order: 14; } .barre nav > .o-15 { order: 15; } .barre nav > .o-16 { order: 16; } .barre nav > .o-17 { order: 17; } .barre nav > .o-18 { order: 18; } .barre nav > .o-19 { order: 19; } .barre nav > .o-20 { order: 20; } .barre nav > .o-21 { order: 21; } .barre nav > .o-22 { order: 22; } .barre nav > .o-23 { order: 23; } .barre nav > .o-24 { order: 24; } .barre nav > .o-25 { order: 25; } .barre nav > .o-26 { order: 26; } .barre nav > .o-27 { order: 27; } .barre nav > .o-28 { order: 28; } .barre nav > .o-29 { order: 29; } .barre nav > .o-30 { order: 30; } .barre nav > .o-31 { order: 31; } .barre nav > .o-32 { order: 32; } .barre nav > .o-33 { order: 33; } .barre nav > .o-34 { order: 34; } .barre nav > .o-35 { order: 35; } .barre nav > .o-36 { order: 36; } .barre nav > .o-37 { order: 37; } .barre nav > .o-38 { order: 38; } .barre nav > .o-39 { order: 39; } .barre nav > .o-40 { order: 40; } .barre nav > .o-41 { order: 41; } .barre nav > .o-42 { order: 42; } .barre nav > .o-43 { order: 43; } .barre nav > .o-44 { order: 44; } .barre nav > .o-45 { order: 45; } .barre nav > .o-46 { order: 46; } .barre nav > .o-47 { order: 47; } .barre nav > .o-48 { order: 48; } .barre nav > .o-49 { order: 49; } .barre nav > .o-50 { order: 50; } .barre nav > .o-51 { order: 51; } .barre nav > .o-52 { order: 52; } .barre nav > .o-53 { order: 53; } .barre nav > .o-54 { order: 54; } .barre nav > .o-55 { order: 55; } .barre nav > .o-56 { order: 56; } .barre nav > .o-57 { order: 57; } .barre nav > .o-58 { order: 58; } .barre nav > .o-59 { order: 59; } .barre nav > .cache-o { display: none; } }
+@media (max-width: 640px) { .barre nav > .t-0 { order: 0; } .barre nav > .t-1 { order: 1; } .barre nav > .t-2 { order: 2; } .barre nav > .t-3 { order: 3; } .barre nav > .t-4 { order: 4; } .barre nav > .t-5 { order: 5; } .barre nav > .t-6 { order: 6; } .barre nav > .t-7 { order: 7; } .barre nav > .t-8 { order: 8; } .barre nav > .t-9 { order: 9; } .barre nav > .t-10 { order: 10; } .barre nav > .t-11 { order: 11; } .barre nav > .t-12 { order: 12; } .barre nav > .t-13 { order: 13; } .barre nav > .t-14 { order: 14; } .barre nav > .t-15 { order: 15; } .barre nav > .t-16 { order: 16; } .barre nav > .t-17 { order: 17; } .barre nav > .t-18 { order: 18; } .barre nav > .t-19 { order: 19; } .barre nav > .t-20 { order: 20; } .barre nav > .t-21 { order: 21; } .barre nav > .t-22 { order: 22; } .barre nav > .t-23 { order: 23; } .barre nav > .t-24 { order: 24; } .barre nav > .t-25 { order: 25; } .barre nav > .t-26 { order: 26; } .barre nav > .t-27 { order: 27; } .barre nav > .t-28 { order: 28; } .barre nav > .t-29 { order: 29; } .barre nav > .t-30 { order: 30; } .barre nav > .t-31 { order: 31; } .barre nav > .t-32 { order: 32; } .barre nav > .t-33 { order: 33; } .barre nav > .t-34 { order: 34; } .barre nav > .t-35 { order: 35; } .barre nav > .t-36 { order: 36; } .barre nav > .t-37 { order: 37; } .barre nav > .t-38 { order: 38; } .barre nav > .t-39 { order: 39; } .barre nav > .t-40 { order: 40; } .barre nav > .t-41 { order: 41; } .barre nav > .t-42 { order: 42; } .barre nav > .t-43 { order: 43; } .barre nav > .t-44 { order: 44; } .barre nav > .t-45 { order: 45; } .barre nav > .t-46 { order: 46; } .barre nav > .t-47 { order: 47; } .barre nav > .t-48 { order: 48; } .barre nav > .t-49 { order: 49; } .barre nav > .t-50 { order: 50; } .barre nav > .t-51 { order: 51; } .barre nav > .t-52 { order: 52; } .barre nav > .t-53 { order: 53; } .barre nav > .t-54 { order: 54; } .barre nav > .t-55 { order: 55; } .barre nav > .t-56 { order: 56; } .barre nav > .t-57 { order: 57; } .barre nav > .t-58 { order: 58; } .barre nav > .t-59 { order: 59; } .barre nav > .cache-t { display: none; } }
+.barre nav.edition > * { order: 0 !important; }
+.barre nav.edition > a { display: flex !important; cursor: grab; outline: 1px dashed var(--menu-bord); outline-offset: -1px; margin: 1px 0; }
+.barre nav.edition > a.masque { opacity: .45; } .barre nav.edition > a.masque .txt { text-decoration: line-through; }
+.barre nav.edition > a.glisse { opacity: .6; background: var(--menu-actif); }
+.barre nav.edition > a .compteur { display: none; }
+.menu-outils { display: none; margin-left: auto; gap: 4px; align-items: center; }
+.barre nav.edition .menu-outils { display: inline-flex; }
+.menu-outils button { width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 7px; border: 1px solid var(--menu-bord); background: transparent; color: var(--menu-doux); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+.menu-outils button:disabled { opacity: .35; }
+.menu-outils .poignee { color: var(--menu-pale); cursor: grab; letter-spacing: -2px; }
+.edition-tete { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; margin: 0 0 6px; border-radius: 10px; background: var(--menu-actif); color: var(--menu-texte); font-size: 12px; font-weight: 600; }
+.edition-tete b { flex: 1; }
+.edition-tete button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.edition-tete button.secondaire { background: transparent; color: var(--menu-texte); border-color: var(--menu-bord); }
+.edition-bas { padding: 8px 10px 10px; margin: 0 0 6px; border-radius: 10px; background: var(--menu-champ); color: var(--menu-doux); font-size: 12px; }
+.edition-bas p { margin: 0 0 6px; }
+.edition-bas div { display: flex; flex-wrap: wrap; gap: 6px; }
+.edition-bas button { min-height: 32px; padding: 0 10px; font-size: 12px; background: transparent; color: var(--menu-doux); border: 1px solid var(--menu-bord); border-radius: 999px; }
+.edition-bas button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); }
+.modifier-menu { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; padding: 7px 10px; min-height: 0; background: transparent; border: 0; color: var(--menu-pale); font-size: 12px; font-weight: 500; }
+.modifier-menu:hover { color: var(--menu-texte); background: var(--menu-actif); filter: none; }
+.modifier-menu .icone { width: 16px; height: 16px; }
+.appli.replie .modifier-menu { justify-content: center; width: 44px; padding: 0; height: 36px; }
+.appli.replie .modifier-menu .txt { display: none; }
+@media (max-width: 640px) {
+  .modifier-menu { display: none; }
+  .appli.ouvert .modifier-menu { display: flex; width: 100%; min-height: 44px; font-size: 14px; }
+  .menu-outils button { width: 40px; height: 40px; }
+}
+.barre nav.edition > a .txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.barre nav.edition > a .menu-outils { flex: none; }

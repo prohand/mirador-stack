@@ -6652,3 +6652,33 @@ l'utilisateur) :
 - Coût : une lecture SQL par réouverture de l'application (pas à chaque
   requête : la session revient en mémoire), une écriture toutes les
   10 min d'usage ; quelques octets par appareil.
+
+## 79. Menu réorganisable, ordinateur et téléphone (20/11, maquette validée) **[Fait, à valider]**
+
+- Demande : « pouvoir réorganiser le menu en mode navigateur et en mode
+  PWA ». Choix : ordre et entrées masquées, 4 raccourcis de la barre du bas
+  du téléphone ; bouton « Modifier le menu » dans le menu ; deux menus
+  séparés (ordinateur, téléphone), gardés avec le compte. Groupes non
+  modifiables (peu d'usage, beaucoup de travail).
+- Fonctionnement :
+  - « Modifier le menu » (en bas du menu ; dans « Plus » sur téléphone)
+    passe en édition : ordinateur = glisser une entrée dans son groupe ;
+    téléphone = flèches ↑ ↓ ; l'œil masque ; « Annuler », « Par défaut »,
+    « Terminé » ;
+  - téléphone : choix de 1 à 4 raccourcis pour la barre du bas, dans
+    l'ordre des touches ;
+  - Réglages et Sécurité ne peuvent pas être masqués (jamais bloqué) ; une
+    page masquée reste accessible par Ctrl+K ;
+  - le menu de l'ordinateur sert au-dessus de 640 px (tablette comprise),
+    celui du téléphone en dessous.
+- Réalisation : registre des entrées côté serveur (`console/menu.go`) ;
+  les deux ordres sont rendus dans la page (classes `o-N` / `t-N`, CSS
+  `order` selon la largeur) : aucun script nécessaire pour l'affichage ;
+  colonne `utilisateurs.menu` (migration 0031, JSON de 4 Kio au plus),
+  `POST /compte/menu` (jeton CSRF, clés vérifiées).
+- Menaces : préférence d'affichage d'un compte (pas de droit en plus) ;
+  clés vérifiées contre la liste connue, taille bornée ; les entrées
+  réservées aux admins restent cachées aux comptes lecture quel que soit
+  le menu.
+- Coût : rien en plus par page (le compte est déjà lu) ; 120 règles CSS
+  d'ordre (2 Ko).
