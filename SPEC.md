@@ -7142,3 +7142,27 @@ Sept idées proposées le 20/11, toutes demandées.
   (60 lignes par tâche) : un agent qui inventerait des tâches ne remplit
   pas la base sans limite au-delà de ce que le quota de séries permet déjà.
 - Rien de nouveau n'est exposé sans connexion.
+
+## 96. Alertes sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+- Onglets nombreux (Alertes, Silences et maintenances, Envois…) : d'abord
+  mis en pastilles sur plusieurs lignes, puis (retour du 20/11 : « ça mange
+  l'affichage pour rien ») une seule ligne qui défile de côté, avec un fondu
+  sur le bord qui cache encore des onglets. Vaut pour toutes les pages à
+  onglets (Éléments compris, qui remplace le § 94).
+- Historique : une heure sur deux, sans retour à la ligne (avant : « 20:3 / 3 »).
+- Bug trouvé en passant (ordinateur aussi) : l'historique des alertes et la
+  frise de la page Incident avaient le même nom de classe `frise` ; le style
+  de l'incident (hauteur fixe de 200 px, contenu coupé) s'appliquait aussi à
+  l'historique, qui pouvait cacher des machines. Renommé `frise-alertes`.
+- Toutes les alertes passées : la carte porte le nom de l'alerte (« Charge
+  élevée n° 9 ») au lieu du seul numéro ; la colonne Alerte passe en tête.
+- « En attente (1) » : le texte d'aide passe sous le titre, sans « · ».
+- Alertes en cours (capture du 20/11) : titre de l'alerte en haut à gauche,
+  gravité flottante à droite (avant : pastille seule sur sa ligne, titre
+  poussé à droite) ; résumé sur toute la largeur ; dans un groupe (par
+  machine, par règle), alertes séparées par un trait au lieu d'une carte
+  dans la carte (plus de largeur utile).
+- En-tête d'un groupe d'alertes : un point de la couleur de l'alerte la plus
+  grave au lieu de la pastille de gravité, déjà affichée sur chaque alerte
+  (« Avertissement est affiché 2 fois »).
+- Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.

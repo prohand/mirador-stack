@@ -634,7 +634,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 @media (max-width: 899px) { .table-alertes th:nth-child(3), .table-alertes td:nth-child(3) { display: none; } }
 
 /* --- Frise de l'historique des alertes (SPEC § 28) --------------------------- */
-.frise { margin: 4px 0 18px; }
+.frise-alertes { margin: 4px 0 18px; } /* historique des alertes (≠ .frise de la page Incident) */
 .frise-ligne { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--bord-doux); }
 .frise-tete { border-bottom: 0; }
 .frise-nom { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1532,17 +1532,11 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
 .sans-marge { margin: 0; }
 
 /* Éléments sur téléphone (retour du 20/11) :
-   - onglets de sortes en pastilles sur plusieurs lignes (avant : coupés au bord,
-     rien n'indiquait qu'il fallait faire défiler) ;
    - liens d'un élément : un par ligne, alignés à gauche (avant : morceaux
      éparpillés à droite) ;
    - champ « Filtrer ce tableau » sur toute la largeur. */
 .lien-elt i.sep { font-style: normal; }
 @media (max-width: 640px) {
-  .onglets.onglets-pastilles { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
-  .onglets.onglets-pastilles a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
-  .onglets.onglets-pastilles a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
-  .onglets.onglets-pastilles a.actif small { color: inherit; opacity: .7; }
   .filtre-tableau { max-width: none; }
   table.en-cartes > tbody > tr > td[data-long] > .valeur-carte { display: block; text-align: left; }
   table.en-cartes .lien-elt { display: block; padding: 1px 0; }
@@ -1573,3 +1567,48 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
 :root[data-theme="dark"] .texte-ok { color: #4CC38A; }
 .vm-oubliees ul.puces-tache { list-style: none; padding: 0; margin: 6px 0 0; }
+
+/* Alertes sur téléphone (retour du 20/11) :
+   - graduations de l'historique : une heure sur deux, sans retour à la ligne
+     (avant : « 20:3 / 3 ») ;
+   - « En attente (1) » : le texte d'aide passe sous le titre, sans « · ». */
+@media (max-width: 640px) {
+  .frise-graduations { font-size: 11px; white-space: nowrap; }
+  .frise-graduations span:nth-child(even) { visibility: hidden; }
+  .frise-ligne { grid-template-columns: 84px 1fr; gap: 6px; }
+  .attente-alertes .sep-point { display: none; }
+  .attente-alertes summary .sous { display: block; margin-top: 2px; }
+}
+
+/* Alertes en cours sur téléphone (capture du 20/11) : le titre de l'alerte
+   en haut à gauche, la gravité à sa droite (avant : pastille seule sur sa
+   ligne, titre poussé à droite) ; dans un groupe (par machine, par règle),
+   les alertes sont séparées par un trait au lieu d'une carte dans la carte. */
+@media (max-width: 640px) {
+  /* Gravité flottante à droite : le titre s'enroule autour, le résumé prend toute la largeur. */
+  table.table-alertes.en-cartes > tbody > tr > td:first-child { float: right; margin: 0 0 4px 10px; padding: 0; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2) { padding: 0 0 6px; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(3) { clear: both; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2) > .valeur-carte { display: block; text-align: left; }
+  table.table-alertes.en-cartes .titre { font-size: 15px; }
+  table.table-alertes.en-cartes .courbe-alerte { max-width: 60%; }
+  .groupe-alertes table.en-cartes > tbody > tr { margin: 0; padding: 12px 0 8px; border: 0; border-top: 1px solid var(--bord); border-radius: 0; }
+  .groupe-alertes table.en-cartes > tbody > tr:first-child { border-top: 0; padding-top: 6px; }
+}
+
+/* Onglets sur téléphone (retour du 20/11 : « en pastilles ça mange
+   l'affichage ») : une seule ligne qui défile de côté, comme avant, mais un
+   fondu sur le bord indique qu'il reste des onglets à gauche ou à droite
+   (classes plus-g / plus-d posées par mirador.js). */
+@media (max-width: 640px) {
+  .onglets.plus-d { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+  .onglets.plus-g { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px); mask-image: linear-gradient(to right, transparent, #000 40px); }
+  .onglets.plus-g.plus-d { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+}
+
+/* En-tête d'un groupe d'alertes : un point de la couleur de l'alerte la plus
+   grave, au lieu de répéter la pastille de gravité déjà sur chaque alerte
+   (retour du 20/11 : « Avertissement est affiché 2 fois »). */
+.point-gravite { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #2563EB; }
+.point-gravite.critical { background: #DC2626; }
+.point-gravite.warning { background: #D97706; }
