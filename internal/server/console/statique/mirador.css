@@ -830,6 +830,32 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-niv { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--survol); color: var(--doux); }
 .logs-niv.err { background: var(--erreur-fond); color: var(--erreur); font-weight: 600; } .logs-niv.warn { background: var(--attention-fond); color: var(--attention); font-weight: 600; }
 .logs-table mark { background: #FDE68A; color: #18181B; padding: 0 1px; border-radius: 2px; }
+/* Lisibilité (SPEC § 77) : trait de couleur à gauche, machine + origine dans
+   une colonne, pastille seulement pour avertissement et erreur, adresses IP
+   et mots d'échec colorés, lignes semblables repliées. */
+.logs-table tr.err td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+.logs-table tr.warn td:first-child { box-shadow: inset 4px 0 0 var(--attention); }
+.logs-table td.logs-heure { padding-left: 12px; }
+.logs-table td.logs-qui b { font-weight: 600; }
+.logs-table td.logs-qui small { display: block; color: var(--pale); font-size: 12px; }
+.logs-table tr.err td.logs-msg { color: var(--erreur); }
+.logs-ip { color: #7C3AED; }
+.logs-err { color: var(--erreur); font-weight: 700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .logs-ip { color: #A78BFA; } }
+:root[data-theme="sombre"] .logs-ip { color: #A78BFA; }
+.logs-table tr.logs-groupe { display: none; }
+.logs-table.replie-semblables tr.logs-groupe { display: table-row; }
+.logs-table.replie-semblables tr.logs-ligne-log.logs-semblable:not(.montree) { display: none; }
+.logs-table tr.logs-groupe td { background: var(--survol); padding: 5px 12px; border-bottom: 1px solid var(--bord-doux); }
+.logs-table tr.logs-groupe button { color: var(--doux); text-decoration: none; font-size: 13px; text-align: left; white-space: normal; }
+.logs-table tr.logs-groupe button b { color: var(--texte); }
+.logs-table tr.logs-groupe button[aria-expanded="true"] .fleche { display: inline-block; transform: rotate(90deg); }
+.logs-filtres-niveau { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; }
+.logs-filtres-niveau > span { color: var(--pale); font-size: 13px; margin-right: 2px; }
+.logs-filtres-niveau a { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); font-size: 13px; text-decoration: none; }
+.logs-filtres-niveau a.actif { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); }
+.logs-filtres-niveau a b { margin-left: 3px; }
+.logs-filtres-niveau label.case { margin-left: auto; font-size: 13px; }
 .logs-rep { font-size: 12px; padding: 1px 6px; border-radius: 999px; background: var(--survol); color: var(--doux); font-family: var(--titres); }
 .logs-detail td { padding: 4px 8px 14px; white-space: normal; }
 .logs-boite { border: 1px solid var(--bord); border-radius: 10px; padding: 12px 14px; display: grid;
@@ -854,11 +880,15 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-groupes tr.rare td { background: var(--erreur-fond); }
 @media (max-width: 700px) {
   .logs-table, .logs-table tbody { display: block; }
-  .logs-table tr.logs-ligne-log { display: grid; grid-template-columns: auto auto 1fr; gap: 2px 8px; padding: 6px 8px; border-bottom: 1px solid var(--bord-doux); }
-  .logs-table tr.logs-ligne-log.err { background: var(--erreur-fond); } .logs-table tr.logs-ligne-log.warn { background: var(--attention-fond); }
-  .logs-table tr.logs-ligne-log td { border: 0; padding: 0; background: none !important; }
-  .logs-table tr.logs-ligne-log td:nth-child(4) { display: none; }
+  /* Deux lignes : heure, machine · origine, pastille ; puis le message. */
+  .logs-table tr.logs-ligne-log { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 2px 8px; padding: 7px 10px; border-bottom: 1px solid var(--bord-doux); }
+  .logs-table tr.logs-ligne-log.err { background: var(--erreur-fond); box-shadow: inset 4px 0 0 var(--erreur); } .logs-table tr.logs-ligne-log.warn { background: var(--attention-fond); box-shadow: inset 4px 0 0 var(--attention); }
+  .logs-table tr.logs-ligne-log td { border: 0; padding: 0; background: none !important; box-shadow: none !important; }
+  .logs-table td.logs-qui small { display: inline; margin-left: 6px; }
   .logs-table tr.logs-ligne-log td.logs-msg { grid-column: 1 / -1; }
+  .logs-table.replie-semblables tr.logs-groupe { display: block; }
+  .logs-table tr.logs-groupe td { display: block; }
+  .logs-filtres-niveau label.case { margin-left: 0; }
   /* Trait « nouvelle » / « ciblée » : sur la ligne entière, texte décalé
      (sur la case, sans marge, il cachait le premier chiffre de l'heure). */
   .logs-table tr.logs-ligne-log.nouvelle td:first-child, .logs-table tr.logs-ligne-log.cible td:first-child { box-shadow: none; }

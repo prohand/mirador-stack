@@ -1017,11 +1017,15 @@ document.addEventListener("change", function (e) {
     lignes.slice().reverse().forEach(function (l) {
       var tr = document.createElement("tr");
       tr.className = "logs-ligne-log nouvelle " + (l.classe || "");
-      cellule(tr, l.heure, "mono");
-      cellule(tr, l.host);
-      var niv = cellule(tr, "");
-      if (l.niveau) { var s = document.createElement("span"); s.className = "logs-niv " + (l.classe || ""); s.textContent = l.niveau; niv.appendChild(s); }
-      cellule(tr, l.origine || l.job);
+      cellule(tr, l.heure, "mono logs-heure");
+      // Machine en gras, origine dessous ; pastille seulement pour
+      // avertissement et erreur (même forme que les lignes de la page).
+      var qui = cellule(tr, "", "logs-qui"), b = document.createElement("b"), o = document.createElement("small");
+      b.textContent = l.host || ""; o.textContent = l.origine || l.job || "";
+      qui.appendChild(b); qui.appendChild(o);
+      var niv = cellule(tr, "", "logs-niveau");
+      var libelle = l.classe === "err" ? "Erreur" : l.classe === "warn" ? "Avert." : "";
+      if (libelle) { var s = document.createElement("span"); s.className = "logs-niv " + l.classe; s.textContent = libelle; s.title = "Niveau : " + (l.niveau || ""); niv.appendChild(s); }
       cellule(tr, l.msg, "logs-msg");
       corps.insertBefore(tr, avant);
       avant = tr;
@@ -1556,5 +1560,32 @@ document.addEventListener("change", function (ev) {
       b.setAttribute("aria-expanded", ouvert ? "true" : "false");
     });
     el.insertAdjacentElement("afterend", b);
+  });
+})();
+
+// Logs : lignes semblables repliées (SPEC § 77). Le serveur marque les
+// lignes ; ici, la case « Replier les lignes semblables » (retenue par ce
+// navigateur) et « tout voir » d'un groupe. Sans JavaScript : tout visible.
+(function () {
+  var t = document.querySelector("[data-logs-table]"), caseR = document.querySelector("[data-replier-semblables]");
+  if (!t) { return; }
+  var cle = "mirador-logs-replier", replier = true;
+  try { replier = window.localStorage.getItem(cle) !== "0"; } catch (e) { /* stockage refusé */ }
+  t.classList.toggle("replie-semblables", replier);
+  if (caseR) {
+    caseR.checked = replier;
+    caseR.addEventListener("change", function () {
+      t.classList.toggle("replie-semblables", caseR.checked);
+      try { window.localStorage.setItem(cle, caseR.checked ? "1" : "0"); } catch (e) { /* rien */ }
+    });
+  }
+  t.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-ouvrir-groupe]");
+    if (!b) { return; }
+    e.stopPropagation();
+    var ouvert = b.getAttribute("aria-expanded") !== "true";
+    b.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    t.querySelectorAll('tr.logs-semblable[data-groupe="' + b.getAttribute("data-ouvrir-groupe") + '"]').forEach(function (tr) { tr.classList.toggle("montree", ouvert); });
+    b.querySelector("u").textContent = ouvert ? "replier" : "tout voir";
   });
 })();

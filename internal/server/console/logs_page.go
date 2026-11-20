@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -189,6 +190,67 @@ type ligneVue struct {
 	JSON                               string // « Copier en JSON »
 	LienAutour                         string
 	Cible                              bool // ligne visée par « Voir autour »
+	// Lignes semblables qui se suivent (SPEC § 77) : la première porte le
+	// groupe (GroupeN lignes de plus, jusqu'à GroupeJusqua, sur ces
+	// machines) ; les suivantes ont Semblable = numéro du groupe.
+	Groupe, Semblable int
+	GroupeN           int
+	GroupeJusqua      string
+	GroupeMachines    string
+}
+
+// libelleNiveau : pastille d'un niveau (seulement erreur et avertissement ;
+// une ligne normale n'en a pas, SPEC § 77).
+func (l ligneVue) LibelleNiveau() string {
+	switch l.Classe {
+	case "err":
+		return "Erreur"
+	case "warn":
+		return "Avert."
+	}
+	return ""
+}
+
+var reChiffres = regexp.MustCompile(`\d+`)
+
+// replierSemblables : 3 lignes ou plus qui se suivent, même origine et même
+// message aux chiffres près, le même jour → la première reste, les autres
+// sont marquées (cachées par mirador.js, « tout voir » les montre).
+func replierSemblables(ls []ligneVue) {
+	cle := func(l ligneVue) string {
+		return l.Origine + "|" + l.Job + "|" + reChiffres.ReplaceAllString(joindre(l.Segments), "#")
+	}
+	groupe := 0
+	for i := 0; i < len(ls); {
+		j := i + 1
+		for j < len(ls) && ls[j].Jour == "" && cle(ls[j]) == cle(ls[i]) {
+			j++
+		}
+		if j-i >= 3 {
+			groupe++
+			vus, machines := map[string]bool{}, []string{}
+			for k := i; k < j; k++ {
+				if h := ls[k].Host; h != "" && !vus[h] {
+					vus[h] = true
+					machines = append(machines, h)
+				}
+				if k > i {
+					ls[k].Semblable = groupe
+				}
+			}
+			if len(machines) > 6 {
+				machines = append(machines[:6], "…")
+			}
+			ls[i].Groupe, ls[i].GroupeN, ls[i].GroupeJusqua, ls[i].GroupeMachines = groupe, j-i-1, ls[j-1].Heure, strings.Join(machines, ", ")
+		}
+		i = j
+	}
+}
+
+type filtreNiveau struct {
+	Titre, Lien string
+	N           int // -1 : nombre inconnu (autre filtre de niveau en cours)
+	Actif       bool
 }
 
 type triGroupes struct {
@@ -217,35 +279,37 @@ type vueAutour struct {
 }
 
 type donneesLogs struct {
-	Machine        champLog // filtres visibles
-	Niveau         champLog
-	Autres         []champLog // dans « Plus de filtres »
-	Recherche      string
-	Periode        string
-	Periodes       []string
-	Perso          bool
-	PeriodePerso   string
-	Limite         int
-	Replier        bool
-	Vue, Tri       string
-	Motif          string
-	Pastilles      []pastilleFiltre
-	LienEffacer    string
-	Raccourcis     []raccourciLogs
-	Cherche        bool
-	Lignes         []ligneVue
-	NbTrouvees     int
-	Tronque        bool
-	Erreurs        int
-	Avertis        int
-	BlocsLus       int
-	Duree          time.Duration
-	DureeTexte     string // « 14 ms », « 1,2 s »
-	Histo          histogramme
-	Groupes        []groupeLogs
-	Tris           []triGroupes
-	Apprentissage  bool // registre des motifs de moins de 7 jours : pas encore de « nouveau »
-	LienLignes     string
+	Machine       champLog // filtres visibles
+	Niveau        champLog
+	Autres        []champLog // dans « Plus de filtres »
+	Recherche     string
+	Periode       string
+	Periodes      []string
+	Perso         bool
+	PeriodePerso  string
+	Limite        int
+	Replier       bool
+	Vue, Tri      string
+	Motif         string
+	Pastilles     []pastilleFiltre
+	LienEffacer   string
+	Raccourcis    []raccourciLogs
+	Cherche       bool
+	Lignes        []ligneVue
+	NbTrouvees    int
+	Tronque       bool
+	Erreurs       int
+	Avertis       int
+	BlocsLus      int
+	Duree         time.Duration
+	DureeTexte    string // « 14 ms », « 1,2 s »
+	Histo         histogramme
+	Groupes       []groupeLogs
+	Tris          []triGroupes
+	Apprentissage bool // registre des motifs de moins de 7 jours : pas encore de « nouveau »
+	LienLignes    string
+	// Filtres d'un clic (SPEC § 77) : tout, avertissements et erreurs, erreurs.
+	FiltresNiveau  []filtreNiveau
 	LienGroupes    string
 	LienPlusAncien string
 	Autour         *vueAutour
@@ -304,7 +368,7 @@ func presenter(ls []stockage.Ligne, v url.Values, f filtresLogs, replier bool, t
 		}
 		tl := time.UnixMilli(l.T).In(loc)
 		x := ligneVue{T: l.T, Heure: tl.Format("15:04:05"), Host: l.Champs["host"], Job: l.Champs["job"], Niveau: l.Champs["level"],
-			Origine: o, Classe: classeNiveau(l.Champs["level"]), Segments: surligner(l.Msg, mots, f.Contient), Repetitions: 1}
+			Origine: o, Classe: classeNiveau(l.Champs["level"]), Segments: colorer(surligner(l.Msg, mots, f.Contient)), Repetitions: 1}
 		if j := libelleJour(tl, t); j != jourPrec {
 			x.Jour, jourPrec = j, j
 		}
@@ -467,6 +531,15 @@ func (c *Console) pageLogs(q *req) {
 	}
 	d.Requete = w.Encode()
 	d.LienLignes = lienLogsAvec(v, func(w url.Values) { w.Del("vue"); w.Del("tri") })
+	niv := v.Get("level")
+	for _, x := range []struct {
+		titre, valeur string
+	}{{"Tout", ""}, {"Avertissements et erreurs", "warning+"}, {"Erreurs", "err+"}} {
+		val := x.valeur
+		fn := filtreNiveau{Titre: x.titre, Actif: niv == val, N: -1,
+			Lien: lienLogsAvec(v, func(w url.Values) { w.Set("level", val); w.Del("motif") })}
+		d.FiltresNiveau = append(d.FiltresNiveau, fn)
+	}
 	d.LienGroupes = lienLogsAvec(v, func(w url.Values) { w.Set("vue", "groupes"); w.Del("motif") })
 	for _, t := range []triGroupes{{Code: "frequents", Titre: "Plus fréquents"}, {Code: "nouveaux", Titre: "Nouveaux d'abord"}, {Code: "rares", Titre: "Rares d'abord"}, {Code: "erreurs", Titre: "Erreurs d'abord"}} {
 		tri := t.Code
@@ -517,6 +590,17 @@ func (c *Console) chercherPourPage(q *req, v url.Values, f filtresLogs, d *donne
 			d.Avertis++
 		}
 	}
+	// Nombres des filtres d'un clic (connus seulement pour le niveau en cours et ceux qu'il contient).
+	if len(d.FiltresNiveau) == 3 {
+		switch v.Get("level") {
+		case "":
+			d.FiltresNiveau[0].N, d.FiltresNiveau[1].N, d.FiltresNiveau[2].N = d.NbTrouvees, d.Erreurs+d.Avertis, d.Erreurs
+		case "warning+":
+			d.FiltresNiveau[1].N, d.FiltresNiveau[2].N = d.NbTrouvees, d.Erreurs
+		case "err+":
+			d.FiltresNiveau[2].N = d.NbTrouvees
+		}
+	}
 	d.Histo = calculerHistogramme(ls, r.Debut, r.Fin, fuseau.Load())
 	if d.Vue == "groupes" {
 		d.Groupes = regrouper(ls, d.Tri, r.Debut, r.Fin, c.opt.Motifs, q.t)
@@ -527,6 +611,7 @@ func (c *Console) chercherPourPage(q *req, v url.Values, f filtresLogs, d *donne
 		affichees = affichees[:d.Limite]
 	}
 	d.Lignes = presenter(affichees, v, f, d.Replier, q.t)
+	replierSemblables(d.Lignes)
 	if len(affichees) > 0 && (len(ls) > len(affichees) || res.Tronque) {
 		plusAncienne := affichees[len(affichees)-1].T
 		d.LienPlusAncien = lienLogsAvec(v, func(w url.Values) { w.Set("avant", strconv.FormatInt(plusAncienne, 10)) })

@@ -51,6 +51,8 @@
 <td>{{.Evolution}}</td><td>{{.TexteMachines}}</td><td class="sans-coupure">{{if .PremierVu}}{{.PremierVu}}{{else}}<span class="pale">—</span>{{end}}{{if .Nouveau}} <span class="pastille attention">Nouveau</span>{{end}}</td><td class="mono">{{heureLog .Derniere}}</td><td><a href="/logs?{{$d.Requete}}&amp;motif={{.Cle}}">Ces lignes</a></td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune ligne."}}{{end}}
 {{else}}
+<div class="logs-filtres-niveau"><span>Afficher</span>{{range $d.FiltresNiveau}}<a href="{{.Lien}}"{{if .Actif}} class="actif" aria-current="true"{{end}}>{{.Titre}}{{if ge .N 0}} <b>{{.N}}</b>{{end}}</a>{{end}}
+<label class="case"><input type="checkbox" data-replier-semblables checked> Replier les lignes semblables</label></div>
 <div class="logs-nouvelles" data-logs-nouvelles hidden></div>
 {{if $d.Lignes}}{{template "lignes-logs" $d.Lignes}}
 {{if $d.LienPlusAncien}}<p class="logs-plus-ancien"><a class="bouton secondaire" href="{{$d.LienPlusAncien}}">Charger plus ancien</a></p>{{end}}
@@ -61,11 +63,12 @@
 {{end}}
 
 {{define "lignes-logs"}}<div class="defile"><table class="logs-table" data-logs-table><tbody>
-{{range .}}{{if .Jour}}<tr class="logs-jour"><td colspan="5">{{.Jour}}</td></tr>{{end}}<tr class="logs-ligne-log {{.Classe}}{{if .Cible}} cible{{end}}" data-logs-ouvrir data-t="{{.T}}" tabindex="0" aria-expanded="false">
-<td class="mono">{{.Heure}}</td><td>{{.Host}}</td><td>{{if .Niveau}}<span class="logs-niv {{.Classe}}">{{.Niveau}}</span>{{end}}</td><td>{{if .Origine}}{{.Origine}}{{else}}{{.Job}}{{end}}</td>
-<td class="logs-msg">{{range .Segments}}{{if .Marque}}<mark>{{.Texte}}</mark>{{else}}{{.Texte}}{{end}}{{end}}{{if gt .Repetitions 1}} <span class="logs-rep">× {{.Repetitions}}</span>{{end}}</td></tr>
-<tr class="logs-detail" hidden><td colspan="5"><div class="logs-boite">
+{{range .}}{{if .Jour}}<tr class="logs-jour"><td colspan="4">{{.Jour}}</td></tr>{{end}}<tr class="logs-ligne-log {{.Classe}}{{if .Cible}} cible{{end}}{{if .Semblable}} logs-semblable{{end}}"{{if .Semblable}} data-groupe="{{.Semblable}}"{{end}} data-logs-ouvrir data-t="{{.T}}" tabindex="0" aria-expanded="false">
+<td class="mono logs-heure">{{.Heure}}</td><td class="logs-qui"><b>{{.Host}}</b><small>{{if .Origine}}{{.Origine}}{{else}}{{.Job}}{{end}}</small></td><td class="logs-niveau">{{if .LibelleNiveau}}<span class="logs-niv {{.Classe}}" title="Niveau : {{.Niveau}}">{{.LibelleNiveau}}</span>{{end}}</td>
+<td class="logs-msg">{{range .Segments}}{{if .Marque}}<mark>{{.Texte}}</mark>{{else if .Genre}}<span class="logs-{{.Genre}}">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{end}}{{if gt .Repetitions 1}} <span class="logs-rep">× {{.Repetitions}}</span>{{end}}</td></tr>
+<tr class="logs-detail" hidden><td colspan="4"><div class="logs-boite">
 {{range .Champs}}<div class="logs-champ"><b>{{.Titre}}</b><code>{{.Valeur}}</code>{{if .LienFiltrer}}<span class="logs-act"><a href="{{.LienFiltrer}}">＋ filtrer</a> · <a href="{{.LienExclure}}">－ exclure</a></span>{{end}}</div>{{end}}
 <div class="logs-actions">{{if .LienAutour}}<a class="bouton secondaire" href="{{.LienAutour}}">Voir autour (20 avant, 20 après)</a>{{end}}<button type="button" class="secondaire" data-copier-ligne>Copier la ligne</button><button type="button" class="secondaire" data-copier-json="{{.JSON}}">Copier en JSON</button>{{if .LienAutour}}<a class="bouton secondaire" href="{{.LienAutour}}" data-copier-lien>Copier le lien</a>{{end}}</div>
-</div></td></tr>{{end}}
+</div></td></tr>
+{{if .Groupe}}<tr class="logs-groupe" data-groupe-tete="{{.Groupe}}"><td colspan="4"><button type="button" class="lien" data-ouvrir-groupe="{{.Groupe}}" aria-expanded="false"><span class="fleche" aria-hidden="true">▸</span> <b>{{.GroupeN}} {{accord .GroupeN "ligne(s) semblable(s)"}}</b> {{accord .GroupeN "repliée(s)"}}, jusqu'à {{.GroupeJusqua}}{{if .GroupeMachines}} <span class="pale">· {{.GroupeMachines}}</span>{{end}} · <u>tout voir</u></button></td></tr>{{end}}{{end}}
 </tbody></table></div>{{end}}
