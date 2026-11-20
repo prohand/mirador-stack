@@ -6800,3 +6800,39 @@ Idées seulement (Checkmate est sous AGPL-3.0 : aucun code repris).
 
 ### 81.4 Tâches planifiées hors de Sondes (retour du 20/11)
 - Voir § 80 : entrée de menu à part, bloc sur la page de la machine.
+
+## 82. Modèles des messages (20/11, idée reprise de nyx-stack, maquette validée) **[Fait, à valider]**
+
+Idée seulement (nyx-stack : lecture seule, aucun code repris).
+
+- Réglages › Notifications › « Modifier les modèles » : un modèle (titre +
+  texte) par type de message (alerte, résolution, rappel, escalade, site
+  injoignable), pour tous les canaux ou un seul (le canal passe avant).
+  Sans modèle : mise en forme de mirador, inchangée.
+- Variables : `.Nb`, `.Icone`, `.Alertes` (en cours puis résolues),
+  `.Actives`, `.Resolues`, `.Site`, `.Lien` ; par alerte : `.Titre`
+  (libellé lisible), `.Regle`, `.Machine`, `.Gravite`, `.Resume`,
+  `.Description`, `.Valeur`, `.Depuis`, `.Duree`, `.Fin`, `.Lien`, `.Logs`,
+  `.Changement`, `.Acquittee`, `.Resolue`.
+- Titre : à part pour ntfy, e-mail (sujet), téléphone, Gotify, webhook
+  JSON ; en première ligne ailleurs (en gras sur Telegram).
+- Aperçu par canal sans enregistrer ; « Enregistrer et envoyer un essai »
+  (alertes d'exemple sur le canal choisi) ; « Revenir au modèle par
+  défaut ».
+- Aussi : les messages par défaut montrent désormais le libellé lisible
+  des règles (« CPU élevé » au lieu de « CpuEleve », § 73), comme
+  l'interface ; le calcul des libellés est passé dans le paquet `alertes`.
+- Non fait (maquette) : l'e-mail en HTML (l'e-mail reste en texte brut).
+- Choix : syntaxe des modèles de Go (`text/template`, déjà dans la
+  bibliothèque standard : aucune dépendance, rien en RAM tant qu'aucun
+  modèle n'est réglé). Modèle analysé à chaque envoi : 27 µs
+  et 17 Kio alloués par message mesurés (banc d'essai), un message par
+  groupe d'alertes : négligeable.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Injection HTML dans Telegram (valeurs d'alerte, texte du modèle) | sortie du modèle entièrement échappée ; seule balise ajoutée : `<b>` autour du titre échappé. Aperçu : balises vérifiées une à une (b, i, code, pre) |
+  | Modèle qui ne s'arrête pas ou remplit la mémoire | `define`, `template`, `block` refusés (pas de récursion) ; boucles seulement sur les alertes du message ; sortie bornée à 32 Kio ; titre 300 et texte 4 000 caractères |
+  | Modèle cassé qui fait perdre des alertes | validé à l'enregistrement (rendu d'essai) ; à l'envoi, une erreur ou un texte vide → mise en forme de mirador |
+  | Modification discrète des messages | administrateurs seulement ; changement inscrit au journal d'audit (réglages des notifications) |
+  | Fonctions dangereuses dans le modèle | aucune fonction ajoutée ; seules celles de base de Go (comparaison, `len`, `printf`) ; données en lecture seule |

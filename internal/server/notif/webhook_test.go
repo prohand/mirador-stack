@@ -74,7 +74,7 @@ func TestWebhook(t *testing.T) {
 	if err := json.Unmarshal([]byte(corps[0]), &j); err != nil {
 		t.Fatal(err)
 	}
-	if j.Type != "alerte" || j.Nb != 1 || j.Titre != "mirador : DisquePresquePlein nas" || len(j.Alertes) != 1 ||
+	if j.Type != "alerte" || j.Nb != 1 || j.Titre != "mirador : Disque presque plein nas" || len(j.Alertes) != 1 ||
 		j.Alertes[0].Lien != "https://mirador.exemple.fr/alertes/7" || j.Alertes[0].Etiquettes["mountpoint"] != "/" || j.Alertes[0].Etat != "en_cours" {
 		t.Errorf("JSON : %s", corps[0])
 	}
@@ -93,8 +93,8 @@ func TestWebhook(t *testing.T) {
 
 	// Autres formats : forme du corps, méthode, chemin.
 	for _, c := range []struct{ format, chemin, attendu, methode string }{
-		{FormatDiscord, "/hook", `"content":"🔴 DisquePresquePlein`, http.MethodPost},
-		{FormatSlack, "/hook", `"text":"🔴 DisquePresquePlein`, http.MethodPost},
+		{FormatDiscord, "/hook", `"content":"🔴 Disque presque plein`, http.MethodPost},
+		{FormatSlack, "/hook", `"text":"🔴 Disque presque plein`, http.MethodPost},
 		{FormatGotify, "/", `"priority":8`, http.MethodPost},
 		{FormatMatrix, "/_matrix/client/v3/rooms/!a:b/send/m.room.message", `"msgtype":"m.text"`, http.MethodPut},
 	} {

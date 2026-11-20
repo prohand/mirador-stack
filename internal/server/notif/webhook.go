@@ -109,6 +109,8 @@ func (w *webhook) Nom() string { return NomWebhook }
 // messagerie, détail structuré pour le JSON mirador).
 func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 	o.HTML = false
+	// Gotify et JSON mirador ont un champ titre : il n'est pas répété dans le texte.
+	o.TitreAPart = format == FormatGotify || format == FormatJSON
 	switch format {
 	case FormatDiscord:
 		o.Max = 2000
@@ -122,7 +124,7 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 		if prio == 0 {
 			prio = 2
 		}
-		return json.Marshal(map[string]any{"title": titreCourt(m), "message": Texte(m, o), "priority": prio})
+		return json.Marshal(map[string]any{"title": titreCourt(m, o), "message": Texte(m, o), "priority": prio})
 	case FormatMatrix:
 		o.Max = 8000
 		txt := Texte(m, o)
@@ -156,14 +158,14 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 		Alertes []alerteJSON `json:"alertes"`
 	}
 	c := corpsJSON{Type: m.Type, Gravite: m.Gravite, Nb: m.Nb(), Site: m.Site, Le: m.Le.UTC().Format(time.RFC3339),
-		Titre: titreCourt(m), Alertes: []alerteJSON{}}
+		Titre: titreCourt(m, o), Alertes: []alerteJSON{}}
 	if m.Systeme != "" {
 		c.Type = "systeme"
 	}
 	o.Max = 8000
 	c.Texte = Texte(m, o)
 	ajout := func(a alertes.Alerte, etat string) {
-		x := alerteJSON{Titre: a.Regle, Regle: a.Regle, Machine: a.Machine(), Gravite: a.Gravite, Etat: etat, Resume: a.Resume,
+		x := alerteJSON{Titre: alertes.Libelle(a.Regle), Regle: a.Regle, Machine: a.Machine(), Gravite: a.Gravite, Etat: etat, Resume: a.Resume,
 			Acquittee: a.AcquitteePar, Etiquettes: map[string]string{}}
 		if d := debutActif(&a); !d.IsZero() {
 			x.Depuis = d.UTC().Format(time.RFC3339)
@@ -188,17 +190,21 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 	return json.Marshal(c)
 }
 
-// titreCourt : « mirador : CpuEleve pve1 », « mirador : résolu CpuEleve ».
-func titreCourt(m *Message) string {
+// titreCourt : « mirador : CPU élevé pve1 », « mirador : résolu CPU élevé »
+// (ou le titre du modèle de l'administrateur).
+func titreCourt(m *Message, o Mise) string {
+	if t := TitreModele(m, o); t != "" {
+		return t
+	}
 	titre := "mirador"
 	switch {
 	case m.Systeme != "":
 	case m.TitreSite() != "":
 		titre += " : " + m.TitreSite()
 	case len(m.Actives) > 0:
-		titre += " : " + strings.TrimSpace(m.Actives[0].Regle+" "+m.Actives[0].Machine())
+		titre += " : " + strings.TrimSpace(alertes.Libelle(m.Actives[0].Regle)+" "+m.Actives[0].Machine())
 	case len(m.Resolues) > 0:
-		titre += " : résolu " + m.Resolues[0].Regle
+		titre += " : résolu " + alertes.Libelle(m.Resolues[0].Regle)
 	}
 	return titre
 }

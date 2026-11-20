@@ -14,6 +14,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -211,7 +212,7 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		}
 		ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
 		t0 := time.Now()
-		err := e.canal.Envoyer(ctxE, &copie, Mise{Fuseau: loc, Lien: r.Lien})
+		err := e.canal.Envoyer(ctxE, &copie, r.mise(loc, nom))
 		annuler()
 		statut, msgErr := "ok", ""
 		if err != nil {
@@ -219,7 +220,7 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		}
 		if errNote := NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: nom, Groupe: m.Groupe, Gravite: m.Gravite,
 			Type: m.Type, Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Secours: !tous && nom != principal,
-			Erreur: msgErr, Texte: Texte(&copie, Mise{Fuseau: loc, Lien: r.Lien})}); errNote != nil {
+			Erreur: msgErr, Texte: Texte(&copie, r.mise(loc, nom))}); errNote != nil {
 			p.opt.Journal.Error("historique des envois", "erreur", errNote)
 		}
 		p.noter(ctx, nom, err, false)
@@ -242,14 +243,14 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		p.mu.Unlock()
 		if ok && e.canal != nil {
 			ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
-			err := e.canal.Envoyer(ctxE, m, Mise{Fuseau: loc, Lien: r.Lien})
+			err := e.canal.Envoyer(ctxE, m, r.mise(loc, r.Canaux.Secours))
 			annuler()
 			statut, msgErr := "ok", ""
 			if err != nil {
 				statut, msgErr = "echec", err.Error()
 			}
 			if errNote := NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: r.Canaux.Secours, Groupe: m.Groupe, Gravite: m.Gravite,
-				Type: m.Type, Nb: m.Nb(), Statut: statut, Secours: true, Erreur: msgErr, Texte: Texte(m, Mise{Fuseau: loc, Lien: r.Lien})}); errNote != nil {
+				Type: m.Type, Nb: m.Nb(), Statut: statut, Secours: true, Erreur: msgErr, Texte: Texte(m, r.mise(loc, r.Canaux.Secours))}); errNote != nil {
 				p.opt.Journal.Error("historique des envois", "erreur", errNote)
 			}
 			p.noter(ctx, r.Canaux.Secours, err, false)
@@ -277,13 +278,13 @@ func (p *Postier) copierVersApplication(ctx context.Context, m *Message, r Regla
 	ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
 	defer annuler()
 	t0 := time.Now()
-	err := e.canal.Envoyer(ctxE, m, Mise{Fuseau: loc, Lien: r.Lien})
+	err := e.canal.Envoyer(ctxE, m, r.mise(loc, NomApplication))
 	statut, msgErr := "ok", ""
 	if err != nil {
 		statut, msgErr = "echec", err.Error()
 	}
 	if errNote := NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: NomApplication, Groupe: m.Groupe, Gravite: m.Gravite,
-		Type: m.Type + " (copie)", Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Erreur: msgErr, Texte: Texte(m, Mise{Fuseau: loc})}); errNote != nil {
+		Type: m.Type + " (copie)", Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Erreur: msgErr, Texte: Texte(m, r.mise(loc, NomApplication))}); errNote != nil {
 		p.opt.Journal.Error("historique des envois", "erreur", errNote)
 	}
 }
@@ -418,13 +419,13 @@ func (p *Postier) envoyerA(ctx context.Context, nom string, m *Message) bool {
 	ctxE, annuler := context.WithTimeout(ctx, delaiEnvoi(e.canal))
 	defer annuler()
 	t0 := time.Now()
-	err := e.canal.Envoyer(ctxE, m, Mise{Fuseau: loc, Lien: r.Lien})
+	err := e.canal.Envoyer(ctxE, m, r.mise(loc, nom))
 	statut, msgErr := "ok", ""
 	if err != nil {
 		statut, msgErr = "echec", err.Error()
 	}
 	_ = NoterEnvoi(ctx, p.opt.DB, Envoi{Le: p.opt.Maintenant(), Canal: nom, Groupe: m.Groupe, Gravite: m.Gravite, Type: m.Type,
-		Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Erreur: msgErr, Texte: Texte(m, Mise{Fuseau: loc})})
+		Nb: m.Nb(), Statut: statut, Duree: time.Since(t0), Erreur: msgErr, Texte: Texte(m, r.mise(loc, nom))})
 	return err == nil
 }
 
@@ -660,16 +661,23 @@ func (p *Postier) faireTests(ctx context.Context) {
 	_ = rows.Close()
 	for _, d := range ds {
 		statut, msgErr := "ok", ""
+		// « canal#type » : essai d'un modèle des messages (SPEC § 82),
+		// avec les alertes d'exemple.
+		canal, typ, essaiModele := strings.Cut(d.canal, "#")
 		p.mu.Lock()
-		e := p.etats[d.canal]
+		e := p.etats[canal]
 		p.mu.Unlock()
 		if e == nil {
 			statut, msgErr = "echec", "canal non configuré ou désactivé"
 		} else {
 			t := p.opt.Maintenant()
 			m := &Message{Le: t, Groupe: "test", Gravite: alertes.Info, Type: "test",
-				Systeme: "🧪 Message de test de mirador-server (canal " + d.canal + ")."}
-			if !p.envoyerA(ctx, d.canal, m) {
+				Systeme: "🧪 Message de test de mirador-server (canal " + canal + ")."}
+			if essaiModele {
+				m = MessageExemple(typ, t)
+				m.Groupe = "test"
+			}
+			if !p.envoyerA(ctx, canal, m) {
 				statut, msgErr = "echec", "envoi refusé (voir la commande envois)"
 			}
 		}
@@ -781,6 +789,23 @@ func DemanderTest(ctx context.Context, db *sql.DB, canal string, t time.Time) (i
 	return res.LastInsertId()
 }
 
+// DemanderEssaiModele : essai d'un type de modèle sur un canal, avec les
+// alertes d'exemple (SPEC § 82).
+func DemanderEssaiModele(ctx context.Context, db *sql.DB, canal, typ string, t time.Time) (int64, error) {
+	connu := false
+	for _, x := range TypesModele {
+		connu = connu || x[0] == typ
+	}
+	if !connu || !slices.Contains(nomsCanaux(), canal) {
+		return 0, fmt.Errorf("essai : canal %q ou type %q inconnu", canal, typ)
+	}
+	res, err := db.ExecContext(ctx, `INSERT INTO tests_canaux(canal, demande_le) VALUES (?, ?)`, canal+"#"+typ, ms(t))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
 // ResultatTest : statut ("" = pas encore fait) et erreur d'une demande de test.
 func ResultatTest(ctx context.Context, db *sql.DB, id int64) (statut, erreur string, err error) {
 	err = db.QueryRowContext(ctx, `SELECT statut, erreur FROM tests_canaux WHERE id = ?`, id).Scan(&statut, &erreur)
@@ -794,4 +819,10 @@ func delaiEnvoi(c Canal) time.Duration {
 		return d.DelaiEnvoi()
 	}
 	return 30 * time.Second
+}
+
+// mise : options de mise en forme d'un envoi sur un canal (modèles des
+// messages compris, SPEC § 82).
+func (r Reglages) mise(loc *time.Location, canal string) Mise {
+	return Mise{Fuseau: loc, Lien: r.Lien, Modeles: r.Modeles, Canal: canal}
 }

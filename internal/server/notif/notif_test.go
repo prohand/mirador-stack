@@ -450,7 +450,7 @@ func TestTexte(t *testing.T) {
 	m := &Message{Le: t0.Add(90 * time.Minute), Type: TypeAlerte, Actives: []alertes.Alerte{a}, Nouvelles: 1}
 	paris, _ := time.LoadLocation("Europe/Paris")
 	h := Texte(m, Mise{HTML: true, Fuseau: paris, Lien: "https://mirador.example.org"})
-	for _, attendu := range []string{"🔴 <b>CpuEleve</b>", "&lt;script&gt;alert(1)&lt;/script&gt; &amp; co",
+	for _, attendu := range []string{"🔴 <b>CPU élevé</b>", "&lt;script&gt;alert(1)&lt;/script&gt; &amp; co",
 		"<code>pc&lt;1&gt;</code> · depuis 10/11 13:00 (1h 30m) · valeur 42", "https://mirador.example.org/alertes/7"} {
 		if !strings.Contains(h, attendu) {
 			t.Errorf("manque %q dans :\n%s", attendu, h)

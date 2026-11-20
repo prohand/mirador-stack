@@ -1,0 +1,34 @@
+{{define "contenu"}}{{$d := .D}}
+<h1>Modèles des messages</h1>
+<p class="sous"><a href="/reglages/notifications">← Notifications</a> · Le texte des alertes, à votre façon : par type de message, pour tous les canaux ou un seul. Sans modèle, mirador garde sa mise en forme. {{template "plus" "aide.md#modeles"}}</p>
+<p class="onglets">{{range $d.Types}}<a {{if eq (index . 0) $d.Type}}class="actif" aria-current="page"{{end}} href="/reglages/notifications/modeles?type={{index . 0}}&amp;canal={{$d.Canal}}">{{index . 1}}</a>{{end}}</p>
+<div class="grille grille-modeles">
+<section class="carte"><h2>Modèle « {{range $d.Types}}{{if eq (index . 0) $d.Type}}{{index . 1}}{{end}}{{end}} »{{if $d.Canal}} · {{majuscule $d.Canal}}{{end}}</h2>
+<form method="get" action="/reglages/notifications/modeles" class="ligne"><input type="hidden" name="type" value="{{$d.Type}}">
+<label>Canal <select name="canal" data-envoi-auto><option value="">Tous les canaux</option>{{range $d.Canaux}}<option value="{{.}}"{{if eq . $d.Canal}} selected{{end}}>{{majuscule .}}</option>{{end}}</select></label>
+<noscript><button class="secondaire petit">Changer</button></noscript></form>
+<p>{{if $d.Perso}}<span class="pastille info">Modèle personnalisé</span>{{else}}<span class="pastille">Modèle par défaut de mirador</span> <small class="doux">ci-dessous : un point de départ, à modifier puis enregistrer</small>{{end}}</p>
+{{if $d.Erreur}}<p class="message erreur" role="alert">{{$d.Erreur}}</p>{{end}}
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="type" value="{{$d.Type}}"><input type="hidden" name="canal" value="{{$d.Canal}}">
+<label>Titre <input name="titre" value="{{$d.M.Titre}}" maxlength="300" spellcheck="false"></label>
+<label>Message <textarea name="corps" rows="10" maxlength="4000" spellcheck="false" class="code">{{$d.M.Corps}}</textarea></label>
+{{if .Admin}}<div class="ligne"><button name="action" value="enregistrer">Enregistrer</button>
+<button name="action" value="apercu" class="secondaire">Aperçu</button>
+{{if $d.Testables}}<label class="sans-titre">Essai sur <select name="canal_essai">{{range $d.Testables}}<option{{if eq . $d.Canal}} selected{{end}}>{{.}}</option>{{end}}</select></label><button name="action" value="essai" class="secondaire">Enregistrer et envoyer un essai</button>{{end}}
+{{if $d.Perso}}<button name="action" value="defaut" class="secondaire" formnovalidate data-confirmer="Revenir au modèle par défaut de mirador ?">Revenir au modèle par défaut</button>{{end}}</div>{{end}}
+</form>
+<details open><summary>Variables</summary><div class="var-liste">
+<p><code>{{"{{"}}.Nb{{"}}"}}</code> nombre d'alertes · <code>.Icone</code> 🔴 🟠 🔵 selon la plus grave, ✅ si tout est résolu</p>
+<p><code>.Alertes</code> en cours puis résolues ; <code>.Actives</code>, <code>.Resolues</code> séparées ; <code>.Site</code>, <code>.Lien</code> (adresse de l'interface)</p>
+<p>Pour chaque alerte (<code>{{"{{"}}range .Alertes{{"}}"}}…{{"{{"}}end{{"}}"}}</code>) : <code>.Icone</code>, <code>.Titre</code> « Disque presque plein », <code>.Regle</code> nom technique, <code>.Machine</code>, <code>.Gravite</code>, <code>.Resume</code>, <code>.Description</code>, <code>.Valeur</code>, <code>.Depuis</code>, <code>.Duree</code>, <code>.Fin</code>, <code>.Lien</code>, <code>.Logs</code>, <code>.Changement</code>, <code>.Acquittee</code>, <code>.Resolue</code></p>
+<p>Conditions : <code>{{"{{"}}if .Machine{{"}}"}} · {{"{{"}}.Machine{{"}}"}}{{"{{"}}end{{"}}"}}</code>. Émojis : tapés tels quels. Texte simple : pas de balise (Telegram met seulement le titre en gras).</p>
+</div></details>
+</section>
+<section class="carte"><h2>Aperçu (alertes d'exemple)</h2>
+<nav class="onglets" data-onglets-panneaux="apercu" aria-label="Canal de l'aperçu"><a href="#apercu-telegram" data-onglet="telegram">Telegram</a><a href="#apercu-ntfy" data-onglet="ntfy">ntfy / téléphone</a><a href="#apercu-email" data-onglet="email">E-mail</a><a href="#apercu-olvid" data-onglet="olvid">Olvid</a><a href="#apercu-webhook" data-onglet="webhook">Webhook</a></nav>
+{{range $d.Apercus}}<div class="panneau-onglet" data-panneau-onglet="{{.Cle}}" id="apercu-{{.Cle}}">
+{{if .Titre}}<p class="apercu-titre"><strong>{{.Titre}}</strong></p>{{end}}
+<div class="apercu-message{{if eq .Cle "telegram"}} sombre{{end}}">{{if .HTML}}{{.HTML}}{{else}}{{.Texte}}{{end}}</div></div>{{end}}
+<p><small class="aide">Approximation : chaque application a le dernier mot. Une erreur dans le modèle est signalée ici ; à l'envoi, un modèle en erreur est remplacé par la mise en forme de mirador (jamais d'alerte perdue).</small></p>
+</section></div>
+{{end}}

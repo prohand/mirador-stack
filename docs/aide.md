@@ -195,6 +195,25 @@ section de cette page.
 - **Serveur restauré sans sa base, ou clé des secrets changée** : la clé
   des notifications change, tous les appareils doivent être réabonnés.
 
+<a id="modeles"></a>
+## Notifications : modèles des messages
+
+- **Où** : Réglages › Notifications › « Modifier les modèles ».
+- **Un modèle par type** : alerte, résolution, rappel, escalade, site
+  injoignable ; pour tous les canaux ou pour un seul (le modèle du canal
+  passe avant celui de « tous »).
+- **Syntaxe** : celle des modèles de Go. `{{.Nb}}` affiche une valeur ;
+  `{{range .Alertes}}…{{end}}` répète pour chaque alerte ;
+  `{{if .Machine}}…{{end}}` n'affiche que si la valeur existe.
+- **Titre** : à part pour ntfy, l'e-mail (sujet), le téléphone, Gotify et
+  le JSON du webhook ; en première ligne (en gras sur Telegram) ailleurs.
+- **Texte simple** : pas de balise HTML ; les émojis se tapent tels quels.
+- **Aperçu** : montre le message d'exemple sans rien enregistrer.
+  « Enregistrer et envoyer un essai » envoie les alertes d'exemple sur le
+  canal choisi.
+- **En cas d'erreur** : un modèle illisible est refusé à l'enregistrement ;
+  s'il échoue quand même à l'envoi, le message part avec la mise en forme
+  de mirador (aucune alerte perdue).
 
 ## Changements
 

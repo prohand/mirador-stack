@@ -46,6 +46,9 @@ type Reglages struct {
 	// SansExtraitsLogs : ne pas joindre les dernières lignes de logs aux
 	// messages (SPEC § 41). Faux par défaut : les extraits sont joints.
 	SansExtraitsLogs bool `json:"sans_extraits_logs,omitempty"`
+	// Modeles : modèles des messages (SPEC § 82), clé « type » ou
+	// « type:canal ». Vide : mise en forme de mirador.
+	Modeles map[string]Modele `json:"modeles,omitempty"`
 }
 
 // ReglagesDefaut : repris d'alertmanager.yml (SPEC § 4.7) ; mode ombre tant
@@ -124,6 +127,9 @@ func (r *Reglages) Valider() error {
 	// Chaque canal décrit est toujours vérifié. Le principal doit être
 	// configuré dès qu'on passe en mode actif (ou qu'un secours est choisi).
 	errs = append(errs, r.Canaux.Valider(r.Mode == Actif || r.Canaux.Secours != ""))
+	if err := validerModeles(r.Modeles); err != nil {
+		errs = append(errs, err)
+	}
 	return errors.Join(errs...)
 }
 

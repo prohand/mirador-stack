@@ -1047,6 +1047,15 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Modèles des messages (SPEC § 82, 20/11) : fait, à valider
+
+- Réglages › Notifications › Modèles : titre et texte par type de message
+  et par canal, aperçu par canal, essai, retour au défaut.
+- Messages par défaut : libellés lisibles des règles (« CPU élevé »).
+- Mesures : rien en plus sans modèle ; avec modèle, 27 µs et 17 Kio
+  alloués par message envoyé (banc d'essai).
+- Non fait : e-mail en HTML.
+
 ## Petits ajouts repris de Checkmate (SPEC § 81, 20/11) : fait, à valider
 
 - Maintenances : chaque jour / semaine / mois, prochaine fenêtre affichée,

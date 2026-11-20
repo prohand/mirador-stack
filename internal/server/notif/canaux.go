@@ -578,7 +578,7 @@ func boutons(m *Message) []map[string]string {
 		}
 		texte := "✔ Acquitter"
 		if len(m.Actives) > 1 {
-			texte = "✔ " + a.Regle + " " + a.Machine()
+			texte = "✔ " + alertes.Libelle(a.Regle) + " " + a.Machine()
 			if len(texte) > 40 {
 				texte = texte[:40]
 			}
@@ -666,7 +666,7 @@ func (n *ntfy) requete(ctx context.Context, methode, adresse string, corps io.Re
 }
 
 func (n *ntfy) Envoyer(ctx context.Context, m *Message, o Mise) error {
-	o.HTML, o.Max = false, 4000
+	o.HTML, o.Max, o.TitreAPart = false, 4000, true
 	req, err := n.requete(ctx, http.MethodPost, n.url, strings.NewReader(Texte(m, o)))
 	if err != nil {
 		return err
@@ -675,9 +675,12 @@ func (n *ntfy) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	if t := m.TitreSite(); t != "" {
 		titre += " : " + t
 	} else if len(m.Actives) > 0 {
-		titre += " : " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
+		titre += " : " + alertes.Libelle(m.Actives[0].Regle) + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
-		titre += " : résolu " + m.Resolues[0].Regle
+		titre += " : résolu " + alertes.Libelle(m.Resolues[0].Regle)
+	}
+	if t := TitreModele(m, o); t != "" { // modèle de l'administrateur (SPEC § 82)
+		titre = t
 	}
 	req.Header.Set("Title", mime.BEncoding.Encode("utf-8", titre))
 	prio := map[string]string{alertes.Critique: "urgent", alertes.Avertissement: "default", alertes.Info: "low"}[m.Gravite]
@@ -785,9 +788,9 @@ func (e *email) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	if t := m.TitreSite(); t != "" {
 		sujet += t
 	} else if len(m.Actives) > 0 {
-		sujet += m.Actives[0].Gravite + " " + m.Actives[0].Regle + " " + m.Actives[0].Machine()
+		sujet += m.Actives[0].Gravite + " " + alertes.Libelle(m.Actives[0].Regle) + " " + m.Actives[0].Machine()
 	} else if len(m.Resolues) > 0 {
-		sujet += "résolu " + m.Resolues[0].Regle + " " + m.Resolues[0].Machine()
+		sujet += "résolu " + alertes.Libelle(m.Resolues[0].Regle) + " " + m.Resolues[0].Machine()
 	}
 	id := make([]byte, 12)
 	_, _ = rand.Read(id)
@@ -795,6 +798,10 @@ func (e *email) Envoyer(ctx context.Context, m *Message, o Mise) error {
 	w, err := c.Data()
 	if err != nil {
 		return fmt.Errorf("smtp DATA : %w", err)
+	}
+	o.TitreAPart = true
+	if t := TitreModele(m, o); t != "" { // modèle de l'administrateur (SPEC § 82)
+		sujet = t
 	}
 	corps := Texte(m, o)
 	fmt.Fprintf(w, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s@%s>\r\nMIME-Version: 1.0\r\n"+

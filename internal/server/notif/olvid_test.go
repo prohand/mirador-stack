@@ -147,7 +147,7 @@ func TestOlvid(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
-	if len(f.corps) != 1 || !strings.Contains(f.corps[0], "AgentMuet") || len(f.supprime) != 0 {
+	if len(f.corps) != 1 || !strings.Contains(f.corps[0], "Agent muet") || len(f.supprime) != 0 {
 		t.Fatalf("envoi : %v, supprimés %v", f.corps, f.supprime)
 	}
 	// 2. Coupure : accepté par le daemon mais jamais confirmé → échec et

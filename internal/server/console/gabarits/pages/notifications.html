@@ -108,6 +108,8 @@
 {{if and $.Admin $c.Heartbeat.URL}}<button name="action" value="tester-heartbeat" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
 </div>
+<section class="carte lien-modeles"><div class="ligne"><div><strong>Modèles des messages</strong> : {{if .D.R.Modeles}}{{len .D.R.Modeles}} modèle(s) personnalisé(s){{else}}mise en forme de mirador{{end}}. Le texte des alertes, résolutions, rappels… à votre façon, avec aperçu par canal.</div>
+<a class="bouton secondaire petit" href="/reglages/notifications/modeles">Modifier les modèles</a></div></section>
 <section class="carte" id="bascule"><h2>Principal, secours, bascule</h2>
 <p>Les alertes partent sur <strong>un seul canal</strong> : le principal. S'il tombe en panne, elles partent sur le secours (avec un message « canal principal en panne »), puis reviennent sur le principal quand il remarche.</p>
 <div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option {{if egal . $c.Principal}}selected{{end}}>{{.}}</option>{{end}}</select></label>

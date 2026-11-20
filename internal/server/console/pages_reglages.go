@@ -28,6 +28,8 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("GET /reglages/export", c.lecture(func(q *req) { c.rendre(q, "export", "Export / import", "reglages", nil) }))
 	m.HandleFunc("GET /reglages/notifications", c.lecture(c.pageNotifications))
 	m.HandleFunc("POST /reglages/notifications", c.admin(c.postNotifications))
+	m.HandleFunc("GET /reglages/notifications/modeles", c.lecture(c.pageModelesMsg))
+	m.HandleFunc("POST /reglages/notifications/modeles", c.admin(c.postModelesMsg))
 	m.HandleFunc("GET /reglages/conservation", c.lecture(c.pageConservation))
 	m.HandleFunc("POST /reglages/conservation", c.admin(c.postConservation))
 	m.HandleFunc("GET /reglages/sauvegardes", c.lecture(c.pageSauvegardes))
