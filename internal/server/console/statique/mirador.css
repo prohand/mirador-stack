@@ -1491,3 +1491,11 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .machine-liee.aucune a { font-weight: 500; font-size: 13px; }
 .machine-liee.petite { padding: 3px 9px; border-radius: 999px; font-size: 13px; gap: 6px; white-space: nowrap; }
 .cible-fiche { font-size: 13px; color: var(--doux); overflow-wrap: anywhere; }
+
+/* Tâches planifiées : description en clair ; résumé sur la page machine (retour du 20/11). */
+.desc-tache { color: var(--doux); }
+.liste-taches { list-style: none; margin: 0; padding: 0; }
+.liste-taches li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bord-doux); }
+.liste-taches li:last-child { border-bottom: 0; }
+.machine-liee.depuis { background: var(--survol); color: var(--texte); }
+.machine-liee.depuis a { color: var(--accent-texte); text-decoration: none; }

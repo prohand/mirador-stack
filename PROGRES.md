@@ -1047,11 +1047,17 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Tâches planifiées : description et page machine (SPEC § 88, 20/11) : fait, à valider
+
+- Description en clair de chaque tâche (vzdump, PBS, timers…) ; résumé
+  dans l'onglet Vue d'ensemble de la machine, pastille sur Activité.
+
 ## Sondes : machine liée visible (20/11, retour) : fait, à valider
 
 - Colonne « Machine » dans la liste des sondes ; machine en haut de la
   fiche de la sonde et dans ses liens ; champ « Machine liée » à l'ajout
-  manuel et dans « Modifier la sonde » (on peut la changer ou la retirer).
+  manuel et dans « Modifier la sonde » (on peut la changer ou la retirer) ;
+  « Essai fait depuis » (serveur ou collecteur) en haut de la fiche.
 
 ## Téléphone : barre du haut à la iOS (SPEC § 86, 20/11) : fait, à valider
 

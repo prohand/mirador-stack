@@ -118,3 +118,20 @@ func TestReglesTachesSeries(t *testing.T) {
 		}
 	}
 }
+
+// Description en clair des tâches détectées (retour du 20/11 : « à quoi
+// correspond vzdump ? »).
+func TestDescriptionTache(t *testing.T) {
+	for _, c := range []struct{ source, nom, attendu string }{
+		{"pve", "vzdump", "Sauvegarde planifiée des VM et conteneurs (travail de Datacenter › Sauvegarde, lancé sur ce nœud)"},
+		{"pve", "vzdump 101", "Sauvegarde de la VM ou du conteneur 101"},
+		{"pbs", "garbage_collection datastore1", "Nettoyage du datastore (garbage collection) (datastore1)"},
+		{"pbs", "verificationjob", "Vérification planifiée des sauvegardes"},
+		{"systemd", "sauvegarde-restic.timer", "Timer systemd : lance le service sauvegarde-restic à heure fixe"},
+		{"ping", "Sauvegarde NAS", ""},
+	} {
+		if got := descriptionTache(c.source, c.nom); got != c.attendu {
+			t.Errorf("%s %s : %q", c.source, c.nom, got)
+		}
+	}
+}

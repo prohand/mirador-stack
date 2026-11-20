@@ -6939,3 +6939,19 @@ ci-dessous.
   « Modifier la sonde » : la machine se change ou se retire (jusqu'ici
   elle n'était posée que par l'ajout depuis une machine).
 - Rangement seulement (§ 60) : jamais envoyé au collecteur.
+- Ajout (même jour) : « Essai fait depuis » (serveur mirador ou
+  collecteur) à côté de la machine liée, en haut de la fiche.
+
+## 88. Tâches planifiées : description en clair, visibles sur la machine (20/11, retour) **[Fait, à valider]**
+
+- Retour : « à quoi correspond cette tâche (vzdump) et que surveille-t-elle ? »
+  et « les tâches planifiées n'apparaissent pas dans les machines ».
+- Chaque tâche détectée ou suivie porte une description : vzdump sans
+  numéro = travail de sauvegarde planifié de Proxmox VE (Datacenter ›
+  Sauvegarde) lancé sur ce nœud ; vzdump N = sauvegarde de la VM ou du
+  conteneur N ; tâches PBS (backup, garbage collection, verify, prune,
+  sync) ; timer systemd = service lancé à heure fixe ; conteneur ponctuel.
+- Page machine : résumé « Tâches planifiées » dans l'onglet Vue d'ensemble
+  (le détail reste dans Activité), pastille rouge sur l'onglet Activité
+  si une tâche suivie est en échec ou en retard. Le lien machine de la
+  page Tâches mène au bloc de la machine.

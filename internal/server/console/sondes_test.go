@@ -98,7 +98,7 @@ func TestModifierSonde(t *testing.T) {
 		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`)
 	_, corps, _ := b.get(cl, "/sondes/dhcp-dns02%20HTTPS%20443")
 	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`,
-		`class="machine-liee" href="/machines/dhcp-dns02#sondes"`, `<b>dhcp-dns02</b>`, `<small>sonde la machine</small>dhcp-dns02`} {
+		`class="machine-liee" href="/machines/dhcp-dns02#sondes"`, `<b>dhcp-dns02</b>`, `<small>Essai fait depuis</small><a href="/machines/lan"><b>lan</b></a>`, `<small>sonde la machine</small>dhcp-dns02`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("fiche de la sonde : %q absent", attendu)
 		}
