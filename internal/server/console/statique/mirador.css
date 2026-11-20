@@ -1662,3 +1662,15 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 @keyframes logs-neuve { from { background: rgba(62, 99, 221, .16); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .logs-table tr.logs-ligne-log.toute-neuve td { animation: none; } }
 .logs-nouvelles.attente { position: sticky; top: 8px; z-index: 5; cursor: pointer; background: var(--accent); color: var(--sur-accent); font-weight: 600; }
+
+/* Logs : séparation des lignes plus visible (retour du 20/11) : trait
+   normal au lieu du trait très pâle, un peu plus d'air, et un fond très
+   léger une ligne sur deux (les lignes d'erreur et d'avertissement gardent
+   leur couleur). */
+.logs-table td { border-bottom-color: var(--bord); padding-top: 7px; padding-bottom: 7px; }
+.logs-table tr.logs-ligne-log.pair:not(.err):not(.warn):not(.cible) td { background: var(--entete-table); }
+.logs-table tr.logs-ligne-log:hover td { background: var(--survol); }
+@media (max-width: 640px) {
+  .logs-table tr.logs-ligne-log { border-bottom-color: var(--bord); padding-top: 9px; padding-bottom: 9px; }
+  .logs-table tr.logs-ligne-log.pair:not(.err):not(.warn):not(.cible) { background: var(--entete-table); }
+}

@@ -2092,3 +2092,32 @@ document.addEventListener("change", function (ev) {
   setInterval(texteEtat, 1000);
   verifier();
 })();
+
+// Logs : une ligne sur deux légèrement teintée (retour du 20/11 : « on ne
+// voit pas bien la séparation »). Seules les lignes visibles comptent
+// (repli des semblables, filtres, lignes du direct) : recalculé quand le
+// tableau change.
+(function () {
+  var t = document.querySelector("[data-logs-table]");
+  if (!t || !t.tBodies[0]) { return; }
+  var prevu = false;
+  function rayer() {
+    prevu = false;
+    var n = 0;
+    t.querySelectorAll("tr.logs-ligne-log").forEach(function (tr) {
+      if (tr.offsetParent === null) { return; } // ligne cachée
+      var pair = n++ % 2 === 1;
+      if (tr.classList.contains("pair") !== pair) { tr.classList.toggle("pair", pair); }
+    });
+  }
+  function plusTard() {
+    if (!prevu) { prevu = true; window.requestAnimationFrame(rayer); }
+  }
+  new MutationObserver(function (ms) {
+    // Nos propres changements de « pair » ne relancent pas le calcul.
+    if (ms.every(function (m) { return m.type === "attributes" && m.attributeName === "class" && m.target.tagName === "TR" && m.oldValue !== null &&
+      m.oldValue.replace(/\bpair\b/, "").trim() === m.target.className.replace(/\bpair\b/, "").trim(); })) { return; }
+    plusTard();
+  }).observe(t, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"], attributeOldValue: true });
+  rayer();
+})();

@@ -7308,6 +7308,10 @@ Partie 3 des améliorations des agents et du temps réel.
   secondes (bloc en mémoire) par page et par seconde au plus.
 - Menaces : flux réservé aux personnes connectées (rôle lecture), mêmes
   filtres et mêmes droits que la page ; lignes posées avec `textContent`.
+- Lisibilité (retour du 20/11 : « on ne voit pas bien la séparation entre
+  les lignes ») : trait normal entre les lignes au lieu du trait très pâle,
+  un peu plus d'air, une ligne visible sur deux légèrement teintée
+  (recalculée quand on replie, filtre ou reçoit des lignes en direct).
 
 
 ## 100. Tampon disque et envoi allégé (20/11, maquette validée) **[Fait, à valider]**
