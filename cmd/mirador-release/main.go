@@ -72,6 +72,8 @@ const aide = `mirador-release : signature des versions de mirador-agent
 
   cle [-sortie FICHIER]                                   créer la clé de signature
   signer -cle FICHIER -version X.Y.Z -arch amd64|arm64 [-produit mirador-collector] [-retour-autorise] BINAIRE
+  signer-image -cle FICHIER -version X.Y.Z -empreinte sha256:… [-sortie MANIFESTE]
+                                                          signer l'image Docker du serveur (SPEC § 102)
   verifier -publique CLE MANIFESTE BINAIRE
   -version`
 
@@ -93,6 +95,7 @@ func lancer(args []string, sortie, erreurs io.Writer, phrase lirePhrase) int {
 	produit := fs.String("produit", protocole.ProduitAgent, "produit signé : mirador-agent ou mirador-collector")
 	retour := fs.Bool("retour-autorise", false, "autoriser l'installation par-dessus une version plus récente (retour arrière)")
 	publique := fs.String("publique", "", "clé publique (base64)")
+	empreinte := fs.String("empreinte", "", "empreinte de l'image Docker (sha256:…)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -106,6 +109,12 @@ func lancer(args []string, sortie, erreurs io.Writer, phrase lirePhrase) int {
 			break
 		}
 		err = signer(*fichierCle, fs.Arg(0), *produit, *ver, *arch, *retour, sortie, phrase)
+	case "signer-image":
+		dest := *sortieCle
+		if dest == "cle-mirador.json" {
+			dest = "mirador-server-image-" + *ver + ".manifeste.json"
+		}
+		err = signerImage(*fichierCle, *empreinte, *ver, dest, sortie, phrase)
 	case "verifier":
 		if fs.NArg() != 2 {
 			err = errors.New("un manifeste et un binaire attendus")
@@ -197,6 +206,45 @@ func signer(cheminCle, cheminBinaire, produit, ver, arch string, retour bool, so
 		fmt.Fprint(sortie, "\n  RETOUR ARRIÈRE AUTORISÉ : les agents plus récents l'accepteront aussi")
 	}
 	fmt.Fprintln(sortie)
+	return nil
+}
+
+// signerImage : manifeste signé de l'image du serveur (SPEC § 102), écrit
+// dans dest (refusé s'il existe : on ne remplace pas un manifeste publié).
+func signerImage(cheminCle, empreinte, ver, dest string, sortie io.Writer, phrase lirePhrase) error {
+	brutCle, err := os.ReadFile(cheminCle) // #nosec G304 G703 -- chemin choisi par l'utilisateur
+	if err != nil {
+		return err
+	}
+	p, err := phrase("Phrase de passe de la clé : ")
+	if err != nil {
+		return err
+	}
+	priv, err := release.LireCle(brutCle, p)
+	if err != nil {
+		return err
+	}
+	m, err := release.SignerImage(priv, empreinte, ver)
+	release.Effacer(priv)
+	if err != nil {
+		return err
+	}
+	brut, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) // #nosec G302 G304 G703 -- manifeste public, chemin choisi par l'utilisateur
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(append(brut, '\n')); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	fmt.Fprintf(sortie, "Manifeste écrit : %s\n  image du serveur, version %s, %s\n", dest, m.Version, empreinte)
 	return nil
 }
 

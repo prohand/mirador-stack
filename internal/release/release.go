@@ -203,6 +203,52 @@ func Signer(priv ed25519.PrivateKey, binaire []byte, produit, version, arch stri
 	return m, nil
 }
 
+// formatEmpreinteImage : empreinte d'une image Docker (« sha256: » + 64 hex).
+var formatEmpreinteImage = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// SignerImage fabrique le manifeste signé de l'image Docker du serveur
+// (SPEC § 102) : la version et l'empreinte de l'image publiée par la CI.
+// mirador-maj-serveur (VPS) ne télécharge l'image que par cette empreinte.
+func SignerImage(priv ed25519.PrivateKey, empreinte, version string) (*protocole.Manifeste, error) {
+	if !formatVersion.MatchString(version) {
+		return nil, fmt.Errorf("version %q invalide (attendu 1.2.3)", version)
+	}
+	if !formatEmpreinteImage.MatchString(empreinte) {
+		return nil, fmt.Errorf("empreinte %q invalide (attendu sha256:<64 caractères hexadécimaux>)", empreinte)
+	}
+	m := &protocole.Manifeste{Produit: protocole.ProduitImageServeur, Version: version, Architecture: "amd64",
+		SHA256: empreinte[len("sha256:"):]}
+	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
+	return m, nil
+}
+
+// VerifierImage contrôle le manifeste d'une image du serveur : produit,
+// version attendue, empreinte bien formée, signature d'une des clés.
+// Renvoie l'empreinte « sha256:… » à télécharger.
+func VerifierImage(m *protocole.Manifeste, version string, publiques []string) (string, error) {
+	if m.Produit != protocole.ProduitImageServeur || m.Architecture != "amd64" || m.Taille != 0 || m.RetourAutorise {
+		return "", errors.New("ce manifeste ne décrit pas l'image du serveur")
+	}
+	if m.Version != version {
+		return "", fmt.Errorf("manifeste de la version %s, pas %s", m.Version, version)
+	}
+	empreinte := "sha256:" + m.SHA256
+	if !formatEmpreinteImage.MatchString(empreinte) {
+		return "", errors.New("empreinte d'image invalide")
+	}
+	sig, err := base64.StdEncoding.DecodeString(m.Signature)
+	if err != nil {
+		return "", errors.New("signature invalide")
+	}
+	for _, p := range publiques {
+		pub, err := base64.StdEncoding.DecodeString(p)
+		if err == nil && len(pub) == ed25519.PublicKeySize && ed25519.Verify(pub, m.MessageSigne(), sig) {
+			return empreinte, nil
+		}
+	}
+	return "", errors.New("signature invalide (aucune clé publique réglée ne correspond)")
+}
+
 // Verifier contrôle un manifeste et son binaire avec une clé publique.
 func Verifier(m *protocole.Manifeste, binaire []byte, publique string) error {
 	pub, err := base64.StdEncoding.DecodeString(publique)

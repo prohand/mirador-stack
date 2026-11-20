@@ -14,7 +14,11 @@
 #     Docker), mirador-release (Windows, Linux), SHA256SUMS ; Release
 #     GitHub avec notes générées depuis les pull requests ;
 #   - image : ghcr.io/prohand/mirador-server:X.Y.Z (et :latest pour une
-#     version finale).
+#     version finale) ;
+# puis signature de l'image : son empreinte (sha256:…) est signée et jointe
+# à la Release (mirador-server-image-X.Y.Z.manifeste.json). C'est ce que
+# vérifie mirador-maj-serveur sur le VPS avant toute mise à jour depuis
+# l'interface (SPEC § 102).
 # Rien n'est publié sans une CI réussie sur ce commit. Commit sans CI
 # (documentation seule) : Actions › CI › Run workflow sur main, puis
 # relancer la release.
@@ -179,12 +183,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Compilation (Agent, Collecteur, Serveur, Mirador-release)
+      - name: Compilation (Agent, Collecteur, Serveur, Mirador-release, Mirador-maj-serveur)
         run: |
           set -eu
-          make agent collecteur serveur release VERSION="$VERSION"
+          make agent collecteur serveur release majserveur VERSION="$VERSION"
           cd dist
           for a in amd64 arm64; do
+            mv "mirador-maj-serveur-linux-$a" "mirador-maj-serveur-$VERSION-linux-$a"
             mv "mirador-agent-linux-$a" "mirador-agent-$VERSION-linux-$a"
             mv "mirador-collector-linux-$a" "mirador-collector-$VERSION-linux-$a"
             mv "mirador-server-linux-$a" "mirador-server-$VERSION-linux-$a"
@@ -228,13 +233,15 @@ jobs:
           entete=$(cat <<NOTES
           ## Mettre à jour
 
-          1. **Serveur** : \`docker pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/mirador-server:${VERSION}\`, puis redémarrer le conteneur (docs/administration-serveur.md).
+          1. **Serveur** : interface › *Réglages* › *Mise à jour du serveur* (avec mirador-maj-serveur sur le VPS), ou à la main : \`docker pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/mirador-server:${VERSION}\` puis redémarrer le conteneur (docs/administration-serveur.md).
           2. **Agents** : interface › *Mises à jour des agents* › *Importer une version signée depuis GitHub* › \`${TAG}\`, puis assigner la version (d'abord à une machine).
 
           ## Fichiers
 
           - \`mirador-agent-${VERSION}-linux-amd64/arm64\` et \`mirador-collector-…\` : signés (\`.manifeste.json\`).
           - \`mirador-server-${VERSION}-linux-amd64/arm64\` : serveur sans Docker.
+          - \`mirador-server-image-${VERSION}.manifeste.json\` : empreinte signée de l'image Docker du serveur.
+          - \`mirador-maj-serveur-${VERSION}-linux-amd64/arm64\` : mise à jour du serveur depuis l'interface (sur le VPS).
           - \`mirador-release-${VERSION}-windows-amd64.exe\` / \`-linux-amd64\` : outil de signature.
           - \`SHA256SUMS\` : empreintes de tous les fichiers.
           NOTES
@@ -260,6 +267,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      empreinte: ${{ steps.publication.outputs.digest }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -283,6 +292,7 @@ jobs:
           [ "$PRERELEASE" = true ] || tags="$tags,$base:latest"
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
       - name: Construction et publication
+        id: publication
         uses: docker/build-push-action@v7
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
@@ -299,3 +309,48 @@ jobs:
           build-args: |
             VERSION=${{ needs.preparation.outputs.version }}
             COMMIT=${{ github.sha }}
+
+  signature-image:
+    name: Signature de l'image (Release)
+    needs: [preparation, binaires, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: signature
+    permissions:
+      contents: write # ajouter le manifeste à la Release
+    env:
+      VERSION: ${{ needs.preparation.outputs.version }}
+      TAG: ${{ needs.preparation.outputs.tag }}
+      EMPREINTE: ${{ needs.image.outputs.empreinte }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Manifeste signé de l'image
+        env:
+          MIRADOR_CLE_SIGNATURE: ${{ secrets.MIRADOR_CLE_SIGNATURE }}
+          MIRADOR_PHRASE: ${{ secrets.MIRADOR_PHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if [ -z "${MIRADOR_CLE_SIGNATURE:-}" ] || [ -z "${MIRADOR_PHRASE:-}" ]; then
+            echo "::warning::Secrets de signature absents : image non signée (pas de mise à jour du serveur depuis l'interface)"
+            exit 0
+          fi
+          if ! printf '%s' "$EMPREINTE" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "::error::Empreinte de l'image invalide : « $EMPREINTE »"
+            exit 1
+          fi
+          umask 077
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          printf '%s' "$MIRADOR_CLE_SIGNATURE" > "$d/cle.json"
+          go build -o "$d/mirador-release" ./cmd/mirador-release
+          m="mirador-server-image-$VERSION.manifeste.json"
+          "$d/mirador-release" signer-image -cle "$d/cle.json" -version "$VERSION" -empreinte "$EMPREINTE" -sortie "$d/$m"
+          gh release upload "$TAG" "$d/$m" --clobber --repo "$GITHUB_REPOSITORY"
+          echo "Image signée : $EMPREINTE" >> "$GITHUB_STEP_SUMMARY"
