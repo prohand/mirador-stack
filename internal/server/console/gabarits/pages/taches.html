@@ -1,6 +1,12 @@
 {{define "contenu"}}{{$d := .D}}
-<div class="titre-page"><h1>Tâches planifiées</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="#nouvelle">+ Ajouter une tâche à signaler</a></div>{{end}}</div>
+<div class="titre-page"><h1>Tâches planifiées</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="/taches?ajout=1#nouvelle">+ Ajouter une tâche à signaler</a></div>{{end}}</div>
 <p class="sous">Sauvegardes, crons, timers : la tâche doit tourner à temps et réussir. L'agent les voit lui-même (timers systemd, conteneurs Docker ponctuels, sauvegardes Proxmox VE et Proxmox Backup Server) ; sinon, la tâche le signale par un simple appel (curl).</p>
+{{if and .Admin $d.Ajout}}<section class="carte ajout-sonde" id="nouvelle"><div class="entete-carte"><h2>Nouvelle tâche à signaler (curl)</h2><a class="pastille" href="/taches">Fermer</a></div>
+<p class="sous">Pour ce que l'agent ne voit pas : cron classique, NAS Synology, script sur une machine sans agent, service externe. Les timers systemd, conteneurs ponctuels et sauvegardes Proxmox se suivent plus bas (« Détectées sur les machines »), sans curl.</p>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="creer">
+<div class="ligne"><label>Nom <input name="nom" required maxlength="100" placeholder="Sauvegarde NAS (Hyper Backup)" size="30" autofocus></label>
+<label>Machine liée <select name="machine"><option value="">(aucune)</option>{{range $d.Machines}}<option>{{.}}</option>{{end}}</select></label></div>
+{{template "reglages-tache" (dict "T" (tacheParDefaut))}}<button>Créer et afficher l'adresse</button></form></section>{{end}}
 {{with $d.Nouveau}}<section class="carte nouveau-ping" id="adresse"><h2>« {{.Nom}} » : adresse à coller dans la tâche</h2>
 <p class="message erreur">Affichée <strong>une seule fois</strong> : la copier maintenant. (« Nouvelle adresse » en crée une autre si elle est perdue.)</p>
 <div class="lien-ping"><code id="url-ping">{{.URL}}</code><button type="button" class="secondaire petit" data-copier="#url-ping">Copier</button></div>
@@ -37,12 +43,6 @@ curl -fsS -m 10 "{{.URL}}/code/$code?duree=$(( $(date +%s) - debut ))"</pre>
 </tbody></table></div></details>{{end}}
 </section>
 
-{{if .Admin}}<section class="carte" id="nouvelle"><h2>Nouvelle tâche à signaler (curl)</h2>
-<p class="sous">Pour ce que l'agent ne voit pas : cron classique, NAS Synology, script sur une machine sans agent, service externe.</p>
-<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="creer">
-<div class="ligne"><label>Nom <input name="nom" required maxlength="100" placeholder="Sauvegarde NAS (Hyper Backup)" size="30"></label>
-<label>Machine liée <select name="machine"><option value="">(aucune)</option>{{range $d.Machines}}<option>{{.}}</option>{{end}}</select></label></div>
-{{template "reglages-tache" (dict "T" (tacheParDefaut))}}<button>Créer et afficher l'adresse</button></form></section>{{end}}
 {{end}}
 
 {{define "ligne-detectee"}}{{$x := .X}}<tr><td><strong>{{$x.Nom}}</strong><br><small class="doux">{{$x.SourceTexte}}</small></td><td><a href="/machines/{{$x.Machine}}">{{$x.Machine}}</a></td>

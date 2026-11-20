@@ -137,6 +137,7 @@ type donneesTaches struct {
 	Detectees, DuSysteme []tacheDetectee
 	Machines             []string
 	Nouveau              *nouveauPing // jeton tout juste créé (montré une fois)
+	Ajout                bool         // formulaire « Nouvelle tâche à signaler » ouvert (en haut)
 	Base                 string       // https://hôte
 }
 
@@ -264,7 +265,9 @@ func (c *Console) nbTachesEnProbleme(ctx context.Context, t time.Time) int {
 }
 
 func (c *Console) pageTaches(q *req) {
-	c.rendre(q, "taches", "Tâches planifiées", "taches", c.donneesTaches(q, ""))
+	d := c.donneesTaches(q, "")
+	d.Ajout = q.r.URL.Query().Get("ajout") == "1"
+	c.rendre(q, "taches", "Tâches planifiées", "taches", d)
 }
 
 // lireReglagesTache : fréquence, marge, gravité du formulaire.
@@ -352,6 +355,10 @@ func (c *Console) postTaches(q *req) {
 		}
 	default:
 		err = errors.New("action inconnue")
+	}
+	if err != nil && f.Get("action") == "creer" {
+		c.retour(q, "/taches?ajout=1#nouvelle", err, msg) // formulaire rouvert pour corriger
+		return
 	}
 	c.retour(q, "/taches", err, msg)
 }
