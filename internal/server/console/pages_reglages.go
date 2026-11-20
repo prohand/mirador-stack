@@ -32,6 +32,8 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("POST /reglages/notifications/modeles", c.admin(c.postModelesMsg))
 	m.HandleFunc("GET /reglages/conservation", c.lecture(c.pageConservation))
 	m.HandleFunc("POST /reglages/conservation", c.admin(c.postConservation))
+	m.HandleFunc("GET /reglages/serveur", c.lecture(c.pageMajServeur))
+	m.HandleFunc("POST /reglages/serveur", c.admin(c.postMajServeur))
 	m.HandleFunc("GET /reglages/sauvegardes", c.lecture(c.pageSauvegardes))
 	m.HandleFunc("POST /reglages/sauvegardes", c.admin(c.postSauvegardes))
 	m.HandleFunc("GET /reglages/certificats", c.lecture(c.pageCertificats))

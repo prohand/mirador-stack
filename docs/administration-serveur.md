@@ -307,6 +307,69 @@ L'import ne prend que les architectures du parc (case « toutes les
 architectures » pour le reste). Bouton « Supprimer » : refusé pour une
 version en service.
 
+## Mise à jour du serveur depuis l'interface
+
+*Réglages › Mise à jour du serveur* (SPEC § 102). Le serveur ne change pas
+sa propre image : il dépose une demande que traite `mirador-maj-serveur`, un
+petit service du VPS (root, hors Docker, sans port ouvert). Celui-ci :
+
+- refuse une version mal formée ou pas plus récente que celle installée ;
+- vérifie la signature de l'image (même clé que les agents) et la
+  télécharge par son empreinte signée ;
+- arrête le serveur, copie sa base dans `/var/lib/mirador-maj-serveur/`
+  (3 copies gardées), change l'image dans le `.env` du compose, relance ;
+- revient tout seul à l'ancienne image et à la copie de la base si la
+  nouvelle version n'a pas démarré en 3 minutes.
+
+L'interface est coupée une à deux minutes. Le déroulé s'affiche sur la page
+(et la demande est notée dans l'audit). Code 2FA demandé, même en mode
+administration.
+
+### Installation (une fois)
+
+La toute première version qui contient ce service (0.6.0) s'installe encore
+à la main (`docker pull` puis redémarrage). Ensuite, sur le VPS, dans le
+dossier du `docker-compose.yml` :
+
+1. Dans `docker-compose.yml`, service `mirador-server` : la ligne
+   `image: ${MIRADOR_IMAGE}` et les deux volumes
+   `./maj:/var/lib/mirador-maj` et `./maj-etat:/var/lib/mirador-maj-etat:ro`
+   (voir `deploy/serveur/docker-compose.yml`).
+2. Le script, avec la version en service et la clé publique (*Mises à jour
+   des agents › Clé publique*) :
+
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/prohand/mirador-stack/v0.6.0/deploy/serveur/installer-maj-serveur.sh
+   ```
+
+   ```bash
+   sudo sh installer-maj-serveur.sh --version 0.6.0 --cle-publique 'CLE_PUBLIQUE'
+   ```
+
+   Il installe le binaire (empreinte vérifiée), crée `maj/` (pour le
+   serveur, propriétaire 65532) et `maj-etat/` (root), écrit
+   `/etc/mirador-maj-serveur.conf`, ajoute `MIRADOR_VERSION` et
+   `MIRADOR_IMAGE` au `.env`, active `mirador-maj-serveur.path`, puis
+   contrôle tout.
+3. Relancer le serveur pour qu'il voie les dossiers :
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. Contrôle (à refaire après un changement) :
+
+   ```bash
+   sudo mirador-maj-serveur verifier -config /etc/mirador-maj-serveur.conf
+   ```
+
+En cas de souci : `journalctl -u mirador-maj-serveur` (déroulé complet) ;
+la base d'avant chaque mise à jour reste dans
+`/var/lib/mirador-maj-serveur/avant-VERSION-DATE/`.
+
+Désactiver : `MIRADOR_MAJ_DEMANDE=non` dans `server.conf`, ou
+`systemctl disable --now mirador-maj-serveur.path`.
+
 ## Sauvegardes
 
 Voir `docs/sauvegarde-restauration.md` (réglages, SFTP, S3, restauration).

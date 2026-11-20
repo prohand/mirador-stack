@@ -19,12 +19,14 @@ import (
 	"mirador-stack/internal/agent/logs"
 	"mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/agent/remotewrite"
+	"mirador-stack/internal/majserveur"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/stockage"
 	"mirador-stack/internal/server/stockage/journaux"
 	"mirador-stack/internal/server/stockage/metriques"
+	"mirador-stack/internal/version"
 )
 
 // portLibre réserve un port local libre.
@@ -189,5 +191,21 @@ func TestCleAbsente(t *testing.T) {
 	cfg.FichierCle = filepath.Join(t.TempDir(), "absente")
 	if _, err := Demarrer(context.Background(), cfg, slog.New(slog.NewTextHandler(io.Discard, nil))); err == nil {
 		t.Error("le serveur ne doit pas démarrer sans clé des secrets")
+	}
+}
+
+// Présence pour mirador-maj-serveur (SPEC § 102) : écrite si le dossier
+// existe, rien sinon.
+func TestNoterPresence(t *testing.T) {
+	d := t.TempDir()
+	noterPresence(d, slog.New(slog.DiscardHandler))
+	var p majserveur.Presence
+	if err := majserveur.LireJSON(filepath.Join(d, majserveur.NomPresence), &p); err != nil || p.Version != version.Version || p.DemarreLe == 0 {
+		t.Fatalf("présence : %+v, %v", p, err)
+	}
+	absent := filepath.Join(d, "absent")
+	noterPresence(absent, slog.New(slog.DiscardHandler))
+	if _, err := os.Stat(absent); err == nil {
+		t.Error("dossier créé")
 	}
 }

@@ -11,6 +11,10 @@
 #   cp server.conf.exemple config/server.conf
 #   chown 65532:65532 config/server.conf && chmod 0400 config/server.conf
 #
+# Mise à jour depuis l'interface (facultatif, SPEC § 102) : une fois,
+#   sudo ./installer-maj-serveur.sh --version X.Y.Z --cle-publique CLE
+# (docs/administration-serveur.md › Mise à jour du serveur depuis l'interface).
+#
 # Olvid (facultatif, SPEC § 18.13) : daemon officiel du bot, lancé seulement
 # avec le profil « olvid ». Clé admin dans .env (0600), puis assistant dans
 # l'interface (Réglages › Notifications › Olvid › assistant) :
@@ -21,7 +25,10 @@ name: mirador
 
 services:
   mirador-server:
-    image: ghcr.io/prohand/mirador-server:0.2.0   # version figée (pas « latest »)
+    # Version figée (pas « latest »), dans le .env : MIRADOR_IMAGE et
+    # MIRADOR_VERSION. mirador-maj-serveur les change lors d'une mise à jour
+    # depuis l'interface (image désignée par son empreinte signée, SPEC § 102).
+    image: ${MIRADOR_IMAGE:-ghcr.io/prohand/mirador-server:0.5.0}
     container_name: mirador-server
     restart: unless-stopped
     user: "65532:65532"
@@ -41,6 +48,11 @@ services:
     volumes:
       - mirador-donnees:/var/lib/mirador
       - ./config/server.conf:/etc/mirador/server.conf:ro
+      # Mise à jour depuis l'interface (SPEC § 102) : le serveur y dépose sa
+      # demande (dossier à 65532), et lit l'état écrit par mirador-maj-serveur
+      # (dossier à root, en lecture seule ici).
+      - ./maj:/var/lib/mirador-maj
+      - ./maj-etat:/var/lib/mirador-maj-etat:ro
     secrets: [mirador_cle]
     networks:
       obs:

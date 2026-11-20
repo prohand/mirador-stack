@@ -1,0 +1,18 @@
+# /etc/mirador-maj-serveur.conf — mise à jour du serveur depuis l'interface
+# (SPEC § 102). Lu par mirador-maj-serveur (root) ; propriétaire root, 0644.
+
+# Dossier du docker-compose.yml du serveur.
+DOSSIER_COMPOSE=/opt/mirador
+# Clé(s) publique(s) de signature, les mêmes que pour les agents (Mises à
+# jour des agents › Clé publique), séparées par des virgules.
+CLES_PUBLIQUES=
+# Valeurs par défaut (à changer seulement pour un fork ou un autre nommage) :
+#SERVICE=mirador-server
+#CONTENEUR=mirador-server
+#IMAGE=ghcr.io/prohand/mirador-server
+#DEPOT=prohand/mirador-stack
+#DOSSIER_DEMANDE=/opt/mirador/maj
+#DOSSIER_ETAT=/opt/mirador/maj-etat
+#DOSSIER_SAUVEGARDES=/var/lib/mirador-maj-serveur
+#FICHIER_BASE=/var/lib/mirador/mirador.db
+#DELAI=3m

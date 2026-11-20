@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Mise à jour du serveur depuis l'interface (SPEC § 102). Lancé par
+# mirador-maj-serveur.path ; root car il pilote Docker (docker pull, compose,
+# cp), mais le reste du système est en lecture seule pour lui.
+# DOSSIER : remplacé par installer-maj-serveur.sh (dossier du compose).
+[Unit]
+Description=mirador : mise à jour du serveur (demandée dans l'interface)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mirador-maj-serveur appliquer -config /etc/mirador-maj-serveur.conf
+TimeoutStartSec=30min
+# Pas de configuration Docker dans /root (caché ci-dessous).
+Environment=DOCKER_CONFIG=/var/lib/mirador-maj-serveur/docker
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=DOSSIER /var/lib/mirador-maj-serveur
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

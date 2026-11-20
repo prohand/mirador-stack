@@ -76,7 +76,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 }
 
 func lireConfig(chemin string) (majserveur.Reglages, error) {
-	f, err := os.Open(chemin) // #nosec G304 -- fichier de réglages choisi par l'administrateur
+	f, err := os.Open(chemin) // #nosec G304 G703 -- fichier de réglages choisi par l'administrateur
 	if err != nil {
 		return majserveur.Reglages{}, err
 	}

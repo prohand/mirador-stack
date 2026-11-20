@@ -14,9 +14,11 @@ import (
 	"log/slog"
 	"mirador-stack/internal/server/direct"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
+	"mirador-stack/internal/majserveur"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/base"
 	"mirador-stack/internal/server/certsyslog"
@@ -186,7 +188,8 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
 	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
-		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs, Direct: hubDirect}); err != nil {
+		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs, Direct: hubDirect,
+		MajDemande: cfg.MajDemande, MajEtat: cfg.MajEtat}); err != nil {
 		return echec(fmt.Errorf("interface web : %w", err))
 	}
 	// Certificats du syslog des collecteurs (SPEC § 23.14) : démarche ACME
@@ -241,7 +244,24 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	}
 	journal.Info("mirador-server démarré", "version", version.Complete(), "schema", v,
 		"agents", cfg.EcouteAgents, "interface", cfg.EcouteInterface)
+	noterPresence(cfg.MajDemande, journal)
 	return s, nil
+}
+
+// noterPresence : « je tourne en version X » pour mirador-maj-serveur (SPEC
+// § 102), une fois prêt à servir. Dossier absent (service non installé) :
+// rien.
+func noterPresence(dossier string, journal *slog.Logger) {
+	if dossier == "" {
+		return
+	}
+	if info, err := os.Stat(dossier); err != nil || !info.IsDir() {
+		return
+	}
+	p := majserveur.Presence{Version: version.Version, DemarreLe: time.Now().Unix()}
+	if err := majserveur.EcrireJSON(dossier, majserveur.NomPresence, p, 0o644); err != nil { // #nosec G306 -- lu par le service du VPS (root)
+		journal.Warn("présence pour la mise à jour du serveur non écrite", "erreur", err)
+	}
 }
 
 // Arreter ferme proprement, dans l'ordre : les écoutes (plus de nouvelles

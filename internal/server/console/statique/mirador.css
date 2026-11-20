@@ -1757,3 +1757,8 @@ details.ecm-proc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .logs-table thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--pale); padding: 6px 8px; border-bottom: 1px solid var(--bord); background: var(--carte); white-space: nowrap; }
 .logs-table thead th:first-child { padding-left: 12px; }
 @media (max-width: 640px) { .logs-table thead.logs-tete-colonnes { display: none; } }
+
+/* Mise à jour du serveur (SPEC § 102) : déroulé écrit par mirador-maj-serveur. */
+.etapes-maj { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; }
+.etapes-maj li { padding: 3px 0; }
+.etapes-maj time { color: var(--pale); font-variant-numeric: tabular-nums; margin-right: 8px; }
