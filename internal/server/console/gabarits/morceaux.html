@@ -322,18 +322,20 @@
 {{if $d.LienLogs}}<p><a href="{{$d.LienLogs}}">Ouvrir dans Logs (autour de l'échec) →</a></p>{{end}}</section>{{end}}
 {{if not (or $d.Message $d.VMs $d.Erreurs $d.TitreJournal)}}<p class="vide">Pas de détail pour cette tâche : seul le résultat (code de sortie) est connu.</p>{{end}}{{end}}
 
-{{/* « En direct » (SPEC § 97) : rempli par mirador.js (flux /machines/<nom>/direct). */}}
-{{define "direct-machine"}}<section class="carte direct" id="direct"{{if eq .Etat "ok"}} data-direct="/machines/{{.Nom}}/direct"{{end}}>
-<div class="direct-tete"><span class="point-direct" aria-hidden="true"></span><h2>En direct</h2>
-<span class="doux" data-direct-etat>{{if eq .Etat "ok"}}connexion à l'agent…{{else}}agent trop ancien pour le direct (à mettre à jour){{end}}</span>
-{{if eq .Etat "ok"}}<div class="actions"><button type="button" class="secondaire petit" data-direct-pause hidden>⏸ Pause</button><button type="button" class="petit" data-direct-reprendre hidden>▶ Continuer en direct</button></div>{{end}}</div>
-{{if eq .Etat "ok"}}<div class="direct-grille">
-<div class="direct-case"><small>CPU</small><b><span data-direct-val="cpu">—</span> <span class="detail" data-direct-det="cpu"></span></b><svg data-direct-courbe="cpu" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-cpu" points=""/></svg></div>
-<div class="direct-case"><small>Mémoire</small><b><span data-direct-val="mem">—</span> <span class="detail" data-direct-det="mem"></span></b><svg data-direct-courbe="mem" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-mem" points=""/></svg></div>
-<div class="direct-case"><small>Réseau</small><b><span data-direct-val="net">—</span> <span class="detail" data-direct-det="net"></span></b><svg data-direct-courbe="net" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-net" points=""/></svg></div>
-<div class="direct-case"><small>Disques</small><b><span data-direct-val="disque">—</span> <span class="detail" data-direct-det="disque"></span></b><svg data-direct-courbe="disque" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-disque" points=""/></svg></div>
-</div>
-<h3 class="titre-top">Processus <small class="doux">(les 10 plus gourmands, comme top)</small></h3>
-<div class="defile"><table class="top-proc" data-sans-tri data-sans-cartes data-sans-filtre><thead><tr><th>Processus</th><th class="col-util">Utilisateur</th><th class="n">CPU</th><th class="n">Mémoire</th><th class="col-groupe">VM / conteneur</th></tr></thead><tbody data-direct-proc><tr><td colspan="5" class="doux">en attente du premier relevé…</td></tr></tbody></table></div>
-<p class="doux note-direct">Un relevé par seconde tant que la page est ouverte et visible ; gardé en mémoire 5 min, jamais stocké. Les courbes habituelles (enregistrées) restent plus bas.</p>{{end}}
+{{/* « En ce moment » (SPEC § 29 et § 97 ; retour du 20/11 : « En direct »
+     et « En ce moment » réunis). Valeurs enregistrées d'abord ; si l'agent
+     sait faire le direct, mirador.js les remplace chaque seconde et dessine
+     les courbes (flux /machines/<nom>/direct). */}}
+{{define "en-ce-moment"}}<section class="carte direct ecm" id="maintenant"{{if eq .Direct "ok"}} data-direct="/machines/{{.Nom}}/direct"{{end}}>
+<div class="ecm-tete">{{if eq .Direct "ok"}}<span class="point-direct" aria-hidden="true"></span>{{end}}<h2>En ce moment</h2>
+<span class="doux" data-direct-etat>{{if eq .Direct "ok"}}connexion à l'agent pour le direct…{{else if eq .Direct "ancien"}}moyenne des 5 dernières minutes · agent trop ancien pour le direct (à mettre à jour){{else}}moyenne des 5 dernières minutes{{end}}</span>
+{{if eq .Direct "ok"}}<div class="actions"><button type="button" class="secondaire petit" data-direct-pause hidden>⏸ Pause</button><button type="button" class="petit" data-direct-reprendre hidden>▶ Continuer en direct</button></div>{{end}}</div>
+{{if .Cases}}<div class="ecm-grille">{{range .Cases}}<a class="ecm-case" href="/machines/{{$.Nom}}/detail/{{.Lien}}" data-panneau title="Voir le détail" data-case="{{.Cle}}"{{if .Seuil}} data-seuil="{{.Seuil}}"{{end}}>
+<span class="ecm-haut"><small>{{.Titre}}</small>{{if eq .Cle "net"}}<span class="ecm-leg"><span><i class="s-net"></i>reçu</span><span><i class="s-net2"></i>envoyé</span></span>{{else if eq .Cle "disque"}}<span class="ecm-leg"><span><i class="s-disque"></i>lu</span><span><i class="s-disque2"></i>écrit</span></span>{{else if .SeuilTexte}}<span class="seuil">{{.SeuilTexte}}</span>{{end}}</span>
+<span class="ecm-val"><b class="v-{{.Classe}}" data-direct-val="{{.Cle}}">{{.Valeur}}</b> <span data-direct-det="{{.Cle}}">{{.Detail}}</span></span>
+{{if eq $.Direct "ok"}}<span class="ecm-graphe" data-direct-courbe="{{.Cle}}" hidden></span>{{end}}</a>{{end}}</div>{{end}}
+{{with .Bas}}<div class="ecm-bas">{{range .}}{{if .Lien}}<a href="/machines/{{$.Nom}}/detail/{{.Lien}}" data-panneau>{{else}}<span>{{end}}<small>{{.Titre}}</small> <b data-direct-val="{{.Cle}}">{{.Valeur}}</b>{{if ge .Pct 0}} <span class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></span>{{end}}{{with .Detail}} <small>{{.}}</small>{{end}}{{if .Lien}}</a>{{else}}</span>{{end}}{{end}}</div>{{end}}
+{{if eq .Direct "ok"}}<details class="ecm-proc" open><summary>Processus <small class="doux">(les 10 plus gourmands, comme top)</small></summary>
+<div class="defile"><table class="top-proc" data-sans-tri data-sans-cartes data-sans-filtre><thead><tr><th>Processus</th><th class="col-util">Utilisateur</th><th class="n">CPU</th><th class="n">Mémoire</th><th class="col-groupe">VM / conteneur</th></tr></thead><tbody data-direct-proc><tr><td colspan="5" class="doux">en attente du premier relevé…</td></tr></tbody></table></div></details>
+<p class="doux note-direct">Un clic sur une case ouvre son détail. En direct : une valeur par seconde tant que la page est ouverte et visible, gardée en mémoire 5 min, jamais stockée ; les courbes enregistrées restent plus bas.</p>{{end}}
 </section>{{end}}

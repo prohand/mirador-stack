@@ -642,7 +642,7 @@ type donneesMachine struct {
 	Attente     []resumeAlerte        // conditions pas encore des alertes
 	Prises      []resumeAlerte        // prises en charge (SPEC § 30)
 	Masquees    []resumeAlerte        // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine        // « En ce moment » (SPEC § 29)
+	Maintenant  *blocMaintenant       // « En ce moment », en direct si possible (SPEC § 29, § 97)
 	Gourmands   *vueGourmands         // conteneurs les plus gourmands (SPEC § 31)
 	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
 	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
@@ -708,7 +708,7 @@ func (c *Console) pageMachine(q *req) {
 		}
 	}
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
-		d.Maintenant = c.enCeMoment(ctx, m, q.t)
+		d.Maintenant = blocEnCeMoment(m.Nom, d.Direct, c.enCeMoment(ctx, m, q.t))
 		d.Gourmands = c.gourmands(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)
