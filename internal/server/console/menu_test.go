@@ -156,3 +156,23 @@ func TestPostAccueil(t *testing.T) {
 		t.Fatalf("par défaut : %q", menu)
 	}
 }
+
+// Barre du bas du téléphone : libellés courts (« Accueil », « Tâches »),
+// libellé complet en infobulle (retour du 20/11).
+func TestLibellesCourtsBarreDuBas(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(c, "/")
+	i := strings.Index(corps, `class="nav-bas"`)
+	if i < 0 {
+		t.Fatal("barre du bas absente")
+	}
+	bas := corps[i:]
+	bas = bas[:strings.Index(bas, "</nav>")]
+	if !strings.Contains(bas, `title="Vue d&#39;ensemble"`) || !strings.Contains(bas, "<span>Accueil</span>") || strings.Contains(bas, "<span>Vue d&#39;ensemble</span>") {
+		t.Errorf("barre du bas :\n%s", bas)
+	}
+	if !strings.Contains(corps, `<span class="txt">Vue d&#39;ensemble</span>`) {
+		t.Error("le menu complet doit garder « Vue d'ensemble »")
+	}
+}
