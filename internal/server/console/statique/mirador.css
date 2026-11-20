@@ -1681,6 +1681,10 @@ a.ecm-case:hover { border-color: var(--bord-champ); }
 .ecm-val b { font-size: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ecm-val b.v-attention { color: var(--attention); } .ecm-val b.v-erreur { color: var(--erreur); }
 .ecm-val span { font-size: 13px; color: var(--doux); font-variant-numeric: tabular-nums; }
+/* Réseau et disques : les deux valeurs à la même taille (retour du 20/11 :
+   le gras laissait croire que c'était la plus grosse). */
+.ecm-val.deux b, .ecm-val.deux span { font-size: 19px; font-weight: 650; color: var(--texte); }
+@media (max-width: 640px) { .ecm-val.deux b, .ecm-val.deux span { font-size: 16px; } }
 /* Repère de couleur devant chaque valeur (réseau, disques) : même couleur
    que sa courbe (remplace la légende, retour du 20/11). */
 .ecm-val .repere { display: inline-block; width: 12px; height: 4px; border-radius: 2px; align-self: center; margin-right: -4px; }
