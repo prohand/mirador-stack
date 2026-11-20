@@ -9,7 +9,12 @@
 # Les outils sont figés à une version précise ; chaque tâche a une durée
 # maximale (une tâche bloquée ne mange pas le forfait).
 #
-# Économie de minutes (11/11 : 90 % du forfait mensuel utilisé) :
+# Économie de minutes (11/11 : 90 % du forfait mensuel utilisé ; 20/11 :
+# ~20 min facturées par push mesurées) :
+#   - branches : contrôles (compilation amd64 seulement) et tests ;
+#     fuzzing, image Docker et compilation arm64 seulement sur main (après
+#     la fusion, avant toute release) et le dimanche (fuzzing plus long) :
+#     un push de branche passe de ~20 à ~8 min facturées ;
 #   - un push qui ne touche que la documentation ne lance rien ;
 #   - 5 tâches au lieu de 8 (GitHub arrondit CHAQUE tâche à la minute ;
 #     le fuzzing est en 2 tâches depuis le 19/11 pour aller plus vite) ;
@@ -43,6 +48,9 @@ on:
       - '!docs/**'
       - '!reference/**'
       - 'THIRD-PARTY.md'
+  # Chaque dimanche sur main : tout, avec un fuzzing plus long (1 min par cible).
+  schedule:
+    - cron: '41 2 * * 0'
   # Lancement à la main (avec les benchmarks si demandé).
   workflow_dispatch:
     inputs:
@@ -52,10 +60,11 @@ on:
         default: false
 
 # Un nouveau push sur une branche annule le passage encore en cours sur
-# cette branche (inutile de finir l'ancien).
+# cette branche (inutile de finir l'ancien). Sur main, jamais : chaque
+# commit de main doit avoir une CI terminée (la release la vérifie).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -87,8 +96,12 @@ jobs:
         run: go run github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION} -quiet -exclude-generated ./...
       - name: Govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+      # Branches : amd64 seulement ; main (et lancements à la main ou du
+      # dimanche) : amd64 et arm64.
       - name: Compilation (Agent, Collecteur et Serveur Linux, Mirador-release Windows)
-        run: make agent collecteur serveur release
+        env:
+          ARCHS: ${{ (github.event_name == 'push' && github.ref != 'refs/heads/main') && 'amd64' || 'amd64 arm64' }}
+        run: make agent collecteur serveur release ARCHS="$ARCHS"
       # Pas d'artefact : les binaires d'une version sont dans sa Release.
 
   tests:
@@ -116,8 +129,10 @@ jobs:
   # Chaque ligne : paquet:Cible.
   fuzzing:
     name: Fuzzing court (${{ matrix.lot }})
+    # main, dimanche, lancement à la main : pas sur les autres branches.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -150,14 +165,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Fuzzing court (15 s par cible)
+      - name: Fuzzing court (15 s par cible, 1 min le dimanche)
         env:
           CIBLES: ${{ matrix.cibles }}
+          DUREE: ${{ github.event_name == 'schedule' && '60s' || '15s' }}
         run: |
           set -eu
           for c in $CIBLES; do
             echo "::group::${c}"
-            go test "${c%%:*}" -run XXX -fuzz "^${c##*:}\$" -fuzztime 15s
+            go test "${c%%:*}" -run XXX -fuzz "^${c##*:}\$" -fuzztime "$DUREE"
             echo "::endgroup::"
           done
 
@@ -183,6 +199,8 @@ jobs:
   # n'est publié (publication : workflow « Release »).
   image:
     name: Image Docker (construction et essai)
+    # main, dimanche, lancement à la main : pas sur les autres branches.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

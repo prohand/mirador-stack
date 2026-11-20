@@ -7381,6 +7381,13 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
   Compilation », « Fuzzing court (Agent) »…).
 - La CI ne tourne plus sur les tags ; la release ne la relance pas : elle
   vérifie son résultat sur le commit publié.
+- Économie de minutes (20/11, mesuré : ~20 min facturées par push) :
+  branches = contrôles (compilation amd64 seulement) + tests ; fuzzing,
+  image Docker et compilation arm64 seulement sur main, au lancement à la
+  main et le dimanche (fuzzing 1 min par cible au lieu de 15 s). Un push de
+  branche passe de ~20 à ~8 min facturées ; main garde tout, et la release
+  ne publie que si la CI complète de main a réussi. Sur main, un passage
+  n'en annule jamais un autre (la release doit trouver une CI terminée).
 - Vérifiés et gardés : un seul passage par commit, documentation seule
   ignorée, annulation du passage précédent sur une branche, outils figés,
   `persist-credentials: false`, droits minimaux par tâche, pas de cache
