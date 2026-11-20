@@ -6,7 +6,7 @@
 <div data-rafraichir="/fragments/alertes?vue={{.D.Vue.Vue}}" data-intervalle="30">{{template "alertes-en-cours" (dict "D" .D.Vue "Admin" .Admin "CSRF" .CSRF)}}</div>
 {{$f := .D.Frise}}<section class="carte" id="frise"><div class="barre-alertes"><h2>Historique</h2>
 <span class="segment"><a href="/alertes?vue={{.D.Vue.Vue}}&amp;hp=24h#frise"{{if eq $f.Periode "24h"}} class="actif"{{end}}>24 h</a><a href="/alertes?vue={{.D.Vue.Vue}}&amp;hp=7j#frise"{{if eq $f.Periode "7j"}} class="actif"{{end}}>7 jours</a></span></div>
-{{if $f.Lignes}}<div class="frise">
+{{if $f.Lignes}}<div class="frise-alertes">
 <div class="frise-ligne frise-tete"><span></span><div class="frise-graduations g{{len $f.Graduations}}">{{range $f.Graduations}}<span>{{.}}</span>{{end}}</div></div>
 {{range $f.Lignes}}<div class="frise-ligne"><span class="frise-nom">{{if .Lien}}<a href="{{.Lien}}#liste-historique">{{.Machine}}</a>{{else}}{{.Machine}}{{end}} <small>{{.Nb}}</small></span>
 <svg class="frise-barres" viewBox="0 0 1000 16" preserveAspectRatio="none" role="img" aria-label="Alertes de {{.Machine}}">{{range $f.Grille}}<line x1="{{printf "%.1f" .}}" y1="0" x2="{{printf "%.1f" .}}" y2="16" class="grille"/>{{end}}
@@ -28,8 +28,8 @@
   <label>Gravité <select name="gravite"><option value="">Toutes</option>{{$g := .D.Filtre.Gravite}}{{range $x := (liste "critical" "warning" "info")}}<option {{if egal $x $g}}selected{{end}}>{{$x}}</option>{{end}}</select></label>
   <button>Filtrer</button>
 </form>
-{{if .D.Historique}}<div class="defile"><table data-cartes><thead><tr><th>N°</th><th>Gravité</th><th>Alerte</th><th>Machine</th><th>Début</th><th>Fin</th><th>Durée</th><th>Valeur max</th><th>Acquittée par</th></tr></thead><tbody>
-{{range .D.Historique}}<tr><td><a href="/alertes/{{.ID}}">{{.ID}}</a></td><td>{{template "gravite" .Gravite}}</td><td title="Règle {{.Regle}}">{{nomAlerte .Regle}}</td><td>{{.Machine}}</td>
+{{if .D.Historique}}<div class="defile"><table data-cartes><thead><tr><th>Alerte</th><th>Gravité</th><th>Machine</th><th>Début</th><th>Fin</th><th>Durée</th><th>Valeur max</th><th>Acquittée par</th></tr></thead><tbody>
+{{range .D.Historique}}<tr><td><a href="/alertes/{{.ID}}" title="Règle {{.Regle}}"><strong>{{nomAlerte .Regle}}</strong></a> <small class="doux">n° {{.ID}}</small></td><td>{{template "gravite" .Gravite}}</td><td>{{.Machine}}</td>
 <td>{{date .Debut}}</td><td>{{if egal .Etat "resolue"}}{{date .Fin}}{{else}}<span class="pastille {{if egal .Etat "en_attente"}}info{{else}}erreur{{end}}">{{etatAlerte .Etat}}</span>{{end}}</td>
 <td>{{if egal .Etat "resolue"}}{{duree (ecart .Debut .Fin)}}{{end}}</td><td class="nombre">{{printf "%.4g" .ValeurMax}}</td><td>{{.AcquitteePar}}</td></tr>{{end}}
 </tbody></table></div>

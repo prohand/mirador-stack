@@ -251,7 +251,7 @@
 {{template "liste-masquees" $v.Masquees}}
 {{template "liste-attente" $v.Attente}}
 </div>{{end}}
-{{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}}) · <span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
+{{define "liste-attente"}}{{if .}}<details class="carte attente-alertes"><summary><strong>En attente</strong> ({{len .}})<span class="sep-point"> · </span><span class="sous">conditions vraies, pas encore des alertes : rien n'est compté ni envoyé</span></summary>
 <div class="defile"><table data-cartes><thead><tr><th>Gravité</th><th>Règle</th><th>Machine</th><th>Vraie depuis</th><th>Deviendra une alerte</th></tr></thead><tbody>
 {{range .}}<tr><td>{{template "gravite" .Gravite}}</td><td><a href="/alertes/{{.ID}}" title="Règle {{.Regle}}">{{nomAlerte .Regle}}</a></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}</td><td>{{depuisMs .Depuis}}</td><td>{{.Reste}} <small class="pale">si elle dure</small></td></tr>{{end}}
 </tbody></table></div></details>{{end}}{{end}}

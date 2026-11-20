@@ -7142,3 +7142,17 @@ Sept idées proposées le 20/11, toutes demandées.
   (60 lignes par tâche) : un agent qui inventerait des tâches ne remplit
   pas la base sans limite au-delà de ce que le quota de séries permet déjà.
 - Rien de nouveau n'est exposé sans connexion.
+
+## 96. Alertes sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+- Onglets nombreux (5 et plus : Alertes, Silences et maintenances, Envois…) :
+  pastilles sur plusieurs lignes sur téléphone (avant : coupés au bord). Vaut
+  pour toutes les pages qui ont ces onglets.
+- Historique : une heure sur deux, sans retour à la ligne (avant : « 20:3 / 3 »).
+- Bug trouvé en passant (ordinateur aussi) : l'historique des alertes et la
+  frise de la page Incident avaient le même nom de classe `frise` ; le style
+  de l'incident (hauteur fixe de 200 px, contenu coupé) s'appliquait aussi à
+  l'historique, qui pouvait cacher des machines. Renommé `frise-alertes`.
+- Toutes les alertes passées : la carte porte le nom de l'alerte (« Charge
+  élevée n° 9 ») au lieu du seul numéro ; la colonne Alerte passe en tête.
+- « En attente (1) » : le texte d'aide passe sous le titre, sans « · ».
+- Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.

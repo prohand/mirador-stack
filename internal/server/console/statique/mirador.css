@@ -634,7 +634,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 @media (max-width: 899px) { .table-alertes th:nth-child(3), .table-alertes td:nth-child(3) { display: none; } }
 
 /* --- Frise de l'historique des alertes (SPEC § 28) --------------------------- */
-.frise { margin: 4px 0 18px; }
+.frise-alertes { margin: 4px 0 18px; } /* historique des alertes (≠ .frise de la page Incident) */
 .frise-ligne { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--bord-doux); }
 .frise-tete { border-bottom: 0; }
 .frise-nom { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1573,3 +1573,20 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
 :root[data-theme="dark"] .texte-ok { color: #4CC38A; }
 .vm-oubliees ul.puces-tache { list-style: none; padding: 0; margin: 6px 0 0; }
+
+/* Alertes sur téléphone (retour du 20/11) :
+   - onglets nombreux (5 et plus : Alertes, Silences…, Envois…) en pastilles
+     sur plusieurs lignes, comme la page Éléments (avant : coupés au bord) ;
+   - graduations de l'historique : une heure sur deux, sans retour à la ligne
+     (avant : « 20:3 / 3 ») ;
+   - « En attente (1) » : le texte d'aide passe sous le titre, sans « · ». */
+@media (max-width: 640px) {
+  .onglets:has(> a:nth-child(5)) { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
+  .onglets:has(> a:nth-child(5)) > a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
+  .onglets:has(> a:nth-child(5)) > a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
+  .frise-graduations { font-size: 11px; white-space: nowrap; }
+  .frise-graduations span:nth-child(even) { visibility: hidden; }
+  .frise-ligne { grid-template-columns: 84px 1fr; gap: 6px; }
+  .attente-alertes .sep-point { display: none; }
+  .attente-alertes summary .sous { display: block; margin-top: 2px; }
+}

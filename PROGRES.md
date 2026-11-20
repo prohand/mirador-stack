@@ -1485,6 +1485,13 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
   `ls /var/log/proxmox-backup/tasks | head` et
   `tail -n 3 /var/log/proxmox-backup/tasks/archive`.
 
+## Alertes sur téléphone (SPEC § 96, 20/11)
+- Onglets en pastilles, heures de l'historique lisibles, cartes titrées par
+  le nom de l'alerte, « En attente » sans « · ».
+- Bug corrigé : historique des alertes coupé par le style de la frise des incidents.
+- Vérifié iPhone 13 clair et sombre (Alertes, Envois, Incident, Règles) :
+  aucun débord, aucune erreur JS.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
