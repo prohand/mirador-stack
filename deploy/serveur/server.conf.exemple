@@ -10,3 +10,8 @@ MIRADOR_FICHIER_CLE=/run/secrets/mirador_cle
 # seule autorisée à transmettre l'IP réelle du client. Obligatoire quand
 # l'écoute sort de la machine (0.0.0.0) et que le TLS n'est pas fait ici.
 MIRADOR_PROXY=172.30.0.1
+# Mise à jour du serveur depuis l'interface (SPEC § 102), avec
+# mirador-maj-serveur sur le VPS : dossiers d'échange vus du conteneur
+# (valeurs par défaut ci-dessous ; « non » pour désactiver).
+#MIRADOR_MAJ_DEMANDE=/var/lib/mirador-maj
+#MIRADOR_MAJ_ETAT=/var/lib/mirador-maj-etat

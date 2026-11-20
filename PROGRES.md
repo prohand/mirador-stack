@@ -1550,6 +1550,37 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - À faire une fois chez l'utilisateur : environnement « signature » :
   autoriser la branche `main` (pour le bouton).
 
+## Retours du 20/11 et mise à jour du serveur depuis l'interface (SPEC § 102)
+
+- Affichage : carte « Sauvegardes 24 h » retirée de la vue d'ensemble ;
+  avertissements en jaune (trait `--attention-trait`) ; messages regroupés
+  des logs en cartes sur téléphone ; cible des sondes à droite avec le
+  cadenas ; tri des sondes (et menu « Trier » des tableaux en cartes).
+- Page machine : « En direct » et « En ce moment » réunis, courbes lisibles
+  (maquette validée).
+- Mise à jour du serveur depuis l'interface (option B) : image signée par la
+  release, `mirador-maj-serveur` sur le VPS (vérifie, sauvegarde, bascule,
+  retour automatique), page Réglages › Mise à jour du serveur.
+
+| Mesure | Valeur | Objectif |
+|---|---|---|
+| Direct, navigateur (script) | 1,4 ms par seconde, tas 1,4 Mo | négligeable |
+| Page machine (démo) | 185 ms, 5 requêtes de plus | < 500 ms |
+| `mirador-maj-serveur` au repos | 0 (pas de processus, unité .path) | 0 |
+| `mirador-maj-serveur` sans demande | 4 ms, 12,7 Mio RSS | — |
+| Binaire `mirador-maj-serveur` | 6,9 Mio | — |
+| Serveur : lecture de la dernière version | 1 HEAD par heure au plus, page ouverte | — |
+
+Tests : `internal/majserveur` (Docker simulé : réussite, refus, retour
+arrière avec base remise, lien symbolique), `internal/release` (image
+signée), console (page, code 2FA, audit), configuration, présence.
+actionlint 1.7.7 sans remarque.
+
+À faire chez l'utilisateur : publier 0.6.0, mettre le serveur à jour **à la
+main** une dernière fois, puis installer le service
+(`docs/administration-serveur.md` › Mise à jour du serveur depuis
+l'interface).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

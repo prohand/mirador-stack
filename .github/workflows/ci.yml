@@ -98,10 +98,10 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
       # Branches : amd64 seulement ; main (et lancements à la main ou du
       # dimanche) : amd64 et arm64.
-      - name: Compilation (Agent, Collecteur et Serveur Linux, Mirador-release Windows)
+      - name: Compilation (Agent, Collecteur, Serveur et Mirador-maj-serveur Linux, Mirador-release Windows)
         env:
           ARCHS: ${{ (github.event_name == 'push' && github.ref != 'refs/heads/main') && 'amd64' || 'amd64 arm64' }}
-        run: make agent collecteur serveur release ARCHS="$ARCHS"
+        run: make agent collecteur serveur release majserveur ARCHS="$ARCHS"
       # Pas d'artefact : les binaires d'une version sont dans sa Release.
 
   tests:

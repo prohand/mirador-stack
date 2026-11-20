@@ -142,6 +142,10 @@ func fonctions() template.FuncMap {
 			return time.Unix(s, 0).In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
 		// heureLog : « 23:52 » aujourd'hui, sinon « 14/11 23:52 » (page Logs).
+		// coupeURL : adresse avec des points de coupure (<wbr>) après « / », « . »,
+		// « ? », « & » : sur téléphone, une longue adresse passe à la ligne à
+		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
+		"coupeURL": coupeURL,
 		"heureLog": func(ms int64) string {
 			t := time.UnixMilli(ms).In(fuseau.Load())
 			if t.Format("2006-01-02") == time.Now().In(fuseau.Load()).Format("2006-01-02") {
@@ -539,6 +543,7 @@ var sectionsReglages = []sectionReglages{
 	{Cle: "olvid", Icone: "cle", Teinte: "vert", Titre: "Olvid", Href: "/reglages/olvid", Aide: "Daemon Olvid, lien d'invitation, contacts"},
 	{Cle: "conservation", Icone: "stockage", Teinte: "violet", Titre: "Conservation des données", Href: "/reglages/conservation", Aide: "Durées, plafonds, état réel, estimation"},
 	{Cle: "sauvegardes", Icone: "sauvegarde", Teinte: "vert", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
+	{Cle: "serveur", Icone: "telechargement", Teinte: "bleu", Titre: "Mise à jour du serveur", Href: "/reglages/serveur", Aide: "Version installée, dernière version publiée, mise à jour en un clic (image signée, retour automatique)"},
 	{Cle: "certificats", Icone: "cadenas", Teinte: "vert", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
 	{Cle: "sites", Icone: "maison", Teinte: "bleu", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
 	{Cle: "interface", Icone: "ecran", Teinte: "bleu", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau, thème, menu, adresses de l'interface et d'ingestion, debug"},
@@ -681,4 +686,17 @@ func colonnesParcCachees(parc []ligneParc) string {
 		c = append(c, "type")
 	}
 	return strings.Join(c, ",")
+}
+
+// coupeURL : texte échappé, <wbr> après chaque « / . ? & : - » (voir FuncMap).
+func coupeURL(u string) template.HTML {
+	var b strings.Builder
+	for _, r := range u {
+		b.WriteString(template.HTMLEscapeString(string(r)))
+		switch r {
+		case '/', '.', '?', '&', ':', '-':
+			b.WriteString("<wbr>")
+		}
+	}
+	return template.HTML(b.String()) // #nosec G203 -- chaque caractère est échappé, seul <wbr> est ajouté
 }

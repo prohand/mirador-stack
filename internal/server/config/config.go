@@ -37,6 +37,10 @@ type Serveur struct {
 	Donnees         string
 	FichierCle      string
 	Proxys          []netip.Prefix
+	// Mise à jour du serveur depuis l'interface (SPEC § 102) : dossiers
+	// d'échange avec mirador-maj-serveur (VPS). Vide : désactivée. Dossier
+	// absent : l'interface explique comment installer le service.
+	MajDemande, MajEtat string
 	// Fichier : chemin du fichier de démarrage lu (pas une clé ; copié dans
 	// les sauvegardes pour mémoire, il ne contient aucun secret).
 	Fichier string
@@ -49,6 +53,8 @@ func Defaut() Serveur {
 		EcouteInterface: "0.0.0.0:9441",
 		Donnees:         "/var/lib/mirador",
 		FichierCle:      "/run/secrets/mirador_cle",
+		MajDemande:      "/var/lib/mirador-maj",
+		MajEtat:         "/var/lib/mirador-maj-etat",
 	}
 }
 
@@ -86,6 +92,15 @@ func Lire(r io.Reader) (Serveur, error) {
 			s.Donnees = val
 		case "MIRADOR_FICHIER_CLE":
 			s.FichierCle = val
+		case "MIRADOR_MAJ_DEMANDE", "MIRADOR_MAJ_ETAT":
+			if val == "non" {
+				val = ""
+			}
+			if cle == "MIRADOR_MAJ_DEMANDE" {
+				s.MajDemande = val
+			} else {
+				s.MajEtat = val
+			}
 		case "MIRADOR_PROXY":
 			for _, p := range strings.Split(val, ",") {
 				if p = strings.TrimSpace(p); p == "" {
@@ -148,6 +163,11 @@ func (s *Serveur) Valider() error {
 	}
 	if !strings.HasPrefix(s.FichierCle, "/") {
 		errs = append(errs, errors.New("MIRADOR_FICHIER_CLE doit être un chemin absolu"))
+	}
+	for nom, ch := range map[string]string{"MIRADOR_MAJ_DEMANDE": s.MajDemande, "MIRADOR_MAJ_ETAT": s.MajEtat} {
+		if ch != "" && !strings.HasPrefix(ch, "/") {
+			errs = append(errs, fmt.Errorf("%s doit être un chemin absolu (ou « non »)", nom))
+		}
 	}
 	return errors.Join(errs...)
 }

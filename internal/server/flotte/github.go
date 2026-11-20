@@ -228,3 +228,46 @@ func telechargerGitHub(ctx context.Context, client *http.Client, adresse string,
 	}
 	return b, nil
 }
+
+// DerniereVersionGitHub : dernière version finale publiée du dépôt (« X.Y.Z »),
+// lue sur la redirection de github.com/DEPOT/releases/latest (pas d'API :
+// pas de limite de requêtes, pas de jeton). Pour la page « Mise à jour du
+// serveur » (SPEC § 102).
+func DerniereVersionGitHub(ctx context.Context, src SourceGitHub, depot string) (string, error) {
+	if !formatDepot.MatchString(depot) {
+		return "", errors.New("dépôt invalide")
+	}
+	base := src.Base
+	if base == "" {
+		base = "https://github.com"
+	}
+	client := &http.Client{Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if src.Client != nil {
+		client.Transport = src.Client.Transport
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, base+"/"+depot+"/releases/latest", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "mirador-server")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode < 300 || resp.StatusCode > 399 {
+		return "", fmt.Errorf("réponse %d (aucune version publiée ?)", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	i := strings.LastIndex(loc, "/tag/")
+	if i < 0 {
+		return "", errors.New("réponse inattendue de GitHub")
+	}
+	tag, _ := url.PathUnescape(loc[i+len("/tag/"):])
+	m := formatTag.FindStringSubmatch(tag)
+	if m == nil {
+		return "", fmt.Errorf("dernière version %q : pas au format vX.Y.Z", tag)
+	}
+	return m[1], nil
+}

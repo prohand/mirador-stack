@@ -7416,3 +7416,88 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
   `v*` et branche `main` seulement) ; la version saisie est vérifiée
   (expression stricte) avant tout usage ; le tag n'est posé que sur le
   commit de `main` du lancement.
+
+## 102. Retours du 20/11 : affichage, « En ce moment » en direct, mise à jour du serveur depuis l'interface **[Fait, à valider]**
+
+### 102.1 Affichage
+- Vue d'ensemble : carte « Sauvegardes des dernières 24 h » retirée (demande).
+  Une disposition enregistrée qui la cite reste acceptée (clé ignorée).
+  Coût : 2 requêtes de moins à chaque affichage de la vue d'ensemble.
+- Dernières alertes (page machine › Activité) : trait et pastille « En cours »
+  de la couleur de la gravité (un avertissement était en rouge).
+- Traits « avertissement » en jaune ambré (`--attention-trait`) : le brun du
+  texte « attention » paraissait rouge. Le texte garde `--attention` (contraste).
+- Logs › Messages regroupés sur téléphone : une carte par message (9 colonnes
+  écrasaient le message).
+- Sondes : sur téléphone, la cible est à droite sur la ligne « Cible »,
+  cadenas collé à l'adresse ; coupures après `/ . - ? & :` (`<wbr>`, texte
+  échappé). Tri juste pour État (du plus grave au meilleur), Temps de
+  réponse (dernier, ms) et Dispo.
+- Tableaux en cartes (téléphone) : menu « Trier » (les titres de colonnes
+  sont cachés), dès 3 lignes.
+
+### 102.2 « En direct » et « En ce moment » réunis (maquette validée le 20/11)
+- Un seul bloc « En ce moment » : valeurs enregistrées (moyenne 5 min)
+  d'abord, remplacées chaque seconde par le direct quand l'agent le sait.
+  Quatre cases cliquables (détail) : processeur, mémoire, réseau, disques ;
+  puis disque le plus plein, charge par cœur, swap. « Démarrée depuis »
+  retiré (déjà dans le bandeau).
+- Courbes : 2 min placées selon l'heure du relevé (« −2 min … maintenant »),
+  surface remplie, repères, seuil du modèle en pointillé, échelle ronde
+  (Ko/Mo/Go), deux courbes pour réseau (reçu/envoyé) et disques (lu/écrit),
+  valeur au survol ou au doigt (sans ouvrir le détail).
+- Pas de redite (retour du 20/11) : la charge n'est plus dans la case
+  Processeur (elle est sur la ligne du bas) ; réseau et disques : un repère
+  de la couleur de la courbe devant chaque valeur, au lieu d'une légende.
+- Réseau et disques enregistrés : cartes physiques et disques entiers (comme
+  le direct), pour ne pas compter deux fois (ponts, VLAN, partitions).
+- Coût mesuré : navigateur 1,4 ms de script par seconde de direct (20 s :
+  28 ms), tas JS 1,4 Mo ; serveur : 5 requêtes instantanées de plus par
+  affichage de la page machine (débits, cœurs, mémoire totale) ; page
+  machine 185 ms (démo, 5 machines).
+
+### 102.3 Mise à jour du serveur depuis l'interface (option B, demande du 20/11)
+Le serveur tourne dans Docker, sans root ni accès à Docker. Lui donner le
+socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
+
+| Partie | Rôle |
+|---|---|
+| Release (CI) | signe l'empreinte de l'image (`mirador-server-image-X.Y.Z.manifeste.json`, produit `mirador-server-image`, même clé que les agents) |
+| Serveur (conteneur) | Réglages › Mise à jour du serveur : version installée, dernière publiée (redirection `releases/latest`, 1 requête HEAD par heure au plus, seulement page ouverte), bouton (administrateur, code 2FA frais même en mode administration, audit `maj_serveur_demandee`) ; dépose `demande.json` (version seule) ; écrit `serveur.json` (version, heure) à chaque démarrage |
+| `mirador-maj-serveur` (VPS, root, oneshot lancé par une unité systemd .path) | lit la demande puis l'efface ; refuse format, version pas plus récente que celle qu'IL a notée, manifeste non signé ; `docker pull image@sha256:…` ; arrêt, copie de la base (3 gardées), `.env` (MIRADOR_IMAGE par empreinte, MIRADOR_VERSION), relance ; attend `serveur.json` de la nouvelle version 3 min ; sinon ancienne image + copie de la base (WAL d'avant, ou vide) + relance ; écrit `etat.json` (déroulé affiché) |
+
+- Fichiers d'échange : `DOSSIER/maj` (65532, le serveur y écrit) et
+  `DOSSIER/maj-etat` (root, monté en lecture seule dans le conteneur). Lus
+  sans suivre les liens (O_NOFOLLOW), fichier ordinaire, 16 Kio au plus,
+  champs inconnus refusés ; écrits par fichier temporaire au nom tiré au
+  sort puis renommage.
+- Au bouton seulement par défaut. Réglage « Mise à jour la nuit » (désactivé
+  par défaut, code 2FA frais, audit `maj_serveur_nuit`) : pendant l'heure
+  choisie (fuseau de l'interface), la console vérifie toutes les 10 min et
+  dépose elle-même la demande de la dernière version (« nuit (automatique) »).
+  Une version déjà demandée la nuit n'est pas redemandée : un échec attend
+  le bouton. Mêmes vérifications côté VPS.
+- Réglages du service (dossier du compose, service, image, dépôt, clés,
+  délai) : écrits par le script d'installation (dossier = celui où il est
+  lancé), rien à remplir à la main. Affichés dans l'interface (le service
+  les publie dans `maj-etat/service.json`, avec les empreintes des clés et
+  les problèmes trouvés par `verifier`), **jamais modifiables depuis
+  l'interface** : ils pilotent un service root ; une interface piratée qui
+  pourrait les changer (dossier du compose vers `maj/`, clé à elle) prendrait
+  la main sur le VPS. Seuls le bouton et la mise à jour la nuit se règlent
+  dans l'interface (retour du 20/11 : « gérer via l'interface web »).
+- Première mise à jour vers 0.6.0 (qui contient le service) : à la main.
+- Coût mesuré : binaire 6,9 Mio ; aucun processus au repos (systemd .path) ;
+  un passage sans demande : 4 ms, 12,7 Mio de RSS au plus ; une mise à jour :
+  temps du `docker pull` + 1 à 2 min de coupure.
+
+### 102.4 Modèle de menaces (mise à jour du serveur)
+| Menace | Parade |
+|---|---|
+| Interface ou compte administrateur piratés | seule une version **signée et plus récente** peut être demandée ; code 2FA frais ; audit ; aucune commande ne passe par la demande |
+| Serveur (conteneur) piraté | il ne peut que déposer un numéro de version ; la version « installée » est celle notée par le service (fichier root), pas celle que dit le serveur : pas de retour forcé vers une version vulnérable ; un lien symbolique posé dans `maj/` est refusé (O_NOFOLLOW) et l'état est écrit dans un dossier où le conteneur ne peut pas écrire |
+| Image piégée sur ghcr.io ou jeton GitHub volé | l'image est téléchargée par l'empreinte signée avec la clé hors de GitHub (environnement `signature`) ; une étiquette modifiée n'est jamais utilisée |
+| Manifeste d'un autre produit (agent) présenté comme image | produit, architecture, taille et version vérifiés avant la signature |
+| Nouvelle version qui ne démarre pas ou abîme la base | retour automatique à l'image et à la copie de la base ; 3 copies gardées ; état « échec » affiché |
+| Service du VPS lui-même | root mais confiné par systemd (ProtectSystem=strict, écriture seulement dans le dossier du compose et le sien, NoNewPrivileges) ; commandes `docker` aux arguments fixés ; pas de port |
+| Script d'installation | binaire vérifié par `SHA256SUMS` de la même Release (HTTPS) ; ne modifie pas le compose (il dit quoi changer) |

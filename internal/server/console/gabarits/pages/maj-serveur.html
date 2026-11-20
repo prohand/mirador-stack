@@ -1,0 +1,51 @@
+{{define "contenu"}}{{$d := .D}}
+<h1>Mise à jour du serveur</h1>
+{{template "onglets-reglages" (onglet $ "serveur")}}
+<p class="sous">Le serveur ne se met pas à jour lui-même : il dépose une demande que traite <code>mirador-maj-serveur</code> sur le VPS. Celui-ci vérifie la signature de l'image (même clé que les agents), refuse une version plus ancienne, copie la base, bascule, puis revient tout seul à l'ancienne version (et à la copie de la base) si la nouvelle ne démarre pas en 3 minutes.</p>
+<div class="resume-alertes">
+ <span class="tuile info"><small>Version installée</small><b>{{$d.Actuelle}}</b></span>
+ <span class="tuile{{if $d.Proposer}} avert{{else if $d.Derniere}} bon{{end}}"><small>Dernière version publiée</small><b>{{if $d.Derniere}}{{$d.Derniere}}{{else}}—{{end}}</b></span>
+</div>
+{{if $d.ErreurDerniere}}<p class="message attention">Dernière version illisible sur GitHub ({{$d.Depot}}) : {{$d.ErreurDerniere}}</p>{{end}}
+
+<section class="carte"{{if or $d.EnAttente $d.EnCours}} data-recharger="5"{{end}}>
+<div class="entete-carte"><h2>Mettre à jour</h2>{{if $d.Texte}}<span class="pastille {{$d.Classe}}">{{$d.Texte}}</span>{{end}}</div>
+{{if not $d.Active}}<p class="vide">Désactivée dans le fichier de démarrage du serveur (<code>MIRADOR_MAJ_DEMANDE=non</code>).</p>
+{{else if not $d.Installe}}<p class="message attention">Le service <code>mirador-maj-serveur</code> n'est pas encore installé sur le VPS (dossier d'échange absent). Installation une seule fois : <em>docs/administration-serveur.md › Mise à jour du serveur depuis l'interface</em>. En attendant : <code>docker pull</code> de la nouvelle image puis redémarrage du conteneur.</p>
+{{else if $d.EnAttente}}<p>Version <strong>{{$d.DemandeVersion}}</strong> demandée : le service du VPS va la prendre en charge (cette page se recharge toute seule).</p>
+{{else if $d.EnCours}}<p>Mise à jour vers <strong>{{$d.Etat.Version}}</strong> en cours : l'interface sera coupée une à deux minutes pendant le redémarrage (cette page se recharge toute seule).</p>
+{{else if $d.Proposer}}{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}
+<label>Version <input name="version" value="{{$d.Derniere}}" required size="10" pattern="[0-9]+\.[0-9]+\.[0-9]+" inputmode="decimal"></label>
+<label>Code 2FA <input name="code" required inputmode="numeric" autocomplete="one-time-code" size="8" maxlength="8" pattern="[0-9]{6,8}"></label>
+<button data-confirmer="Mettre le serveur à jour vers la version saisie ? L'interface sera coupée une à deux minutes.">Mettre à jour</button></form>
+<p class="aide"><small class="aide">{{if $d.LienNotes}}<a href="{{$d.LienNotes}}" rel="noopener noreferrer" target="_blank">Notes de la version {{$d.Derniere}}</a> · {{end}}Code 2FA demandé même en mode administration. Pensez aux agents ensuite : <a href="/mises-a-jour">Mises à jour des agents</a>.</small></p>
+{{else}}<p>La version {{$d.Derniere}} est disponible : un administrateur peut lancer la mise à jour.</p>{{end}}
+{{else}}<p class="vide">Le serveur est à jour.{{if .Admin}} <a href="/reglages/serveur?relire=1">Relire la dernière version</a>{{end}}</p>{{end}}
+{{with $d.Etat}}<h3>{{if eq .Etat "en_cours"}}Déroulé{{else}}Dernière mise à jour{{end}} : {{if .Avant}}{{.Avant}} → {{end}}{{.Version}}</h3>
+{{if .Message}}<p class="message {{if eq .Etat "ok"}}ok{{else if eq .Etat "en_cours"}}attention{{else}}erreur{{end}}">{{.Message}}</p>{{end}}
+<ol class="etapes-maj">{{range .Etapes}}<li><time>{{dateS .Le}}</time> {{.Texte}}</li>{{end}}</ol>{{end}}
+</section>
+{{if $d.Installe}}<section class="carte"><div class="entete-carte"><h2>Service du VPS</h2>{{with $d.Service}}{{if .Problemes}}<span class="pastille erreur">{{len .Problemes}} point(s) à corriger</span>{{else}}<span class="pastille ok">Prêt</span>{{end}}{{end}}</div>
+{{with $d.Service}}<div class="defile"><table class="formulaire reglages-service"><tbody>
+<tr><th>Dossier du compose</th><td><code>{{.DossierCompose}}</code></td></tr>
+<tr><th>Service</th><td><code>{{.Service}}</code></td></tr>
+<tr><th>Image</th><td><code>{{.Image}}</code></td></tr>
+<tr><th>Dépôt des versions</th><td><code>{{.Depot}}</code></td></tr>
+<tr><th>Clé(s) de signature</th><td>{{range $i, $k := .Cles}}{{if $i}} · {{end}}<code>{{$k}}</code>{{end}} <small class="doux">(empreintes : comparer avec Mises à jour des agents)</small></td></tr>
+<tr><th>Attente du démarrage</th><td>{{.Delai}} avant le retour automatique</td></tr>
+<tr><th>Version notée par le service</th><td>{{if .Installee}}{{.Installee}}{{else}}—{{end}}</td></tr>
+<tr><th>mirador-maj-serveur</th><td>{{.Version}} · contrôlé {{depuisS .Le}}</td></tr>
+</tbody></table></div>
+{{if .Problemes}}<ul class="message erreur">{{range .Problemes}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{else}}<p class="vide">Pas encore de réglages reçus du service : sur le VPS, <code>sudo mirador-maj-serveur verifier -config /etc/mirador-maj-serveur.conf</code>.</p>{{end}}
+<p class="aide"><small class="aide">Écrits par le script d'installation dans <code>/etc/mirador-maj-serveur.conf</code> (rien à remplir à la main). Volontairement pas modifiables ici : ils pilotent un service root du VPS ; si l'interface pouvait les changer, une interface piratée pourrait prendre la main sur le VPS. Seuls le bouton et la mise à jour la nuit se règlent ici.</small></p>
+</section>{{end}}
+{{if $d.Active}}<section class="carte"><div class="entete-carte"><h2>Mise à jour la nuit</h2><span class="pastille {{if ge $d.Nuit 0}}info{{end}}">{{if ge $d.Nuit 0}}Activée, vers {{$d.Nuit}} h{{else}}Désactivée : au bouton seulement{{end}}</span></div>
+<p class="sous">Activée, le serveur demande lui-même la dernière version publiée pendant l'heure choisie (mêmes vérifications, même retour automatique). Une version déjà essayée la nuit n'est pas redemandée : en cas d'échec, elle attend le bouton.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="nuit">
+<label class="case"><input type="checkbox" name="actif" value="1"{{if ge $d.Nuit 0}} checked{{end}}> Mettre à jour la nuit</label>
+<label>Vers <select name="heure">{{range $d.Heures}}<option value="{{.}}"{{if or (eq . $d.Nuit) (and (lt $d.Nuit 0) (eq . 3))}} selected{{end}}>{{.}} h</option>{{end}}</select></label>
+<label>Code 2FA <input name="code" required inputmode="numeric" autocomplete="one-time-code" size="8" maxlength="8" pattern="[0-9]{6,8}"></label>
+<button class="secondaire">Enregistrer</button></form>{{end}}
+</section>{{end}}
+{{end}}

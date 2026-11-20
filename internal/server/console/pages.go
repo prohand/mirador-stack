@@ -196,7 +196,6 @@ type donneesAccueil struct {
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
 	Ruche                        *vueRuche
-	Sauvegardes                  *sauvegardesNuit // sauvegardes des dernières 24 h (SPEC § 95)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -206,7 +205,6 @@ func (c *Console) pageAccueil(q *req) {
 // donneesAccueilVue : résumé ou ruche (onglet, SPEC § 51).
 func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
 	d := c.donneesAccueil(q)
-	d.Sauvegardes = c.sauvegardesDeLaNuit(q)
 	if q.r.URL.Query().Get("vue") == "ruche" {
 		d.Vue = "ruche"
 		d.Ruche = c.ruche(q.r.Context(), q.r.URL.Query().Get("ruche"), d.Parc, q.t)
@@ -644,7 +642,7 @@ type donneesMachine struct {
 	Attente     []resumeAlerte        // conditions pas encore des alertes
 	Prises      []resumeAlerte        // prises en charge (SPEC § 30)
 	Masquees    []resumeAlerte        // conséquences d'une alerte plus grave (bloc replié)
-	Maintenant  []jaugeMachine        // « En ce moment » (SPEC § 29)
+	Maintenant  *blocMaintenant       // « En ce moment », en direct si possible (SPEC § 29, § 97)
 	Gourmands   *vueGourmands         // conteneurs les plus gourmands (SPEC § 31)
 	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
 	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
@@ -710,7 +708,7 @@ func (c *Console) pageMachine(q *req) {
 		}
 	}
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
-		d.Maintenant = c.enCeMoment(ctx, m, q.t)
+		d.Maintenant = blocEnCeMoment(m.Nom, d.Direct, c.enCeMoment(ctx, m, q.t))
 		d.Gourmands = c.gourmands(ctx, m, q.t)
 		var ech []alertes.Echantillon
 		d.Surv, ech = c.surveillance(ctx, m, q.t)

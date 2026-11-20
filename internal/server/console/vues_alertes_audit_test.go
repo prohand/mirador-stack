@@ -263,12 +263,18 @@ func TestPageMachineRessources(t *testing.T) {
 	_ = modeles.Definir(ctx, b.c.db, modeles.PorteeMachine(id), "linux", modeles.EtatActif, map[string]float64{"cpu_pct": 80}, nil, "admin", m)
 	c, _ := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(c, "/machines/web1")
-	for _, attendu := range []string{`id="maintenant"`, "<small>CPU</small><b>95 %</b>", `class="jauge erreur"`, "seuil 80 %",
-		"<small>Mémoire</small><b>50 %</b>", "<small>Disque le plus plein</small><b>80 %</b>", "pas de swap", "<small>Démarrée depuis</small><b>5 j</b>",
-		`data-regrouper-vides`, `href="#surveillance-modeles"`} {
+	// Bloc réuni avec le direct (retour du 20/11) : valeur colorée selon le
+	// seuil, seuil du modèle, disque le plus plein et swap sur la ligne du bas
+	// (« Démarrée depuis » n'y est plus : déjà dans le bandeau).
+	for _, attendu := range []string{`id="maintenant"`, `<b class="v-erreur" data-direct-val="cpu">95 %</b>`, "seuil 80 %", "1 cœurs",
+		`data-direct-val="mem">50 %</b>`, "3,7 Go / 7,5 Go", `<small>Disque le plus plein</small> <b data-direct-val="plein">80 %</b> <span class="jauge attention">`, "pas de swap",
+		"moyenne des 5 dernières minutes", `data-regrouper-vides`, `href="#surveillance-modeles"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page machine : %q absent", attendu)
 		}
+	}
+	if strings.Contains(corps, "<small>Démarrée depuis</small>") || strings.Contains(corps, `data-direct-courbe`) {
+		t.Error("« Démarrée depuis » ou courbe en direct sans direct")
 	}
 	if g, s := strings.Index(corps, `id="graphiques"`), strings.Index(corps, `id="surveillance-modeles"`); g < 0 || s < 0 || g > s {
 		t.Error("graphiques pas avant la surveillance")

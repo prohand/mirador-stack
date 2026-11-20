@@ -51,6 +51,9 @@ type ligneSonde struct {
 	CibleCourte string
 	HTTPS       bool
 	Puces       []puceTache
+	// Valeurs de tri (data-valeur, retour du 20/11) : état du plus grave au
+	// meilleur, dernier temps de réponse (ms), disponibilité (%).
+	TriEtat, TriDuree, TriDispo string
 }
 
 type donneesSondes struct {
@@ -192,10 +195,15 @@ func (c *Console) pageSondes(q *req) {
 			durees = append(durees, lues["duree"][k].Valeur*1000)
 		}
 		l.ClasseLigne = map[int]string{bilanOK: "ok", bilanLente: "lente", bilanEchec: "echec"}[bilan]
+		l.TriEtat = strconv.Itoa(map[int]int{bilanEchec: 0, bilanLente: 1, bilanSansEssai: 2, bilanOK: 3}[bilan])
+		if bilan == bilanOK || bilan == bilanLente {
+			l.TriDuree = strconv.FormatFloat(lues["duree"][k].Valeur*1000, 'f', 1, 64)
+		}
 		l.Code, l.CodeClasse = codeSondeLu(lues, s)
 		if v, ok := lues["dispo"][k]; ok && !math.IsNaN(v.Valeur) {
 			l.Dispo = virgule(strconv.FormatFloat(100*v.Valeur, 'f', dispoDecimales(v.Valeur), 64)) + " %"
 			l.DispoPct = int(math.Round(100 * v.Valeur))
+			l.TriDispo = strconv.FormatFloat(100*v.Valeur, 'f', 3, 64)
 			switch {
 			case v.Valeur >= 0.999:
 				l.DispoClasse = "ok"

@@ -88,3 +88,19 @@ func TestLireCle(t *testing.T) {
 		t.Error("une clé de mauvaise taille doit être refusée")
 	}
 }
+
+// Mise à jour du serveur depuis l'interface (SPEC § 102) : dossiers par
+// défaut, « non » la désactive, chemin relatif refusé.
+func TestMajServeurDossiers(t *testing.T) {
+	s, err := Lire(strings.NewReader("MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=127.0.0.1:9441\n"))
+	if err != nil || s.MajDemande != "/var/lib/mirador-maj" || s.MajEtat != "/var/lib/mirador-maj-etat" {
+		t.Fatalf("défauts : %+v, %v", s, err)
+	}
+	s, err = Lire(strings.NewReader("MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=127.0.0.1:9441\nMIRADOR_MAJ_DEMANDE=non\n"))
+	if err != nil || s.MajDemande != "" {
+		t.Fatalf("désactivée : %+v, %v", s, err)
+	}
+	if _, err := Lire(strings.NewReader("MIRADOR_ECOUTE_AGENTS=127.0.0.1:9440\nMIRADOR_ECOUTE_INTERFACE=127.0.0.1:9441\nMIRADOR_MAJ_ETAT=relatif\n")); err == nil {
+		t.Error("chemin relatif accepté")
+	}
+}

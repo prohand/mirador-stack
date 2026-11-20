@@ -720,15 +720,42 @@ document.addEventListener("change", function (e) {
       if (i === col) { ths[i].setAttribute("aria-sort", sens === 1 ? "ascending" : "descending"); }
       else { ths[i].removeAttribute("aria-sort"); }
     }
+    if (table._menuTri) { table._menuTri.value = col >= 0 ? col + ":" + (sens === 1 ? "asc" : "desc") : ""; }
+  }
+  // menuTri : sur téléphone, le tableau passe en cartes et ses titres de
+  // colonnes sont cachés : un menu « Trier » les remplace (retour du 20/11,
+  // « il faut du tri dans les sondes »). Caché sur ordinateur (CSS).
+  function menuTri(table, cle, cols) {
+    if (cols.length === 0) { return; }
+    var lab = document.createElement("label");
+    lab.className = "tri-cartes";
+    lab.appendChild(document.createTextNode("Trier "));
+    var sel = document.createElement("select");
+    var o = document.createElement("option");
+    o.value = ""; o.textContent = "ordre de la page";
+    sel.appendChild(o);
+    cols.forEach(function (c) {
+      [["asc", " ↑"], ["desc", " ↓"]].forEach(function (s) {
+        var x = document.createElement("option");
+        x.value = c.i + ":" + s[0]; x.textContent = c.nom + s[1];
+        sel.appendChild(x);
+      });
+    });
+    sel.addEventListener("change", function () { ecrire(cle, sel.value); trier(table, cle); });
+    lab.appendChild(sel);
+    var avant = table.closest(".defile") || table;
+    avant.parentNode.insertBefore(lab, avant);
+    table._menuTri = sel;
   }
   function preparer(table, n) {
     if (table.getAttribute("data-trie") || exclu(table)) { return; }
     table.setAttribute("data-trie", "1");
     var cle = "mirador.tri." + location.pathname + "." + n;
     Array.prototype.forEach.call(table.tBodies[0].rows, function (l, i) { l.setAttribute("data-rang-tri", i); });
-    var ths = table.tHead.rows[0].cells;
+    var ths = table.tHead.rows[0].cells, cols = [];
     Array.prototype.forEach.call(ths, function (th, i) {
       if (th.textContent.trim() === "" || th.querySelector("button, input, select, a")) { return; }
+      cols.push({ i: i, nom: th.textContent.trim() });
       th.setAttribute("data-tri", String(i)); // même style que les autres titres triables
       var b = document.createElement("button");
       b.type = "button";
@@ -762,6 +789,7 @@ document.addEventListener("change", function (e) {
         });
       });
     }
+    if ((table.hasAttribute("data-cartes") || table.closest(".defile")) && table.tBodies[0].rows.length >= 3) { menuTri(table, cle, cols); }
     if (lire(cle)) { trier(table, cle); }
   }
   function tout() {
@@ -1946,12 +1974,18 @@ document.addEventListener("change", function (ev) {
   document.addEventListener("mirador:fragment", suivreTitre);
 })();
 
-// « En direct » sur la page d'une machine (SPEC § 97, maquette validée le
-// 20/11) : flux d'un relevé par seconde (EventSource). Ouvert tant que la
+// « En ce moment » en direct sur la page d'une machine (SPEC § 97 ; retour
+// du 20/11 : « En direct » et « En ce moment » réunis, courbes plus
+// lisibles). Flux d'un relevé par seconde (EventSource), ouvert tant que la
 // page est visible (et l'onglet « Vue d'ensemble » affiché) ; fermé 30 s
 // après que la page est cachée, ou sur « Pause » ; le serveur coupe au bout
 // de 15 min (« Continuer en direct »). Les valeurs sont posées avec
 // textContent : rien de ce que l'agent envoie n'est lu comme du HTML.
+//
+// Courbes : 2 min glissantes, placées selon l'heure du relevé (« −2 min …
+// maintenant ») ; surface remplie, lignes de repère, seuil du modèle en
+// pointillé, échelle en haut à droite ; au survol (ou au doigt), la valeur
+// à cet instant. Réseau et disques : deux courbes (reçu / envoyé, lu / écrit).
 (function () {
   var bloc = document.querySelector("[data-direct]");
   if (!bloc || !window.EventSource) { return; }
@@ -1959,7 +1993,8 @@ document.addEventListener("change", function (ev) {
   var etat = bloc.querySelector("[data-direct-etat]");
   var bPause = bloc.querySelector("[data-direct-pause]"), bReprendre = bloc.querySelector("[data-direct-reprendre]");
   var corps = bloc.querySelector("[data-direct-proc]");
-  var MAXP = 120; // points sur les courbes (2 min)
+  var FENETRE = 120000, MAXP = 130; // 2 min de courbe
+  var W = 300, H = 86, SVG = "http://www.w3.org/2000/svg";
   var points = [], src = null, ouvertLe = 0, arret = "", cacheLe = 0;
 
   function nombre(v, d) { return v.toLocaleString("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
@@ -1968,24 +2003,119 @@ document.addEventListener("change", function (ev) {
     while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
     return nombre(v, v < 10 && i > 0 ? 1 : 0) + " " + u[i];
   }
+  function debit(v) { return octets(v) + "/s"; }
+  function pct(v) { return nombre(v, 0) + " %"; }
   function duree(ms) {
     var s = Math.max(0, Math.round(ms / 1000));
     return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + (s % 60 < 10 ? "0" : "") + (s % 60);
   }
-  function poser(cle, val, det) {
-    bloc.querySelector('[data-direct-val="' + cle + '"]').textContent = val;
-    bloc.querySelector('[data-direct-det="' + cle + '"]').textContent = det;
+  function memPct(d) { return d.mem_totale ? 100 * d.mem_utilisee / d.mem_totale : 0; }
+  // Échelle « ronde » au-dessus du maximum, dans l'unité affichée (Ko, Mo,
+  // Go : puissances de 1024) : 1, 2, 5, 10, 20, 50, 100, 200, 500 × l'unité.
+  function echelle(max) {
+    if (max <= 1024) { return 1024; }
+    var u = 1;
+    while (max >= 1024 * u && u < Math.pow(1024, 4)) { u *= 1024; }
+    var m = max / u, pas = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+    for (var i = 0; i < pas.length; i++) { if (m <= pas[i]) { return pas[i] * u; } }
+    return 1024 * u;
   }
-  function courbe(cle, valeurs, max) {
-    var pl = bloc.querySelector('[data-direct-courbe="' + cle + '"] polyline');
-    if (!pl) { return; }
-    max = max || Math.max.apply(null, valeurs.concat([1])) * 1.15;
-    var n = valeurs.length, pts = [];
-    for (var i = 0; i < n; i++) {
-      var x = n > 1 ? 100 * i / (n - 1) : 100; // étirée sur toute la largeur dès le début
-      pts.push(x.toFixed(1) + "," + (44 - 42 * Math.min(1, valeurs[i] / max)).toFixed(1));
+  // Ce que montre chaque case : séries (valeur d'un relevé) et textes.
+  var CASES = {
+    cpu: { series: [function (d) { return d.cpu; }], max: 100, texte: pct, classes: ["s-cpu"] },
+    mem: { series: [memPct], max: 100, texte: pct, classes: ["s-mem"] },
+    net: { series: [function (d) { return d.net_recu; }, function (d) { return d.net_envoye; }], texte: debit, classes: ["s-net", "s-net2"], noms: ["reçu", "envoyé"] },
+    disque: { series: [function (d) { return d.disque_lu; }, function (d) { return d.disque_ecrit; }], texte: debit, classes: ["s-disque", "s-disque2"], noms: ["lu", "écrit"] }
+  };
+
+  function poser(cle, val, det, classe) {
+    var b = bloc.querySelector('[data-direct-val="' + cle + '"]'), s = bloc.querySelector('[data-direct-det="' + cle + '"]');
+    if (b) { b.textContent = val; if (classe) { b.className = "v-" + classe; } }
+    if (s && det !== null) { s.textContent = det; }
+  }
+  function classeSeuil(cle, v) {
+    var c = bloc.querySelector('[data-case="' + cle + '"]'), s = c && parseFloat(c.getAttribute("data-seuil"));
+    if (!s) { return "ok"; }
+    return v >= s ? "erreur" : v >= 0.8 * s ? "attention" : "ok";
+  }
+  function el(nom, attrs, parent) {
+    var e = document.createElementNS(SVG, nom);
+    for (var k in attrs) { e.setAttribute(k, attrs[k]); }
+    if (parent) { parent.appendChild(e); }
+    return e;
+  }
+  // preparer : dessine une fois le cadre d'une courbe (repères, seuil,
+  // échelle, bulle) ; les tracés sont ensuite mis à jour à chaque relevé.
+  function preparer(cle) {
+    var boite = bloc.querySelector('[data-direct-courbe="' + cle + '"]');
+    if (!boite || boite._c) { return boite && boite._c; }
+    var conf = CASES[cle], c = { boite: boite, conf: conf, traces: [] };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none", "aria-hidden": "true" });
+    [0.25, 0.5, 0.75].forEach(function (g) { el("line", { x1: 0, x2: W, y1: H * g, y2: H * g, "class": "rep" }, svg); });
+    c.surface = el("polygon", { "class": "surf " + conf.classes[0], points: "" }, svg);
+    conf.classes.forEach(function (k) { c.traces.push(el("polyline", { "class": "trace " + k, points: "" }, svg)); });
+    var caseEl = bloc.querySelector('[data-case="' + cle + '"]'), seuil = caseEl && parseFloat(caseEl.getAttribute("data-seuil"));
+    if (seuil && conf.max) {
+      var y = (H - H * seuil / conf.max).toFixed(1);
+      el("line", { x1: 0, x2: W, y1: y, y2: y, "class": "seuil-trait" }, svg);
     }
-    pl.setAttribute("points", pts.join(" "));
+    c.curseur = el("line", { x1: 0, x2: 0, y1: 0, y2: H, "class": "curseur" }, svg);
+    c.curseur.style.display = "none";
+    boite.appendChild(svg);
+    c.y = document.createElement("span"); c.y.className = "ecm-y"; boite.appendChild(c.y);
+    c.bulle = document.createElement("span"); c.bulle.className = "ecm-bulle"; c.bulle.hidden = true; boite.appendChild(c.bulle);
+    var axe = document.createElement("span"); axe.className = "ecm-axe";
+    ["−2 min", "−1 min", "maintenant"].forEach(function (t) { var s = document.createElement("span"); s.textContent = t; axe.appendChild(s); });
+    boite.appendChild(axe);
+    // Survol / doigt : valeur du relevé le plus proche.
+    function montrer(e) {
+      var r = boite.getBoundingClientRect(), x = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) / r.width;
+      if (!points.length || x < 0 || x > 1) { cacher(); return; }
+      var fin = points[points.length - 1].t, t = fin - (1 - x) * FENETRE, meilleur = null;
+      points.forEach(function (d) { if (!meilleur || Math.abs(d.t - t) < Math.abs(meilleur.t - t)) { meilleur = d; } });
+      if (!meilleur) { return; }
+      var px = W * (1 - (fin - meilleur.t) / FENETRE);
+      c.curseur.setAttribute("x1", px); c.curseur.setAttribute("x2", px); c.curseur.style.display = "";
+      var morceaux = conf.series.map(function (f, i) { return (conf.noms ? conf.noms[i] + " " : "") + conf.texte(f(meilleur)); });
+      var il = Math.round((fin - meilleur.t) / 1000);
+      c.bulle.textContent = (il ? "il y a " + il + " s" : "maintenant") + " · " + morceaux.join(" · ");
+      c.bulle.style.left = Math.min(85, Math.max(15, 100 * px / W)) + "%"; // CSSOM : permis par la CSP
+      c.bulle.hidden = false;
+    }
+    function cacher() { c.curseur.style.display = "none"; c.bulle.hidden = true; }
+    boite.addEventListener("mousemove", montrer);
+    boite.addEventListener("mouseleave", cacher);
+    boite.addEventListener("touchstart", montrer, { passive: true });
+    boite.addEventListener("touchmove", montrer, { passive: true });
+    boite.addEventListener("touchend", function () { setTimeout(cacher, 1500); });
+    // La case est un lien (détail) : sur la courbe, un clic ou un toucher
+    // montre la valeur, il n'ouvre pas le détail.
+    boite.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+    boite._c = c;
+    return c;
+  }
+  function tracer(cle) {
+    var c = preparer(cle);
+    if (!c || !points.length) { return; }
+    var conf = c.conf, fin = points[points.length - 1].t, max = conf.max;
+    if (!max) {
+      var m = 0;
+      points.forEach(function (d) { conf.series.forEach(function (f) { m = Math.max(m, f(d)); }); });
+      max = echelle(m * 1.1);
+    }
+    c.y.textContent = conf.max ? "100 %" : debit(max);
+    conf.series.forEach(function (f, i) {
+      var pts = [];
+      points.forEach(function (d) {
+        var x = W * (1 - (fin - d.t) / FENETRE);
+        if (x >= 0) { pts.push(x.toFixed(1) + "," + (H - H * Math.min(1, f(d) / max)).toFixed(1)); }
+      });
+      c.traces[i].setAttribute("points", pts.join(" "));
+      if (i === 0 && pts.length) {
+        c.surface.setAttribute("points", pts[0].split(",")[0] + "," + H + " " + pts.join(" ") + " " + pts[pts.length - 1].split(",")[0] + "," + H);
+      }
+    });
+    c.boite.hidden = false;
   }
   function cellule(tr, texte, classe) {
     var td = document.createElement("td");
@@ -1995,6 +2125,7 @@ document.addEventListener("change", function (ev) {
     return td;
   }
   function processus(liste) {
+    if (!corps) { return; }
     corps.textContent = "";
     if (!liste || !liste.length) {
       var tr0 = document.createElement("tr");
@@ -2025,20 +2156,27 @@ document.addEventListener("change", function (ev) {
   function afficher() {
     var d = points[points.length - 1];
     if (!d) { return; }
-    poser("cpu", nombre(d.cpu, 0) + " %", (d.coeurs ? d.coeurs + " cœurs · " : "") + "charge " + nombre(d.charge, 1));
-    var pm = d.mem_totale ? 100 * d.mem_utilisee / d.mem_totale : 0;
-    poser("mem", nombre(pm, 0) + " %", octets(d.mem_utilisee) + " / " + octets(d.mem_totale));
-    poser("net", "↓ " + octets(d.net_recu) + "/s", "↑ " + octets(d.net_envoye) + "/s");
-    poser("disque", "L " + octets(d.disque_lu) + "/s", "É " + octets(d.disque_ecrit) + "/s");
-    courbe("cpu", points.map(function (x) { return x.cpu; }), 100);
-    courbe("mem", points.map(function (x) { return x.mem_totale ? 100 * x.mem_utilisee / x.mem_totale : 0; }), 100);
-    courbe("net", points.map(function (x) { return x.net_recu + x.net_envoye; }));
-    courbe("disque", points.map(function (x) { return x.disque_lu + x.disque_ecrit; }));
+    // La charge est sur la ligne du bas (« Charge par cœur ») : pas ici aussi.
+    poser("cpu", pct(d.cpu), d.coeurs ? d.coeurs + " cœurs" : "", classeSeuil("cpu", d.cpu));
+    var pm = memPct(d);
+    poser("mem", pct(pm), octets(d.mem_utilisee) + " / " + octets(d.mem_totale), classeSeuil("mem", pm));
+    poser("net", "↓ " + debit(d.net_recu), "↑ " + debit(d.net_envoye));
+    poser("disque", "lu " + debit(d.disque_lu), "écrit " + debit(d.disque_ecrit));
+    if (d.coeurs) { poser("charge", nombre(d.charge / d.coeurs, 2), null); }
+    for (var cle in CASES) { tracer(cle); }
     processus(d.processus);
   }
   function texteEtat() {
     if (arret) { return; }
-    etat.textContent = points.length ? "toutes les secondes · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent…";
+    // Le point rouge dit déjà « direct » : pas de redite à côté du titre
+    // « En ce moment » (retour du 20/11).
+    etat.textContent = points.length ? "une valeur par seconde · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent…";
+  }
+  // garder : relevés des 2 dernières minutes (heure de l'agent).
+  function garder() {
+    if (!points.length) { return; }
+    var fin = points[points.length - 1].t;
+    while (points.length > MAXP || (points.length && fin - points[0].t > FENETRE)) { points.shift(); }
   }
   function ouvrir() {
     if (src) { return; }
@@ -2047,13 +2185,13 @@ document.addEventListener("change", function (ev) {
     ouvertLe = Date.now();
     src = new EventSource(url);
     src.addEventListener("debut", function (e) {
-      try { points = (JSON.parse(e.data).points || []).slice(-MAXP); } catch (x) { points = []; }
-      afficher(); texteEtat();
+      try { points = JSON.parse(e.data).points || []; } catch (x) { points = []; }
+      garder(); afficher(); texteEtat();
       bPause.hidden = false; bReprendre.hidden = true;
     });
     src.addEventListener("point", function (e) {
       try { points.push(JSON.parse(e.data)); } catch (x) { return; }
-      if (points.length > MAXP) { points.shift(); }
+      garder();
       bloc.classList.add("recu");
       afficher(); texteEtat();
     });

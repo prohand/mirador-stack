@@ -8,7 +8,9 @@
 - Réponses en français, simples, sans longue introduction, en listes courtes.
 - Code commenté en français, simple et lisible : l'utilisateur doit pouvoir le maintenir seul.
 - Nom du projet partout : `mirador-stack` (module Go), binaires `mirador-agent`,
-  `mirador-server`, `mirador-release`, et `mirador-collector` (étape 6, collecteur LAN).
+  `mirador-server`, `mirador-release`, `mirador-collector` (étape 6, collecteur LAN)
+  et `mirador-maj-serveur` (VPS, mise à jour du serveur depuis l'interface, SPEC § 102 ;
+  n'ouvre aucun port).
 - `mirador-agent` n'ouvre jamais de port. Seul `mirador-collector` écoute, sur le LAN uniquement.
 - Licence : GPL-3.0-or-later (`LICENSE`). En-tête `// SPDX-License-Identifier: GPL-3.0-or-later`
   dans chaque fichier Go ; dépendances compatibles GPL-3.0 uniquement.

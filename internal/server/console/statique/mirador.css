@@ -16,7 +16,7 @@
   --fond: #F7F7F8; --carte: #FFFFFF; --survol: #F3F3F5; --entete-table: #FAFAFB;
   --texte: #18181B; --doux: #4A4A52; --pale: #6B6B74; --bord: #E6E6EA; --bord-doux: #F0F0F3; --champ: #FFFFFF; --bord-champ: #D4D4DA;
   --accent: #3E63DD; --accent-texte: #3456C8; --accent-fond: #EEF2FF; --sur-accent: #FFFFFF; --sur-erreur: #FFFFFF;
-  --ok: #15803D; --ok-fond: #E9F7EF; --attention: #A14A06; --attention-fond: #FFF4E5;
+  --ok: #15803D; --ok-fond: #E9F7EF; --attention: #A14A06; --attention-fond: #FFF4E5; --attention-trait: #E5A000;
   --erreur: #B42318; --erreur-fond: #FDEDEC; --info: #3456C8; --info-fond: #EEF2FF;
   --ombre-texte: #7A4B00; --ombre-fond: #FFF4E5; --ombre-bord: #F5DDA8;
   /* Menu (design « A bis », choisi le 14/11) : bandeau noir, jour comme nuit. */
@@ -31,7 +31,7 @@
     --fond: #0C0D10; --carte: #15161A; --survol: #1C1D22; --entete-table: #131418;
     --texte: #EDEDF0; --doux: #B4B4BC; --pale: #8E8E98; --bord: #26272D; --bord-doux: #1D1E23; --champ: #0F1013; --bord-champ: #34353C;
     --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10; --sur-erreur: #0C0D10;
-    --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210;
+    --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --attention-trait: #F5B83D;
     --erreur: #F87171; --erreur-fond: #2E1517; --info: #97B0FF; --info-fond: #1C2442;
     --ombre-texte: #F5B83D; --ombre-fond: #2B2210; --ombre-bord: #4A3B12;
     --menu: #141519; --menu-bord: #26272D;
@@ -42,7 +42,7 @@
     --fond: #0C0D10; --carte: #15161A; --survol: #1C1D22; --entete-table: #131418;
     --texte: #EDEDF0; --doux: #B4B4BC; --pale: #8E8E98; --bord: #26272D; --bord-doux: #1D1E23; --champ: #0F1013; --bord-champ: #34353C;
     --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0C0D10; --sur-erreur: #0C0D10;
-    --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210;
+    --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --attention-trait: #F5B83D;
     --erreur: #F87171; --erreur-fond: #2E1517; --info: #97B0FF; --info-fond: #1C2442;
     --ombre-texte: #F5B83D; --ombre-fond: #2B2210; --ombre-bord: #4A3B12;
     --menu: #141519; --menu-bord: #26272D;
@@ -222,7 +222,7 @@ body.seule { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; fl
   --fond: #0A0E1A; --carte: rgba(20, 26, 44, .78); --survol: #182038; --texte: #E8EBF5; --doux: #9AA3BC; --pale: #7D879F;
   --bord: rgba(255, 255, 255, .09); --bord-doux: rgba(255, 255, 255, .06); --champ: #0D1222; --bord-champ: #262E46;
   --accent: #7C9BFF; --accent-texte: #97B0FF; --accent-fond: #1C2442; --sur-accent: #0A0E1A; --sur-erreur: #0A0E1A;
-  --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --erreur: #F87171; --erreur-fond: #2E1517;
+  --ok: #4ADE80; --ok-fond: #10291B; --attention: #F5B83D; --attention-fond: #2B2210; --attention-trait: #F5B83D; --erreur: #F87171; --erreur-fond: #2E1517;
   background: #0A0E1A; color: var(--texte); color-scheme: dark; }
 body.seule::before { content: ""; position: fixed; inset: 0; pointer-events: none;
   background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px); background-size: 26px 26px; }
@@ -293,6 +293,13 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
 .filtres { margin-bottom: 1.2rem; }
 .filtres-alertes { margin-bottom: .8rem; gap: 1rem; flex-wrap: wrap; }
 .filtre-tableau { display: block; width: 100%; max-width: 280px; margin: 0 0 .6rem; }
+/* Menu « Trier » des tableaux en cartes (téléphone seulement). */
+.tri-cartes { display: none; }
+@media (max-width: 640px) {
+  .tri-cartes { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; margin: 0 0 .6rem; font-size: 13px; color: var(--doux); text-align: left; }
+  .tri-cartes select { flex: 0 1 auto; width: auto; min-width: 0; font-size: 14px; padding: 6px 30px 6px 10px; min-height: 36px; }
+  .tri-cartes:has(+ .defile > table:not(.en-cartes)), .tri-cartes:has(+ table:not(.en-cartes)) { display: none; }
+}
 .u-legend { font-size: .78rem; }
 .diff-plus { color: var(--ok); } .diff-moins { color: var(--erreur); }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -605,7 +612,9 @@ fieldset.regle-perso textarea, fieldset.regle-perso input[name=r_resume] { width
 .resume-alertes .tuile small { color: var(--pale); }
 .resume-alertes .tuile b { display: block; font-size: 28px; line-height: 1.1; margin-top: 4px; color: var(--titres); }
 .resume-alertes .tuile.critique { border-left: 4px solid var(--erreur); }
-.resume-alertes .tuile.avert { border-left: 4px solid var(--attention); }
+/* Traits « avertissement » en jaune ambré (--attention-trait, retour du 20/11 :
+   le brun du texte paraissait rouge) ; le texte garde --attention (contraste). */
+.resume-alertes .tuile.avert { border-left: 4px solid var(--attention-trait); }
 .resume-alertes .tuile.info { border-left: 4px solid var(--info); }
 .barre-alertes { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
 .segment { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--survol); gap: 2px; }
@@ -646,7 +655,7 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 .frise-barres .grille { stroke: var(--bord); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .frise-barres rect { fill: var(--info); }
 .frise-barres rect.g-critical { fill: var(--erreur); }
-.frise-barres rect.g-warning { fill: var(--attention); }
+.frise-barres rect.g-warning { fill: var(--attention-trait); }
 .frise-barres a:hover rect { opacity: .75; }
 @media (max-width: 899px) { .frise-ligne { grid-template-columns: 90px 1fr; } }
 
@@ -737,14 +746,14 @@ body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 3
 .mur-alertes h2 { margin: 0 0 8px; font-size: 18px; color: var(--doux); }
 .mur-alertes ul { list-style: none; margin: 0; padding: 0; }
 .mur-alertes li { font-size: 22px; padding: 8px 0 8px 14px; border-left: 5px solid var(--info); margin-bottom: 6px; overflow-wrap: anywhere; }
-.mur-alertes li.g-critical { border-color: var(--erreur); } .mur-alertes li.g-warning { border-color: var(--attention); }
+.mur-alertes li.g-critical { border-color: var(--erreur); } .mur-alertes li.g-warning { border-color: var(--attention-trait); }
 .mur-alertes li small { color: var(--pale); font-size: 15px; margin-left: 8px; }
 .mur-calme { display: flex; align-items: baseline; gap: 14px; } .mur-calme b { font-size: 30px; color: var(--ok); } .mur-calme span { font-size: 18px; color: var(--doux); }
 .mur-machines { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .mur-machine { background: var(--carte); border: 1px solid var(--bord); border-left: 6px solid var(--ok); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
 .mur-machine b { font-size: 20px; } .mur-etat { font-size: 15px; color: var(--doux); } .mur-mesures { font-size: 14px; color: var(--pale); }
 .mur-machine .plein-dans { align-self: flex-start; margin: 2px 0 0; }
-.mur-machine.etat-erreur { border-left-color: var(--erreur); } .mur-machine.etat-attention { border-left-color: var(--attention); }
+.mur-machine.etat-erreur { border-left-color: var(--erreur); } .mur-machine.etat-attention { border-left-color: var(--attention-trait); }
 .mur-machine.etat-muette { border-left-color: var(--pale); opacity: .8; }
 .mur-pied { margin-top: 18px; font-size: 12px; color: var(--pale); }
 @media (max-width: 700px) { .mur-compteurs { grid-template-columns: repeat(2, 1fr); } body.ecran-mural { padding: 16px; } }
@@ -834,7 +843,7 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
    une colonne, pastille seulement pour avertissement et erreur, adresses IP
    et mots d'échec colorés, lignes semblables repliées. */
 .logs-table tr.err td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
-.logs-table tr.warn td:first-child { box-shadow: inset 4px 0 0 var(--attention); }
+.logs-table tr.warn td:first-child { box-shadow: inset 4px 0 0 var(--attention-trait); }
 .logs-table td.logs-heure { padding-left: 12px; }
 .logs-table td.logs-qui b { font-weight: 600; }
 .logs-table td.logs-qui small { display: block; color: var(--pale); font-size: 12px; }
@@ -878,11 +887,35 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-jauge { height: 6px; background: var(--survol); border-radius: 3px; width: 110px; overflow: hidden; margin-top: 7px; }
 .logs-jauge i { display: block; height: 100%; background: var(--accent); }
 .logs-groupes tr.rare td { background: var(--erreur-fond); }
+.logs-groupes .g-lib { display: none; }
+/* Téléphone (retour du 20/11 : 9 colonnes, message écrasé) : une carte par
+   message. Ligne 1 : nombre, jauge, niveau ; ligne 2 : le message sur toute
+   la largeur ; ligne 3 : machines, 1re fois, dernière, lien. */
+@media (max-width: 700px) {
+  .logs-groupes, .logs-groupes tbody { display: block; }
+  .logs-groupes thead { display: none; }
+  .logs-groupes tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 2px; border-bottom: 1px solid var(--bord); }
+  .logs-groupes td { display: block; padding: 0; border: 0; white-space: normal; background: none !important; }
+  .logs-groupes tr.rare { background: var(--erreur-fond); }
+  .logs-groupes tr.motif-nouveau { background: var(--attention-fond); }
+  .logs-groupes tr.rare, .logs-groupes tr.motif-nouveau { padding-left: 8px; padding-right: 8px; border-radius: 8px; }
+  .logs-groupes .g-n { font-weight: 700; font-size: 15px; min-width: 2ch; text-align: left; }
+  .logs-groupes .g-jauge { flex: 1 1 60px; }
+  .logs-groupes .g-jauge .logs-jauge { width: 100%; margin-top: 0; }
+  .logs-groupes .g-niv { order: 1; }
+  .logs-groupes td.logs-motif { order: 2; flex-basis: 100%; font-size: 13px; line-height: 1.45; }
+  .logs-groupes .g-meta { order: 3; font-size: 12px; color: var(--doux); }
+  .logs-groupes .g-meta:empty { display: none; }
+  .logs-groupes .g-lib { display: inline; }
+  .logs-groupes .g-lien { margin-left: auto; }
+  .logs-groupes .g-evol .evolution-motif { border-bottom: 1px solid var(--bord); }
+  .logs-groupes .g-vu:has(> .pale:only-child) { display: none; }
+}
 @media (max-width: 700px) {
   .logs-table, .logs-table tbody { display: block; }
   /* Deux lignes : heure, machine · origine, pastille ; puis le message. */
   .logs-table tr.logs-ligne-log { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 2px 8px; padding: 7px 10px; border-bottom: 1px solid var(--bord-doux); }
-  .logs-table tr.logs-ligne-log.err { background: var(--erreur-fond); box-shadow: inset 4px 0 0 var(--erreur); } .logs-table tr.logs-ligne-log.warn { background: var(--attention-fond); box-shadow: inset 4px 0 0 var(--attention); }
+  .logs-table tr.logs-ligne-log.err { background: var(--erreur-fond); box-shadow: inset 4px 0 0 var(--erreur); } .logs-table tr.logs-ligne-log.warn { background: var(--attention-fond); box-shadow: inset 4px 0 0 var(--attention-trait); }
   .logs-table tr.logs-ligne-log td { border: 0; padding: 0; background: none !important; box-shadow: none !important; }
   .logs-table td.logs-qui small { display: inline; margin-left: 6px; }
   .logs-table tr.logs-ligne-log td.logs-msg { grid-column: 1 / -1; }
@@ -1057,7 +1090,7 @@ tr.cet-appareil td:first-child { font-weight: 600; }
 
 /* --- Page Machines (SPEC § 36) : à approuver, filtres, blocs par site ----- */
 .doux { color: var(--pale); font-size: 13px; }
-.attente-approbation { border-left: 4px solid var(--attention); }
+.attente-approbation { border-left: 4px solid var(--attention-trait); }
 .table-attente td { vertical-align: middle; }
 .table-attente td small { display: block; color: var(--pale); }
 .table-attente td .pastille { margin-top: 4px; }
@@ -1093,7 +1126,7 @@ tr.sous-ligne td:first-child { padding-left: 26px; }
 .mur-prises h2 small { font-weight: 400; color: var(--pale); font-size: 13px; margin-left: 6px; }
 .mur-prises ul { list-style: none; margin: 0; padding: 0; }
 .mur-prises li { font-size: 17px; padding: 5px 0 5px 12px; border-left: 4px dotted var(--info); margin-bottom: 4px; color: var(--doux); }
-.mur-prises li.g-critical { border-left-color: var(--erreur); } .mur-prises li.g-warning { border-left-color: var(--attention); }
+.mur-prises li.g-critical { border-left-color: var(--erreur); } .mur-prises li.g-warning { border-left-color: var(--attention-trait); }
 .mur-prises li small { color: var(--pale); font-size: 13px; margin-left: 8px; }
 .chaleur-pied { margin: 6px 0 0; }
 .chaleur-pied:not(:has(button:not([hidden]), small)) { display: none; }
@@ -1319,13 +1352,16 @@ table.changements td:last-child { overflow-wrap: anywhere; }
 .type-ping { background: rgba(14, 122, 107, .12); color: #0E9384; }
 .type-dns { background: var(--attention-fond); color: var(--attention); }
 tr.ligne-sonde.ok > td:first-child { box-shadow: inset 4px 0 0 var(--ok); }
-tr.ligne-sonde.lente > td:first-child { box-shadow: inset 4px 0 0 var(--attention); }
+tr.ligne-sonde.lente > td:first-child { box-shadow: inset 4px 0 0 var(--attention-trait); }
 tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
 tr.ligne-sonde.echec { background: var(--erreur-fond); }
 .dispo-sonde { font-weight: 700; }
 .dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
 .jauge-dispo { width: 70px; margin-left: auto; height: 5px; outline: 1px solid var(--bord-champ); outline-offset: -1px; } .jauge-dispo i { height: 5px; }
 table.dernieres-alertes tr.en-cours > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+/* Trait de la couleur de la gravité (retour du 20/11 : un avertissement était en rouge). */
+table.dernieres-alertes tr.en-cours.g-warning > td:first-child { box-shadow: inset 4px 0 0 var(--attention-trait); }
+table.dernieres-alertes tr.en-cours.g-info > td:first-child { box-shadow: inset 4px 0 0 var(--info); }
 /* Code de retour HTTP : même bulle que l'état, en dessous (retour du 19/11) ;
    état et code (ou dispo et jauge) restent ensemble, aussi en carte. */
 .pile-sonde { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -1337,12 +1373,23 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
    la classe en-cartes est posée aussi sur ordinateur. */
 @media (max-width: 640px) {
   table.en-cartes tr.ligne-sonde.ok > td:first-child, table.en-cartes tr.ligne-sonde.lente > td:first-child,
-  table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child { box-shadow: none; }
+  table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours.g-warning > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours.g-info > td:first-child { box-shadow: none; }
   table.en-cartes > tbody > tr.ligne-sonde.ok { border-left: 4px solid var(--ok); }
-  table.en-cartes > tbody > tr.ligne-sonde.lente { border-left: 4px solid var(--attention); }
+  table.en-cartes > tbody > tr.ligne-sonde.lente { border-left: 4px solid var(--attention-trait); }
   table.en-cartes > tbody > tr.ligne-sonde.echec { border-left: 4px solid var(--erreur); }
   table.en-cartes.dernieres-alertes > tbody > tr.en-cours { border-left: 4px solid var(--erreur); }
+  table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-warning { border-left-color: var(--attention-trait); }
+  table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-info { border-left-color: var(--info); }
   table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
+  /* Cible (retour du 20/11) : sur la ligne de « Cible », alignée à droite
+     comme les autres valeurs ; cadenas juste avant l'adresse ; pastilles
+     en dessous, à droite. */
+  table.en-cartes > tbody > tr > td.cible-sonde[data-long] { display: flex; align-items: flex-start; text-align: right; }
+  table.en-cartes > tbody > tr > td.cible-sonde[data-long]::before { display: block; max-width: 45%; margin: 0; line-height: 1.6; }
+  table.en-cartes td.cible-sonde .valeur-carte { flex: 1 1 auto; justify-content: flex-end; }
+  table.en-cartes td.cible-sonde .url-sonde { display: block; text-align: right; }
+  table.en-cartes td.cible-sonde .cadenas { margin-right: 4px; }
+  table.en-cartes td.cible-sonde .puces-tache { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; width: 100%; }
 }
 
 /* --- Menu réorganisable (SPEC § 79) : un ordre pour l'ordinateur (o-N), un
@@ -1511,7 +1558,11 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .vms-tache summary { cursor: pointer; color: var(--accent-texte); }
 .table-vms td { padding: 4px 10px 4px 0; border: 0; }
 .cible-sonde .url-sonde { font-weight: 600; overflow-wrap: anywhere; }
-.cible-sonde .cadenas { font-size: 12px; margin-right: 4px; }
+/* Cadenas à gauche, adresse à côté : si elle passe à la ligne, la suite
+   reste alignée sous l'adresse, pas sous le cadenas (retour du 20/11). */
+.cible-sonde .url-sonde { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; text-align: left; word-break: normal; }
+.cible-sonde .cadenas { font-size: 12px; flex: none; }
+.cible-sonde .url-texte { min-width: 0; overflow-wrap: anywhere; }
 
 /* Survol des courbes (retour du 20/11) : toutes les courbes de la page
    suivent la souris ; leurs légendes ne doivent pas changer de taille, sinon
@@ -1559,10 +1610,6 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
 tr.groupe-taches > td { padding-top: 14px; font-weight: 600; background: none; border-bottom: 1px solid var(--bord); }
 .filtre-taches { margin: 0; }
 table.en-cartes .frise-tache { justify-content: flex-end; }
-.sauvegardes-nuit .chiffres { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 4px 0 10px; }
-.sauvegardes-nuit .chiffres b { display: block; font-size: 22px; }
-.sauvegardes-nuit ul { list-style: none; margin: 0; padding: 0; }
-.sauvegardes-nuit li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
 .texte-ok { color: #18794E; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
 :root[data-theme="dark"] .texte-ok { color: #4CC38A; }
@@ -1613,25 +1660,56 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .point-gravite.critical { background: #DC2626; }
 .point-gravite.warning { background: #D97706; }
 
-/* « En direct » sur la page d'une machine (SPEC § 97). */
-.direct-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.direct-tete h2 { margin: 0; }
-.direct-tete .doux { font-size: 13px; }
-.direct-tete .actions { margin-left: auto; display: flex; gap: 8px; }
+/* « En ce moment » sur la page d'une machine, en direct (SPEC § 29 et § 97 ;
+   retour du 20/11 : blocs réunis, courbes plus lisibles). */
+.ecm-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.ecm-tete h2 { margin: 0; }
+.ecm-tete .doux { font-size: 13px; }
+.ecm-tete .actions { margin-left: auto; display: flex; gap: 8px; }
 .point-direct { width: 10px; height: 10px; border-radius: 50%; background: var(--pale); flex: none; }
 .direct.recu .point-direct { background: #E5484D; box-shadow: 0 0 0 4px rgba(229, 72, 77, .18); animation: battement-direct 2s ease-in-out infinite; }
 .direct.arrete .point-direct { background: var(--pale); box-shadow: none; animation: none; }
 @keyframes battement-direct { 50% { box-shadow: 0 0 0 7px rgba(229, 72, 77, .05); } }
 @media (prefers-reduced-motion: reduce) { .direct.recu .point-direct { animation: none; } }
-.direct-grille { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
-.direct-case { border: 1px solid var(--bord); border-radius: 12px; padding: 10px 12px; min-width: 0; }
-.direct-case small { color: var(--pale); font-size: 12px; }
-.direct-case b { display: block; font-size: 22px; margin: 2px 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.direct-case b .detail { font-size: 13px; color: var(--pale); font-weight: 500; }
-.direct-case svg { width: 100%; height: 46px; display: block; }
-.direct-case polyline { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-.c-cpu { stroke: #3E63DD; } .c-mem { stroke: #7C3AED; } .c-net { stroke: #0EA5E9; } .c-disque { stroke: #16A34A; }
-.titre-top { margin: 16px 0 0; }
+.ecm-grille { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
+a.ecm-case { display: block; min-width: 0; border: 1px solid var(--bord); border-radius: 12px; padding: 12px 14px 8px; color: inherit; text-decoration: none; }
+a.ecm-case:hover { border-color: var(--bord-champ); }
+.ecm-haut { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ecm-haut small { color: var(--pale); font-size: 12.5px; font-weight: 500; }
+.ecm-haut .seuil { margin-left: auto; font-size: 12px; color: var(--pale); }
+.ecm-val { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; margin: 2px 0 6px; }
+.ecm-val b { font-size: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ecm-val b.v-attention { color: var(--attention); } .ecm-val b.v-erreur { color: var(--erreur); }
+.ecm-val span { font-size: 13px; color: var(--doux); font-variant-numeric: tabular-nums; }
+/* Réseau et disques : les deux valeurs à la même taille (retour du 20/11 :
+   le gras laissait croire que c'était la plus grosse). */
+.ecm-val.deux b, .ecm-val.deux span { font-size: 19px; font-weight: 650; color: var(--texte); }
+@media (max-width: 640px) { .ecm-val.deux b, .ecm-val.deux span { font-size: 16px; } }
+/* Repère de couleur devant chaque valeur (réseau, disques) : même couleur
+   que sa courbe (remplace la légende, retour du 20/11). */
+.ecm-val .repere { display: inline-block; width: 12px; height: 4px; border-radius: 2px; align-self: center; margin-right: -4px; }
+.ecm-graphe { display: block; position: relative; height: 104px; cursor: crosshair; }
+.ecm-graphe[hidden] { display: none; }
+.ecm-graphe svg { display: block; width: 100%; height: 86px; overflow: visible; }
+.ecm-graphe .rep { stroke: var(--bord-doux); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ecm-graphe .trace { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ecm-graphe .surf { stroke: none; fill-opacity: .16; }
+.ecm-graphe .seuil-trait { stroke: var(--erreur); stroke-width: 1.2; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.ecm-graphe .curseur { stroke: var(--pale); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ecm-y { position: absolute; right: 0; top: -2px; font-size: 10.5px; color: var(--pale); background: var(--carte); padding: 0 3px; border-radius: 4px; }
+.ecm-bulle { position: absolute; top: 4px; transform: translateX(-50%); background: var(--texte); color: var(--carte); font-size: 11.5px; padding: 3px 7px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
+.ecm-axe { display: flex; justify-content: space-between; font-size: 11px; color: var(--pale); margin-top: 3px; }
+/* Couleurs des courbes (trait, surface, légende). */
+.s-cpu { stroke: #3E63DD; fill: #3E63DD; background: #3E63DD; } .s-mem { stroke: #7C3AED; fill: #7C3AED; background: #7C3AED; }
+.s-net { stroke: #0EA5E9; fill: #0EA5E9; background: #0EA5E9; } .s-net2 { stroke: #F59E0B; fill: #F59E0B; background: #F59E0B; }
+.s-disque { stroke: #16A34A; fill: #16A34A; background: #16A34A; } .s-disque2 { stroke: #DB2777; fill: #DB2777; background: #DB2777; }
+.ecm-graphe .trace.s-cpu, .ecm-graphe .trace.s-mem, .ecm-graphe .trace.s-net, .ecm-graphe .trace.s-net2, .ecm-graphe .trace.s-disque, .ecm-graphe .trace.s-disque2 { fill: none; }
+.ecm-bas { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; padding: 10px 4px 0; border-top: 1px solid var(--bord-doux); font-size: 13px; }
+.ecm-bas > a, .ecm-bas > span { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.ecm-bas small { color: var(--pale); }
+.ecm-bas .jauge { width: 80px; display: inline-block; }
+details.ecm-proc { margin-top: 14px; }
+details.ecm-proc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .top-proc { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 6px; }
 .top-proc th { color: var(--pale); font-weight: 500; text-align: left; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--bord); }
 .top-proc td { padding: 6px 8px; border-bottom: 1px solid var(--bord-doux); }
@@ -1640,12 +1718,16 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .barre-mini.m { background: #7C3AED; }
 .note-direct { margin: 10px 0 0; font-size: 12.5px; }
 @media (max-width: 640px) {
-  .direct-grille { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .direct-case { padding: 8px 10px; }
-  .direct-case b { font-size: 17px; }
-  .direct-case b .detail { display: block; font-size: 11.5px; }
-  .direct-case svg { height: 32px; }
-  .direct-tete .doux { flex-basis: 100%; order: 3; }
+  .ecm-grille { gap: 8px; }
+  a.ecm-case { padding: 10px 12px 6px; }
+  .ecm-val b { font-size: 20px; }
+  .ecm-graphe { height: 82px; }
+  .ecm-graphe svg { height: 64px; }
+  .ecm-tete .doux { flex-basis: 100%; order: 3; }
+  .ecm-bas { flex-direction: column; gap: 8px; }
+  .ecm-bas > a, .ecm-bas > span { flex-wrap: wrap; gap: 2px 8px; }
+  .ecm-bas small:first-child, .ecm-bas b { white-space: nowrap; }
+  .ecm-bas .jauge { display: none; }
   .top-proc .col-util, .top-proc .col-groupe, .barre-mini { display: none; }
 }
 
@@ -1680,3 +1762,12 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .logs-table thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--pale); padding: 6px 8px; border-bottom: 1px solid var(--bord); background: var(--carte); white-space: nowrap; }
 .logs-table thead th:first-child { padding-left: 12px; }
 @media (max-width: 640px) { .logs-table thead.logs-tete-colonnes { display: none; } }
+
+/* Mise à jour du serveur (SPEC § 102) : déroulé écrit par mirador-maj-serveur. */
+.etapes-maj { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; }
+.etapes-maj li { padding: 3px 0; }
+.etapes-maj time { color: var(--pale); font-variant-numeric: tabular-nums; margin-right: 8px; }
+.reglages-service { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.reglages-service th { text-align: left; font-weight: 500; color: var(--doux); padding: 6px 12px 6px 0; width: 220px; vertical-align: top; }
+.reglages-service td { padding: 6px 0; border-bottom: 1px solid var(--bord-doux); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .reglages-service th { width: auto; display: block; padding-bottom: 0; } .reglages-service td { display: block; } .reglages-service tr { display: block; } }

@@ -7,6 +7,7 @@
 #   make collecteur  mirador-collector : binaires statiques linux/amd64 et linux/arm64 dans dist/
 #   make serveur   serveur : binaires statiques linux/amd64 et linux/arm64 dans dist/
 #   make release   mirador-release : windows/amd64 (poste de l'utilisateur) et linux/amd64
+#   make majserveur  mirador-maj-serveur (VPS, SPEC § 102) : linux/amd64 et linux/arm64 dans dist/
 #   make propre    supprime le dossier dist/
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -22,7 +23,7 @@ LDFLAGS = -s -w -buildid= \
 	-X mirador-stack/internal/version.Version=$(VERSION) \
 	-X mirador-stack/internal/version.Commit=$(COMMIT)
 
-.PHONY: test bench verif agent collecteur serveur release propre olvid-pb
+.PHONY: test bench verif agent collecteur serveur release majserveur propre olvid-pb
 
 test:
 	go test -race ./...
@@ -65,6 +66,14 @@ release:
 		-ldflags "$(LDFLAGS)" -o dist/mirador-release-windows-amd64.exe ./cmd/mirador-release
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOFLAGS_BUILD) \
 		-ldflags "$(LDFLAGS)" -o dist/mirador-release-linux-amd64 ./cmd/mirador-release
+	cd dist && sha256sum mirador-* > SHA256SUMS
+
+majserveur:
+	@mkdir -p dist
+	for arch in $(ARCHS); do \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
+			-ldflags "$(LDFLAGS)" -o dist/mirador-maj-serveur-linux-$$arch ./cmd/mirador-maj-serveur || exit 1; \
+	done
 	cd dist && sha256sum mirador-* > SHA256SUMS
 
 propre:

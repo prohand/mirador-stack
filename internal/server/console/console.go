@@ -67,6 +67,10 @@ type Options struct {
 	Niveau *slog.LevelVar
 	// Maintenant : horloge (remplaçable dans les tests).
 	Maintenant func() time.Time
+	// MajDemande, MajEtat : dossiers d'échange avec mirador-maj-serveur
+	// (SPEC § 102) ; vides : mise à jour du serveur depuis l'interface
+	// désactivée.
+	MajDemande, MajEtat string
 }
 
 // Console : l'interface en marche.
@@ -93,6 +97,11 @@ type Console struct {
 	pings limitePing
 	// statuts : limite des lectures de la page de statut publique (SPEC § 84).
 	statuts limitePing
+
+	// derniere : dernière version du serveur publiée (SPEC § 102).
+	derniere cacheDerniere
+	// dernierMajNuit : dernier passage de la mise à jour de nuit (10 min).
+	dernierMajNuit time.Time
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -242,6 +251,7 @@ func (c *Console) Tour(ctx context.Context) {
 		c.appliquerAuto(ctx, t)
 	}
 	c.lireNomsAnciens(ctx)
+	c.majNuit(ctx, t)
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()

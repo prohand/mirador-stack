@@ -223,8 +223,13 @@ func TestPanneauDetail(t *testing.T) {
 	cl, _ := b.premierAdmin("admin", mdpAdmin)
 
 	// Tuiles cliquables sur la page machine.
-	if _, corps, _ := b.get(cl, "/machines/web1"); !strings.Contains(corps, `class="jauge-machine lien-panneau" href="/machines/web1/detail/cpu" data-panneau`) {
+	_, corpsM, _ := b.get(cl, "/machines/web1")
+	if !strings.Contains(corpsM, `<a class="ecm-case" href="/machines/web1/detail/cpu" data-panneau`) {
 		t.Error("tuile CPU non cliquable")
+	}
+	// Réseau de « En ce moment » : cartes physiques seulement (veth exclue).
+	if !strings.Contains(corpsM, `data-direct-val="net">↓ 1000 o/s</b>`) || !strings.Contains(corpsM, "↑ 100 o/s") {
+		t.Error("débit réseau de « En ce moment » absent ou faux")
 	}
 	fragment := func(chemin string) (int, string) {
 		req, _ := http.NewRequest(http.MethodGet, b.srv.URL+chemin, nil)

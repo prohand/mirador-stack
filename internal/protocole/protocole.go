@@ -175,6 +175,12 @@ type ReponseMaj struct {
 const (
 	ProduitAgent      = "mirador-agent"
 	ProduitCollecteur = "mirador-collector"
+	// ProduitImageServeur : image Docker du serveur (SPEC § 102). Le
+	// manifeste ne décrit pas un binaire : SHA256 est l'empreinte de l'image
+	// (« sha256:… » sans le préfixe), Taille vaut 0, Architecture « amd64 ».
+	// Lu seulement par mirador-maj-serveur (VPS) ; un agent ne peut pas
+	// l'installer (produit différent, et aucun binaire n'a cette empreinte).
+	ProduitImageServeur = "mirador-server-image"
 )
 
 // Manifeste : description signée d'une version de mirador-agent (ou de

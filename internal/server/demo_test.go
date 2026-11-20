@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"mirador-stack/internal/majserveur"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/auth"
 	"mirador-stack/internal/server/certsyslog"
@@ -43,6 +44,22 @@ func TestDemoInterface(t *testing.T) {
 	cfg := config.Defaut()
 	cfg.EcouteAgents, cfg.EcouteInterface = portLibre(t), adr
 	cfg.Donnees, cfg.FichierCle = filepath.Join(dir, "donnees"), cleF
+	// Mise à jour du serveur (SPEC § 102) : service du VPS « installé », une
+	// mise à jour passée (déroulé affiché).
+	cfg.MajDemande, cfg.MajEtat = filepath.Join(dir, "maj"), filepath.Join(dir, "maj-etat")
+	_ = os.MkdirAll(cfg.MajDemande, 0o755)
+	_ = os.MkdirAll(cfg.MajEtat, 0o755)
+	{
+		t0 := time.Now().Add(-26 * time.Hour).Unix()
+		_ = majserveur.EcrireJSON(cfg.MajEtat, majserveur.NomEtat, majserveur.Etat{Etat: majserveur.EtatOK, Version: "0.6.0", Avant: "0.5.0",
+			Message: "version 0.6.0 en service (avant : 0.5.0)", Debut: t0, Le: t0 + 95, Etapes: []majserveur.Etape{
+				{Le: t0, Texte: "demande de la version 0.6.0 par admin"}, {Le: t0 + 2, Texte: "signature vérifiée : ghcr.io/prohand/mirador-server@sha256:4f1c…"},
+				{Le: t0 + 31, Texte: "image téléchargée"}, {Le: t0 + 33, Texte: "serveur arrêté"}, {Le: t0 + 34, Texte: "base copiée"},
+				{Le: t0 + 95, Texte: "version 0.6.0 en service (avant : 0.5.0)"}}}, 0o644)
+		_ = majserveur.EcrireJSON(cfg.MajEtat, majserveur.NomService, majserveur.InfoService{Version: "0.6.0", DossierCompose: "/opt/mirador",
+			Service: "mirador-server", Image: "ghcr.io/prohand/mirador-server", Depot: "prohand/mirador-stack", Cles: []string{"3f9a1c0be47d2e58"},
+			Delai: "3 min", Installee: "0.6.0", Problemes: []string{}, Le: time.Now().Add(-26 * time.Hour).Unix()}, 0o644)
+	}
 	s, err := Demarrer(context.Background(), cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
