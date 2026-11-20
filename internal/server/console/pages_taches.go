@@ -134,10 +134,10 @@ type ligneTache struct {
 
 type tacheDetectee struct {
 	taches.Detectee
-	SourceTexte string
-	Fin         time.Time
-	Code        int
-	Systeme     bool // tâche du système (apt, logrotate…) : rangée à part
+	SourceTexte    string
+	Fin            time.Time
+	Code           int
+	Systeme        bool // tâche du système (apt, logrotate…) : rangée à part
 	Description    string
 	Puces          []puceTache
 	Prochaine      time.Time
