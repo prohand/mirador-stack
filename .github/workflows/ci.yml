@@ -4,8 +4,8 @@
 # go vet, tests (avec détection des accès concurrents), fuzzing, gosec,
 # govulncheck, licences, compilation amd64 / arm64, image Docker.
 # Les versions (tags v*) sont publiées par le workflow « Release »
-# (release.yml), qui appelle ce fichier pour les contrôles et les tests
-# (sans fuzzing ni essai d'image, déjà faits sur la branche).
+# (release.yml), qui vérifie que ce workflow a RÉUSSI sur le commit publié
+# (sans le relancer).
 # Les outils sont figés à une version précise ; chaque tâche a une durée
 # maximale (une tâche bloquée ne mange pas le forfait).
 #
@@ -43,13 +43,6 @@ on:
       - '!docs/**'
       - '!reference/**'
       - 'THIRD-PARTY.md'
-  # Appel par le workflow « Release » : contrôles et tests seulement.
-  workflow_call:
-    inputs:
-      release:
-        description: "Appel par la release (sans fuzzing ni essai d'image)"
-        type: boolean
-        default: true
   # Lancement à la main (avec les benchmarks si demandé).
   workflow_dispatch:
     inputs:
@@ -59,11 +52,10 @@ on:
         default: false
 
 # Un nouveau push sur une branche annule le passage encore en cours sur
-# cette branche (inutile de finir l'ancien). Appelé par « Release » : groupe
-# à part (github.workflow vaut alors « Release »), jamais annulé.
+# cette branche (inutile de finir l'ancien).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.workflow == 'CI' }}
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -124,7 +116,6 @@ jobs:
   # Chaque ligne : paquet:Cible.
   fuzzing:
     name: Fuzzing court (${{ matrix.lot }})
-    if: ${{ !inputs.release }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -192,7 +183,6 @@ jobs:
   # n'est publié (publication : workflow « Release »).
   image:
     name: Image Docker (construction et essai)
-    if: ${{ !inputs.release }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
