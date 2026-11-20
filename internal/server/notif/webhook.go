@@ -65,7 +65,7 @@ type Webhook struct {
 
 const (
 	usageWebhookURL    = "notif.webhook.url"
-	usageWebhookSecret = "notif.webhook.secret"
+	usageWebhookSecret = "notif.webhook.secret" // #nosec G101 -- nom d'usage du chiffrement, pas un secret
 )
 
 // valider : format connu ; adresse lisible si elle est donnée en clair.
