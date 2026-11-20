@@ -84,6 +84,8 @@ type Console struct {
 	messages antiRafale
 	// dernierAuto : dernier passage de l'application automatique des modèles.
 	dernierAuto time.Time
+	// dernierNettoyageConfiance : appareils de confiance expirés, une fois par heure.
+	dernierNettoyageConfiance time.Time
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -236,7 +238,15 @@ func (c *Console) Tour(ctx context.Context) {
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()
+	// Sessions ordinaires ; une session d'appareil de confiance retirée de
+	// la mémoire revient depuis le disque à la requête suivante.
 	c.sessions.Nettoyer(t, time.Duration(s.Inactivite), time.Duration(s.DureeMax))
+	if in, max := s.DureesConfiance(); t.Sub(c.dernierNettoyageConfiance) >= time.Hour {
+		c.dernierNettoyageConfiance = t
+		if err := auth.NettoyerConfiance(ctx, c.db, t, in, max); err != nil {
+			c.journal.Warn("appareils de confiance expirés non retirés", "erreur", err)
+		}
+	}
 }
 
 // lireNomsAnciens : table « ancien nom → nom actuel » (machines renommées),
@@ -327,10 +337,17 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 		ck, _ := r.Cookie(auth.NomCookie)
 		if ck != nil {
 			q.s = c.sessions.Lire(ck.Value)
+			// Appareil de confiance (SPEC § 78) : session reprise depuis le
+			// disque (PWA rouverte, serveur redémarré).
+			if q.s == nil {
+				q.s = c.restaurerConfiance(r.Context(), ck.Value, q.ip.String(), t)
+			}
 		}
-		sec := c.securite.Load()
-		if q.s != nil && auth.Expiree(q.s, t, time.Duration(sec.Inactivite), time.Duration(sec.DureeMax)) {
+		if q.s != nil && c.expiree(q.s, t) {
 			c.sessions.Supprimer(q.s.Empreinte)
+			if q.s.Confiance {
+				_ = auth.OublierConfiance(r.Context(), c.db, q.s.Empreinte)
+			}
 			q.s = nil
 		}
 		if q.s == nil {
@@ -368,6 +385,7 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 			}
 		}
 		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Vue = t })
+		c.toucherConfiance(r.Context(), q.s, t)
 		f(q)
 	}
 }

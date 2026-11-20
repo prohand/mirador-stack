@@ -1589,3 +1589,138 @@ document.addEventListener("change", function (ev) {
     b.querySelector("u").textContent = ouvert ? "replier" : "tout voir";
   });
 })();
+
+// Menu réorganisable (SPEC § 79) : « Modifier le menu » passe le menu en
+// édition. Ordinateur : glisser une entrée dans son groupe ; téléphone :
+// flèches ↑ ↓ (plus sûr au doigt) et choix des raccourcis de la barre du
+// bas. L'œil masque une entrée (pas Réglages ni Sécurité). « Terminé »
+// enregistre pour ce mode (ordinateur ou téléphone), avec le compte.
+(function () {
+  var bouton = document.querySelector("[data-modifier-menu]");
+  var nav = document.querySelector("[data-menu-principal]");
+  var appli = document.getElementById("appli");
+  if (!bouton || !nav) { return; }
+  var csrf = (document.querySelector('input[name="csrf"]') || {}).value || "";
+  function tel() { return window.matchMedia && window.matchMedia("(max-width: 640px)").matches; }
+  function liens() { return Array.prototype.slice.call(nav.querySelectorAll("a[data-cle]")); }
+  // Groupe d'une entrée : le titre de groupe qui la précède dans le document.
+  function groupeDe(a) { for (var x = a.previousElementSibling; x; x = x.previousElementSibling) { if (x.classList.contains("groupe")) { return x; } } return null; }
+  function rang(el, prefixe) {
+    var m = (" " + el.className + " ").match(new RegExp(" " + prefixe + "-(\\d+) "));
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  var enEdition = false, etaitReplie = false, glisse = null, bas = [];
+  function oeil(a) {
+    var o = a.querySelector("[data-oeil]");
+    if (o) { o.textContent = a.classList.contains("masque") ? "🙈" : "👁"; o.title = a.classList.contains("masque") ? "Afficher" : "Masquer"; }
+  }
+  function fleches() {
+    liens().forEach(function (a) {
+      var h = a.querySelector("[data-haut]"), b = a.querySelector("[data-bas]");
+      var p = a.previousElementSibling, n = a.nextElementSibling;
+      if (h) { h.disabled = !p || p.tagName !== "A"; }
+      if (b) { b.disabled = !n || n.tagName !== "A"; }
+    });
+  }
+  function commencer() {
+    enEdition = true;
+    var mode = tel() ? "tel" : "ordi", p = mode === "tel" ? "t" : "o";
+    etaitReplie = appli && appli.classList.contains("replie");
+    if (etaitReplie && !tel()) { appli.classList.remove("replie"); }
+    // Ranger les éléments dans l'ordre affiché, puis tout montrer.
+    var tous = Array.prototype.slice.call(nav.children);
+    tous.sort(function (x, y) { return rang(x, p) - rang(y, p); });
+    tous.forEach(function (x) { nav.appendChild(x); });
+    liens().forEach(function (a) {
+      if (a.classList.contains("cache-" + p)) { a.classList.add("masque"); }
+      var outils = document.createElement("span");
+      outils.className = "menu-outils";
+      var fixe = a.classList.contains("fixe");
+      outils.innerHTML = (mode === "tel" ? '<button type="button" data-haut aria-label="Monter">↑</button><button type="button" data-bas aria-label="Descendre">↓</button>'
+        : '<span class="poignee" aria-hidden="true">⋮⋮</span>') +
+        '<button type="button" data-oeil' + (fixe ? " disabled title=\"Toujours affiché\"" : "") + "></button>";
+      a.appendChild(outils);
+      a.setAttribute("draggable", mode === "ordi" ? "true" : "false");
+      oeil(a);
+    });
+    var tete = document.createElement("div");
+    tete.className = "edition-tete";
+    tete.innerHTML = "<b>Menu · " + (mode === "tel" ? "téléphone" : "ordinateur") + '</b><button type="button" class="secondaire" data-annuler>Annuler</button><button type="button" class="secondaire" data-defaut>Par défaut</button><button type="button" data-termine>Terminé</button>';
+    nav.insertBefore(tete, nav.firstChild);
+    if (mode === "tel") {
+      bas = (document.querySelector("[data-menu-bas]") || {}).getAttribute ? document.querySelector("[data-menu-bas]").getAttribute("data-menu-bas").split(" ") : [];
+      var zone = document.createElement("div");
+      zone.className = "edition-bas";
+      zone.innerHTML = "<p>Barre du bas : jusqu'à 4 raccourcis, dans l'ordre des touches</p><div></div>";
+      liens().forEach(function (a) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = a.querySelector(".txt").textContent;
+        b.setAttribute("data-raccourci", a.getAttribute("data-cle"));
+        zone.querySelector("div").appendChild(b);
+      });
+      tete.after(zone);
+      majBas();
+    }
+    nav.classList.add("edition");
+    bouton.hidden = true;
+    fleches();
+  }
+  function majBas() {
+    nav.querySelectorAll("[data-raccourci]").forEach(function (b) {
+      var i = bas.indexOf(b.getAttribute("data-raccourci"));
+      b.setAttribute("aria-pressed", i >= 0 ? "true" : "false");
+      b.textContent = (i >= 0 ? (i + 1) + ". " : "") + b.textContent.replace(/^\d\. /, "");
+    });
+  }
+  function envoyer(corps) {
+    fetch("/compte/menu", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRF": csrf, "X-Requested-With": "mirador" }, body: JSON.stringify(corps) })
+      .then(function (r) {
+        if (r.ok) { window.location.reload(); return; }
+        return r.text().then(function (t) { window.alert("Menu non enregistré : " + t); });
+      })
+      .catch(function () { window.alert("Menu non enregistré : serveur injoignable"); });
+  }
+  bouton.addEventListener("click", function (e) { e.preventDefault(); if (!enEdition) { commencer(); } });
+  nav.addEventListener("click", function (e) {
+    if (!enEdition) { return; }
+    var t = e.target.closest("button, a");
+    if (!t) { return; }
+    e.preventDefault(); // en édition, un lien ne part pas
+    var a = t.closest("a[data-cle]");
+    var mode = nav.querySelector("[data-raccourci]") ? "tel" : "ordi";
+    if (t.hasAttribute("data-oeil") && a && !t.disabled) { a.classList.toggle("masque"); oeil(a); }
+    else if (t.hasAttribute("data-haut") && a) { var p = a.previousElementSibling; if (p && p.tagName === "A") { nav.insertBefore(a, p); } fleches(); }
+    else if (t.hasAttribute("data-bas") && a) { var n = a.nextElementSibling; if (n && n.tagName === "A") { nav.insertBefore(n, a); } fleches(); }
+    else if (t.hasAttribute("data-raccourci")) {
+      var c = t.getAttribute("data-raccourci"), i = bas.indexOf(c);
+      if (i >= 0) { bas.splice(i, 1); } else if (bas.length < 4) { bas.push(c); }
+      majBas();
+    }
+    else if (t.hasAttribute("data-annuler")) { window.location.reload(); }
+    else if (t.hasAttribute("data-defaut")) { envoyer({ mode: mode, defaut: true }); }
+    else if (t.hasAttribute("data-termine")) {
+      if (mode === "tel" && bas.length === 0) { window.alert("Choisir au moins un raccourci pour la barre du bas."); return; }
+      envoyer({ mode: mode, ordre: liens().map(function (x) { return x.getAttribute("data-cle"); }),
+        caches: liens().filter(function (x) { return x.classList.contains("masque"); }).map(function (x) { return x.getAttribute("data-cle"); }),
+        bas: mode === "tel" ? bas : null });
+    }
+  });
+  document.addEventListener("keydown", function (e) { if (enEdition && e.key === "Escape") { window.location.reload(); } });
+  // Glisser-déposer (ordinateur), seulement dans le même groupe.
+  nav.addEventListener("dragstart", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-cle]");
+    if (!enEdition || !a) { return; }
+    glisse = a;
+    a.classList.add("glisse");
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", a.getAttribute("data-cle")); }
+  });
+  nav.addEventListener("dragover", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-cle]");
+    if (!glisse || !a || a === glisse || groupeDe(a) !== groupeDe(glisse)) { return; }
+    e.preventDefault();
+    var r = a.getBoundingClientRect();
+    nav.insertBefore(glisse, e.clientY > r.top + r.height / 2 ? a.nextElementSibling : a);
+  });
+  nav.addEventListener("dragend", function () { if (glisse) { glisse.classList.remove("glisse"); glisse = null; } });
+})();

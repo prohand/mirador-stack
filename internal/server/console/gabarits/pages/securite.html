@@ -11,6 +11,10 @@
 <div class="pile">
 <label>Fermée après une inactivité de <span class="unite"><input name="inactivite" value="{{enUnite $s.Inactivite "min"}}" required maxlength="10" inputmode="decimal"> min</span><small class="aide">5 min à 8 h (défaut {{dureeC .D.Defaut.Inactivite}})</small></label>
 <label>Durée maximale <span class="unite"><input name="duree_max" value="{{enUnite $s.DureeMax "h"}}" required maxlength="10" inputmode="decimal"> h</span><small class="aide">1 h à 7 jours (défaut {{dureeC .D.Defaut.DureeMax}})</small></label>
+<label class="case"><input type="checkbox" name="confiance" value="1" {{if not $s.SansConfiance}}checked{{end}}> Permettre « Rester connecté sur cet appareil »</label>
+<small class="aide">Pour le téléphone (application installée) : plus de connexion à chaque ouverture. Les actions sensibles demandent toujours le code 2FA.</small>
+<label>Appareil de confiance : au plus <span class="unite"><input name="confiance_max" value="{{enUnite $s.ConfianceMaxVue "j"}}" required maxlength="10" inputmode="decimal"> jours</span><small class="aide">1 à 90 jours (défaut 30)</small></label>
+<label>… et sans usage pendant <span class="unite"><input name="confiance_inactivite" value="{{enUnite $s.ConfianceInactiviteVue "j"}}" required maxlength="10" inputmode="decimal"> jours</span><small class="aide">1 h à 30 jours (défaut 7)</small></label>
 <label>Mode administration <span class="unite"><input name="mode_admin" value="{{enUnite $s.ModeAdmin "min"}}" maxlength="10" inputmode="decimal" autocomplete="off" data-bwignore="true" data-lpignore="true" data-1p-ignore data-form-type="other"> min</span><small class="aide">0 = désactivé (défaut {{dureeC .D.Defaut.ModeAdmin}}). {{template "plus" "aide.md#securite-mode-admin"}}</small></label>
 </div></section>
 <section class="carte"><div class="titre-icone"><span class="puce rouge"><svg class="icone"><use href="#i-cadenas"></use></svg></span><h2>Verrouillage</h2></div>
@@ -37,9 +41,18 @@
 {{if gt (len .D.Sessions) 1}}<form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="autres"><button class="secondaire petit" data-confirmer="Fermer toutes les sessions sauf celle-ci ?">Fermer toutes les autres</button></form>{{end}}</div>
 <div class="defile"><table data-cartes>
 <thead><tr><th>Compte</th><th>Adresse</th><th>Ouverte</th><th>Dernière requête</th><th aria-label="Action"></th></tr></thead>
-<tbody>{{range .D.Sessions}}<tr><td><strong>{{.Nom}}</strong>{{if eq .Ref $.D.MaSession}} <span class="pastille ok">Cette session</span>{{end}}</td><td><code>{{.Adresse}}</code></td><td title="{{date .Creee}}">{{depuisS .Creee.Unix}}</td><td title="{{date .Vue}}">{{depuisS .Vue.Unix}}</td>
+<tbody>{{range .D.Sessions}}<tr><td><strong>{{.Nom}}</strong>{{if eq .Ref $.D.MaSession}} <span class="pastille ok">Cette session</span>{{end}}{{if .Confiance}} <span class="pastille info">Appareil de confiance</span>{{end}}</td><td><code>{{.Adresse}}</code></td><td title="{{date .Creee}}">{{depuisS .Creee.Unix}}</td><td title="{{date .Vue}}">{{depuisS .Vue.Unix}}</td>
 <td>{{if ne .Ref $.D.MaSession}}<form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire petit">Fermer</button></form>{{end}}</td></tr>{{end}}</tbody>
 </table></div>
-<p class="aide"><small class="aide">Un redémarrage du serveur ferme toutes les sessions.</small></p>
+<p class="aide"><small class="aide">Un redémarrage du serveur ferme toutes les sessions, sauf celles des appareils de confiance.</small></p>
+</section>
+<section class="carte" id="appareils">
+<div class="entete-carte"><h2>Appareils de confiance ({{len .D.Appareils}})</h2></div>
+{{if .D.Appareils}}<div class="defile"><table data-cartes>
+<thead><tr><th>Compte</th><th>Appareil</th><th>Adresse</th><th>Connecté</th><th>Dernier usage</th><th>Expire</th><th aria-label="Action"></th></tr></thead>
+<tbody>{{range .D.Appareils}}<tr><td><strong>{{.Nom}}</strong>{{if eq .Ref $.D.MaSession}} <span class="pastille ok">Cet appareil</span>{{end}}</td><td>{{.Appareil}}</td><td><code>{{.Adresse}}</code></td><td title="{{date .CreeLe}}">{{depuisS .CreeLe.Unix}}</td><td title="{{date .VuLe}}">{{depuisS .VuLe.Unix}}</td><td>{{date .Expire}}</td>
+<td><form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="{{.Ref}}"><button class="secondaire petit" data-confirmer="Oublier cet appareil ? Il devra se reconnecter.">Oublier</button></form></td></tr>{{end}}</tbody>
+</table></div>{{else}}<p class="vide">Aucun. À la connexion, cocher « Rester connecté sur cet appareil » (coché d'office dans l'application installée).</p>{{end}}
+<p class="aide"><small class="aide">Un appareil de confiance reste connecté {{dureeC .D.S.ConfianceMaxVue}} au plus, et se déconnecte après {{dureeC .D.S.ConfianceInactiviteVue}} sans usage. Changer le mot de passe les oublie tous ; les actions sensibles demandent toujours le code 2FA.</small></p>
 </section>
 {{end}}

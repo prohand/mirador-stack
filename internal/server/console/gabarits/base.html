@@ -25,24 +25,10 @@
       <button type="button" class="replier" data-replier aria-label="Replier ou déplier le menu" title="Replier ou déplier le menu"><svg class="icone"><use href="#i-chevron"></use></svg></button>
     </div>
     <button type="button" class="aller" data-aller title="Aller à une machine, un tableau ou une page (Ctrl+K)"><svg class="icone"><use href="#i-loupe"></use></svg><span>Aller à…</span><kbd>Ctrl K</kbd></button>
-    <nav aria-label="Menu principal">
-      <div class="groupe">Supervision</div>
-      {{template "lien-menu" (menu "/" "ensemble" "Vue d'ensemble" .Menu "accueil" 0)}}
-      {{template "lien-menu" (menuAValider "/machines" "machines" "Machines" .Menu "machines" .NbAValider "Machines où l'agent a trouvé quelque chose de nouveau à surveiller")}}
-      {{template "lien-menu" (menuAValider "/conteneurs" "conteneur" "Conteneurs" .Menu "conteneurs" .NbConteneurs "Conteneurs non sains ou arrêtés alors qu'ils devraient redémarrer")}}
-      {{template "lien-menu" (menu "/applications" "activite" "Applications" .Menu "services" 0)}}
-      {{template "lien-menu" (menu "/elements" "base" "Éléments" .Menu "elements" 0)}}
-      {{template "lien-menu" (menu "/sondes" "globe" "Sondes" .Menu "sondes" .NbSondes)}}
-      {{template "lien-menu" (menu "/alertes" "alertes" "Alertes" .Menu "alertes" .NbAlertes)}}
-      {{template "lien-menu" (menu "/logs" "logs" "Logs" .Menu "logs" 0)}}
-      {{template "lien-menu" (menu "/tableaux" "tableaux" "Tableaux" .Menu "tableaux" 0)}}
-      <div class="groupe">Configuration</div>
-      {{template "lien-menu" (menu "/regles" "regles" "Règles" .Menu "regles" 0)}}
-      {{template "lien-menu" (menu "/reglages" "reglages" "Réglages" .Menu "reglages" 0)}}
-      {{if .Admin}}{{template "lien-menu" (menu "/utilisateurs" "utilisateurs" "Utilisateurs" .Menu "utilisateurs" 0)}}
-      {{template "lien-menu" (menu "/securite" "securite" "Sécurité" .Menu "securite" 0)}}{{end}}
-      {{template "lien-menu" (menu "/audit" "audit" "Audit" .Menu "audit" 0)}}
+    <nav aria-label="Menu principal" data-menu-principal>
+      {{range .MenuElements}}{{if .Titre}}<div class="groupe {{.Classe}}">{{.Titre}}</div>{{else}}{{template "lien-menu-el" .}}{{end}}{{end}}
     </nav>
+    <button type="button" class="modifier-menu" data-modifier-menu title="Changer l'ordre du menu, masquer des entrées"><svg class="icone"><use href="#i-menu"></use></svg><span class="txt">Modifier le menu</span></button>
     <div class="barre-pied">
       <a class="moi" href="/compte" title="Mon compte"><span class="avatar">{{initiale .Utilisateur}}</span><span class="txt">{{.Utilisateur}}<small>{{if .Admin}}Administrateur{{else}}Lecture seule{{end}}</small></span></a>
       <form method="post" action="/deconnexion" class="sortir">
@@ -63,12 +49,9 @@
     </form>
   </aside>
   {{/* Téléphone : barre du bas (4 pages + « Plus » qui ouvre tout le menu). Cachée sur grand écran. */}}
-  <nav class="nav-bas" aria-label="Menu rapide">
-    <a href="/"{{if eq .Menu "accueil"}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-ensemble"></use></svg><span>Accueil</span></a>
-    <a href="/alertes"{{if eq .Menu "alertes"}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-alertes"></use></svg><span>Alertes</span>{{if .NbAlertes}}<b class="compteur">{{.NbAlertes}}</b>{{end}}</a>
-    <a href="/machines"{{if eq .Menu "machines"}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-machines"></use></svg><span>Machines</span>{{if .NbAValider}}<b class="compteur attention">{{.NbAValider}}</b>{{end}}</a>
-    <a href="/logs"{{if eq .Menu "logs"}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-logs"></use></svg><span>Logs</span></a>
-    <button type="button" data-menu-plus aria-expanded="false" aria-label="Ouvrir ou fermer tout le menu"><svg class="icone"><use href="#i-menu"></use></svg><span>Plus</span></button>
+  <nav class="nav-bas" aria-label="Menu rapide" data-menu-bas="{{range $i, $c := .MenuBasCles}}{{if $i}} {{end}}{{$c}}{{end}}">
+    {{range .MenuBas}}<a href="{{.Href}}"{{if .Actif}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-{{.Icone}}"></use></svg><span>{{.Libelle}}</span>{{if .Compteur}}<b class="compteur{{if .ClasseCompteur}} {{.ClasseCompteur}}{{end}}">{{.Compteur}}</b>{{end}}</a>
+    {{end}}    <button type="button" data-menu-plus aria-expanded="false" aria-label="Ouvrir ou fermer tout le menu"><svg class="icone"><use href="#i-menu"></use></svg><span>Plus</span></button>
   </nav>
   <div class="contenu">
     {{if .ModeAdmin}}<div class="bandeau admin"><svg class="icone"><use href="#i-cadenas"></use></svg> <span>Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong><span class="masque-tel"> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes).</span></span> <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}

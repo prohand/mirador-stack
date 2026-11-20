@@ -131,10 +131,22 @@
         form.elements.signature.value = versTexte(cle.response.signature);
       });
     }
+    // « Rester connecté sur cet appareil » (SPEC § 78) : la case du
+    // formulaire du mot de passe vaut aussi pour la passkey seule.
+    var caseConfiance = document.querySelector("[data-confiance]");
+    if (form.elements.confiance && caseConfiance) { form.elements.confiance.value = caseConfiance.checked ? "1" : ""; }
     demande.then(function () { form.submit(); }).catch(function (e) {
       b.disabled = false;
       dire(form, explication(e));
       preparerDefi(); // nouveau défi pour un nouvel essai
     });
   });
+})();
+
+// Application installée (PWA) : « Rester connecté sur cet appareil » coché
+// d'office (on peut le décocher). Dans un navigateur ordinaire, décoché.
+(function () {
+  var c = document.querySelector("[data-confiance]");
+  var pwa = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  if (c && (pwa || window.navigator.standalone === true)) { c.checked = true; }
 })();

@@ -4,12 +4,13 @@
   {{if .D.Suite}}<input type="hidden" name="suite" value="{{.D.Suite}}">{{end}}
   <label>Nom <span class="champ-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"></path></svg><input name="nom" value="{{.D.Nom}}" autocomplete="username" required autofocus maxlength="64" spellcheck="false" autocapitalize="none"></span></label>
   <label>Mot de passe <span class="champ-icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3"></path></svg><input type="password" name="mot_de_passe" autocomplete="current-password" required maxlength="512"></span></label>
+  {{if .D.Confiance}}<label class="case case-confiance"><input type="checkbox" name="confiance" value="1" data-confiance> Rester connecté sur cet appareil</label>{{end}}
   <button class="bouton-connexion">Continuer <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
 </form>
 {{if .D.PKSeule}}
 <p class="separateur-ou"><span>ou</span></p>
 <form method="post" action="/connexion/passkey-seule" class="pile" data-passkey-form>
-  {{if .D.Suite}}<input type="hidden" name="suite" value="{{.D.Suite}}">{{end}}<input type="hidden" name="defi"><input type="hidden" name="identifiant"><input type="hidden" name="client"><input type="hidden" name="authentificateur"><input type="hidden" name="signature">
+  {{if .D.Suite}}<input type="hidden" name="suite" value="{{.D.Suite}}">{{end}}<input type="hidden" name="defi"><input type="hidden" name="identifiant"><input type="hidden" name="client"><input type="hidden" name="authentificateur"><input type="hidden" name="signature">{{if .D.Confiance}}<input type="hidden" name="confiance">{{end}}
   <button type="button" class="secondaire bouton-passkey" data-passkey="seule" data-domaine="{{.D.PKDomaine}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM12 10v11M12 15h3M12 18h2"></path></svg>Se connecter avec une passkey</button>
   <p class="erreur-texte" data-passkey-erreur hidden></p>
 </form>{{end}}

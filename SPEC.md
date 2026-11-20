@@ -6616,3 +6616,69 @@ l'utilisateur) :
 - Coût : une expression régulière par message affiché (300 lignes au plus
   par page) et une passe pour le repli : moins d'une milliseconde ; rien de
   stocké.
+
+## 78. Appareils de confiance : connexion persistante en PWA (20/11) **[Fait, à valider]**
+
+- Demande : « en PWA sur mobile, ce n'est pas pratique de se connecter tout
+  le temps ». Causes trouvées : cookie sans date (iOS l'efface quand il
+  ferme la PWA en arrière-plan), 30 min d'inactivité, 12 h au plus,
+  sessions en mémoire seulement (chaque mise à jour du serveur déconnecte).
+- Choix de l'utilisateur (20/11) : « appareil de confiance » ; 30 jours au
+  plus, 7 jours sans usage ; mêmes droits qu'une session ordinaire.
+- Fonctionnement :
+  - case « Rester connecté sur cet appareil » sur la page de connexion
+    (cochée d'office dans l'application installée, décochée dans un
+    navigateur), valable aussi pour la passkey seule ;
+  - connexion complète (mot de passe + 2FA, ou passkey) : cookie daté
+    (Max-Age 30 j, toujours `__Host-`, `HttpOnly`, `Secure`,
+    `SameSite=Strict`) et ligne `appareils_confiance` (migration 0030) avec
+    l'**empreinte SHA-256** de l'identifiant seulement ;
+  - cookie inconnu en mémoire (PWA rouverte, serveur redémarré) : session
+    reprise depuis le disque si l'appareil est valide (durées, compte
+    actif, même génération, 2FA présente), nouveau jeton CSRF ;
+  - dernier usage écrit sur disque toutes les 10 min au plus ; appareils
+    expirés retirés chaque heure ;
+  - Réglages › Sécurité : permettre ou non, durées (1 à 90 j ; sans usage
+    1 h à 30 j) ; liste « Appareils de confiance » avec « Oublier ».
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Téléphone perdu ou volé, déverrouillé | actions sensibles toujours avec le code 2FA ou la passkey ; « Oublier » à distance (page Sécurité) ; 7 j sans usage au plus, 30 j en tout ; changer le mot de passe oublie tous les appareils |
+  | Vol du cookie | `HttpOnly` (pas lisible par un script, CSP stricte), `Secure`, `__Host-`, `SameSite=Strict` ; durée bornée |
+  | Vol ou copie de la base | seule l'empreinte SHA-256 de l'identifiant (256 bits aléatoires) est gardée : aucun cookie utilisable |
+  | Compte désactivé, 2FA retirée, mot de passe changé | refus à la reprise (génération, état du compte relus) et ligne oubliée |
+  | Cookie rejoué après déconnexion | déconnexion = ligne effacée ; cookie effacé |
+  | Remplissage de la base | une ligne par connexion réussie (mot de passe + 2FA) ; nettoyage horaire des expirées |
+- Coût : une lecture SQL par réouverture de l'application (pas à chaque
+  requête : la session revient en mémoire), une écriture toutes les
+  10 min d'usage ; quelques octets par appareil.
+
+## 79. Menu réorganisable, ordinateur et téléphone (20/11, maquette validée) **[Fait, à valider]**
+
+- Demande : « pouvoir réorganiser le menu en mode navigateur et en mode
+  PWA ». Choix : ordre et entrées masquées, 4 raccourcis de la barre du bas
+  du téléphone ; bouton « Modifier le menu » dans le menu ; deux menus
+  séparés (ordinateur, téléphone), gardés avec le compte. Groupes non
+  modifiables (peu d'usage, beaucoup de travail).
+- Fonctionnement :
+  - « Modifier le menu » (en bas du menu ; dans « Plus » sur téléphone)
+    passe en édition : ordinateur = glisser une entrée dans son groupe ;
+    téléphone = flèches ↑ ↓ ; l'œil masque ; « Annuler », « Par défaut »,
+    « Terminé » ;
+  - téléphone : choix de 1 à 4 raccourcis pour la barre du bas, dans
+    l'ordre des touches ;
+  - Réglages et Sécurité ne peuvent pas être masqués (jamais bloqué) ; une
+    page masquée reste accessible par Ctrl+K ;
+  - le menu de l'ordinateur sert au-dessus de 640 px (tablette comprise),
+    celui du téléphone en dessous.
+- Réalisation : registre des entrées côté serveur (`console/menu.go`) ;
+  les deux ordres sont rendus dans la page (classes `o-N` / `t-N`, CSS
+  `order` selon la largeur) : aucun script nécessaire pour l'affichage ;
+  colonne `utilisateurs.menu` (migration 0031, JSON de 4 Kio au plus),
+  `POST /compte/menu` (jeton CSRF, clés vérifiées).
+- Menaces : préférence d'affichage d'un compte (pas de droit en plus) ;
+  clés vérifiées contre la liste connue, taille bornée ; les entrées
+  réservées aux admins restent cachées aux comptes lecture quel que soit
+  le menu.
+- Coût : rien en plus par page (le compte est déjà lu) ; 120 règles CSS
+  d'ordre (2 Ko).
