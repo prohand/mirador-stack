@@ -296,8 +296,8 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
 /* Menu « Trier » des tableaux en cartes (téléphone seulement). */
 .tri-cartes { display: none; }
 @media (max-width: 640px) {
-  .tri-cartes { display: flex; align-items: center; gap: 8px; margin: 0 0 .6rem; font-size: 13px; color: var(--doux); }
-  .tri-cartes select { flex: 1 1 auto; min-width: 0; }
+  .tri-cartes { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; margin: 0 0 .6rem; font-size: 13px; color: var(--doux); text-align: left; }
+  .tri-cartes select { flex: 0 1 auto; width: auto; min-width: 0; font-size: 14px; padding: 6px 30px 6px 10px; min-height: 36px; }
   .tri-cartes:has(+ .defile > table:not(.en-cartes)), .tri-cartes:has(+ table:not(.en-cartes)) { display: none; }
 }
 .u-legend { font-size: .78rem; }
@@ -1379,6 +1379,15 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
   table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-warning { border-left-color: var(--attention); }
   table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-info { border-left-color: var(--info); }
   table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
+  /* Cible (retour du 20/11) : sur la ligne de « Cible », alignée à droite
+     comme les autres valeurs ; cadenas juste avant l'adresse ; pastilles
+     en dessous, à droite. */
+  table.en-cartes > tbody > tr > td.cible-sonde[data-long] { display: flex; align-items: flex-start; text-align: right; }
+  table.en-cartes > tbody > tr > td.cible-sonde[data-long]::before { display: block; max-width: 45%; margin: 0; line-height: 1.6; }
+  table.en-cartes td.cible-sonde .valeur-carte { flex: 1 1 auto; justify-content: flex-end; }
+  table.en-cartes td.cible-sonde .url-sonde { display: block; text-align: right; }
+  table.en-cartes td.cible-sonde .cadenas { margin-right: 4px; }
+  table.en-cartes td.cible-sonde .puces-tache { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; width: 100%; }
 }
 
 /* --- Menu réorganisable (SPEC § 79) : un ordre pour l'ordinateur (o-N), un
