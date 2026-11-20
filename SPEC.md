@@ -6892,3 +6892,19 @@ ci-dessous.
   | Changement discret du réglage | administrateurs seulement ; inscrit au journal d'audit |
 - Coût : rien tant que personne ne l'ouvre ; une lecture SQL des alertes
   d'applications sur 90 jours et une requête de métriques par affichage.
+
+## 85. Téléphone et application installée : « Verre noir » (20/11, maquette validée) **[Fait, à valider]**
+
+- Retour : « le menu noir et la barre noire en haut font vieux en PWA ».
+  Trois maquettes (clair, verre, teinté), puis choix de l'utilisateur :
+  garder le noir, avec la forme « verre ». L'ordinateur ne change pas.
+- Téléphone (≤ 640 px) : en-tête noir plein (raccord avec la barre d'état,
+  `theme-color` inchangé) qui reste visible au défilement ; barre du bas
+  flottante (marges 12 px, coins arrondis, légère transparence et flou),
+  page en cours sur fond bleu ; menu « Plus » jusqu'en bas, la barre
+  flottante par-dessus, seul « Plus » en bleu quand il est ouvert.
+- Libellés courts dans la barre du bas : « Accueil » (au lieu de « Vue
+  d'ensemble », coupé sur deux lignes), « Tâches » ; libellé complet en
+  infobulle et dans le menu.
+- Coût : CSS seulement (le flou est fait par le navigateur, sur la barre
+  du bas seulement).

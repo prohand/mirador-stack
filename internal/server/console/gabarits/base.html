@@ -50,7 +50,7 @@
   </aside>
   {{/* Téléphone : barre du bas (4 pages + « Plus » qui ouvre tout le menu). Cachée sur grand écran. */}}
   <nav class="nav-bas" aria-label="Menu rapide" data-menu-bas="{{range $i, $c := .MenuBasCles}}{{if $i}} {{end}}{{$c}}{{end}}">
-    {{range .MenuBas}}<a href="{{.Href}}"{{if .Actif}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-{{.Icone}}"></use></svg><span>{{.Libelle}}</span>{{if .Compteur}}<b class="compteur{{if .ClasseCompteur}} {{.ClasseCompteur}}{{end}}">{{.Compteur}}</b>{{end}}</a>
+    {{range .MenuBas}}<a href="{{.Href}}" title="{{.Libelle}}"{{if .Actif}} class="actif" aria-current="page"{{end}}><svg class="icone"><use href="#i-{{.Icone}}"></use></svg><span>{{.Court}}</span>{{if .Compteur}}<b class="compteur{{if .ClasseCompteur}} {{.ClasseCompteur}}{{end}}">{{.Compteur}}</b>{{end}}</a>
     {{end}}    <button type="button" data-menu-plus aria-expanded="false" aria-label="Ouvrir ou fermer tout le menu"><svg class="icone"><use href="#i-menu"></use></svg><span>Plus</span></button>
   </nav>
   <div class="contenu">

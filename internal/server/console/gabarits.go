@@ -501,6 +501,7 @@ func (g *gabarits) relais(w http.ResponseWriter, vers string) {
 // lienMenu : une entrée du menu latéral.
 type lienMenu struct {
 	Href, Icone, Libelle string
+	Court                string // libellé de la barre du bas (téléphone)
 	Actif                bool
 	Compteur             int
 	ClasseCompteur       string // vide (rouge) ou « attention » (orange)

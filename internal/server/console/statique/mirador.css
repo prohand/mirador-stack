@@ -1428,3 +1428,22 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .edition-accueil [data-bloc].glisse { opacity: .5; }
 .edition-accueil .blocs-accueil > .kpis { padding: 50px 10px 10px; }
 .edition-accueil .blocs-accueil > .kpis > .titre-bloc-edition { position: absolute; top: 16px; left: 14px; }
+
+/* PWA et téléphone, « B · Verre noir » (retour du 20/11, maquette validée) :
+   le haut reste noir plein (raccord avec la barre d'état) et reste visible
+   au défilement ; la barre du bas flotte, arrondie, légèrement
+   transparente, la page en cours sur fond bleu. L'ordinateur ne change pas. */
+@media (max-width: 640px) {
+  .appli:not(.ouvert) .barre { position: sticky; top: 0; z-index: 25; }
+  .nav-bas { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 4px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, .08); border-top: 1px solid rgba(255, 255, 255, .08);
+    background: rgba(17, 19, 24, .86); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .28); }
+  .nav-bas a, .nav-bas button { min-height: 50px; border-radius: 16px; color: #A3A8B4; white-space: nowrap; }
+  .nav-bas a span, .nav-bas button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+  .nav-bas a.actif, .nav-bas button.actif { color: #FFFFFF; background: #3E63DD; }
+  .contenu { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .appli.ouvert .nav-bas a.actif { color: #A3A8B4; background: transparent; }   /* menu ouvert : seul « Plus » en bleu */
+  /* Menu « Plus » : jusqu'en bas de l'écran, la barre flottante par-dessus. */
+  .appli.ouvert .barre, .appli.ouvert.replie .barre, .appli.ouvert.menu-haut .barre { bottom: 0; padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+}

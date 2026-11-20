@@ -24,16 +24,19 @@ type entreeMenu struct {
 	Groupe                    int  // 0 Supervision, 1 Configuration
 	Admin                     bool // seulement pour un admin
 	Fixe                      bool // ne peut pas être masquée (pour ne jamais se bloquer)
+	// Court : libellé de la barre du bas du téléphone, si le libellé est
+	// trop long pour y tenir sur une ligne (retour du 20/11).
+	Court string
 }
 
 var groupesMenu = []string{"Supervision", "Configuration"}
 
 // entreesMenu : ordre par défaut.
 var entreesMenu = []entreeMenu{
-	{Cle: "accueil", Href: "/", Icone: "ensemble", Libelle: "Vue d'ensemble"},
+	{Cle: "accueil", Href: "/", Icone: "ensemble", Libelle: "Vue d'ensemble", Court: "Accueil"},
 	{Cle: "machines", Href: "/machines", Icone: "machines", Libelle: "Machines"},
 	{Cle: "conteneurs", Href: "/conteneurs", Icone: "conteneur", Libelle: "Conteneurs"},
-	{Cle: "taches", Href: "/taches", Icone: "calendrier", Libelle: "Tâches planifiées"},
+	{Cle: "taches", Href: "/taches", Icone: "calendrier", Libelle: "Tâches planifiées", Court: "Tâches"},
 	{Cle: "services", Href: "/applications", Icone: "activite", Libelle: "Applications"},
 	{Cle: "elements", Href: "/elements", Icone: "base", Libelle: "Éléments"},
 	{Cle: "sondes", Href: "/sondes", Icone: "globe", Libelle: "Sondes"},
@@ -179,7 +182,10 @@ func fmtOrdre(o, t int) string { return "o-" + strconv.Itoa(o) + " t-" + strconv
 
 // lienDe : lien du menu avec son compteur.
 func (p *Page) lienDe(e entreeMenu) lienMenu {
-	l := lienMenu{Href: e.Href, Icone: e.Icone, Libelle: e.Libelle, Actif: p.Menu == e.Cle}
+	l := lienMenu{Href: e.Href, Icone: e.Icone, Libelle: e.Libelle, Court: e.Libelle, Actif: p.Menu == e.Cle}
+	if e.Court != "" {
+		l.Court = e.Court
+	}
 	switch e.Cle {
 	case "machines":
 		l.Compteur, l.ClasseCompteur, l.AideCompteur = p.NbAValider, "attention", "Machines où l'agent a trouvé quelque chose de nouveau à surveiller"

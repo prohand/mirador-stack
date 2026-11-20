@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Téléphone « Verre noir » (SPEC § 85, 20/11) : fait, à valider
+
+- En-tête noir qui reste en haut, barre du bas flottante et arrondie,
+  « Accueil » au lieu de « Vue d'ensemble » ; ordinateur inchangé.
+
 ## Page de statut publique (SPEC § 84, 20/11) : fait, à valider
 
 - Réglages › Interface : adresse secrète `/statut/<jeton>`, applications

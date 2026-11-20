@@ -69,6 +69,16 @@ func TestTachesPing(t *testing.T) {
 	if n == 0 {
 		t.Fatal("pas de limite d'appels")
 	}
+	// Bouton « Ajouter » : formulaire en haut de page, champ Nom prêt
+	// (retour du 20/11 : formulaire en bas, le bouton semblait sans effet).
+	_, page0, _ := b.get(c, "/taches")
+	if !strings.Contains(page0, `href="/taches?ajout=1#nouvelle"`) || strings.Contains(page0, `id="nouvelle"`) {
+		t.Error("bouton Ajouter : lien ou formulaire fermé attendu")
+	}
+	_, page0, _ = b.get(c, "/taches?ajout=1")
+	if i, j := strings.Index(page0, `id="nouvelle"`), strings.Index(page0, "<h2>Suivies</h2>"); i < 0 || j < 0 || i > j || !strings.Contains(page0, "autofocus") {
+		t.Error("formulaire d'ajout : absent, ou pas en haut de page")
+	}
 	// Entrée de menu à part (retour du 20/11), plus d'onglet dans Sondes.
 	_, page, _ := b.get(c, "/taches")
 	if !strings.Contains(page, `data-cle="taches"`) || !strings.Contains(page, `href="/taches" title="Tâches planifiées" class="`) {
