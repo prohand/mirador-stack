@@ -1674,3 +1674,9 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
   .logs-table tr.logs-ligne-log { border-bottom-color: var(--bord); padding-top: 9px; padding-bottom: 9px; }
   .logs-table tr.logs-ligne-log.pair:not(.err):not(.warn):not(.cible) { background: var(--entete-table); }
 }
+
+/* Logs : titres des colonnes (retour du 20/11 : « il manque les colonnes »).
+   Sur téléphone, les lignes sont des blocs : pas de titres. */
+.logs-table thead th { text-align: left; font-size: 12px; font-weight: 600; color: var(--pale); padding: 6px 8px; border-bottom: 1px solid var(--bord); background: var(--carte); white-space: nowrap; }
+.logs-table thead th:first-child { padding-left: 12px; }
+@media (max-width: 640px) { .logs-table thead.logs-tete-colonnes { display: none; } }

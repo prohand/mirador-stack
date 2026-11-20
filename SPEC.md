@@ -7312,6 +7312,10 @@ Partie 3 des améliorations des agents et du temps réel.
   les lignes ») : trait normal entre les lignes au lieu du trait très pâle,
   un peu plus d'air, une ligne visible sur deux légèrement teintée
   (recalculée quand on replie, filtre ou reçoit des lignes en direct).
+- Titres des colonnes (retour du 20/11 : « il manque les colonnes ») :
+  Heure, Machine · origine, Niveau, Message (ordinateur ; sur téléphone,
+  les lignes sont des blocs). Tableau exclu du tri, des cartes et du
+  filtre automatiques (il a les siens).
 
 
 ## 100. Tampon disque et envoi allégé (20/11, maquette validée) **[Fait, à valider]**
