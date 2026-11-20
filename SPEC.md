@@ -7166,3 +7166,67 @@ Sept idées proposées le 20/11, toutes demandées.
   grave au lieu de la pastille de gravité, déjà affichée sur chaque alerte
   (« Avertissement est affiché 2 fois »).
 - Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.
+
+## 97. « En direct » sur la page d'une machine, top des processus (20/11, maquette validée) **[Fait, à valider]**
+
+Partie 1 des améliorations des agents et du temps réel (demande du 20/11 :
+« tout », « 1 s », durée conseillée retenue).
+
+### 97.1 Ce que voit l'utilisateur
+- Bloc « ● En direct » en tête de la Vue d'ensemble d'une machine : CPU,
+  mémoire, réseau, disques rafraîchis chaque seconde (courbes des 2
+  dernières minutes), et les 10 processus les plus gourmands (comme `top`) :
+  nom, pid, utilisateur, CPU, mémoire, VM / conteneur (d'après le cgroup).
+- Actif tant que la page est ouverte et visible (onglet « Vue d'ensemble »
+  affiché) ; arrêt 30 s après que la page est cachée ; bouton « Pause » ;
+  coupé au bout de 15 min (« Continuer en direct »).
+- Téléphone : 4 cases en 2 × 2, top sur 3 colonnes.
+- Agent trop ancien : le bloc le dit (« à mettre à jour »).
+- Correction au passage : la barre iOS montrait tout le texte du titre
+  (« pve1 En ligne 3 à valider… ») ; elle ne garde que le titre, sans pastilles.
+
+### 97.2 Comment (l'agent n'ouvre toujours aucun port)
+| Étape | Détail |
+|---|---|
+| Page | flux `GET /machines/<nom>/direct` (EventSource, session obligatoire) |
+| Serveur | demande posée 30 s ; réveille la demande de configuration gardée ouverte de l'agent (signal par machine, § 22) ; réponse avec `X-Mirador-Direct: <secondes>` |
+| Agent | un relevé par seconde, `POST /api/agent/v1/direct` (JSON borné à 8 Ko) ; chaque réponse redonne les secondes restantes ; 0, 3 échecs ou 16 min : arrêt |
+| Prolongation | chaque relevé prolonge de 30 s tant qu'une page regarde ; page partie : arrêt en 30 s au plus |
+| Mémoire serveur | 300 relevés par machine (5 min), jamais écrits dans la base de métriques ; 50 pages en direct au plus |
+| Ancien agent / ancien serveur | capacité `direct` annoncée ; sans elle, pas de flux (409) ; un ancien serveur ne répond pas l'en-tête : l'agent ne fait rien |
+
+Choix : EventSource (SSE) plutôt que WebSocket : une seule direction,
+HTTP simple, reprise automatique par le navigateur, rien à ajouter
+côté serveur ; relevé par l'agent dans /proc plutôt que de lancer `top`
+(aucune commande exécutée, règle du projet).
+
+### 97.3 Relevé de l'agent (lecture seule, sans root)
+- CPU : /proc/stat ; mémoire : MemTotal − MemAvailable ; charge : /proc/loadavg.
+- Réseau : cartes qui ont un `device` dans /sys (physiques ou virtio) ;
+  sinon toutes hors lo et virtuelles (pont vmbr, tap, veth, docker…) : le
+  trafic n'est pas compté deux fois.
+- Disques : disques entiers (`device` dans /sys/block, ou sdX, vdX, nvmeXnY) :
+  ni partitions, ni LVM (dm-), ni loop.
+- Processus : /proc/<pid>/stat (temps CPU, mémoire résidente), propriétaire
+  de /proc/<pid>, groupe d'après /proc/<pid>/cgroup (« VM 102 », « CT 200 »,
+  « docker 3f2a1b… »). Avec `hidepid`, seuls les processus visibles par
+  l'agent apparaissent.
+
+### 97.4 Coût (mesuré)
+- Agent, pendant le direct seulement : ~1 ms par relevé avec 82 processus
+  (~6 ms estimées pour 500 processus, soit 0,6 % d'un cœur) ; 345 Ko de
+  mémoire passagère par relevé. Rien quand personne ne regarde.
+- Réseau : ~850 octets par relevé (~1,2 Ko/s avec l'en-tête HTTP) par
+  machine regardée, et autant vers le navigateur.
+- Serveur : ~300 Ko de mémoire par machine regardée (5 min de relevés).
+
+### 97.5 Modèle de menaces
+- Flux réservé aux personnes connectées (rôle lecture) ; machine vérifiée.
+- Relevé accepté seulement avec le token de la machine, et seulement
+  pendant une demande (sinon ignoré, réponse « 0 ») ; taille, nombres et
+  textes bornés (64 caractères, sans caractère de contrôle) ; affichés avec
+  `textContent` (jamais comme du HTML).
+- Un agent compromis peut seulement envoyer de faux chiffres pendant qu'on
+  regarde sa machine ; il ne peut ni lancer le direct ni écrire dans la base.
+- Aucune commande, aucun port ouvert ; 50 pages en direct au plus ; une
+  page qui ne lit plus est coupée (délai d'écriture de 10 s).

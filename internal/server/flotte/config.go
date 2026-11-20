@@ -219,6 +219,15 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		return doc, etag, nil
 	}
 	signal := attenteSignal() // avant la lecture : aucun changement manqué
+	// Direct (SPEC § 97) : une page qui commence à regarder la machine
+	// réveille son agent ; un direct déjà demandé mais pas encore commencé
+	// par l'agent est répondu tout de suite.
+	var signalDirect <-chan struct{}
+	directEnAttente := false
+	if f.opt.Direct != nil {
+		signalDirect = f.opt.Direct.Signal(m.ID)
+		directEnAttente = f.opt.Direct.Reste(m.ID) > 0 && r.Header.Get(protocole.EnteteDirectActif) != "1"
+	}
 	doc, etag, err := charger()
 	if err != nil {
 		f.opt.Journal.Error("configuration d'une machine", "machine", m.Nom, "erreur", err)
@@ -231,12 +240,13 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	actu := actualisationDe(m.ID)
 	vu, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteActualise), 10, 64)
 	if attente := lireAttente(r.Header.Get(protocole.EnteteAttendre)); attente > 0 &&
-		r.Header.Get("If-None-Match") == etag && actu <= vu {
+		r.Header.Get("If-None-Match") == etag && actu <= vu && !directEnAttente {
 		liberer()
 		libere = true
 		minuterie := time.NewTimer(attente)
 		select {
 		case <-signal:
+		case <-signalDirect:
 		case <-minuterie.C:
 		case <-r.Context().Done():
 			minuterie.Stop()
@@ -250,6 +260,11 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		actu = actualisationDe(m.ID)
 	}
 	w.Header().Set(protocole.EnteteAttente, "1") // ce serveur sait garder la demande ouverte
+	if f.opt.Direct != nil {
+		if reste := f.opt.Direct.Reste(m.ID); reste > 0 {
+			w.Header().Set(protocole.EnteteDirect, strconv.Itoa(reste))
+		}
+	}
 	if actu > 0 {
 		w.Header().Set(protocole.EnteteActualiser, strconv.FormatInt(actu, 10))
 	}

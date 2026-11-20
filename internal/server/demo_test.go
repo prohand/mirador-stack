@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/auth"
 	"mirador-stack/internal/server/certsyslog"
 	"os"
@@ -252,6 +253,35 @@ func TestDemoInterface(t *testing.T) {
 		('pve1|systemd|sauvegarde-restic', 'sauvegarde-restic', 'systemd', 'pve1', 0, 3600, 'warning', ?),
 		('pve1|pve|vzdump', 'vzdump', 'pve', 'pve1', 86400, 7200, 'critical', ?)`, now.Add(-48*time.Hour).Unix(), now.Add(-48*time.Hour).Unix())
 	_, _ = s.db.Exec(`UPDATE taches SET libelle = 'Sauvegardes des VM (nuit)' WHERE cle = 'pve1|pve|vzdump'`)
+	// Direct (SPEC § 97) : pve1 sait faire le direct ; tant qu'une page la
+	// regarde, la démo envoie un relevé par seconde, comme le ferait l'agent.
+	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements,proxmox,checks,reessai,direct' WHERE nom = 'pve1'`)
+	var idPve1 int64
+	_ = s.db.QueryRow(`SELECT id FROM machines WHERE nom = 'pve1'`).Scan(&idPve1)
+	go func() {
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for k := 0; ; k++ {
+			<-t.C
+			if s.direct.Reste(idPve1) == 0 {
+				continue
+			}
+			f := float64(k)
+			s.direct.Recevoir(idPve1, protocole.Direct{T: time.Now().UnixMilli(), CPU: 30 + 12*math.Sin(f/4) + 5*math.Sin(f*1.3),
+				Coeurs: 8, Charge: 2.9 + 0.3*math.Sin(f/9), MemUtilisee: (19.5 + 0.4*math.Sin(f/15)) * (1 << 30), MemTotale: 32 << 30,
+				NetRecu: (40 + 10*math.Sin(f/2)) * (1 << 20), NetEnvoye: 3.1 * (1 << 20), DisqueLu: (110 + 40*math.Sin(f/3)) * (1 << 20), DisqueEcrit: 18 << 20,
+				Processus: []protocole.ProcessusDirect{
+					{PID: 41237, Nom: "vzdump", Utilisateur: "root", CPU: 80 + 8*math.Sin(f/3), Memoire: 1.2 * (1 << 30)},
+					{PID: 2210, Nom: "kvm", Utilisateur: "root", CPU: 41 + 6*math.Sin(f/5), Memoire: 8.1 * (1 << 30), Groupe: "VM 102"},
+					{PID: 41240, Nom: "zstd", Utilisateur: "root", CPU: 30, Memoire: 96 << 20},
+					{PID: 1984, Nom: "kvm", Utilisateur: "root", CPU: 12, Memoire: 4 << 30, Groupe: "VM 101"},
+					{PID: 3121, Nom: "lxc-start", Utilisateur: "root", CPU: 3.5, Memoire: 220 << 20, Groupe: "CT 200"},
+					{PID: 1012, Nom: "pmxcfs", Utilisateur: "root", CPU: 2, Memoire: 64 << 20},
+					{PID: 1630, Nom: "pvestatd", Utilisateur: "root", CPU: 1.2, Memoire: 110 << 20},
+					{PID: 880, Nom: "systemd-journal", Utilisateur: "root", CPU: 0.4, Memoire: 48 << 20},
+				}})
+		}
+	}()
 	// Historique (SPEC § 95) : 9 nuits de sauvegarde (une en échec ; la VM
 	// 102 faisait 6,5 Gio : « taille en baisse »), restic d'habitude en
 	// 10 min (42 min la dernière fois : « durée anormale »).

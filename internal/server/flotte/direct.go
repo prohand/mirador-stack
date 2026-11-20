@@ -3,9 +3,12 @@
 package flotte
 
 import (
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"mirador-stack/internal/protocole"
 )
 
 // Configuration en temps réel (demande du 12/11, SPEC § 22). L'agent
@@ -73,4 +76,32 @@ func lireAttente(v string) time.Duration {
 		return 0
 	}
 	return min(time.Duration(s)*time.Second, AttenteMaxConfig)
+}
+
+// recevoirDirect : un relevé « en direct » de l'agent (SPEC § 97). La
+// réponse donne les secondes restantes (0 : l'agent s'arrête). Aucun relevé
+// n'est accepté sans page qui regarde la machine.
+func (f *Flotte) recevoirDirect(w http.ResponseWriter, r *http.Request) {
+	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	if !ok {
+		return
+	}
+	defer liberer()
+	if f.opt.Direct == nil {
+		w.Header().Set(protocole.EnteteDirect, "0")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	var d protocole.Direct
+	if err := lireJSON(r, &d); err != nil {
+		erreur(w, http.StatusBadRequest, "relevé illisible")
+		return
+	}
+	if err := d.Valider(); err != nil {
+		erreur(w, http.StatusBadRequest, "relevé invalide")
+		return
+	}
+	d.T = f.opt.Maintenant().UnixMilli() // heure du serveur : les courbes ne dépendent pas de l'horloge de l'agent
+	w.Header().Set(protocole.EnteteDirect, strconv.Itoa(f.opt.Direct.Recevoir(m.ID, d)))
+	w.WriteHeader(http.StatusNoContent)
 }

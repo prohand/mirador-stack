@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/server/direct"
 	"net/http"
 	"sync"
 	"time"
@@ -40,6 +41,9 @@ type Options struct {
 	// Cle : clé du serveur ; déchiffre les mots de passe SNMP des collecteurs
 	// au moment de leur envoyer la configuration (SPEC § 23.15).
 	Cle []byte
+	// Direct : relevés « en direct » des pages des machines (SPEC § 97) ;
+	// nil : pas de direct.
+	Direct *direct.Hub
 }
 
 // Flotte : points d'entrée des machines (hors métriques et logs).
@@ -90,6 +94,7 @@ func (f *Flotte) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET "+protocole.CheminInstallationCollecteur, f.scriptInstallationCollecteur)
 	m.HandleFunc("GET "+protocole.CheminInstallationBinaire, f.binaireAInstaller)
 	m.HandleFunc("GET "+protocole.CheminCles, f.cles)
+	m.HandleFunc("POST "+protocole.CheminDirect, f.recevoirDirect)
 }
 
 // Boucle : écrit les battements en base une fois par minute, et à l'arrêt.

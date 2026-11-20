@@ -61,6 +61,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("POST /applications", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
+	m.HandleFunc("GET /machines/{nom}/direct", c.lecture(c.fluxDirect)) // relevés en direct (SPEC § 97)
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
@@ -660,8 +661,11 @@ type donneesMachine struct {
 	Surv        vueSurveillance // bloc « À surveiller sur cette machine »
 	Identite    identiteMachine // bandeau sous le nom
 	Agent       bool            // machine avec agent (pas un collecteur)
-	Modeles     vueModeles      // bloc « Modèles » (SPEC § 24)
-	Ingestion   string          // adresse d'ingestion (commande de réinstallation)
+	// Direct (SPEC § 97) : "ok" (bloc « En direct »), "ancien" (agent trop
+	// ancien : le bloc le dit), "" (pas de direct : collecteur, serveur sans direct).
+	Direct    string
+	Modeles   vueModeles // bloc « Modèles » (SPEC § 24)
+	Ingestion string     // adresse d'ingestion (commande de réinstallation)
 	// Collecteur (SPEC § 23.13) : équipements relevés et machines qu'on peut
 	// lui rattacher ; pour un équipement : le collecteur qui le relève.
 	Collecteur  bool
@@ -699,6 +703,12 @@ func (c *Console) pageMachine(q *req) {
 	d.Alertes, d.Masquees = separerMasquees(d.Alertes)
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Machine: m.Nom}, "/alertes?machine="+url.QueryEscape(m.Nom), q.t)
+	if m.Type == "agent" && m.Statut == "approuvee" && c.opt.Direct != nil {
+		d.Direct = "ancien"
+		if flotte.ACapacite(m.Capacites, protocole.CapaciteDirect) {
+			d.Direct = "ok"
+		}
+	}
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
 		d.Maintenant = c.enCeMoment(ctx, m, q.t)
 		d.Gourmands = c.gourmands(ctx, m, q.t)

@@ -1612,3 +1612,39 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .point-gravite { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #2563EB; }
 .point-gravite.critical { background: #DC2626; }
 .point-gravite.warning { background: #D97706; }
+
+/* « En direct » sur la page d'une machine (SPEC § 97). */
+.direct-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.direct-tete h2 { margin: 0; }
+.direct-tete .doux { font-size: 13px; }
+.direct-tete .actions { margin-left: auto; display: flex; gap: 8px; }
+.point-direct { width: 10px; height: 10px; border-radius: 50%; background: var(--pale); flex: none; }
+.direct.recu .point-direct { background: #E5484D; box-shadow: 0 0 0 4px rgba(229, 72, 77, .18); animation: battement-direct 2s ease-in-out infinite; }
+.direct.arrete .point-direct { background: var(--pale); box-shadow: none; animation: none; }
+@keyframes battement-direct { 50% { box-shadow: 0 0 0 7px rgba(229, 72, 77, .05); } }
+@media (prefers-reduced-motion: reduce) { .direct.recu .point-direct { animation: none; } }
+.direct-grille { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.direct-case { border: 1px solid var(--bord); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.direct-case small { color: var(--pale); font-size: 12px; }
+.direct-case b { display: block; font-size: 22px; margin: 2px 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.direct-case b .detail { font-size: 13px; color: var(--pale); font-weight: 500; }
+.direct-case svg { width: 100%; height: 46px; display: block; }
+.direct-case polyline { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.c-cpu { stroke: #3E63DD; } .c-mem { stroke: #7C3AED; } .c-net { stroke: #0EA5E9; } .c-disque { stroke: #16A34A; }
+.titre-top { margin: 16px 0 0; }
+.top-proc { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 6px; }
+.top-proc th { color: var(--pale); font-weight: 500; text-align: left; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--bord); }
+.top-proc td { padding: 6px 8px; border-bottom: 1px solid var(--bord-doux); }
+.top-proc .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.barre-mini { display: inline-block; height: 6px; border-radius: 3px; background: #3E63DD; vertical-align: middle; margin-right: 6px; }
+.barre-mini.m { background: #7C3AED; }
+.note-direct { margin: 10px 0 0; font-size: 12.5px; }
+@media (max-width: 640px) {
+  .direct-grille { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .direct-case { padding: 8px 10px; }
+  .direct-case b { font-size: 17px; }
+  .direct-case b .detail { display: block; font-size: 11.5px; }
+  .direct-case svg { height: 32px; }
+  .direct-tete .doux { flex-basis: 100%; order: 3; }
+  .top-proc .col-util, .top-proc .col-groupe, .barre-mini { display: none; }
+}
