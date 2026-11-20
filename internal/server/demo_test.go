@@ -148,6 +148,8 @@ func TestDemoInterface(t *testing.T) {
 			}
 			// Détail de la sauvegarde vzdump (SPEC § 89).
 			mk("mirador_tache_info", un, "source", "pve", "tache", "vzdump", "stockage", "pbs-maison", "planning", "02:00", "commentaire", "Sauvegardes de nuit")
+			mk("mirador_tache_erreur", un, "source", "pve", "tache", "vzdump", "rang", "1", "message", "Backup of VM 104 failed - unable to create temporary directory '/var/tmp/vzdumptmp1234' - Permission denied")
+			mk("mirador_tache_erreur", un, "source", "pve", "tache", "vzdump", "rang", "2", "message", "job errors")
 			for _, vm := range []struct {
 				id, typ, nom string
 				ok           float64

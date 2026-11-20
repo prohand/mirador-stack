@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/stockage"
+	"mirador-stack/internal/server/stockage/journaux"
 	"mirador-stack/internal/server/taches"
 )
 
@@ -152,5 +155,58 @@ func TestProchaineTache(t *testing.T) {
 	}
 	if prochaineTexte(m.Add(9*time.Hour), m) != "dans 9 h" || prochaineTexte(m.Add(-2*time.Hour), m) != "prévue il y a 2 h" || prochaineTexte(time.Time{}, m) != "" {
 		t.Error("texte de la prochaine exécution")
+	}
+}
+
+// « Voir l'erreur » (SPEC § 93) : timer en échec avec les lignes du journal
+// de son service autour de la fin ; signal curl avec son message ; tâche
+// inconnue : 404.
+func TestErreurTache(t *testing.T) {
+	b := nouveauBanc(t)
+	m := b.h.maintenant()
+	jx, err := journaux.Ouvrir(journaux.Options{Dossier: t.TempDir(), Maintenant: b.h.maintenant})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jx.Fermer() })
+	b.c.opt.Logs = jx
+	_ = jx.Ecrire(context.Background(), []stockage.Ligne{
+		{T: m.Add(-3 * time.Minute).UnixMilli(), Msg: "Processing /etc/letsencrypt/renewal/exemple.fr.conf", Champs: map[string]string{"host": "web1", "unit": "certbot.service"}},
+		{T: m.Add(-2 * time.Minute).UnixMilli(), Msg: "Failed to renew certificate exemple.fr with error: Some challenges have failed.", Champs: map[string]string{"host": "web1", "unit": "certbot.service"}},
+		{T: m.Add(-2 * time.Minute).UnixMilli(), Msg: "autre service", Champs: map[string]string{"host": "web1", "unit": "nginx.service"}},
+	})
+	b.metriquesSimulees(t, []serieTest{
+		{[]string{"__name__", "mirador_tache_fin_timestamp_seconds", "instance", "web1", "job", "node", "source", "systemd", "tache", "certbot.timer"}, constante(float64(m.Add(-2 * time.Minute).Unix()))},
+		{[]string{"__name__", "mirador_tache_debut_timestamp_seconds", "instance", "web1", "job", "node", "source", "systemd", "tache", "certbot.timer"}, constante(float64(m.Add(-3 * time.Minute).Unix()))},
+		{[]string{"__name__", "mirador_tache_code", "instance", "web1", "job", "node", "source", "systemd", "tache", "certbot.timer"}, constante(1)},
+	})
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	if _, page, _ := b.get(c, "/taches"); !strings.Contains(page, `href="/taches/erreur?cle=web1%7csystemd%7ccertbot.timer" data-panneau`) &&
+		!strings.Contains(page, `href="/taches/erreur?cle=web1|systemd|certbot.timer" data-panneau`) {
+		t.Errorf("bouton « Voir l'erreur » absent :\n%s", extrait(page, "certbot"))
+	}
+	_, corps, _ := b.get(c, "/taches/erreur?cle="+url.QueryEscape("web1|systemd|certbot.timer"))
+	for _, attendu := range []string{"Dernières lignes du journal de certbot.service", `<span class="e">Failed to renew certificate`, "Processing /etc/letsencrypt",
+		"Échec · code 1", "Ouvrir dans Logs"} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("panneau : %q absent", attendu)
+		}
+	}
+	if strings.Contains(corps, "autre service") {
+		t.Error("logs d'un autre service mélangés")
+	}
+	// Signal curl en échec avec un message.
+	csrf := b.csrf(c, "/taches")
+	_, page, _ := b.post(c, "/taches", url.Values{"csrf": {csrf}, "action": {"creer"}, "nom": {"Sauvegarde NAS"}, "periode": {"86400"}, "marge": {"1"}, "gravite": {"warning"}})
+	adresse := trouver(t, reURLPing, page)
+	anonyme := b.client()
+	b.get(anonyme, adresse[strings.Index(adresse, "/ping/"):]+"/echec?message=disque%20plein")
+	ts, _ := taches.Lister(context.Background(), b.db)
+	_, corps, _ = b.get(c, "/taches/erreur?cle=ping:"+strconv.FormatInt(ts[0].ID, 10))
+	if !strings.Contains(corps, "<h3>Message</h3><p>disque plein</p>") {
+		t.Errorf("message du signal absent :\n%s", extrait(corps, "Message"))
+	}
+	if code, _, _ := b.get(c, "/taches/erreur?cle=inconnue"); code != http.StatusNotFound {
+		t.Errorf("tâche inconnue : %d", code)
 	}
 }

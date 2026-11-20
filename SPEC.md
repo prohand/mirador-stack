@@ -7020,3 +7020,21 @@ ci-dessous.
   fréquence attendue (tâches curl, « chaque jour »…). Inconnue : « — »
   (conteneur ponctuel sans fréquence, tâche jamais vue).
 - Coût : aucun (déjà lu).
+
+## 93. Tâches planifiées : « Voir l'erreur » (20/11, maquette validée) **[Fait, à valider]**
+
+- Bouton « ⚠ Voir l'erreur » sur chaque tâche en échec (suivie ou
+  détectée, page Tâches et page de la machine) ; panneau latéral (même
+  mécanisme que le détail d'une machine ; page entière sans script) :
+  - timer systemd : dernières lignes (30 au plus) du journal du service
+    (`<timer>.service`) de 2 min avant le début à 1 min après la fin, lignes
+    d'erreur en rouge, lien « Ouvrir dans Logs » sur la même fenêtre ;
+  - conteneur ponctuel : mêmes lignes, logs du conteneur ;
+  - sauvegarde Proxmox VE : erreur de chaque VM en échec et lignes
+    « ERROR » du journal (20 au plus, 160 caractères), lues par l'assistant
+    root (format 6, série `mirador_tache_erreur{rang,message}`) ;
+  - signal curl : le message envoyé avec `/echec` ou `/code`.
+- Logs : ceux que mirador reçoit déjà (masqués par l'agent) ; recherche
+  bornée (fenêtre ≤ 6 h, 30 lignes, file des recherches de la page Logs).
+- Menaces : lecture seulement, compte connecté (rôle lecture suffit, comme
+  la page Logs) ; aucun programme lancé sur les machines.

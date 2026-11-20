@@ -1047,6 +1047,14 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Tâches : prochaine exécution et « Voir l'erreur » (SPEC § 92, § 93, 20/11) : fait, à valider
+
+- Colonne « Prochaine » (annoncée ou estimée).
+- Bouton « Voir l'erreur » : journal du service ou du conteneur autour de
+  l'échec, erreurs des sauvegardes Proxmox, message des signaux curl.
+- À faire chez l'utilisateur : agent à jour sur les nœuds Proxmox
+  (assistant root format 6) pour les lignes « ERROR » des sauvegardes.
+
 ## Sondes allégées, tâches : nom affiché et détail Proxmox (SPEC § 89, 20/11) : fait, à valider
 
 - Sondes : colonne « Cible » en pastilles, jours restants du certificat.

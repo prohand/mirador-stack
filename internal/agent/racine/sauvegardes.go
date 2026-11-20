@@ -42,6 +42,8 @@ type DetailSauvegarde struct {
 	Commentaire string         `json:"commentaire,omitempty"` // commentaire du travail planifié
 	Prochaine   time.Time      `json:"prochaine,omitempty"`   // d'après le planning (formes simples)
 	VMs         []VMSauvegarde `json:"vms,omitempty"`
+	// Erreurs : lignes « ERROR » du journal (20 au plus, SPEC § 93).
+	Erreurs []string `json:"erreurs,omitempty"`
 }
 
 // Fichiers lus (variables : remplacées dans les tests).
@@ -53,6 +55,7 @@ var (
 const (
 	journalLuMax = 256 << 10 // octets lus d'un journal de sauvegarde
 	maxVMs       = 200
+	maxErreurs   = 20
 )
 
 var (
@@ -131,6 +134,10 @@ func analyserJournalSauvegarde(b []byte) DetailSauvegarde {
 			l = l[i:]
 		} else if i := strings.Index(l, "ERROR: "); i > 0 && i < 30 {
 			l = l[i:]
+		}
+		// « ERROR: … » et « TASK ERROR: … » (ramené à « ERROR: » ci-dessus).
+		if e, ok := strings.CutPrefix(l, "ERROR: "); ok && len(d.Erreurs) < maxErreurs {
+			d.Erreurs = append(d.Erreurs, raccourcirTexte(e, 160))
 		}
 		switch {
 		case d.Stockage == "" && strings.Contains(l, "starting new backup job: vzdump"):
@@ -342,7 +349,7 @@ func completerSauvegardes(taches []TacheProxmox, maintenant time.Time) {
 			d.Planning = raccourcirTexte(strings.Join(plannings, " ; "), 100)
 			d.Commentaire = raccourcirTexte(strings.Join(commentaires, " ; "), 100)
 		}
-		if d.Stockage != "" || len(d.VMs) > 0 || d.Planning != "" {
+		if d.Stockage != "" || len(d.VMs) > 0 || d.Planning != "" || len(d.Erreurs) > 0 {
 			t.Detail = &d
 		}
 	}
