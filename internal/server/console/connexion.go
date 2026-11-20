@@ -44,6 +44,9 @@ type donneesConnexion struct {
 	// PKSeule : la page de connexion propose la passkey seule (sans mot de
 	// passe) ; PKDomaine est alors rempli, le défi est demandé au clic.
 	PKSeule bool
+	// Confiance : la case « Rester connecté sur cet appareil » est proposée
+	// (réglage de la page Sécurité, SPEC § 78).
+	Confiance bool
 }
 
 // passkeySeule : domaine si la connexion par passkey seule est possible
@@ -63,6 +66,7 @@ func (c *Console) passkeySeule(r *http.Request) string {
 func (c *Console) pageConnexionAvec(w http.ResponseWriter, r *http.Request, code int, d donneesConnexion) {
 	d.PKDomaine = c.passkeySeule(r)
 	d.PKSeule = d.PKDomaine != ""
+	d.Confiance = !c.securite.Load().SansConfiance
 	c.pages.rendreSeuleCode(w, code, "connexion", "Connexion", d)
 }
 
@@ -193,7 +197,8 @@ func (c *Console) postConnexion(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip, Suite: suite}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: etape, Adresse: ip, Suite: suite,
+		Confiance: c.confiancePermise(r)}, t)
 	auth.PoserCookie(w, id)
 	http.Redirect(w, r, cheminEtape(etape), http.StatusSeeOther)
 }
@@ -565,7 +570,8 @@ func (c *Console) postPasskeySeule(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 		}
 	}
-	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip, Suite: suite}, t)
+	id := c.sessions.Creer(&auth.Session{UtilisateurID: u.ID, Nom: u.Nom, Generation: u.Generation, Etape: auth.EtapeCode, Adresse: ip, Suite: suite,
+		Confiance: c.confiancePermise(r)}, t)
 	s := c.sessions.Lire(id)
 	if s == nil {
 		http.Redirect(w, r, "/connexion", http.StatusSeeOther)
@@ -612,7 +618,12 @@ func (c *Console) reussir(w http.ResponseWriter, r *http.Request, s *auth.Sessio
 		c.prevenirSecurite("adresse|"+nom+"|"+auth.CleAdresse(ip), "🔑 mirador : connexion de « "+nom+" » depuis une nouvelle adresse : "+ip+
 			"\nSi ce n'est pas vous : fermer la session (page Sécurité) et changer le mot de passe.", t)
 	}
-	auth.PoserCookie(w, id)
+	// « Rester connecté sur cet appareil » (SPEC § 78) : cookie daté et
+	// empreinte gardée sur disque ; sinon cookie de session ordinaire.
+	if !s.Confiance || c.securite.Load().SansConfiance || !c.noterConfiance(w, r, id, s, ip, t) {
+		c.sessions.Modifier(auth.EmpreinteDe(id), func(x *auth.Session) { x.Confiance = false })
+		auth.PoserCookie(w, id)
+	}
 	// Page demandée avant la connexion (lien d'une notification), sinon l'accueil.
 	// Revérifiée ici, juste avant de s'en servir : toujours un chemin de ce
 	// site (jamais une adresse complète), même si la session avait été
@@ -704,7 +715,7 @@ func (c *Console) postCreer2FA(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "enregistrement impossible", http.StatusServiceUnavailable)
 		return
 	}
-	c.sessions.FermerUtilisateur(s.UtilisateurID, s.Empreinte)
+	c.fermerSessionsCompte(r.Context(), s.UtilisateurID, s.Empreinte)
 	c.reussir(w, r, s, s.Nom, ip, t)
 }
 
@@ -716,6 +727,8 @@ func (c *Console) postDeconnexion(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			c.sessions.Supprimer(s.Empreinte)
+			// Déconnexion volontaire : l'appareil n'est plus de confiance.
+			_ = auth.OublierConfiance(r.Context(), c.db, s.Empreinte)
 		}
 	}
 	auth.EffacerCookie(w)

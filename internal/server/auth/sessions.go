@@ -56,8 +56,13 @@ type Session struct {
 	// complète (actions sensibles, changement de mot de passe) ; 5 = fermée.
 	EssaisSensibles int
 	Creee, Vue      time.Time
-	Adresse         string
-	Flash, Alerte   string // message affiché une fois (succès / erreur)
+	// Confiance : « Rester connecté sur cet appareil » demandé à la
+	// connexion (SPEC § 78) ; la session est aussi gardée sur disque.
+	// VueDisque : dernier usage noté sur disque (toutes les 10 min au plus).
+	Confiance     bool
+	VueDisque     time.Time
+	Adresse       string
+	Flash, Alerte string // message affiché une fois (succès / erreur)
 	// Passkeys (SPEC § 20) : défi en cours (à usage unique, 5 min) et nom
 	// choisi pour la clé en cours de création.
 	DefiPasskey   string

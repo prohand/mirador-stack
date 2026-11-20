@@ -30,6 +30,40 @@ type Securite struct {
 	// (demande du 14/11) ; 0 = désactivé (code à chaque action sensible).
 	// Sans omitempty : 0 doit rester 0 (absent = défaut 10 min).
 	ModeAdmin alertes.Duree `json:"mode_admin"`
+	// Appareils de confiance (SPEC § 78) : « Rester connecté sur cet
+	// appareil ». SansConfiance l'interdit (absent = permis) ; durées
+	// absentes = défauts (30 j au plus, 7 j sans usage).
+	SansConfiance       bool          `json:"sans_confiance,omitempty"`
+	ConfianceMax        alertes.Duree `json:"confiance_max,omitempty"`
+	ConfianceInactivite alertes.Duree `json:"confiance_inactivite,omitempty"`
+}
+
+// Durées par défaut d'un appareil de confiance (choix du 20/11).
+const (
+	ConfianceMaxDefaut        = 30 * 24 * time.Hour
+	ConfianceInactiviteDefaut = 7 * 24 * time.Hour
+)
+
+// DureesConfiance : sans usage, et au plus (défauts si non réglées).
+func (s Securite) DureesConfiance() (inactivite, max time.Duration) {
+	inactivite, max = time.Duration(s.ConfianceInactivite), time.Duration(s.ConfianceMax)
+	if inactivite == 0 {
+		inactivite = ConfianceInactiviteDefaut
+	}
+	if max == 0 {
+		max = ConfianceMaxDefaut
+	}
+	return inactivite, max
+}
+
+// ConfianceMaxVue, ConfianceInactiviteVue : valeurs effectives (formulaire).
+func (s Securite) ConfianceMaxVue() alertes.Duree {
+	_, m := s.DureesConfiance()
+	return alertes.Duree(m)
+}
+func (s Securite) ConfianceInactiviteVue() alertes.Duree {
+	i, _ := s.DureesConfiance()
+	return alertes.Duree(i)
 }
 
 // SecuriteDefaut : sessions courtes (brief).
@@ -57,6 +91,9 @@ func (s *Securite) Valider() error {
 	}
 	if d := time.Duration(s.Verrou); d < time.Minute || d > 24*time.Hour {
 		errs = append(errs, errors.New("verrouillage : entre 1 min et 24 h"))
+	}
+	if in, mx := s.DureesConfiance(); mx < 24*time.Hour || mx > 90*24*time.Hour || in < time.Hour || in > 30*24*time.Hour || in > mx {
+		errs = append(errs, errors.New("appareils de confiance : au plus entre 1 et 90 jours, sans usage entre 1 h et 30 jours (et pas plus que le maximum)"))
 	}
 	if d := time.Duration(s.ModeAdmin); d != 0 && (d < time.Minute || d > time.Hour) {
 		errs = append(errs, errors.New("mode administration : 0 (désactivé) ou entre 1 min et 1 h"))

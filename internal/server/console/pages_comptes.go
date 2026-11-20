@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
@@ -222,7 +223,7 @@ func (c *Console) garderSession(q *req) error {
 	if err != nil {
 		return err
 	}
-	c.sessions.FermerUtilisateur(u.ID, q.s.Empreinte)
+	c.fermerSessionsCompte(q.r.Context(), u.ID, q.s.Empreinte)
 	id := c.sessions.Renouveler(q.s.Empreinte, q.t, func(s *auth.Session) { s.Generation = u.Generation; s.SecretPropose = "" })
 	q.s = c.sessions.Lire(id)
 	if q.s == nil {
@@ -336,7 +337,7 @@ func (c *Console) postUtilisateur(q *req) {
 	}
 	if err == nil {
 		if cible.ID != 0 && action != "role" {
-			c.sessions.FermerUtilisateur(cible.ID, q.s.Empreinte)
+			c.fermerSessionsCompte(q.r.Context(), cible.ID, q.s.Empreinte)
 		}
 		c.oublierComptes()
 	}
@@ -352,6 +353,13 @@ type donneesSecurite struct {
 	MonIP     string
 	MaSession string       // Ref de la session qui regarde la page (« cette session »)
 	Bilan     []pointBilan // ce qui va bien, ce qui est à regarder (SPEC § 38)
+	// Appareils de confiance (SPEC § 78), avec la date où ils expirent.
+	Appareils []appareilVue
+}
+
+type appareilVue struct {
+	auth.Confiance
+	Expire time.Time
 }
 
 func (c *Console) pageSecurite(q *req) {
@@ -362,6 +370,16 @@ func (c *Console) pageSecurite(q *req) {
 	ss := c.sessions.Lister()
 	sort.Slice(ss, func(i, j int) bool { return ss[i].Vue.After(ss[j].Vue) })
 	d := donneesSecurite{S: s, Defaut: SecuriteDefaut(), Sessions: ss, MonIP: q.ip.String(), MaSession: q.s.Ref()}
+	if as, err := auth.ListerConfiance(q.r.Context(), c.db); err == nil {
+		in, max := s.DureesConfiance()
+		for _, a := range as {
+			fin := a.CreeLe.Add(max)
+			if f2 := a.VuLe.Add(in); f2.Before(fin) {
+				fin = f2
+			}
+			d.Appareils = append(d.Appareils, appareilVue{Confiance: a, Expire: fin})
+		}
+	}
 	if us, err := auth.ListerUtilisateurs(q.r.Context(), c.db); err == nil {
 		d.Bilan = bilanSecurite(s, us)
 	}
@@ -397,6 +415,13 @@ func (c *Console) postSecurite(q *req) {
 			}
 			s.IPs = strings.TrimSpace(q.r.PostFormValue("ips"))
 			s.SansPasskeySeule = q.r.PostFormValue("passkey_seule") == ""
+			s.SansConfiance = q.r.PostFormValue("confiance") == ""
+			var e6, e7 error
+			s.ConfianceMax, e6 = lireDureeUnite(q.r, "confiance_max", "j")
+			s.ConfianceInactivite, e7 = lireDureeUnite(q.r, "confiance_inactivite", "j")
+			if err := errors.Join(e6, e7); err != nil {
+				return err
+			}
 		}
 		if err := s.Valider(); err != nil {
 			return err
@@ -450,22 +475,41 @@ func (c *Console) postFermerSession(q *req) {
 	// « Fermer toutes les autres » (SPEC § 38) : toutes sauf celle-ci.
 	if e == "autres" {
 		n := 0
+		fermees := map[string]bool{}
 		for _, s := range c.sessions.Lister() {
 			if s.Empreinte != q.s.Empreinte {
 				c.sessions.Supprimer(s.Empreinte)
-				n++
+				fermees[s.Empreinte] = true
 			}
 		}
+		// Appareils de confiance des autres sessions (même s'ils ne sont pas en mémoire).
+		if as, err := auth.ListerConfiance(q.r.Context(), c.db); err == nil {
+			for _, a := range as {
+				if a.Empreinte != q.s.Empreinte && auth.OublierConfiance(q.r.Context(), c.db, a.Empreinte) == nil {
+					fermees[a.Empreinte] = true
+				}
+			}
+		}
+		n = len(fermees)
 		_ = Auditer(q.r.Context(), c.db, q.qui(), "sessions_fermees", "", "", strconv.Itoa(n)+" session(s)", q.ip.String(), q.t)
 		c.retour(q, "/securite#sessions", nil, accorderTexte(strconv.Itoa(n)+" session(s) fermée(s)"))
 		return
 	}
+	trouvee := false
 	for _, s := range c.sessions.Lister() {
 		if s.Ref() == e {
 			c.sessions.Supprimer(s.Empreinte)
-			c.retour(q, "/securite", nil, "session fermée")
-			return
+			trouvee = true
 		}
+	}
+	// Appareil de confiance : oublié aussi (sinon il rouvrirait la session).
+	if n, err := auth.OublierConfianceRef(q.r.Context(), c.db, e); err == nil && n > 0 {
+		trouvee = true
+		_ = Auditer(q.r.Context(), c.db, q.qui(), "appareil_oublie", "", "", e, q.ip.String(), q.t)
+	}
+	if trouvee {
+		c.retour(q, "/securite", nil, "session fermée")
+		return
 	}
 	c.retour(q, "/securite", errors.New("session introuvable"), "")
 }

@@ -311,6 +311,8 @@ func uniteDuree(unite string) time.Duration {
 		return time.Minute
 	case "h":
 		return time.Hour
+	case "j":
+		return 24 * time.Hour
 	}
 	return 0
 }

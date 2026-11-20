@@ -6616,3 +6616,39 @@ l'utilisateur) :
 - Coût : une expression régulière par message affiché (300 lignes au plus
   par page) et une passe pour le repli : moins d'une milliseconde ; rien de
   stocké.
+
+## 78. Appareils de confiance : connexion persistante en PWA (20/11) **[Fait, à valider]**
+
+- Demande : « en PWA sur mobile, ce n'est pas pratique de se connecter tout
+  le temps ». Causes trouvées : cookie sans date (iOS l'efface quand il
+  ferme la PWA en arrière-plan), 30 min d'inactivité, 12 h au plus,
+  sessions en mémoire seulement (chaque mise à jour du serveur déconnecte).
+- Choix de l'utilisateur (20/11) : « appareil de confiance » ; 30 jours au
+  plus, 7 jours sans usage ; mêmes droits qu'une session ordinaire.
+- Fonctionnement :
+  - case « Rester connecté sur cet appareil » sur la page de connexion
+    (cochée d'office dans l'application installée, décochée dans un
+    navigateur), valable aussi pour la passkey seule ;
+  - connexion complète (mot de passe + 2FA, ou passkey) : cookie daté
+    (Max-Age 30 j, toujours `__Host-`, `HttpOnly`, `Secure`,
+    `SameSite=Strict`) et ligne `appareils_confiance` (migration 0030) avec
+    l'**empreinte SHA-256** de l'identifiant seulement ;
+  - cookie inconnu en mémoire (PWA rouverte, serveur redémarré) : session
+    reprise depuis le disque si l'appareil est valide (durées, compte
+    actif, même génération, 2FA présente), nouveau jeton CSRF ;
+  - dernier usage écrit sur disque toutes les 10 min au plus ; appareils
+    expirés retirés chaque heure ;
+  - Réglages › Sécurité : permettre ou non, durées (1 à 90 j ; sans usage
+    1 h à 30 j) ; liste « Appareils de confiance » avec « Oublier ».
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Téléphone perdu ou volé, déverrouillé | actions sensibles toujours avec le code 2FA ou la passkey ; « Oublier » à distance (page Sécurité) ; 7 j sans usage au plus, 30 j en tout ; changer le mot de passe oublie tous les appareils |
+  | Vol du cookie | `HttpOnly` (pas lisible par un script, CSP stricte), `Secure`, `__Host-`, `SameSite=Strict` ; durée bornée |
+  | Vol ou copie de la base | seule l'empreinte SHA-256 de l'identifiant (256 bits aléatoires) est gardée : aucun cookie utilisable |
+  | Compte désactivé, 2FA retirée, mot de passe changé | refus à la reprise (génération, état du compte relus) et ligne oubliée |
+  | Cookie rejoué après déconnexion | déconnexion = ligne effacée ; cookie effacé |
+  | Remplissage de la base | une ligne par connexion réussie (mot de passe + 2FA) ; nettoyage horaire des expirées |
+- Coût : une lecture SQL par réouverture de l'application (pas à chaque
+  requête : la session revient en mémoire), une écriture toutes les
+  10 min d'usage ; quelques octets par appareil.

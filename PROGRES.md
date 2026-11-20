@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Appareils de confiance (SPEC § 78, 20/11) : fait, à valider
+
+- « Rester connecté sur cet appareil » (coché d'office en PWA) : 30 j au
+  plus, 7 j sans usage, survit aux redémarrages ; liste et « Oublier » dans
+  Sécurité ; actions sensibles toujours avec la 2FA.
+
 ## Logs plus lisibles (SPEC § 77, 20/11) : fait, à valider
 
 - Trait et pastille pour erreurs et avertissements, machine + origine,
