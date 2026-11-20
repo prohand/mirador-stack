@@ -1532,12 +1532,22 @@ document.addEventListener("change", function (ev) {
 
 // Téléphone : l'onglet actif d'une ligne d'onglets qui défile de côté est
 // amené dans l'écran (audit du 19/11 : onglets sur une seule ligne).
+// Fondu sur le bord qui cache encore des onglets (retour du 20/11).
 (function () {
+  function bords(nav) {
+    var reste = nav.scrollWidth - nav.clientWidth;
+    nav.classList.toggle("plus-g", reste > 2 && nav.scrollLeft > 2);
+    nav.classList.toggle("plus-d", reste > 2 && nav.scrollLeft < reste - 2);
+  }
   document.querySelectorAll(".onglets").forEach(function (nav) {
     var a = nav.querySelector(".actif, [aria-current]");
-    if (!a || nav.scrollWidth <= nav.clientWidth) { return; }
-    nav.scrollLeft = Math.max(0, a.offsetLeft - nav.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2);
+    if (a && nav.scrollWidth > nav.clientWidth) {
+      nav.scrollLeft = Math.max(0, a.offsetLeft - nav.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2);
+    }
+    bords(nav);
+    nav.addEventListener("scroll", function () { bords(nav); }, { passive: true });
   });
+  window.addEventListener("resize", function () { document.querySelectorAll(".onglets").forEach(bords); });
 })();
 
 // Téléphone : longues aides (plus de 140 caractères) repliées sur deux

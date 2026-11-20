@@ -1532,17 +1532,11 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
 .sans-marge { margin: 0; }
 
 /* Éléments sur téléphone (retour du 20/11) :
-   - onglets de sortes en pastilles sur plusieurs lignes (avant : coupés au bord,
-     rien n'indiquait qu'il fallait faire défiler) ;
    - liens d'un élément : un par ligne, alignés à gauche (avant : morceaux
      éparpillés à droite) ;
    - champ « Filtrer ce tableau » sur toute la largeur. */
 .lien-elt i.sep { font-style: normal; }
 @media (max-width: 640px) {
-  .onglets.onglets-pastilles { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
-  .onglets.onglets-pastilles a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
-  .onglets.onglets-pastilles a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
-  .onglets.onglets-pastilles a.actif small { color: inherit; opacity: .7; }
   .filtre-tableau { max-width: none; }
   table.en-cartes > tbody > tr > td[data-long] > .valeur-carte { display: block; text-align: left; }
   table.en-cartes .lien-elt { display: block; padding: 1px 0; }
@@ -1575,15 +1569,10 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .vm-oubliees ul.puces-tache { list-style: none; padding: 0; margin: 6px 0 0; }
 
 /* Alertes sur téléphone (retour du 20/11) :
-   - onglets nombreux (5 et plus : Alertes, Silences…, Envois…) en pastilles
-     sur plusieurs lignes, comme la page Éléments (avant : coupés au bord) ;
    - graduations de l'historique : une heure sur deux, sans retour à la ligne
      (avant : « 20:3 / 3 ») ;
    - « En attente (1) » : le texte d'aide passe sous le titre, sans « · ». */
 @media (max-width: 640px) {
-  .onglets:has(> a:nth-child(5)) { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
-  .onglets:has(> a:nth-child(5)) > a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
-  .onglets:has(> a:nth-child(5)) > a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
   .frise-graduations { font-size: 11px; white-space: nowrap; }
   .frise-graduations span:nth-child(even) { visibility: hidden; }
   .frise-ligne { grid-template-columns: 84px 1fr; gap: 6px; }
@@ -1605,4 +1594,14 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
   table.table-alertes.en-cartes .courbe-alerte { max-width: 60%; }
   .groupe-alertes table.en-cartes > tbody > tr { margin: 0; padding: 12px 0 8px; border: 0; border-top: 1px solid var(--bord); border-radius: 0; }
   .groupe-alertes table.en-cartes > tbody > tr:first-child { border-top: 0; padding-top: 6px; }
+}
+
+/* Onglets sur téléphone (retour du 20/11 : « en pastilles ça mange
+   l'affichage ») : une seule ligne qui défile de côté, comme avant, mais un
+   fondu sur le bord indique qu'il reste des onglets à gauche ou à droite
+   (classes plus-g / plus-d posées par mirador.js). */
+@media (max-width: 640px) {
+  .onglets.plus-d { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+  .onglets.plus-g { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px); mask-image: linear-gradient(to right, transparent, #000 40px); }
+  .onglets.plus-g.plus-d { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 }

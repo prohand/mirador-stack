@@ -7144,9 +7144,11 @@ Sept idées proposées le 20/11, toutes demandées.
 - Rien de nouveau n'est exposé sans connexion.
 
 ## 96. Alertes sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
-- Onglets nombreux (5 et plus : Alertes, Silences et maintenances, Envois…) :
-  pastilles sur plusieurs lignes sur téléphone (avant : coupés au bord). Vaut
-  pour toutes les pages qui ont ces onglets.
+- Onglets nombreux (Alertes, Silences et maintenances, Envois…) : d'abord
+  mis en pastilles sur plusieurs lignes, puis (retour du 20/11 : « ça mange
+  l'affichage pour rien ») une seule ligne qui défile de côté, avec un fondu
+  sur le bord qui cache encore des onglets. Vaut pour toutes les pages à
+  onglets (Éléments compris, qui remplace le § 94).
 - Historique : une heure sur deux, sans retour à la ligne (avant : « 20:3 / 3 »).
 - Bug trouvé en passant (ordinateur aussi) : l'historique des alertes et la
   frise de la page Incident avaient le même nom de classe `frise` ; le style

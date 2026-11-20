@@ -1486,7 +1486,7 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
   `tail -n 3 /var/log/proxmox-backup/tasks/archive`.
 
 ## Alertes sur téléphone (SPEC § 96, 20/11)
-- Onglets en pastilles, heures de l'historique lisibles, cartes titrées par
+- Onglets sur une ligne avec fondu au bord (les pastilles prenaient trop de place), heures de l'historique lisibles, cartes titrées par
   le nom de l'alerte, « En attente » sans « · ».
 - Bug corrigé : historique des alertes coupé par le style de la frise des incidents.
 - Alertes en cours : titre à gauche, gravité à droite, plus de carte dans la carte.
