@@ -7038,3 +7038,14 @@ ci-dessous.
   bornée (fenêtre ≤ 6 h, 30 lignes, file des recherches de la page Logs).
 - Menaces : lecture seulement, compte connecté (rôle lecture suffit, comme
   la page Logs) ; aucun programme lancé sur les machines.
+
+## 94. Éléments sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+- Onglets de sortes : pastilles sur plusieurs lignes (avant : barre coupée au
+  bord de l'écran, sans signe qu'elle défilait).
+- Colonne Liens : un lien par ligne, aligné à gauche (avant : morceaux
+  éparpillés à droite, « Nextcloud » seul sur sa ligne).
+- Compteur des onglets : espace rétabli (« Tout 18 » au lieu de « Tout18 »,
+  toutes les pages à onglets).
+- Champ « Filtrer ce tableau » sur toute la largeur.
+- Coût : CSS seulement (~1 Ko), aucun calcul en plus.
+- Menaces : aucune nouvelle (affichage seul).

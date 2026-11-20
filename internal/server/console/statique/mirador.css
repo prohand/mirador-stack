@@ -1530,3 +1530,25 @@ pre.journal-tache { background: #111318; color: #E6E8EC; border-radius: 10px; pa
 pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; }
 .texte-erreur { color: var(--erreur); }
 .sans-marge { margin: 0; }
+
+/* Éléments sur téléphone (retour du 20/11) :
+   - onglets de sortes en pastilles sur plusieurs lignes (avant : coupés au bord,
+     rien n'indiquait qu'il fallait faire défiler) ;
+   - liens d'un élément : un par ligne, alignés à gauche (avant : morceaux
+     éparpillés à droite) ;
+   - champ « Filtrer ce tableau » sur toute la largeur. */
+.lien-elt i.sep { font-style: normal; }
+@media (max-width: 640px) {
+  .onglets.onglets-pastilles { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
+  .onglets.onglets-pastilles a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
+  .onglets.onglets-pastilles a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
+  .onglets.onglets-pastilles a.actif small { color: inherit; opacity: .7; }
+  .filtre-tableau { max-width: none; }
+  table.en-cartes > tbody > tr > td[data-long] > .valeur-carte { display: block; text-align: left; }
+  table.en-cartes .lien-elt { display: block; padding: 1px 0; }
+  table.en-cartes .lien-elt i.sep { display: none; }
+}
+@media (max-width: 640px) {
+  /* Liens en inline-flex : l'espace avant le compteur disparaissait (« Tout18 »). */
+  .onglets a, .logs-onglets a { gap: 5px; }
+}

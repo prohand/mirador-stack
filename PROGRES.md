@@ -1460,6 +1460,11 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 (~0,003 % d'un cœur), ~68 Ko de mémoire temporaire par cycle, aucune
 écriture disque. Objectif agent (< 30 Mio, < 1 % d'un cœur) : inchangé ✅.
 
+## Éléments sur téléphone (SPEC § 94, 20/11)
+- Onglets en pastilles, liens un par ligne, espace du compteur, filtre pleine largeur.
+- Vérifié iPhone 13 (clair et sombre) : aucun débord à droite, aucune erreur JS.
+- Coût : CSS seulement.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
