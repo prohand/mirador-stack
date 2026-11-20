@@ -7162,4 +7162,7 @@ Sept idées proposées le 20/11, toutes demandées.
   poussé à droite) ; résumé sur toute la largeur ; dans un groupe (par
   machine, par règle), alertes séparées par un trait au lieu d'une carte
   dans la carte (plus de largeur utile).
+- En-tête d'un groupe d'alertes : un point de la couleur de l'alerte la plus
+  grave au lieu de la pastille de gravité, déjà affichée sur chaque alerte
+  (« Avertissement est affiché 2 fois »).
 - Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.

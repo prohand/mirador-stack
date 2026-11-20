@@ -1605,3 +1605,10 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
   .onglets.plus-g { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px); mask-image: linear-gradient(to right, transparent, #000 40px); }
   .onglets.plus-g.plus-d { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 }
+
+/* En-tête d'un groupe d'alertes : un point de la couleur de l'alerte la plus
+   grave, au lieu de répéter la pastille de gravité déjà sur chaque alerte
+   (retour du 20/11 : « Avertissement est affiché 2 fois »). */
+.point-gravite { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #2563EB; }
+.point-gravite.critical { background: #DC2626; }
+.point-gravite.warning { background: #D97706; }
