@@ -80,8 +80,15 @@ func TestMajServeur(t *testing.T) {
 	if err := majserveur.EcrireJSON(b.c.opt.MajEtat, majserveur.NomEtat, e, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Réglages du service du VPS : affichés, sans formulaire pour les changer.
+	if err := majserveur.EcrireJSON(b.c.opt.MajEtat, majserveur.NomService, majserveur.InfoService{Version: "0.6.0", DossierCompose: "/opt/mirador",
+		Service: "mirador-server", Image: "ghcr.io/prohand/mirador-server", Depot: "prohand/mirador-stack", Cles: []string{"0123456789abcdef"},
+		Delai: "3m0s", Problemes: []string{"volume de l'état absent"}, Le: b.h.maintenant().Unix()}, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	_, corps, _ = b.get(c, "/reglages/serveur")
-	for _, attendu := range []string{"Dernière mise à jour en échec", "0.5.0 → 99.1.0", "signature vérifiée", "retour à 0.5.0 fait"} {
+	for _, attendu := range []string{"Dernière mise à jour en échec", "0.5.0 → 99.1.0", "signature vérifiée", "retour à 0.5.0 fait",
+		"<code>/opt/mirador</code>", "<code>0123456789abcdef</code>", "1 point(s) à corriger", "volume de l&#39;état absent"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("état : %q absent", attendu)
 		}

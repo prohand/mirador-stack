@@ -38,6 +38,7 @@ const (
 	NomDemande  = "demande.json"
 	NomPresence = "serveur.json"
 	NomEtat     = "etat.json"
+	NomService  = "service.json" // réglages du service du VPS (affichés, jamais modifiables depuis l'interface)
 	// TailleMax : un fichier d'échange plus gros est refusé.
 	TailleMax = 16 << 10
 )
@@ -85,6 +86,23 @@ type Etat struct {
 	Debut   int64   `json:"debut"`
 	Le      int64   `json:"le"` // dernière mise à jour du fichier
 	Etapes  []Etape `json:"etapes"`
+}
+
+// InfoService : réglages du service du VPS, écrits par lui dans le dossier
+// de l'état (lecture seule pour le serveur) à chaque contrôle et à chaque
+// mise à jour. L'interface les affiche ; elle ne peut pas les changer (ils
+// pilotent un service root : SPEC § 102.4).
+type InfoService struct {
+	Version        string   `json:"version"` // version de mirador-maj-serveur
+	DossierCompose string   `json:"dossier_compose"`
+	Service        string   `json:"service"`
+	Image          string   `json:"image"`
+	Depot          string   `json:"depot"`
+	Cles           []string `json:"cles"` // empreintes des clés publiques (16 caractères)
+	Delai          string   `json:"delai"`
+	Installee      string   `json:"installee"` // version du serveur notée par le service
+	Problemes      []string `json:"problemes"` // points à corriger (vide : prêt)
+	Le             int64    `json:"le"`
 }
 
 var formatVersion = regexp.MustCompile(`^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$`)

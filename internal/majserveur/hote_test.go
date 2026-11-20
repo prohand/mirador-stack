@@ -272,3 +272,19 @@ func TestComparer(t *testing.T) {
 		}
 	}
 }
+
+// Réglages publiés pour l'interface : empreintes des clés (pas les clés),
+// version notée, problèmes.
+func TestEcrireInfo(t *testing.T) {
+	b := nouveauBanc(t)
+	if err := b.h.EcrireInfo("0.6.0", []string{"volume absent"}); err != nil {
+		t.Fatal(err)
+	}
+	var i InfoService
+	if err := LireJSON(filepath.Join(b.h.R.DossierEtat, NomService), &i); err != nil {
+		t.Fatal(err)
+	}
+	if i.DossierCompose != b.h.R.DossierCompose || i.Installee != "0.5.0" || len(i.Cles) != 1 || len(i.Cles[0]) != 16 || len(i.Problemes) != 1 {
+		t.Errorf("info : %+v", i)
+	}
+}

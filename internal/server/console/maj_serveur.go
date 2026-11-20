@@ -142,10 +142,11 @@ type vueMajServeur struct {
 	DemandeVersion                     string
 	Etat                               *majserveur.Etat
 	EnCours                            bool
-	Proposer                           bool   // une version plus récente peut être demandée
-	ActuelleValide                     bool   // version de ce serveur au format X.Y.Z (pas « dev »)
-	Classe, Texte                      string // pastille de l'état
-	Nuit                               int    // heure de la mise à jour de nuit (-1 : désactivée)
+	Proposer                           bool                    // une version plus récente peut être demandée
+	ActuelleValide                     bool                    // version de ce serveur au format X.Y.Z (pas « dev »)
+	Classe, Texte                      string                  // pastille de l'état
+	Nuit                               int                     // heure de la mise à jour de nuit (-1 : désactivée)
+	Service                            *majserveur.InfoService // réglages du service du VPS (lecture seule)
 	Heures                             []int
 }
 
@@ -171,6 +172,10 @@ func (c *Console) vueMajServeur(ctx context.Context, t time.Time, forcer bool) v
 		v.EnAttente, v.DemandeVersion = true, d.Version
 	}
 	if c.opt.MajEtat != "" {
+		var i majserveur.InfoService
+		if majserveur.LireJSON(filepath.Join(c.opt.MajEtat, majserveur.NomService), &i) == nil {
+			v.Service = &i
+		}
 		var e majserveur.Etat
 		if majserveur.LireJSON(filepath.Join(c.opt.MajEtat, majserveur.NomEtat), &e) == nil {
 			v.Etat = &e

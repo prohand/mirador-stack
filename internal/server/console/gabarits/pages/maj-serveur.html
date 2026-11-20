@@ -25,6 +25,21 @@
 {{if .Message}}<p class="message {{if eq .Etat "ok"}}ok{{else if eq .Etat "en_cours"}}attention{{else}}erreur{{end}}">{{.Message}}</p>{{end}}
 <ol class="etapes-maj">{{range .Etapes}}<li><time>{{dateS .Le}}</time> {{.Texte}}</li>{{end}}</ol>{{end}}
 </section>
+{{if $d.Installe}}<section class="carte"><div class="entete-carte"><h2>Service du VPS</h2>{{with $d.Service}}{{if .Problemes}}<span class="pastille erreur">{{len .Problemes}} point(s) à corriger</span>{{else}}<span class="pastille ok">Prêt</span>{{end}}{{end}}</div>
+{{with $d.Service}}<div class="defile"><table class="formulaire reglages-service"><tbody>
+<tr><th>Dossier du compose</th><td><code>{{.DossierCompose}}</code></td></tr>
+<tr><th>Service</th><td><code>{{.Service}}</code></td></tr>
+<tr><th>Image</th><td><code>{{.Image}}</code></td></tr>
+<tr><th>Dépôt des versions</th><td><code>{{.Depot}}</code></td></tr>
+<tr><th>Clé(s) de signature</th><td>{{range $i, $k := .Cles}}{{if $i}} · {{end}}<code>{{$k}}</code>{{end}} <small class="doux">(empreintes : comparer avec Mises à jour des agents)</small></td></tr>
+<tr><th>Attente du démarrage</th><td>{{.Delai}} avant le retour automatique</td></tr>
+<tr><th>Version notée par le service</th><td>{{if .Installee}}{{.Installee}}{{else}}—{{end}}</td></tr>
+<tr><th>mirador-maj-serveur</th><td>{{.Version}} · contrôlé {{depuisS .Le}}</td></tr>
+</tbody></table></div>
+{{if .Problemes}}<ul class="message erreur">{{range .Problemes}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{else}}<p class="vide">Pas encore de réglages reçus du service : sur le VPS, <code>sudo mirador-maj-serveur verifier -config /etc/mirador-maj-serveur.conf</code>.</p>{{end}}
+<p class="aide"><small class="aide">Écrits par le script d'installation dans <code>/etc/mirador-maj-serveur.conf</code> (rien à remplir à la main). Volontairement pas modifiables ici : ils pilotent un service root du VPS ; si l'interface pouvait les changer, une interface piratée pourrait prendre la main sur le VPS. Seuls le bouton et la mise à jour la nuit se règlent ici.</small></p>
+</section>{{end}}
 {{if $d.Active}}<section class="carte"><div class="entete-carte"><h2>Mise à jour la nuit</h2><span class="pastille {{if ge $d.Nuit 0}}info{{end}}">{{if ge $d.Nuit 0}}Activée, vers {{$d.Nuit}} h{{else}}Désactivée : au bouton seulement{{end}}</span></div>
 <p class="sous">Activée, le serveur demande lui-même la dernière version publiée pendant l'heure choisie (mêmes vérifications, même retour automatique). Une version déjà essayée la nuit n'est pas redemandée : en cas d'échec, elle attend le bouton.</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="nuit">

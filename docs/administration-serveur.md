@@ -368,6 +368,11 @@ dossier du `docker-compose.yml` :
    sudo mirador-maj-serveur verifier -config /etc/mirador-maj-serveur.conf
    ```
 
+Les réglages du service (dossier, image, dépôt, empreinte de la clé) et les
+points à corriger s'affichent dans *Réglages › Mise à jour du serveur*. Ils
+ne se changent que sur le VPS (`/etc/mirador-maj-serveur.conf`, écrit par
+le script), volontairement : ils pilotent un service root.
+
 En cas de souci : `journalctl -u mirador-maj-serveur` (déroulé complet) ;
 la base d'avant chaque mise à jour reste dans
 `/var/lib/mirador-maj-serveur/avant-VERSION-DATE/`.

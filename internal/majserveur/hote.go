@@ -237,6 +237,24 @@ func (h *Hote) VersionInstallee() (string, error) {
 	return v, ValiderVersion(v)
 }
 
+// EcrireInfo écrit les réglages du service et les problèmes trouvés dans
+// le dossier de l'état (affichés par l'interface).
+func (h *Hote) EcrireInfo(versionService string, problemes []string) error {
+	i := InfoService{Version: versionService, DossierCompose: h.R.DossierCompose, Service: h.R.Service, Image: h.R.Image,
+		Depot: h.R.Depot, Delai: h.R.Delai.String(), Problemes: problemes, Le: h.maintenant().Unix()}
+	if h.R.Delai%time.Minute == 0 {
+		i.Delai = fmt.Sprintf("%d min", h.R.Delai/time.Minute)
+	}
+	for _, k := range h.R.ClesPubliques {
+		i.Cles = append(i.Cles, release.EmpreintePublique(k))
+	}
+	i.Installee, _ = h.VersionInstallee()
+	if i.Problemes == nil {
+		i.Problemes = []string{}
+	}
+	return EcrireJSON(h.R.DossierEtat, NomService, i, 0o644) // #nosec G306 -- lu par le serveur (autre utilisateur)
+}
+
 // Appliquer traite la demande en attente (aucune : rien à faire).
 func (h *Hote) Appliquer(ctx context.Context) error {
 	var d Demande

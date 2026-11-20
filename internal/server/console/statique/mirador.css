@@ -1763,3 +1763,7 @@ details.ecm-proc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .etapes-maj { margin: 6px 0 0; padding-left: 20px; font-size: 13.5px; }
 .etapes-maj li { padding: 3px 0; }
 .etapes-maj time { color: var(--pale); font-variant-numeric: tabular-nums; margin-right: 8px; }
+.reglages-service { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.reglages-service th { text-align: left; font-weight: 500; color: var(--doux); padding: 6px 12px 6px 0; width: 220px; vertical-align: top; }
+.reglages-service td { padding: 6px 0; border-bottom: 1px solid var(--bord-doux); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .reglages-service th { width: auto; display: block; padding-bottom: 0; } .reglages-service td { display: block; } .reglages-service tr { display: block; } }

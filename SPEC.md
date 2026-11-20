@@ -7477,6 +7477,15 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   dépose elle-même la demande de la dernière version (« nuit (automatique) »).
   Une version déjà demandée la nuit n'est pas redemandée : un échec attend
   le bouton. Mêmes vérifications côté VPS.
+- Réglages du service (dossier du compose, service, image, dépôt, clés,
+  délai) : écrits par le script d'installation (dossier = celui où il est
+  lancé), rien à remplir à la main. Affichés dans l'interface (le service
+  les publie dans `maj-etat/service.json`, avec les empreintes des clés et
+  les problèmes trouvés par `verifier`), **jamais modifiables depuis
+  l'interface** : ils pilotent un service root ; une interface piratée qui
+  pourrait les changer (dossier du compose vers `maj/`, clé à elle) prendrait
+  la main sur le VPS. Seuls le bouton et la mise à jour la nuit se règlent
+  dans l'interface (retour du 20/11 : « gérer via l'interface web »).
 - Première mise à jour vers 0.6.0 (qui contient le service) : à la main.
 - Coût mesuré : binaire 6,9 Mio ; aucun processus au repos (systemd .path) ;
   un passage sans demande : 4 ms, 12,7 Mio de RSS au plus ; une mise à jour :

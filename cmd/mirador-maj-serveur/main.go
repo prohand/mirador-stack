@@ -122,6 +122,7 @@ func appliquer(r majserveur.Reglages, sortie io.Writer) error {
 	ctx, fin := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer fin()
 	h := &majserveur.Hote{R: r, Docker: docker{dossier: r.DossierCompose}, Journal: sortie}
+	_ = h.EcrireInfo(version.Version, nil) // réglages affichés dans l'interface
 	return h.Appliquer(ctx)
 }
 
@@ -161,6 +162,11 @@ func verifier(r majserveur.Reglages, sortie io.Writer) error {
 			bon = st != nil && int(st.Uid) == c.proprietaire
 		}
 		ok(bon, c.nom, c.nom+" : absent ou mauvais propriétaire ("+c.ch+")")
+	}
+	// Réglages et problèmes affichés dans l'interface (Réglages › Mise à jour
+	// du serveur), si le dossier de l'état existe.
+	if err := h.EcrireInfo(version.Version, pbs); err == nil {
+		fmt.Fprintln(sortie, "Réglages envoyés à l'interface (Réglages › Mise à jour du serveur).")
 	}
 	if len(pbs) > 0 {
 		return fmt.Errorf("%d point(s) à corriger", len(pbs))

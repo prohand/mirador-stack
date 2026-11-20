@@ -56,6 +56,9 @@ func TestDemoInterface(t *testing.T) {
 				{Le: t0, Texte: "demande de la version 0.6.0 par admin"}, {Le: t0 + 2, Texte: "signature vérifiée : ghcr.io/prohand/mirador-server@sha256:4f1c…"},
 				{Le: t0 + 31, Texte: "image téléchargée"}, {Le: t0 + 33, Texte: "serveur arrêté"}, {Le: t0 + 34, Texte: "base copiée"},
 				{Le: t0 + 95, Texte: "version 0.6.0 en service (avant : 0.5.0)"}}}, 0o644)
+		_ = majserveur.EcrireJSON(cfg.MajEtat, majserveur.NomService, majserveur.InfoService{Version: "0.6.0", DossierCompose: "/opt/mirador",
+			Service: "mirador-server", Image: "ghcr.io/prohand/mirador-server", Depot: "prohand/mirador-stack", Cles: []string{"3f9a1c0be47d2e58"},
+			Delai: "3 min", Installee: "0.6.0", Problemes: []string{}, Le: time.Now().Add(-26 * time.Hour).Unix()}, 0o644)
 	}
 	s, err := Demarrer(context.Background(), cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
