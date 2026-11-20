@@ -208,9 +208,21 @@ sudo bash mirador-agent-install.sh --serveur https://VOTRE-VHOST-INGESTION --mir
 
 ### À chaque version
 
-1. Poser le tag `vX.Y.Z` sur `main` (GitHub › Releases › Draft a new release).
-   La CI publie l'image du serveur **et** ajoute à la Release l'agent signé
-   (`mirador-agent-X.Y.Z-linux-amd64/arm64` et leurs `.manifeste.json`).
+1. Publier la version, au choix :
+   - **bouton** : GitHub › *Actions* › *Release* › *Run workflow* (branche
+     `main`), saisir la version (ex. `0.6.0`) ; le workflow vérifie qu'elle
+     est plus récente que la dernière et pose le tag `v0.6.0` ;
+   - **tag** : poser le tag `vX.Y.Z` sur `main` (GitHub › Releases › Draft a
+     new release).
+
+   Après les contrôles et les tests, le workflow *Release* publie l'image
+   du serveur (`:X.Y.Z` et `:latest`) **et** la Release GitHub : agent et
+   collecteur signés (`.manifeste.json`), serveur sans Docker, outil de
+   signature, `SHA256SUMS`, et des notes rédigées depuis les pull requests.
+
+   Une fois, pour le bouton : *Settings* › *Environments* › *signature* ›
+   *Deployment branches and tags* : ajouter la branche `main` (en plus des
+   tags `v*`), sinon la signature est refusée quand la release part du bouton.
 2. Interface : **Mises à jour des agents › Importer une version signée
    depuis GitHub** : saisir `vX.Y.Z`, code 2FA, **Importer**. Le serveur
    télécharge, vérifie la signature et l'empreinte, puis publie.
