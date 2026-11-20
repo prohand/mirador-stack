@@ -214,6 +214,21 @@ section de cette page.
 - **En cas d'erreur** : un modèle illisible est refusé à l'enregistrement ;
   s'il échoue quand même à l'envoi, le message part avec la mise en forme
   de mirador (aucune alerte perdue).
+<a id="statut"></a>
+## Page de statut publique
+
+- **Où** : Réglages › Interface › Page de statut publique.
+- **Ce qu'elle montre** : le titre choisi, l'état actuel de chaque
+  application cochée (Fonctionne, Perturbé, En panne), sa disponibilité
+  sur 90 jours (une barre par jour) et les incidents des 14 derniers jours.
+- **Ce qu'elle ne montre jamais** : noms de machines, adresses IP,
+  messages d'alerte, logs.
+- **Accès** : l'adresse secrète `/statut/<jeton>` suffit (pas de compte),
+  même hors de la liste d'adresses autorisées. « Nouvelle adresse » rend
+  l'ancienne inutilisable. Décocher « Activée » coupe la page.
+- **Disponibilité** : calculée depuis l'historique des alertes
+  « Application en panne » (une période « perturbée » compte comme
+  disponible, mais colore le jour en orange).
 
 ## Changements
 

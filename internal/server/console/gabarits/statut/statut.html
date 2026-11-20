@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><meta http-equiv="refresh" content="60">
+<title>{{.Titre}}</title><link rel="stylesheet" href="/statut.css"></head>
+<body><main>
+<h1><span class="logo" aria-hidden="true"></span>{{.Titre}}</h1>
+<p class="bandeau {{.ClasseBand}}">{{if eq .ClasseBand ""}}✓{{else if eq .ClasseBand "n"}}{{else}}⚠{{end}} {{.Bandeau}}</p>
+{{if .Apps}}<section><h2>Services</h2>
+{{range .Apps}}<div class="app"><div class="tete"><strong>{{.Nom}}</strong><span class="etat {{.Classe}}">{{.Texte}} · {{.Dispo}}</span></div>
+<div class="jours">{{range .Jours}}<i class="{{.Classe}}" title="{{.Titre}}"></i>{{end}}</div>
+<div class="pied"><span>{{$.Debut}}</span><span>aujourd'hui</span></div></div>{{end}}
+</section>{{end}}
+<section><h2>Incidents</h2>
+{{range .Incidents}}<p class="incident"><span class="etat {{if .EnCours}}a{{end}}">{{if .EnCours}}En cours{{else}}Résolu{{end}}</span> <strong>{{.Titre}}</strong> · {{.Quand}}</p>
+{{else}}<p class="doux">Aucun incident ces 14 derniers jours.</p>{{end}}
+</section>
+<p class="maj">Mis à jour le {{.Le}} · rechargée chaque minute · mirador</p>
+</main></body></html>

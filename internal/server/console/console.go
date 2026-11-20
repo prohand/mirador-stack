@@ -88,6 +88,8 @@ type Console struct {
 	dernierNettoyageConfiance time.Time
 	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
 	pings limitePing
+	// statuts : limite des lectures de la page de statut publique (SPEC § 84).
+	statuts limitePing
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -274,6 +276,11 @@ func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// forcément) ; protégé par le jeton, ne permet qu'une chose.
 	if strings.HasPrefix(r.URL.Path, "/ping/") {
 		c.servirPing(w, r)
+		return
+	}
+	// Page de statut publique (SPEC § 84) : même principe, en lecture seule.
+	if strings.HasPrefix(r.URL.Path, "/statut/") || r.URL.Path == "/statut.css" {
+		c.servirStatut(w, r)
 		return
 	}
 	ip := web.AdresseClient(r)

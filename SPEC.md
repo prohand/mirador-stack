@@ -1037,7 +1037,7 @@ VictoriaMetrics 248, VictoriaLogs 187), § 2.1.
 | Interface React + Vite (build Node) | rendu serveur Go + peu de JS : rien à compiler côté front, maintenable seul |
 | Graphiques en SVG fait main | gardé en tête comme alternative ; uPlot (canvas) préféré pour les longues séries (moins de nœuds DOM, plus fluide sur téléphone) |
 | Partie « Manager » (IPAM, inventaire, Kanban, tâches), Nextcloud, EDF Tempo, prises Meross, lien noVNC, serveur MCP | hors périmètre supervision, surface d'attaque en plus |
-| Pages de statut publiques, murs d'écran | exposition publique ; murs d'écran éventuellement plus tard (clé dans le `#` de l'URL : bonne idée à garder) |
+| Pages de statut publiques, murs d'écran | exposition publique (page de statut finalement acceptée le 20/11 avec protections : § 84) ; murs d'écran éventuellement plus tard (clé dans le `#` de l'URL : bonne idée à garder) |
 | Suivi de tunnels VPN | pas de VPN dans cette infrastructure |
 | Sondes ping / HTTP / DNS depuis le serveur | un outil externe s'en charge déjà |
 | Proxmox via `pvesh` lancé par l'agent | mirador garde le metric server natif (InfluxDB) + agent sur le nœud |
@@ -6860,3 +6860,35 @@ Idée seulement (nyx-stack : lecture seule, aucun code repris).
   connue, sans doublon ; tout masquer est refusé ; taille bornée.
 - Coût : une lecture JSON du compte déjà chargé par page ; 40 règles CSS
   d'ordre (3 Ko).
+
+## 84. Page de statut publique (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+Revient sur le § 12.2 (écartée) : acceptée le 20/11, avec les protections
+ci-dessous.
+
+- Réglages › Interface › Page de statut publique : activée ou non, titre,
+  applications à montrer (cases), adresse `/statut/<jeton>` (Copier,
+  Ouvrir, Nouvelle adresse).
+- Page : bandeau (« Tous les services fonctionnent », « Un service
+  perturbé : Nextcloud »…), pour chaque application : état actuel,
+  disponibilité sur 90 jours en %, une barre par jour (vert, orange
+  perturbé, rouge en panne, infobulle), puis incidents (en cours, terminés
+  des 14 derniers jours, 10 au plus). Rechargée chaque minute (balise
+  `meta refresh`), thème clair / sombre selon l'appareil.
+- Calcul : état actuel = série `mirador_service_etat` (§ 50) ; historique
+  = alertes `ApplicationEnPanne` / `ApplicationDegradee` en base (gardées
+  plus longtemps que les métriques brutes). Une période « perturbée »
+  compte comme disponible.
+- Non fait (maquette) : note d'incident publiée à la main.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Fuite d'informations du réseau | seuls les noms d'applications choisis paraissent ; ni machine, ni IP, ni message d'alerte, ni log ; étiquettes jamais affichées |
+  | Accès sans compte, hors liste d'adresses | voulu (page à partager) ; seule l'adresse `/statut/<jeton>` (144 bits, comparée à temps constant) et la feuille de style passent ; tout le reste de l'interface reste derrière la liste et la connexion |
+  | Adresse partagée trop largement | « Nouvelle adresse » coupe l'ancienne ; « Activée » décochée : 404 |
+  | Indexation par un moteur de recherche | `X-Robots-Tag: noindex`, balise `robots`, `Referrer-Policy: no-referrer` |
+  | Inondation | 60 lectures par minute et par adresse IP (429) ; page légère (une lecture SQL et une requête de métriques) |
+  | Script ou cookie sur une page publique | aucun script, aucun cookie, aucune session ; CSP stricte de l'interface ; feuille de style à part, sans ressource externe |
+  | Changement discret du réglage | administrateurs seulement ; inscrit au journal d'audit |
+- Coût : rien tant que personne ne l'ouvre ; une lecture SQL des alertes
+  d'applications sur 90 jours et une requête de métriques par affichage.

@@ -43,6 +43,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("POST /reglages/agents/masquage", c.lecture(c.postTestMasquage))
 	m.HandleFunc("GET /reglages/interface", c.lecture(c.pageInterface))
 	m.HandleFunc("POST /reglages/interface", c.admin(c.postInterface))
+	m.HandleFunc("POST /reglages/statut", c.admin(c.postStatut))
 	m.HandleFunc("GET /reglages/olvid", c.admin(c.pageOlvid)) // lien d'invitation, contacts : admins seulement
 	m.HandleFunc("POST /reglages/olvid", c.admin(c.postOlvid))
 	m.HandleFunc("GET /reglages/olvid/installer", c.admin(c.pageInstallerOlvid))
@@ -811,6 +812,8 @@ type donneesInterface struct {
 	// notifications : adresse de l'interface (lien dans les messages) et
 	// fuseau des messages, s'il diffère encore de celui de l'interface.
 	Lien, FuseauMessages string
+	// Statut : page de statut publique (SPEC § 84).
+	Statut donneesStatutReglage
 }
 
 func (c *Console) pageInterface(q *req) {
@@ -825,6 +828,7 @@ func (c *Console) pageInterface(q *req) {
 		d.GeoFichier, d.GeoEnMemoire, d.GeoErreur = c.opt.GeoIP.Etat()
 		d.GeoEssai, d.GeoDemande = c.opt.GeoIP.Essais()
 	}
+	d.Statut = c.donneesStatutReglage(q)
 	c.rendre(q, "interface", "Interface", "reglages", d)
 }
 

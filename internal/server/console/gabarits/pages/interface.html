@@ -29,4 +29,14 @@
 <p>Journal du serveur : {{if gt .D.DebugJusqua 0}}debug jusqu'au {{dateS .D.DebugJusqua}} (puis retour automatique à « info »){{else}}normal (info){{end}}.</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="debug">
 <label>Pendant (minutes, 0 = arrêter) <input type="number" name="minutes" value="30" min="0" max="240"></label><button>Appliquer</button></form>{{end}}</section>
+{{with .D.Statut}}<section class="carte" id="statut"><h2>Page de statut publique</h2>
+<p class="sous">Une page à partager (proches, clients, collègues) : l'état des applications choisies et leur disponibilité sur 90 jours. Seuls les noms choisis apparaissent : jamais de machine, d'adresse IP, de message d'alerte ni de log. Sans connexion, sans cookie ni script ; l'adresse secrète suffit. {{template "plus" "aide.md#statut"}}</p>
+{{if .URL}}<div class="lien-ping"><code id="url-statut">{{.URL}}</code><button type="button" class="secondaire petit" data-copier="#url-statut">Copier</button>{{if .Actif}}<a class="bouton secondaire petit" href="{{.URL}}" target="_blank" rel="noopener">Ouvrir</a>{{end}}</div>{{end}}
+{{if $.Admin}}<form method="post" action="/reglages/statut" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="enregistrer">
+<label class="case"><input type="checkbox" name="actif" value="1"{{if .Actif}} checked{{end}}> Activée</label>
+<label>Titre <input name="titre" value="{{.Titre}}" maxlength="80"></label>
+<fieldset><legend>Montrer</legend>{{$ch := .Choisies}}{{range .Applications}}<label class="case"><input type="checkbox" name="applications" value="{{.}}"{{if index $ch .}} checked{{end}}> {{.}}</label>{{else}}<p class="vide">Aucune application : les créer d'abord (Applications).</p>{{end}}</fieldset>
+<div class="ligne"><button>Enregistrer</button></div></form>
+{{if .URL}}<form method="post" action="/reglages/statut">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="jeton"><button class="secondaire petit" data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button></form>{{end}}{{end}}
+</section>{{end}}
 {{end}}

@@ -1047,6 +1047,15 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Page de statut publique (SPEC § 84, 20/11) : fait, à valider
+
+- Réglages › Interface : adresse secrète `/statut/<jeton>`, applications
+  choisies, 90 jours de disponibilité, incidents ; sans compte, sans
+  script ni cookie ; jamais de machine, d'IP ni de log.
+- Mesures : rien tant que la page n'est pas ouverte ; une lecture SQL et
+  une requête de métriques par affichage.
+- Non fait : note d'incident publiée à la main.
+
 ## Vue d'ensemble réorganisable (SPEC § 83, 20/11) : fait, à valider
 
 - « Modifier la vue » : déplacer ou masquer les tuiles et les blocs ; une
