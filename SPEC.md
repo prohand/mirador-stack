@@ -6998,3 +6998,15 @@ ci-dessous.
   une page quittée ou rechargée pendant le calcul annulait ses requêtes,
   et l'erreur était resservie aux pages suivantes.
 - Correction : erreur due à l'annulation jamais gardée en cache (test).
+
+## 91. Courbes : la page ne bouge plus au survol (20/11, retour) **[Corrigé]**
+
+- Symptôme : « sur les graphiques débit de disque et réseau, la fenêtre
+  remonte toute seule quand je passe la souris dessus ».
+- Cause : toutes les courbes de la page suivent la souris ensemble ; les
+  valeurs de leurs légendes changeaient de longueur, les pastilles passaient
+  à la ligne ou non, et la ligne d'annotation apparaissait et disparaissait :
+  ce qui est au-dessus changeait de hauteur (38 px mesurés).
+- Correction : valeurs de légende de largeur fixe (chiffres de même
+  largeur), ligne d'annotation de hauteur fixe, gardée même vide (0 px
+  mesuré).

@@ -159,8 +159,10 @@
         if (t >= a.debut && t <= a.fin) { noms.push("▮ " + a.nom + " · " + dateFr(a.debut) + " → " + dateFr(a.fin)); }
       });
     }
+    // Place gardée même vide (classe, pas « hidden ») : au survol, la page ne
+    // bouge pas (retour du 20/11 : « la fenêtre remonte toute seule »).
     el.survol.textContent = noms.join("   ");
-    el.survol.hidden = noms.length === 0;
+    el.survol.classList.toggle("vide", noms.length === 0);
   }
 
   // Zoom partagé par toutes les courbes de la page et gardé dans l'adresse
@@ -466,8 +468,7 @@
         var avecAn = an && ((an.alertes && an.alertes.length) || (an.evenements && an.evenements.length));
         if (avecAn && !el.survol && el.parentNode) {
           el.survol = document.createElement("p");
-          el.survol.className = "survol-annotation";
-          el.survol.hidden = true;
+          el.survol.className = "survol-annotation vide";
           el.parentNode.insertBefore(el.survol, el.nextSibling);
         }
         majIndice(el, seuil !== null, !!avecAn);
