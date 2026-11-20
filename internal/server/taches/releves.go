@@ -104,6 +104,24 @@ func Detectees(lire Lire) map[string]*Detectee {
 		r, _ := strconv.Atoi(e.Etiquettes.Get("rang"))
 		erreurs[d.Cle()] = append(erreurs[d.Cle()], erreurRangee{r, e.Etiquettes.Get("message")})
 	})
+	resumes := map[string][]erreurRangee{} // même tri par rang
+	noms := map[string]map[int]string{}
+	prendre("mirador_tache_resume", func(d *Detectee, _ float64, e alertes.Echantillon) {
+		r, _ := strconv.Atoi(e.Etiquettes.Get("rang"))
+		resumes[d.Cle()] = append(resumes[d.Cle()], erreurRangee{r, e.Etiquettes.Get("valeur")})
+		if noms[d.Cle()] == nil {
+			noms[d.Cle()] = map[int]string{}
+		}
+		noms[d.Cle()][r] = e.Etiquettes.Get("nom")
+	})
+	for k, l := range resumes {
+		sort.Slice(l, func(i, j int) bool { return l[i].rang < l[j].rang })
+		if d := out[k]; d != nil {
+			for _, x := range l {
+				d.Releve.Resume = append(d.Releve.Resume, InfoReleve{Nom: noms[k][x.rang], Valeur: x.texte})
+			}
+		}
+	}
 	for k, l := range erreurs {
 		sort.Slice(l, func(i, j int) bool { return l[i].rang < l[j].rang })
 		if d := out[k]; d != nil {
@@ -164,8 +182,10 @@ const InstanceServeur = "mirador-server"
 // Series : ce que les règles TacheEnEchec / TacheEnRetard lisent (SPEC § 80) :
 //   - mirador_tache_suivie{instance,source,tache,gravite} = 1 ;
 //   - mirador_tache_echeance_timestamp_seconds{…} : au-delà, en retard ;
-//   - pour un ping : ses propres mirador_tache_fin / _code / _debut.
-func Series(ts []Tache) []SerieInterne {
+//   - pour un ping : ses propres mirador_tache_fin / _code / _debut ;
+//   - mirador_tache_anomalie{…,quoi} = 1 : durée anormale, taille en baisse
+//     (SPEC § 95, règle TacheAnormale ; anomalies : clé → liste).
+func Series(ts []Tache, anomalies map[string][]Anomalie) []SerieInterne {
 	var out []SerieInterne
 	for _, t := range ts {
 		inst := t.Machine
@@ -176,6 +196,9 @@ func Series(ts []Tache) []SerieInterne {
 		out = append(out, SerieInterne{Nom: "mirador_tache_suivie", Valeur: 1, Etiquettes: et})
 		if e := Echeance(t, t.Releve); !e.IsZero() {
 			out = append(out, SerieInterne{Nom: "mirador_tache_echeance_timestamp_seconds", Valeur: float64(e.Unix()), Etiquettes: et})
+		}
+		for _, a := range anomalies[t.Cle] {
+			out = append(out, SerieInterne{Nom: "mirador_tache_anomalie", Valeur: 1, Etiquettes: append(append([]string{}, et[:6]...), "quoi", a.Court)})
 		}
 		if t.Source == SourcePing && !t.Releve.Fin.IsZero() {
 			ep := et[:6]

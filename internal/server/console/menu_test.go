@@ -143,7 +143,7 @@ func TestPostAccueil(t *testing.T) {
 		t.Error("menu masqué perdu ou bouton absent")
 	}
 	for _, mauvais := range []string{`{"mode":"ordi","ordre":["inconnu"]}`, `{"mode":"ordi","ordre":["parc","parc"]}`, `{"mode":"montre"}`,
-		`{"mode":"tel","caches":["machines","alertes","notifications","stockage","tuiles","sites","alertes-cours","prises","masquees","attente","parc","chaleur","bas"]}`} {
+		`{"mode":"tel","caches":["machines","alertes","notifications","stockage","tuiles","sites","alertes-cours","prises","masquees","attente","parc","chaleur","sauvegardes","bas"]}`} {
 		if code := envoyer("/compte/accueil", mauvais); code != http.StatusBadRequest {
 			t.Errorf("%s accepté : %d", mauvais, code)
 		}

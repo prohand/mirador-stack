@@ -120,6 +120,18 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 				b.Add("mirador_pve_invite_coeurs", float64(inv.Coeurs), l[:]...)
 			}
 		}
+		// VM et conteneurs qu'aucune sauvegarde planifiée ne couvre (SPEC § 95).
+		if pve.CouvertureLue {
+			noms := map[string]*racine.Invite{}
+			for i := range pve.Invites {
+				noms[pve.Invites[i].ID] = &pve.Invites[i]
+			}
+			for _, id := range pve.SansSauvegarde {
+				if inv := noms[id]; inv != nil {
+					b.Add("mirador_pve_invite_sans_sauvegarde", 1, metrics.L("id", id), metrics.L("type", inv.Type), metrics.L("nom", inv.Nom))
+				}
+			}
+		}
 	}
 
 	// Sauvegardes et tâches Proxmox VE / Backup Server (SPEC § 80).

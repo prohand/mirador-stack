@@ -195,6 +195,23 @@ func ReglesMirador() []Regle {
 			Gravite:     Critique,
 			Resume:      "Tâche {{ $labels.tache }} en retard sur {{ $labels.instance }}",
 			Description: "La tâche planifiée n'a pas tourné à temps (fréquence attendue et marge : Sondes › Tâches planifiées)."}),
+		// Anomalies des tâches suivies (SPEC § 95) : durée bien plus longue
+		// que d'habitude, tâche qui tourne trop longtemps, sauvegarde d'une
+		// VM bien plus petite que la fois d'avant.
+		m(Regle{Nom: "TacheAnormale", Groupe: "taches",
+			Expr:        `mirador_tache_anomalie == 1`,
+			Gravite:     Avertissement,
+			Resume:      "Tâche {{ $labels.tache }} sur {{ $labels.instance }} : {{ $labels.quoi }}",
+			Description: "La dernière exécution sort de l'habitude (durée 3 fois plus longue, ou sauvegarde d'une VM 2 fois plus petite que la fois d'avant). Détail : Tâches planifiées."}),
+		// VM ou conteneur d'un nœud Proxmox qu'aucun travail de sauvegarde
+		// planifié ne couvre (SPEC § 95, lu par l'assistant root ; seulement
+		// sur un nœud qui a au moins un travail de sauvegarde).
+		m(Regle{Nom: "VMSansSauvegarde", Groupe: "taches",
+			Expr:        `mirador_pve_invite_sans_sauvegarde == 1`,
+			Pour:        Duree(2 * time.Hour),
+			Gravite:     Avertissement,
+			Resume:      "{{ $labels.id }} {{ $labels.nom }} n'est dans aucune sauvegarde planifiée ({{ $labels.instance }})",
+			Description: "Aucun travail de Datacenter › Sauvegarde ne couvre cette VM ou ce conteneur (ni « tout », ni sa liste, ni son pool). L'ajouter à un travail, ou désactiver cette règle s'il est sauvegardé autrement."}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),

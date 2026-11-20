@@ -43,6 +43,10 @@ type Invite struct {
 type Proxmox struct {
 	Noeud   string   `json:"noeud"`
 	Invites []Invite `json:"invites"`
+	// Sauvegardes (SPEC § 95) : invités qu'aucun travail de sauvegarde actif
+	// ne couvre ; CouvertureLue faux : rien de sûr à dire (aucun travail).
+	SansSauvegarde []string `json:"sans_sauvegarde,omitempty"`
+	CouvertureLue  bool     `json:"couverture_lue,omitempty"`
 }
 
 // Bornes : un cluster normal en est très loin.

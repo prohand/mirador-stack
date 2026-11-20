@@ -26,7 +26,7 @@ func TestReglesTaches(t *testing.T) {
 			t.Errorf("%s : %v", r.Nom, err)
 		}
 	}
-	if n != 4 {
+	if n != 6 {
 		t.Fatalf("%d règles de tâches", n)
 	}
 }
@@ -89,7 +89,7 @@ func TestPingEtSeries(t *testing.T) {
 	_ = Signaler(ctx, db, jeton, false, 2, 0, "disque plein", m.Add(2*time.Hour))
 	ts, _ = Lister(ctx, db)
 	series := map[string]float64{}
-	for _, s := range Series(ts) {
+	for _, s := range Series(ts, nil) {
 		series[s.Nom+"|"+s.Etiquettes[1]+"|"+s.Etiquettes[len(s.Etiquettes)-1]] = s.Valeur
 	}
 	if series["mirador_tache_code|nas|Sauvegarde NAS"] != 2 || series["mirador_tache_suivie|nas|critical"] != 1 ||

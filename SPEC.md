@@ -7049,3 +7049,96 @@ ci-dessous.
 - Champ « Filtrer ce tableau » sur toute la largeur.
 - Coût : CSS seulement (~1 Ko), aucun calcul en plus.
 - Menaces : aucune nouvelle (affichage seul).
+
+## 95. Tâches planifiées : historique, anomalies, VM oubliées, PBS, vue d'ensemble (20/11, « fais tout ») **[Fait, à valider]**
+
+Sept idées proposées le 20/11, toutes demandées.
+
+### 95.1 Historique des exécutions
+- Table `taches_executions` (migration 0034) : une ligne par exécution
+  terminée (clé, fin, début, code, taille totale, taille de chaque VM
+  réussie en JSON). 60 lignes au plus par tâche.
+- Notée par le serveur chaque minute (boucle interne), pour toutes les tâches
+  vues (suivies ou non) : l'historique est déjà là le jour où on suit une tâche.
+  Le serveur retient la dernière fin notée : une exécution déjà vue ne coûte
+  aucune écriture.
+- Choix : base SQLite plutôt que relire les séries dans la base de métriques
+  (requêtes sur 60 jours, plus lourdes, et perdues au-delà de la rétention).
+- Affichage : frise des 10 dernières exécutions (vert, rouge, orange =
+  durée anormale ; détail au survol), « d'habitude 20 min » sous la durée.
+
+### 95.2 Durée anormale, tâche qui tourne trop longtemps, taille en baisse
+- Durée habituelle = médiane des 20 dernières exécutions réussies (3 au moins).
+- « Durée anormale » : plus de 3 fois l'habitude ET au moins 5 min de plus.
+- « Tourne trop longtemps » : en cours depuis plus de 3 fois l'habitude ET
+  30 min de plus.
+- « Taille en baisse » : une VM sauvegardée 2 fois plus petite que sa
+  dernière sauvegarde réussie (VM de moins de 100 Mo ignorées).
+- Une tâche OK avec une anomalie passe « à surveiller » (orange) ; un échec
+  reste un échec, l'anomalie est affichée en plus.
+- Règle `TacheAnormale` (avertissement) sur la série
+  `mirador_tache_anomalie{instance,source,tache,quoi}`, écrite pour les tâches
+  suivies. Le compteur du menu les compte aussi.
+
+### 95.3 VM oubliées (assistant root, format 7)
+- L'assistant lit `/etc/pve/jobs.cfg` (travaux « vzdump » : `all`, `exclude`,
+  `vmid`, `pool`, `node`, `enabled`) et `/etc/pve/user.cfg` (membres des
+  pools), et compare avec les invités du nœud.
+- Série `mirador_pve_invite_sans_sauvegarde{id,type,nom}` ; règle
+  `VMSansSauvegarde` (avertissement, après 2 h : le temps d'ajouter une VM
+  toute neuve à un travail).
+- Pas de fausse alerte : rien n'est dit si le nœud n'a aucun travail de
+  sauvegarde actif (sauvegarde faite autrement), ni si un travail vise un
+  pool introuvable.
+- Encadré « VM et conteneurs sans sauvegarde planifiée » en haut de la page Tâches.
+
+### 95.4 Détail des tâches Proxmox Backup Server
+- Journal de la dernière exécution lu (256 Kio au plus) dans
+  `/var/log/proxmox-backup/tasks/<XX>/<UPID>` (XX = « pstart & 255 » ; sinon
+  les 256 sous-dossiers sont essayés, avec Lstat, sans suivre de lien).
+- Nettoyage : place libérée, en attente, données d'origine, place sur le
+  disque, déduplication. Vérification : archives vérifiées, erreurs, liste
+  des instantanés en échec. Élagage : supprimées / gardées.
+  Synchronisation : éléments synchronisés. Lignes `ERROR` / `TASK ERROR`.
+- Série `mirador_tache_resume{source,tache,rang,nom,valeur}` (8 au plus par
+  tâche), affichée en pastilles ; erreurs dans « Voir l'erreur ».
+- Formes de lignes tirées des journaux de PBS 2 / 3 ; une ligne inconnue est
+  ignorée. À confirmer sur le PBS de l'utilisateur (commande dans PROGRES).
+
+### 95.5 Page Tâches : par machine, filtre « en problème »
+- Tâches suivies regroupées par machine (machines en problème d'abord,
+  « sans machine » à la fin), tâches en problème d'abord dans chaque groupe.
+- Filtre « Toutes / En problème » (`/taches?filtre=probleme`), qui s'applique
+  aussi aux tâches détectées (échecs seulement).
+- Tuile « À regarder » (en retard, en échec ou inhabituelles).
+
+### 95.6 Carte « Sauvegardes des dernières 24 h » (vue d'ensemble)
+- Sauvegardes = vzdump, PBS backup / synchronisation, ou tâche dont le nom
+  contient « sauvegarde » / « backup ». Réussies / total, VM/CT sauvegardées,
+  taille totale, échecs (lien « Voir l'erreur »), 5 dernières réussies,
+  sauvegardes suivies sans exécution depuis 24 h.
+- Bloc déplaçable et masquable comme les autres (§ 83) ; absent s'il n'y a
+  aucune sauvegarde connue.
+
+### 95.7 Coût (mesuré)
+- Serveur, chaque minute : lecture des tâches détectées (11 requêtes
+  instantanées, déjà faites avant quand une tâche était suivie) + une requête
+  d'historique + anomalies : **21 ms pour 50 tâches**. Écriture : 86 µs par
+  nouvelle exécution (une par tâche et par exécution, pas par minute).
+- Disque : 2 Mo pour 50 tâches × 60 exécutions avec 20 VM chacune (pire
+  cas) ; quelques centaines de Ko en pratique.
+- Agent (assistant root, toutes les 15 min) : 4 ms par journal PBS de 256 Kio
+  (1 Mo de mémoire passagère) ; VM oubliées : 20 µs pour 200 invités.
+- Page Tâches : une requête d'historique en plus ; vue d'ensemble : lecture
+  des tâches (cache des requêtes de 20 s).
+
+### 95.8 Modèle de menaces
+- Fichiers lus par root : chemins figés, lecture seule, taille bornée, aucun
+  lien suivi (Lstat, lecture sans lien), UPID vérifié (ni « / » ni octet nul).
+  Aucun programme lancé, aucune commande reçue du serveur.
+- Textes lus (noms de pools, résumés PBS) : bornés en longueur, envoyés
+  comme étiquettes, échappés à l'affichage (html/template).
+- Historique : clés et valeurs passées en paramètres SQL ; table bornée
+  (60 lignes par tâche) : un agent qui inventerait des tâches ne remplit
+  pas la base sans limite au-delà de ce que le quota de séries permet déjà.
+- Rien de nouveau n'est exposé sans connexion.

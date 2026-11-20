@@ -141,6 +141,7 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 	if err != nil {
 		r.Erreurs = append(r.Erreurs, "proxmox : "+err.Error())
 	}
+	couvertureSauvegardes(pve) // VM oubliées (SPEC § 95)
 	r.Proxmox = pve
 	// Sauvegardes et tâches Proxmox (rien hors Proxmox : fichiers absents).
 	r.Taches = lireTachesProxmox()

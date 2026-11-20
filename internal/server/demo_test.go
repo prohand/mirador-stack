@@ -12,6 +12,7 @@ import (
 	"mirador-stack/internal/server/certsyslog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -122,6 +123,24 @@ func TestDemoInterface(t *testing.T) {
 			mk("node_filesystem_avail_bytes", func(k int) float64 { return (15 - 0.05*float64(k)/120) * (1 << 30) }, "mountpoint", "/var", "fstype", "ext4", "device", "/dev/sda2")
 			mk("node_filesystem_size_bytes", func(int) float64 { return 100 << 30 }, "mountpoint", "/var", "fstype", "ext4", "device", "/dev/sda2")
 		}
+		if m == "nas-backup" { // Proxmox Backup Server : nettoyage, vérification (SPEC § 95)
+			for _, x := range []struct {
+				nom  string
+				il   time.Duration
+				code int
+				res  [][2]string
+			}{{"garbage_collection store1", 4 * time.Hour, 0, [][2]string{{"Place libérée", "12.3 GiB"}, {"Place sur le disque", "345.6 GiB (7.39%)"}, {"Facteur de déduplication", "13.53"}}},
+				{"verificationjob store1:v-1a2b", 3 * time.Hour, 1, [][2]string{{"Archives vérifiées", "48"}, {"Erreurs de vérification", "2"}}}} {
+				fin := now.Add(-x.il)
+				mk("mirador_tache_fin_timestamp_seconds", func(int) float64 { return float64(fin.Unix()) }, "source", "pbs", "tache", x.nom)
+				mk("mirador_tache_debut_timestamp_seconds", func(int) float64 { return float64(fin.Add(-7 * time.Minute).Unix()) }, "source", "pbs", "tache", x.nom)
+				mk("mirador_tache_code", func(int) float64 { return float64(x.code) }, "source", "pbs", "tache", x.nom)
+				for i, r := range x.res {
+					mk("mirador_tache_resume", un, "source", "pbs", "tache", x.nom, "rang", strconv.Itoa(i+1), "nom", r[0], "valeur", r[1])
+				}
+			}
+			mk("mirador_tache_erreur", un, "source", "pbs", "tache", "verificationjob store1:v-1a2b", "rang", "1", "message", "vérification en échec : vm/101/2026-11-19T01:00:00Z")
+		}
 		if m == "pve1" { // machine physique : capteurs, disques, et des nouveautés à valider
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 54 }, "chip", "coretemp", "sensor", "temp1")
 			mk("node_hwmon_temp_celsius", func(int) float64 { return 43 }, "chip", "nct6798", "sensor", "temp2")
@@ -167,6 +186,8 @@ func TestDemoInterface(t *testing.T) {
 					mk("mirador_tache_vm_message", un, "source", "pve", "tache", "vzdump", "vm", vm.id, "message", vm.msg)
 				}
 			}
+			// VM oubliée (SPEC § 95).
+			mk("mirador_pve_invite_sans_sauvegarde", un, "id", "105", "type", "qemu", "nom", "test-k8s")
 			for i, d := range []string{"sda", "sdb", "nvme0"} {
 				mk("smartctl_device_smart_status", un, "device", d)
 				base := 36 + 6*float64(i) // nvme0 plus chaud, qui monte à la fin (alerte « Disque chaud »)
@@ -231,6 +252,23 @@ func TestDemoInterface(t *testing.T) {
 		('pve1|systemd|sauvegarde-restic', 'sauvegarde-restic', 'systemd', 'pve1', 0, 3600, 'warning', ?),
 		('pve1|pve|vzdump', 'vzdump', 'pve', 'pve1', 86400, 7200, 'critical', ?)`, now.Add(-48*time.Hour).Unix(), now.Add(-48*time.Hour).Unix())
 	_, _ = s.db.Exec(`UPDATE taches SET libelle = 'Sauvegardes des VM (nuit)' WHERE cle = 'pve1|pve|vzdump'`)
+	// Historique (SPEC § 95) : 9 nuits de sauvegarde (une en échec ; la VM
+	// 102 faisait 6,5 Gio : « taille en baisse »), restic d'habitude en
+	// 10 min (42 min la dernière fois : « durée anormale »).
+	for j := 1; j <= 9; j++ {
+		f := now.Add(-6*time.Hour - time.Duration(j)*24*time.Hour)
+		code := 0
+		if j == 4 {
+			code = 1
+		}
+		_, _ = s.db.Exec(`INSERT INTO taches_executions(cle, fin, debut, code, octets, vms) VALUES ('pve1|pve|vzdump', ?, ?, ?, ?, ?)`,
+			f.Unix(), f.Add(-24*time.Minute).Unix(), code, 14.6*(1<<30), `{"101":4294967296,"102":6979321856,"200":644245094,"201":1288490188}`)
+		r := now.Add(-5*time.Hour - time.Duration(j)*24*time.Hour)
+		_, _ = s.db.Exec(`INSERT INTO taches_executions(cle, fin, debut, code) VALUES ('pve1|systemd|sauvegarde-restic', ?, ?, 0)`,
+			r.Unix(), r.Add(-time.Duration(9+j%3)*time.Minute).Unix())
+		p := now.Add(-49*time.Hour - time.Duration(j)*24*time.Hour)
+		_, _ = s.db.Exec(`INSERT INTO taches_executions(cle, fin, debut, code) VALUES ('ping|demo', ?, ?, 0)`, p.Unix(), p.Add(-time.Hour).Unix())
+	}
 	_, _ = s.db.Exec(`INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, jeton, cree_le, debut, fin, code) VALUES
 		('ping|demo', 'Sauvegarde NAS (Hyper Backup)', 'ping', 'nas-backup', 86400, 3600, 'warning', 'x', ?, ?, ?, 0)`,
 		now.Add(-10*24*time.Hour).Unix(), now.Add(-50*time.Hour).Unix(), now.Add(-49*time.Hour).Unix())

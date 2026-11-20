@@ -54,7 +54,12 @@ type Releve struct {
 	Stockage, Planning, Commentaire string
 	VMs                             []VMReleve
 	Erreurs                         []string // lignes « ERROR » (SPEC § 93)
+	// Resume : chiffres des tâches Proxmox Backup Server (SPEC § 95).
+	Resume []InfoReleve
 }
+
+// InfoReleve : un chiffre du résumé (« Place libérée » : « 1.2 GiB »).
+type InfoReleve struct{ Nom, Valeur string }
 
 // VMReleve : une VM ou un conteneur dans la dernière sauvegarde.
 type VMReleve struct {
@@ -75,9 +80,11 @@ func (t Tache) Affiche() string {
 // Etat : ce que l'interface affiche.
 type Etat struct {
 	Classe   string // ok, erreur, attention, inconnu
-	Texte    string // « OK », « Échec · code 1 », « En retard de 2 j », « Jamais vue »
+	Texte    string // « OK », « Échec · code 1 », « En retard de 2 j », « Durée anormale »
 	Probleme bool
 	Echeance time.Time // zéro : pas de vérification du retard
+	// Anomalies de la dernière exécution (SPEC § 95) : durée, taille.
+	Anomalies []Anomalie
 }
 
 // CleAgent : clé d'une tâche lue par l'agent.

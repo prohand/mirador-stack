@@ -44,6 +44,15 @@ type DetailSauvegarde struct {
 	VMs         []VMSauvegarde `json:"vms,omitempty"`
 	// Erreurs : lignes « ERROR » du journal (20 au plus, SPEC § 93).
 	Erreurs []string `json:"erreurs,omitempty"`
+	// Resume : chiffres utiles des tâches Proxmox Backup Server (SPEC § 95) :
+	// place libérée, instantanés vérifiés, supprimés…
+	Resume []InfoTache `json:"resume,omitempty"`
+}
+
+// InfoTache : un chiffre du résumé (« Place libérée » : « 1.2 GiB »).
+type InfoTache struct {
+	Nom    string `json:"nom"`
+	Valeur string `json:"valeur"`
 }
 
 // Fichiers lus (variables : remplacées dans les tests).
@@ -191,6 +200,11 @@ func raccourcirTexte(s string, n int) string {
 type travailPVE struct {
 	ID, Planning, Stockage, Commentaire string
 	Actif                               bool
+	// Sélection (SPEC § 95, VM oubliées) : « tout » (sauf Exclues), une
+	// liste de VM, ou un pool ; Noeud : travail limité à un nœud.
+	Tout         bool
+	VMs, Exclues []string
+	Pool, Noeud  string
 }
 
 // lireTravaux : travaux « vzdump: » de jobs.cfg.
@@ -226,6 +240,16 @@ func lireTravaux(b []byte) []travailPVE {
 			cur.Commentaire = raccourcirTexte(val, 100)
 		case "enabled":
 			cur.Actif = val != "0"
+		case "all":
+			cur.Tout = val == "1"
+		case "vmid":
+			cur.VMs = listeIDs(val)
+		case "exclude":
+			cur.Exclues = listeIDs(val)
+		case "pool":
+			cur.Pool = raccourcirTexte(val, 64)
+		case "node":
+			cur.Noeud = raccourcirTexte(val, 64)
 		}
 	}
 	return out
@@ -353,4 +377,100 @@ func completerSauvegardes(taches []TacheProxmox, maintenant time.Time) {
 			t.Detail = &d
 		}
 	}
+}
+
+// listeIDs : « 100,101 102 » → [100 101 102] (identifiants valides seulement).
+func listeIDs(v string) []string {
+	var out []string
+	for _, x := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+		if reIDPVE.MatchString(x) && len(out) < maxInvitesPVE {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// --- VM oubliées (SPEC § 95) ---------------------------------------------------------
+//
+// Une VM ou un conteneur de ce nœud qu'aucun travail de sauvegarde actif ne
+// couvre. Lecture seule de /etc/pve/jobs.cfg et /etc/pve/user.cfg (pools).
+
+var utilisateursPVE = "/etc/pve/user.cfg"
+
+// lirePools : membres de chaque pool (« pool:<nom>:<commentaire>:<vm,…>:<stockages>: »).
+func lirePools(b []byte) map[string][]string {
+	out := map[string][]string{}
+	sc := bufio.NewScanner(bytes.NewReader(b))
+	sc.Buffer(make([]byte, 0, 4096), 1<<20)
+	for sc.Scan() {
+		champs := strings.Split(sc.Text(), ":")
+		if len(champs) >= 4 && champs[0] == "pool" && champs[1] != "" {
+			out[champs[1]] = listeIDs(champs[3])
+		}
+	}
+	return out
+}
+
+// sansSauvegarde : invités du nœud qu'aucun travail actif ne couvre. ok faux :
+// rien à dire (aucun travail de sauvegarde, ou pool introuvable : on ne
+// signale pas une VM peut-être couverte).
+func sansSauvegarde(invites []Invite, noeud string, travaux []travailPVE, pools map[string][]string) ([]string, bool) {
+	couvert := map[string]bool{}
+	actifs := 0
+	for _, w := range travaux {
+		if !w.Actif || (w.Noeud != "" && w.Noeud != noeud) {
+			continue
+		}
+		actifs++
+		switch {
+		case w.Tout:
+			exclues := map[string]bool{}
+			for _, x := range w.Exclues {
+				exclues[x] = true
+			}
+			for _, inv := range invites {
+				if !exclues[inv.ID] {
+					couvert[inv.ID] = true
+				}
+			}
+		case w.Pool != "":
+			membres, ok := pools[w.Pool]
+			if !ok {
+				return nil, false
+			}
+			for _, x := range membres {
+				couvert[x] = true
+			}
+		}
+		for _, x := range w.VMs {
+			couvert[x] = true
+		}
+	}
+	if actifs == 0 {
+		return nil, false
+	}
+	out := []string{}
+	for _, inv := range invites {
+		if !couvert[inv.ID] {
+			out = append(out, inv.ID)
+		}
+	}
+	return out, true
+}
+
+// couvertureSauvegardes : remplit SansSauvegarde du nœud (fichiers illisibles : rien).
+func couvertureSauvegardes(p *Proxmox) {
+	if p == nil {
+		return
+	}
+	b, err := lireDebut(travauxPVE, 256<<10)
+	if err != nil {
+		return
+	}
+	travaux := lireTravaux(b)
+	pools := map[string][]string{}
+	if u, err := lireDebut(utilisateursPVE, 1<<20); err == nil {
+		pools = lirePools(u)
+	}
+	p.SansSauvegarde, p.CouvertureLue = sansSauvegarde(p.Invites, p.Noeud, travaux, pools)
 }

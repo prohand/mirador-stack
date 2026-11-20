@@ -130,6 +130,9 @@ type ligneTache struct {
 	Prochaine        time.Time
 	ProchaineTexte   string // « dans 9 h », « prévue il y a 2 h »
 	ProchaineEstimee bool
+	// Historique (SPEC § 95) : frise des dernières exécutions, durée habituelle.
+	Frise      []caseFriseTache
+	Habituelle string
 }
 
 type tacheDetectee struct {
@@ -142,6 +145,7 @@ type tacheDetectee struct {
 	Puces          []puceTache
 	Prochaine      time.Time
 	ProchaineTexte string
+	Frise          []caseFriseTache
 }
 
 // prochaineTache : prochaine exécution annoncée (timer systemd, planning
@@ -205,6 +209,13 @@ func pucesTache(r taches.Releve) []puceTache {
 			out = append(out, puceTache{tailleLisible(int64(octets)), ""})
 		}
 	}
+	for _, x := range r.Resume { // tâches Proxmox Backup Server (SPEC § 95)
+		cl := ""
+		if strings.HasPrefix(x.Nom, "Erreurs") && x.Valeur != "0" {
+			cl = "er"
+		}
+		out = append(out, puceTache{x.Nom + " : " + x.Valeur, cl})
+	}
 	if r.Stockage != "" {
 		out = append(out, puceTache{"vers " + r.Stockage, ""})
 	}
@@ -225,7 +236,16 @@ type donneesTaches struct {
 	Nouveau              *nouveauPing // jeton tout juste créé (montré une fois)
 	Ajout                bool         // formulaire « Nouvelle tâche à signaler » ouvert (en haut)
 	Base                 string       // https://hôte
+	// Groupes : tâches suivies par machine (SPEC § 95) ; Probleme : filtre
+	// « en problème seulement ».
+	Groupes  []groupeTaches
+	Probleme bool
+	// SansSauvegarde : VM et conteneurs qu'aucun travail de sauvegarde
+	// Proxmox ne couvre (SPEC § 95, lu par l'assistant root).
+	SansSauvegarde []vmSansSauvegarde
 }
+
+type vmSansSauvegarde struct{ Machine, ID, Type, Nom string }
 
 type nouveauPing struct{ Nom, URL string }
 
@@ -300,14 +320,29 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
+	ts = taches.AvecReleves(ts, det)
+	// Historique (SPEC § 95) : 30 dernières exécutions de chaque tâche.
+	cles := make([]string, 0, len(ts)+len(det))
+	for _, t := range ts {
+		cles = append(cles, t.Cle)
+	}
+	for k := range det {
+		cles = append(cles, k)
+	}
+	hist, _ := taches.Historiques(ctx, c.db, cles, 30)
 	suivies := map[string]bool{}
-	for _, t := range taches.AvecReleves(ts, det) {
+	for _, t := range ts {
 		suivies[t.Cle] = true
 		if machine != "" && t.Machine != machine {
 			continue
 		}
-		l := ligneTache{T: t, Etat: taches.Calculer(t, t.Releve, q.t), Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message,
-			Description: descriptionTache(t.Source, t.Nom), Puces: pucesTache(t.Releve)}
+		h := hist[t.Cle]
+		l := ligneTache{T: t, Etat: taches.AvecAnomalies(taches.Calculer(t, t.Releve, q.t), taches.Anomalies(t.Releve, h, q.t)),
+			Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message,
+			Description: descriptionTache(t.Source, t.Nom), Puces: pucesTache(t.Releve), Frise: friseTache(h)}
+		if d := taches.DureeHabituelle(h, time.Time{}); d > 0 {
+			l.Habituelle = taches.DureeTexte(d)
+		}
 		l.Prochaine, l.ProchaineEstimee = prochaineTache(t.Releve, t.Periode)
 		l.ProchaineTexte = prochaineTexte(l.Prochaine, q.t)
 		l.Attendue = periodeTexte(t.Periode) + ", marge " + dureeLisible(t.Marge)
@@ -339,7 +374,7 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 		}
 		td := tacheDetectee{Detectee: *x, SourceTexte: textesSources[x.Source], Fin: x.Releve.Fin, Code: x.Releve.Code,
 			Systeme: x.Source == "systemd" && timerSysteme(x.Nom), Description: descriptionTache(x.Source, x.Nom), Puces: pucesTache(x.Releve),
-			Prochaine: x.Releve.Prochaine, ProchaineTexte: prochaineTexte(x.Releve.Prochaine, q.t)}
+			Prochaine: x.Releve.Prochaine, ProchaineTexte: prochaineTexte(x.Releve.Prochaine, q.t), Frise: friseTache(hist[k])}
 		if td.Systeme {
 			d.DuSysteme = append(d.DuSysteme, td)
 		} else {
@@ -352,6 +387,21 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 				return l[i].Machine < l[j].Machine
 			}
 			return l[i].Nom < l[j].Nom
+		})
+	}
+	if ech, err := c.instant(ctx, `mirador_pve_invite_sans_sauvegarde == 1`, q.t); err == nil {
+		for _, e := range ech {
+			v := vmSansSauvegarde{Machine: e.Etiquettes.Get("instance"), ID: e.Etiquettes.Get("id"), Type: e.Etiquettes.Get("type"), Nom: e.Etiquettes.Get("nom")}
+			if machine == "" || v.Machine == machine {
+				d.SansSauvegarde = append(d.SansSauvegarde, v)
+			}
+		}
+		sort.Slice(d.SansSauvegarde, func(i, j int) bool {
+			a, b := d.SansSauvegarde[i], d.SansSauvegarde[j]
+			if a.Machine != b.Machine {
+				return a.Machine < b.Machine
+			}
+			return a.ID < b.ID
 		})
 	}
 	if machine != "" {
@@ -385,7 +435,8 @@ func (c *Console) nbTachesEnProbleme(ctx context.Context, t time.Time) int {
 		return 0
 	}
 	ech, err := c.instant(ctx, `count((mirador_tache_echeance_timestamp_seconds < time())
-		or on (instance, source, tache) (mirador_tache_suivie and on (instance, source, tache) mirador_tache_code != 0)) or vector(0)`, t)
+		or on (instance, source, tache) (mirador_tache_suivie and on (instance, source, tache) mirador_tache_code != 0)
+		or on (instance, source, tache) max by (instance, source, tache) (mirador_tache_anomalie)) or vector(0)`, t)
 	if err != nil || len(ech) == 0 || math.IsNaN(ech[0].Valeur) {
 		return 0
 	}
@@ -395,7 +446,29 @@ func (c *Console) nbTachesEnProbleme(ctx context.Context, t time.Time) int {
 func (c *Console) pageTaches(q *req) {
 	d := c.donneesTaches(q, "")
 	d.Ajout = q.r.URL.Query().Get("ajout") == "1"
+	d.Probleme = q.r.URL.Query().Get("filtre") == "probleme"
+	c.rendreTaches(q, d)
+}
+
+// rendreTaches : page des tâches (groupes par machine, filtre).
+func (c *Console) rendreTaches(q *req, d donneesTaches) {
+	d.Groupes = grouperTaches(d.Suivies, d.Probleme)
+	if d.Probleme {
+		d.Detectees = filtrerEchecs(d.Detectees)
+		d.DuSysteme = filtrerEchecs(d.DuSysteme)
+	}
 	c.rendre(q, "taches", "Tâches planifiées", "taches", d)
+}
+
+// filtrerEchecs : tâches détectées dont la dernière exécution a échoué.
+func filtrerEchecs(l []tacheDetectee) []tacheDetectee {
+	var out []tacheDetectee
+	for _, x := range l {
+		if x.Code != 0 {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // lireReglagesTache : fréquence, marge, gravité du formulaire.
@@ -456,7 +529,7 @@ func (c *Console) postTaches(q *req) {
 				_ = Auditer(ctx, c.db, q.qui(), "tache_creee", t.Nom, "", "", q.ip.String(), q.t)
 				d := c.donneesTaches(q, "")
 				d.Nouveau = &nouveauPing{Nom: t.Nom, URL: d.Base + "/ping/" + jeton}
-				c.rendre(q, "taches", "Tâches planifiées", "taches", d)
+				c.rendreTaches(q, d)
 				return
 			}
 		}
@@ -466,7 +539,7 @@ func (c *Console) postTaches(q *req) {
 			_ = Auditer(ctx, c.db, q.qui(), "tache_jeton", strconv.FormatInt(id, 10), "", "", q.ip.String(), q.t)
 			d := c.donneesTaches(q, "")
 			d.Nouveau = &nouveauPing{Nom: f.Get("nom"), URL: d.Base + "/ping/" + jeton}
-			c.rendre(q, "taches", "Tâches planifiées", "taches", d)
+			c.rendreTaches(q, d)
 			return
 		}
 	case "modifier":

@@ -1465,6 +1465,26 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Vérifié iPhone 13 (clair et sombre) : aucun débord à droite, aucune erreur JS.
 - Coût : CSS seulement.
 
+## Tâches planifiées : historique, anomalies, VM oubliées, PBS (SPEC § 95, 20/11)
+- Historique des exécutions (frise des 10 dernières, durée habituelle).
+- Anomalies : durée anormale, tourne trop longtemps, taille de sauvegarde en
+  baisse ; règle `TacheAnormale`.
+- VM et conteneurs sans sauvegarde planifiée (assistant root, format 7) ;
+  règle `VMSansSauvegarde`.
+- Détail des tâches Proxmox Backup Server (nettoyage, vérification, élagage,
+  synchronisation).
+- Page Tâches par machine, filtre « En problème » ; carte « Sauvegardes des
+  dernières 24 h » sur la vue d'ensemble.
+- Mesures : serveur 21 ms/min pour 50 tâches, 2 Mo de base au pire ; agent
+  4 ms par journal PBS (toutes les 15 min). Objectifs tenus.
+- Tests : historique, anomalies, journaux PBS, VM oubliées, bout en bout
+  (règles : 178, dont 177 actives). Captures ordinateur et iPhone 13 vérifiées.
+- À faire chez l'utilisateur : mettre à jour le serveur, puis l'agent des
+  nœuds Proxmox et du PBS (assistant root format 7). Pour confirmer les
+  formes de journaux PBS, coller la sortie de :
+  `ls /var/log/proxmox-backup/tasks | head` et
+  `tail -n 3 /var/log/proxmox-backup/tasks/archive`.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

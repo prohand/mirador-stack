@@ -1552,3 +1552,24 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
   /* Liens en inline-flex : l'espace avant le compteur disparaissait (« Tout18 »). */
   .onglets a, .logs-onglets a { gap: 5px; }
 }
+
+/* Tâches planifiées (SPEC § 95) : frise des dernières exécutions, anomalies,
+   groupes par machine, filtre. */
+.frise-tache { display: flex; gap: 2px; margin-top: 5px; }
+.frise-tache i { width: 7px; height: 14px; border-radius: 2px; background: #30A46C; }
+.frise-tache i.er { background: #E5484D; }
+.frise-tache i.at { background: #F5A623; }
+.texte-anomalie { color: #B45309; font-weight: 500; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-anomalie { color: #F5B54A; } }
+:root[data-theme="dark"] .texte-anomalie { color: #F5B54A; }
+tr.groupe-taches > td { padding-top: 14px; font-weight: 600; background: none; border-bottom: 1px solid var(--bord); }
+.filtre-taches { margin: 0; }
+table.en-cartes .frise-tache { justify-content: flex-end; }
+.sauvegardes-nuit .chiffres { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 4px 0 10px; }
+.sauvegardes-nuit .chiffres b { display: block; font-size: 22px; }
+.sauvegardes-nuit ul { list-style: none; margin: 0; padding: 0; }
+.sauvegardes-nuit li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
+.texte-ok { color: #18794E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
+:root[data-theme="dark"] .texte-ok { color: #4CC38A; }
+.vm-oubliees ul.puces-tache { list-style: none; padding: 0; margin: 6px 0 0; }
