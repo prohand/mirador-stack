@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package console
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/tsdb"
+
+	"mirador-stack/internal/server/alertes"
+)
+
+var reURLPing = regexp.MustCompile(`<code id="url-ping">([^<]+)</code>`)
+
+// Tâches planifiées (SPEC § 80) : création d'une tâche « ping » dans la
+// page, signal sans session (même hors de la liste d'adresses), états.
+func TestTachesPing(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	csrf := b.csrf(c, "/taches")
+	code, corps, _ := b.post(c, "/taches", url.Values{"csrf": {csrf}, "action": {"creer"}, "nom": {"Sauvegarde NAS"},
+		"periode": {"86400"}, "marge": {"1"}, "gravite": {"critical"}})
+	if code != http.StatusOK {
+		t.Fatalf("création : %d", code)
+	}
+	adresse := trouver(t, reURLPing, corps)
+	chemin := adresse[strings.Index(adresse, "/ping/"):]
+	// Liste d'adresses restreinte : /ping passe quand même (jeton).
+	sec := SecuriteDefaut()
+	sec.IPs = "203.0.113.0/24"
+	b.c.securite.Store(&sec)
+	anonyme := b.client()
+	if code, corps, _ := b.get(anonyme, chemin+"/code/3?duree=120&message=disque%20plein"); code != http.StatusOK || corps != "OK\n" {
+		t.Fatalf("ping : %d %q", code, corps)
+	}
+	if code, _, _ := b.get(anonyme, "/ping/jeton-inconnu-jeton-inconnu"); code != http.StatusNotFound {
+		t.Fatalf("jeton inconnu : %d", code)
+	}
+	if code, _, _ := b.get(anonyme, chemin+"/code/999"); code != http.StatusBadRequest {
+		t.Fatalf("code hors limites : %d", code)
+	}
+	if code, _, _ := b.get(anonyme, "/"); code != http.StatusForbidden {
+		t.Fatalf("le reste de la console doit rester fermé : %d", code)
+	}
+	b.c.securite.Store(func() *Securite { s := SecuriteDefaut(); return &s }())
+	_, corps, _ = b.get(c, "/taches")
+	for _, attendu := range []string{"Sauvegarde NAS", "Échec · code 3", "disque plein", "2 min", "Signal (curl)"} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("page : %q absent", attendu)
+		}
+	}
+	if strings.Contains(corps, chemin) {
+		t.Error("le jeton ne doit plus être affiché")
+	}
+	// Limite : 60 appels par minute et par adresse.
+	n := 0
+	for i := 0; i < 70; i++ {
+		if code, _, _ := b.get(anonyme, chemin); code == http.StatusTooManyRequests {
+			n++
+		}
+	}
+	if n == 0 {
+		t.Fatal("pas de limite d'appels")
+	}
+}
+
+// Les expressions des règles TacheEnEchec / TacheEnRetard sur de vraies
+// séries : échec d'une tâche suivie seulement ; échéance passée.
+func TestReglesTachesSeries(t *testing.T) {
+	b := nouveauBanc(t)
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := b.h.maintenant()
+	app := db.Appender(context.Background())
+	ajout := func(v float64, l ...string) { _, _ = app.Append(0, labels.FromStrings(l...), m.UnixMilli(), v) }
+	ajout(3, "__name__", "mirador_tache_code", "instance", "web1", "job", "node", "source", "systemd", "tache", "sauvegarde")
+	ajout(2, "__name__", "mirador_tache_code", "instance", "web1", "job", "node", "source", "systemd", "tache", "pas-suivie")
+	ajout(1, "__name__", "mirador_tache_suivie", "instance", "web1", "job", "mirador", "source", "systemd", "tache", "sauvegarde", "gravite", "warning")
+	ajout(float64(m.Add(-time.Hour).Unix()), "__name__", "mirador_tache_echeance_timestamp_seconds", "instance", "web1", "job", "mirador", "source", "systemd", "tache", "sauvegarde", "gravite", "warning")
+	ajout(float64(m.Add(time.Hour).Unix()), "__name__", "mirador_tache_echeance_timestamp_seconds", "instance", "nas", "job", "mirador", "source", "ping", "tache", "a-l-heure", "gravite", "warning")
+	_ = app.Commit()
+	l := alertes.NouveauLecteur(db, nil)
+	for _, r := range alertes.ReglesMirador() {
+		if r.Nom != "TacheEnEchec" && r.Nom != "TacheEnRetard" {
+			continue
+		}
+		ech, err := l.Instant(context.Background(), r.Expr, m)
+		if err != nil || len(ech) != 1 || ech[0].Etiquettes.Get("tache") != "sauvegarde" {
+			t.Fatalf("%s : %v %+v", r.Nom, err, ech)
+		}
+	}
+}

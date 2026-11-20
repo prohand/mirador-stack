@@ -6682,3 +6682,61 @@ l'utilisateur) :
   le menu.
 - Coût : rien en plus par page (le compte est déjà lu) ; 120 règles CSS
   d'ordre (2 Ko).
+
+## 80. Tâches planifiées (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+
+- Demande : suivre les sauvegardes, crons et timers : « la tâche a-t-elle
+  tourné à temps, et a-t-elle réussi ? ». Choix de l'utilisateur : l'agent
+  les voit lui-même quand c'est possible, un appel `curl` pour le reste ;
+  sauvegardes Proxmox comprises dès la première version.
+- Ce que l'agent voit seul (rien à installer, rien à configurer) :
+  - **timers systemd** : D-Bus en lecture (`LastTriggerUSec`,
+    `NextElapseUSecRealtime`, et le service lié : `Result`,
+    `ExecMainStatus`, début et fin) ; 100 timers au plus, relus toutes les
+    5 min ;
+  - **conteneurs Docker ponctuels** : conteneur arrêté avec la politique de
+    redémarrage `no` ou `on-failure` (`State.FinishedAt`, `ExitCode`) ;
+  - **Proxmox VE et Proxmox Backup Server** : l'assistant root lit la fin
+    (256 Kio) du journal des tâches (`/var/log/pve/tasks/index`,
+    `/var/log/proxmox-backup/tasks/archive`) : vzdump ; backup,
+    garbage_collection, verify, prune, sync. Format de l'assistant : 4
+    (exigé seulement sur un nœud Proxmox).
+  - Métriques envoyées : `mirador_tache_debut|fin|prochaine_timestamp_seconds`,
+    `mirador_tache_code`, `mirador_tache_message` (étiquettes `source`,
+    `tache`).
+- Tâche signalée par `curl` (cron classique, NAS Synology, machine sans
+  agent, service externe) : `/ping/<jeton>` (fin réussie), `/echec`,
+  `/debut`, `/code/<n>`, `?duree=<s>&message=…`. L'adresse est affichée
+  **une seule fois** ; « Nouvelle adresse » en crée une autre.
+- Suivi : rien n'est suivi d'office (trop de timers système). Page Sondes ›
+  Tâches planifiées : « Suivre » une tâche détectée, ou en créer une à
+  signaler ; réglages : période attendue (ou « selon le timer »), marge,
+  gravité. Les timers du système (apt, logrotate, fstrim…) sont repliés.
+- Alertes (groupe « Tâches planifiées », 4 règles par défaut) :
+  - échec : `mirador_tache_code != 0` sur une tâche suivie ;
+  - retard : échéance dépassée = dernière fin (ou date de suivi) + période
+    + marge ; sans période : prochain passage annoncé par le timer + marge.
+  - Le serveur écrit chaque minute `mirador_tache_suivie` et
+    `mirador_tache_echeance_timestamp_seconds` (et les séries des tâches
+    `curl`), comme ses autres métriques internes : les règles restent des
+    règles ordinaires (sourdine, maintenance, notifications).
+- Pourquoi pas un `curl` partout (comme Checkmate) : il faut modifier
+  chaque tâche, et une tâche qui ne se lance plus du tout ne dit rien ; le
+  timer, lui, annonce son prochain passage.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | `/ping` public (servi avant la liste d'adresses autorisées, sans session) | il ne fait qu'une chose : noter « la tâche a tourné » ; aucune donnée renvoyée (texte « OK ») ; rien d'autre n'est joignable sans session |
+  | Deviner un jeton | 144 bits aléatoires ; jeton inconnu = 404 identique |
+  | Vol de la base | seule l'empreinte SHA-256 du jeton est gardée |
+  | Fuite de l'adresse (script partagé, historique) | « Nouvelle adresse » invalide l'ancienne ; au pire, une fausse réussite ou un faux échec sur cette tâche seule |
+  | Aperçu de lien (messagerie) qui appelle l'adresse | ne la coller que dans la tâche ; au pire, une fausse réussite sur cette tâche |
+  | Inondation | 60 appels par minute et par adresse IP (429) ; message coupé à 200 octets, une ligne, sans caractère de contrôle ; corps lu sur 200 octets au plus |
+  | Exécution à distance | aucune : l'agent lit seulement (D-Bus, API Docker en lecture, fichiers de journal) |
+  | Journal Proxmox piégé | lu par l'assistant root en lecture seule, 256 Kio au plus, lignes mal formées ignorées ; seuls les types connus sont gardés |
+- Coût mesuré :
+  - assistant root : 1,3 ms pour 256 Kio de journal, toutes les 15 min ;
+  - agent : 2 appels D-Bus par timer toutes les 5 min (une vingtaine de
+    timers sur une Debian ordinaire), 5 séries par tâche ;
+  - serveur : une lecture SQL et quelques séries par tâche suivie, chaque
+    minute ; une ligne par tâche suivie (migration 0032).

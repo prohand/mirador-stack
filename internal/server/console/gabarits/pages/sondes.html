@@ -1,5 +1,6 @@
 {{define "contenu"}}
 <div class="titre-page"><h1>Sondes</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="/sondes?ajout=1#ajouter">+ Ajouter une sonde</a></div>{{end}}</div>
+<p class="onglets"><a class="actif" aria-current="page" href="/sondes">Sondes</a><a href="/taches">Tâches planifiées</a></p>
 {{template "filtre-sur" .D.FiltreSur}}
 {{if and .Admin .D.Ajout.Ouvert}}<section class="carte ajout-sonde" id="ajouter"><div class="entete-carte"><h2>Ajouter une sonde</h2><a class="pastille" href="/sondes">Fermer</a></div>
 <nav class="onglets" data-onglets-panneaux="ajout-sonde"{{if .D.Ajout.Choisie}} data-onglet-force="machine"{{end}} aria-label="Façon d'ajouter"><a href="#ajout-machine" data-onglet="machine">Depuis une machine</a><a href="#ajout-manuel" data-onglet="manuel">À la main</a></nav>

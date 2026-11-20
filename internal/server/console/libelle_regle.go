@@ -41,6 +41,10 @@ var libellesRegles = map[string]string{
 	"LoadAverageEleve":                     "Charge système élevée",
 	"SynologyMiseAJourDSM":                 "Synology : mise à jour DSM disponible",
 	"UnifiMiseAJourDisponible":             "UniFi : mise à jour disponible",
+	"TacheEnEchec":                         "Tâche planifiée en échec",
+	"TacheEnEchecCritique":                 "Tâche planifiée en échec",
+	"TacheEnRetard":                        "Tâche planifiée en retard",
+	"TacheEnRetardCritique":                "Tâche planifiée en retard",
 	"Watchdog":                             "Watchdog (test de la chaîne d'alerte)",
 	"OpnsenseRedemarre":                    "OPNsense a redémarré",
 	"UnifiEquipementRedemarre":             "UniFi : équipement redémarré",
@@ -215,7 +219,7 @@ func partieExport(p string) string {
 
 // groupeRegle : titre d'un groupe de règles (« hote » → « Hôte »).
 func groupeRegle(g string) string {
-	if l, ok := map[string]string{"hote": "Hôte", "materiel": "Matériel", "modeles": "Modèles", "services": "Applications", "mirador": "mirador"}[g]; ok {
+	if l, ok := map[string]string{"hote": "Hôte", "materiel": "Matériel", "taches": "Tâches planifiées", "modeles": "Modèles", "services": "Applications", "mirador": "mirador"}[g]; ok {
 		return l
 	}
 	return majusculeDebut(g)

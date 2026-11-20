@@ -15,7 +15,16 @@ type sourceFactice struct {
 	redem     map[string]uint32
 	actives   []string
 	props     map[string]proprietesService
+	timers    map[string]tacheTimer
 	appelsRed int
+}
+
+func (f *sourceFactice) Timer(_ context.Context, u uniteEtat) (tacheTimer, error) {
+	t, ok := f.timers[u.Nom]
+	if !ok {
+		return t, errors.New("inconnu")
+	}
+	return t, nil
 }
 
 func (f *sourceFactice) Unites(context.Context) ([]uniteEtat, error) { return f.unites, nil }
@@ -142,5 +151,29 @@ func TestDevraitTourner(t *testing.T) {
 	echec.CodeSortie, echec.StatutSortie, echec.DebutMono, echec.FinMono = 1, 2, 1, 100
 	if !devraitTourner(echec) {
 		t.Error("une sortie en erreur doit être signalée")
+	}
+}
+
+// Tâches planifiées (SPEC § 80) : un timer, le résultat de son service.
+func TestSystemdTimers(t *testing.T) {
+	src := sourceExemple()
+	fin := time.Date(2026, 11, 20, 4, 42, 0, 0, time.UTC)
+	src.timers = map[string]tacheTimer{
+		"apt-daily.timer": {Nom: "apt-daily", Debut: fin.Add(-42 * time.Minute), Fin: fin, Derniere: fin.Add(-42 * time.Minute),
+			Prochaine: fin.Add(24 * time.Hour), Resultat: "success"},
+	}
+	src.unites = append(src.unites, uniteEtat{Nom: "sauvegarde.timer", Etat: "active", Charge: "loaded"})
+	src.timers["sauvegarde.timer"] = tacheTimer{Nom: "sauvegarde", Debut: fin, Fin: fin.Add(time.Minute), Derniere: fin,
+		Prochaine: fin.Add(time.Hour), Resultat: "exit-code", Code: 3}
+	s := newSystemdAvecSource(src, nil)
+	p := collecter(t, s)
+	verifier(t, p, map[string]float64{
+		"mirador_tache_fin_timestamp_seconds|source=systemd|tache=apt-daily":       float64(fin.Unix()),
+		"mirador_tache_code|source=systemd|tache=apt-daily":                        0,
+		"mirador_tache_prochaine_timestamp_seconds|source=systemd|tache=apt-daily": float64(fin.Add(24 * time.Hour).Unix()),
+		"mirador_tache_code|source=systemd|tache=sauvegarde":                       3,
+	})
+	if codeTimer(tacheTimer{Resultat: "timeout"}) != 1 {
+		t.Error("échec sans code de retour : 1 attendu")
 	}
 }

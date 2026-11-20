@@ -41,6 +41,8 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
+	m.HandleFunc("GET /taches", c.lecture(c.pageTaches)) // tâches planifiées (SPEC § 80)
+	m.HandleFunc("POST /taches", c.admin(c.postTaches))
 	// « Services » renommés « Applications » le 19/11 (SPEC § 65) : les
 	// anciennes adresses mènent aux nouvelles.
 	m.HandleFunc("GET /applications", c.lecture(c.pageServices))
@@ -1431,7 +1433,7 @@ func (c *Console) donneesAller(q *req) {
 		{"Alertes", "Page", "/alertes"},
 		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
-		{"Sondes", "Page", "/sondes"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
+		{"Sondes", "Page", "/sondes"}, {"Tâches planifiées", "Page", "/taches"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
 		{"Coupures", "Page", "/coupures"},
 	}

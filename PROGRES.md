@@ -1047,6 +1047,17 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Tâches planifiées (SPEC § 80, 20/11) : fait, à valider
+
+- Page Sondes › Tâches planifiées : l'agent voit seul les timers systemd,
+  les conteneurs Docker ponctuels et les sauvegardes Proxmox VE / PBS ;
+  le reste se signale par `curl` sur une adresse secrète.
+- Alertes « en échec » et « en retard », avertissement ou critique.
+- Mesures : 1,3 ms par lecture du journal Proxmox (toutes les 15 min) ;
+  2 appels D-Bus par timer toutes les 5 min ; négligeable côté serveur.
+- Sur Proxmox, l'assistant root passe au format 4 : il se met à jour avec
+  l'agent (mises à jour automatiques) ou par la commande habituelle.
+
 ## Menu réorganisable (SPEC § 79, 20/11) : fait, à valider
 
 - « Modifier le menu » : ordre, entrées masquées, 4 raccourcis du bas ;

@@ -122,6 +122,18 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		}
 	}
 
+	// Sauvegardes et tâches Proxmox VE / Backup Server (SPEC § 80).
+	for _, t := range res.Taches {
+		code := 0
+		if !t.OK {
+			code = 1
+		}
+		AjouterTache(b, t.Source, t.Nom, t.Debut, t.Fin, code, time.Time{})
+		if t.Message != "" {
+			b.Add("mirador_tache_message", 1, metrics.L("source", t.Source), metrics.L("tache", t.Nom), metrics.L("message", t.Message))
+		}
+	}
+
 	if pf := res.PareFeu; pf != nil && !r.SansPareFeu {
 		l := [2]metrics.Label{metrics.L("tool", pf.Outil), metrics.L("policy", pf.Politique)}
 		b.Add("node_firewall_input_policy_drop", bool01(pf.Restrictif()), l[:]...)

@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -26,6 +28,7 @@ const (
 	ifaceMgr    = "org.freedesktop.systemd1.Manager"
 	ifaceUnit   = "org.freedesktop.systemd1.Unit"
 	ifaceSvc    = "org.freedesktop.systemd1.Service"
+	ifaceTimer  = "org.freedesktop.systemd1.Timer"
 )
 
 func (s *sourceDBus) connexion() (*dbus.Conn, error) {
@@ -145,4 +148,52 @@ func (s *sourceDBus) Proprietes(ctx context.Context, service string) (proprietes
 	p.DebutMono, _ = svc["ExecMainStartTimestampMonotonic"].Value().(uint64)
 	p.FinMono, _ = svc["ExecMainExitTimestampMonotonic"].Value().(uint64)
 	return p, nil
+}
+
+// Timer : dernière exécution d'un timer et résultat du service lancé
+// (lecture seule, SPEC § 80).
+func (s *sourceDBus) Timer(ctx context.Context, u uniteEtat) (tacheTimer, error) {
+	t := tacheTimer{Nom: strings.TrimSuffix(u.Nom, ".timer")}
+	c, err := s.connexion()
+	if err != nil {
+		return t, err
+	}
+	p := dbus.ObjectPath(u.Chemin)
+	if !p.IsValid() {
+		if p, err = s.cheminUnite(ctx, c, u.Nom); err != nil {
+			return t, err
+		}
+	}
+	var tm map[string]dbus.Variant
+	if err := c.Object(destSystemd, p).CallWithContext(ctx, "org.freedesktop.DBus.Properties.GetAll", 0, ifaceTimer).Store(&tm); err != nil {
+		return t, err
+	}
+	t.Derniere = depuisMicro(tm["LastTriggerUSec"])
+	t.Prochaine = depuisMicro(tm["NextElapseUSecRealtime"])
+	service, _ := tm["Unit"].Value().(string)
+	if service == "" {
+		return t, nil
+	}
+	ps, err := s.cheminUnite(ctx, c, service)
+	if err != nil {
+		return t, nil // service introuvable : seulement les dates du timer
+	}
+	var svc map[string]dbus.Variant
+	if err := c.Object(destSystemd, ps).CallWithContext(ctx, "org.freedesktop.DBus.Properties.GetAll", 0, ifaceSvc).Store(&svc); err != nil {
+		return t, nil
+	}
+	t.Resultat, _ = svc["Result"].Value().(string)
+	t.Code, _ = svc["ExecMainStatus"].Value().(int32)
+	t.Debut = depuisMicro(svc["ExecMainStartTimestamp"])
+	t.Fin = depuisMicro(svc["ExecMainExitTimestamp"])
+	return t, nil
+}
+
+// depuisMicro : horodatage systemd (µs depuis 1970, 0 = jamais) en heure.
+func depuisMicro(v dbus.Variant) time.Time {
+	us, ok := v.Value().(uint64)
+	if !ok || us == 0 || us == ^uint64(0) {
+		return time.Time{}
+	}
+	return time.UnixMicro(int64(us)) // #nosec G115 -- µs depuis 1970 : tient dans un int64 jusqu'en l'an 292 000
 }

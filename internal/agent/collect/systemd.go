@@ -40,6 +40,7 @@ type Systemd struct {
 	redemarrage map[string]float64 // nom → NRestarts
 	actives     []serviceActive    // services activés au démarrage, retenus
 	proposes    []string           // services détectés, pas encore validés
+	timers      []tacheTimer       // tâches planifiées (timers), SPEC § 80
 
 	// Validation service par service (SPEC.md § 19) : si « valider » est vrai,
 	// seuls les services de « surveiller » sont suivis ; les autres sont
@@ -50,6 +51,9 @@ type Systemd struct {
 
 // maxProposes borne le nombre de services signalés « à valider ».
 const maxProposes = 100
+
+// maxTimers borne le nombre de timers lus (une machine en a 10 à 30).
+const maxTimers = 100
 
 // Valider active la validation service par service : seuls les services de la
 // liste sont surveillés, les autres sont proposés dans l'interface.
@@ -88,6 +92,17 @@ type sourceSystemd interface {
 	Redemarrages(ctx context.Context, u uniteEtat) (uint32, error)
 	ServicesActivesAuDemarrage(ctx context.Context) ([]string, error)
 	Proprietes(ctx context.Context, service string) (proprietesService, error)
+	Timer(ctx context.Context, u uniteEtat) (tacheTimer, error)
+}
+
+// tacheTimer : dernière exécution d'une tâche planifiée par un timer
+// systemd (SPEC § 80) : le timer et le service qu'il lance.
+type tacheTimer struct {
+	Nom                 string    // nom du timer sans « .timer »
+	Debut, Fin          time.Time // ExecMainStartTimestamp / ExecMainExitTimestamp du service
+	Derniere, Prochaine time.Time // LastTriggerUSec / NextElapseUSecRealtime du timer
+	Resultat            string    // Result du service : success, exit-code, timeout…
+	Code                int32     // ExecMainStatus (code de retour)
 }
 
 type serviceActive struct {
@@ -175,7 +190,22 @@ func (s *Systemd) Collecter(b *metrics.Batch) error {
 	for _, nom := range s.proposes {
 		b.Add(MetriqueDetecte, 1, metrics.L("genre", "service"), metrics.L("nom", nom))
 	}
+	for _, t := range s.timers {
+		AjouterTache(b, "systemd", t.Nom, t.Debut, t.Fin, codeTimer(t), t.Prochaine)
+	}
 	return nil
+}
+
+// codeTimer : 0 si le service a réussi, sinon son code de retour (1 au
+// moins : un échec par délai dépassé ou par signal a un code 0).
+func codeTimer(t tacheTimer) int {
+	if t.Resultat == "" || t.Resultat == "success" {
+		return 0
+	}
+	if t.Code != 0 {
+		return int(t.Code)
+	}
+	return 1
 }
 
 // rafraichir relit les données coûteuses (un appel D-Bus par service).
@@ -219,10 +249,23 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 		}
 	}
 
+	// Tâches planifiées : chaque timer et le service qu'il lance (deux appels
+	// D-Bus par timer, toutes les 5 min).
+	var timers []tacheTimer
+	for _, u := range unites {
+		if !strings.HasSuffix(u.Nom, ".timer") || len(timers) >= maxTimers {
+			continue
+		}
+		if t, err := s.source.Timer(ctx, u); err == nil && (!t.Derniere.IsZero() || !t.Prochaine.IsZero()) {
+			timers = append(timers, t)
+		}
+	}
+
 	s.mu.Lock()
 	s.redemarrage = redem
 	s.actives = actives
 	s.proposes = proposes
+	s.timers = timers
 	s.rafraichi = s.maintenant()
 	s.mu.Unlock()
 }

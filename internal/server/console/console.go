@@ -86,6 +86,8 @@ type Console struct {
 	dernierAuto time.Time
 	// dernierNettoyageConfiance : appareils de confiance expirés, une fois par heure.
 	dernierNettoyageConfiance time.Time
+	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
+	pings limitePing
 
 	muPremier    sync.Mutex
 	jetonPremier string // jeton de création du premier admin ('' = plus de besoin)
@@ -267,6 +269,13 @@ func (c *Console) anciensNoms() map[string]string {
 
 // ServeHTTP : point d'entrée de toutes les requêtes de l'interface.
 func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Signal d'une tâche planifiée (SPEC § 80) : avant la liste d'adresses
+	// autorisées (un NAS ou un script du réseau local n'y est pas
+	// forcément) ; protégé par le jeton, ne permet qu'une chose.
+	if strings.HasPrefix(r.URL.Path, "/ping/") {
+		c.servirPing(w, r)
+		return
+	}
 	ip := web.AdresseClient(r)
 	if !c.securite.Load().AdresseAutorisee(ip) {
 		c.journal.Warn("console : adresse non autorisée", "ip", ip.String(), "chemin", r.URL.Path)

@@ -25,7 +25,8 @@ var reponsesDocker = map[string]string{
 	"/containers/aaaaaaaaaaaaaaaa/json": `{"RestartCount":2,"HostConfig":{"RestartPolicy":{"Name":"unless-stopped"}},
 	  "Config":{"Env":["MOT_DE_PASSE=secret-ne-pas-envoyer"]},
 	  "State":{"OOMKilled":false,"StartedAt":"2026-11-10T08:15:30.123456789Z","Health":{"Status":"healthy"}}}`,
-	"/containers/bbbbbbbbbbbbbbbb/json": `{"RestartCount":0,"HostConfig":{"RestartPolicy":{"Name":""}},"State":{"OOMKilled":false}}`,
+	"/containers/bbbbbbbbbbbbbbbb/json": `{"RestartCount":0,"HostConfig":{"RestartPolicy":{"Name":""}},"State":{"OOMKilled":false,
+	  "StartedAt":"2026-11-20T03:00:00Z","FinishedAt":"2026-11-20T03:12:00Z","ExitCode":2}}`,
 	"/containers/cccccccccccccccc/json": `{"RestartCount":5,"HostConfig":{"RestartPolicy":{"Name":"always"}},"State":{"OOMKilled":true,"Health":{"Status":"starting"}}}`,
 	"/containers/aaaaaaaaaaaaaaaa/stats": `{"cpu_stats":{"cpu_usage":{"total_usage":12500000000}},
 	  "memory_stats":{"usage":104857600,"limit":536870912,"stats":{"inactive_file":20971520}}}`,
@@ -66,7 +67,15 @@ func TestDocker(t *testing.T) {
 		"node_docker_container_memory_bytes|name=web|project=site":                                        (100 - 20) << 20,
 		"node_docker_container_memory_limit_bytes|name=web|project=site":                                  512 << 20,
 		"node_docker_container_started_timestamp_seconds|name=web|project=site":                           1794298530,
+		// Conteneur ponctuel arrêté (sauvegarde) : tâche planifiée (SPEC § 80).
+		"mirador_tache_code|source=docker|tache=sauvegarde":                  2,
+		"mirador_tache_fin_timestamp_seconds|source=docker|tache=sauvegarde": 1795144320,
 	})
+	for k := range p {
+		if strings.Contains(k, "tache=base") || strings.Contains(k, "tache=web") {
+			t.Errorf("conteneur permanent pris pour une tâche : %s", k)
+		}
+	}
 	// Conteneur arrêté, ou date absente : pas de série « démarré depuis ».
 	for k := range p {
 		if strings.HasPrefix(k, "node_docker_container_started_timestamp_seconds|name=base") {

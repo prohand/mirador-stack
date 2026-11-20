@@ -14,10 +14,12 @@ import (
 	"io/fs"
 	"mime"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/taches"
 	"net/http"
 	"path"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -265,6 +267,23 @@ func fonctions() template.FuncMap {
 		"dureeFr":      dureeFr,
 		"motTechnique": motTechnique,
 		"quiLisible":   quiLisible,
+		// Tâches planifiées (SPEC § 80) : valeurs des formulaires.
+		"secondes": func(d time.Duration) int64 { return int64(d / time.Second) },
+		"minutes":  func(d time.Duration) int64 { return int64(d / time.Minute) },
+		"heures":   func(d time.Duration) string { return strconv.FormatFloat(d.Hours(), 'f', -1, 64) },
+		"autrePeriode": func(d time.Duration) bool {
+			return d != 0 && d != time.Hour && d != 24*time.Hour && d != 7*24*time.Hour
+		},
+		"tacheParDefaut": func() taches.Tache {
+			return taches.Tache{Source: taches.SourcePing, Periode: 24 * time.Hour, Marge: time.Hour, Gravite: "warning"}
+		},
+		"tacheDetecteeDefaut": func(source string) taches.Tache {
+			t := taches.Tache{Source: source, Periode: 24 * time.Hour, Marge: 2 * time.Hour, Gravite: "warning"}
+			if source == "systemd" {
+				t.Periode, t.Marge = 0, time.Hour
+			}
+			return t
+		},
 		"majuscule": func(s string) string {
 			if s == "" {
 				return s

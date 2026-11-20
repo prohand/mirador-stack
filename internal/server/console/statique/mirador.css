@@ -1382,3 +1382,13 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
 }
 .barre nav.edition > a .txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .barre nav.edition > a .menu-outils { flex: none; }
+
+/* --- Tâches planifiées (SPEC § 80) ------------------------------------------------ */
+.lien-ping { display: flex; gap: 8px; align-items: center; background: var(--entete-table); border: 1px solid var(--bord); border-radius: 8px; padding: 8px 10px; margin: 6px 0 10px; }
+.lien-ping code { flex: 1; overflow-wrap: anywhere; font-size: 12.5px; }
+.nouveau-ping pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; }
+details.modifier-tache > summary { list-style: none; cursor: pointer; display: inline-flex; }
+details.modifier-tache > summary::-webkit-details-marker { display: none; }
+details.modifier-tache[open] { min-width: 280px; }
+details.modifier-tache form { margin-top: 8px; text-align: left; }
+tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }

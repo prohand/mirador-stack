@@ -50,7 +50,9 @@ type Resultat struct {
 	// Disques des VM (nœud Proxmox), mesurés à chaque passage, même léger.
 	DisquesVM map[string]DisqueVM `json:"disques_vm,omitempty"`
 	DisquesLe time.Time           `json:"disques_le,omitempty"`
-	Erreurs   []string            `json:"erreurs,omitempty"`
+	// Tâches Proxmox VE / Proxmox Backup Server (sauvegardes…), SPEC § 80.
+	Taches  []TacheProxmox `json:"taches,omitempty"`
+	Erreurs []string       `json:"erreurs,omitempty"`
 }
 
 // TailleMaxFichier borne la lecture du fichier par l'agent.
@@ -140,6 +142,8 @@ func Mesurer(cfg config.Agent, maintenant time.Time, precedent *Resultat, prog p
 		r.Erreurs = append(r.Erreurs, "proxmox : "+err.Error())
 	}
 	r.Proxmox = pve
+	// Sauvegardes et tâches Proxmox (rien hors Proxmox : fichiers absents).
+	r.Taches = lireTachesProxmox()
 	return r
 }
 
