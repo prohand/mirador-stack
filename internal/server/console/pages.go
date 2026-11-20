@@ -195,6 +195,7 @@ type donneesAccueil struct {
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
 	Ruche                        *vueRuche
+	Sauvegardes                  *sauvegardesNuit // sauvegardes des dernières 24 h (SPEC § 95)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -204,6 +205,7 @@ func (c *Console) pageAccueil(q *req) {
 // donneesAccueilVue : résumé ou ruche (onglet, SPEC § 51).
 func (c *Console) donneesAccueilVue(q *req) donneesAccueil {
 	d := c.donneesAccueil(q)
+	d.Sauvegardes = c.sauvegardesDeLaNuit(q)
 	if q.r.URL.Query().Get("vue") == "ruche" {
 		d.Vue = "ruche"
 		d.Ruche = c.ruche(q.r.Context(), q.r.URL.Query().Get("ruche"), d.Parc, q.t)

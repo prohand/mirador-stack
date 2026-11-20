@@ -46,6 +46,8 @@ var libellesRegles = map[string]string{
 	"TacheEnEchecCritique":                 "Tâche planifiée en échec",
 	"TacheEnRetard":                        "Tâche planifiée en retard",
 	"TacheEnRetardCritique":                "Tâche planifiée en retard",
+	"TacheAnormale":                        "Tâche planifiée inhabituelle",
+	"VMSansSauvegarde":                     "VM sans sauvegarde planifiée",
 	"Watchdog":                             "Watchdog (test de la chaîne d'alerte)",
 	"OpnsenseRedemarre":                    "OPNsense a redémarré",
 	"UnifiEquipementRedemarre":             "UniFi : équipement redémarré",

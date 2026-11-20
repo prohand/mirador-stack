@@ -45,6 +45,7 @@ type interne struct {
 	purgeeLe   time.Time
 	mesureeLe  time.Time
 	lecteur    *alertes.Lecteur // états des services (SPEC § 50)
+	executions taches.Noteur    // historique des tâches (SPEC § 95)
 }
 
 // delaiServicesAttendus : sans donnée reçue d'une machine depuis ce temps,
@@ -196,12 +197,37 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 	// Tâches planifiées suivies (SPEC § 80) : échéance de chacune (règle
 	// TacheEnRetard) et, pour les tâches « ping », leur dernier signal
 	// (règle TacheEnEchec).
-	if ts, err := taches.Lister(ctx, s.db); err == nil && len(ts) > 0 {
+	// Historique (SPEC § 95) : chaque nouvelle exécution est notée, suivie ou
+	// non (l'historique est déjà là le jour où on la suit) ; les anomalies
+	// (durée, taille) des tâches suivies sont écrites pour la règle TacheAnormale.
+	if ts, err := taches.Lister(ctx, s.db); err == nil {
 		if i.lecteur == nil {
 			i.lecteur = alertes.NouveauLecteur(s.met.Requetes(), s.journal.With("composant", "services"))
 		}
 		det := taches.Detectees(func(expr string) ([]alertes.Echantillon, error) { return i.lecteur.Instant(ctx, expr, t) })
-		for _, se := range taches.Series(taches.AvecReleves(ts, det)) {
+		ts = taches.AvecReleves(ts, det)
+		for k, d := range det {
+			if err := i.executions.Noter(ctx, s.db, k, d.Releve); err != nil {
+				s.journal.Warn("historique des tâches", "err", err)
+				break
+			}
+		}
+		cles := make([]string, 0, len(ts))
+		for _, x := range ts {
+			if x.Source == taches.SourcePing {
+				_ = i.executions.Noter(ctx, s.db, x.Cle, x.Releve)
+			}
+			cles = append(cles, x.Cle)
+		}
+		anomalies := map[string][]taches.Anomalie{}
+		if hist, err := taches.Historiques(ctx, s.db, cles, 30); err == nil {
+			for _, x := range ts {
+				if a := taches.Anomalies(x.Releve, hist[x.Cle], t); len(a) > 0 {
+					anomalies[x.Cle] = a
+				}
+			}
+		}
+		for _, se := range taches.Series(ts, anomalies) {
 			ajout(se.Nom, se.Valeur, se.Etiquettes...)
 		}
 	}

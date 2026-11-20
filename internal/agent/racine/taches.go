@@ -33,7 +33,7 @@ type TacheProxmox struct {
 	Fin     time.Time `json:"fin"`
 	OK      bool      `json:"ok"`
 	Message string    `json:"message,omitempty"` // statut si ce n'est pas « OK » (120 caractères au plus)
-	// Detail : sauvegardes vzdump seulement (SPEC § 89).
+	// Detail : sauvegardes vzdump (SPEC § 89) et tâches PBS (§ 95).
 	Detail *DetailSauvegarde `json:"detail,omitempty"`
 	upid   string            // pour retrouver le journal de la tâche
 }
@@ -65,6 +65,7 @@ func lireTachesProxmox() []TacheProxmox {
 		}
 	}
 	completerSauvegardes(out, time.Now())
+	completerPBS(out) // SPEC § 95
 	return out
 }
 

@@ -22,7 +22,7 @@ import (
 // Tuiles (dans la rangée du haut) puis blocs (la page), ordre par défaut.
 var (
 	tuilesAccueil = []string{"machines", "alertes", "notifications", "stockage"}
-	blocsAccueil  = []string{"tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "parc", "chaleur", "bas"}
+	blocsAccueil  = []string{"tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "parc", "chaleur", "sauvegardes", "bas"}
 )
 
 func cleAccueil(c string) bool {
