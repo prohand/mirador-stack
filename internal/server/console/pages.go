@@ -41,7 +41,8 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
-	m.HandleFunc("GET /taches", c.lecture(c.pageTaches)) // tâches planifiées (SPEC § 80)
+	m.HandleFunc("GET /taches", c.lecture(c.pageTaches))             // tâches planifiées (SPEC § 80)
+	m.HandleFunc("GET /taches/erreur", c.lecture(c.pageErreurTache)) // « Voir l'erreur » (SPEC § 93)
 	m.HandleFunc("POST /taches", c.admin(c.postTaches))
 	// « Services » renommés « Applications » le 19/11 (SPEC § 65) : les
 	// anciennes adresses mènent aux nouvelles.

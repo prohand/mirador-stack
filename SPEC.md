@@ -7010,3 +7010,42 @@ ci-dessous.
 - Correction : valeurs de légende de largeur fixe (chiffres de même
   largeur), ligne d'annotation de hauteur fixe, gardée même vide (0 px
   mesuré).
+
+## 92. Tâches planifiées : prochaine exécution (20/11, retour) **[Fait, à valider]**
+
+- Colonne « Prochaine » (tâches suivies et détectées, page de la machine,
+  résumé de la Vue d'ensemble de la machine) : « dans 9 h » et la date.
+- Source : annoncée par le timer systemd ou le planning Proxmox (lus par
+  l'agent) ; sinon estimée, « vers … », d'après la dernière fin et la
+  fréquence attendue (tâches curl, « chaque jour »…). Inconnue : « — »
+  (conteneur ponctuel sans fréquence, tâche jamais vue).
+- Coût : aucun (déjà lu).
+
+## 93. Tâches planifiées : « Voir l'erreur » (20/11, maquette validée) **[Fait, à valider]**
+
+- Bouton « ⚠ Voir l'erreur » sur chaque tâche en échec (suivie ou
+  détectée, page Tâches et page de la machine) ; panneau latéral (même
+  mécanisme que le détail d'une machine ; page entière sans script) :
+  - timer systemd : dernières lignes (30 au plus) du journal du service
+    (`<timer>.service`) de 2 min avant le début à 1 min après la fin, lignes
+    d'erreur en rouge, lien « Ouvrir dans Logs » sur la même fenêtre ;
+  - conteneur ponctuel : mêmes lignes, logs du conteneur ;
+  - sauvegarde Proxmox VE : erreur de chaque VM en échec et lignes
+    « ERROR » du journal (20 au plus, 160 caractères), lues par l'assistant
+    root (format 6, série `mirador_tache_erreur{rang,message}`) ;
+  - signal curl : le message envoyé avec `/echec` ou `/code`.
+- Logs : ceux que mirador reçoit déjà (masqués par l'agent) ; recherche
+  bornée (fenêtre ≤ 6 h, 30 lignes, file des recherches de la page Logs).
+- Menaces : lecture seulement, compte connecté (rôle lecture suffit, comme
+  la page Logs) ; aucun programme lancé sur les machines.
+
+## 94. Éléments sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+- Onglets de sortes : pastilles sur plusieurs lignes (avant : barre coupée au
+  bord de l'écran, sans signe qu'elle défilait).
+- Colonne Liens : un lien par ligne, aligné à gauche (avant : morceaux
+  éparpillés à droite, « Nextcloud » seul sur sa ligne).
+- Compteur des onglets : espace rétabli (« Tout 18 » au lieu de « Tout18 »,
+  toutes les pages à onglets).
+- Champ « Filtrer ce tableau » sur toute la largeur.
+- Coût : CSS seulement (~1 Ko), aucun calcul en plus.
+- Menaces : aucune nouvelle (affichage seul).

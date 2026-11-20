@@ -53,6 +53,7 @@ type Releve struct {
 	// Détail des sauvegardes Proxmox VE (SPEC § 89), lu par l'agent.
 	Stockage, Planning, Commentaire string
 	VMs                             []VMReleve
+	Erreurs                         []string // lignes « ERROR » (SPEC § 93)
 }
 
 // VMReleve : une VM ou un conteneur dans la dernière sauvegarde.

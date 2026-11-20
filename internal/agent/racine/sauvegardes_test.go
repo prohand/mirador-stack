@@ -65,6 +65,9 @@ func TestJournalSauvegarde(t *testing.T) {
 	if v[2].ID != "200" || v[2].Type != "lxc" || v[2].Nom != "ha" || !v[2].OK || v[2].Octets < 2.79*(1<<30) {
 		t.Errorf("CT 200 : %+v", v[2])
 	}
+	if len(d.Erreurs) != 2 || d.Erreurs[0][:37] != "Backup of VM 104 failed - unable to c" || d.Erreurs[1] != "job errors" {
+		t.Errorf("erreurs : %q", d.Erreurs)
+	}
 	tr := lireTravaux([]byte(travauxCfg))
 	if len(tr) != 2 || tr[0].Planning != "02:00" || tr[0].Commentaire != "Sauvegardes de nuit" || !tr[0].Actif || tr[1].Actif {
 		t.Fatalf("travaux : %+v", tr)

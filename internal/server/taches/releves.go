@@ -95,6 +95,23 @@ func Detectees(lire Lire) map[string]*Detectee {
 			x.Message = e.Etiquettes.Get("message")
 		}
 	})
+	type erreurRangee struct {
+		rang  int
+		texte string
+	}
+	erreurs := map[string][]erreurRangee{}
+	prendre("mirador_tache_erreur", func(d *Detectee, _ float64, e alertes.Echantillon) {
+		r, _ := strconv.Atoi(e.Etiquettes.Get("rang"))
+		erreurs[d.Cle()] = append(erreurs[d.Cle()], erreurRangee{r, e.Etiquettes.Get("message")})
+	})
+	for k, l := range erreurs {
+		sort.Slice(l, func(i, j int) bool { return l[i].rang < l[j].rang })
+		if d := out[k]; d != nil {
+			for _, x := range l {
+				d.Releve.Erreurs = append(d.Releve.Erreurs, x.texte)
+			}
+		}
+	}
 	for k, parVM := range vms {
 		d := out[k]
 		if d == nil {

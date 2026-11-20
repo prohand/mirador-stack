@@ -3,6 +3,7 @@
 package collect
 
 import (
+	"strconv"
 	"time"
 
 	"mirador-stack/internal/agent/metrics"
@@ -43,6 +44,7 @@ func AjouterTache(b *metrics.Batch, source, nom string, debut, fin time.Time, co
 //	mirador_tache_vm_duree_secondes{source,tache,vm}
 //	mirador_tache_vm_octets{source,tache,vm}
 //	mirador_tache_vm_message{source,tache,vm,message}     1 (échec seulement)
+//	mirador_tache_erreur{source,tache,rang,message}        1 (lignes « ERROR », § 93)
 func AjouterDetailSauvegarde(b *metrics.Batch, source, nom string, d *racine.DetailSauvegarde) {
 	l := []metrics.Label{metrics.L("source", source), metrics.L("tache", nom)}
 	if d.Stockage != "" || d.Planning != "" || d.Commentaire != "" {
@@ -65,5 +67,8 @@ func AjouterDetailSauvegarde(b *metrics.Batch, source, nom string, d *racine.Det
 		if v.Message != "" {
 			b.Add("mirador_tache_vm_message", 1, append(append([]metrics.Label{}, lv...), metrics.L("message", v.Message))...)
 		}
+	}
+	for i, e := range d.Erreurs {
+		b.Add("mirador_tache_erreur", 1, append(append([]metrics.Label{}, l...), metrics.L("rang", strconv.Itoa(i+1)), metrics.L("message", e))...)
 	}
 }

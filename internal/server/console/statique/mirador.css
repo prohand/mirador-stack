@@ -1521,3 +1521,34 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .uplot .u-legend tr.u-series:first-child .u-value { min-width: 11ch; text-align: left; }
 .survol-annotation { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 18px; line-height: 18px; }
 .survol-annotation.vide { visibility: hidden; }
+
+/* « Voir l'erreur » d'une tâche (SPEC § 93). */
+.btn-erreur { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--erreur);
+  color: var(--erreur); background: var(--carte); font-weight: 600; font-size: 12.5px; text-decoration: none; white-space: nowrap; }
+.btn-erreur:hover { background: var(--erreur-fond); }
+pre.journal-tache { background: #111318; color: #E6E8EC; border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow: auto; }
+pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; }
+.texte-erreur { color: var(--erreur); }
+.sans-marge { margin: 0; }
+
+/* Éléments sur téléphone (retour du 20/11) :
+   - onglets de sortes en pastilles sur plusieurs lignes (avant : coupés au bord,
+     rien n'indiquait qu'il fallait faire défiler) ;
+   - liens d'un élément : un par ligne, alignés à gauche (avant : morceaux
+     éparpillés à droite) ;
+   - champ « Filtrer ce tableau » sur toute la largeur. */
+.lien-elt i.sep { font-style: normal; }
+@media (max-width: 640px) {
+  .onglets.onglets-pastilles { flex-wrap: wrap; overflow-x: visible; gap: 6px; padding: 0; background: none; }
+  .onglets.onglets-pastilles a { min-height: 36px; padding: 6px 12px; background: var(--survol); border-radius: 999px; }
+  .onglets.onglets-pastilles a.actif { background: var(--texte); color: var(--fond); box-shadow: none; }
+  .onglets.onglets-pastilles a.actif small { color: inherit; opacity: .7; }
+  .filtre-tableau { max-width: none; }
+  table.en-cartes > tbody > tr > td[data-long] > .valeur-carte { display: block; text-align: left; }
+  table.en-cartes .lien-elt { display: block; padding: 1px 0; }
+  table.en-cartes .lien-elt i.sep { display: none; }
+}
+@media (max-width: 640px) {
+  /* Liens en inline-flex : l'espace avant le compteur disparaissait (« Tout18 »). */
+  .onglets a, .logs-onglets a { gap: 5px; }
+}

@@ -309,3 +309,14 @@
 {{define "puces-tache"}}{{if .}}<div class="puces-tache">{{range .}}<span class="puce-info{{if .Classe}} {{.Classe}}{{end}}">{{.Texte}}</span>{{end}}</div>{{end}}{{end}}
 {{define "vms-tache"}}{{if .}}<details class="vms-tache"><summary>Détail de la dernière sauvegarde ({{len .}} VM/CT)</summary>
 <table class="table-vms"><tbody>{{range .}}<tr><td><b>{{.ID}}</b></td><td>{{.Nom}}{{if eq .Type "lxc"}} <small class="doux">CT</small>{{end}}</td><td>{{if .OK}}<span class="pastille ok">OK</span>{{else}}<span class="pastille erreur">Échec</span>{{end}}</td><td class="nombre">{{if .Duree}}{{dureeVM .Duree}}{{end}}</td><td class="doux">{{if .Message}}{{.Message}}{{else if .Octets}}{{tailleOctets .Octets}}{{end}}</td></tr>{{end}}</tbody></table></details>{{end}}{{end}}
+{{define "erreur-tache"}}{{$d := .D}}<div class="panneau-tete"><div><p class="doux sans-marge">Erreur · {{$d.SourceTexte}}{{if $d.Machine}} · {{$d.Machine}}{{end}}</p><h2>{{$d.Titre}}</h2></div><button type="button" class="secondaire petit" data-fermer-panneau>Fermer</button></div>
+<p><span class="pastille {{$d.Etat.Classe}}">{{$d.Etat.Texte}}</span> {{if not $d.Fin.IsZero}}<span class="doux">fini le {{date $d.Fin}}{{if $d.Duree}} · a duré {{$d.Duree}}{{end}}</span>{{end}}</p>
+{{if $d.Message}}<section class="bloc-detail"><h3>Message</h3><p>{{$d.Message}}</p></section>{{end}}
+{{if $d.VMs}}<section class="bloc-detail"><h3>VM et conteneurs en échec</h3><table class="table-vms"><tbody>{{range $d.VMs}}<tr><td><b>{{.ID}}</b></td><td>{{.Nom}}</td><td class="texte-erreur">{{.Message}}</td></tr>{{end}}</tbody></table></section>{{end}}
+{{if $d.Erreurs}}<section class="bloc-detail"><h3>Lignes « ERROR » du journal de la sauvegarde</h3><pre class="journal-tache">{{range $d.Erreurs}}<span class="e">{{.}}</span>
+{{end}}</pre></section>{{end}}
+{{if $d.TitreJournal}}<section class="bloc-detail"><h3>{{$d.TitreJournal}}</h3>
+{{if $d.Journal}}<pre class="journal-tache">{{range $d.Journal}}<span class="h">{{.Heure}}</span> {{if .Erreur}}<span class="e">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}
+{{end}}</pre>{{else}}<p class="vide">{{$d.SansLogs}}</p>{{end}}
+{{if $d.LienLogs}}<p><a href="{{$d.LienLogs}}">Ouvrir dans Logs (autour de l'échec) →</a></p>{{end}}</section>{{end}}
+{{if not (or $d.Message $d.VMs $d.Erreurs $d.TitreJournal)}}<p class="vide">Pas de détail pour cette tâche : seul le résultat (code de sortie) est connu.</p>{{end}}{{end}}
