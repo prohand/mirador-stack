@@ -1537,6 +1537,15 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - À mesurer chez l'utilisateur : gain réel sur un nœud Proxmox
   (`mirador_agent_points_economises_total`).
 
+## CI revue et workflow de release (SPEC § 101, 20/11)
+- CI : durée maximale par tâche, noms en majuscules, plus de passage sur les tags.
+- Release : bouton (version saisie) ou tag ; contrôles et tests, puis
+  binaires signés + serveur + outil + SHA256SUMS, notes générées, image
+  `:X.Y.Z` et `:latest`.
+- actionlint sans remarque.
+- À faire une fois chez l'utilisateur : environnement « signature » :
+  autoriser la branche `main` (pour le bouton).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

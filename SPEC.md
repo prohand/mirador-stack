@@ -2724,7 +2724,7 @@ tests) :
 | contrôles et compilation : 2 tâches | 1 tâche |
 | fuzzing : 4 tâches × (14 cibles / 4) × 20 s | 1 tâche, 14 cibles × 15 s |
 | sauvegarde / restauration lancée 2 fois | 1 fois (dans `go test -race ./...`) |
-| benchmarks à chaque push | à la demande (Actions › ci › Run workflow) |
+| benchmarks à chaque push | à la demande (Actions › CI › Run workflow) |
 
 Côté méthode : commits regroupés, push moins souvent (un push par lot de
 changements, pas par petite correction).
@@ -7366,3 +7366,47 @@ Partie 4 des améliorations des agents et du temps réel.
   serveur avec le token de la machine (même risque qu'avant : il faudrait
   déjà être root ou l'utilisateur de l'agent).
 - Envoi allégé : aucun changement de sécurité.
+
+
+## 101. CI revue et workflow de release (20/11) **[Fait, à valider]**
+
+Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
+« faire une CI de release ».
+
+### 101.1 Revue de la CI
+- Chaque tâche a maintenant une durée maximale (`timeout-minutes` : 15 à
+  30 min) : une tâche bloquée ne mange plus le forfait (6 h par défaut).
+- Noms des workflows, tâches et étapes avec majuscule (« CI », « Tests
+  (accès concurrents compris) », « Formatage, Licences, Gosec, Govulncheck,
+  Compilation », « Fuzzing court (Agent) »…).
+- La CI ne tourne plus sur les tags : la release appelle ses contrôles et
+  ses tests (`workflow_call`), sans fuzzing ni essai d'image (déjà faits
+  sur la branche) : pas de double passage.
+- Vérifiés et gardés : un seul passage par commit, documentation seule
+  ignorée, annulation du passage précédent sur une branche, outils figés,
+  `persist-credentials: false`, droits minimaux par tâche, pas de cache
+  Docker pour une version publiée, pas d'artefact (stockage limité).
+- Vérification : actionlint 1.7.7 sans remarque.
+- À savoir : si la branche `main` exige des contrôles par leur nom
+  (*Settings* › *Branches*), les nouveaux noms sont à reprendre.
+- Recommandations non faites (à décider) : épingler les actions par
+  empreinte de commit plutôt que par version (`@v7`) ; attestations de
+  provenance (dépôt public ou offre Enterprise).
+
+### 101.2 Workflow « Release » (`release.yml`)
+| Étape | Détail |
+|---|---|
+| Déclenchement | bouton (Actions › Release › Run workflow, version saisie, option brouillon) ou tag `v*` posé à la main |
+| Préparation | version X.Y.Z (suffixe = préversion), plus récente que la dernière, depuis `main` ; le bouton pose le tag (jeton du workflow : ne relance aucun workflow) |
+| Contrôles et tests | `ci.yml` appelé (formatage, licences, gosec, govulncheck, compilation, tests -race) ; rien n'est publié s'ils échouent |
+| Binaires | agent et collecteur signés (environnement `signature`), serveur linux amd64/arm64 (sans Docker), mirador-release Windows/Linux, `SHA256SUMS` |
+| Release GitHub | notes : « Mettre à jour » + « Fichiers » + liste des pull requests depuis la version précédente (générée) ; Release déjà créée à la main : notes gardées, fichiers ajoutés |
+| Image | `ghcr.io/prohand/mirador-server:X.Y.Z` et `:latest` (pas `latest` pour une préversion), sans cache |
+
+- Coût : ~4 tâches (préparation, contrôles, tests, binaires, image en
+  parallèle) ≈ 6 min de forfait par version ; les fichiers d'une Release ne
+  comptent pas dans le stockage Actions.
+- Menaces : secrets de signature dans l'environnement `signature` (tags
+  `v*` et branche `main` seulement) ; la version saisie est vérifiée
+  (expression stricte) avant tout usage ; le tag n'est posé que sur le
+  commit de `main` du lancement.

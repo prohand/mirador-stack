@@ -7,10 +7,10 @@
 #
 # Quand :
 #   - chaque lundi (une tâche d'environ 10 s : 1 minute comptée) ;
-#   - à la demande : Actions › nettoyage › Run workflow ;
+#   - à la demande : Actions › Nettoyage › Run workflow ;
 #   - une fois à la fusion de ce fichier sur main (premier nettoyage).
 
-name: nettoyage
+name: Nettoyage
 
 on:
   schedule:
@@ -29,6 +29,7 @@ concurrency:
 
 jobs:
   artefacts:
+    name: Artefacts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -1,0 +1,263 @@
+# Release de mirador-stack (SPEC.md § 101, demande du 20/11)
+#
+# Deux façons de publier une version :
+#   - bouton : Actions › Release › Run workflow (sur main), saisir la version
+#     (ex. 0.6.0) : le workflow vérifie qu'elle est plus récente que la
+#     dernière, pose le tag v0.6.0 sur le commit, puis publie ;
+#   - tag : poser le tag vX.Y.Z (GitHub › Releases › Draft a new release, ou
+#     git push du tag) : même publication.
+#
+# Étapes : préparation (version, tag) → contrôles et tests (CI, sans
+# fuzzing : déjà fait sur la branche) → en parallèle :
+#   - binaires : agent et collecteur SIGNÉS (amd64, arm64), serveur (sans
+#     Docker), mirador-release (Windows, Linux), SHA256SUMS ; Release
+#     GitHub avec notes générées depuis les pull requests ;
+#   - image : ghcr.io/prohand/mirador-server:X.Y.Z (et :latest pour une
+#     version finale).
+# Rien n'est publié si les contrôles ou les tests échouent.
+#
+# Secrets (environnement « signature », limité aux tags v* et à main) :
+#   MIRADOR_CLE_SIGNATURE : contenu de cle-mirador.json (chiffré)
+#   MIRADOR_PHRASE        : sa phrase de passe
+# Sans ces secrets (ex. un fork) : binaires publiés sans signature.
+# La clé privée n'est jamais dans le dépôt.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version à publier (ex. 0.6.0, sans « v »)"
+        required: true
+        type: string
+      brouillon:
+        description: "Release en brouillon (à publier ensuite à la main)"
+        type: boolean
+        default: false
+
+# Une seule publication à la fois, jamais annulée en cours de route.
+concurrency:
+  group: publication-version
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: go1.27.4
+
+jobs:
+  preparation:
+    name: Préparation (version, tag)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # poser le tag (bouton)
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      precedent: ${{ steps.version.outputs.precedent }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Version, vérifications et tag
+        id: version
+        env:
+          SAISIE: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            v="${SAISIE#v}"
+          else
+            v="${GITHUB_REF_NAME#v}"
+          fi
+          # X.Y.Z, avec un suffixe facultatif (0.6.0-rc1 = préversion).
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Version invalide : « $v » (attendu X.Y.Z, ex. 0.6.0)"
+            exit 1
+          fi
+          tag="v$v"
+          precedent=$(git tag -l 'v*' --sort=-v:refname | grep -vxF "$tag" | head -n 1 || true)
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo "::error::Lancer la release depuis la branche main (pas $GITHUB_REF_NAME)"
+              exit 1
+            fi
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "::error::Le tag $tag existe déjà"
+              exit 1
+            fi
+            if [ -n "$precedent" ] && [ "$(printf '%s\n%s\n' "${precedent#v}" "$v" | sort -V | tail -n 1)" != "$v" ]; then
+              echo "::error::$tag n'est pas plus récente que la dernière version ($precedent)"
+              exit 1
+            fi
+            # Tag posé par le jeton du workflow : il ne relance pas de workflow
+            # (la publication continue ici, une seule fois).
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
+            echo "Tag $tag posé sur $GITHUB_SHA"
+          fi
+          prerelease=false
+          case "$v" in *-*) prerelease=true ;; esac
+          {
+            echo "version=$v"
+            echo "tag=$tag"
+            echo "precedent=$precedent"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Version $tag (précédente : ${precedent:-aucune})" >> "$GITHUB_STEP_SUMMARY"
+
+  verification:
+    name: Contrôles et tests
+    needs: preparation
+    uses: ./.github/workflows/ci.yml
+    with:
+      release: true
+
+  binaires:
+    name: Binaires signés et Release GitHub
+    needs: [preparation, verification]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: signature
+    permissions:
+      contents: write # créer la Release et y ajouter les fichiers
+    env:
+      VERSION: ${{ needs.preparation.outputs.version }}
+      TAG: ${{ needs.preparation.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preparation.outputs.tag }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Compilation (Agent, Collecteur, Serveur, Mirador-release)
+        run: |
+          set -eu
+          make agent collecteur serveur release VERSION="$VERSION"
+          cd dist
+          for a in amd64 arm64; do
+            mv "mirador-agent-linux-$a" "mirador-agent-$VERSION-linux-$a"
+            mv "mirador-collector-linux-$a" "mirador-collector-$VERSION-linux-$a"
+            mv "mirador-server-linux-$a" "mirador-server-$VERSION-linux-$a"
+          done
+          mv mirador-release-windows-amd64.exe "mirador-release-$VERSION-windows-amd64.exe"
+          mv mirador-release-linux-amd64 "mirador-release-$VERSION-linux-amd64"
+      - name: Signature de l'agent et du collecteur
+        env:
+          MIRADOR_CLE_SIGNATURE: ${{ secrets.MIRADOR_CLE_SIGNATURE }}
+          MIRADOR_PHRASE: ${{ secrets.MIRADOR_PHRASE }}
+        run: |
+          set -eu
+          if [ -z "${MIRADOR_CLE_SIGNATURE:-}" ] || [ -z "${MIRADOR_PHRASE:-}" ]; then
+            echo "::warning::Secrets MIRADOR_CLE_SIGNATURE / MIRADOR_PHRASE absents : agent publié SANS signature (pas de mise à jour automatique possible)"
+            exit 0
+          fi
+          umask 077
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          printf '%s' "$MIRADOR_CLE_SIGNATURE" > "$d/cle.json"
+          go build -o "$d/mirador-release" ./cmd/mirador-release
+          for a in amd64 arm64; do
+            "$d/mirador-release" signer -cle "$d/cle.json" -version "$VERSION" -arch "$a" "dist/mirador-agent-$VERSION-linux-$a"
+            "$d/mirador-release" signer -cle "$d/cle.json" -produit mirador-collector -version "$VERSION" -arch "$a" "dist/mirador-collector-$VERSION-linux-$a"
+          done
+      - name: Empreintes (SHA256SUMS)
+        run: |
+          set -eu
+          cd dist
+          rm -f SHA256SUMS
+          sha256sum mirador-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Release GitHub (notes générées depuis les pull requests)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRECEDENT: ${{ needs.preparation.outputs.precedent }}
+          PRERELEASE: ${{ needs.preparation.outputs.prerelease }}
+          BROUILLON: ${{ inputs.brouillon }}
+        run: |
+          set -eu
+          entete=$(cat <<NOTES
+          ## Mettre à jour
+
+          1. **Serveur** : \`docker pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/mirador-server:${VERSION}\`, puis redémarrer le conteneur (docs/administration-serveur.md).
+          2. **Agents** : interface › *Mises à jour des agents* › *Importer une version signée depuis GitHub* › \`${TAG}\`, puis assigner la version (d'abord à une machine).
+
+          ## Fichiers
+
+          - \`mirador-agent-${VERSION}-linux-amd64/arm64\` et \`mirador-collector-…\` : signés (\`.manifeste.json\`).
+          - \`mirador-server-${VERSION}-linux-amd64/arm64\` : serveur sans Docker.
+          - \`mirador-release-${VERSION}-windows-amd64.exe\` / \`-linux-amd64\` : outil de signature.
+          - \`SHA256SUMS\` : empreintes de tous les fichiers.
+          NOTES
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Release déjà créée à la main (GitHub › Releases) : ses notes sont gardées.
+            echo "Release $TAG existante : fichiers ajoutés"
+          else
+            options=(--verify-tag --title "mirador $TAG" --notes "$entete" --generate-notes)
+            [ -n "$PRECEDENT" ] && options+=(--notes-start-tag "$PRECEDENT")
+            [ "$PRERELEASE" = true ] && options+=(--prerelease)
+            [ "$BROUILLON" = true ] && options+=(--draft)
+            gh release create "$TAG" "${options[@]}"
+          fi
+          gh release upload "$TAG" dist/mirador-* dist/SHA256SUMS --clobber
+          echo "Release : https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    name: Image Docker publiée
+    needs: [preparation, verification]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preparation.outputs.tag }}
+      - uses: docker/setup-buildx-action@v4
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Étiquettes (X.Y.Z, et latest pour une version finale)
+        id: etiquettes
+        env:
+          VERSION: ${{ needs.preparation.outputs.version }}
+          PRERELEASE: ${{ needs.preparation.outputs.prerelease }}
+        run: |
+          set -eu
+          base="ghcr.io/${GITHUB_REPOSITORY_OWNER}/mirador-server"
+          tags="$base:$VERSION"
+          [ "$PRERELEASE" = true ] || tags="$tags,$base:latest"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - name: Construction et publication
+        uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          context: .
+          file: deploy/serveur/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.etiquettes.outputs.tags }}
+          # Pas de cache pour une version publiée : le cache est aussi écrit
+          # par les branches (revue de sécurité du 11/11).
+          no-cache: true
+          build-args: |
+            VERSION=${{ needs.preparation.outputs.version }}
+            COMMIT=${{ github.sha }}
