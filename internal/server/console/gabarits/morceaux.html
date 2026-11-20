@@ -327,8 +327,8 @@
      sait faire le direct, mirador.js les remplace chaque seconde et dessine
      les courbes (flux /machines/<nom>/direct). */}}
 {{define "en-ce-moment"}}<section class="carte direct ecm" id="maintenant"{{if eq .Direct "ok"}} data-direct="/machines/{{.Nom}}/direct"{{end}}>
-<div class="ecm-tete">{{if eq .Direct "ok"}}<span class="point-direct" aria-hidden="true"></span>{{end}}<h2>En ce moment</h2>
-<span class="doux" data-direct-etat>{{if eq .Direct "ok"}}connexion à l'agent pour le direct…{{else if eq .Direct "ancien"}}moyenne des 5 dernières minutes · agent trop ancien pour le direct (à mettre à jour){{else}}moyenne des 5 dernières minutes{{end}}</span>
+<div class="ecm-tete">{{if eq .Direct "ok"}}<span class="point-direct" title="En direct" aria-label="En direct"></span>{{end}}<h2>En ce moment</h2>
+<span class="doux" data-direct-etat>{{if eq .Direct "ok"}}connexion à l'agent…{{else if eq .Direct "ancien"}}moyenne des 5 dernières minutes · agent trop ancien pour le direct (à mettre à jour){{else}}moyenne des 5 dernières minutes{{end}}</span>
 {{if eq .Direct "ok"}}<div class="actions"><button type="button" class="secondaire petit" data-direct-pause hidden>⏸ Pause</button><button type="button" class="petit" data-direct-reprendre hidden>▶ Continuer en direct</button></div>{{end}}</div>
 {{if .Cases}}<div class="ecm-grille">{{range .Cases}}<a class="ecm-case" href="/machines/{{$.Nom}}/detail/{{.Lien}}" data-panneau title="Voir le détail" data-case="{{.Cle}}"{{if .Seuil}} data-seuil="{{.Seuil}}"{{end}}>
 <span class="ecm-haut"><small>{{.Titre}}</small>{{if .SeuilTexte}}<span class="seuil">{{.SeuilTexte}}</span>{{end}}</span>

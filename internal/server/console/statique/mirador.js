@@ -2168,7 +2168,9 @@ document.addEventListener("change", function (ev) {
   }
   function texteEtat() {
     if (arret) { return; }
-    etat.textContent = points.length ? "en direct · une valeur par seconde · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent pour le direct…";
+    // Le point rouge dit déjà « direct » : pas de redite à côté du titre
+    // « En ce moment » (retour du 20/11).
+    etat.textContent = points.length ? "une valeur par seconde · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent…";
   }
   // garder : relevés des 2 dernières minutes (heure de l'agent).
   function garder() {
