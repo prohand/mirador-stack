@@ -3,6 +3,8 @@
 package taches
 
 import (
+	"sort"
+	"strconv"
 	"time"
 
 	"mirador-stack/internal/server/alertes"
@@ -54,6 +56,66 @@ func Detectees(lire Lire) map[string]*Detectee {
 	prendre("mirador_tache_prochaine_timestamp_seconds", func(d *Detectee, v float64, _ alertes.Echantillon) { d.Releve.Prochaine = date(v) })
 	prendre("mirador_tache_code", func(d *Detectee, v float64, _ alertes.Echantillon) { d.Releve.Code = int(v) })
 	prendre("mirador_tache_message", func(d *Detectee, _ float64, e alertes.Echantillon) { d.Releve.Message = e.Etiquettes.Get("message") })
+	// Détail des sauvegardes Proxmox VE (SPEC § 89).
+	prendre("mirador_tache_info", func(d *Detectee, _ float64, e alertes.Echantillon) {
+		d.Releve.Stockage, d.Releve.Planning, d.Releve.Commentaire = e.Etiquettes.Get("stockage"), e.Etiquettes.Get("planning"), e.Etiquettes.Get("commentaire")
+	})
+	vms := map[string]map[string]*VMReleve{} // clé de tâche → vm → détail
+	vm := func(d *Detectee, e alertes.Echantillon) *VMReleve {
+		id := e.Etiquettes.Get("vm")
+		if id == "" {
+			return nil
+		}
+		k := d.Cle()
+		if vms[k] == nil {
+			vms[k] = map[string]*VMReleve{}
+		}
+		if vms[k][id] == nil {
+			vms[k][id] = &VMReleve{ID: id}
+		}
+		return vms[k][id]
+	}
+	prendre("mirador_tache_vm", func(d *Detectee, v float64, e alertes.Echantillon) {
+		if x := vm(d, e); x != nil {
+			x.OK, x.Type, x.Nom = v == 1, e.Etiquettes.Get("type"), e.Etiquettes.Get("nom")
+		}
+	})
+	prendre("mirador_tache_vm_duree_secondes", func(d *Detectee, v float64, e alertes.Echantillon) {
+		if x := vm(d, e); x != nil {
+			x.Duree = time.Duration(v) * time.Second
+		}
+	})
+	prendre("mirador_tache_vm_octets", func(d *Detectee, v float64, e alertes.Echantillon) {
+		if x := vm(d, e); x != nil {
+			x.Octets = v
+		}
+	})
+	prendre("mirador_tache_vm_message", func(d *Detectee, _ float64, e alertes.Echantillon) {
+		if x := vm(d, e); x != nil {
+			x.Message = e.Etiquettes.Get("message")
+		}
+	})
+	for k, parVM := range vms {
+		d := out[k]
+		if d == nil {
+			continue
+		}
+		for _, x := range parVM {
+			d.Releve.VMs = append(d.Releve.VMs, *x)
+		}
+		sort.Slice(d.Releve.VMs, func(i, j int) bool {
+			a, b := d.Releve.VMs[i], d.Releve.VMs[j]
+			if a.OK != b.OK {
+				return !a.OK // échecs d'abord
+			}
+			ia, ea := strconv.Atoi(a.ID)
+			ib, eb := strconv.Atoi(b.ID)
+			if ea == nil && eb == nil {
+				return ia < ib
+			}
+			return a.ID < b.ID
+		})
+	}
 	return out
 }
 

@@ -178,10 +178,18 @@ func fonctions() template.FuncMap {
 		},
 		"docs":   func(chemin string) string { return AdresseDocs + chemin },
 		"taille": tailleLisible,
-		"pct":    func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
-		"egal":   func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
-		"sub":    func(a, b int) int { return a - b },
-		"seuil":  formatSeuil,
+		// Sauvegardes Proxmox (SPEC § 89) : taille en octets (float), durée.
+		"tailleOctets": func(v float64) string { return tailleLisible(int64(v)) },
+		"dureeVM": func(d time.Duration) string {
+			if d < time.Minute {
+				return strconv.Itoa(int(d/time.Second)) + " s"
+			}
+			return dureeLisible(d)
+		},
+		"pct":   func(v float64) string { return fmt.Sprintf("%.1f %%", v) },
+		"egal":  func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) },
+		"sub":   func(a, b int) int { return a - b },
+		"seuil": formatSeuil,
 		// barres : texte sur plusieurs lignes → une ligne (« | » entre elles).
 		"barres": func(s string) string { return strings.ReplaceAll(s, "\n", " | ") },
 		// dict : paramètres nommés pour un morceau de gabarit (« clé », valeur…).

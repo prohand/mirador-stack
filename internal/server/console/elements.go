@@ -158,6 +158,9 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 					e.Classe, e.Etat, e.Sous = "ok", "OK · "+ms, ms
 				}
 			}
+			if s.Machine != "" { // machine sondée (retour du 20/11 : à montrer en premier)
+				e.Liens = append(e.Liens, lienElement{"sonde la machine", s.Machine, "/machines/" + url.PathEscape(s.Machine)})
+			}
 			if s.Depuis == essais.ServeurLocal {
 				e.Groupe = "Sondes depuis le serveur"
 				e.Liens = append(e.Liens, lienElement{"faite depuis", "le serveur", ""})

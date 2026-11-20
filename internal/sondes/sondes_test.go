@@ -219,7 +219,9 @@ func TestHTTPJSONCertificat(t *testing.T) {
 	s.ValeurJSON, s.Certificat = "degraded", 0
 	if r := Essayer(context.Background(), s, Options{}); !r.OK {
 		t.Errorf("attendu OK : %+v", r)
-	} else if _, ok := Valeurs(s, r)["mirador_sonde_certificat_fin_timestamp_seconds"]; ok {
-		t.Error("certificat remonté sans alerte demandée")
+	} else if v := Valeurs(s, r); v["mirador_sonde_certificat_fin_timestamp_seconds"] == 0 {
+		t.Error("fin du certificat non remontée (jours restants affichés)")
+	} else if _, ok := v["mirador_sonde_certificat_alerte_jours"]; ok {
+		t.Error("seuil d'alerte remonté sans alerte demandée")
 	}
 }

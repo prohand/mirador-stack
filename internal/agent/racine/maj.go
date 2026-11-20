@@ -27,14 +27,16 @@ import (
 //	1 : avant le 12/11 (pas de numéro) ;
 //	2 : compte rendu des chemins de certificats, raisons, mise à jour signée ;
 //	3 : liste des invités Proxmox (SPEC § 23.7) ;
-//	4 : tâches Proxmox VE / Backup Server (sauvegardes, SPEC § 80).
-const FormatAssistant = 4
+//	4 : tâches Proxmox VE / Backup Server (sauvegardes, SPEC § 80) ;
+//	5 : détail des sauvegardes vzdump (VM, stockage, planning, SPEC § 89).
+const FormatAssistant = 5
 
-// FormatRequis : numéro dont l'agent a besoin. Le 3 et le 4 n'apportent
-// rien hors Proxmox : pas d'alerte « assistant trop ancien » pour rien.
+// FormatRequis : numéro dont l'agent a besoin. Le 3, le 4 et le 5
+// n'apportent rien hors Proxmox : pas d'alerte « assistant trop ancien »
+// pour rien.
 func FormatRequis(proxmox bool) int {
 	if proxmox {
-		return 4
+		return 5
 	}
 	return 2
 }

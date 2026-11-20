@@ -187,7 +187,8 @@ func TestAjoutSondeDepuisPageSondes(t *testing.T) {
 			t.Errorf("page Sondes : %q absent", attendu)
 		}
 	}
-	if strings.Contains(corps, "<option>coll</option>") {
+	// Liste « Depuis une machine » (pas « Machine liée », qui propose toutes les machines).
+	if i := strings.Index(corps, `name="ajouter"`); i < 0 || strings.Contains(corps[i:i+strings.Index(corps[i:], "</select>")], "<option>coll</option>") {
 		t.Error("un collecteur n'est pas une machine à sonder ici")
 	}
 	_, corps, _ = b.get(cl, "/sondes?ajouter=nas")

@@ -46,6 +46,11 @@ type ligneSonde struct {
 	Code        string // « Code 200 » sous l'état (HTTP)
 	CodeClasse  string // ok, info, attention, erreur
 	DispoPct    int
+	// Colonne « Cible » allégée (retour du 20/11, SPEC § 89) : adresse sans
+	// « https:// » (cadenas à la place) et pastilles courtes.
+	CibleCourte string
+	HTTPS       bool
+	Puces       []puceTache
 }
 
 type donneesSondes struct {
@@ -53,6 +58,7 @@ type donneesSondes struct {
 	Total, OK, Echecs, Lentes int
 	Mediane                   string
 	Depuis                    []string // serveur + collecteurs (formulaire)
+	Toutes                    []string // machines approuvées (« Machine liée »)
 	FiltreSur                 filtreSur
 	Ajout                     ajoutSonde
 }
@@ -89,6 +95,8 @@ func (c *Console) sondesLues(ctx context.Context, t time.Time) map[string]map[st
 		"erreur": `max by (instance, sonde, erreur) (mirador_sonde_erreur)`,
 		"code":   `max by (instance, sonde) (mirador_sonde_code_http)`, // HTTP(S) : code reçu (retour du 19/11)
 		"dispo":  `avg by (instance, sonde) (avg_over_time(mirador_sonde_succes[24h]))`,
+		// Fin du certificat du site (sondes HTTPS, SPEC § 89).
+		"certif": `max by (instance, sonde) (last_over_time(mirador_sonde_certificat_fin_timestamp_seconds[15m]))`,
 	} {
 		ech, err := c.instant(ctx, expr, t)
 		if err != nil {
@@ -117,7 +125,7 @@ func (c *Console) nbSondesEnEchec(ctx context.Context, t time.Time) int {
 
 func (c *Console) pageSondes(q *req) {
 	ctx := q.r.Context()
-	d := donneesSondes{Depuis: []string{essais.ServeurLocal}}
+	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx)}
 	if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
 		d.Depuis = append(d.Depuis, cs...)
 	}
@@ -168,6 +176,7 @@ func (c *Console) pageSondes(q *req) {
 	for _, s := range liste {
 		k := cleSonde(instanceDe(s), s.Nom)
 		l := ligneSonde{S: s, Depuis: s.Depuis, Attendu: attenduSonde(s), Dispo: "—"}
+		l.CibleCourte, l.HTTPS, l.Puces = pucesSonde(s, lues, k, q.t)
 		var bilan int
 		l.Etat, l.ClasseEtat, bilan = etatSondeLue(lues, s)
 		l.SansDonnee, l.Probleme = bilan == bilanSansEssai, bilan == bilanLente || bilan == bilanEchec
@@ -242,7 +251,7 @@ func sondeDuFormulaire(f champs) (essais.Sonde, error) {
 	}
 	return essais.Sonde{Nom: f.texte("nom"), Type: f.texte("type"), Cible: f.texte("cible"), Depuis: f.texte("depuis"),
 		Intervalle: f.texte("intervalle"), Lente: f.texte("lente"), Code: code, Contenu: f.texte("contenu"),
-		NonVerifie: f.coche("non_verifie"), Question: f.texte("question"),
+		NonVerifie: f.coche("non_verifie"), Question: f.texte("question"), Machine: f.texte("machine"),
 		ChampJSON: f.texte("champ_json"), ValeurJSON: f.texte("valeur_json"), Certificat: certificat}, nil
 }
 
@@ -399,7 +408,7 @@ func (c *Console) postSondes(q *req) {
 	case "modifier":
 		// Modifier une sonde (retour du 19/11 : cible HTTPS à changer,
 		// sonde à renommer) : mêmes vérifications qu'à l'ajout ; la machine
-		// de rangement est gardée.
+		// liée se change aussi (retour du 20/11).
 		ancien := f.texte("ancien")
 		retour := "/sondes/" + url.PathEscape(ancien)
 		i := slices.IndexFunc(liste, func(x essais.Sonde) bool { return x.Nom == ancien })
@@ -412,7 +421,9 @@ func (c *Console) postSondes(q *req) {
 			c.retour(q, retour+"#modifier", err, "")
 			return
 		}
-		s.Machine = liste[i].Machine
+		if _, envoye := q.r.PostForm["machine"]; !envoye {
+			s.Machine = liste[i].Machine // ancien formulaire : machine gardée
+		}
 		liste[i] = s
 		if err = flotte.EnregistrerSondes(ctx, c.db, liste, q.qui(), q.t); err != nil {
 			c.retour(q, retour+"#modifier", err, "")
@@ -437,4 +448,78 @@ func (c *Console) postSondes(q *req) {
 	default:
 		c.retour(q, "/sondes", errors.New("action inconnue"), "")
 	}
+}
+
+// nomsMachines : machines approuvées, triées (liste « Machine liée »).
+func (c *Console) nomsMachines(ctx context.Context) []string {
+	var out []string
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		for _, m := range ms {
+			if m.Statut == "approuvee" {
+				out = append(out, m.Nom)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// pucesSonde : adresse courte et pastilles de la colonne « Cible » : ce qui
+// diffère des réglages par défaut, et les infos utiles lues pendant l'essai
+// (jours restants du certificat).
+func pucesSonde(s essais.Sonde, lues map[string]map[string]alertes.Echantillon, k string, t time.Time) (cible string, https bool, p []puceTache) {
+	cible = s.Cible
+	if r, ok := strings.CutPrefix(cible, "https://"); ok {
+		cible, https = r, true
+	} else {
+		cible = strings.TrimPrefix(cible, "http://")
+	}
+	switch s.Type {
+	case essais.HTTP:
+		if s.Code != 0 {
+			p = append(p, puceTache{"code " + strconv.Itoa(s.Code), ""})
+		}
+		if s.Contenu != "" {
+			p = append(p, puceTache{"contient « " + s.Contenu + " »", ""})
+		}
+		if s.ChampJSON != "" {
+			if s.ValeurJSON != "" {
+				p = append(p, puceTache{"JSON " + s.ChampJSON + " = « " + s.ValeurJSON + " »", ""})
+			} else {
+				p = append(p, puceTache{"JSON " + s.ChampJSON, ""})
+			}
+		}
+		if s.NonVerifie {
+			p = append(p, puceTache{"certificat non vérifié", "at"})
+		}
+		if e, ok := lues["certif"][k]; ok && !math.IsNaN(e.Valeur) && e.Valeur > 0 {
+			jours := int(math.Floor((e.Valeur - float64(t.Unix())) / 86400))
+			seuil := max(14, s.Certificat)
+			switch {
+			case jours < 0:
+				p = append(p, puceTache{"certificat expiré", "er"})
+			case jours < seuil:
+				p = append(p, puceTache{"certificat : " + strconv.Itoa(jours) + " j", "at"})
+			default:
+				p = append(p, puceTache{"certificat : " + strconv.Itoa(jours) + " j", ""})
+			}
+		} else if s.Certificat > 0 {
+			p = append(p, puceTache{"alerte certificat " + strconv.Itoa(s.Certificat) + " j", ""})
+		}
+	case essais.DNS:
+		q := "demande " + s.Question
+		if s.Contenu != "" {
+			q = s.Question + " → " + s.Contenu
+		}
+		p = append(p, puceTache{q, ""})
+	}
+	if iv, lente := s.Durees(); iv != essais.IntervalleDefaut || lente != essais.LenteDefaut {
+		if iv != essais.IntervalleDefaut {
+			p = append(p, puceTache{"toutes les " + dureeLisible(iv), ""})
+		}
+		if lente != essais.LenteDefaut {
+			p = append(p, puceTache{"lente au-delà de " + dureeLisible(lente), ""})
+		}
+	}
+	return cible, https, p
 }

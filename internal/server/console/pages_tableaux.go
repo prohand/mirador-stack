@@ -56,6 +56,12 @@ func (c *Console) instant(ctx context.Context, expr string, t time.Time) ([]aler
 		return e.ech, e.err
 	}
 	ech, err := c.lecteur.Instant(ctx, expr, t)
+	// Requête annulée (page quittée ou rechargée pendant le calcul) : jamais
+	// gardée en cache, sinon les pages suivantes, d'autres personnes
+	// comprises, affichaient « Context canceled » (retour du 20/11).
+	if err != nil && requeteAnnulee(ctx, err) {
+		return ech, err
+	}
 	c.cache.mu.Lock()
 	if len(c.cache.tout) >= cacheRequetesMax {
 		c.cache.tout = map[string]entreeRequete{}
@@ -63,6 +69,16 @@ func (c *Console) instant(ctx context.Context, expr string, t time.Time) ([]aler
 	c.cache.tout[expr] = entreeRequete{ech: ech, err: err, expire: t.Add(dureeCacheRequete)}
 	c.cache.mu.Unlock()
 	return ech, err
+}
+
+// requeteAnnulee : erreur due à l'annulation de la requête (contexte annulé
+// ou dépassé), et non à l'expression ou aux données.
+func requeteAnnulee(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	m := strings.ToLower(err.Error())
+	return strings.Contains(m, "canceled") || strings.Contains(m, "cancelled") || strings.Contains(m, "deadline exceeded")
 }
 
 // --- Vues des panneaux ---------------------------------------------------------------

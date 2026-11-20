@@ -39,6 +39,7 @@ type donneesFiche struct {
 	// Sonde : formulaire « Modifier la sonde » (retour du 19/11).
 	Sonde  *essais.Sonde
 	Depuis []string // serveur + collecteurs
+	Toutes []string // machines approuvées (« Machine liée »)
 	// Dernières alertes de l'élément, avec le retour à la normale (§ 72).
 	Dernieres *blocDernieresAlertes
 }
@@ -68,6 +69,7 @@ func (c *Console) ficheElement(q *req, cle string) {
 			}
 		}
 		d.Depuis = []string{essais.ServeurLocal}
+		d.Toutes = c.nomsMachines(ctx)
 		if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
 			d.Depuis = append(d.Depuis, cs...)
 		}

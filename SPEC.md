@@ -6925,3 +6925,88 @@ ci-dessous.
   défilement, une classe posée au passage du titre). Sans script : barre
   de la couleur de la page, sans titre centré.
 - Ordinateur inchangé (menu noir).
+
+## 87. Sondes : machine liée visible et modifiable (20/11, retour) **[Fait, à valider]**
+
+- Retour : « dans le détail de la sonde on ne voit pas à quelle machine
+  c'est rattaché ; dans la vue des sondes ce n'est pas bien visible ».
+- Liste des sondes : colonne « Machine » (pastille cliquable vers la page
+  de la machine), après le nom.
+- Fiche de la sonde : pastille « Machine » sous le titre (ou « aucune »,
+  avec un lien pour en lier une) et la cible ; lien « sonde la machine »
+  dans les liens.
+- « Machine liée » (machines approuvées) à l'ajout manuel et dans
+  « Modifier la sonde » : la machine se change ou se retire (jusqu'ici
+  elle n'était posée que par l'ajout depuis une machine).
+- Rangement seulement (§ 60) : jamais envoyé au collecteur.
+- Ajout (même jour) : « Essai fait depuis » (serveur mirador ou
+  collecteur) à côté de la machine liée, en haut de la fiche.
+
+## 88. Tâches planifiées : description en clair, visibles sur la machine (20/11, retour) **[Fait, à valider]**
+
+- Retour : « à quoi correspond cette tâche (vzdump) et que surveille-t-elle ? »
+  et « les tâches planifiées n'apparaissent pas dans les machines ».
+- Chaque tâche détectée ou suivie porte une description : vzdump sans
+  numéro = travail de sauvegarde planifié de Proxmox VE (Datacenter ›
+  Sauvegarde) lancé sur ce nœud ; vzdump N = sauvegarde de la VM ou du
+  conteneur N ; tâches PBS (backup, garbage collection, verify, prune,
+  sync) ; timer systemd = service lancé à heure fixe ; conteneur ponctuel.
+- Page machine : résumé « Tâches planifiées » dans l'onglet Vue d'ensemble
+  (le détail reste dans Activité), pastille rouge sur l'onglet Activité
+  si une tâche suivie est en échec ou en retard. Le lien machine de la
+  page Tâches mène au bloc de la machine.
+
+## 89. Sondes : colonne « Cible » allégée ; tâches : nom affiché et détail des sauvegardes Proxmox (20/11, maquette validée) **[Fait, à valider]**
+
+- Sondes : adresse sans « https:// » (cadenas), puis pastilles : seulement
+  ce qui diffère des réglages par défaut (« chaque minute », « lente
+  au-delà de 1 s » masqués) et les infos utiles : jours restants du
+  certificat (toutes les sondes HTTPS ; orange sous 14 j ou sous le seuil
+  d'alerte de la sonde, rouge si expiré), « nas.lan → 192.168.1.5 » (DNS).
+  Détail complet en infobulle et dans la fiche. La sonde remonte désormais
+  la fin du certificat même sans alerte demandée (une série de plus par
+  sonde HTTPS).
+- Tâches : « Nom affiché » (migration 0033, colonne `libelle`) ; le nom
+  d'origine reste la clé et s'affiche dessous : renommer ne casse rien.
+- Sauvegardes Proxmox VE (assistant root, format 5) : pour la dernière
+  exécution de chaque sauvegarde vzdump, lecture seule de
+  - son journal (`/var/log/pve/tasks/<x>/<UPID>`, 256 Kio au plus, retrouvé
+    par l'UPID ; nom refusé s'il contient « / ») : stockage, chaque VM ou
+    conteneur (OK ou échec, durée, taille, message d'erreur) ;
+  - `/etc/pve/jobs.cfg` : planning, stockage, commentaire des travaux
+    actifs ; prochaine exécution calculée pour les plannings simples
+    (« HH:MM », « daily », « jours HH:MM », jours en liste ou plage).
+  Séries : `mirador_tache_info`, `mirador_tache_vm`,
+  `mirador_tache_vm_duree_secondes`, `mirador_tache_vm_octets`,
+  `mirador_tache_vm_message`.
+- Affichage : pastilles (« 5 VM/CT », « 1 en échec : 104 », taille, « vers
+  pbs-maison », « planning Proxmox : 02:00 », commentaire), détail par VM
+  repliable, état « Échec partiel · 1/5 ». Attendue : « selon le planning
+  Proxmox » possible (retard d'après la prochaine exécution lue).
+- Menaces : lecture seule de fichiers de Proxmox, chemins figés, journal
+  borné, textes coupés (64 à 120 caractères) ; aucun programme lancé.
+- Coût : un journal lu par sauvegarde vzdump à chaque passage de
+  l'assistant (15 min), quelques millisecondes ; ~5 séries par VM.
+- Non fait : détail des tâches Proxmox Backup Server (seule la dernière
+  exécution est suivie, comme avant).
+
+## 90. Tableaux : une requête annulée n'est plus gardée en cache (20/11, retour) **[Corrigé]**
+
+- Symptôme : « Context canceled » / « Query was canceled in query
+  execution » sur tous les panneaux du tableau Proxmox VE.
+- Cause : le cache des requêtes (20 s, partagé) gardait aussi les erreurs ;
+  une page quittée ou rechargée pendant le calcul annulait ses requêtes,
+  et l'erreur était resservie aux pages suivantes.
+- Correction : erreur due à l'annulation jamais gardée en cache (test).
+
+## 91. Courbes : la page ne bouge plus au survol (20/11, retour) **[Corrigé]**
+
+- Symptôme : « sur les graphiques débit de disque et réseau, la fenêtre
+  remonte toute seule quand je passe la souris dessus ».
+- Cause : toutes les courbes de la page suivent la souris ensemble ; les
+  valeurs de leurs légendes changeaient de longueur, les pastilles passaient
+  à la ligne ou non, et la ligne d'annotation apparaissait et disparaissait :
+  ce qui est au-dessus changeait de hauteur (38 px mesurés).
+- Correction : valeurs de légende de largeur fixe (chiffres de même
+  largeur), ligne d'annotation de hauteur fixe, gardée même vide (0 px
+  mesuré).

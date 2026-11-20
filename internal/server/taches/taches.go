@@ -40,6 +40,7 @@ type Tache struct {
 	Machine        string
 	Periode, Marge time.Duration // Periode 0 : d'après le timer (systemd)
 	Gravite        string        // warning ou critical
+	Libelle        string        // nom affiché (SPEC § 89) ; vide = Nom
 	CreeLe         time.Time
 	Releve         Releve // ping : dernier signal (sinon rempli d'après les métriques)
 }
@@ -49,6 +50,25 @@ type Releve struct {
 	Debut, Fin, Prochaine time.Time
 	Code                  int
 	Message               string
+	// Détail des sauvegardes Proxmox VE (SPEC § 89), lu par l'agent.
+	Stockage, Planning, Commentaire string
+	VMs                             []VMReleve
+}
+
+// VMReleve : une VM ou un conteneur dans la dernière sauvegarde.
+type VMReleve struct {
+	ID, Type, Nom, Message string
+	OK                     bool
+	Duree                  time.Duration
+	Octets                 float64
+}
+
+// Affiche : nom à montrer (nom affiché s'il y en a un).
+func (t Tache) Affiche() string {
+	if t.Libelle != "" {
+		return t.Libelle
+	}
+	return t.Nom
 }
 
 // Etat : ce que l'interface affiche.
@@ -94,6 +114,16 @@ func Calculer(t Tache, r Releve, maintenant time.Time) Etat {
 	case r.Code != 0:
 		e.Classe, e.Probleme = "erreur", true
 		e.Texte = "Échec · code " + strconv.Itoa(r.Code)
+		// Sauvegarde Proxmox : quelques VM seulement en échec (SPEC § 89).
+		echecs := 0
+		for _, v := range r.VMs {
+			if !v.OK {
+				echecs++
+			}
+		}
+		if echecs > 0 && echecs < len(r.VMs) {
+			e.Texte = "Échec partiel · " + strconv.Itoa(echecs) + "/" + strconv.Itoa(len(r.VMs))
+		}
 	default:
 		e.Classe, e.Texte = "ok", "OK"
 	}
@@ -110,12 +140,12 @@ func dureeLisible(d time.Duration) string {
 	return fmt.Sprintf("%d min", max(1, d/time.Minute))
 }
 
-const colonnes = `id, cle, nom, source, machine, periode, marge, gravite, cree_le, debut, fin, code, message`
+const colonnes = `id, cle, nom, source, machine, periode, marge, gravite, cree_le, debut, fin, code, message, libelle`
 
 func scanner(sc interface{ Scan(...any) error }) (Tache, error) {
 	var t Tache
 	var per, marge, cree, debut, fin int64
-	err := sc.Scan(&t.ID, &t.Cle, &t.Nom, &t.Source, &t.Machine, &per, &marge, &t.Gravite, &cree, &debut, &fin, &t.Releve.Code, &t.Releve.Message)
+	err := sc.Scan(&t.ID, &t.Cle, &t.Nom, &t.Source, &t.Machine, &per, &marge, &t.Gravite, &cree, &debut, &fin, &t.Releve.Code, &t.Releve.Message, &t.Libelle)
 	t.Periode, t.Marge, t.CreeLe = time.Duration(per)*time.Second, time.Duration(marge)*time.Second, time.Unix(cree, 0)
 	if debut > 0 {
 		t.Releve.Debut = time.Unix(debut, 0)
@@ -153,8 +183,11 @@ func Verifier(t Tache) error {
 	if t.Periode != 0 && (t.Periode < time.Minute || t.Periode > 62*24*time.Hour) {
 		errs = append(errs, errors.New("fréquence : entre 1 min et 62 jours"))
 	}
-	if t.Periode == 0 && t.Source != "systemd" {
-		errs = append(errs, errors.New("fréquence attendue obligatoire (seuls les timers systemd la donnent eux-mêmes)"))
+	if t.Periode == 0 && t.Source != "systemd" && t.Source != "pve" {
+		errs = append(errs, errors.New("fréquence attendue obligatoire (seuls les timers systemd et les sauvegardes Proxmox VE la donnent eux-mêmes)"))
+	}
+	if lib := strings.TrimSpace(t.Libelle); len([]rune(lib)) > 100 || strings.ContainsAny(lib, "\r\n\x00") {
+		errs = append(errs, errors.New("nom affiché : 100 caractères au plus, sur une ligne"))
 	}
 	if t.Marge < 0 || t.Marge > 7*24*time.Hour {
 		errs = append(errs, errors.New("marge : entre 0 et 7 jours"))
@@ -173,8 +206,9 @@ func Suivre(ctx context.Context, db *sql.DB, t Tache, maintenant time.Time) erro
 	if err := Verifier(t); err != nil {
 		return err
 	}
-	_, err := db.ExecContext(ctx, `INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		CleAgent(t.Machine, t.Source, t.Nom), t.Nom, t.Source, t.Machine, int64(t.Periode/time.Second), int64(t.Marge/time.Second), t.Gravite, maintenant.Unix())
+	_, err := db.ExecContext(ctx, `INSERT INTO taches(cle, nom, source, machine, periode, marge, gravite, cree_le, libelle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		CleAgent(t.Machine, t.Source, t.Nom), t.Nom, t.Source, t.Machine, int64(t.Periode/time.Second), int64(t.Marge/time.Second), t.Gravite, maintenant.Unix(),
+		strings.TrimSpace(t.Libelle))
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return errors.New("tâche déjà suivie")
 	}
@@ -216,13 +250,16 @@ func NouveauJeton(ctx context.Context, db *sql.DB, id int64) (string, error) {
 	return jeton, nil
 }
 
-// Modifier : nom (ping seulement), fréquence, marge, gravité.
+// Modifier : nom (ping seulement), nom affiché (tâches des agents),
+// fréquence, marge, gravité.
 func Modifier(ctx context.Context, db *sql.DB, t Tache) error {
 	if err := Verifier(t); err != nil {
 		return err
 	}
-	_, err := db.ExecContext(ctx, `UPDATE taches SET nom = CASE WHEN source = 'ping' THEN ? ELSE nom END, periode = ?, marge = ?, gravite = ? WHERE id = ?`,
-		strings.TrimSpace(t.Nom), int64(t.Periode/time.Second), int64(t.Marge/time.Second), t.Gravite, t.ID)
+	lib := strings.TrimSpace(t.Libelle)
+	_, err := db.ExecContext(ctx, `UPDATE taches SET nom = CASE WHEN source = 'ping' THEN ? ELSE nom END,
+		libelle = CASE WHEN source = 'ping' THEN '' ELSE ? END, periode = ?, marge = ?, gravite = ? WHERE id = ?`,
+		strings.TrimSpace(t.Nom), lib, int64(t.Periode/time.Second), int64(t.Marge/time.Second), t.Gravite, t.ID)
 	return err
 }
 

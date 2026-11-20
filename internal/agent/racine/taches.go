@@ -33,6 +33,9 @@ type TacheProxmox struct {
 	Fin     time.Time `json:"fin"`
 	OK      bool      `json:"ok"`
 	Message string    `json:"message,omitempty"` // statut si ce n'est pas « OK » (120 caractères au plus)
+	// Detail : sauvegardes vzdump seulement (SPEC § 89).
+	Detail *DetailSauvegarde `json:"detail,omitempty"`
+	upid   string            // pour retrouver le journal de la tâche
 }
 
 // Fichiers lus (variables : remplacées dans les tests).
@@ -61,6 +64,7 @@ func lireTachesProxmox() []TacheProxmox {
 			out = append(out, analyserTaches(b, f.source)...)
 		}
 	}
+	completerSauvegardes(out, time.Now())
 	return out
 }
 
@@ -146,7 +150,7 @@ func analyserLigneTache(ligne, source string) (TacheProxmox, bool) {
 		nom = nom[:100]
 	}
 	statut := strings.TrimSpace(reste[1])
-	t = TacheProxmox{Source: source, Nom: nom, Debut: time.Unix(debut, 0).UTC(), Fin: time.Unix(fin, 0).UTC(),
+	t = TacheProxmox{Source: source, Nom: nom, Debut: time.Unix(debut, 0).UTC(), Fin: time.Unix(fin, 0).UTC(), upid: ligne[:i+1],
 		OK: statut == "OK" || strings.HasPrefix(statut, "WARNINGS")}
 	if statut != "OK" {
 		if len(statut) > 120 {

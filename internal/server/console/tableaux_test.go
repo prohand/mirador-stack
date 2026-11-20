@@ -3,7 +3,9 @@
 package console
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"mirador-stack/internal/server/auth"
 	"net/http/httptest"
 	"os"
@@ -132,5 +134,25 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 		if nom == "flux" && !strings.Contains(corps, "🇫🇷") {
 			t.Error("drapeau absent")
 		}
+	}
+}
+
+// Requête annulée (page quittée pendant le calcul) : pas gardée en cache ;
+// la requête suivante est recalculée (retour du 20/11 : « Context canceled »
+// sur tout le tableau Proxmox VE).
+func TestCacheSansAnnulation(t *testing.T) {
+	b := nouveauBanc(t)
+	b.metriquesSimulees(t, []serieTest{{[]string{"__name__", "up", "instance", "pve1", "job", "node"}, constante(1)}})
+	annule, fin := context.WithCancel(context.Background())
+	fin()
+	if _, err := b.c.instant(annule, `up`, b.h.maintenant()); err == nil {
+		t.Fatal("requête annulée sans erreur")
+	}
+	ech, err := b.c.instant(context.Background(), `up`, b.h.maintenant())
+	if err != nil || len(ech) != 1 {
+		t.Fatalf("après une annulation : %v %+v", err, ech)
+	}
+	if !requeteAnnulee(context.Background(), errors.New("query was canceled in query execution")) || requeteAnnulee(context.Background(), errors.New("parse error")) {
+		t.Error("détection de l'annulation")
 	}
 }

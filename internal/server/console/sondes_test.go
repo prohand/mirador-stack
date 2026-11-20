@@ -97,7 +97,8 @@ func TestModifierSonde(t *testing.T) {
 	_, _ = b.c.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES ('etiquettes_elements', '{"s:dhcp-dns02 HTTPS 443":{"role":"dns"}}', 1, 'test')
 		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`)
 	_, corps, _ := b.get(cl, "/sondes/dhcp-dns02%20HTTPS%20443")
-	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`} {
+	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`,
+		`class="machine-liee" href="/machines/dhcp-dns02#sondes"`, `<b>dhcp-dns02</b>`, `<small>Essai fait depuis</small><a href="/machines/lan"><b>lan</b></a>`, `<small>sonde la machine</small>dhcp-dns02`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("fiche de la sonde : %q absent", attendu)
 		}
@@ -114,6 +115,25 @@ func TestModifierSonde(t *testing.T) {
 	etq := b.c.lireEtiquettes(ctx)
 	if etq["s:DNS02 interface"]["role"] != "dns" || etq["s:dhcp-dns02 HTTPS 443"] != nil {
 		t.Errorf("étiquettes non suivies : %v", etq)
+	}
+	// Machine liée changée par le formulaire, puis retirée (retour du 20/11).
+	b.h.avancer(31 * time.Second)
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"DNS02 interface"},
+		"nom": {"DNS02 interface"}, "type": {"http"}, "cible": {"https://dns02.lan/"}, "depuis": {"lan"}, "machine": {"lan"}, "code": {b.code(secret)}})
+	if l, _ = flotte.LireSondes(ctx, b.c.db); l[0].Machine != "lan" {
+		t.Fatalf("machine liée non changée : %+v", l[0])
+	}
+	if _, page, _ := b.get(cl, "/sondes"); !strings.Contains(page, `<th>Machine</th>`) || !strings.Contains(page, `class="machine-liee petite" href="/machines/lan#sondes"`) {
+		t.Error("colonne Machine absente de la liste des sondes")
+	}
+	b.h.avancer(31 * time.Second)
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"DNS02 interface"},
+		"nom": {"DNS02 interface"}, "type": {"http"}, "cible": {"https://dns02.lan/"}, "depuis": {"lan"}, "machine": {""}, "code": {b.code(secret)}})
+	if l, _ = flotte.LireSondes(ctx, b.c.db); l[0].Machine != "" {
+		t.Fatalf("machine liée non retirée : %+v", l[0])
+	}
+	if _, page, _ := b.get(cl, "/sondes/DNS02%20interface"); !strings.Contains(page, `machine-liee aucune`) {
+		t.Error("fiche : « aucune machine » non montré")
 	}
 	// Nom déjà pris : refusé, rien ne change.
 	_ = flotte.EnregistrerSondes(ctx, b.c.db, append(l, essais.Sonde{Nom: "Autre", Type: essais.Ping, Cible: "192.168.35.1", Depuis: "lan"}), "test", b.h.maintenant())
@@ -169,4 +189,29 @@ func TestRegleCertificatSonde(t *testing.T) {
 		return
 	}
 	t.Fatal("règle absente")
+}
+
+// Colonne « Cible » allégée (SPEC § 89) : réglages par défaut masqués,
+// jours restants du certificat, cadenas pour HTTPS.
+func TestPucesSonde(t *testing.T) {
+	m := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	k := cleSonde("lan", "HA")
+	lues := map[string]map[string]alertes.Echantillon{"certif": {k: {Valeur: float64(m.Add(62*24*time.Hour + time.Hour).Unix())}}}
+	s := essais.Sonde{Nom: "HA", Type: essais.HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "lan", NonVerifie: true, ChampJSON: "message", ValeurJSON: "API running."}
+	cible, https, p := pucesSonde(s, lues, k, m)
+	textes := ""
+	for _, x := range p {
+		textes += x.Texte + "|"
+	}
+	if cible != "ha.lan:8123/api/" || !https || textes != "JSON message = « API running. »|certificat non vérifié|certificat : 62 j|" {
+		t.Errorf("HTTPS : %q %v %q", cible, https, textes)
+	}
+	lues["certif"][k] = alertes.Echantillon{Valeur: float64(m.Add(5 * 24 * time.Hour).Unix())}
+	if _, _, p = pucesSonde(s, lues, k, m); p[len(p)-1].Classe != "at" {
+		t.Errorf("certificat bientôt expiré : %+v", p)
+	}
+	d := essais.Sonde{Type: essais.DNS, Cible: "192.168.1.2", Question: "nas.lan", Contenu: "192.168.1.5", Intervalle: "5m", Depuis: "lan"}
+	if _, https, p = pucesSonde(d, nil, "", m); https || len(p) != 2 || p[0].Texte != "nas.lan → 192.168.1.5" || p[1].Texte != "toutes les 5 min" {
+		t.Errorf("DNS : %+v", p)
+	}
 }

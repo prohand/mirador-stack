@@ -121,6 +121,10 @@ type ligneTache struct {
 	Duree    string
 	Message  string
 	Classe   string // trait de la ligne : ok, echec
+	// Description : ce que fait la tâche, en clair (« Sauvegarde des VM et
+	// conteneurs… », retour du 20/11 : « à quoi correspond cette tâche ? »).
+	Description string
+	Puces       []puceTache // infos courtes (sauvegardes Proxmox, SPEC § 89)
 }
 
 type tacheDetectee struct {
@@ -129,6 +133,47 @@ type tacheDetectee struct {
 	Fin         time.Time
 	Code        int
 	Systeme     bool // tâche du système (apt, logrotate…) : rangée à part
+	Description string
+	Puces       []puceTache
+}
+
+// puceTache : info courte affichée sous une tâche.
+type puceTache struct{ Texte, Classe string }
+
+// pucesTache : infos de la dernière sauvegarde Proxmox (SPEC § 89).
+func pucesTache(r taches.Releve) []puceTache {
+	var out []puceTache
+	if n := len(r.VMs); n > 0 {
+		out = append(out, puceTache{strconv.Itoa(n) + " VM/CT", ""})
+		var echecs []string
+		var octets float64
+		for _, v := range r.VMs {
+			if !v.OK {
+				echecs = append(echecs, v.ID)
+			}
+			octets += v.Octets
+		}
+		if len(echecs) > 0 {
+			t := strconv.Itoa(len(echecs)) + " en échec : " + strings.Join(echecs[:min(len(echecs), 4)], ", ")
+			if len(echecs) > 4 {
+				t += "…"
+			}
+			out = append(out, puceTache{t, "er"})
+		}
+		if octets > 0 {
+			out = append(out, puceTache{tailleLisible(int64(octets)), ""})
+		}
+	}
+	if r.Stockage != "" {
+		out = append(out, puceTache{"vers " + r.Stockage, ""})
+	}
+	if r.Planning != "" {
+		out = append(out, puceTache{"planning Proxmox : " + r.Planning, ""})
+	}
+	if r.Commentaire != "" {
+		out = append(out, puceTache{"« " + r.Commentaire + " »", ""})
+	}
+	return out
 }
 
 type donneesTaches struct {
@@ -145,6 +190,38 @@ type nouveauPing struct{ Nom, URL string }
 
 var textesSources = map[string]string{"systemd": "Timer systemd", "docker": "Conteneur Docker", "pve": "Sauvegarde Proxmox VE",
 	"pbs": "Proxmox Backup Server", taches.SourcePing: "Signal (curl)"}
+
+// descriptionTache : ce que fait une tâche, en clair, d'après sa source et son
+// nom (tâches Proxmox : « type [identifiant] », lues dans le journal des
+// tâches du nœud, SPEC § 80).
+func descriptionTache(source, nom string) string {
+	typ, id, _ := strings.Cut(nom, " ")
+	switch source {
+	case "pve":
+		if typ == "vzdump" {
+			if id == "" {
+				return "Sauvegarde planifiée des VM et conteneurs (travail de Datacenter › Sauvegarde, lancé sur ce nœud)"
+			}
+			return "Sauvegarde de la VM ou du conteneur " + id
+		}
+	case "pbs":
+		quoi := map[string]string{
+			"backup": "Sauvegarde reçue par Proxmox Backup Server", "garbage_collection": "Nettoyage du datastore (garbage collection)",
+			"verify": "Vérification des sauvegardes", "verificationjob": "Vérification planifiée des sauvegardes",
+			"prune": "Élagage des anciennes sauvegardes", "prunejob": "Élagage planifié des anciennes sauvegardes",
+			"syncjob": "Synchronisation avec un autre Proxmox Backup Server",
+		}[typ]
+		if quoi != "" && id != "" {
+			return quoi + " (" + id + ")"
+		}
+		return quoi
+	case "docker":
+		return "Conteneur lancé pour une tâche, puis arrêté (code de sortie suivi)"
+	case "systemd":
+		return "Timer systemd : lance le service " + strings.TrimSuffix(nom, ".timer") + " à heure fixe"
+	}
+	return ""
+}
 
 // timerSysteme : timers livrés avec le système (rangés à part, rarement utiles).
 func timerSysteme(nom string) bool {
@@ -188,8 +265,15 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 		if machine != "" && t.Machine != machine {
 			continue
 		}
-		l := ligneTache{T: t, Etat: taches.Calculer(t, t.Releve, q.t), Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message}
+		l := ligneTache{T: t, Etat: taches.Calculer(t, t.Releve, q.t), Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message,
+			Description: descriptionTache(t.Source, t.Nom), Puces: pucesTache(t.Releve)}
 		l.Attendue = periodeTexte(t.Periode) + ", marge " + dureeLisible(t.Marge)
+		if t.Periode == 0 && t.Source == "pve" {
+			l.Attendue = "selon le planning Proxmox, marge " + dureeLisible(t.Marge)
+			if t.Releve.Prochaine.IsZero() {
+				l.Attendue += " (planning non lu : retard non surveillé)"
+			}
+		}
 		if !t.Releve.Debut.IsZero() && !t.Releve.Fin.IsZero() && !t.Releve.Fin.Before(t.Releve.Debut) {
 			l.Duree = dureeLisible(t.Releve.Fin.Sub(t.Releve.Debut))
 			if t.Releve.Fin.Sub(t.Releve.Debut) < time.Minute {
@@ -211,7 +295,7 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 			continue
 		}
 		td := tacheDetectee{Detectee: *x, SourceTexte: textesSources[x.Source], Fin: x.Releve.Fin, Code: x.Releve.Code,
-			Systeme: x.Source == "systemd" && timerSysteme(x.Nom)}
+			Systeme: x.Source == "systemd" && timerSysteme(x.Nom), Description: descriptionTache(x.Source, x.Nom), Puces: pucesTache(x.Releve)}
 		if td.Systeme {
 			d.DuSysteme = append(d.DuSysteme, td)
 		} else {
@@ -274,6 +358,7 @@ func (c *Console) pageTaches(q *req) {
 func lireReglagesTache(f url.Values) (taches.Tache, error) {
 	var t taches.Tache
 	t.Nom = strings.TrimSpace(f.Get("nom"))
+	t.Libelle = strings.TrimSpace(f.Get("libelle"))
 	t.Gravite = f.Get("gravite")
 	if t.Gravite == "" {
 		t.Gravite = "warning"

@@ -128,9 +128,16 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		if !t.OK {
 			code = 1
 		}
-		AjouterTache(b, t.Source, t.Nom, t.Debut, t.Fin, code, time.Time{})
+		var prochaine time.Time
+		if t.Detail != nil {
+			prochaine = t.Detail.Prochaine
+		}
+		AjouterTache(b, t.Source, t.Nom, t.Debut, t.Fin, code, prochaine)
 		if t.Message != "" {
 			b.Add("mirador_tache_message", 1, metrics.L("source", t.Source), metrics.L("tache", t.Nom), metrics.L("message", t.Message))
+		}
+		if t.Detail != nil {
+			AjouterDetailSauvegarde(b, t.Source, t.Nom, t.Detail)
 		}
 	}
 

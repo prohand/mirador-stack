@@ -1480,3 +1480,44 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
   .appli.ouvert .barre nav a.actif .icone { color: var(--accent); }
   .appli.ouvert .barre .logo { color: var(--texte); }
 }
+
+/* Machine liée d'une sonde (retour du 20/11) : en haut de la fiche, et
+   colonne de la liste des sondes. */
+.fiche-sonde-machine { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 14px; }
+.machine-liee { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; background: var(--accent-fond); color: var(--accent-texte); text-decoration: none; font-weight: 600; }
+.machine-liee small { color: var(--pale); font-weight: 500; font-size: 12px; }
+.machine-liee .icone { width: 16px; height: 16px; }
+.machine-liee.aucune { background: var(--survol); color: var(--doux); }
+.machine-liee.aucune a { font-weight: 500; font-size: 13px; }
+.machine-liee.petite { padding: 3px 9px; border-radius: 999px; font-size: 13px; gap: 6px; white-space: nowrap; }
+.cible-fiche { font-size: 13px; color: var(--doux); overflow-wrap: anywhere; }
+
+/* Tâches planifiées : description en clair ; résumé sur la page machine (retour du 20/11). */
+.desc-tache { color: var(--doux); }
+.liste-taches { list-style: none; margin: 0; padding: 0; }
+.liste-taches li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bord-doux); }
+.liste-taches li:last-child { border-bottom: 0; }
+.machine-liee.depuis { background: var(--survol); color: var(--texte); }
+.machine-liee.depuis a { color: var(--accent-texte); text-decoration: none; }
+
+/* Tâches : infos courtes et détail des sauvegardes Proxmox (SPEC § 89). */
+.puces-tache { margin-top: 4px; }
+.puce-info { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--survol); color: var(--doux);
+  font-size: 12px; font-weight: 600; margin: 3px 4px 0 0; white-space: nowrap; }
+.puce-info.ok { background: var(--ok-fond); color: var(--ok); }
+.puce-info.at { background: var(--attention-fond); color: var(--attention); }
+.puce-info.er { background: var(--erreur-fond); color: var(--erreur); }
+.vms-tache { margin-top: 6px; font-size: 13px; }
+.vms-tache summary { cursor: pointer; color: var(--accent-texte); }
+.table-vms td { padding: 4px 10px 4px 0; border: 0; }
+.cible-sonde .url-sonde { font-weight: 600; overflow-wrap: anywhere; }
+.cible-sonde .cadenas { font-size: 12px; margin-right: 4px; }
+
+/* Survol des courbes (retour du 20/11) : toutes les courbes de la page
+   suivent la souris ; leurs légendes ne doivent pas changer de taille, sinon
+   la page bouge (valeurs de largeur fixe, chiffres de même largeur), et la
+   ligne d'annotation garde sa place. */
+.uplot .u-legend .u-value { display: inline-block; min-width: 9ch; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.uplot .u-legend tr.u-series:first-child .u-value { min-width: 11ch; text-align: left; }
+.survol-annotation { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 18px; line-height: 18px; }
+.survol-annotation.vide { visibility: hidden; }
