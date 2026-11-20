@@ -1047,6 +1047,11 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Téléphone : barre du haut à la iOS (SPEC § 86, 20/11) : fait, à valider
+
+- Grand titre en haut de page, verre dépoli et titre centré au défilement,
+  barre d'état et menu « Plus » aux couleurs de la page ; ordinateur inchangé.
+
 ## Téléphone « Verre noir » (SPEC § 85, 20/11) : fait, à valider
 
 - En-tête noir qui reste en haut, barre du bas flottante et arrondie,

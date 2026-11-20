@@ -6908,3 +6908,20 @@ ci-dessous.
   infobulle et dans le menu.
 - Coût : CSS seulement (le flou est fait par le navigateur, sur la barre
   du bas seulement).
+
+## 86. Téléphone : barre du haut « à la iOS » (20/11, maquette validée) **[Fait, à valider]**
+
+- Retour : le haut noir faisait encore « vieux » ; style iOS demandé
+  (maquette « iOS fidèle » validée). Remplace l'en-tête noir du § 85 sur
+  téléphone ; la barre du bas flottante noire du § 85 reste.
+- En haut de page : barre de la couleur de la page (icône mirador, loupe
+  ronde), grand titre de la page (32 px). Au défilement : verre dépoli
+  (flou) avec le titre de la page centré et un trait fin.
+- Barre d'état du téléphone (`theme-color`) : couleur de la page, claire
+  ou sombre selon le thème (choisi, ou celui de l'appareil).
+- Menu « Plus » ouvert : aux couleurs de la page.
+- Réalisation : CSS (≤ 640 px) et quelques lignes de mirador.js
+  (`IntersectionObserver` sur le titre : aucun calcul à chaque pixel de
+  défilement, une classe posée au passage du titre). Sans script : barre
+  de la couleur de la page, sans titre centré.
+- Ordinateur inchangé (menu noir).
