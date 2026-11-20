@@ -325,3 +325,19 @@
 {{end}}</pre>{{else}}<p class="vide">{{$d.SansLogs}}</p>{{end}}
 {{if $d.LienLogs}}<p><a href="{{$d.LienLogs}}">Ouvrir dans Logs (autour de l'échec) →</a></p>{{end}}</section>{{end}}
 {{if not (or $d.Message $d.VMs $d.Erreurs $d.TitreJournal)}}<p class="vide">Pas de détail pour cette tâche : seul le résultat (code de sortie) est connu.</p>{{end}}{{end}}
+
+{{/* « En direct » (SPEC § 97) : rempli par mirador.js (flux /machines/<nom>/direct). */}}
+{{define "direct-machine"}}<section class="carte direct" id="direct"{{if eq .Etat "ok"}} data-direct="/machines/{{.Nom}}/direct"{{end}}>
+<div class="direct-tete"><span class="point-direct" aria-hidden="true"></span><h2>En direct</h2>
+<span class="doux" data-direct-etat>{{if eq .Etat "ok"}}connexion à l'agent…{{else}}agent trop ancien pour le direct (à mettre à jour){{end}}</span>
+{{if eq .Etat "ok"}}<div class="actions"><button type="button" class="secondaire petit" data-direct-pause hidden>⏸ Pause</button><button type="button" class="petit" data-direct-reprendre hidden>▶ Continuer en direct</button></div>{{end}}</div>
+{{if eq .Etat "ok"}}<div class="direct-grille">
+<div class="direct-case"><small>CPU</small><b><span data-direct-val="cpu">—</span> <span class="detail" data-direct-det="cpu"></span></b><svg data-direct-courbe="cpu" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-cpu" points=""/></svg></div>
+<div class="direct-case"><small>Mémoire</small><b><span data-direct-val="mem">—</span> <span class="detail" data-direct-det="mem"></span></b><svg data-direct-courbe="mem" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-mem" points=""/></svg></div>
+<div class="direct-case"><small>Réseau</small><b><span data-direct-val="net">—</span> <span class="detail" data-direct-det="net"></span></b><svg data-direct-courbe="net" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-net" points=""/></svg></div>
+<div class="direct-case"><small>Disques</small><b><span data-direct-val="disque">—</span> <span class="detail" data-direct-det="disque"></span></b><svg data-direct-courbe="disque" viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true"><polyline class="c-disque" points=""/></svg></div>
+</div>
+<h3 class="titre-top">Processus <small class="doux">(les 10 plus gourmands, comme top)</small></h3>
+<div class="defile"><table class="top-proc" data-sans-tri data-sans-cartes data-sans-filtre><thead><tr><th>Processus</th><th class="col-util">Utilisateur</th><th class="n">CPU</th><th class="n">Mémoire</th><th class="col-groupe">VM / conteneur</th></tr></thead><tbody data-direct-proc><tr><td colspan="5" class="doux">en attente du premier relevé…</td></tr></tbody></table></div>
+<p class="doux note-direct">Un relevé par seconde tant que la page est ouverte et visible ; gardé en mémoire 5 min, jamais stocké. Les courbes habituelles (enregistrées) restent plus bas.</p>{{end}}
+</section>{{end}}

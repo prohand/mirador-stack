@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mirador-stack/internal/server/direct"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -51,6 +52,7 @@ type Serveur struct {
 
 	ing       *ingestion.Ingestion
 	flotte    *flotte.Flotte
+	direct    *direct.Hub // relevés en direct des pages des machines (SPEC § 97)
 	planif    *sauvegarde.Planificateur
 	admin     *http.Server // socket Unix de consultation (admin.go)
 	arretFond context.CancelFunc
@@ -174,14 +176,17 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 				s.motifs.Ajouter(l.Msg, l.T/1000)
 			}
 		}})
-	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle})
+	hubDirect := direct.Nouveau() // direct des pages des machines (SPEC § 97)
+	s.direct = hubDirect
+	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle,
+		Direct: hubDirect})
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}
 	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
 	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
-		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs}); err != nil {
+		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs, Direct: hubDirect}); err != nil {
 		return echec(fmt.Errorf("interface web : %w", err))
 	}
 	// Certificats du syslog des collecteurs (SPEC § 23.14) : démarche ACME

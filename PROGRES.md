@@ -1493,6 +1493,23 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Vérifié iPhone 13 clair et sombre (Alertes, Envois, Incident, Règles) :
   aucun débord, aucune erreur JS.
 
+## Agents et temps réel, partie 1 : « En direct » (SPEC § 97, 20/11)
+- Page machine : CPU, mémoire, réseau, disques chaque seconde, top 10 des
+  processus ; pause, arrêt 30 s après fermeture, 15 min au plus.
+- Agent : relevé /proc (sans root, sans commande), envoyé seulement quand on
+  regarde ; serveur : relevés en mémoire (5 min), jamais stockés.
+- Barre iOS : titre sans pastilles (« pve1 »).
+- Mesures : agent ~1 ms par relevé (82 processus), ~1,2 Ko/s par machine
+  regardée ; serveur ~300 Ko par machine regardée. Rien hors direct.
+- Tests : hub, protocole, relevé /proc simulé, boucle agent, réveil de
+  l'agent et relevés côté serveur, flux de la page ; captures ordinateur et
+  iPhone (démo). Bug trouvé par les tests : l'agent en attente pouvait ne
+  pas être réveillé (état oublié) — corrigé.
+- À faire chez l'utilisateur : mettre à jour serveur puis agents (capacité
+  « direct »).
+- Suite : partie 2 (pannes vues tout de suite, cause probable), partie 3
+  (logs en direct), partie 4 (tampon disque, envoi allégé).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

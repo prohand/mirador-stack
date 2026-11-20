@@ -193,7 +193,11 @@ type Recuperateur struct {
 	// « Actualiser » pour cette machine (0 = aucune).
 	Attente    bool
 	Actualiser int64
-	etag       string
+	// Direct (SPEC § 97) : DirectActif dit au serveur que les relevés partent
+	// déjà ; Direct : secondes de direct demandées par le serveur (0 : aucune).
+	DirectActif func() bool
+	Direct      int
+	etag        string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -215,6 +219,9 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	if r.etag != "" {
 		req.Header.Set("If-None-Match", r.etag)
 	}
+	if r.DirectActif != nil && r.DirectActif() {
+		req.Header.Set(protocole.EnteteDirectActif, "1")
+	}
 	if r.Attendre > 0 {
 		req.Header.Set(protocole.EnteteAttendre, strconv.Itoa(int(r.Attendre.Seconds())))
 		req.Header.Set(protocole.EnteteActualise, strconv.FormatInt(r.Actualise, 10))
@@ -226,6 +233,7 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	defer resp.Body.Close()
 	r.Attente = resp.Header.Get(protocole.EnteteAttente) == "1"
 	r.Actualiser, _ = strconv.ParseInt(resp.Header.Get(protocole.EnteteActualiser), 10, 64)
+	r.Direct, _ = strconv.Atoi(resp.Header.Get(protocole.EnteteDirect))
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		return nil, ErrInchange

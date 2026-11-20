@@ -26,6 +26,7 @@
 <a href="#reglages" data-onglet="reglages">Réglages{{if .D.Agent}}{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}}</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}}</span>{{end}}{{end}}</a>
 </nav>
 {{if or .D.Maintenant .D.Gourmands .D.Rangees .D.Taches}}<div class="panneau-onglet" data-panneau-onglet="vue">
+{{if .D.Direct}}{{template "direct-machine" (dict "Nom" $m.Nom "Etat" .D.Direct)}}{{end}}
 {{if .D.Maintenant}}<section class="carte" id="maintenant"><div class="entete-carte"><h2>En ce moment</h2><p class="sous">Détail : <a href="/machines/{{$m.Nom}}/detail/cpu" data-panneau>Processeur</a> · <a href="/machines/{{$m.Nom}}/detail/memoire" data-panneau>Mémoire</a> · <a href="/machines/{{$m.Nom}}/detail/disques" data-panneau>Disques</a> · <a href="/machines/{{$m.Nom}}/detail/reseau" data-panneau>Réseau</a> (ou clic sur une tuile)</p></div><div class="resume-machine">
 {{range .D.Maintenant}}{{if .Lien}}<a class="jauge-machine lien-panneau" href="/machines/{{$m.Nom}}/detail/{{.Lien}}" data-panneau title="Voir le détail">{{else}}<div class="jauge-machine">{{end}}<small>{{.Titre}}</small><b>{{.Valeur}}</b>{{if ge .Pct 0}}<div class="jauge {{.Classe}}"><i class="largeur-{{.Pct}}"></i></div>{{end}}{{if .Detail}}<span class="detail">{{.Detail}}</span>{{end}}{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}
 </div></section>{{end}}

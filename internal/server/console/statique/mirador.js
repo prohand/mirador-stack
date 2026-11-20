@@ -1869,11 +1869,19 @@ document.addEventListener("change", function (ev) {
   titre.setAttribute("aria-hidden", "true");
   barre.appendChild(titre);
   var racine = document.documentElement, h1 = null, obs = null;
+  // Texte du titre sans ses pastilles (« pve1 », pas « pve1 En ligne 3 à
+  // valider… » : retour du 20/11).
+  function texteTitre(el) {
+    var copie = el.cloneNode(true);
+    copie.querySelectorAll(".pastille, small, .badge, [hidden]").forEach(function (x) { x.remove(); });
+    var t = copie.textContent.replace(/\s+/g, " ").trim();
+    return t || el.textContent.trim();
+  }
   function suivreTitre() {
     var nouveau = document.querySelector(".contenu h1");
     if (nouveau === h1) { return; }
     h1 = nouveau;
-    titre.textContent = h1 ? h1.textContent.trim() : document.title.replace(/ — mirador$/, "");
+    titre.textContent = h1 ? texteTitre(h1) : document.title.replace(/ — mirador$/, "");
     if (obs) { obs.disconnect(); }
     if (h1 && window.IntersectionObserver) {
       // Le titre est « caché » quand il passe sous la barre (hauteur de la barre).
@@ -1892,4 +1900,151 @@ document.addEventListener("change", function (ev) {
   defile();
   window.addEventListener("scroll", defile, { passive: true });
   document.addEventListener("mirador:fragment", suivreTitre);
+})();
+
+// « En direct » sur la page d'une machine (SPEC § 97, maquette validée le
+// 20/11) : flux d'un relevé par seconde (EventSource). Ouvert tant que la
+// page est visible (et l'onglet « Vue d'ensemble » affiché) ; fermé 30 s
+// après que la page est cachée, ou sur « Pause » ; le serveur coupe au bout
+// de 15 min (« Continuer en direct »). Les valeurs sont posées avec
+// textContent : rien de ce que l'agent envoie n'est lu comme du HTML.
+(function () {
+  var bloc = document.querySelector("[data-direct]");
+  if (!bloc || !window.EventSource) { return; }
+  var url = bloc.getAttribute("data-direct");
+  var etat = bloc.querySelector("[data-direct-etat]");
+  var bPause = bloc.querySelector("[data-direct-pause]"), bReprendre = bloc.querySelector("[data-direct-reprendre]");
+  var corps = bloc.querySelector("[data-direct-proc]");
+  var MAXP = 120; // points sur les courbes (2 min)
+  var points = [], src = null, ouvertLe = 0, arret = "", cacheLe = 0;
+
+  function nombre(v, d) { return v.toLocaleString("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
+  function octets(v) {
+    var u = ["o", "Ko", "Mo", "Go", "To"], i = 0;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return nombre(v, v < 10 && i > 0 ? 1 : 0) + " " + u[i];
+  }
+  function duree(ms) {
+    var s = Math.max(0, Math.round(ms / 1000));
+    return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + (s % 60 < 10 ? "0" : "") + (s % 60);
+  }
+  function poser(cle, val, det) {
+    bloc.querySelector('[data-direct-val="' + cle + '"]').textContent = val;
+    bloc.querySelector('[data-direct-det="' + cle + '"]').textContent = det;
+  }
+  function courbe(cle, valeurs, max) {
+    var pl = bloc.querySelector('[data-direct-courbe="' + cle + '"] polyline');
+    if (!pl) { return; }
+    max = max || Math.max.apply(null, valeurs.concat([1])) * 1.15;
+    var n = valeurs.length, pts = [];
+    for (var i = 0; i < n; i++) {
+      var x = n > 1 ? 100 * i / (n - 1) : 100; // étirée sur toute la largeur dès le début
+      pts.push(x.toFixed(1) + "," + (44 - 42 * Math.min(1, valeurs[i] / max)).toFixed(1));
+    }
+    pl.setAttribute("points", pts.join(" "));
+  }
+  function cellule(tr, texte, classe) {
+    var td = document.createElement("td");
+    if (classe) { td.className = classe; }
+    td.textContent = texte;
+    tr.appendChild(td);
+    return td;
+  }
+  function processus(liste) {
+    corps.textContent = "";
+    if (!liste || !liste.length) {
+      var tr0 = document.createElement("tr");
+      cellule(tr0, "aucun processus lisible", "doux").colSpan = 5;
+      corps.appendChild(tr0);
+      return;
+    }
+    var maxMem = 1;
+    liste.forEach(function (p) { maxMem = Math.max(maxMem, p.mem); });
+    liste.forEach(function (p) {
+      var tr = document.createElement("tr");
+      var td = cellule(tr, "");
+      var b = document.createElement("b"); b.textContent = p.nom; td.appendChild(b);
+      var s = document.createElement("small"); s.className = "doux"; s.textContent = " pid " + p.pid; td.appendChild(s);
+      cellule(tr, p.util || "", "col-util");
+      var tc = cellule(tr, "", "n");
+      var barre = document.createElement("i"); barre.className = "barre-mini";
+      barre.style.width = Math.round(Math.min(100, p.cpu) * 0.6) + "px"; // CSSOM : permis par la CSP
+      tc.appendChild(barre); tc.appendChild(document.createTextNode(nombre(p.cpu, p.cpu < 10 ? 1 : 0) + " %"));
+      var tm = cellule(tr, "", "n");
+      var bm = document.createElement("i"); bm.className = "barre-mini m";
+      bm.style.width = Math.round(60 * p.mem / maxMem) + "px";
+      tm.appendChild(bm); tm.appendChild(document.createTextNode(octets(p.mem)));
+      cellule(tr, p.groupe || "—", "col-groupe");
+      corps.appendChild(tr);
+    });
+  }
+  function afficher() {
+    var d = points[points.length - 1];
+    if (!d) { return; }
+    poser("cpu", nombre(d.cpu, 0) + " %", (d.coeurs ? d.coeurs + " cœurs · " : "") + "charge " + nombre(d.charge, 1));
+    var pm = d.mem_totale ? 100 * d.mem_utilisee / d.mem_totale : 0;
+    poser("mem", nombre(pm, 0) + " %", octets(d.mem_utilisee) + " / " + octets(d.mem_totale));
+    poser("net", "↓ " + octets(d.net_recu) + "/s", "↑ " + octets(d.net_envoye) + "/s");
+    poser("disque", "L " + octets(d.disque_lu) + "/s", "É " + octets(d.disque_ecrit) + "/s");
+    courbe("cpu", points.map(function (x) { return x.cpu; }), 100);
+    courbe("mem", points.map(function (x) { return x.mem_totale ? 100 * x.mem_utilisee / x.mem_totale : 0; }), 100);
+    courbe("net", points.map(function (x) { return x.net_recu + x.net_envoye; }));
+    courbe("disque", points.map(function (x) { return x.disque_lu + x.disque_ecrit; }));
+    processus(d.processus);
+  }
+  function texteEtat() {
+    if (arret) { return; }
+    etat.textContent = points.length ? "toutes les secondes · depuis " + duree(Date.now() - ouvertLe) : "connexion à l'agent…";
+  }
+  function ouvrir() {
+    if (src) { return; }
+    arret = "";
+    bloc.classList.remove("arrete");
+    ouvertLe = Date.now();
+    src = new EventSource(url);
+    src.addEventListener("debut", function (e) {
+      try { points = (JSON.parse(e.data).points || []).slice(-MAXP); } catch (x) { points = []; }
+      afficher(); texteEtat();
+      bPause.hidden = false; bReprendre.hidden = true;
+    });
+    src.addEventListener("point", function (e) {
+      try { points.push(JSON.parse(e.data)); } catch (x) { return; }
+      if (points.length > MAXP) { points.shift(); }
+      bloc.classList.add("recu");
+      afficher(); texteEtat();
+    });
+    src.addEventListener("fin", function () { fermer("15 min de direct : arrêté pour ne pas l'oublier"); });
+    src.onerror = function () {
+      // Flux refusé (agent trop ancien, trop de pages) ou serveur coupé :
+      // EventSource réessaie seul ; on arrête après un échec franc.
+      if (src && src.readyState === 2) { fermer("direct indisponible pour le moment"); }
+    };
+  }
+  function fermer(raison) {
+    if (src) { src.close(); src = null; }
+    arret = raison || "";
+    bloc.classList.add("arrete");
+    bloc.classList.remove("recu");
+    if (arret) { etat.textContent = arret; }
+    bPause.hidden = true;
+    bReprendre.hidden = !arret;
+  }
+  // Visible = page affichée et bloc affiché (onglet « Vue d'ensemble »).
+  function visible() { return !document.hidden && bloc.offsetParent !== null; }
+  function verifier() {
+    if (arret) { return; }
+    if (visible()) {
+      cacheLe = 0;
+      ouvrir();
+    } else if (src) {
+      if (!cacheLe) { cacheLe = Date.now(); }
+      if (Date.now() - cacheLe > 30000) { fermer(""); }
+    }
+  }
+  bPause.addEventListener("click", function () { fermer("en pause"); bReprendre.textContent = "▶ Reprendre"; });
+  bReprendre.addEventListener("click", function () { bReprendre.textContent = "▶ Continuer en direct"; ouvrir(); });
+  document.addEventListener("visibilitychange", verifier);
+  setInterval(verifier, 2000);
+  setInterval(texteEtat, 1000);
+  verifier();
 })();

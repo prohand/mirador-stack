@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -71,6 +72,10 @@ type Lien struct {
 	// derniereActualisation : relance de l'assistant root au plus une fois
 	// par minute, même si l'interface en demande plus.
 	derniereActualisation time.Time
+	// enDirect : les relevés « en direct » partent (SPEC § 97).
+	enDirect atomic.Bool
+	// releveDirect : relevé en direct (remplacé dans les tests ; nil = /proc).
+	releveDirect func(time.Time) protocole.Direct
 }
 
 // AttenteConfig : durée demandée au serveur pour garder la demande de
@@ -258,7 +263,7 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 
 func (l *Lien) boucleConfig(ctx context.Context) {
 	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte,
-		Attendre: l.attenteConfig}
+		Attendre: l.attenteConfig, DirectActif: l.enDirect.Load}
 	if !attendre(ctx, l.etale()) {
 		return
 	}
@@ -289,6 +294,11 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 				r.Actualise = r.Actualiser
 			}
 			premiere = false
+			// Une page regarde la machine (SPEC § 97) : relevés en direct.
+			if r.Direct > 0 && !l.enDirect.Load() {
+				l.enDirect.Store(true)
+				go l.boucleDirect(ctx)
+			}
 		}
 		// Serveur qui sait garder la demande ouverte : on en relance une
 		// aussitôt (au plus une toutes les 2 s). Sinon, ou en cas d'erreur :

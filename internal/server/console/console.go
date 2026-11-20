@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log/slog"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/direct"
 	"mirador-stack/internal/server/modeles"
 	"net/http"
 	"net/netip"
@@ -58,8 +59,10 @@ type Options struct {
 	Metriques  *metriques.Moteur
 	Logs       *journaux.Moteur
 	Ingestion  *ingestion.Ingestion
-	Motifs     *motifs.Registre // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
-	GeoIP      *geoip.Base      // pays des adresses (peut être nil)
+	// Direct : relevés « en direct » des machines (SPEC § 97) ; nil : pas de direct.
+	Direct *direct.Hub
+	Motifs *motifs.Registre // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
+	GeoIP  *geoip.Base      // pays des adresses (peut être nil)
 	// Niveau : niveau du journal du serveur (mode debug temporaire) ; peut être nil.
 	Niveau *slog.LevelVar
 	// Maintenant : horloge (remplaçable dans les tests).

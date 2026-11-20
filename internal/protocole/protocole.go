@@ -37,6 +37,8 @@ const (
 	// CheminInstallationCollecteur : script d'installation de mirador-collector.
 	CheminInstallationCollecteur = "/api/agent/v1/install/collecteur"
 	CheminCles                   = "/api/agent/v1/cles" // GET : clés publiques de signature (texte)
+	// CheminDirect : relevé « en direct » de la page d'une machine (SPEC § 97).
+	CheminDirect = "/api/agent/v1/direct" // POST : JSON (Direct)
 )
 
 // En-têtes envoyés par l'agent.
@@ -96,7 +98,7 @@ const CapaciteReessai = "reessai"
 const CapaciteSondes = "sondes"
 
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
-const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai
+const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai + "," + CapaciteDirect
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).
