@@ -1527,6 +1527,16 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Tests : flux (lignes déjà là, nouvelle ligne poussée, filtres) ; démo
   vérifiée (ordinateur, iPhone).
 
+## Agents et temps réel, partie 4 : tampon disque, envoi allégé (SPEC § 100, 20/11)
+- Tampon disque 20 Mo pendant les coupures (ordre gardé, repris après
+  redémarrage) ; rien écrit tant que le réseau marche.
+- Envoi allégé : jauges inchangées renvoyées toutes les 2 min seulement ;
+  −20 % d'octets mesurés sur la machine de test, 60 ns par point.
+- Tests : tampon (débordement, ordre, quota, reprise, arrêt), allégement
+  (garde, changement, compteurs jamais allégés).
+- À mesurer chez l'utilisateur : gain réel sur un nœud Proxmox
+  (`mirador_agent_points_economises_total`).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

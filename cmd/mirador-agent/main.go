@@ -149,6 +149,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		"destination", cfg.URLMetriques, "intervalle", cfg.Intervalle.String())
 
 	a := agent.Nouveau(cfg, token, journal)
+	a.ActiverTamponDisque() // coupures réseau : lots gardés sur disque (SPEC § 100)
 	// Pannes vues tout de suite (SPEC § 98) : relevé immédiat, et le serveur
 	// est prévenu (s'il est connu).
 	veilleur := &veille.Veilleur{Systemd: cfg.Systemd, Journal: journal, Garder: gardeServices(cfg),

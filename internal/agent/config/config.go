@@ -92,6 +92,13 @@ type Agent struct {
 
 	// Tampon mémoire des métriques en attente d'envoi (octets compressés).
 	TamponMetriques int `json:"tampon_metriques"`
+	// Tampon disque (SPEC § 100) : lots qui ne tiennent plus en mémoire
+	// pendant une coupure (octets ; 0 = désactivé), dans DossierTampon.
+	TamponDisque  int    `json:"tampon_disque"`
+	DossierTampon string `json:"-"`
+	// EnvoiAllege (SPEC § 100) : une jauge inchangée n'est renvoyée qu'au
+	// plus toutes les 2 min (les compteurs partent toujours).
+	EnvoiAllege bool `json:"envoi_allege"`
 
 	// Exclusions (expressions régulières, mêmes valeurs par défaut qu'Alloy).
 	ExclureMontages       string `json:"exclure_montages"`
@@ -234,6 +241,9 @@ func Defaut() Agent {
 		FichierJeton:          "/var/lib/mirador-agent/jeton",
 		FichierConfigDistante: "/var/lib/mirador-agent/config-distante.json",
 		FichierActualiser:     "/var/lib/mirador-agent/actualiser-racine",
+		DossierTampon:         "/var/lib/mirador-agent/tampon",
+		TamponDisque:          20 << 20,
+		EnvoiAllege:           true,
 		MajRacine:             true,
 		DossierBin:            "/var/lib/mirador-agent/bin",
 	}
@@ -309,6 +319,9 @@ func (a *Agent) Valider() error {
 	}
 	if err := a.Collecteur.Valider(); err != nil {
 		ajoute("collecteur : %v", err)
+	}
+	if a.TamponDisque < 0 || a.TamponDisque > 256<<20 {
+		ajoute("MIRADOR_TAMPON_DISQUE %d hors bornes (0 à 256 Mio)", a.TamponDisque)
 	}
 	if a.TamponMetriques < tamponMin || a.TamponMetriques > tamponMax {
 		ajoute("MIRADOR_TAMPON_METRIQUES %d hors bornes (%d à %d octets)", a.TamponMetriques, tamponMin, tamponMax)
@@ -697,6 +710,12 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.ProxmoxDisques, err = time.ParseDuration(valeur)
 	case "MIRADOR_CHECKS":
 		a.ChecksActifs, err = ouiNon(valeur)
+	case "MIRADOR_TAMPON_DISQUE":
+		a.TamponDisque, err = strconv.Atoi(valeur)
+	case "MIRADOR_DOSSIER_TAMPON":
+		a.DossierTampon = valeur
+	case "MIRADOR_ENVOI_ALLEGE":
+		a.EnvoiAllege, err = ouiNon(valeur)
 	case "MIRADOR_TAMPON_METRIQUES":
 		a.TamponMetriques, err = strconv.Atoi(valeur)
 	case "MIRADOR_EXCLURE_MONTAGES":
