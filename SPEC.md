@@ -7379,9 +7379,15 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
 - Noms des workflows, tâches et étapes avec majuscule (« CI », « Tests
   (accès concurrents compris) », « Formatage, Licences, Gosec, Govulncheck,
   Compilation », « Fuzzing court (Agent) »…).
-- La CI ne tourne plus sur les tags : la release appelle ses contrôles et
-  ses tests (`workflow_call`), sans fuzzing ni essai d'image (déjà faits
-  sur la branche) : pas de double passage.
+- La CI ne tourne plus sur les tags ; la release ne la relance pas : elle
+  vérifie son résultat sur le commit publié.
+- Économie de minutes (20/11, mesuré : ~20 min facturées par push) :
+  branches = contrôles (compilation amd64 seulement) + tests ; fuzzing,
+  image Docker et compilation arm64 seulement sur main, au lancement à la
+  main et le dimanche (fuzzing 1 min par cible au lieu de 15 s). Un push de
+  branche passe de ~20 à ~8 min facturées ; main garde tout, et la release
+  ne publie que si la CI complète de main a réussi. Sur main, un passage
+  n'en annule jamais un autre (la release doit trouver une CI terminée).
 - Vérifiés et gardés : un seul passage par commit, documentation seule
   ignorée, annulation du passage précédent sur une branche, outils figés,
   `persist-credentials: false`, droits minimaux par tâche, pas de cache
@@ -7397,14 +7403,14 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
 | Étape | Détail |
 |---|---|
 | Déclenchement | bouton (Actions › Release › Run workflow, version saisie, option brouillon) ou tag `v*` posé à la main |
-| Préparation | version X.Y.Z (suffixe = préversion), plus récente que la dernière, depuis `main` ; le bouton pose le tag (jeton du workflow : ne relance aucun workflow) |
-| Contrôles et tests | `ci.yml` appelé (formatage, licences, gosec, govulncheck, compilation, tests -race) ; rien n'est publié s'ils échouent |
+| Préparation | version X.Y.Z (suffixe = préversion), plus récente que la dernière, depuis `main` ; le bouton pose le tag APRÈS la vérification de la CI (un échec ne laisse pas de tag ; jeton du workflow : ne relance aucun workflow) |
+| Vérification de la CI | la CI n'est PAS relancée (retour du 20/11) : la release vérifie par l'API que la CI a réussi sur ce commit exact (attend jusqu'à 15 min si elle tourne) ; échouée, annulée ou absente (commit de doc seule) : rien n'est publié, message clair |
 | Binaires | agent et collecteur signés (environnement `signature`), serveur linux amd64/arm64 (sans Docker), mirador-release Windows/Linux, `SHA256SUMS` |
 | Release GitHub | notes : « Mettre à jour » + « Fichiers » + liste des pull requests depuis la version précédente (générée) ; Release déjà créée à la main : notes gardées, fichiers ajoutés |
 | Image | `ghcr.io/prohand/mirador-server:X.Y.Z` et `:latest` (pas `latest` pour une préversion), sans cache |
 
-- Coût : ~4 tâches (préparation, contrôles, tests, binaires, image en
-  parallèle) ≈ 6 min de forfait par version ; les fichiers d'une Release ne
+- Coût : préparation, vérification, binaires et image ≈ 6 min de forfait
+  par version (≈ 3 min d'attente) au lieu de ≈ 14 avec les tests relancés ; les fichiers d'une Release ne
   comptent pas dans le stockage Actions.
 - Menaces : secrets de signature dans l'environnement `signature` (tags
   `v*` et branche `main` seulement) ; la version saisie est vérifiée

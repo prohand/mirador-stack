@@ -10,6 +10,8 @@
 #   make propre    supprime le dossier dist/
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# Architectures Linux compilées (la CI des branches ne compile que amd64).
+ARCHS   ?= amd64 arm64
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 # Binaires statiques et reproductibles : pas de cgo, chemins retirés, pas d'ID de build.
 GOFLAGS_BUILD = -trimpath -buildvcs=false
@@ -35,7 +37,7 @@ verif:
 
 agent:
 	@mkdir -p dist
-	for arch in amd64 arm64; do \
+	for arch in $(ARCHS); do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
 			-ldflags "$(LDFLAGS)" -o dist/mirador-agent-linux-$$arch ./cmd/mirador-agent || exit 1; \
 	done
@@ -43,7 +45,7 @@ agent:
 
 collecteur:
 	@mkdir -p dist
-	for arch in amd64 arm64; do \
+	for arch in $(ARCHS); do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
 			-ldflags "$(LDFLAGS)" -o dist/mirador-collector-linux-$$arch ./cmd/mirador-collector || exit 1; \
 	done
@@ -51,7 +53,7 @@ collecteur:
 
 serveur:
 	@mkdir -p dist
-	for arch in amd64 arm64; do \
+	for arch in $(ARCHS); do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) \
 			-ldflags "$(LDFLAGS)" -o dist/mirador-server-linux-$$arch ./cmd/mirador-server || exit 1; \
 	done

@@ -7,14 +7,17 @@
 #   - tag : poser le tag vX.Y.Z (GitHub › Releases › Draft a new release, ou
 #     git push du tag) : même publication.
 #
-# Étapes : préparation (version, tag) → contrôles et tests (CI, sans
-# fuzzing : déjà fait sur la branche) → en parallèle :
-#   - binaires : agent et collecteur SIGNÉS (amd64, arm64), serveur (sans
+# Étapes : préparation (version vérifiée) → vérification que la CI a RÉUSSI
+# sur ce commit exact (elle n'est pas relancée : retour du 20/11, minutes
+# économisées ; si elle tourne encore, on attend sa fin) → en parallèle :
+#   - binaires : tag posé (bouton), agent et collecteur SIGNÉS (amd64, arm64), serveur (sans
 #     Docker), mirador-release (Windows, Linux), SHA256SUMS ; Release
 #     GitHub avec notes générées depuis les pull requests ;
 #   - image : ghcr.io/prohand/mirador-server:X.Y.Z (et :latest pour une
 #     version finale).
-# Rien n'est publié si les contrôles ou les tests échouent.
+# Rien n'est publié sans une CI réussie sur ce commit. Commit sans CI
+# (documentation seule) : Actions › CI › Run workflow sur main, puis
+# relancer la release.
 #
 # Secrets (environnement « signature », limité aux tags v* et à main) :
 #   MIRADOR_CLE_SIGNATURE : contenu de cle-mirador.json (chiffré)
@@ -51,11 +54,11 @@ env:
 
 jobs:
   preparation:
-    name: Préparation (version, tag)
+    name: Préparation (version)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write # poser le tag (bouton)
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -70,7 +73,6 @@ jobs:
         id: version
         env:
           SAISIE: ${{ inputs.version }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
@@ -98,10 +100,6 @@ jobs:
               echo "::error::$tag n'est pas plus récente que la dernière version ($precedent)"
               exit 1
             fi
-            # Tag posé par le jeton du workflow : il ne relance pas de workflow
-            # (la publication continue ici, une seule fois).
-            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
-            echo "Tag $tag posé sur $GITHUB_SHA"
           fi
           prerelease=false
           case "$v" in *-*) prerelease=true ;; esac
@@ -114,11 +112,42 @@ jobs:
           echo "### Version $tag (précédente : ${precedent:-aucune})" >> "$GITHUB_STEP_SUMMARY"
 
   verification:
-    name: Contrôles et tests
+    name: CI réussie sur ce commit
     needs: preparation
-    uses: ./.github/workflows/ci.yml
-    with:
-      release: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read # lire les passages de la CI
+    steps:
+      - name: Attente et vérification du résultat de la CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$GITHUB_SHA"
+          # Passage le plus récent de la CI pour ce commit (tout événement :
+          # push de la branche, de main, ou lancement à la main).
+          for i in $(seq 1 60); do
+            ligne=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&per_page=5" \
+              --jq '.workflow_runs | sort_by(.created_at) | reverse | .[0] | select(. != null) | [.status, (.conclusion // ""), .html_url] | @tsv')
+            if [ -z "$ligne" ]; then
+              echo "::error::Aucune CI pour $sha (commit de documentation seule ?). Lancer Actions › CI › Run workflow sur main, puis relancer la release."
+              exit 1
+            fi
+            IFS=$'\t' read -r etat conclusion lien <<< "$ligne"
+            if [ "$etat" = completed ]; then
+              if [ "$conclusion" = success ]; then
+                echo "CI réussie pour $sha : $lien" | tee -a "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              echo "::error::La CI de ce commit n'a pas réussi ($conclusion) : $lien. Corriger, puis publier une nouvelle version."
+              exit 1
+            fi
+            echo "CI encore en cours ($etat), nouvel essai dans 15 s… ($lien)"
+            sleep 15
+          done
+          echo "::error::CI toujours en cours après 15 min pour $sha"
+          exit 1
 
   binaires:
     name: Binaires signés et Release GitHub
@@ -132,10 +161,20 @@ jobs:
       VERSION: ${{ needs.preparation.outputs.version }}
       TAG: ${{ needs.preparation.outputs.tag }}
     steps:
+      # Bouton : le tag n'est posé qu'ici, une fois la CI vérifiée (un échec
+      # avant ne laisse pas de tag derrière lui). Jeton du workflow : le tag
+      # ne relance aucun workflow.
+      - name: Tag de la version (bouton)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
+          echo "Tag $TAG posé sur $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          ref: ${{ needs.preparation.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -225,7 +264,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          ref: ${{ needs.preparation.outputs.tag }}
       - uses: docker/setup-buildx-action@v4
       - name: Connexion à ghcr.io
         uses: docker/login-action@v4

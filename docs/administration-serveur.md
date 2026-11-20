@@ -215,7 +215,9 @@ sudo bash mirador-agent-install.sh --serveur https://VOTRE-VHOST-INGESTION --mir
    - **tag** : poser le tag `vX.Y.Z` sur `main` (GitHub › Releases › Draft a
      new release).
 
-   Après les contrôles et les tests, le workflow *Release* publie l'image
+   Le workflow *Release* vérifie que la CI a réussi sur ce commit (sans la
+   relancer ; commit de documentation seule : lancer d'abord *Actions* ›
+   *CI* › *Run workflow* sur `main`), puis publie l'image
    du serveur (`:X.Y.Z` et `:latest`) **et** la Release GitHub : agent et
    collecteur signés (`.manifeste.json`), serveur sans Docker, outil de
    signature, `SHA256SUMS`, et des notes rédigées depuis les pull requests.

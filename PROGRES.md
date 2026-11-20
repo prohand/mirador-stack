@@ -1542,6 +1542,10 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Release : bouton (version saisie) ou tag ; contrôles et tests, puis
   binaires signés + serveur + outil + SHA256SUMS, notes générées, image
   `:X.Y.Z` et `:latest`.
+- Release : la CI n'est plus relancée, son résultat est vérifié (~8 min de
+  moins par version) ; tag posé seulement après la vérification.
+- Branches : fuzzing, image et arm64 seulement sur main (et le dimanche) :
+  ~20 → ~8 min facturées par push de branche.
 - actionlint sans remarque.
 - À faire une fois chez l'utilisateur : environnement « signature » :
   autoriser la branche `main` (pour le bouton).
