@@ -1590,3 +1590,19 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
   .attente-alertes .sep-point { display: none; }
   .attente-alertes summary .sous { display: block; margin-top: 2px; }
 }
+
+/* Alertes en cours sur téléphone (capture du 20/11) : le titre de l'alerte
+   en haut à gauche, la gravité à sa droite (avant : pastille seule sur sa
+   ligne, titre poussé à droite) ; dans un groupe (par machine, par règle),
+   les alertes sont séparées par un trait au lieu d'une carte dans la carte. */
+@media (max-width: 640px) {
+  /* Gravité flottante à droite : le titre s'enroule autour, le résumé prend toute la largeur. */
+  table.table-alertes.en-cartes > tbody > tr > td:first-child { float: right; margin: 0 0 4px 10px; padding: 0; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2) { padding: 0 0 6px; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(3) { clear: both; }
+  table.table-alertes.en-cartes > tbody > tr > td:nth-child(2) > .valeur-carte { display: block; text-align: left; }
+  table.table-alertes.en-cartes .titre { font-size: 15px; }
+  table.table-alertes.en-cartes .courbe-alerte { max-width: 60%; }
+  .groupe-alertes table.en-cartes > tbody > tr { margin: 0; padding: 12px 0 8px; border: 0; border-top: 1px solid var(--bord); border-radius: 0; }
+  .groupe-alertes table.en-cartes > tbody > tr:first-child { border-top: 0; padding-top: 6px; }
+}

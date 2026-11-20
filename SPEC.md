@@ -7155,4 +7155,9 @@ Sept idées proposées le 20/11, toutes demandées.
 - Toutes les alertes passées : la carte porte le nom de l'alerte (« Charge
   élevée n° 9 ») au lieu du seul numéro ; la colonne Alerte passe en tête.
 - « En attente (1) » : le texte d'aide passe sous le titre, sans « · ».
+- Alertes en cours (capture du 20/11) : titre de l'alerte en haut à gauche,
+  gravité flottante à droite (avant : pastille seule sur sa ligne, titre
+  poussé à droite) ; résumé sur toute la largeur ; dans un groupe (par
+  machine, par règle), alertes séparées par un trait au lieu d'une carte
+  dans la carte (plus de largeur utile).
 - Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.

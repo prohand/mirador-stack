@@ -1489,6 +1489,7 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Onglets en pastilles, heures de l'historique lisibles, cartes titrées par
   le nom de l'alerte, « En attente » sans « · ».
 - Bug corrigé : historique des alertes coupé par le style de la frise des incidents.
+- Alertes en cours : titre à gauche, gravité à droite, plus de carte dans la carte.
 - Vérifié iPhone 13 clair et sombre (Alertes, Envois, Incident, Règles) :
   aucun débord, aucune erreur JS.
 
