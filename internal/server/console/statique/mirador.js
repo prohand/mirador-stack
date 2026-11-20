@@ -991,15 +991,21 @@ document.addEventListener("change", function (e) {
     });
   }
 
-  // Mode direct : nouvelles lignes toutes les 5 s, en haut du tableau.
+  // Mode direct (SPEC § 99) : les nouvelles lignes arrivent en haut du
+  // tableau dès que le serveur les reçoit (flux EventSource, 1 à 2 s) ;
+  // sans EventSource, lues toutes les 5 s. Quand on lit plus bas dans la
+  // page, qu'on survole le tableau ou qu'une ligne est ouverte, elles sont
+  // gardées de côté : « ↑ N nouvelles lignes » les affiche.
   var bouton = document.querySelector("[data-logs-direct]");
   if (!bouton) { return; }
-  var minuterie = null, finDirect = 0, dernier = 0, nouvelles = 0;
+  var minuterie = null, flux = null, finDirect = 0, dernier = 0, nouvelles = 0, enAttente = [];
   var bandeau = document.querySelector("[data-logs-nouvelles]");
   document.querySelectorAll("[data-logs-ouvrir][data-t]").forEach(function (tr) { dernier = Math.max(dernier, parseInt(tr.getAttribute("data-t"), 10) || 0); });
   function enPause() {
     var t = document.querySelector("[data-logs-table]");
-    return document.hidden || (t && t.matches(":hover")) || document.querySelector(".logs-detail:not([hidden])");
+    var haut = t ? t.getBoundingClientRect().top + window.scrollY : 0;
+    return document.hidden || (t && t.matches(":hover")) || !!document.querySelector(".logs-detail:not([hidden])") ||
+      window.scrollY > haut + 200; // on lit plus bas : on ne fait pas bouger les lignes
   }
   function cellule(tr, texte, classe) {
     var td = document.createElement("td");
@@ -1008,15 +1014,23 @@ document.addEventListener("change", function (e) {
     tr.appendChild(td);
     return td;
   }
-  function ajouter(lignes) {
+  function majBandeau() {
+    if (!bandeau) { return; }
+    bandeau.hidden = !enAttente.length && !nouvelles;
+    bandeau.textContent = enAttente.length ? "↑ " + enAttente.length + " nouvelle(s) ligne(s) : afficher" :
+      nouvelles + " nouvelle(s) ligne(s) depuis l'activation du mode direct";
+    bandeau.classList.toggle("attente", enAttente.length > 0);
+  }
+  function inserer(lignes) {
     var t = document.querySelector("[data-logs-table]");
     if (!t || !lignes.length) { return; }
     t.hidden = false;
+    document.querySelectorAll("tr.logs-ligne-log.nouvelle").forEach(function (x) { x.classList.remove("toute-neuve"); });
     var corps = t.tBodies[0], avant = corps.querySelector("tr.logs-ligne-log");
     // Plus anciennes d'abord dans la boucle : la plus récente finit en haut.
     lignes.slice().reverse().forEach(function (l) {
       var tr = document.createElement("tr");
-      tr.className = "logs-ligne-log nouvelle " + (l.classe || "");
+      tr.className = "logs-ligne-log nouvelle toute-neuve " + (l.classe || "");
       cellule(tr, l.heure, "mono logs-heure");
       // Machine en gras, origine dessous ; pastille seulement pour
       // avertissement et erreur (même forme que les lignes de la page).
@@ -1029,33 +1043,63 @@ document.addEventListener("change", function (e) {
       cellule(tr, l.msg, "logs-msg");
       corps.insertBefore(tr, avant);
       avant = tr;
-      dernier = Math.max(dernier, l.t);
     });
     nouvelles += lignes.length;
-    if (bandeau) { bandeau.hidden = false; bandeau.textContent = "↑ " + nouvelles + " nouvelle(s) ligne(s) depuis l'activation du mode direct"; }
   }
+  function recevoir(lignes) {
+    lignes.forEach(function (l) { dernier = Math.max(dernier, l.t); });
+    enAttente = enAttente.concat(lignes).slice(-2000); // borne mémoire
+    vider();
+  }
+  function vider(force) {
+    if (enAttente.length && (force || !enPause())) {
+      inserer(enAttente);
+      enAttente = [];
+    }
+    majBandeau();
+  }
+  if (bandeau) {
+    bandeau.addEventListener("click", function () {
+      var t = document.querySelector("[data-logs-table]");
+      if (t) { window.scrollTo({ top: Math.max(0, t.getBoundingClientRect().top + window.scrollY - 120) }); }
+      vider(true);
+    });
+  }
+  window.addEventListener("scroll", function () { if (enAttente.length) { vider(); } }, { passive: true });
   function tirer() {
     if (Date.now() > finDirect) { arreter(); return; }
-    if (enPause()) { return; }
+    if (document.hidden) { return; }
     fetch(bouton.getAttribute("data-logs-direct") + "&depuis=" + dernier, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
       .then(function (r) { if (r.status === 401) { window.location = "/connexion"; return null; } return r.json(); })
-      .then(function (d) { if (d && d.lignes) { ajouter(d.lignes); } })
+      .then(function (d) { if (d && d.lignes) { recevoir(d.lignes); } })
       .catch(function () {});
   }
   function arreter() {
     clearInterval(minuterie);
     minuterie = null;
+    if (flux) { flux.close(); flux = null; }
     bouton.classList.remove("actif");
     bouton.setAttribute("aria-pressed", "false");
     bouton.querySelector("span").textContent = "Direct";
   }
   bouton.addEventListener("click", function () {
-    if (minuterie) { arreter(); return; }
+    if (minuterie || flux) { arreter(); return; }
     if (!dernier) { dernier = Date.now() - 60000; }
     finDirect = Date.now() + 30 * 60 * 1000; // arrêt seul après 30 min
     bouton.classList.add("actif");
     bouton.setAttribute("aria-pressed", "true");
-    bouton.querySelector("span").textContent = "En direct · 5 s (pause au survol)";
+    var url = bouton.getAttribute("data-logs-flux");
+    if (window.EventSource && url) {
+      bouton.querySelector("span").textContent = "En direct";
+      flux = new EventSource(url + "&depuis=" + dernier);
+      flux.addEventListener("lignes", function (e) {
+        try { recevoir(JSON.parse(e.data).lignes || []); } catch (x) { /* lot illisible : ignoré */ }
+      });
+      flux.addEventListener("fin", arreter);
+      flux.onerror = function () { if (flux && flux.readyState === 2) { arreter(); } };
+      return;
+    }
+    bouton.querySelector("span").textContent = "En direct · 5 s";
     tirer();
     minuterie = setInterval(tirer, 5000);
   });

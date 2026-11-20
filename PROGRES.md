@@ -1520,6 +1520,13 @@ Mesure partie 1a (banc d'essai, 30 invités) : 0,83 ms par cycle de 30 s
 - Tests : veilleur (signaux, OOM), pannes côté serveur (limite, réveil),
   cause probable, page d'alerte, journal ; démo vérifiée.
 
+## Agents et temps réel, partie 3 : logs en direct poussés (SPEC § 99, 20/11)
+- Page Logs : « Direct » reçoit les lignes dès leur arrivée (1 à 2 s) au lieu
+  de redemander toutes les 5 s ; lignes en attente quand on lit plus bas.
+- Serveur : signal à chaque écriture de logs, aucune recherche sans nouvelle ligne.
+- Tests : flux (lignes déjà là, nouvelle ligne poussée, filtres) ; démo
+  vérifiée (ordinateur, iPhone).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

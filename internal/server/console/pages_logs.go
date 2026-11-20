@@ -24,6 +24,7 @@ import (
 func (c *Console) routesLogs() {
 	c.mux.HandleFunc("GET /logs", c.lecture(c.pageLogs))
 	c.mux.HandleFunc("GET /logs/direct", c.lecture(c.logsDirect))
+	c.mux.HandleFunc("GET /logs/flux", c.lecture(c.logsFlux)) // logs en direct poussés (SPEC § 99)
 	c.mux.HandleFunc("GET /logs/export", c.lecture(c.logsExport))
 	c.mux.HandleFunc("POST /logs/recherches", c.lecture(c.postRechercheLogs))
 	c.mux.HandleFunc("GET /flux-bloques", c.lecture(c.pageFlux))

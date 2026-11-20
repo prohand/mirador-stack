@@ -7282,3 +7282,27 @@ Partie 2 des améliorations des agents et du temps réel.
 - D-Bus : lecture seule (signaux, `Subscribe`) ; aucune méthode qui agit sur
   les unités n'est appelée.
 - Noms de processus affichés échappés (html/template).
+
+## 99. Logs en direct poussés par le serveur (20/11, maquette validée) **[Fait, à valider]**
+
+Partie 3 des améliorations des agents et du temps réel.
+
+- Avant : bouton « Direct » de la page Logs = le navigateur redemandait les
+  nouvelles lignes toutes les 5 s (même s'il n'y en avait pas).
+- Maintenant : flux `GET /logs/flux?<filtres de la page>` (EventSource). Le
+  moteur de logs signale chaque écriture de lignes (canal fermé et remplacé,
+  comme la configuration en temps réel, § 22) ; le flux cherche alors les
+  lignes arrivées depuis la dernière envoyée (mêmes filtres que la page) et
+  les pousse. Entre deux, rien ne tourne.
+- Délai : celui de l'agent (lots de logs toutes les 2 s) + 1 s au plus.
+- Page : nouvelles lignes en haut, surlignées un instant ; quand on lit plus
+  bas, qu'on survole le tableau ou qu'une ligne est ouverte, elles attendent
+  (bandeau « ↑ N nouvelles lignes : afficher », collé en haut, cliquable) et
+  s'affichent en remontant. 2 000 lignes en attente au plus.
+- Bornes : une recherche par seconde et par page au plus ; 30 min par flux ;
+  20 pages en direct en même temps ; navigateur sans EventSource : l'ancien
+  mode (5 s) reste.
+- Coût : aucun quand rien n'arrive ; sinon une recherche sur quelques
+  secondes (bloc en mémoire) par page et par seconde au plus.
+- Menaces : flux réservé aux personnes connectées (rôle lecture), mêmes
+  filtres et mêmes droits que la page ; lignes posées avec `textContent`.

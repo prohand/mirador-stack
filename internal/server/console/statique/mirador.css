@@ -1655,3 +1655,10 @@ table.en-cartes .frise-tache { justify-content: flex-end; }
 .cause-probable li { padding: 3px 0; }
 .evt-rapide { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
 .evt-rapide time { color: var(--pale); font-variant-numeric: tabular-nums; min-width: 66px; }
+
+/* Logs en direct (SPEC § 99) : lignes du dernier lot surlignées un instant ;
+   bandeau cliquable quand des lignes attendent (on lit plus bas). */
+.logs-table tr.logs-ligne-log.toute-neuve td { animation: logs-neuve 2.5s ease-out; }
+@keyframes logs-neuve { from { background: rgba(62, 99, 221, .16); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .logs-table tr.logs-ligne-log.toute-neuve td { animation: none; } }
+.logs-nouvelles.attente { position: sticky; top: 8px; z-index: 5; cursor: pointer; background: var(--accent); color: var(--sur-accent); font-weight: 600; }

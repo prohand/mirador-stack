@@ -1,6 +1,6 @@
 {{define "contenu"}}{{$d := .D}}
 <div class="logs-tete"><h1>Logs</h1>
-{{if not $d.Autour}}<button type="button" class="logs-direct" data-logs-direct="/logs/direct?{{$d.Requete}}" aria-pressed="false" title="Nouvelles lignes toutes les 5 s"><i aria-hidden="true"></i><span>Direct</span></button>
+{{if not $d.Autour}}<button type="button" class="logs-direct" data-logs-direct="/logs/direct?{{$d.Requete}}" data-logs-flux="/logs/flux?{{$d.Requete}}" aria-pressed="false" title="Nouvelles lignes dès qu'elles arrivent"><i aria-hidden="true"></i><span>Direct</span></button>
 <details class="logs-menu"><summary>★ Enregistrer la recherche</summary>
 <form method="post" action="/logs/recherches" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="ajouter"><input type="hidden" name="requete" value="{{$d.Requete}}">
 <label>Nom <input name="nom" required maxlength="60" placeholder="SSH refusé"></label><button>Enregistrer</button></form></details>

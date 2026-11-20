@@ -456,6 +456,17 @@ func TestDemoInterface(t *testing.T) {
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
 	_ = s.jx.Ecrire(ctx, lignes)
+	// Logs en direct (SPEC § 99) : une ligne toutes les 3 s, comme un agent.
+	go func() {
+		msgs := []struct{ niveau, msg string }{{"info", "GET /api/sante 200 2ms"}, {"warning", "upstream lent : 1.8 s pour /nextcloud/index.php"},
+			{"info", "Accepted publickey for admin from 192.0.2.7 port 51022 ssh2"}, {"error", "connect() failed (111: Connection refused) while connecting to upstream"}}
+		for k := 0; ; k++ {
+			time.Sleep(3 * time.Second)
+			x := msgs[k%len(msgs)]
+			_ = s.jx.Ecrire(ctx, []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: x.msg,
+				Champs: map[string]string{"host": "vps-web", "unit": "nginx.service", "level": x.niveau, "job": "journal"}}})
+		}
+	}()
 	// Modèles de surveillance (SPEC § 24) : Linux pour le groupe « lan »
 	// (disque à 20 %), Machine physique sur pve1 (capteurs à 70 °C) ; Docker,
 	// ZFS et Certificats seront proposés par la détection.

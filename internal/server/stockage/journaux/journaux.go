@@ -67,7 +67,10 @@ type Moteur struct {
 	debutEnC  time.Time
 
 	arret chan struct{}
-	fin   sync.WaitGroup
+	// arrivees : fermé (puis remplacé) à chaque écriture de lignes : réveille
+	// les pages de logs en direct (SPEC § 99).
+	arrivees chan struct{}
+	fin      sync.WaitGroup
 
 	// Compteurs (métriques internes, partie 7).
 	Lignes, Blocs, BlocsAbimes atomic.Uint64
@@ -171,7 +174,7 @@ func Ouvrir(opt Options) (*Moteur, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Moteur{opt: opt, enc: enc, dec: dec, reglages: opt.Reglages, arret: make(chan struct{})}
+	m := &Moteur{opt: opt, enc: enc, dec: dec, reglages: opt.Reglages, arret: make(chan struct{}), arrivees: make(chan struct{})}
 	if err := m.relire(); err != nil {
 		return nil, err
 	}
@@ -277,7 +280,19 @@ func (m *Moteur) Ecrire(_ context.Context, lignes []stockage.Ligne) error {
 		}
 	}
 	m.Lignes.Add(uint64(len(lignes)))
+	if len(lignes) > 0 {
+		close(m.arrivees)
+		m.arrivees = make(chan struct{})
+	}
 	return nil
+}
+
+// Arrivees : canal fermé à la prochaine écriture de lignes (logs en direct,
+// SPEC § 99). À redemander après chaque réveil.
+func (m *Moteur) Arrivees() <-chan struct{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.arrivees
 }
 
 // viderVerrou écrit le bloc en cours (m.mu tenu).
