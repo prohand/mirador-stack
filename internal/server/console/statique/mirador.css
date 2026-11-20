@@ -1447,3 +1447,36 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
   /* Menu « Plus » : jusqu'en bas de l'écran, la barre flottante par-dessus. */
   .appli.ouvert .barre, .appli.ouvert.replie .barre, .appli.ouvert.menu-haut .barre { bottom: 0; padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
 }
+
+/* Téléphone : barre du haut « à la iOS » (retour du 20/11, maquette validée,
+   SPEC § 86). En haut de page, la barre a la couleur de la page (icône,
+   loupe) et le titre de la page est grand ; au défilement, elle devient du
+   verre dépoli avec le titre centré (mirador.js pose html.defile et
+   html.titre-cache). Le menu « Plus » ouvert et l'ordinateur ne changent pas. */
+@media (max-width: 640px) {
+  .appli:not(.ouvert) .barre { background: var(--fond); border-bottom: .5px solid transparent; color: var(--texte);
+    padding-top: calc(4px + env(safe-area-inset-top)); padding-bottom: 4px; transition: background-color .2s, border-color .2s; }
+  .defile .appli:not(.ouvert) .barre { background: color-mix(in srgb, var(--fond) 72%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    border-bottom-color: color-mix(in srgb, var(--texte) 18%, transparent); }
+  .appli:not(.ouvert) .barre .logo { color: var(--texte); }
+  .appli:not(.ouvert) .barre .logo .txt { display: none; }
+  .appli:not(.ouvert) .barre .logo svg { width: 30px; height: 30px; }
+  .appli:not(.ouvert) button.aller { width: 40px; height: 40px; min-height: 40px; border-radius: 999px; background: var(--carte); border: 1px solid var(--bord); color: var(--accent); }
+  .titre-ios { position: absolute; left: 64px; right: 64px; bottom: 4px; height: 44px; display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 17px; color: var(--texte); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .appli:not(.ouvert) .barre { position: sticky; }
+  .titre-cache .appli:not(.ouvert) .titre-ios { opacity: 1; }
+  .appli.ouvert .titre-ios { display: none; }
+  .contenu h1 { font-size: 32px; font-weight: 700; letter-spacing: -.02em; }
+}
+@media (min-width: 641px) { .titre-ios { display: none; } }
+/* Menu « Plus » du téléphone aux couleurs de la page (cohérent avec la barre iOS). */
+@media (max-width: 640px) {
+  .appli.ouvert .barre { --menu: var(--fond); --menu-bord: var(--bord); --menu-champ: var(--carte); --menu-texte: var(--texte);
+    --menu-doux: var(--doux); --menu-pale: var(--pale); --menu-actif: var(--carte); --menu-seg: var(--bord); }
+  .appli.ouvert .barre nav a.actif { color: var(--texte); box-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08); }
+  .appli.ouvert .barre nav a.actif .icone { color: var(--accent); }
+  .appli.ouvert .barre .logo { color: var(--texte); }
+}

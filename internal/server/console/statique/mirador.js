@@ -1847,3 +1847,39 @@ document.addEventListener("change", function (ev) {
   });
   document.addEventListener("dragend", function () { if (glisse) { glisse.classList.remove("glisse"); glisse = null; } });
 })();
+
+// Téléphone : barre du haut « à la iOS » (SPEC § 86). html.defile dès que la
+// page a défilé (verre dépoli) ; html.titre-cache quand le grand titre (h1)
+// est passé sous la barre : son texte apparaît alors centré dans la barre.
+(function () {
+  var barre = document.querySelector(".barre");
+  if (!barre) { return; }
+  var titre = document.createElement("div");
+  titre.className = "titre-ios";
+  titre.setAttribute("aria-hidden", "true");
+  barre.appendChild(titre);
+  var racine = document.documentElement, h1 = null, obs = null;
+  function suivreTitre() {
+    var nouveau = document.querySelector(".contenu h1");
+    if (nouveau === h1) { return; }
+    h1 = nouveau;
+    titre.textContent = h1 ? h1.textContent.trim() : document.title.replace(/ — mirador$/, "");
+    if (obs) { obs.disconnect(); }
+    if (h1 && window.IntersectionObserver) {
+      // Le titre est « caché » quand il passe sous la barre (hauteur de la barre).
+      obs = new IntersectionObserver(function (e) { racine.classList.toggle("titre-cache", !e[0].isIntersecting); },
+        { rootMargin: "-" + Math.round(barre.getBoundingClientRect().height) + "px 0px 0px 0px" });
+      obs.observe(h1);
+    } else {
+      racine.classList.toggle("titre-cache", !h1 && window.scrollY > 40);
+    }
+  }
+  function defile() {
+    racine.classList.toggle("defile", window.scrollY > 4);
+    if (!h1) { racine.classList.toggle("titre-cache", window.scrollY > 40); }
+  }
+  suivreTitre();
+  defile();
+  window.addEventListener("scroll", defile, { passive: true });
+  document.addEventListener("mirador:fragment", suivreTitre);
+})();
