@@ -293,6 +293,13 @@ table.barres td:first-child { width: 45%; word-break: break-word; } table.barres
 .filtres { margin-bottom: 1.2rem; }
 .filtres-alertes { margin-bottom: .8rem; gap: 1rem; flex-wrap: wrap; }
 .filtre-tableau { display: block; width: 100%; max-width: 280px; margin: 0 0 .6rem; }
+/* Menu « Trier » des tableaux en cartes (téléphone seulement). */
+.tri-cartes { display: none; }
+@media (max-width: 640px) {
+  .tri-cartes { display: flex; align-items: center; gap: 8px; margin: 0 0 .6rem; font-size: 13px; color: var(--doux); }
+  .tri-cartes select { flex: 1 1 auto; min-width: 0; }
+  .tri-cartes:has(+ .defile > table:not(.en-cartes)), .tri-cartes:has(+ table:not(.en-cartes)) { display: none; }
+}
 .u-legend { font-size: .78rem; }
 .diff-plus { color: var(--ok); } .diff-moins { color: var(--erreur); }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -878,6 +885,30 @@ tr.ligne-detail summary { font-size: 12.5px; color: var(--doux); cursor: pointer
 .logs-jauge { height: 6px; background: var(--survol); border-radius: 3px; width: 110px; overflow: hidden; margin-top: 7px; }
 .logs-jauge i { display: block; height: 100%; background: var(--accent); }
 .logs-groupes tr.rare td { background: var(--erreur-fond); }
+.logs-groupes .g-lib { display: none; }
+/* Téléphone (retour du 20/11 : 9 colonnes, message écrasé) : une carte par
+   message. Ligne 1 : nombre, jauge, niveau ; ligne 2 : le message sur toute
+   la largeur ; ligne 3 : machines, 1re fois, dernière, lien. */
+@media (max-width: 700px) {
+  .logs-groupes, .logs-groupes tbody { display: block; }
+  .logs-groupes thead { display: none; }
+  .logs-groupes tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 2px; border-bottom: 1px solid var(--bord); }
+  .logs-groupes td { display: block; padding: 0; border: 0; white-space: normal; background: none !important; }
+  .logs-groupes tr.rare { background: var(--erreur-fond); }
+  .logs-groupes tr.motif-nouveau { background: var(--attention-fond); }
+  .logs-groupes tr.rare, .logs-groupes tr.motif-nouveau { padding-left: 8px; padding-right: 8px; border-radius: 8px; }
+  .logs-groupes .g-n { font-weight: 700; font-size: 15px; min-width: 2ch; text-align: left; }
+  .logs-groupes .g-jauge { flex: 1 1 60px; }
+  .logs-groupes .g-jauge .logs-jauge { width: 100%; margin-top: 0; }
+  .logs-groupes .g-niv { order: 1; }
+  .logs-groupes td.logs-motif { order: 2; flex-basis: 100%; font-size: 13px; line-height: 1.45; }
+  .logs-groupes .g-meta { order: 3; font-size: 12px; color: var(--doux); }
+  .logs-groupes .g-meta:empty { display: none; }
+  .logs-groupes .g-lib { display: inline; }
+  .logs-groupes .g-lien { margin-left: auto; }
+  .logs-groupes .g-evol .evolution-motif { border-bottom: 1px solid var(--bord); }
+  .logs-groupes .g-vu:has(> .pale:only-child) { display: none; }
+}
 @media (max-width: 700px) {
   .logs-table, .logs-table tbody { display: block; }
   /* Deux lignes : heure, machine · origine, pastille ; puis le message. */
@@ -1326,6 +1357,9 @@ tr.ligne-sonde.echec { background: var(--erreur-fond); }
 .dispo-sonde.ok { color: var(--ok); } .dispo-sonde.attention { color: var(--attention); } .dispo-sonde.erreur { color: var(--erreur); }
 .jauge-dispo { width: 70px; margin-left: auto; height: 5px; outline: 1px solid var(--bord-champ); outline-offset: -1px; } .jauge-dispo i { height: 5px; }
 table.dernieres-alertes tr.en-cours > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+/* Trait de la couleur de la gravité (retour du 20/11 : un avertissement était en rouge). */
+table.dernieres-alertes tr.en-cours.g-warning > td:first-child { box-shadow: inset 4px 0 0 var(--attention); }
+table.dernieres-alertes tr.en-cours.g-info > td:first-child { box-shadow: inset 4px 0 0 var(--info); }
 /* Code de retour HTTP : même bulle que l'état, en dessous (retour du 19/11) ;
    état et code (ou dispo et jauge) restent ensemble, aussi en carte. */
 .pile-sonde { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -1337,11 +1371,13 @@ table.en-cartes .pile-sonde { align-items: flex-end; }
    la classe en-cartes est posée aussi sur ordinateur. */
 @media (max-width: 640px) {
   table.en-cartes tr.ligne-sonde.ok > td:first-child, table.en-cartes tr.ligne-sonde.lente > td:first-child,
-  table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child { box-shadow: none; }
+  table.en-cartes tr.ligne-sonde.echec > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours.g-warning > td:first-child, table.en-cartes.dernieres-alertes tr.en-cours.g-info > td:first-child { box-shadow: none; }
   table.en-cartes > tbody > tr.ligne-sonde.ok { border-left: 4px solid var(--ok); }
   table.en-cartes > tbody > tr.ligne-sonde.lente { border-left: 4px solid var(--attention); }
   table.en-cartes > tbody > tr.ligne-sonde.echec { border-left: 4px solid var(--erreur); }
   table.en-cartes.dernieres-alertes > tbody > tr.en-cours { border-left: 4px solid var(--erreur); }
+  table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-warning { border-left-color: var(--attention); }
+  table.en-cartes.dernieres-alertes > tbody > tr.en-cours.g-info { border-left-color: var(--info); }
   table.en-cartes .attendu-sonde, table.en-cartes td.col-courbe-sonde { display: none; }
 }
 
@@ -1511,7 +1547,11 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
 .vms-tache summary { cursor: pointer; color: var(--accent-texte); }
 .table-vms td { padding: 4px 10px 4px 0; border: 0; }
 .cible-sonde .url-sonde { font-weight: 600; overflow-wrap: anywhere; }
-.cible-sonde .cadenas { font-size: 12px; margin-right: 4px; }
+/* Cadenas à gauche, adresse à côté : si elle passe à la ligne, la suite
+   reste alignée sous l'adresse, pas sous le cadenas (retour du 20/11). */
+.cible-sonde .url-sonde { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; text-align: left; word-break: normal; }
+.cible-sonde .cadenas { font-size: 12px; flex: none; }
+.cible-sonde .url-texte { min-width: 0; overflow-wrap: anywhere; }
 
 /* Survol des courbes (retour du 20/11) : toutes les courbes de la page
    suivent la souris ; leurs légendes ne doivent pas changer de taille, sinon
@@ -1559,10 +1599,6 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
 tr.groupe-taches > td { padding-top: 14px; font-weight: 600; background: none; border-bottom: 1px solid var(--bord); }
 .filtre-taches { margin: 0; }
 table.en-cartes .frise-tache { justify-content: flex-end; }
-.sauvegardes-nuit .chiffres { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 4px 0 10px; }
-.sauvegardes-nuit .chiffres b { display: block; font-size: 22px; }
-.sauvegardes-nuit ul { list-style: none; margin: 0; padding: 0; }
-.sauvegardes-nuit li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--bord-doux); }
 .texte-ok { color: #18794E; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
 :root[data-theme="dark"] .texte-ok { color: #4CC38A; }

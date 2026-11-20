@@ -142,6 +142,10 @@ func fonctions() template.FuncMap {
 			return time.Unix(s, 0).In(fuseau.Load()).Format("02/01/2006 15:04:05")
 		},
 		// heureLog : « 23:52 » aujourd'hui, sinon « 14/11 23:52 » (page Logs).
+		// coupeURL : adresse avec des points de coupure (<wbr>) après « / », « . »,
+		// « ? », « & » : sur téléphone, une longue adresse passe à la ligne à
+		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
+		"coupeURL": coupeURL,
 		"heureLog": func(ms int64) string {
 			t := time.UnixMilli(ms).In(fuseau.Load())
 			if t.Format("2006-01-02") == time.Now().In(fuseau.Load()).Format("2006-01-02") {
@@ -681,4 +685,17 @@ func colonnesParcCachees(parc []ligneParc) string {
 		c = append(c, "type")
 	}
 	return strings.Join(c, ",")
+}
+
+// coupeURL : texte échappé, <wbr> après chaque « / . ? & : - » (voir FuncMap).
+func coupeURL(u string) template.HTML {
+	var b strings.Builder
+	for _, r := range u {
+		b.WriteString(template.HTMLEscapeString(string(r)))
+		switch r {
+		case '/', '.', '?', '&', ':', '-':
+			b.WriteString("<wbr>")
+		}
+	}
+	return template.HTML(b.String()) // #nosec G203 -- chaque caractère est échappé, seul <wbr> est ajouté
 }

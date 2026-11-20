@@ -22,11 +22,14 @@ import (
 // Tuiles (dans la rangée du haut) puis blocs (la page), ordre par défaut.
 var (
 	tuilesAccueil = []string{"machines", "alertes", "notifications", "stockage"}
-	blocsAccueil  = []string{"tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "parc", "chaleur", "sauvegardes", "bas"}
+	blocsAccueil  = []string{"tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "parc", "chaleur", "bas"}
+	// « sauvegardes » (carte des dernières 24 h) retirée le 20/11 à la demande :
+	// une disposition enregistrée qui la cite encore est acceptée et ignorée.
+	clesRetirees = []string{"sauvegardes"}
 )
 
 func cleAccueil(c string) bool {
-	for _, l := range [][]string{tuilesAccueil, blocsAccueil} {
+	for _, l := range [][]string{tuilesAccueil, blocsAccueil, clesRetirees} {
 		for _, x := range l {
 			if x == c {
 				return true

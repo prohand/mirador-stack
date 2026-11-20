@@ -720,15 +720,42 @@ document.addEventListener("change", function (e) {
       if (i === col) { ths[i].setAttribute("aria-sort", sens === 1 ? "ascending" : "descending"); }
       else { ths[i].removeAttribute("aria-sort"); }
     }
+    if (table._menuTri) { table._menuTri.value = col >= 0 ? col + ":" + (sens === 1 ? "asc" : "desc") : ""; }
+  }
+  // menuTri : sur téléphone, le tableau passe en cartes et ses titres de
+  // colonnes sont cachés : un menu « Trier » les remplace (retour du 20/11,
+  // « il faut du tri dans les sondes »). Caché sur ordinateur (CSS).
+  function menuTri(table, cle, cols) {
+    if (cols.length === 0) { return; }
+    var lab = document.createElement("label");
+    lab.className = "tri-cartes";
+    lab.appendChild(document.createTextNode("Trier "));
+    var sel = document.createElement("select");
+    var o = document.createElement("option");
+    o.value = ""; o.textContent = "ordre de la page";
+    sel.appendChild(o);
+    cols.forEach(function (c) {
+      [["asc", " ↑"], ["desc", " ↓"]].forEach(function (s) {
+        var x = document.createElement("option");
+        x.value = c.i + ":" + s[0]; x.textContent = c.nom + s[1];
+        sel.appendChild(x);
+      });
+    });
+    sel.addEventListener("change", function () { ecrire(cle, sel.value); trier(table, cle); });
+    lab.appendChild(sel);
+    var avant = table.closest(".defile") || table;
+    avant.parentNode.insertBefore(lab, avant);
+    table._menuTri = sel;
   }
   function preparer(table, n) {
     if (table.getAttribute("data-trie") || exclu(table)) { return; }
     table.setAttribute("data-trie", "1");
     var cle = "mirador.tri." + location.pathname + "." + n;
     Array.prototype.forEach.call(table.tBodies[0].rows, function (l, i) { l.setAttribute("data-rang-tri", i); });
-    var ths = table.tHead.rows[0].cells;
+    var ths = table.tHead.rows[0].cells, cols = [];
     Array.prototype.forEach.call(ths, function (th, i) {
       if (th.textContent.trim() === "" || th.querySelector("button, input, select, a")) { return; }
+      cols.push({ i: i, nom: th.textContent.trim() });
       th.setAttribute("data-tri", String(i)); // même style que les autres titres triables
       var b = document.createElement("button");
       b.type = "button";
@@ -762,6 +789,7 @@ document.addEventListener("change", function (e) {
         });
       });
     }
+    if ((table.hasAttribute("data-cartes") || table.closest(".defile")) && table.tBodies[0].rows.length >= 3) { menuTri(table, cle, cols); }
     if (lire(cle)) { trier(table, cle); }
   }
   function tout() {
