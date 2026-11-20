@@ -29,13 +29,14 @@ func TestDirectServeur(t *testing.T) {
 	w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "")
 	etag := w.Header().Get("ETag")
 	// Agent en attente ; une page s'abonne 200 ms après : réponse aussitôt.
-	var a *direct.Abonne
-	go func() { time.Sleep(200 * time.Millisecond); a, _, _ = hub.Abonner(id) }()
+	abonne := make(chan *direct.Abonne, 1)
+	go func() { time.Sleep(200 * time.Millisecond); a, _, _ := hub.Abonner(id); abonne <- a }()
 	debut := time.Now()
 	w = b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", "If-None-Match", etag, protocole.EnteteAttendre, "3")
 	if d := time.Since(debut); w.Code != http.StatusNotModified || d > 1500*time.Millisecond || w.Header().Get(protocole.EnteteDirect) == "" {
 		t.Fatalf("réveil : %d après %v, direct %q", w.Code, d, w.Header().Get(protocole.EnteteDirect))
 	}
+	a := <-abonne // la page est abonnée (synchronisé : pas d'accès concurrent)
 	// Direct demandé mais pas encore commencé : pas d'attente.
 	debut = time.Now()
 	_ = b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", "If-None-Match", etag, protocole.EnteteAttendre, "3")
