@@ -97,7 +97,8 @@ func TestModifierSonde(t *testing.T) {
 	_, _ = b.c.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES ('etiquettes_elements', '{"s:dhcp-dns02 HTTPS 443":{"role":"dns"}}', 1, 'test')
 		ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur`)
 	_, corps, _ := b.get(cl, "/sondes/dhcp-dns02%20HTTPS%20443")
-	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`} {
+	for _, attendu := range []string{`id="modifier"`, `name="ancien" value="dhcp-dns02 HTTPS 443"`, `value="https://192.168.35.250/"`, `name="non_verifie" value="1" checked`,
+		`class="machine-liee" href="/machines/dhcp-dns02#sondes"`, `<b>dhcp-dns02</b>`, `<small>sonde la machine</small>dhcp-dns02`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("fiche de la sonde : %q absent", attendu)
 		}
@@ -114,6 +115,25 @@ func TestModifierSonde(t *testing.T) {
 	etq := b.c.lireEtiquettes(ctx)
 	if etq["s:DNS02 interface"]["role"] != "dns" || etq["s:dhcp-dns02 HTTPS 443"] != nil {
 		t.Errorf("étiquettes non suivies : %v", etq)
+	}
+	// Machine liée changée par le formulaire, puis retirée (retour du 20/11).
+	b.h.avancer(31 * time.Second)
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"DNS02 interface"},
+		"nom": {"DNS02 interface"}, "type": {"http"}, "cible": {"https://dns02.lan/"}, "depuis": {"lan"}, "machine": {"lan"}, "code": {b.code(secret)}})
+	if l, _ = flotte.LireSondes(ctx, b.c.db); l[0].Machine != "lan" {
+		t.Fatalf("machine liée non changée : %+v", l[0])
+	}
+	if _, page, _ := b.get(cl, "/sondes"); !strings.Contains(page, `<th>Machine</th>`) || !strings.Contains(page, `class="machine-liee petite" href="/machines/lan#sondes"`) {
+		t.Error("colonne Machine absente de la liste des sondes")
+	}
+	b.h.avancer(31 * time.Second)
+	b.post(cl, "/sondes", url.Values{"csrf": {b.csrf(cl, "/sondes")}, "action": {"modifier"}, "ancien": {"DNS02 interface"},
+		"nom": {"DNS02 interface"}, "type": {"http"}, "cible": {"https://dns02.lan/"}, "depuis": {"lan"}, "machine": {""}, "code": {b.code(secret)}})
+	if l, _ = flotte.LireSondes(ctx, b.c.db); l[0].Machine != "" {
+		t.Fatalf("machine liée non retirée : %+v", l[0])
+	}
+	if _, page, _ := b.get(cl, "/sondes/DNS02%20interface"); !strings.Contains(page, `machine-liee aucune`) {
+		t.Error("fiche : « aucune machine » non montré")
 	}
 	// Nom déjà pris : refusé, rien ne change.
 	_ = flotte.EnregistrerSondes(ctx, b.c.db, append(l, essais.Sonde{Nom: "Autre", Type: essais.Ping, Cible: "192.168.35.1", Depuis: "lan"}), "test", b.h.maintenant())

@@ -1047,6 +1047,12 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Sondes : machine liée visible (20/11, retour) : fait, à valider
+
+- Colonne « Machine » dans la liste des sondes ; machine en haut de la
+  fiche de la sonde et dans ses liens ; champ « Machine liée » à l'ajout
+  manuel et dans « Modifier la sonde » (on peut la changer ou la retirer).
+
 ## Téléphone : barre du haut à la iOS (SPEC § 86, 20/11) : fait, à valider
 
 - Grand titre en haut de page, verre dépoli et titre centré au défilement,

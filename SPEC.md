@@ -6925,3 +6925,17 @@ ci-dessous.
   défilement, une classe posée au passage du titre). Sans script : barre
   de la couleur de la page, sans titre centré.
 - Ordinateur inchangé (menu noir).
+
+## 87. Sondes : machine liée visible et modifiable (20/11, retour) **[Fait, à valider]**
+
+- Retour : « dans le détail de la sonde on ne voit pas à quelle machine
+  c'est rattaché ; dans la vue des sondes ce n'est pas bien visible ».
+- Liste des sondes : colonne « Machine » (pastille cliquable vers la page
+  de la machine), après le nom.
+- Fiche de la sonde : pastille « Machine » sous le titre (ou « aucune »,
+  avec un lien pour en lier une) et la cible ; lien « sonde la machine »
+  dans les liens.
+- « Machine liée » (machines approuvées) à l'ajout manuel et dans
+  « Modifier la sonde » : la machine se change ou se retire (jusqu'ici
+  elle n'était posée que par l'ajout depuis une machine).
+- Rangement seulement (§ 60) : jamais envoyé au collecteur.

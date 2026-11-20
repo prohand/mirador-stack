@@ -53,6 +53,7 @@ type donneesSondes struct {
 	Total, OK, Echecs, Lentes int
 	Mediane                   string
 	Depuis                    []string // serveur + collecteurs (formulaire)
+	Toutes                    []string // machines approuvées (« Machine liée »)
 	FiltreSur                 filtreSur
 	Ajout                     ajoutSonde
 }
@@ -117,7 +118,7 @@ func (c *Console) nbSondesEnEchec(ctx context.Context, t time.Time) int {
 
 func (c *Console) pageSondes(q *req) {
 	ctx := q.r.Context()
-	d := donneesSondes{Depuis: []string{essais.ServeurLocal}}
+	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx)}
 	if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
 		d.Depuis = append(d.Depuis, cs...)
 	}
@@ -242,7 +243,7 @@ func sondeDuFormulaire(f champs) (essais.Sonde, error) {
 	}
 	return essais.Sonde{Nom: f.texte("nom"), Type: f.texte("type"), Cible: f.texte("cible"), Depuis: f.texte("depuis"),
 		Intervalle: f.texte("intervalle"), Lente: f.texte("lente"), Code: code, Contenu: f.texte("contenu"),
-		NonVerifie: f.coche("non_verifie"), Question: f.texte("question"),
+		NonVerifie: f.coche("non_verifie"), Question: f.texte("question"), Machine: f.texte("machine"),
 		ChampJSON: f.texte("champ_json"), ValeurJSON: f.texte("valeur_json"), Certificat: certificat}, nil
 }
 
@@ -399,7 +400,7 @@ func (c *Console) postSondes(q *req) {
 	case "modifier":
 		// Modifier une sonde (retour du 19/11 : cible HTTPS à changer,
 		// sonde à renommer) : mêmes vérifications qu'à l'ajout ; la machine
-		// de rangement est gardée.
+		// liée se change aussi (retour du 20/11).
 		ancien := f.texte("ancien")
 		retour := "/sondes/" + url.PathEscape(ancien)
 		i := slices.IndexFunc(liste, func(x essais.Sonde) bool { return x.Nom == ancien })
@@ -412,7 +413,9 @@ func (c *Console) postSondes(q *req) {
 			c.retour(q, retour+"#modifier", err, "")
 			return
 		}
-		s.Machine = liste[i].Machine
+		if _, envoye := q.r.PostForm["machine"]; !envoye {
+			s.Machine = liste[i].Machine // ancien formulaire : machine gardée
+		}
 		liste[i] = s
 		if err = flotte.EnregistrerSondes(ctx, c.db, liste, q.qui(), q.t); err != nil {
 			c.retour(q, retour+"#modifier", err, "")
@@ -437,4 +440,18 @@ func (c *Console) postSondes(q *req) {
 	default:
 		c.retour(q, "/sondes", errors.New("action inconnue"), "")
 	}
+}
+
+// nomsMachines : machines approuvées, triées (liste « Machine liée »).
+func (c *Console) nomsMachines(ctx context.Context) []string {
+	var out []string
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		for _, m := range ms {
+			if m.Statut == "approuvee" {
+				out = append(out, m.Nom)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }

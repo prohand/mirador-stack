@@ -258,7 +258,7 @@ func TestDemoInterface(t *testing.T) {
 	// échec), une depuis le collecteur, et des résultats simulés.
 	_ = flotte.EnregistrerSondes(ctx, s.db, []essais.Sonde{
 		{Nom: "Nextcloud", Type: essais.HTTP, Cible: "https://cloud.exemple.invalid/status.php", Depuis: essais.ServeurLocal, Code: 200, Contenu: "installed"},
-		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "collecteur-lan", NonVerifie: true,
+		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "collecteur-lan", NonVerifie: true, Machine: "vm-docker",
 			ChampJSON: "message", ValeurJSON: "API running.", Certificat: 14},
 		{Nom: "DNS interne", Type: essais.DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "collecteur-lan"},
 	}, "demo", now)

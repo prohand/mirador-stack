@@ -1,5 +1,6 @@
 {{define "contenu"}}{{$e := .D.E}}
 <div class="fiche-tete"><span class="sorte">{{sorte $e.Sorte}}</span><h1>{{$e.Nom}}</h1><span class="pastille{{if $e.Pastille}} {{$e.Pastille}}{{end}}">{{$e.Etat}}</span></div>
+{{with .D.Sonde}}<p class="fiche-sonde-machine">{{if .Machine}}<a class="machine-liee" href="/machines/{{.Machine}}#sondes"><svg class="icone"><use href="#i-machines"></use></svg><small>Machine</small><b>{{.Machine}}</b></a>{{else}}<span class="machine-liee aucune"><svg class="icone"><use href="#i-machines"></use></svg><small>Machine</small><b>aucune</b>{{if $.Admin}} <a href="#modifier">en lier une</a>{{end}}</span>{{end}}<code class="cible-fiche">{{.Cible}}</code></p>{{end}}
 <p class="onglets">{{range .D.Raccourcis}}<a href="{{.Lien}}">{{.Titre}}</a>{{end}}</p>
 <div class="resume-alertes kpis4">{{range .D.Tuiles}}<span class="tuile{{if eq .Classe "erreur"}} critique{{else if eq .Classe "attention"}} avert{{end}}"><small>{{.Titre}}</small><b>{{.Valeur}}</b></span>{{end}}</div>
 {{if .D.Courbe}}<section class="carte"><h2>{{.D.TitreCourbe}}</h2><div class="courbe-fiche">{{.D.Courbe}}</div></section>{{end}}
@@ -16,6 +17,7 @@
 <label>Type <select name="type"><option value="http"{{if eq .Type "http"}} selected{{end}}>HTTP(S)</option><option value="tcp"{{if eq .Type "tcp"}} selected{{end}}>TCP (port ouvert)</option><option value="ping"{{if eq .Type "ping"}} selected{{end}}>Ping</option><option value="dns"{{if eq .Type "dns"}} selected{{end}}>DNS</option></select></label>
 <label>Faite depuis <select name="depuis">{{$dep := .Depuis}}{{range $.D.Depuis}}<option value="{{.}}"{{if eq . $dep}} selected{{end}}>{{if eq . "serveur"}}Serveur mirador (extérieur){{else}}Collecteur « {{.}} »{{end}}</option>{{end}}</select></label>
 <label>Toutes les <input name="intervalle" value="{{.Intervalle}}" placeholder="60s" size="6" maxlength="10"></label></div>
+<label>Machine liée <select name="machine"><option value="">(aucune)</option>{{$m := .Machine}}{{range $.D.Toutes}}<option{{if eq . $m}} selected{{end}}>{{.}}</option>{{end}}</select></label>
 <label>Cible <input name="cible" required maxlength="500" value="{{.Cible}}" placeholder="https://dns02.lan/ · hôte:port · hôte · serveur DNS"></label>
 <div class="ligne"><label>Code attendu (HTTP) <input name="code_http" size="5" maxlength="3" value="{{if .Code}}{{.Code}}{{end}}" placeholder="200"></label>
 <label>Contenu attendu (facultatif) <input name="contenu" maxlength="200" value="{{.Contenu}}" placeholder="texte de la page, ou adresse IP (DNS)"></label>

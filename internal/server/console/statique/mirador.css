@@ -1480,3 +1480,14 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
   .appli.ouvert .barre nav a.actif .icone { color: var(--accent); }
   .appli.ouvert .barre .logo { color: var(--texte); }
 }
+
+/* Machine liée d'une sonde (retour du 20/11) : en haut de la fiche, et
+   colonne de la liste des sondes. */
+.fiche-sonde-machine { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 14px; }
+.machine-liee { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; background: var(--accent-fond); color: var(--accent-texte); text-decoration: none; font-weight: 600; }
+.machine-liee small { color: var(--pale); font-weight: 500; font-size: 12px; }
+.machine-liee .icone { width: 16px; height: 16px; }
+.machine-liee.aucune { background: var(--survol); color: var(--doux); }
+.machine-liee.aucune a { font-weight: 500; font-size: 13px; }
+.machine-liee.petite { padding: 3px 9px; border-radius: 999px; font-size: 13px; gap: 6px; white-space: nowrap; }
+.cible-fiche { font-size: 13px; color: var(--doux); overflow-wrap: anywhere; }
