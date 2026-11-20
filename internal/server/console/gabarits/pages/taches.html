@@ -1,6 +1,5 @@
 {{define "contenu"}}{{$d := .D}}
 <div class="titre-page"><h1>Tâches planifiées</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="#nouvelle">+ Ajouter une tâche à signaler</a></div>{{end}}</div>
-<p class="onglets"><a href="/sondes">Sondes</a><a class="actif" aria-current="page" href="/taches">Tâches planifiées <small>{{len $d.Suivies}}</small></a></p>
 <p class="sous">Sauvegardes, crons, timers : la tâche doit tourner à temps et réussir. L'agent les voit lui-même (timers systemd, conteneurs Docker ponctuels, sauvegardes Proxmox VE et Proxmox Backup Server) ; sinon, la tâche le signale par un simple appel (curl).</p>
 {{with $d.Nouveau}}<section class="carte nouveau-ping" id="adresse"><h2>« {{.Nom}} » : adresse à coller dans la tâche</h2>
 <p class="message erreur">Affichée <strong>une seule fois</strong> : la copier maintenant. (« Nouvelle adresse » en crée une autre si elle est perdue.)</p>

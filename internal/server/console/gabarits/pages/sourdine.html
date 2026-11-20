@@ -15,16 +15,20 @@
 
 <section class="carte"><h2>Fenêtres de maintenance</h2>
 {{if .D.Maintenances}}<div class="defile"><table><thead><tr><th>Cible</th><th>Quand</th><th>Auteur</th><th>Commentaire</th><th></th></tr></thead><tbody>
-{{range .D.Maintenances}}<tr><td><code>{{.Cible}}</code></td><td>{{if .Recurrence}}chaque {{range .Recurrence.Jours}}{{.}} {{end}}à {{.Recurrence.Heure}} pendant {{.Recurrence.Duree}}{{else}}{{date .Debut}} → {{date .Fin}}{{end}}</td><td>{{.Auteur}}</td><td>{{.Commentaire}}</td>
+{{range .D.Maintenances}}<tr{{if .Finie}} class="doux"{{end}}><td><code>{{.Cible}}</code></td><td>{{.Quand}}{{if .EnCours}}<br><small><span class="pastille ok">en cours</span> {{.EnCours}}</small>{{else if .Prochaine}}<br><small class="doux">Prochaine : {{.Prochaine}}</small>{{else if .Finie}}<br><small class="doux">finie</small>{{end}}</td><td>{{.Auteur}}</td><td>{{.Commentaire}}</td>
 <td>{{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer"><input type="hidden" name="table" value="maintenances"><input type="hidden" name="id" value="{{.ID}}"><button class="secondaire">Supprimer</button></form>{{end}}</td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune maintenance."}}{{end}}
 {{if .Admin}}<details id="maintenance"{{if .D.Prerempli}} open{{end}}><summary>Nouvelle maintenance</summary><form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenance">
-<label>Cible <input name="cible" required maxlength="1024" list="machines" value="{{.D.Prerempli}}" placeholder="machine:pve1, groupe:proxmox ou {site=&quot;bureau&quot;}"></label>
-<datalist id="machines">{{range .D.Machines}}<option value="machine:{{.}}">{{end}}</datalist>
-<label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
-<label>Durée <input name="duree" value="2h" required maxlength="10"></label>
-<fieldset><legend>Récurrente (facultatif) : jours et heure</legend><div class="ligne">{{range .D.Jours}}<label class="case"><input type="checkbox" name="jours" value="{{.}}"> {{.}}</label>{{end}}</div>
-<label>Heure <input type="time" name="heure"></label></fieldset>
+<label>Cible <input name="cible" required maxlength="1024" list="machines" value="{{.D.Prerempli}}" placeholder="machine:pve1, site:bureau, groupe:proxmox ou {sélecteur}"></label>
+<datalist id="machines">{{range .D.Sites}}<option value="site:{{.}}">tout le site {{.}}</option>{{end}}{{range .D.Groupes}}<option value="groupe:{{.}}">{{end}}{{range .D.Machines}}<option value="machine:{{.}}">{{end}}</datalist>
+<small class="aide"><code>site:NOM</code> : toutes les machines du site, et les équipements relevés par son collecteur (coupure de courant, travaux).</small>
+<label>Répéter <select name="repeter" class="choix-repeter"><option value="non">une seule fois</option><option value="jour">chaque jour</option><option value="semaine">chaque semaine</option><option value="mois">chaque mois</option></select></label>
+<div class="ligne si-une-fois"><label>Début (vide = maintenant) <input type="datetime-local" name="debut"></label>
+<label>Durée <input name="duree" value="2h" maxlength="10" placeholder="2h, 30m, 1d"></label></div>
+<div class="ligne si-semaine">{{range .D.Jours}}<label class="case"><input type="checkbox" name="jours" value="{{.}}"> {{.}}</label>{{end}}</div>
+<label class="si-mois">Jour du mois <select name="jour_mois">{{range .D.JoursMois}}<option value="{{.}}">{{if eq . 31}}dernier jour{{else}}{{.}}{{end}}</option>{{end}}</select></label>
+<div class="ligne si-repete"><label>De <input type="time" name="de" value="03:00"></label><label>à <input type="time" name="a" value="04:00"></label></div>
+<p class="si-repete"><small class="aide">Les alertes de la cible sont mises en sourdine pendant la fenêtre ; une alerte encore là à la fin part normalement. « à » plus tôt que « de » : le lendemain.</small></p>
 <label>Commentaire <input name="commentaire" maxlength="1000"></label><button data-code>Enregistrer</button></form></details>{{end}}
 </section>
 

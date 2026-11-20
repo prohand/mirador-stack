@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // fuseaux horaires embarqués : l'image Docker n'en a pas
@@ -67,11 +68,12 @@ func correspond(ms []*labels.Matcher, etq labels.Labels) bool {
 }
 
 type cible struct {
-	machine, groupe string
-	filtres         []*labels.Matcher
+	machine, groupe, site string
+	filtres               []*labels.Matcher
 }
 
-// LireCible vérifie une cible (machine:NOM, groupe:NOM ou sélecteur).
+// LireCible vérifie une cible (machine:NOM, groupe:NOM, site:NOM ou
+// sélecteur).
 func LireCible(s string) (cible, error) {
 	if n, ok := strings.CutPrefix(s, "machine:"); ok && n != "" {
 		return cible{machine: n}, nil
@@ -79,20 +81,26 @@ func LireCible(s string) (cible, error) {
 	if n, ok := strings.CutPrefix(s, "groupe:"); ok && n != "" {
 		return cible{groupe: n}, nil
 	}
+	if n, ok := strings.CutPrefix(s, "site:"); ok && n != "" {
+		return cible{site: n}, nil
+	}
 	ms, err := LireSelecteur(s)
 	if err != nil {
-		return cible{}, fmt.Errorf("cible : machine:NOM, groupe:NOM ou {sélecteur} (%w)", err)
+		return cible{}, fmt.Errorf("cible : machine:NOM, groupe:NOM, site:NOM ou {sélecteur} (%w)", err)
 	}
 	return cible{filtres: ms}, nil
 }
 
-// touche : l'alerte est-elle visée ? groupes : machine → groupe.
-func (c cible) touche(a *alertes.Alerte, groupes map[string]string) bool {
+// touche : l'alerte est-elle visée ? groupes : machine → groupe ; sites :
+// machine → site (équipements : site de leur collecteur, SPEC § 81).
+func (c cible) touche(a *alertes.Alerte, groupes, sites map[string]string) bool {
 	switch {
 	case c.machine != "":
 		return a.Machine() == c.machine
 	case c.groupe != "":
 		return groupes[a.Machine()] == c.groupe
+	case c.site != "":
+		return sites[a.Machine()] == c.site || a.Etiquettes.Get("site") == c.site
 	}
 	return correspond(c.filtres, a.Etiquettes)
 }
@@ -108,25 +116,46 @@ type Silence struct {
 	filtres             []*labels.Matcher
 }
 
-// Recurrence : maintenance qui revient (ex. chaque dimanche à 03:00 pendant 2 h).
+// Recurrence : maintenance qui revient (ex. chaque dimanche à 03:00 pendant
+// 2 h). Rythme (SPEC § 81) : "" ou "semaine" = les Jours cochés ; "jour" =
+// tous les jours ; "mois" = le JourMois de chaque mois (31 = dernier jour
+// des mois plus courts).
 type Recurrence struct {
-	Jours  []string      `json:"jours"` // lun, mar, mer, jeu, ven, sam, dim
-	Heure  string        `json:"heure"` // HH:MM, heure locale du fuseau
-	Duree  alertes.Duree `json:"duree"`
-	Fuseau string        `json:"fuseau"` // défaut Europe/Paris
+	Rythme   string        `json:"rythme,omitempty"`
+	Jours    []string      `json:"jours,omitempty"` // lun, mar, mer, jeu, ven, sam, dim
+	JourMois int           `json:"jour_mois,omitempty"`
+	Heure    string        `json:"heure"` // HH:MM, heure locale du fuseau
+	Duree    alertes.Duree `json:"duree"`
+	Fuseau   string        `json:"fuseau"` // défaut Europe/Paris
 }
 
 var joursSemaine = []string{"dim", "lun", "mar", "mer", "jeu", "ven", "sam"} // ordre de time.Weekday
 
 // Valider vérifie une récurrence.
 func (r *Recurrence) Valider() error {
-	if len(r.Jours) == 0 {
-		return errors.New("récurrence : au moins un jour (lun…dim)")
-	}
-	for _, j := range r.Jours {
-		if !slices.Contains(joursSemaine, j) {
-			return fmt.Errorf("jour %q inconnu (lun, mar, mer, jeu, ven, sam, dim)", j)
+	switch r.Rythme {
+	case "", "semaine":
+		r.Rythme = ""
+		if len(r.Jours) == 0 {
+			return errors.New("récurrence : au moins un jour (lun…dim)")
 		}
+		for _, j := range r.Jours {
+			if !slices.Contains(joursSemaine, j) {
+				return fmt.Errorf("jour %q inconnu (lun, mar, mer, jeu, ven, sam, dim)", j)
+			}
+		}
+	case "jour":
+		r.Jours = nil
+	case "mois":
+		r.Jours = nil
+		if r.JourMois < 1 || r.JourMois > 31 {
+			return errors.New("récurrence : jour du mois entre 1 et 31")
+		}
+	default:
+		return fmt.Errorf("rythme %q inconnu (jour, semaine, mois)", r.Rythme)
+	}
+	if r.Rythme != "mois" {
+		r.JourMois = 0
 	}
 	if _, err := time.Parse("15:04", r.Heure); err != nil {
 		return fmt.Errorf("heure %q invalide (HH:MM)", r.Heure)
@@ -143,19 +172,35 @@ func (r *Recurrence) Valider() error {
 	return nil
 }
 
+// commence : une fenêtre commence-t-elle le jour j ?
+func (r *Recurrence) commence(j time.Time) bool {
+	switch r.Rythme {
+	case "jour":
+		return true
+	case "mois":
+		dernier := time.Date(j.Year(), j.Month()+1, 0, 0, 0, 0, 0, j.Location()).Day()
+		return j.Day() == min(r.JourMois, dernier)
+	}
+	return slices.Contains(r.Jours, joursSemaine[j.Weekday()])
+}
+
+// fenetre : début de la fenêtre du jour j (heure locale du fuseau).
+func (r *Recurrence) fenetre(j time.Time, loc *time.Location) time.Time {
+	h, _ := time.Parse("15:04", r.Heure)
+	return time.Date(j.Year(), j.Month(), j.Day(), h.Hour(), h.Minute(), 0, 0, loc)
+}
+
 // enCours : la récurrence couvre-t-elle l'instant t ?
 func (r *Recurrence) enCours(t time.Time) bool {
 	loc, err := time.LoadLocation(r.Fuseau)
 	if err != nil {
 		return false
 	}
-	h, _ := time.Parse("15:04", r.Heure)
 	tl := t.In(loc)
 	// Une fenêtre peut avoir commencé les jours précédents (durée ≤ 7 j).
 	for k := 0; k <= 7; k++ {
-		j := tl.AddDate(0, 0, -k)
-		debut := time.Date(j.Year(), j.Month(), j.Day(), h.Hour(), h.Minute(), 0, 0, loc)
-		if !slices.Contains(r.Jours, joursSemaine[debut.Weekday()]) {
+		debut := r.fenetre(tl.AddDate(0, 0, -k), loc)
+		if !r.commence(debut) {
 			continue
 		}
 		if !t.Before(debut) && t.Before(debut.Add(time.Duration(r.Duree))) {
@@ -163,6 +208,42 @@ func (r *Recurrence) enCours(t time.Time) bool {
 		}
 	}
 	return false
+}
+
+// Prochaine : fenêtre en cours ou prochaine (zéro si aucune dans les
+// 62 jours, ce qui n'arrive pas pour une récurrence valide).
+func (r *Recurrence) Prochaine(t time.Time) (debut, fin time.Time) {
+	loc, err := time.LoadLocation(r.Fuseau)
+	if err != nil {
+		return
+	}
+	tl := t.In(loc)
+	for k := -7; k <= 62; k++ {
+		d := r.fenetre(tl.AddDate(0, 0, k), loc)
+		if r.commence(d) && d.Add(time.Duration(r.Duree)).After(t) {
+			return d, d.Add(time.Duration(r.Duree))
+		}
+	}
+	return
+}
+
+// Texte : « chaque dim à 03:00 pendant 2h », « chaque jour à … »,
+// « le 1 de chaque mois à … ».
+func (r *Recurrence) Texte() string {
+	switch r.Rythme {
+	case "jour":
+		return fmt.Sprintf("chaque jour à %s pendant %s", r.Heure, r.Duree)
+	case "mois":
+		jour := strconv.Itoa(r.JourMois)
+		if r.JourMois == 1 {
+			jour = "1er"
+		}
+		if r.JourMois == 31 {
+			jour = "dernier jour"
+		}
+		return fmt.Sprintf("le %s de chaque mois à %s pendant %s", jour, r.Heure, r.Duree)
+	}
+	return fmt.Sprintf("chaque %s à %s pendant %s", strings.Join(r.Jours, ","), r.Heure, r.Duree)
 }
 
 // Maintenance : fenêtre ponctuelle (Debut, Fin) ou récurrente.
@@ -209,6 +290,7 @@ type Sourdine struct {
 	inhibitions  []Inhibition
 	dependances  []Dependance
 	groupes      map[string]string // machine → groupe
+	siteMachine  map[string]string // machine → site (maintenances par site)
 	reglesPanne  map[string]bool   // règles qui signifient « machine en panne »
 	// Sites d'au moins 2 machines (site injoignable, site.go).
 	sites   map[string]string   // machine → site
@@ -224,7 +306,7 @@ func (s *Sourdine) Raison(a *alertes.Alerte, actives []alertes.Alerte, t time.Ti
 	}
 	for i := range s.maintenances {
 		m := &s.maintenances[i]
-		if m.enCours(t) && m.cible.touche(a, s.groupes) {
+		if m.enCours(t) && m.cible.touche(a, s.groupes, s.siteMachine) {
 			return fmt.Sprintf("maintenance %d (%s)", m.ID, m.Cible)
 		}
 	}
@@ -264,7 +346,7 @@ func (s *Sourdine) Raison(a *alertes.Alerte, actives []alertes.Alerte, t time.Ti
 func (s *Sourdine) parentEnPanne(a *alertes.Alerte, actives []alertes.Alerte) string {
 	for i := range s.dependances {
 		d := &s.dependances[i]
-		if a.Machine() == d.Parent || !d.enfant.touche(a, s.groupes) {
+		if a.Machine() == d.Parent || !d.enfant.touche(a, s.groupes, s.siteMachine) {
 			continue
 		}
 		for j := range actives {
@@ -279,7 +361,7 @@ func (s *Sourdine) parentEnPanne(a *alertes.Alerte, actives []alertes.Alerte) st
 // Charger lit les éléments en vigueur (les silences finis ou annulés sont
 // laissés en base pour l'historique, mais pas chargés).
 func Charger(ctx context.Context, db *sql.DB, reglesPanne []string, t time.Time) (*Sourdine, error) {
-	s := &Sourdine{groupes: map[string]string{}, reglesPanne: map[string]bool{}}
+	s := &Sourdine{groupes: map[string]string{}, siteMachine: map[string]string{}, reglesPanne: map[string]bool{}}
 	for _, r := range reglesPanne {
 		s.reglesPanne[r] = true
 	}
@@ -312,6 +394,26 @@ func Charger(ctx context.Context, db *sql.DB, reglesPanne []string, t time.Time)
 		return nil, err
 	}
 	if err := s.chargerSites(ctx, db, t); err != nil {
+		return nil, err
+	}
+	// Site de chaque machine ; un équipement sans site prend celui de son
+	// collecteur (maintenance « site:bureau » : tout le site d'un coup).
+	rs, err := db.QueryContext(ctx, `SELECT m.nom, CASE WHEN m.site != '' THEN m.site ELSE COALESCE(c.site, '') END
+		FROM machines m LEFT JOIN equipements_collecteur e ON e.machine_id = m.id LEFT JOIN machines c ON c.id = e.collecteur_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var n, site string
+		if err := rs.Scan(&n, &site); err != nil {
+			return nil, err
+		}
+		if site != "" {
+			s.siteMachine[n] = site
+		}
+	}
+	if err := rs.Err(); err != nil {
 		return nil, err
 	}
 	return s, nil

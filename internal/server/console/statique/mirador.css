@@ -1392,3 +1392,9 @@ details.modifier-tache > summary::-webkit-details-marker { display: none; }
 details.modifier-tache[open] { min-width: 280px; }
 details.modifier-tache form { margin-top: 8px; text-align: left; }
 tr.ligne-sonde.echec > td:first-child { box-shadow: inset 4px 0 0 var(--erreur); }
+
+/* Nouvelle maintenance (SPEC § 81) : champs selon « Répéter », sans script. */
+form:has(.choix-repeter option[value="non"]:checked) :is(.si-repete, .si-semaine, .si-mois),
+form:has(.choix-repeter option[value="jour"]:checked) :is(.si-une-fois, .si-semaine, .si-mois),
+form:has(.choix-repeter option[value="semaine"]:checked) :is(.si-une-fois, .si-mois),
+form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-semaine) { display: none; }

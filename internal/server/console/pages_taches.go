@@ -3,8 +3,10 @@
 package console
 
 import (
+	"context"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -169,7 +171,9 @@ func periodeTexte(d time.Duration) string {
 	return "toutes les " + dureeLisible(d)
 }
 
-func (c *Console) donneesTaches(q *req) donneesTaches {
+// donneesTaches : tâches suivies et détectées ; machine non vide : seulement
+// celles de cette machine (page de la machine).
+func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 	ctx := q.r.Context()
 	d := donneesTaches{Base: "https://" + q.r.Host}
 	det := taches.Detectees(func(expr string) ([]alertes.Echantillon, error) { return c.instant(ctx, expr, q.t) })
@@ -180,6 +184,9 @@ func (c *Console) donneesTaches(q *req) donneesTaches {
 	suivies := map[string]bool{}
 	for _, t := range taches.AvecReleves(ts, det) {
 		suivies[t.Cle] = true
+		if machine != "" && t.Machine != machine {
+			continue
+		}
 		l := ligneTache{T: t, Etat: taches.Calculer(t, t.Releve, q.t), Source: textesSources[t.Source], Fin: t.Releve.Fin, Message: t.Releve.Message}
 		l.Attendue = periodeTexte(t.Periode) + ", marge " + dureeLisible(t.Marge)
 		if !t.Releve.Debut.IsZero() && !t.Releve.Fin.IsZero() && !t.Releve.Fin.Before(t.Releve.Debut) {
@@ -199,7 +206,7 @@ func (c *Console) donneesTaches(q *req) donneesTaches {
 		d.Suivies = append(d.Suivies, l)
 	}
 	for k, x := range det {
-		if suivies[k] || x.Source == taches.SourcePing {
+		if suivies[k] || x.Source == taches.SourcePing || machine != "" && x.Machine != machine {
 			continue
 		}
 		td := tacheDetectee{Detectee: *x, SourceTexte: textesSources[x.Source], Fin: x.Releve.Fin, Code: x.Releve.Code,
@@ -218,6 +225,9 @@ func (c *Console) donneesTaches(q *req) donneesTaches {
 			return l[i].Nom < l[j].Nom
 		})
 	}
+	if machine != "" {
+		return d
+	}
 	if rows, err := c.db.QueryContext(ctx, `SELECT nom FROM machines WHERE statut = 'approuvee' ORDER BY nom`); err == nil {
 		for rows.Next() {
 			var n string
@@ -230,8 +240,31 @@ func (c *Console) donneesTaches(q *req) donneesTaches {
 	return d
 }
 
+// tachesMachine : bloc de la page d'une machine (nil : aucune tâche).
+func (c *Console) tachesMachine(q *req, machine string) *donneesTaches {
+	d := c.donneesTaches(q, machine)
+	if len(d.Suivies) == 0 && len(d.Detectees) == 0 {
+		return nil
+	}
+	return &d
+}
+
+// nbTachesEnProbleme : compteur du menu (tâches suivies en échec ou en
+// retard, d'après les séries écrites chaque minute par le serveur).
+func (c *Console) nbTachesEnProbleme(ctx context.Context, t time.Time) int {
+	if c.lecteur == nil {
+		return 0
+	}
+	ech, err := c.instant(ctx, `count((mirador_tache_echeance_timestamp_seconds < time())
+		or on (instance, source, tache) (mirador_tache_suivie and on (instance, source, tache) mirador_tache_code != 0)) or vector(0)`, t)
+	if err != nil || len(ech) == 0 || math.IsNaN(ech[0].Valeur) {
+		return 0
+	}
+	return int(ech[0].Valeur)
+}
+
 func (c *Console) pageTaches(q *req) {
-	c.rendre(q, "taches", "Tâches planifiées", "sondes", c.donneesTaches(q))
+	c.rendre(q, "taches", "Tâches planifiées", "taches", c.donneesTaches(q, ""))
 }
 
 // lireReglagesTache : fréquence, marge, gravité du formulaire.
@@ -289,9 +322,9 @@ func (c *Console) postTaches(q *req) {
 			var jeton string
 			if jeton, err = taches.CreerPing(ctx, c.db, t, q.t); err == nil {
 				_ = Auditer(ctx, c.db, q.qui(), "tache_creee", t.Nom, "", "", q.ip.String(), q.t)
-				d := c.donneesTaches(q)
+				d := c.donneesTaches(q, "")
 				d.Nouveau = &nouveauPing{Nom: t.Nom, URL: d.Base + "/ping/" + jeton}
-				c.rendre(q, "taches", "Tâches planifiées", "sondes", d)
+				c.rendre(q, "taches", "Tâches planifiées", "taches", d)
 				return
 			}
 		}
@@ -299,9 +332,9 @@ func (c *Console) postTaches(q *req) {
 		var jeton string
 		if jeton, err = taches.NouveauJeton(ctx, c.db, id); err == nil {
 			_ = Auditer(ctx, c.db, q.qui(), "tache_jeton", strconv.FormatInt(id, 10), "", "", q.ip.String(), q.t)
-			d := c.donneesTaches(q)
+			d := c.donneesTaches(q, "")
 			d.Nouveau = &nouveauPing{Nom: f.Get("nom"), URL: d.Base + "/ping/" + jeton}
-			c.rendre(q, "taches", "Tâches planifiées", "sondes", d)
+			c.rendre(q, "taches", "Tâches planifiées", "taches", d)
 			return
 		}
 	case "modifier":

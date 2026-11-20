@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
+	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/servicesmetier"
 	"mirador-stack/internal/server/stockage"
@@ -256,9 +258,14 @@ func TestDemoInterface(t *testing.T) {
 	// échec), une depuis le collecteur, et des résultats simulés.
 	_ = flotte.EnregistrerSondes(ctx, s.db, []essais.Sonde{
 		{Nom: "Nextcloud", Type: essais.HTTP, Cible: "https://cloud.exemple.invalid/status.php", Depuis: essais.ServeurLocal, Code: 200, Contenu: "installed"},
-		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/", Depuis: "collecteur-lan", NonVerifie: true},
+		{Nom: "Home Assistant", Type: essais.HTTP, Cible: "https://ha.lan:8123/api/", Depuis: "collecteur-lan", NonVerifie: true,
+			ChampJSON: "message", ValeurJSON: "API running.", Certificat: 14},
 		{Nom: "DNS interne", Type: essais.DNS, Cible: "192.168.1.2", Question: "nas.lan", Depuis: "collecteur-lan"},
 	}, "demo", now)
+	// Maintenances (SPEC § 81) : chaque mois, et tout un site.
+	_, _ = notif.AjouterMaintenance(ctx, s.db, "machine:pve1", now, now, &notif.Recurrence{Rythme: "mois", JourMois: 1, Heure: "03:00",
+		Duree: alertes.Duree(2 * time.Hour), Fuseau: "Europe/Paris"}, "admin", "mises à jour Proxmox", now)
+	_, _ = notif.AjouterMaintenance(ctx, s.db, "site:maison", now.Add(48*time.Hour), now.Add(52*time.Hour), nil, "admin", "coupure de courant prévue (EDF)", now)
 	var sondesDemo []stockage.Serie
 	for k := 0; k < 120; k++ {
 		ts := now.Add(time.Duration(-k) * 30 * time.Second).UnixMilli()

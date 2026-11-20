@@ -146,6 +146,17 @@ func ReglesMirador() []Regle {
 			Gravite:     Avertissement,
 			Resume:      "Sonde {{ $labels.sonde }} lente depuis 5 min ({{ $labels.cible }})",
 			Description: "Le service répond, mais plus lentement que le seuil réglé pour la sonde (page Sondes)."}),
+		// Certificat du site d'une sonde HTTPS (SPEC § 81) : seulement si la
+		// case est cochée sur la sonde (le nombre de jours vient d'elle).
+		m(Regle{Nom: "SondeCertificatBientotExpire", Groupe: "sondes", Intervalle: Duree(15 * time.Minute),
+			Expr: `(max by (instance, sonde, cible) (mirador_sonde_certificat_fin_timestamp_seconds) - time()) / 86400` +
+				` < max by (instance, sonde, cible) (mirador_sonde_certificat_alerte_jours)`,
+			Pour:    Duree(time.Hour),
+			Gravite: Avertissement,
+			Resume:  "Le certificat de {{ $labels.cible }} expire dans {{ $value | humanize }} jours",
+			Description: "Certificat du site lu par la sonde {{ $labels.sonde }} : le renouveler (Let's Encrypt, " +
+				"hébergeur…). Une valeur négative : déjà expiré.",
+			Note: "SPEC § 81"}),
 		// Applications (SPEC § 50, appelées « services » jusqu'au 19/11,
 		// § 65) : état calculé chaque minute par le serveur. La série et son
 		// étiquette gardent le nom « service » (interne).

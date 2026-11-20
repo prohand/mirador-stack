@@ -29,6 +29,7 @@ Sourdine et notifications (heures locales du fuseau des notifications, Europe/Pa
   silences | silence-annuler N
   maintenance [-debut "AAAA-MM-JJ HH:MM"] [-pendant 2h] [-jours lun,dim -heure 03:00] [-commentaire "…"] CIBLE
                                      CIBLE : machine:NOM, groupe:NOM ou 'SÉLECTEUR' ; avec -jours : récurrente
+                                     (-jours tous : chaque jour ; -jours mois:15 : le 15 de chaque mois, mois:31 = dernier jour)
   maintenances | maintenance-supprimer N
   inhibition [-egales instance] [-commentaire "…"] 'SOURCE' 'CIBLE'
   inhibitions | inhibition-supprimer N
@@ -105,6 +106,13 @@ func commandeNotif(ctx context.Context, db *sql.DB, donnees string, cle func() (
 		var rec *notif.Recurrence
 		if o.jours != "" {
 			rec = &notif.Recurrence{Jours: strings.Split(o.jours, ","), Heure: o.heure, Duree: alertes.Duree(o.pendant), Fuseau: r.Fuseau}
+			switch {
+			case o.jours == "tous":
+				rec.Rythme = "jour"
+			case strings.HasPrefix(o.jours, "mois:"):
+				rec.Rythme = "mois"
+				rec.JourMois, _ = strconv.Atoi(strings.TrimPrefix(o.jours, "mois:"))
+			}
 		}
 		id, err := notif.AjouterMaintenance(ctx, db, pos[0], debut, debut.Add(o.pendant), rec, qui, o.commentaire, t)
 		return afficherID("maintenance", id, err)
@@ -277,7 +285,7 @@ func listerMaintenances(ctx context.Context, db *sql.DB, loc *time.Location, sor
 	for _, m := range ms {
 		quand := m.Debut.In(loc).Format("02/01 15:04") + " → " + m.Fin.In(loc).Format("02/01 15:04")
 		if m.Recurrence != nil {
-			quand = fmt.Sprintf("chaque %s à %s pendant %s", strings.Join(m.Recurrence.Jours, ","), m.Recurrence.Heure, m.Recurrence.Duree)
+			quand = m.Recurrence.Texte()
 		} else if !t.Before(m.Fin) {
 			quand += " (finie)"
 		}

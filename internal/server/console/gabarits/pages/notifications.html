@@ -63,6 +63,24 @@
 </div></details>
 {{if and $.Admin $actif (ne "ntfy" "heartbeat")}}<button name="action" value="tester:ntfy" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
+{{$e := index $.D.EtatPar "webhook"}}{{$actif := $c.Webhook.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-webhook">
+<div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-envoi"></use></svg></span><h3>Webhook</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "webhook" "C" $c)}}</div>
+<p class="doux">{{if $actif}}{{range $.D.FormatsWebhook}}{{if eq (index . 0) $c.Webhook.Format}}{{index . 1}}{{end}}{{end}}{{if $c.Webhook.ReseauPrive}} · réseau local{{end}}{{else}}Home Assistant, Discord, Gotify, Matrix, Slack, Mattermost…{{end}}</p>
+<details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
+<label class="case"><input type="checkbox" name="wh_actif" value="1" {{if $c.Webhook.Actif}}checked{{end}}> Actif</label>
+<label>Adresse (secrète) {{if $c.Webhook.URL}}<small>(enregistrée)</small>{{end}} <input type="password" name="wh_url" autocomplete="new-password" placeholder="{{if $c.Webhook.URL}}(inchangée){{else}}https://ha.lan:8123/api/webhook/mirador-…{{end}}" maxlength="1000"></label>
+<div class="ligne"><label>Format <select name="wh_format">{{range $.D.FormatsWebhook}}<option value="{{index . 0}}"{{if eq (index . 0) $c.Webhook.Format}} selected{{end}}>{{index . 1}}</option>{{end}}</select></label>
+<label>En-tête secret (facultatif) {{if $c.Webhook.Secret}}<small>(enregistré)</small>{{end}} {{template "secret" "wh_secret"}}</label></div>
+<label class="case"><input type="checkbox" name="wh_prive" value="1" {{if $c.Webhook.ReseauPrive}}checked{{end}}> Réseau local permis (Home Assistant, Gotify maison) ; http:// accepté seulement ainsi</label>
+<details><summary>Formats et exemple de corps JSON</summary>
+<ul><li><strong>JSON mirador</strong> : <code>{"type":"alerte","gravite":"critical","nb":1,"titre":"…","texte":"…","alertes":[{"titre":"DisquePresquePlein","machine":"nas","gravite":"critical","etat":"en_cours","lien":"…","etiquettes":{…}}]}</code> ; en-tête secret : <code>Authorization: Bearer …</code>.</li>
+<li><strong>Discord</strong>, <strong>Slack / Mattermost</strong> : adresse du webhook entrant (le jeton est dans l'adresse).</li>
+<li><strong>Gotify</strong> : adresse du serveur ; en-tête secret = jeton de l'application.</li>
+<li><strong>Matrix</strong> : <code>https://serveur/_matrix/client/v3/rooms/&lt;salon&gt;/send/m.room.message</code> ; en-tête secret = jeton d'accès du compte robot.</li></ul></details>
+<small class="aide">Peut servir de canal principal, de secours, ou seulement pour Home Assistant. Nouvelle adresse : ressaisir l'en-tête secret (il ne part jamais vers une autre adresse).</small>
+</div></details>
+{{if and $.Admin $actif (ne "webhook" "heartbeat")}}<button name="action" value="tester:webhook" class="secondaire petit" formnovalidate>Tester</button>{{end}}
+</section>
 {{$e := index $.D.EtatPar "olvid"}}{{$actif := $c.Olvid.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-olvid">
 <div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-cle"></use></svg></span><h3>Olvid</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "olvid" "C" $c)}}</div>
 <p class="doux">{{if $actif}}Discussion n° {{$c.Olvid.Discussion}}{{else}}Messagerie chiffrée ; daemon à installer (assistant).{{end}}</p>

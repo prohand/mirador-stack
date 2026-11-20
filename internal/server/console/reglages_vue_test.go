@@ -161,6 +161,30 @@ func TestReglagesGeneralRanges(t *testing.T) {
 	if r, _ = notif.LireReglages(ctx, b.db); !r.SansExtraitsLogs {
 		t.Error("case décochée : extraits toujours joints")
 	}
+	// Canal webhook (SPEC § 81) : formulaire, adresse chiffrée, principal.
+	v.Set("wh_actif", "1")
+	v.Set("wh_url", "http://ha.lan:8123/api/webhook/mirador-xyz")
+	v.Set("wh_format", "json")
+	v.Set("wh_prive", "1")
+	v.Set("principal", "webhook")
+	b.post(c, "/reglages/notifications", v)
+	if r, _ = notif.LireReglages(ctx, b.db); r.Canaux.Webhook == nil || !r.Canaux.Webhook.Actif || r.Canaux.Principal != "webhook" ||
+		strings.Contains(r.Canaux.Webhook.URL, "mirador-xyz") {
+		_, page, _ := b.get(c, "/reglages/notifications")
+		i := strings.Index(page, `class="message erreur"`)
+		t.Fatalf("webhook : %+v (%s)", r.Canaux.Webhook, page[max(i, 0):max(i, 0)+300])
+	}
+	if _, page, _ := b.get(c, "/reglages/notifications"); strings.Contains(page, "mirador-xyz") || !strings.Contains(page, `id="canal-webhook"`) {
+		t.Error("adresse du webhook montrée, ou carte absente")
+	}
+	v.Del("wh_url")
+	b.post(c, "/reglages/notifications", v) // renvoyé sans l'adresse : gardée
+	if r2, _ := notif.LireReglages(ctx, b.db); r2.Canaux.Webhook == nil || r2.Canaux.Webhook.URL != r.Canaux.Webhook.URL {
+		t.Error("adresse du webhook perdue au renvoi du formulaire")
+	}
+	v.Set("principal", "telegram")
+	v.Del("wh_actif")
+	b.post(c, "/reglages/notifications", v)
 
 	// Mode : bouton en haut de la page.
 	// Sans canal configuré, « Activer l'envoi » est refusé avec un message.

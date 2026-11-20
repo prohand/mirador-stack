@@ -565,6 +565,7 @@ type Page struct {
 	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
 	NbConteneurs  int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
 	NbSondes      int    // sondes en échec (compteur du menu, SPEC § 48)
+	NbTaches      int    // tâches planifiées en échec ou en retard (SPEC § 80)
 	// Menu réorganisable (SPEC § 79) : entrées dans l'ordre par défaut avec
 	// leurs classes d'ordre ; barre du bas du téléphone.
 	MenuElements []elementMenu
@@ -621,6 +622,7 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 		p.NbAValider = len(c.aValider(q.r.Context(), q.t))
 		p.NbConteneurs = c.nbConteneursProblemes(q.r.Context(), q.t)
 		p.NbSondes = c.nbSondesEnEchec(q.r.Context(), q.t)
+		p.NbTaches = c.nbTachesEnProbleme(q.r.Context(), q.t)
 	}
 	construireMenu(&p, q.u)
 	c.pages.executer(q.w, code, nom, p)

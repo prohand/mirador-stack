@@ -8,8 +8,10 @@
 package sondes
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -57,11 +59,22 @@ type Sonde struct {
 	Code       int    `json:"code,omitempty"`        // HTTP : code attendu (0 = 200 à 399)
 	Contenu    string `json:"contenu,omitempty"`     // HTTP : texte attendu dans la page
 	NonVerifie bool   `json:"non_verifie,omitempty"` // HTTP : certificat non vérifié (LAN fait maison)
-	Question   string `json:"question,omitempty"`    // DNS : nom demandé
+	// HTTP, réponse JSON (SPEC § 81, idée reprise de Checkmate) : champ à
+	// lire (« status », « checks.db.status », « items.0.etat ») et valeur
+	// attendue (vide : le champ doit seulement exister).
+	ChampJSON  string `json:"champ_json,omitempty"`
+	ValeurJSON string `json:"valeur_json,omitempty"`
+	// Certificat : alerter N jours avant l'expiration du certificat du site
+	// (0 = non ; HTTPS seulement).
+	Certificat int    `json:"certificat,omitempty"`
+	Question   string `json:"question,omitempty"` // DNS : nom demandé
 	// Machine sondée (SPEC § 60) : rangement seulement (page de la
 	// machine, incidents). Jamais envoyé au collecteur.
 	Machine string `json:"machine,omitempty"`
 }
+
+// reChampJSON : chemin simple, vide permis.
+var reChampJSON = regexp.MustCompile(`^([^.\s]+(\.[^.\s]+)*)?$`)
 
 // Le deux-points est permis pour nommer un ping d'adresse IPv6 (« nas ping
 // 2001:db8::1 », SPEC § 62).
@@ -117,6 +130,24 @@ func (s *Sonde) Valider() error {
 	if len(s.Machine) > 64 || strings.ContainsAny(s.Machine, "\x00\r\n") {
 		errs = append(errs, errors.New("nom de machine invalide"))
 	}
+	if s.Type != HTTP && (s.ChampJSON != "" || s.ValeurJSON != "" || s.Certificat != 0) {
+		errs = append(errs, errors.New("champ JSON et certificat : sondes HTTP seulement"))
+	}
+	if s.ChampJSON == "" && s.ValeurJSON != "" {
+		errs = append(errs, errors.New("valeur JSON attendue sans champ"))
+	}
+	if len(s.ChampJSON) > 100 || !reChampJSON.MatchString(s.ChampJSON) {
+		errs = append(errs, errors.New("champ JSON : noms séparés par des points (ex. checks.db.status), 100 caractères au plus"))
+	}
+	if len(s.ValeurJSON) > tailleMaxContenu {
+		errs = append(errs, errors.New("valeur JSON attendue trop longue (200 caractères au plus)"))
+	}
+	if s.Certificat < 0 || s.Certificat > 90 {
+		errs = append(errs, errors.New("alerte certificat : 1 à 90 jours avant l'expiration"))
+	}
+	if s.Certificat > 0 && !strings.HasPrefix(strings.ToLower(s.Cible), "https://") {
+		errs = append(errs, errors.New("alerte certificat : adresse en https:// attendue"))
+	}
 	if len(s.Contenu) > tailleMaxContenu {
 		errs = append(errs, errors.New("contenu attendu trop long (200 caractères au plus)"))
 	}
@@ -146,6 +177,8 @@ type Resultat struct {
 	Duree  time.Duration
 	Code   int    // HTTP
 	Erreur string // pourquoi l'essai a échoué (court, pour la page et le message)
+	// FinCertificat : fin de validité du certificat du site (HTTPS).
+	FinCertificat time.Time
 }
 
 // Options : limites de l'exécutant (le serveur refuse les adresses locales).
@@ -260,20 +293,75 @@ func essaiHTTP(ctx context.Context, s Sonde, o Options) (Resultat, error) {
 	}
 	defer rep.Body.Close()
 	r := Resultat{Code: rep.StatusCode}
+	if rep.TLS != nil && len(rep.TLS.PeerCertificates) > 0 {
+		r.FinCertificat = rep.TLS.PeerCertificates[0].NotAfter
+	}
 	if s.Code != 0 && rep.StatusCode != s.Code || s.Code == 0 && (rep.StatusCode < 200 || rep.StatusCode >= 400) {
 		_, _ = io.Copy(io.Discard, io.LimitReader(rep.Body, tailleMaxCorps))
 		return r, fmt.Errorf("code %d", rep.StatusCode)
 	}
-	if s.Contenu != "" {
+	if s.Contenu != "" || s.ChampJSON != "" {
 		corps, err := io.ReadAll(io.LimitReader(rep.Body, tailleMaxCorps))
 		if err != nil {
 			return r, err
 		}
-		if !strings.Contains(string(corps), s.Contenu) {
+		if s.Contenu != "" && !strings.Contains(string(corps), s.Contenu) {
 			return r, errors.New("contenu attendu absent")
+		}
+		if s.ChampJSON != "" {
+			return r, verifierJSON(corps, s.ChampJSON, s.ValeurJSON)
 		}
 	}
 	return r, nil
+}
+
+// verifierJSON : le champ (chemin « a.b.0.c ») existe et vaut la valeur
+// attendue (texte comparé tel quel ; nombres et booléens écrits comme en
+// JSON : 1, 2.5, true). Rien n'est exécuté : simple lecture.
+func verifierJSON(corps []byte, champ, attendu string) error {
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(corps))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
+		return errors.New("réponse non JSON")
+	}
+	for _, morceau := range strings.Split(champ, ".") {
+		switch x := v.(type) {
+		case map[string]any:
+			var ok bool
+			if v, ok = x[morceau]; !ok {
+				return fmt.Errorf("champ JSON %s absent", champ)
+			}
+		case []any:
+			i, err := strconv.Atoi(morceau)
+			if err != nil || i < 0 || i >= len(x) {
+				return fmt.Errorf("champ JSON %s absent", champ)
+			}
+			v = x[i]
+		default:
+			return fmt.Errorf("champ JSON %s absent", champ)
+		}
+	}
+	if attendu == "" {
+		return nil
+	}
+	var texte string
+	switch x := v.(type) {
+	case string:
+		texte = x
+	case json.Number:
+		texte = x.String()
+	case bool:
+		texte = strconv.FormatBool(x)
+	case nil:
+		texte = "null"
+	default:
+		return fmt.Errorf("champ JSON %s : objet ou liste, valeur simple attendue", champ)
+	}
+	if texte != attendu {
+		return fmt.Errorf("champ JSON %s = « %s », attendu « %s »", champ, raccourcir(texte, 40), raccourcir(attendu, 40))
+	}
+	return nil
 }
 
 func essaiTCP(ctx context.Context, cible string, o Options) error {
@@ -323,7 +411,10 @@ func Etiquettes(s Sonde) [][2]string {
 //   - mirador_sonde_succes : 1 si l'essai a réussi ;
 //   - mirador_sonde_duree_secondes : durée de l'essai ;
 //   - mirador_sonde_lente : 1 si réussi mais plus lent que le seuil ;
-//   - mirador_sonde_code_http : code HTTP reçu (HTTP seulement).
+//   - mirador_sonde_code_http : code HTTP reçu (HTTP seulement) ;
+//   - mirador_sonde_certificat_fin_timestamp_seconds et
+//     mirador_sonde_certificat_alerte_jours : si l'alerte certificat est
+//     demandée (SPEC § 81).
 func Valeurs(s Sonde, r Resultat) map[string]float64 {
 	_, lente := s.Durees()
 	v := map[string]float64{
@@ -333,6 +424,10 @@ func Valeurs(s Sonde, r Resultat) map[string]float64 {
 	}
 	if s.Type == HTTP && r.Code > 0 {
 		v["mirador_sonde_code_http"] = float64(r.Code)
+	}
+	if s.Certificat > 0 && !r.FinCertificat.IsZero() {
+		v["mirador_sonde_certificat_fin_timestamp_seconds"] = float64(r.FinCertificat.Unix())
+		v["mirador_sonde_certificat_alerte_jours"] = float64(s.Certificat)
 	}
 	return v
 }

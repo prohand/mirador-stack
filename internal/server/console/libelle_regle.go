@@ -36,6 +36,7 @@ var libellesRegles = map[string]string{
 	"ProxmoxConteneurMemoireSaturee":       "Proxmox : mémoire d'un conteneur saturée",
 	"ProxmoxListeInvitesIndisponible":      "Proxmox : liste des invités indisponible",
 	"CertificatSyslogBientotExpire":        "Certificat syslog bientôt expiré",
+	"SondeCertificatBientotExpire":         "Certificat d'un site bientôt expiré",
 	"CertificatSyslogRenouvellementEchoue": "Renouvellement du certificat syslog échoué",
 	"IoDisqueSature":                       "Disque saturé (entrées / sorties)",
 	"LoadAverageEleve":                     "Charge système élevée",

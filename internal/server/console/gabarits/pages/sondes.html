@@ -1,6 +1,5 @@
 {{define "contenu"}}
 <div class="titre-page"><h1>Sondes</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="/sondes?ajout=1#ajouter">+ Ajouter une sonde</a></div>{{end}}</div>
-<p class="onglets"><a class="actif" aria-current="page" href="/sondes">Sondes</a><a href="/taches">Tâches planifiées</a></p>
 {{template "filtre-sur" .D.FiltreSur}}
 {{if and .Admin .D.Ajout.Ouvert}}<section class="carte ajout-sonde" id="ajouter"><div class="entete-carte"><h2>Ajouter une sonde</h2><a class="pastille" href="/sondes">Fermer</a></div>
 <nav class="onglets" data-onglets-panneaux="ajout-sonde"{{if .D.Ajout.Choisie}} data-onglet-force="machine"{{end}} aria-label="Façon d'ajouter"><a href="#ajout-machine" data-onglet="machine">Depuis une machine</a><a href="#ajout-manuel" data-onglet="manuel">À la main</a></nav>
@@ -21,8 +20,12 @@
 <label>Nom à demander (DNS) <input name="question" maxlength="253" placeholder="nas.lan"></label>
 <label>Lente au-delà de <input name="lente" placeholder="1s" size="5" maxlength="10"></label></div>
 <label class="case"><input type="checkbox" name="non_verifie" value="1"> Ne pas vérifier le certificat (service du LAN au certificat fait maison)</label>
+<div class="ligne"><label>Champ JSON (HTTP, facultatif) <input name="champ_json" maxlength="100" placeholder="status, checks.db.status"></label>
+<label>Doit valoir <input name="valeur_json" maxlength="200" placeholder="ok" size="10"></label></div>
+<div class="ligne"><label class="case"><input type="checkbox" name="certificat" value="1"> Alerter avant l'expiration du certificat du site (HTTPS)</label>
+<label>jours avant <input name="certificat_jours" value="14" size="3" maxlength="2" inputmode="numeric"></label></div>
 {{template "code2fa"}}<div class="ligne"><button data-code>Ajouter</button></div>
-<small class="aide">Depuis le serveur : adresses locales et privées refusées (le serveur ne se sonde pas lui-même). Depuis un collecteur : il faut une version du collecteur qui connaît les sondes (sinon elles sont ignorées). Ping : autorisé sans droits par le réglage <code>net.ipv4.ping_group_range</code> (ouvert par défaut sur Debian et Ubuntu récents). {{template "plus" "aide.md#sondes"}}</small>
+<small class="aide">Depuis le serveur : adresses locales et privées refusées (le serveur ne se sonde pas lui-même). Depuis un collecteur : il faut une version du collecteur qui connaît les sondes (sinon elles sont ignorées). Champ JSON : chemin simple (<code>status</code>, <code>checks.db.status</code>, <code>items.0.etat</code>) ; vide dans « Doit valoir » : le champ doit seulement exister. Ping : autorisé sans droits par le réglage <code>net.ipv4.ping_group_range</code> (ouvert par défaut sur Debian et Ubuntu récents). {{template "plus" "aide.md#sondes"}}</small>
 </form>
 </div>
 </section>{{end}}

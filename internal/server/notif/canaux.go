@@ -76,6 +76,8 @@ type Canaux struct {
 	Heartbeat *Heartbeat `json:"heartbeat,omitempty"`
 	// Application : notifications push vers les appareils abonnés (SPEC § 35).
 	Application *Application `json:"application,omitempty"`
+	// Webhook : appel HTTP par message (SPEC § 81).
+	Webhook *Webhook `json:"webhook,omitempty"`
 }
 
 // Telegram : bot et conversation (groupe).
@@ -164,7 +166,7 @@ var (
 )
 
 func nomsCanaux() []string {
-	return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid, NomApplication}
+	return []string{NomTelegram, NomNtfy, NomEmail, NomOlvid, NomApplication, NomWebhook}
 }
 
 // configure : le canal nom est-il décrit et actif ?
@@ -180,6 +182,8 @@ func (c *Canaux) configure(nom string) bool {
 		return c.Olvid != nil && c.Olvid.Actif
 	case NomApplication:
 		return c.Application != nil && c.Application.Actif
+	case NomWebhook:
+		return c.Webhook != nil && c.Webhook.Actif
 	}
 	return false
 }
@@ -256,6 +260,11 @@ func (c *Canaux) Valider(exigerChoix bool) error {
 			errs = append(errs, err)
 		}
 	}
+	if w := c.Webhook; w != nil {
+		if err := w.valider(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if h := c.Heartbeat; h != nil {
 		if !secrets.EstChiffre(h.URL) && h.URL != "***" {
 			if err := urlHTTPS(h.URL, false); err != nil {
@@ -326,6 +335,11 @@ func (c Canaux) Masques() Canaux {
 		o := *c.Olvid
 		o.Cle = masque(o.Cle)
 		m.Olvid = &o
+	}
+	if c.Webhook != nil {
+		w := *c.Webhook
+		w.URL, w.Secret = masque(w.URL), masque(w.Secret)
+		m.Webhook = &w
 	}
 	return m
 }
@@ -409,6 +423,19 @@ func PreparerSecrets(nouveaux, anciens Canaux, cle []byte) (Canaux, error) {
 		}
 		o.Cle = prep(o.Cle, anc, usageOlvid, change, "clé client Olvid")
 		c.Olvid = &o
+	}
+	if c.Webhook != nil {
+		w := *c.Webhook
+		ancURL, ancSecret := "", ""
+		if anciens.Webhook != nil {
+			ancURL, ancSecret = anciens.Webhook.URL, anciens.Webhook.Secret
+		}
+		// Nouvelle adresse saisie : l'en-tête secret doit l'être aussi (il
+		// n'est jamais envoyé à une autre adresse que la sienne).
+		change := w.URL != "" && w.URL != "***" && w.URL != ancURL
+		w.URL = prep(w.URL, ancURL, usageWebhookURL, false, "adresse du webhook")
+		w.Secret = prep(w.Secret, ancSecret, usageWebhookSecret, change, "en-tête secret du webhook")
+		c.Webhook = &w
 	}
 	return c, err
 }
@@ -836,6 +863,13 @@ func fabriquer(c *Canaux, cle []byte) (map[string]Canal, error) {
 			return nil, err
 		}
 		out[NomOlvid] = ov
+	}
+	if w := c.Webhook; w != nil && w.Actif {
+		wh, err := fabriquerWebhook(c, cle)
+		if err != nil {
+			return nil, err
+		}
+		out[NomWebhook] = wh
 	}
 	return out, nil
 }

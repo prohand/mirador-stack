@@ -1047,6 +1047,18 @@ Demande du 18/11 : idées 1 à 6 à faire, maquettes validées ; idée 7
 - Conclusion : coût faible, **faisable**. Décision à prendre par
   l'utilisateur.
 
+## Petits ajouts repris de Checkmate (SPEC § 81, 20/11) : fait, à valider
+
+- Maintenances : chaque jour / semaine / mois, prochaine fenêtre affichée,
+  cible `site:NOM` (tout un site, équipements du collecteur compris).
+- Sondes HTTP : champ JSON attendu ; alerte N jours avant l'expiration du
+  certificat du site.
+- Canal Webhook : JSON mirador, Discord, Gotify, Matrix, Slack / Mattermost.
+- Tâches planifiées : entrée de menu à part + bloc sur la page machine.
+- Mesures : rien de mesurable en plus (une requête SQL au rechargement de
+  la sourdine ; JSON décodé seulement si demandé ; un appel HTTP par
+  message webhook).
+
 ## Tâches planifiées (SPEC § 80, 20/11) : fait, à valider
 
 - Page Sondes › Tâches planifiées : l'agent voit seul les timers systemd,

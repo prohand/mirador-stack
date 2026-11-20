@@ -69,6 +69,14 @@ func TestTachesPing(t *testing.T) {
 	if n == 0 {
 		t.Fatal("pas de limite d'appels")
 	}
+	// Entrée de menu à part (retour du 20/11), plus d'onglet dans Sondes.
+	_, page, _ := b.get(c, "/taches")
+	if !strings.Contains(page, `data-cle="taches"`) || !strings.Contains(page, `href="/taches" title="Tâches planifiées" class="`) {
+		t.Error("entrée « Tâches planifiées » absente du menu")
+	}
+	if _, page, _ = b.get(c, "/sondes"); strings.Contains(page, `<a href="/taches">Tâches planifiées</a></p>`) {
+		t.Error("onglet Tâches encore dans Sondes")
+	}
 }
 
 // Les expressions des règles TacheEnEchec / TacheEnRetard sur de vraies

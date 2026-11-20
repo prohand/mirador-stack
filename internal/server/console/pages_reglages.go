@@ -102,17 +102,19 @@ type testCanal struct {
 
 type donneesNotif struct {
 	ServicesHB []notif.ServiceHeartbeat
-	Testables  []string       // canaux configurés et actifs (boutons « Tester »)
-	R          notif.Reglages // secrets masqués
-	Defaut     notif.Reglages
-	Etat       []notif.EtatCanal
-	EtatPar    map[string]notif.EtatCanal // état de chaque canal actif, par nom (cartes, SPEC § 38)
-	HbOK       time.Time
-	HbErr      string
-	File       int
-	Tests      []testCanal
-	Vmalert    alertes.ReglagesVmalert
-	Canaux     []string
+	// FormatsWebhook : formats du canal webhook (SPEC § 81).
+	FormatsWebhook [][2]string
+	Testables      []string       // canaux configurés et actifs (boutons « Tester »)
+	R              notif.Reglages // secrets masqués
+	Defaut         notif.Reglages
+	Etat           []notif.EtatCanal
+	EtatPar        map[string]notif.EtatCanal // état de chaque canal actif, par nom (cartes, SPEC § 38)
+	HbOK           time.Time
+	HbErr          string
+	File           int
+	Tests          []testCanal
+	Vmalert        alertes.ReglagesVmalert
+	Canaux         []string
 	// AppareilsPush : appareils abonnés aux notifications de l'application
 	// (tous comptes actifs), SPEC § 35.
 	AppareilsPush int
@@ -124,8 +126,8 @@ func (c *Console) pageNotifications(q *req) {
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
-	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail, notif.NomApplication},
-		ServicesHB: notif.ServicesHeartbeat}
+	d := donneesNotif{R: r.Masques(), Defaut: notif.ReglagesDefaut(), Canaux: []string{notif.NomTelegram, notif.NomOlvid, notif.NomNtfy, notif.NomEmail, notif.NomApplication, notif.NomWebhook},
+		ServicesHB: notif.ServicesHeartbeat, FormatsWebhook: notif.FormatsWebhook}
 	if c.opt.Postier != nil {
 		d.Etat, d.HbOK, d.HbErr = c.opt.Postier.Etat()
 		d.File = c.opt.Postier.TailleFile(ctx)
@@ -161,7 +163,7 @@ func (c *Console) pageNotifications(q *req) {
 		actif bool
 	}{{notif.NomTelegram, cn.Telegram != nil && cn.Telegram.Actif}, {notif.NomOlvid, cn.Olvid != nil && cn.Olvid.Actif},
 		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif},
-		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}} {
+		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}, {notif.NomWebhook, cn.Webhook != nil && cn.Webhook.Actif}} {
 		if x.actif {
 			d.Testables = append(d.Testables, x.nom)
 		}
@@ -184,6 +186,9 @@ func (c *Console) pageNotifications(q *req) {
 	}
 	if d.R.Canaux.Application == nil {
 		d.R.Canaux.Application = &notif.Application{Copie: true} // copie cochée d'avance
+	}
+	if d.R.Canaux.Webhook == nil {
+		d.R.Canaux.Webhook = &notif.Webhook{Format: notif.FormatJSON}
 	}
 	d.AppareilsPush = notif.NombreAppareilsPush(ctx, c.db)
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
@@ -312,6 +317,11 @@ func (c *Console) postNotifications(q *req) {
 			cn.Olvid = &notif.Olvid{Actif: f.coche("olvid_actif"), Adresse: f.texte("olvid_adresse"), Cle: f.secret("olvid_cle"),
 				Discussion: disc, Confirmation: f.duree("olvid_confirmation", &errs)}
 			cn.Heartbeat = &notif.Heartbeat{Actif: f.coche("hb_actif"), Service: f.texte("hb_service"), URL: f.secret("hb_url"), Intervalle: f.duree("hb_intervalle", &errs)}
+			cn.Webhook = &notif.Webhook{Actif: f.coche("wh_actif"), URL: f.secret("wh_url"), Format: f.texte("wh_format"),
+				Secret: f.secret("wh_secret"), ReseauPrive: f.coche("wh_prive")}
+			if !cn.Webhook.Actif && f.texte("wh_url") == "" && (r.Canaux.Webhook == nil || r.Canaux.Webhook.URL == "***" || r.Canaux.Webhook.URL == "") {
+				cn.Webhook = nil
+			}
 			// Application (push) : rien à saisir, deux cases.
 			avantApp := cn.Application
 			cn.Application = &notif.Application{Actif: f.coche("app_actif"), Copie: f.coche("app_copie")}

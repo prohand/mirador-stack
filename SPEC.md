@@ -6708,8 +6708,11 @@ l'utilisateur) :
   agent, service externe) : `/ping/<jeton>` (fin réussie), `/echec`,
   `/debut`, `/code/<n>`, `?duree=<s>&message=…`. L'adresse est affichée
   **une seule fois** ; « Nouvelle adresse » en crée une autre.
-- Suivi : rien n'est suivi d'office (trop de timers système). Page Sondes ›
-  Tâches planifiées : « Suivre » une tâche détectée, ou en créer une à
+- Suivi : rien n'est suivi d'office (trop de timers système). Page
+  « Tâches planifiées » (entrée du menu à part depuis le retour du 20/11,
+  plus dans Sondes ; compteur des tâches en échec ou en retard) et bloc
+  « Tâches planifiées » dans l'onglet Activité de chaque machine (ses
+  tâches suivies et détectées). « Suivre » une tâche détectée, ou en créer une à
   signaler ; réglages : période attendue (ou « selon le timer »), marge,
   gravité. Les timers du système (apt, logrotate, fstrim…) sont repliés.
 - Alertes (groupe « Tâches planifiées », 4 règles par défaut) :
@@ -6740,3 +6743,60 @@ l'utilisateur) :
     timers sur une Debian ordinaire), 5 séries par tâche ;
   - serveur : une lecture SQL et quelques séries par tâche suivie, chaque
     minute ; une ligne par tâche suivie (migration 0032).
+
+## 81. Petits ajouts repris de Checkmate (20/11, maquette validée) **[Fait, à valider]**
+
+Idées seulement (Checkmate est sous AGPL-3.0 : aucun code repris).
+
+### 81.1 Maintenance récurrente et par site
+- « Répéter » : une seule fois, chaque jour, chaque semaine (jours
+  cochés), chaque mois (jour 1 à 31 ; 31 = dernier jour des mois plus
+  courts) ; heures « de » et « à » (« à » plus tôt : le lendemain).
+- Liste : texte lisible (« le 1er de chaque mois à 03:00 pendant 2h »),
+  prochaine fenêtre, « en cours jusqu'à … », « finie ».
+- Nouvelle cible `site:NOM` (demande du 20/11) : machines du site, et
+  équipements relevés par le collecteur du site, et alertes portant
+  l'étiquette `site`. Le champ propose les sites, groupes et machines.
+- Commande : `maintenance -jours tous` (chaque jour), `-jours mois:15`.
+- Ancien format (jours de la semaine) relu tel quel : rien à migrer.
+- Coût : une requête SQL de plus au rechargement de la sourdine (machine
+  → site) ; calcul de la prochaine fenêtre à l'affichage seulement.
+
+### 81.2 Sondes HTTP : champ JSON et certificat
+- « Champ JSON » (chemin simple : `status`, `checks.db.status`,
+  `items.0.etat`) et « Doit valoir » (vide : le champ doit exister).
+  Nombres et booléens comparés comme écrits en JSON. Message clair :
+  « champ JSON status = « degraded », attendu « ok » ».
+- « Alerter N jours avant l'expiration du certificat du site » (HTTPS,
+  14 j par défaut, 1 à 90) : la sonde remonte la fin du certificat ;
+  règle `SondeCertificatBientotExpire` (avertissement, 1 h). Pas de
+  doublon avec les certificats de l'agent (fichiers sur disque) : ici,
+  le certificat vu depuis le réseau (site hébergé ailleurs, appareil).
+- Fonctionne aussi avec « Ne pas vérifier le certificat » (la date est
+  lue quand même).
+- Sondes faites par un collecteur : il faut sa nouvelle version (sinon
+  les deux réglages sont ignorés, sans erreur).
+- Coût : corps lu (1 Mio au plus, déjà le cas pour « contenu attendu »)
+  et décodé seulement si un champ JSON est demandé ; deux séries de plus
+  par sonde avec alerte certificat.
+
+### 81.3 Canal « Webhook »
+- Formats : JSON mirador (type, gravité, titre, texte, alertes avec
+  machine, état, valeur, lien, étiquettes), Discord, Gotify, Matrix,
+  Slack / Mattermost. Canal principal, de secours, ou testé seul.
+- En-tête secret facultatif : `Authorization: Bearer …` (JSON, Matrix),
+  `X-Gotify-Key` (Gotify).
+- Vérification sans message : connexion (et poignée de main TLS) au
+  serveur ; pas d'adresse de santé commune à tous les webhooks.
+- Modèle de menaces :
+  | Menace | Parade |
+  |---|---|
+  | Fuite de l'adresse (le jeton Discord / Slack / Home Assistant y est) | adresse chiffrée en base, jamais montrée (ni à un admin), masquée dans l'audit et l'export |
+  | Secret envoyé ailleurs après changement d'adresse | nouvelle adresse = en-tête secret à ressaisir (comme ntfy, e-mail, Olvid) |
+  | SSRF (adresse interne) | refusée, sauf case « réseau local permis » ; vérifiée sur l'adresse réellement jointe ; redirections non suivies |
+  | Alertes en clair sur le réseau | `http://` seulement avec « réseau local permis » ; sinon `https://`, TLS 1.2 au moins |
+  | Serveur lent ou hostile | délais (15 s), réponse lue sur 64 Kio au plus |
+- Coût : un appel HTTP par message, comme ntfy.
+
+### 81.4 Tâches planifiées hors de Sondes (retour du 20/11)
+- Voir § 80 : entrée de menu à part, bloc sur la page de la machine.
