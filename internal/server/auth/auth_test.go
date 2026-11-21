@@ -218,3 +218,24 @@ func TestCompteurCompteGardeMalgreNomsInconnus(t *testing.T) {
 		t.Fatal("nom inconnu : verrou attendu (sinon la réponse dirait qu'il n'existe pas)")
 	}
 }
+
+// Jeton de formulaire (retour du 21/11) : une session d'appareil de
+// confiance reprise depuis le disque garde le même jeton (un formulaire
+// déjà affiché reste valable) ; un nouvel identifiant donne un autre jeton.
+func TestJetonStableALaReprise(t *testing.T) {
+	m := NouveauMagasin()
+	t0 := time.Now()
+	id := m.Creer(&Session{UtilisateurID: 1, Etape: EtapeComplet, Confiance: true}, t0)
+	avant := m.Lire(id).CSRF
+	m.Supprimer(empreinteID(id)) // retirée de la mémoire (PWA en arrière-plan)
+	if s := m.Restaurer(id, &Session{UtilisateurID: 1}, t0.Add(time.Hour)); s.CSRF != avant || avant == "" {
+		t.Fatalf("jeton changé à la reprise : %q → %q", avant, s.CSRF)
+	}
+	nouveau := m.Renouveler(empreinteID(id), t0, func(*Session) {})
+	if m.Lire(nouveau).CSRF == avant {
+		t.Error("nouvel identifiant, même jeton")
+	}
+	if strings.Contains(avant, id) {
+		t.Error("le jeton laisse voir l'identifiant")
+	}
+}

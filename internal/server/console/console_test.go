@@ -319,14 +319,28 @@ func TestCSRF(t *testing.T) {
 	b := nouveauBanc(t)
 	c, secret := b.premierAdmin("admin", mdpAdmin)
 	v := url.Values{"action": {"creer"}, "nom": {"bob"}, "role": {"lecture"}, "mot_de_passe": {"mot de passe de bob"}}
-	// Sans jeton.
+	// Sans jeton : refus net.
 	if code, _, _ := b.post(c, "/utilisateurs", v); code != http.StatusForbidden {
 		t.Errorf("sans jeton CSRF : %d", code)
 	}
-	// Mauvais jeton.
+	// Jeton périmé (page restée ouverte) : rien n'est fait ; la page
+	// d'origine (même site seulement) est rechargée avec un message (retour
+	// du 21/11).
+	v.Set("csrf", "perime")
+	if code, _, h := b.post(c, "/utilisateurs", v, "Referer", b.srv.URL+"/utilisateurs?x=1"); code != http.StatusSeeOther || h.Get("Location") != "/utilisateurs?x=1" {
+		t.Errorf("jeton périmé : %d %q", code, h.Get("Location"))
+	}
+	if _, corps, _ := b.get(c, "/utilisateurs?x=1"); !strings.Contains(corps, "a page avait expiré") || strings.Contains(corps, ">bob<") {
+		t.Errorf("jeton refusé : message absent ou compte créé :\n%s", corps)
+	}
+	// Mauvais jeton, page d'un autre site en Referer : retour à l'accueil.
 	v.Set("csrf", "faux")
-	if code, _, _ := b.post(c, "/utilisateurs", v); code != http.StatusForbidden {
-		t.Errorf("faux jeton CSRF : %d", code)
+	if code, _, h := b.post(c, "/utilisateurs", v, "Referer", "https://pirate.example/x"); code != http.StatusSeeOther || h.Get("Location") != "/" {
+		t.Errorf("faux jeton CSRF : %d %q", code, h.Get("Location"))
+	}
+	// Appel de script : toujours un refus net.
+	if code, _, _ := b.post(c, "/utilisateurs", v, "X-Requested-With", "mirador"); code != http.StatusForbidden {
+		t.Errorf("faux jeton CSRF (script) : %d", code)
 	}
 	// Bon jeton mais requête venue d'un autre site.
 	v.Set("csrf", b.csrf(c, "/utilisateurs"))
