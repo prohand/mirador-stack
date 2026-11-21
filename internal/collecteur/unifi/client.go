@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -34,11 +35,18 @@ type Client struct {
 	http    *http.Client
 	prefixe string // « /proxy/network » (UniFi OS) ou « »
 	csrf    string // UniFi OS : jeton à renvoyer
+	// connecte : session ouverte, gardée d'un relevé à l'autre (relecture
+	// du 21/11 : une connexion au compte par relevé, jamais fermée, soit
+	// 1 440 sessions par jour sur le contrôleur).
+	connecte bool
 }
+
+// errSession : le contrôleur refuse la session (expirée) : se reconnecter.
+var errSession = errors.New("contrôleur UniFi : session refusée")
 
 // Nouveau prépare le client : certificat vérifié, ou épinglé par son
 // empreinte (certificat fait maison) ; pas de proxy, pas de redirection.
-func Nouveau(cfg config.UniFi) (*Client, error) {
+func Nouveau(cfg config.UniFi) *Client {
 	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
 	if cfg.Empreinte != "" {
 		attendue := cfg.Empreinte
@@ -61,11 +69,25 @@ func Nouveau(cfg config.UniFi) (*Client, error) {
 	jar, _ := cookiejar.New(nil)
 	return &Client{cfg: cfg, http: &http.Client{Timeout: 20 * time.Second, Jar: jar,
 		Transport:     &http.Transport{Proxy: nil, TLSClientConfig: tlsCfg, MaxIdleConns: 2, IdleConnTimeout: time.Minute},
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
 // Fermer : connexions rendues.
 func (c *Client) Fermer() { c.http.CloseIdleConnections() }
+
+// Deconnecter : ferme la session du compte local (au mieux, sans erreur),
+// puis rend les connexions.
+func (c *Client) Deconnecter(ctx context.Context) {
+	if c.connecte && c.cfg.CleAPI == "" {
+		chemin := "/api/logout"
+		if c.prefixe != "" {
+			chemin = "/api/auth/logout"
+		}
+		_, _, _ = c.poster(ctx, chemin, []byte("{}"))
+	}
+	c.connecte = false
+	c.Fermer()
+}
 
 // Connecter : clé API (UniFi OS), sinon compte local : UniFi OS
 // (/api/auth/login) puis, s'il n'existe pas, contrôleur classique (/api/login).
@@ -105,6 +127,9 @@ func (c *Client) poster(ctx context.Context, chemin string, corps []byte) (int, 
 		return 0, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.csrf != "" {
+		req.Header.Set("X-Csrf-Token", c.csrf)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return 0, nil, err
@@ -132,23 +157,65 @@ func (c *Client) lire(ctx context.Context, chemin string, v any) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) && c.cfg.CleAPI == "" {
+		return errSession
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("contrôleur UniFi : %s → HTTP %d", chemin, resp.StatusCode)
 	}
-	brut, err := io.ReadAll(io.LimitReader(resp.Body, tailleMaxReponse+1))
-	if err != nil {
-		return err
-	}
-	if len(brut) > tailleMaxReponse {
-		return errors.New("contrôleur UniFi : réponse trop grande")
-	}
-	var enveloppe struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(brut, &enveloppe); err != nil {
+	lim := &io.LimitedReader{R: resp.Body, N: tailleMaxReponse + 1}
+	if err := lireData(json.NewDecoder(lim), v); err != nil {
+		if lim.N <= 0 {
+			return errors.New("contrôleur UniFi : réponse trop grande")
+		}
 		return fmt.Errorf("contrôleur UniFi : réponse illisible : %w", err)
 	}
-	return json.Unmarshal(enveloppe.Data, v)
+	return nil
+}
+
+// lireData : liste « data » de la réponse, lue élément par élément dans v
+// (pointeur vers une tranche). Relecture du 21/11 : la réponse entière était
+// lue, copiée puis décodée (~4 fois sa taille en mémoire) ; maintenant, un
+// élément à la fois, et les champs inutiles ne sont pas gardés.
+func lireData(dec *json.Decoder, v any) error {
+	liste := reflect.ValueOf(v).Elem()
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return fmt.Errorf("objet attendu (%v)", err)
+	}
+	for dec.More() {
+		cle, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if cle != "data" {
+			var autre json.RawMessage // « meta » : petit
+			if err := dec.Decode(&autre); err != nil {
+				return err
+			}
+			continue
+		}
+		t, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if t == nil {
+			continue // « data »: null
+		}
+		if t != json.Delim('[') {
+			return errors.New("« data » : liste attendue")
+		}
+		for dec.More() {
+			e := reflect.New(liste.Type().Elem())
+			if err := dec.Decode(e.Interface()); err != nil {
+				return err
+			}
+			liste.Set(reflect.Append(liste, e.Elem()))
+		}
+		if _, err := dec.Token(); err != nil { // « ] »
+			return err
+		}
+	}
+	return nil
 }
 
 // Site : un site du contrôleur.

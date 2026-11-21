@@ -185,6 +185,7 @@ func TestVerifierJSON(t *testing.T) {
 		{"checks.db.status", "ok", "champ JSON checks.db.status = « degraded », attendu « ok »"},
 		{"items.1.etat", "2.5", ""},
 		{"items.0.etat", "1", ""},
+		{"items.0.etat", "3", "champ JSON items.0.etat différent de « 3 »"}, // nombre reçu non recopié
 		{"items.2.etat", "", "champ JSON items.2.etat absent"},
 		{"actif", "true", ""},
 		{"vide", "null", ""},

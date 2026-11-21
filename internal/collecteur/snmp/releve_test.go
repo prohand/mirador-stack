@@ -186,7 +186,7 @@ func (sourceSansFin) BulkWalk(racine string, f gosnmp.WalkFunc) error {
 }
 
 func TestMarcheBornee(t *testing.T) {
-	if v := marcherBorne(sourceSansFin{}, "1.3.6.1", 100); len(v) != 100 {
+	if v, err := marcherBorne(sourceSansFin{}, "1.3.6.1", 100); len(v) != 100 || err == nil {
 		t.Errorf("%d réponses gardées", len(v))
 	}
 }

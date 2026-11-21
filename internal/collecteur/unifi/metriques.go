@@ -4,6 +4,7 @@ package unifi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -136,12 +137,20 @@ func Tourner(ctx context.Context, cfg config.UniFi, envoyer func(*metrics.Batch)
 	}
 	t := time.NewTicker(intervalle)
 	defer t.Stop()
+	// Un seul client (une session) pour tous les relevés ; session fermée
+	// à l'arrêt.
+	c := Nouveau(cfg)
+	defer func() {
+		fin, annuler := context.WithTimeout(context.Background(), 5*time.Second)
+		defer annuler()
+		c.Deconnecter(fin)
+	}()
 	dernier := ""
 	for {
 		debut := time.Now()
 		b := metrics.NewBatch(1024, []metrics.Label{metrics.L("instance", cfg.Machine), metrics.L("job", "unifi")})
 		b.Reset(debut.UnixMilli())
-		err := Releve(ctx, cfg, b)
+		err := c.Releve(ctx, b)
 		if err != nil && ctx.Err() != nil {
 			return // relevé coupé par l'arrêt : pas de faux « up=0 » (relecture du 21/11)
 		}
@@ -166,39 +175,71 @@ func Tourner(ctx context.Context, cfg config.UniFi, envoyer func(*metrics.Batch)
 	}
 }
 
-// Releve : connexion, sites, puis chaque site (ceux de la liste, sinon tous).
+// Releve : un relevé avec un client neuf (session ouverte puis fermée).
 func Releve(ctx context.Context, cfg config.UniFi, b *metrics.Batch) error {
-	if strings.HasPrefix(cfg.MotDePasse, config.PrefixeSecretChiffre) || strings.HasPrefix(cfg.CleAPI, config.PrefixeSecretChiffre) {
+	c := Nouveau(cfg)
+	defer c.Deconnecter(ctx)
+	return c.Releve(ctx, b)
+}
+
+// Releve : sites, puis chaque site (ceux de la liste, sinon tous), avec la
+// session déjà ouverte ; ouverte au besoin, rouverte une fois si le
+// contrôleur la refuse (expirée).
+func (c *Client) Releve(ctx context.Context, b *metrics.Batch) error {
+	if strings.HasPrefix(c.cfg.MotDePasse, config.PrefixeSecretChiffre) || strings.HasPrefix(c.cfg.CleAPI, config.PrefixeSecretChiffre) {
 		return errSecret
 	}
-	c, err := Nouveau(cfg)
-	if err != nil {
-		return err
-	}
-	defer c.Fermer()
 	ctxR, fin := context.WithTimeout(ctx, 50*time.Second)
 	defer fin()
-	if err := c.Connecter(ctxR); err != nil {
-		return err
-	}
-	sites := cfg.Sites
-	if len(sites) == 0 {
-		tous, err := c.Sites(ctxR)
+	for essai := 0; ; essai++ {
+		if !c.connecte {
+			if err := c.Connecter(ctxR); err != nil {
+				return err
+			}
+			c.connecte = true
+		}
+		lus, err := c.lireSites(ctxR)
+		if errors.Is(err, errSession) && essai == 0 {
+			c.connecte = false
+			continue
+		}
 		if err != nil {
 			return err
+		}
+		for _, l := range lus {
+			Ajouter(b, l.site, l.d)
+		}
+		return nil
+	}
+}
+
+type siteLu struct {
+	site string
+	d    Donnees
+}
+
+// lireSites : tout est lu avant d'écrire dans le lot (un essai refait
+// après une reconnexion n'ajoute rien en double).
+func (c *Client) lireSites(ctx context.Context) ([]siteLu, error) {
+	sites := c.cfg.Sites
+	if len(sites) == 0 {
+		tous, err := c.Sites(ctx)
+		if err != nil {
+			return nil, err
 		}
 		for _, s := range tous {
 			sites = append(sites, s.Nom)
 		}
 	}
+	var out []siteLu
 	for _, s := range sites {
-		d, err := c.LireSite(ctxR, s)
+		d, err := c.LireSite(ctx, s)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		Ajouter(b, s, d)
+		out = append(out, siteLu{s, d})
 	}
-	return nil
+	return out, nil
 }
 
 type erreurTexte string

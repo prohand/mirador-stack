@@ -82,17 +82,30 @@ func lireUneTrame(r *bufio.Reader) ([]byte, error) {
 	// tout le reste jusqu'à la fin de ligne est jeté. Avant, un morceau trop
 	// long était jeté mais les suivants gardés : la ligne disparaissait, ou
 	// seule sa fin restait (et pouvait passer pour un autre message).
+	// Fin de message : « \n », ou « \0 » (cadrage cité par la RFC 6587 ;
+	// relecture du 21/11 : 1 000 messages terminés par NUL n'en faisaient
+	// qu'un, le reste était jeté).
 	var ligne []byte
 	for {
-		morceau, err := r.ReadSlice('\n')
+		// Ce qui est déjà en mémoire (au moins un octet : attend s'il le faut).
+		dispo, err := r.Peek(max(1, r.Buffered()))
+		if len(dispo) == 0 {
+			if len(ligne) > 0 && errors.Is(err, io.EOF) {
+				return bytes.TrimRight(ligne, "\r\n\x00"), nil
+			}
+			return nil, err
+		}
+		fin := bytes.IndexAny(dispo, "\n\x00")
+		morceau := dispo
+		if fin >= 0 {
+			morceau = dispo[:fin+1]
+		}
 		if place := TailleMaxMessage - len(ligne); place > 0 {
 			ligne = append(ligne, morceau[:min(place, len(morceau))]...)
 		}
-		if err == nil || (len(ligne) > 0 && errors.Is(err, io.EOF)) {
+		_, _ = r.Discard(len(morceau))
+		if fin >= 0 {
 			return bytes.TrimRight(ligne, "\r\n\x00"), nil
-		}
-		if !errors.Is(err, bufio.ErrBufferFull) {
-			return nil, err
 		}
 	}
 }
@@ -174,7 +187,21 @@ func analyser5424(b []byte, m *Message) {
 // analyser3164 : « Mmm jj hh:mm:ss HÔTE TAG[pid]: MESSAGE », horodatage et
 // hôte facultatifs.
 func analyser3164(b []byte, m *Message) {
-	if len(b) >= 16 && b[3] == ' ' && b[6] == ' ' && b[9] == ':' && b[12] == ':' && b[15] == ' ' {
+	// Heure ISO 8601 à la place de « Mmm jj hh:mm:ss » (rsyslog
+	// RSYSLOG_ForwardFormat, syslog-ng ts-format(iso)) : relecture du 21/11,
+	// « 2026-11-21T10 » était pris pour le programme (un flux de logs de
+	// plus chaque heure).
+	if len(b) >= 20 && b[4] == '-' && b[7] == '-' && b[10] == 'T' {
+		if j := bytes.IndexByte(b, ' '); j > 0 {
+			if t, err := time.Parse(time.RFC3339Nano, string(b[:j])); err == nil {
+				m.Heure = t
+			}
+			b = b[j+1:]
+			if j := bytes.IndexByte(b, ' '); j > 0 && !bytes.ContainsAny(b[:j], ":[]") {
+				b = b[j+1:]
+			}
+		}
+	} else if len(b) >= 16 && b[3] == ' ' && b[6] == ' ' && b[9] == ':' && b[12] == ':' && b[15] == ' ' {
 		if t, err := time.Parse(time.Stamp, string(b[:15])); err == nil {
 			m.Heure = t // sans année ni fuseau : remplacée par l'heure de réception
 		}

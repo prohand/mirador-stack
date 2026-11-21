@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -247,7 +249,21 @@ func court(err error) string {
 	case errors.Is(err, syscall.ECONNRESET):
 		return "connexion coupée par le service"
 	case errors.As(err, &ce):
-		return "certificat refusé : " + raccourcir(ce.Err.Error(), 100)
+		// Textes fixes : le message de Go contient l'heure courante (« current
+		// time … is after … ») ; en étiquette, il créait une série de plus à
+		// chaque essai (relecture du 21/11).
+		var invalide x509.CertificateInvalidError
+		var autorite x509.UnknownAuthorityError
+		var nom x509.HostnameError
+		switch {
+		case errors.As(ce.Err, &invalide) && invalide.Reason == x509.Expired:
+			return "certificat refusé : expiré ou pas encore valable"
+		case errors.As(ce.Err, &autorite):
+			return "certificat refusé : autorité inconnue (certificat fait maison ?)"
+		case errors.As(ce.Err, &nom):
+			return "certificat refusé : il n'est pas fait pour ce nom"
+		}
+		return "certificat refusé"
 	case errors.As(err, &ue):
 		err = ue.Err
 	}
@@ -308,6 +324,13 @@ func essaiHTTP(ctx context.Context, s Sonde, o Options) (Resultat, error) {
 	req.Header.Set("User-Agent", "mirador-sonde")
 	rep, err := cl.Do(req)
 	if err != nil {
+		// Certificat refusé : son échéance reste connue (relecture du 21/11 :
+		// un certificat expiré faisait disparaître la série, et l'alerte
+		// « certificat bientôt expiré » se résolvait au moment de l'expiration).
+		var ce *tls.CertificateVerificationError
+		if errors.As(err, &ce) && len(ce.UnverifiedCertificates) > 0 {
+			return Resultat{FinCertificat: ce.UnverifiedCertificates[0].NotAfter}, err
+		}
 		return Resultat{}, err
 	}
 	defer rep.Body.Close()
@@ -374,6 +397,12 @@ func verifierJSON(corps []byte, champ, attendu string) error {
 		texte = x
 	case json.Number:
 		texte = x.String()
+		if texte != attendu {
+			// Valeur reçue non recopiée : un nombre change souvent d'un essai
+			// à l'autre (une série de plus à chaque fois en étiquette,
+			// relecture du 21/11).
+			return fmt.Errorf("champ JSON %s différent de « %s »", champ, raccourcir(attendu, 40))
+		}
 	case bool:
 		texte = strconv.FormatBool(x)
 	case nil:
@@ -425,6 +454,12 @@ func essaiDNS(ctx context.Context, s Sonde, o Options) error {
 			if a == s.Contenu {
 				return nil
 			}
+		}
+		// Adresses triées : l'ordre change d'une réponse à l'autre
+		// (tourniquet DNS) ; 4 au plus dans le message.
+		slices.Sort(adresses)
+		if len(adresses) > 4 {
+			adresses = append(adresses[:4:4], "…")
 		}
 		return errors.New("réponse " + strings.Join(adresses, ", ") + " sans " + s.Contenu)
 	}
