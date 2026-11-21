@@ -1675,6 +1675,22 @@ version et ménage des images après succès (test avec un Docker simulé :
 `latest` et anciennes images retirées, précédente gardée, image utilisée
 jamais supprimée). Tests, vet et gosec sans alerte.
 
+## Performances et fuites (SPEC § 115, § 116, 21/11)
+
+| Mesure | Avant | Après | Objectif |
+|---|---|---|---|
+| CPU, 50 agents + 2 h 30 d'historique | 3,75 % | **1,27 %** | < 5 % ✅ |
+| Tas vivant sous charge | 170 Mo | **117 Mo** | — |
+| RSS max sous charge | 223 Mo | 221 Mo (Go garde la place permise) | < 256 Mio ✅ |
+| Gabarits HTML | 38,9 Mo | 6,1 Mo | — |
+| Serveur au repos (1 agent, 45 min) | — | 76 Mo RSS, plat ; 0,14 % CPU | ✅ |
+| Agent (intervalle 10 s, 45 min) | — | 17,5-18,6 Mo, plat ; 0,06 % CPU | < 30 Mio ✅ |
+
+Fuites corrigées (chacune prouvée par un test) : agent 5 (journalctl en
+boucle, configuration en boucle, lot de logs, /proc/net/tcp, dpkg/apt-get),
+serveur 4 (fin d'alerte perdue, marques d'escalade, conteneurs jetables,
+index de l'historique). Points faibles laissés de côté : § 116.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

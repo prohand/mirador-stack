@@ -7891,3 +7891,75 @@ Retour de l'utilisateur : Arcane annonçait « mirador-server:latest 0.6.0 →
 - Sur le VPS actuel, la vieille `:latest` (0.6.0) partira à la prochaine
   mise à jour faite avec ce binaire ; on peut aussi la retirer à la main :
   `docker image rm ghcr.io/prohand/mirador-server:latest`.
+
+## 115. Performances du serveur : mémoire des gabarits et des expressions (21/11) **[Fait, à valider]**
+Mesure (test de charge, 50 agents, 2 h 30 d'historique) : CPU 3,7 à 10 %
+d'un cœur (1,0 % le 10/11). Profil CPU : 83 % dans le ramasse-miettes,
+car le tas vivant (~170 Mo) collait à `GOMEMLIMIT=200MiB`. Profil mémoire :
+- gabarits HTML : ~40 Mo (morceaux.html, 58 Ko, relu pour chacune des ~70
+  pages) ;
+- 5 expressions régulières à classe Unicode répétée (`{0,200}`) : 1 à 4 Mo
+  chacune, ~11 Mo ;
+- échantillons arrivés en retard (rattrapage après coupure) : ~58 Mo, voulu
+  et temporaire (libéré au rangement suivant).
+
+Fait :
+- un seul ensemble de gabarits : morceaux lus une fois, « contenu » renommé
+  par page, nom défini deux fois refusé au chargement. 38,9 → 6,1 Mo ;
+- paquet `motif` : expression simple + longueur vérifiée à part (même
+  réponse, test de comparaison). ~11 → ~0,3 Mo.
+
+Résultat (même test) : tas vivant 170 → 117 Mo, **CPU 3,75 → 1,27 %**. La
+RSS reste ~190 Mo sous charge : Go garde la place permise par GOMEMLIMIT et
+nettoie moins souvent (c'est le but). Au repos (1 machine, mesure longue
+§ 116) : 76 Mo de RSS, 46 Mo de mémoire propre.
+
+## 116. Fuites mémoire et CPU : agent et serveur (21/11) **[Fait, à valider]**
+Deux relectures (agent + collecteur, serveur) ; chaque point prouvé par un
+test (qui échoue sans la correction) avant d'être corrigé.
+
+**Agent**
+- journalctl qui donne une ligne puis échoue : relancé ~450 fois/s (curseur
+  abandonné en boucle sans attente) → abandon une seule fois de suite.
+- Configuration distante avec « recuperation » hors bornes : ~14 000
+  demandes/s → rythme pris seulement entre 5 min et 1 h.
+- Lot de logs : une rafale de longues lignes faisait un lot de ~8 Mio et
+  10 Mio restaient gardés pour toujours → vidé dès qu'il est plein (signal),
+  tampons agrandis rendus après l'envoi.
+- `/proc/net/tcp` (100 000 connexions : 12 Mio, jusqu'à 60 Mio alloués),
+  `fib_trie`, `route` : lus ligne à ligne, tampon fixe ; 10 000 routes au
+  plus gardées.
+- dpkg : ménage des installations de plus de 48 h à chaque passage ;
+  apt-get : `WaitDelay` (un enfant qui garde la sortie ne bloque plus).
+
+**Serveur**
+- Notifications : « Grouper par » changé pendant une alerte → sa fin n'était
+  jamais annoncée et un rappel partait toutes les 2 h jusqu'au redémarrage.
+  La fin est retrouvée dans tous les groupes.
+- Marques d'escalade et de rappel oubliées avec l'alerte.
+- Suivi des changements : une clé par conteneur jetable (nom aléatoire)
+  gardée pour toujours, en mémoire et en base → oubliée au ménage (6 h) si
+  la machine est vivante et le conteneur n'est plus vu.
+- Migration 0037 : index `alertes(active_le)` ; l'historique d'une période
+  (Événements, Incidents, Disponibilité, page de statut) ne lit plus toute
+  la table (15 ms à 100 000 alertes, coût qui grandissait avec l'âge).
+
+**Mesure longue** (vrai serveur + vrai agent, intervalle 10 s, 45 min,
+relevés toutes les 30 s) : serveur 76,3 → 76,6 Mo de RSS entre la 10ᵉ et
+la 44ᵉ minute, agent 17,5 à 18,6 Mo sans tendance ; fils (10) et
+descripteurs (13 et 25) constants ; CPU 0,14 % (serveur) et 0,06 % (agent).
+
+**Laissé de côté (faible)**
+- Maps par machine jamais nettoyées après suppression ou renommage
+  (quelques centaines d'octets par machine) ; résultats par sonde supprimée.
+- Tâches planifiées disparues (timers jetables) gardées dans l'historique
+  (60 lignes au plus par tâche).
+- Tables sans purge par âge : silences et maintenances passés, jetons
+  révoqués, notes d'incident ; `noms_anciens` jamais oublié.
+- Agent : tampons recyclés de la file d'envoi jamais réutilisés (CPU du
+  ramasse-miettes seulement) ; compteur de plantages par conteneur supprimé
+  (200 au plus).
+
+Coût des corrections : nul ou négatif (moins de mémoire, moins d'appels).
+Menaces : un serveur ou un mandataire bogué ne peut plus faire tourner
+l'agent en boucle ; un journal abîmé non plus.
