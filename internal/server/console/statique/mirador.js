@@ -940,17 +940,64 @@ document.addEventListener("change", function (e) {
 })();
 
 // Rechargement automatique (SPEC § 32) : [data-recharger="15"] tant qu'une
-// étape avance (création d'un certificat), sauf si on est en train de
-// remplir un champ.
+// étape avance (création d'un certificat, mise à jour du serveur), sauf si
+// on est en train de remplir un champ.
+// Retour du 21/11 : pendant la mise à jour du serveur, un rechargement
+// complet tombait parfois pendant le redémarrage du conteneur et le
+// navigateur restait sur sa page « serveur inaccessible ». Désormais la
+// page est demandée en fond : si le serveur ne répond pas, on garde la page
+// affichée avec un message et on réessaie ; s'il répond, seul le bloc qui
+// avance est remplacé (rechargement complet seulement quand il a fini).
 (function () {
   var el = document.querySelector("[data-recharger]");
   if (!el) { return; }
   var s = Math.max(5, parseInt(el.getAttribute("data-recharger"), 10) || 15);
-  setInterval(function () {
+  var coupeDepuis = 0; // heure de la première absence de réponse
+  var note = null;
+  function noter(texte) {
+    if (!texte) { if (note) { note.remove(); note = null; } return; }
+    if (!note) {
+      note = document.createElement("p");
+      note.className = "message attention";
+      note.setAttribute("role", "status");
+      el.parentNode.insertBefore(note, el);
+    }
+    note.textContent = texte;
+  }
+  function suivant() { setTimeout(essayer, s * 1000); }
+  function absent() {
+    if (!coupeDepuis) { coupeDepuis = Date.now(); }
+    var sec = Math.round((Date.now() - coupeDepuis) / 1000);
+    noter("Le serveur ne répond pas pour l'instant (redémarrage en cours ?) : nouvel essai toutes les " + s + " s, la page se mettra à jour toute seule." + (sec > 0 ? " Sans réponse depuis " + sec + " s." : ""));
+    suivant();
+  }
+  function essayer() {
     var a = document.activeElement;
-    if (document.hidden || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) { return; }
-    window.location.reload();
-  }, s * 1000);
+    if (document.hidden || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) { suivant(); return; }
+    var ctl = window.AbortController ? new AbortController() : null;
+    var minuterie = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
+    fetch(window.location.href, { cache: "no-store", credentials: "same-origin", signal: ctl ? ctl.signal : undefined })
+      .then(function (r) {
+        clearTimeout(minuterie);
+        if (!r.ok) { absent(); return null; } // 502/503/504 du proxy pendant le redémarrage
+        if (r.redirected) { window.location.href = r.url; return null; } // session perdue : connexion
+        return r.text();
+      })
+      .then(function (html) {
+        if (html === null || html === undefined) { return; }
+        var doc = new DOMParser().parseFromString(html, "text/html");
+        var neuf = doc.querySelector("[data-recharger]");
+        if (!neuf) { window.location.reload(); return; } // terminé : page complète (serveur joignable)
+        coupeDepuis = 0;
+        noter("");
+        var copie = document.importNode(neuf, true);
+        el.replaceWith(copie);
+        el = copie;
+        suivant();
+      })
+      .catch(function () { clearTimeout(minuterie); absent(); });
+  }
+  suivant();
 })();
 
 // Page Logs (SPEC § 33) : détail d'une ligne au clic, copier, zoom sur

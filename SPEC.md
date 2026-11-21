@@ -7574,3 +7574,20 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   d'ingestion garde le code 2FA (testé : refus sans code par le bloc
   Général) ; un fuseau inconnu est refusé avant toute écriture (lien
   compris).
+
+## 106. Mise à jour du serveur : plus de page « serveur inaccessible » (21/11) **[Fait, à valider]**
+- Constat : pendant la mise à jour, la page Réglages › Mise à jour du
+  serveur se rechargeait toutes les 5 s ; un rechargement tombé pendant le
+  redémarrage du conteneur laissait le navigateur sur sa page d'erreur, sans
+  plus rien relancer.
+- Correction (mirador.js, zones `[data-recharger]`) : la page est d'abord
+  demandée en fond. Pas de réponse, erreur réseau ou code 502/503/504 : la
+  page affichée reste, avec « Le serveur ne répond pas pour l'instant… sans
+  réponse depuis N s », et on réessaie. Réponse : seul le bloc qui avance
+  est remplacé ; quand il n'avance plus (mise à jour finie), rechargement
+  complet. Session perdue (redirection) : on suit vers la connexion.
+- Vaut aussi pour l'avancement des certificats du collecteur.
+- Coût : une requête par période (5 ou 15 s) seulement sur ces pages, comme
+  avant ; délai de 8 s au plus par essai. Menaces : requête vers la même
+  origine seulement, avec les cookies de la session ; le HTML reçu vient du
+  serveur lui-même (même gabarit qu'un rechargement normal).
