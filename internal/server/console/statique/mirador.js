@@ -2259,3 +2259,98 @@ document.addEventListener("change", function (ev) {
   }).observe(t, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"], attributeOldValue: true });
   rayer();
 })();
+
+// Conservation des données (retour du 21/11, maquette validée) : la
+// prévision de chaque carte et le total du disque se recalculent pendant la
+// saisie ; l'avertissement « données supprimées » n'apparaît que si une
+// durée ou un plafond baisse (le serveur exige toujours la confirmation et
+// le code pour une baisse). Même calcul que conservation_vue.go.
+(function () {
+  "use strict";
+  var f = document.querySelector("[data-cons]");
+  document.querySelectorAll("[data-largeur]").forEach(function (i) {
+    var p = parseFloat(i.getAttribute("data-largeur")) || 0;
+    i.style.width = (p > 0 ? Math.max(p, 0.6) : 0) + "%"; // CSSOM : permis par la CSP
+  });
+  if (!f) { return; }
+  var GO = 1073741824, disque = document.querySelector("[data-cons-disque]");
+  function virgule(s) { return s.replace(".", ","); }
+  function taille(n) {
+    if (n >= GO) { return virgule((n / GO).toFixed(1)) + " Go"; }
+    if (n >= 1048576) { return virgule((n / 1048576).toFixed(1)) + " Mo"; }
+    if (n >= 1024) { return Math.round(n / 1024) + " Ko"; }
+    return n <= 0 ? "0" : Math.round(n) + " octets";
+  }
+  function texteSec(sel, sec) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (parseInt(sel.options[i].getAttribute("data-sec"), 10) === sec) { return sel.options[i].textContent.replace(" (réglage actuel)", ""); }
+    }
+    return Math.round(sec / 86400) + " j";
+  }
+  function secChoisie(sel) { return parseInt(sel.options[sel.selectedIndex].getAttribute("data-sec"), 10) || 0; }
+  function nombre(attr, el) { return parseFloat(el.getAttribute(attr)) || 0; }
+  function calculer() {
+    var total = disque ? nombre("data-base", disque) : 0, baisses = [];
+    f.querySelectorAll("[data-cons-carte]").forEach(function (k) {
+      var titre = k.querySelector("h3").textContent;
+      if (k.getAttribute("data-cons-carte") === "historique") {
+        k.querySelectorAll("select[data-cons-duree]").forEach(function (sel) {
+          var cle = sel.getAttribute("data-cons-duree"), avant = nombre("data-actuel-" + cle, k), sec = secChoisie(sel);
+          if (sec < avant) {
+            baisses.push((cle === "audit" ? "Journal d'audit" : "Alertes résolues et envois") + " : " + texteSec(sel, avant) + " → " + texteSec(sel, sec) +
+              " (plus ancien que " + texteSec(sel, sec) + " supprimé)");
+          }
+        });
+        return;
+      }
+      var sel = k.querySelector("[data-cons-duree]"), champ = k.querySelector("[data-cons-plafond]"), prev = k.querySelector("[data-cons-prev]");
+      var pj = nombre("data-par-jour", k), occupe = nombre("data-occupe", k), avantSec = nombre("data-actuel-sec", k), avantPl = nombre("data-actuel-plafond", k);
+      var sec = secChoisie(sel), go = parseFloat((champ.value || "0").replace(",", ".")), pl = isNaN(go) || go < 0 ? 0 : Math.round(go * GO);
+      var jours = sec / 86400, brut = pj * jours, prevu = brut, texte;
+      if (pj <= 0) {
+        prevu = occupe;
+        texte = "Prévu : pas encore mesuré (moins d'une heure de données)";
+      } else if (pl > 0 && brut > pl) {
+        prevu = pl;
+        texte = "Prévu : " + taille(pl) + " (" + texteSec(sel, sec) + " × " + taille(pj) + " = " + taille(brut) + ", limité par le plafond : ~" + Math.floor(pl / pj) + " j gardés)";
+      } else {
+        texte = "Prévu : " + taille(brut) + " (" + texteSec(sel, sec) + " × " + taille(pj) + ")";
+      }
+      prev.textContent = texte;
+      prev.classList.toggle("limite", pj > 0 && pl > 0 && brut > pl);
+      total += Math.max(prevu, occupe);
+      if (sec < avantSec) {
+        baisses.push(titre + " : " + texteSec(sel, avantSec) + " → " + texteSec(sel, sec) + " (plus ancien que " + texteSec(sel, sec) + " supprimé)");
+      }
+      if (pl > 0 && (avantPl === 0 || pl < avantPl)) {
+        baisses.push("Plafond " + titre.toLowerCase() + " : " + (avantPl ? taille(avantPl) : "aucun") + " → " + taille(pl) + " (le plus ancien au-delà supprimé)");
+      }
+    });
+    if (disque) {
+      var t = disque.querySelector("[data-cons-prevu-total]"), etat = disque.querySelector("[data-cons-etat]");
+      if (t) { t.textContent = taille(total); }
+      var reste = nombre("data-libre", disque) - (total - nombre("data-mirador", disque)), tot = nombre("data-total", disque);
+      if (etat && tot > 0) {
+        var c = reste < 0 ? ["erreur", "Pas assez de place"] : reste < Math.max(2 * GO, tot / 20) ? ["attention", "Peu de place"] : ["ok", "Assez de place"];
+        etat.className = "pastille " + c[0];
+        etat.textContent = c[1];
+      }
+    }
+    var bloc = f.querySelector("[data-cons-baisse]"), txt = f.querySelector("[data-cons-baisse-texte]");
+    bloc.hidden = baisses.length === 0;
+    if (!baisses.length) {
+      f.querySelector("[data-cons-confirmer]").checked = false;
+      return;
+    }
+    txt.textContent = "";
+    var ul = document.createElement("ul");
+    baisses.forEach(function (b) { var li = document.createElement("li"); li.textContent = b; ul.appendChild(li); });
+    var p = document.createElement("span");
+    p.textContent = "Ces données seront supprimées 5 min après l'enregistrement (annulable d'ici là) :";
+    txt.appendChild(p);
+    txt.appendChild(ul);
+  }
+  f.addEventListener("input", calculer);
+  f.addEventListener("change", calculer);
+  calculer();
+})();

@@ -7417,7 +7417,7 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
   (expression stricte) avant tout usage ; le tag n'est posé que sur le
   commit de `main` du lancement.
 
-## 102. Retours du 20/11 : affichage, « En ce moment » en direct, mise à jour du serveur depuis l'interface **[Fait, à valider]**
+## 102. Retours du 20/11 : affichage, « En ce moment » en direct, mise à jour du serveur depuis l'interface **[Fait, validé le 21/11]**
 
 ### 102.1 Affichage
 - Vue d'ensemble : carte « Sauvegardes des dernières 24 h » retirée (demande).
@@ -7501,3 +7501,25 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 | Nouvelle version qui ne démarre pas ou abîme la base | retour automatique à l'image et à la copie de la base ; 3 copies gardées ; état « échec » affiché |
 | Service du VPS lui-même | root mais confiné par systemd (ProtectSystem=strict, écriture seulement dans le dossier du compose et le sien, NoNewPrivileges) ; commandes `docker` aux arguments fixés ; pas de port |
 | Script d'installation | binaire vérifié par `SHA256SUMS` de la même Release (HTTPS) ; ne modifie pas le compose (il dit quoi changer) |
+
+## 103. Conservation des données : page revue (21/11, maquette validée) **[Fait, à valider]**
+- Place sur le disque : une barre (métriques brutes, agrégats, logs, base,
+  autres fichiers, libre) ; « au plus X » avec les réglages (plafonds
+  compris) ; pastille « Assez / Peu de place » (moins de 2 Go ou de 5 % du
+  disque restants) ou « Pas assez de place ».
+- Une carte par type (métriques brutes, agrégées, logs) : occupé, âge de la
+  donnée la plus ancienne, volume par jour mesuré (agrégats mesurés dès un
+  jour d'historique, sinon brut / 10), jauge du plafond ; durée dans une liste
+  (« 7 jours », « 6 mois », « 1 an » ; une valeur hors liste reste proposée),
+  plafond en Go (ancien formulaire en Mio toujours accepté).
+- « Prévu » recalculé pendant la saisie (mirador.js, même calcul que le
+  serveur), avec « limité par le plafond : ~N j gardés ». Le bouton
+  « Estimer sans enregistrer » disparaît.
+- Avertissement seulement si une durée ou un plafond baisse : liste de ce qui
+  sera supprimé, case de confirmation (sans JavaScript, le bloc reste
+  visible). Le serveur exige toujours confirmation et code pour une baisse,
+  délai de 5 min annulable ; la réduction programmée est affichée en clair
+  (« logs 60 j → 14 j »).
+- Coût : une lecture de la taille de la base (stat de 2 fichiers) en plus à
+  l'affichage de la page ; rien en tâche de fond. Menaces : inchangées (mêmes
+  bornes, même délai, même audit).

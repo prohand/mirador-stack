@@ -1576,10 +1576,18 @@ arrière avec base remise, lien symbolique), `internal/release` (image
 signée), console (page, code 2FA, audit), configuration, présence.
 actionlint 1.7.7 sans remarque.
 
-À faire chez l'utilisateur : publier 0.6.0, mettre le serveur à jour **à la
-main** une dernière fois, puis installer le service
-(`docs/administration-serveur.md` › Mise à jour du serveur depuis
-l'interface).
+Validé le 21/11 : release 0.6.0 publiée ; serveur passé en 0.6.0 (dernière
+fois à la main), `mirador-maj-serveur` installé sur le VPS (« Tout est
+prêt ») ; agents en 0.6.0 ; « En ce moment » en direct vérifié sur les
+machines. Premier essai du bouton : à la prochaine version (0.6.1).
+
+## Conservation des données : page revue (SPEC § 103, 21/11)
+
+Maquette validée le 21/11 : barre du disque, une carte par type, durées en
+clair, plafonds en Go, prévision pendant la saisie, avertissement seulement
+en cas de baisse, téléphone corrigé (plafonds visibles). Coût : 2 `stat` de
+plus par affichage de la page. Tests : page, hausse, baisse refusée sans
+confirmation puis programmée, prévision et plafond.
 
 ## Prochaine étape
 
