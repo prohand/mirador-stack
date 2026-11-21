@@ -602,19 +602,19 @@ type Page struct {
 	// « fermé » avec un bouton pour le rouvrir).
 	ModeAdminReste    int
 	ModeAdminPossible bool
-	AConfirmer    []AConfirmer
-	Version       string
-	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
-	ThemeChoix    string // choix affiché dans le sélecteur : clair, sombre, auto
-	SansAides     bool   // aides masquées (bouton du menu, SPEC § 26)
-	Chemin        string // page affichée (retour après le choix du thème sans JavaScript)
-	Disposition   string // gauche ou haut (réglage « Interface »)
-	Replie        bool   // menu replié par défaut
-	NbAlertes     int    // alertes actives (compteur du menu)
-	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
-	NbConteneurs  int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
-	NbSondes      int    // sondes en échec (compteur du menu, SPEC § 48)
-	NbTaches      int    // tâches planifiées en échec ou en retard (SPEC § 80)
+	AConfirmer        []AConfirmer
+	Version           string
+	Theme             string // data-theme forcé (clair, sombre) ; vide = suit le système
+	ThemeChoix        string // choix affiché dans le sélecteur : clair, sombre, auto
+	SansAides         bool   // aides masquées (bouton du menu, SPEC § 26)
+	Chemin            string // page affichée (retour après le choix du thème sans JavaScript)
+	Disposition       string // gauche ou haut (réglage « Interface »)
+	Replie            bool   // menu replié par défaut
+	NbAlertes         int    // alertes actives (compteur du menu)
+	NbAValider        int    // machines avec des éléments « à valider » (compteur du menu)
+	NbConteneurs      int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
+	NbSondes          int    // sondes en échec (compteur du menu, SPEC § 48)
+	NbTaches          int    // tâches planifiées en échec ou en retard (SPEC § 80)
 	// ClassesAccueil : ordre et cartes masquées de la vue d'ensemble (SPEC § 83).
 	ClassesAccueil map[string]string
 	// Menu réorganisable (SPEC § 79) : entrées dans l'ordre par défaut avec

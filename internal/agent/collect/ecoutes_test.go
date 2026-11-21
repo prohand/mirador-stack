@@ -213,3 +213,27 @@ Local:
 		t.Errorf("adresses :\n %q\nattendu\n %q", strings.Join(got, "|"), want)
 	}
 }
+
+// Relecture du 21/11 : VPS en /32 (aucune route de réseau ne contient
+// l'adresse, passerelle « on-link ») : l'adresse publique est gardée,
+// sur l'interface de la route par défaut.
+func TestAdresseVPS32(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "net"), 0o755)
+	route := "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n" +
+		"eth0\t00000000\t0101FEAC\t0003\t0\t0\t0\t00000000\t0\t0\t0\n" + // défaut via 172.254.1.1
+		"eth0\t0101FEAC\t00000000\t0005\t0\t0\t0\tFFFFFFFF\t0\t0\t0\n" // la passerelle seule (/32)
+	fib := `Main:
+  +-- 0.0.0.0/0 3 0 5
+     |-- 0.0.0.0
+        /0 universe UNICAST
+     |-- 203.0.113.50
+        /32 host LOCAL
+`
+	os.WriteFile(filepath.Join(dir, "net", "route"), []byte(route), 0o644)
+	os.WriteFile(filepath.Join(dir, "net", "fib_trie"), []byte(fib), 0o644)
+	a := adressesLocales(dir)
+	if len(a) != 1 || a[0].ip != "203.0.113.50" || a[0].iface != "eth0" || !a[0].principale {
+		t.Errorf("adresse du VPS : %+v", a)
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"mirador-stack/internal/protocole"
 )
@@ -117,8 +118,8 @@ func TestInstallerConfirmerRetour(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := NewInstallateur(dir, "/inutile")
-	var teste string
-	inst.SelfTest = func(_ context.Context, chemin string) error { teste = chemin; return nil }
+	var teste []byte
+	inst.SelfTest = func(_ context.Context, chemin string) error { teste, _ = os.ReadFile(chemin); return nil }
 
 	bin := []byte("nouveau binaire")
 	if err := inst.Installer(context.Background(), manifeste(priv, "1.2.0", bin, false), bin); err != nil {
@@ -127,7 +128,7 @@ func TestInstallerConfirmerRetour(t *testing.T) {
 	if lien, _ := os.Readlink(filepath.Join(dir, "current")); lien != "mirador-agent-1.2.0" {
 		t.Errorf("lien current = %q", lien)
 	}
-	if filepath.Base(teste) != "mirador-agent-1.2.0" {
+	if string(teste) != "nouveau binaire" {
 		t.Errorf("le self-test doit porter sur le nouveau binaire : %q", teste)
 	}
 	info, _ := os.Stat(filepath.Join(dir, "mirador-agent-1.2.0"))
@@ -193,5 +194,55 @@ func TestInstallerSelfTestEchoue(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "mirador-agent-1.2.0")); err == nil {
 		t.Error("le binaire refusé doit être supprimé")
+	}
+}
+
+// Relecture du 21/11 : self-test raté → le binaire du même nom déjà présent
+// (ici la version « precedent ») n'est pas supprimé, et aucun essai fantôme.
+func TestSelfTestRateGardePrecedent(t *testing.T) {
+	_, priv := cleTest(t)
+	dir := t.TempDir()
+	for _, v := range []string{"1.0.0", "1.1.0"} {
+		_ = os.WriteFile(filepath.Join(dir, "mirador-agent-"+v), []byte("ancien "+v), 0o755)
+	}
+	_ = os.Symlink("mirador-agent-1.1.0", filepath.Join(dir, "current"))
+	_ = os.Symlink("mirador-agent-1.0.0", filepath.Join(dir, "precedent"))
+	inst := NewInstallateur(dir, "/inutile")
+	inst.SelfTest = func(context.Context, string) error { return errors.New("trop lent") }
+	bin := []byte("retour vers 1.0.0")
+	if err := inst.Installer(context.Background(), manifeste(priv, "1.0.0", bin, true), bin); err == nil {
+		t.Fatal("self-test raté accepté")
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "precedent")); err != nil || string(b) != "ancien 1.0.0" {
+		t.Errorf("version précédente perdue : %q %v", b, err)
+	}
+	if e, _ := inst.EnEssai(); e != nil {
+		t.Error("essai fantôme")
+	}
+}
+
+// Relecture du 21/11 : une demande « Réessayer » ne sert qu'une fois, même
+// avec une horloge d'agent en retard sur celle du serveur.
+func TestReessaiUneFois(t *testing.T) {
+	dir := t.TempDir()
+	inst := NewInstallateur(dir, "/inutile")
+	clic := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	retard := clic.Add(-15 * time.Minute) // horloge de l'agent : 15 min de retard
+	inst.maintenant = func() time.Time { return retard }
+	noter := func() {
+		_ = inst.ecrireJSON("echec.json", map[string]string{"version": "1.2.0", "raison": "x", "date": inst.maintenant().UTC().Format(time.RFC3339)})
+	}
+	noter()
+	if !inst.EffacerEchecAvant(clic) {
+		t.Fatal("première demande non prise en compte")
+	}
+	noter() // la version réessayée échoue encore
+	for i := 0; i < 3; i++ {
+		if inst.EffacerEchecAvant(clic) {
+			t.Fatalf("même demande reprise (tour %d) : boucle", i)
+		}
+	}
+	if !inst.EffacerEchecAvant(clic.Add(time.Minute)) {
+		t.Error("nouvelle demande ignorée")
 	}
 }

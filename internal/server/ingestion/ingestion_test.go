@@ -270,8 +270,9 @@ func TestHorloge(t *testing.T) {
 	if got := b.mem.Series[1].Points[0].T; got != reception.Add(-20*time.Second).UnixMilli() {
 		t.Errorf("point toléré modifié : %d", got)
 	}
-	// Retard d'une heure : refusé (400 → l'agent abandonne le lot).
-	if c := b.metriques(tokenPC, corps, protocole.EnteteHeure, heure(-time.Hour)); c != http.StatusBadRequest {
+	// Retard d'une heure : refusé (409 → l'agent garde le lot et réessaie
+	// plus tard, relecture du 21/11 ; avant : 400, lot abandonné).
+	if c := b.metriques(tokenPC, corps, protocole.EnteteHeure, heure(-time.Hour)); c != http.StatusConflict {
 		t.Errorf("décalage d'une heure : %d", c)
 	}
 	if c := b.metriques(tokenPC, corps, protocole.EnteteHeure, "demain"); c != http.StatusBadRequest {

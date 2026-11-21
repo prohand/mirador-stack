@@ -207,6 +207,7 @@ type statfsFunc func(chemin string, st *syscall.Statfs_t) error
 // node_filesystem_files{,_free} (étiquettes device, fstype, mountpoint).
 type SystemesFichiers struct {
 	chemin       string
+	cheminHote   string // montages vus par le système (pid 1), lus d'abord
 	lect         lecteur
 	intern       *metrics.Interner
 	exclMontages *filtre
@@ -224,6 +225,7 @@ type SystemesFichiers struct {
 func NewSystemesFichiers(proc, exclMontages, exclTypes, typesDistant string, ignorer ...string) *SystemesFichiers {
 	return &SystemesFichiers{
 		chemin:       filepath.Join(proc, "self", "mountinfo"),
+		cheminHote:   filepath.Join(proc, "1", "mountinfo"),
 		intern:       metrics.NewInterner(4096),
 		exclMontages: newFiltre(exclMontages, ignorer...),
 		exclTypes:    newFiltre(exclTypes),
@@ -238,9 +240,15 @@ func (s *SystemesFichiers) Nom() string { return "fs" }
 func (s *SystemesFichiers) Lent() bool  { return false }
 
 func (s *SystemesFichiers) Collecter(b *metrics.Batch) error {
-	data, err := s.lect.lire(s.chemin)
-	if err != nil {
-		return err
+	// Montages du système (pid 1), comme node_exporter : ceux de l'agent
+	// ajoutent les montages « bind » de son bac à sable systemd
+	// (/var/lib/mirador-agent…), vus comme des disques en double
+	// (relecture du 21/11). Repli sur les siens si /proc/1 est caché.
+	data, err := s.lect.lire(s.cheminHote)
+	if err != nil || len(data) == 0 {
+		if data, err = s.lect.lire(s.chemin); err != nil {
+			return err
+		}
 	}
 	var st syscall.Statfs_t
 	for len(data) > 0 {
@@ -273,12 +281,15 @@ func (s *SystemesFichiers) Collecter(b *metrics.Batch) error {
 		if s.exclMontages.exclu(montage) {
 			continue
 		}
+		// Toujours avec un délai (relecture du 21/11) : un montage FUSE ou
+		// réseau absent de la liste « distants » (rclone, s3fs, davfs…)
+		// pouvait figer statfs, et toute la collecte avec lui.
+		delai := delaiLocal
 		if s.typesDistant.exclu(fstype) {
-			if !s.statfsAvecDelai(montage, &st) {
-				continue
-			}
-		} else if s.statfs(montage, &st) != nil {
-			continue // droits insuffisants ou montage disparu entre-temps
+			delai = s.delaiDistant
+		}
+		if !s.statfsAvecDelai(montage, &st, delai) {
+			continue // délai dépassé, droits insuffisants ou montage disparu
 		}
 		labels := [3]metrics.Label{
 			metrics.L("device", s.intern.Get(source)),
@@ -297,7 +308,10 @@ func (s *SystemesFichiers) Collecter(b *metrics.Batch) error {
 // statfsAvecDelai appelle statfs dans une goroutine, avec un délai. Un serveur
 // NFS mort bloque statfs indéfiniment : on n'attend pas, et on ne relance pas
 // d'appel sur ce montage tant que le précédent n'est pas revenu.
-func (s *SystemesFichiers) statfsAvecDelai(montage string, st *syscall.Statfs_t) bool {
+// delaiLocal : statfs d'un montage local (normalement immédiat).
+const delaiLocal = 2 * time.Second
+
+func (s *SystemesFichiers) statfsAvecDelai(montage string, st *syscall.Statfs_t, delai time.Duration) bool {
 	s.mu.Lock()
 	if s.bloques[montage] {
 		s.mu.Unlock()
@@ -315,7 +329,7 @@ func (s *SystemesFichiers) statfsAvecDelai(montage string, st *syscall.Statfs_t)
 		s.mu.Unlock()
 		fini <- err
 	}()
-	t := time.NewTimer(s.delaiDistant)
+	t := time.NewTimer(delai)
 	defer t.Stop()
 	select {
 	case err := <-fini:

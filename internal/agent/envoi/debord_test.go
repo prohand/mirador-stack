@@ -73,3 +73,33 @@ func TestFileSansDisque(t *testing.T) {
 	}
 	f.Sauver() // sans effet
 }
+
+// Relecture du 21/11 : un lot du disque jeté pendant son envoi (quota) ne
+// fait pas supprimer le suivant ; un fichier à moitié écrit est nettoyé.
+func TestDebordRetirerApresEviction(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "metriques")
+	d, _ := OuvrirDebord(dir, 300, 100)
+	f := NewFile(100)
+	f.AvecDisque(d)
+	for _, c := range []byte("abcd") { // a, b, c sur disque ; d en mémoire
+		f.Ajouter(lotDe(c, 100))
+	}
+	enCours := f.Premier()     // « a » part (depuis le disque)
+	f.Ajouter(lotDe('e', 100)) // d déborde : « a » est jeté du disque pour faire de la place
+	f.Retirer(enCours)         // envoi de « a » réussi
+	var ordre []byte
+	for l := f.Premier(); l != nil; l = f.Premier() {
+		ordre = append(ordre, l[0])
+		f.Retirer(l)
+	}
+	if string(ordre) != "bcde" {
+		t.Fatalf("ordre après éviction : %q (un lot non envoyé a disparu)", ordre)
+	}
+	_ = os.WriteFile(filepath.Join(dir, "00000000000000000099.lot.tmp"), []byte("x"), 0o600)
+	if _, err := OuvrirDebord(dir, 300, 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "00000000000000000099.lot.tmp")); err == nil {
+		t.Error("lot à moitié écrit non nettoyé")
+	}
+}

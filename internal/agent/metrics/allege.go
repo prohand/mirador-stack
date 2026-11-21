@@ -70,7 +70,9 @@ func (a *Allegeur) Filtrer(b *Batch) int {
 		garder := true
 		if allegeable(s.Name) {
 			k, bits := a.cle(s), math.Float64bits(s.Value)
-			if v, ok := a.vus[k]; ok && v.bits == bits && t-v.le < a.Garde {
+			// d >= 0 : horloge reculée (NTP), on renvoie (relecture du 21/11 :
+			// les jauges stables ne partaient plus pendant tout le recul).
+			if v, ok := a.vus[k]; ok && v.bits == bits && t-v.le >= 0 && t-v.le < a.Garde {
 				garder = false
 			} else {
 				a.vus[k] = vu{bits: bits, le: t}

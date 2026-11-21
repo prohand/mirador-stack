@@ -187,6 +187,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	journal.Info("arrêt demandé, envoi des derniers lots")
 	a.Vider(5 * time.Second)
 	arreterEnvoi()
+	a.Sauver()
 	if lots, _, _ := a.File().Etat(); lots > 0 {
 		journal.Warn("arrêt avec des lots non envoyés", "lots", lots)
 	}

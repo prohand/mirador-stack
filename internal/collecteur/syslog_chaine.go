@@ -138,6 +138,21 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 	}
 }
 
+// Vider : attend (au plus delai) que les lots syslog en file soient partis.
+// Sans syslog (s nil ou non configuré) : rien.
+func (s *Syslog) Vider(delai time.Duration) {
+	if s == nil || s.file == nil {
+		return
+	}
+	fin := time.Now().Add(delai)
+	for time.Now().Before(fin) {
+		if lots, _, _ := s.file.Etat(); lots == 0 {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func (s *Syslog) vider() {
 	if donnees, n := s.lot.Vider(); n > 0 {
 		if !s.file.Ajouter(donnees) {

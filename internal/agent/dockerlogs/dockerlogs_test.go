@@ -164,3 +164,27 @@ func FuzzMultiplexe(f *testing.F) {
 		_ = lireMultiplexe(bufio.NewReader(bytes.NewReader(b)), func(l []byte, _ string) { couperHorodatage(l) })
 	})
 }
+
+// Relecture du 21/11 : la reprise d'un conteneur disparu (flux déjà fini)
+// est oubliée, sinon une entrée restait par conteneur éphémère.
+func TestSuiveurOublieConteneursDisparus(t *testing.T) {
+	srv := httptest.NewServer(&fauxDocker{})
+	defer srv.Close()
+	s, err := NewSuiveur(srv.URL, func(time.Time, string, string, string) {}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ephemere := strings.Repeat("e", 64)
+	s.depuis[ephemere] = time.Now() // conteneur « --rm » fini, plus dans actifs
+	ctx, annuler := context.WithCancel(context.Background())
+	defer annuler()
+	if err := s.synchroniser(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	_, reste := s.depuis[ephemere]
+	s.mu.Unlock()
+	if reste {
+		t.Error("conteneur disparu gardé dans depuis")
+	}
+}

@@ -10,19 +10,24 @@ package sondes
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 // Types.
@@ -279,7 +284,17 @@ func essaiHTTP(ctx context.Context, s Sonde, o Options) (Resultat, error) {
 		// #nosec G402 -- choisi par l'administrateur pour un service du LAN
 		// au certificat fait maison ; vérifié sinon.
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: s.NonVerifie, MinVersion: tls.VersionTLS12}}
-	cl := &http.Client{Transport: tr, Timeout: Delai, CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+	// Relecture du 21/11 : un code attendu 3xx (redirection voulue) est
+	// comparé à la première réponse, sans la suivre ; le certificat est
+	// toujours celui du site sondé (première réponse), pas du site final.
+	var premierTLS *tls.ConnectionState
+	cl := &http.Client{Transport: tr, Timeout: Delai, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) == 1 && req.Response != nil && req.Response.TLS != nil {
+			premierTLS = req.Response.TLS
+		}
+		if s.Code >= 300 && s.Code < 400 {
+			return http.ErrUseLastResponse
+		}
 		if len(via) >= redirectionsMax {
 			return errors.New("trop de redirections")
 		}
@@ -296,8 +311,12 @@ func essaiHTTP(ctx context.Context, s Sonde, o Options) (Resultat, error) {
 	}
 	defer rep.Body.Close()
 	r := Resultat{Code: rep.StatusCode}
-	if rep.TLS != nil && len(rep.TLS.PeerCertificates) > 0 {
-		r.FinCertificat = rep.TLS.PeerCertificates[0].NotAfter
+	etatTLS := rep.TLS
+	if premierTLS != nil {
+		etatTLS = premierTLS
+	}
+	if etatTLS != nil && len(etatTLS.PeerCertificates) > 0 {
+		r.FinCertificat = etatTLS.PeerCertificates[0].NotAfter
 	}
 	if s.Code != 0 && rep.StatusCode != s.Code || s.Code == 0 && (rep.StatusCode < 200 || rep.StatusCode >= 400) {
 		_, _ = io.Copy(io.Discard, io.LimitReader(rep.Body, tailleMaxCorps))
@@ -380,18 +399,24 @@ func essaiDNS(ctx context.Context, s Sonde, o Options) error {
 	if _, _, err := net.SplitHostPort(serveur); err != nil {
 		serveur = net.JoinHostPort(serveur, "53")
 	}
-	res := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, reseau, _ string) (net.Conn, error) {
-		return dialer(o).DialContext(ctx, reseau, serveur)
-	}}
-	adresses, err := res.LookupHost(ctx, s.Question)
-	if err != nil {
-		var de *net.DNSError
-		if errors.As(err, &de) && de.IsNotFound {
-			return errors.New("nom inconnu du serveur DNS")
+	// Vraie question posée au serveur visé (relecture du 21/11) : le
+	// résolveur de Go lisait d'abord /etc/hosts du collecteur et ajoutait
+	// les domaines de recherche locaux ; un nom présent dans /etc/hosts
+	// restait « OK » même serveur DNS arrêté.
+	var adresses []string
+	inconnu := false
+	for _, typ := range []dnsmessage.Type{dnsmessage.TypeA, dnsmessage.TypeAAAA} {
+		a, rcode, err := questionDNS(ctx, serveur, s.Question, typ, o)
+		if err != nil {
+			return err
 		}
-		return err
+		inconnu = inconnu || rcode == dnsmessage.RCodeNameError
+		adresses = append(adresses, a...)
 	}
 	if len(adresses) == 0 {
+		if inconnu {
+			return errors.New("nom inconnu du serveur DNS")
+		}
 		return errors.New("aucune adresse")
 	}
 	if s.Contenu != "" {
@@ -403,6 +428,93 @@ func essaiDNS(ctx context.Context, s Sonde, o Options) error {
 		return errors.New("réponse " + strings.Join(adresses, ", ") + " sans " + s.Contenu)
 	}
 	return nil
+}
+
+// questionDNS : une question (A ou AAAA) en UDP, puis en TCP si la réponse
+// est tronquée. Renvoie les adresses et le code de retour du serveur.
+func questionDNS(ctx context.Context, serveur, nom string, typ dnsmessage.Type, o Options) ([]string, dnsmessage.RCode, error) {
+	if !strings.HasSuffix(nom, ".") {
+		nom += "." // nom absolu : jamais de domaine de recherche ajouté
+	}
+	n, err := dnsmessage.NewName(nom)
+	if err != nil {
+		return nil, 0, fmt.Errorf("question DNS invalide : %w", err)
+	}
+	var idb [2]byte
+	if _, err := rand.Read(idb[:]); err != nil {
+		return nil, 0, err
+	}
+	id := uint16(idb[0])<<8 | uint16(idb[1])
+	q := dnsmessage.Message{Header: dnsmessage.Header{ID: id, RecursionDesired: true},
+		Questions: []dnsmessage.Question{{Name: n, Type: typ, Class: dnsmessage.ClassINET}}}
+	paquet, err := q.Pack()
+	if err != nil {
+		return nil, 0, err
+	}
+	rep, err := echangeDNS(ctx, "udp", serveur, paquet, o)
+	if err == nil && rep.Header.Truncated {
+		rep, err = echangeDNS(ctx, "tcp", serveur, paquet, o)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	if rep.Header.ID != id || !rep.Header.Response {
+		return nil, 0, errors.New("réponse DNS qui ne correspond pas à la question")
+	}
+	if rep.Header.RCode != dnsmessage.RCodeSuccess && rep.Header.RCode != dnsmessage.RCodeNameError {
+		return nil, rep.Header.RCode, fmt.Errorf("serveur DNS : %s", rep.Header.RCode)
+	}
+	var adresses []string
+	for _, r := range rep.Answers {
+		switch b := r.Body.(type) {
+		case *dnsmessage.AResource:
+			adresses = append(adresses, netip.AddrFrom4(b.A).String())
+		case *dnsmessage.AAAAResource:
+			adresses = append(adresses, netip.AddrFrom16(b.AAAA).String())
+		}
+	}
+	return adresses, rep.Header.RCode, nil
+}
+
+// echangeDNS : envoie la question et lit une réponse (TCP : longueur sur
+// 2 octets en tête, RFC 1035 § 4.2.2). Délai : celui du contexte.
+func echangeDNS(ctx context.Context, reseau, serveur string, paquet []byte, o Options) (dnsmessage.Message, error) {
+	var m dnsmessage.Message
+	c, err := dialer(o).DialContext(ctx, reseau, serveur)
+	if err != nil {
+		return m, err
+	}
+	defer c.Close()
+	if fin, ok := ctx.Deadline(); ok {
+		_ = c.SetDeadline(fin)
+	}
+	tampon := make([]byte, 65535)
+	var lu int
+	if reseau == "tcp" {
+		if len(paquet) > 0xFFFF {
+			return m, errors.New("question DNS trop longue")
+		}
+		long := binary.BigEndian.AppendUint16(nil, uint16(len(paquet))) // #nosec G115 -- borné juste au-dessus
+		if _, err := c.Write(append(long, paquet...)); err != nil {
+			return m, err
+		}
+		if _, err := io.ReadFull(c, tampon[:2]); err != nil {
+			return m, err
+		}
+		lu = int(tampon[0])<<8 | int(tampon[1])
+		if _, err := io.ReadFull(c, tampon[:lu]); err != nil {
+			return m, err
+		}
+	} else {
+		if _, err := c.Write(paquet); err != nil {
+			return m, err
+		}
+		if lu, err = c.Read(tampon); err != nil {
+			return m, err
+		}
+	}
+	err = m.Unpack(tampon[:lu])
+	return m, err
 }
 
 // Etiquettes : sonde, type et cible (pour les métriques).
@@ -474,7 +586,11 @@ func Tourner(ctx context.Context, s Sonde, o Options, rendre func(Sonde, Resulta
 		case <-o.Maintenant: // demandé dans l'interface : rythme repris ensuite
 			minuterie.Stop()
 		}
-		rendre(s, Essayer(ctx, s, o))
+		r := Essayer(ctx, s, o)
+		if !r.OK && ctx.Err() != nil {
+			return // essai coupé par l'arrêt : pas de faux échec (relecture du 21/11)
+		}
+		rendre(s, r)
 		attente = intervalle
 	}
 }

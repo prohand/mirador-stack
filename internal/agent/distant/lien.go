@@ -239,6 +239,18 @@ func tronquer(s string, n int) string {
 	return string(out)
 }
 
+// resteEssai : temps restant de l'essai, compté depuis son début (relecture
+// du 21/11 : le délai repartait de zéro à chaque redémarrage, et une
+// version qui plantait toutes les quelques minutes n'était jamais retirée).
+// Horloge reculée : au plus le délai complet.
+func resteEssai(debut time.Time, delai time.Duration, maintenant time.Time) time.Duration {
+	if debut.IsZero() {
+		return delai
+	}
+	reste := delai - maintenant.Sub(debut)
+	return max(0, min(reste, delai))
+}
+
 // surveillerEssai : après une mise à jour, le nouvel agent doit joindre le
 // serveur dans le délai ; sinon, retour à la version précédente.
 func (l *Lien) surveillerEssai(ctx context.Context) {
@@ -255,10 +267,12 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 			return
 		}
 		l.Journal.Info("mise à jour confirmée", "version", e.Nouveau)
-	case <-time.After(l.delaiEssai):
+	case <-time.After(resteEssai(e.Debut, l.delaiEssai, time.Now())):
 		if err := l.Installateur.RetourArriere("serveur injoignable après la mise à jour"); err != nil {
-			l.Journal.Error("retour arrière impossible", "erreur", err)
-			return
+			l.Journal.Error("retour arrière", "erreur", err)
+			if !errors.Is(err, majagent.ErrEchecNonNote) {
+				return
+			}
 		}
 		l.Journal.Warn("pas de contact avec le serveur : retour à la version précédente", "version", e.Precedent)
 		l.Redemarrer("retour arrière")

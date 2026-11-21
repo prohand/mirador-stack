@@ -190,6 +190,8 @@ func TestLimiteDebit(t *testing.T) {
 	lot := NewLot("h", "journal", "s", "e", 1<<20)
 	tr := NewTraitement(Options{Debit: 10, Rafale: 20}, lot, nil)
 	t0 := time.Now()
+	maintenant := t0
+	tr.horloge = func() time.Time { return maintenant }
 	for i := 0; i < 100; i++ { // 100 lignes dans la même seconde
 		e := entree("x", 6, "", "", "")
 		e.Temps = t0
@@ -200,11 +202,35 @@ func TestLimiteDebit(t *testing.T) {
 	}
 	e := entree("x", 6, "", "", "")
 	e.Temps = t0.Add(time.Second) // 1 s plus tard : 10 jetons de plus
+	maintenant = t0.Add(time.Second)
 	for i := 0; i < 30; i++ {
 		tr.Traiter(e)
 	}
 	if _, n := lot.Vider(); n != 10 {
 		t.Errorf("10 lignes attendues après 1 s, %d", n)
+	}
+}
+
+// Relecture du 21/11 : une ligne datée dans le futur ne bloque plus la
+// recharge (horloge réelle, pas l'heure des lignes).
+func TestLimiteDebitLigneFuture(t *testing.T) {
+	lot := NewLot("h", "journal", "s", "e", 1<<20)
+	tr := NewTraitement(Options{Debit: 10, Rafale: 20}, lot, nil)
+	maintenant := time.Now()
+	tr.horloge = func() time.Time { return maintenant }
+	futur := entree("x", 6, "", "", "")
+	futur.Temps = maintenant.Add(time.Hour)
+	tr.Traiter(futur)
+	for s := 0; s < 30; s++ { // 30 s à 10 lignes/s
+		maintenant = maintenant.Add(time.Second)
+		for i := 0; i < 10; i++ {
+			e := entree("x", 6, "", "", "")
+			e.Temps = maintenant
+			tr.Traiter(e)
+		}
+	}
+	if _, n := lot.Vider(); n < 300 {
+		t.Errorf("lignes gardées : %d sur 301", n)
 	}
 }
 

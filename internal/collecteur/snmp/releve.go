@@ -71,10 +71,7 @@ func Releve(src Source, nomPrereglage string, b *metrics.Batch) error {
 		if v, ok := marches[racine]; ok {
 			return v
 		}
-		v, _ := src.BulkWalkAll(racine) // table absente : rien
-		if len(v) > maxLignesTable*16 {
-			v = v[:maxLignesTable*16]
-		}
+		v := marcherBorne(src, racine, maxLignesTable*16) // table absente : rien
 		marches[racine] = v
 		return v
 	}
@@ -177,6 +174,34 @@ func texte(v any) string {
 	return s
 }
 
+// errAssez : arrête une marche SNMP arrivée à sa borne.
+var errAssez = errors.New("borne atteinte")
+
+// marcherBorne : marche d'une table, arrêtée à max réponses (relecture du
+// 21/11 : BulkWalkAll chargeait tout avant de couper ; un équipement bogué
+// aux OID sans fin faisait grossir la mémoire sans borne).
+func marcherBorne(src Source, racine string, max int) []gosnmp.SnmpPDU {
+	m, ok := src.(interface {
+		BulkWalk(string, gosnmp.WalkFunc) error
+	})
+	if !ok {
+		v, _ := src.BulkWalkAll(racine)
+		return v[:min(len(v), max)]
+	}
+	var v []gosnmp.SnmpPDU
+	_ = m.BulkWalk(racine, func(pdu gosnmp.SnmpPDU) error {
+		if len(v) >= max {
+			return errAssez
+		}
+		v = append(v, pdu)
+		return nil
+	})
+	return v
+}
+
+// dureeMaxReleve : un relevé complet (toutes les tables) ne dure jamais plus.
+const dureeMaxReleve = 60 * time.Second
+
 // --- Relevé périodique d'une cible ---------------------------------------------------
 
 // Releveur : relève une cible à son rythme et passe chaque lot à Envoyer.
@@ -211,8 +236,19 @@ func (r *Releveur) Tourner(ctx context.Context) {
 				return err
 			}
 			defer fermer()
+			// Arrêt du collecteur et durée bornée transmis à gosnmp (relecture
+			// du 21/11 : un équipement lent retardait l'arrêt au-delà du délai
+			// de systemd, et les derniers lots étaient perdus).
+			if g, ok := src.(*gosnmp.GoSNMP); ok {
+				ctxReleve, fin := context.WithTimeout(ctx, dureeMaxReleve)
+				defer fin()
+				g.Context = ctxReleve
+			}
 			return Releve(src, r.Cible.Prereglage, b)
 		}()
+		if err != nil && ctx.Err() != nil {
+			return // relevé coupé par l'arrêt : pas de faux « up=0 »
+		}
 		up := 1.0
 		if err != nil {
 			up = 0

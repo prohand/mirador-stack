@@ -7692,3 +7692,79 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   session) ; le navigateur ne fait que demander le code au bon moment.
   Ouvrir le mode exige toujours un code 2FA neuf (anti-rejeu, limite
   d'essais). Coût : nul.
+
+## 111. Relecture de l'agent et du collecteur (21/11) **[Fait, à valider]**
+Quatre relectures (collecte, envoi et configuration, mise à jour et
+assistant root, collecteur). Chaque défaut a été vérifié (test qui échoue
+avant la correction quand c'était possible) avant d'être corrigé.
+
+**Sécurité (assistant root)**
+- Certificats ajoutés dans l'interface : le chemin réel est contrôlé sur le
+  fichier effectivement ouvert (ouverture `O_PATH`, contrôle, puis lecture
+  par `/proc/self/fd`) : plus de course entre contrôle et ouverture, et un
+  périphérique (ex. `/dev/watchdog`) n'est jamais réellement ouvert.
+- Journaux de tâches Proxmox VE / PBS (dossiers de www-data et backup) :
+  lus sans suivre de lien, ni tube, ni périphérique.
+- Réseaux d'émetteurs syslog : tout le réseau doit être privé (avant,
+  `10.0.0.0/0` devenait `0.0.0.0/0`).
+
+**Collecteur**
+- Syslog : plus de goroutine perdue par connexion ; ligne trop longue :
+  début gardé, la fin jetée (elle pouvait passer pour un faux message) ;
+  derniers lots envoyés avant un redémarrage.
+- Sondes : pas de faux échec (ni `up=0` SNMP/UniFi) quand le collecteur
+  s'arrête pendant un essai ; DNS : vraie question posée au serveur visé
+  (avant, `/etc/hosts` du collecteur répondait) ; HTTP : un code 3xx
+  attendu n'est plus suivi, certificat du site sondé.
+- SNMP : marche des tables arrêtée à sa borne ; arrêt et durée (60 s)
+  transmis à gosnmp.
+
+**Mise à jour automatique**
+- Délai d'essai compté depuis le début de l'essai (avant : remis à zéro à
+  chaque redémarrage, une version qui plantait n'était jamais retirée).
+- « Réessayer » : chaque demande du serveur ne sert qu'une fois (avant :
+  boucle si l'horloge de l'agent retardait).
+- États partiels (disque plein) : pas d'essai fantôme, échec non noté =
+  pas de réinstallation en boucle ; self-test fait avant de renommer (la
+  version « precedent » n'est plus supprimée).
+
+**Envoi**
+- File mémoire à sa vraie taille (lots copiés à leur taille : avant, 5 à
+  6 fois la borne pendant une coupure).
+- Horloge décalée : le serveur répond 409 (et non 400) : les lots sont
+  gardés et renvoyés quand l'heure est bonne (avant, tout le tampon était
+  jeté au démarrage d'une machine sans horloge matérielle).
+- Tampon disque : un lot non envoyé n'est plus supprimé pendant une reprise ;
+  fichiers à moitié écrits nettoyés ; à l'arrêt, sauvegarde après l'arrêt
+  des envois (plus de double envoi).
+- Reprise après une coupure : au plus 2 lots/s et `Retry-After` respecté
+  (le quota de la machine reste pour la configuration, le direct…).
+- Envoi allégé : une horloge qui recule ne bloque plus les jauges stables.
+
+**Collecte**
+- `statfs` toujours avec délai (2 s local, 5 s réseau) : un montage FUSE figé
+  ne bloque plus toute la collecte ; montages lus dans `/proc/1/mountinfo`
+  (comme node_exporter) : plus de disques en double venant du bac à sable
+  systemd.
+- Logs : `journalctl --all` (messages de plus de 4 Kio), limite de débit à
+  l'horloge réelle, reprises Docker oubliées pour les conteneurs disparus
+  (fuite mémoire).
+- Adresse publique d'un VPS en /32 envoyée ; disques des VM Proxmox à 0
+  (io.stat vide) : autres sources essayées ; tâches PBS au-delà de 60 :
+  nettoyage, vérification… gardés ; systemd : un passage incomplet garde
+  les valeurs d'avant.
+
+**Laissé de côté (à décider)**
+- Manifeste « retour autorisé » valable sans limite : ajouter une date
+  d'expiration à la signature (changement du format signé).
+- Sommes Proxmox par VM (cartes réseau ou disques retirés à chaud :
+  pic sur les graphes) : une série par interface demanderait de revoir les
+  tableaux.
+- Logs Docker : stdout et stderr qui se croisent (rare) et lignes de plus de
+  16 Kio des conteneurs TTY.
+- Quota du serveur partagé entre données et contrôle (la pause de reprise
+  suffit pour l'instant).
+
+Coût : un `statfs` par montage passe par une goroutine (une vingtaine par
+cycle de 10 s) ; une copie par lot mis en file (quelques Kio) ; rien
+d'autre de mesurable. Menaces : réduites (voir « Sécurité »).

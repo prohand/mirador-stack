@@ -96,6 +96,14 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// Contrôle du nouveau binaire sous son nom temporaire, AVANT de le
+	// renommer (relecture du 21/11 : en cas d'échec, un binaire du même nom
+	// déjà présent, par exemple la version « precedent », était supprimé).
+	ctxTest, annuler := context.WithTimeout(ctx, 30*time.Second)
+	defer annuler()
+	if err := i.SelfTest(ctxTest, tmp.Name()); err != nil {
+		return err
+	}
 	if err := os.Rename(tmp.Name(), final); err != nil {
 		return err
 	}
@@ -107,17 +115,16 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 		_ = os.WriteFile(final+suffixeManifeste, brut, 0o644) // #nosec G306 -- manifeste public
 	}
 
-	ctxTest, annuler := context.WithTimeout(ctx, 30*time.Second)
-	defer annuler()
-	if err := i.SelfTest(ctxTest, final); err != nil {
-		_ = os.Remove(final)
-		return err
-	}
-
 	precedent, _ := os.Readlink(filepath.Join(i.Dossier, "current"))
 	essai := Essai{Precedent: filepath.Base(precedent), Nouveau: nom, Debut: i.maintenant().UTC()}
 	if err := i.ecrireJSON("essai.json", essai); err != nil {
 		return err
+	}
+	// Une étape suivante qui échoue (disque plein…) ne laisse pas d'essai
+	// fantôme : l'agent reste sur l'ancienne version, sans « essai en cours »
+	// sans fin (relecture du 21/11).
+	abandon := func(err error) error {
+		return errors.Join(err, os.Remove(filepath.Join(i.Dossier, "essai.json")))
 	}
 	// Lien fixe vers l'ancienne version : l'unité systemd de retour arrière
 	// (mirador-agent-retour) lance toujours « bin/precedent -retour-arriere ».
@@ -125,13 +132,16 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 		lienTmp := filepath.Join(i.Dossier, "precedent.nouveau")
 		_ = os.Remove(lienTmp)
 		if err := os.Symlink(essai.Precedent, lienTmp); err != nil {
-			return err
+			return abandon(err)
 		}
 		if err := os.Rename(lienTmp, filepath.Join(i.Dossier, "precedent")); err != nil {
-			return err
+			return abandon(err)
 		}
 	}
-	return i.basculer(nom)
+	if err := i.basculer(nom); err != nil {
+		return abandon(err)
+	}
+	return nil
 }
 
 // basculer remplace le lien « current » de façon atomique (lien temporaire
@@ -191,12 +201,21 @@ func (i *Installateur) RetourArriere(raison string) error {
 	if err := i.basculer(e.Precedent); err != nil {
 		return err
 	}
-	_ = i.ecrireJSON("echec.json", map[string]string{
+	// Échec non noté (disque plein) : essai.json est gardé, sinon la version
+	// cassée serait réinstallée en boucle ; l'ancienne version, relancée,
+	// réessaiera de noter l'échec (relecture du 21/11).
+	if err := i.ecrireJSON("echec.json", map[string]string{
 		"version": strings.TrimPrefix(e.Nouveau, ProduitCourant+"-"), "raison": raison,
 		"date": i.maintenant().UTC().Format(time.RFC3339),
-	})
+	}); err != nil {
+		return fmt.Errorf("%w : %v", ErrEchecNonNote, err)
+	}
 	return os.Remove(filepath.Join(i.Dossier, "essai.json"))
 }
+
+// ErrEchecNonNote : retour arrière fait (lien « current » remis), mais
+// l'échec n'a pas pu être noté. L'agent doit quand même redémarrer.
+var ErrEchecNonNote = errors.New("retour arrière fait, échec non noté")
 
 // DernierEchec : version et raison du dernier retour arrière (vides s'il n'y
 // en a pas). L'agent ne retente pas une version qui a déjà échoué.
@@ -213,15 +232,37 @@ func (i *Installateur) DernierEchec() (version, raison string) {
 // « Réessayer la mise à jour » faite après l'échec, SPEC § 44). Renvoie vrai
 // si un échec a été oublié : la version peut alors être retentée. Un échec
 // sans date (fichier ancien) est aussi oublié.
+//
+// Relecture du 21/11 : t vient de l'horloge du serveur, la date de l'échec
+// de celle de l'agent. Une horloge d'agent en retard faisait oublier
+// l'échec à chaque passage (réinstallation en boucle). Désormais chaque
+// demande du serveur ne sert qu'une fois (reessai.json garde la dernière
+// prise en compte), quelle que soit l'heure de l'agent.
 func (i *Installateur) EffacerEchecAvant(t time.Time) bool {
+	var vu struct {
+		T time.Time `json:"t"`
+	}
+	cheminVu := filepath.Join(i.Dossier, "reessai.json")
+	brutVu, errVu := os.ReadFile(cheminVu) // #nosec G304 -- dossier de l'agent
+	dejaVu := errVu == nil && json.Unmarshal(brutVu, &vu) == nil
+	if dejaVu && !t.After(vu.T) {
+		return false // cette demande a déjà servi
+	}
 	var e map[string]string
 	chemin := filepath.Join(i.Dossier, "echec.json")
 	brut, err := os.ReadFile(chemin) // #nosec G304 -- dossier de l'agent
 	if err != nil || json.Unmarshal(brut, &e) != nil {
 		return false
 	}
-	if d, err := time.Parse(time.RFC3339, e["date"]); err == nil && !d.Before(t) {
-		return false // échec plus récent que la demande : on ne recommence pas
+	// Première demande vue par cette version (pas encore de reessai.json) :
+	// la règle d'avant s'applique une dernière fois (échec plus récent que
+	// la demande : on ne recommence pas).
+	if d, err := time.Parse(time.RFC3339, e["date"]); !dejaVu && err == nil && !d.Before(t) {
+		_ = i.ecrireJSON("reessai.json", map[string]time.Time{"t": t})
+		return false
+	}
+	if i.ecrireJSON("reessai.json", map[string]time.Time{"t": t}) != nil {
+		return false // sans trace de la demande, pas de nouvel essai (évite la boucle)
 	}
 	return os.Remove(chemin) == nil
 }

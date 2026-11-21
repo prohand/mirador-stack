@@ -136,6 +136,13 @@ func (s *Suiveur) synchroniser(ctx context.Context) error {
 		if !vus[id] {
 			arret()
 			delete(s.actifs, id)
+		}
+	}
+	// Conteneurs disparus, flux déjà fini ou non : leur reprise est oubliée
+	// (relecture du 21/11 : une entrée restait par conteneur éphémère,
+	// « docker run --rm » d'un cron, sans fin).
+	for id := range s.depuis {
+		if !vus[id] {
 			delete(s.depuis, id)
 		}
 	}

@@ -3,6 +3,7 @@
 package racine
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -131,5 +132,23 @@ vzdump: arrete
 	}
 	if _, ok := sansSauvegarde(inv, "pve1", travaux[3:], pools); ok {
 		t.Error("aucun travail actif : rien ne doit être signalé")
+	}
+}
+
+// Relecture du 21/11 : au-delà de 60 tâches, le nettoyage (et les autres
+// tâches hors sauvegarde d'un groupe) reste visible.
+func TestTachesAuDelaDuMax(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 70; i++ {
+		fmt.Fprintf(&b, "UPID:pbs:000004D2:0001E2AB:%08X:673D3A42:backup:store1\\x3avm-%d:root@pam: 673D3B6E OK\n", i, 100+i)
+	}
+	b.WriteString("UPID:pbs:000004D2:0001E2AB:00000099:673D3A40:garbage_collection:store1:root@pam: 673D3B6E erreur\n")
+	taches := analyserTaches([]byte(b.String()), "pbs")
+	trouve := false
+	for _, x := range taches {
+		trouve = trouve || strings.HasPrefix(x.Nom, "garbage_collection")
+	}
+	if len(taches) != maxTaches || !trouve {
+		t.Fatalf("%d tâches, nettoyage présent : %v", len(taches), trouve)
 	}
 }

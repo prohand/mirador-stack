@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,9 +68,11 @@ func lireTachesProxmox() []TacheProxmox {
 	return out
 }
 
-// lireFin : les n derniers octets d'un fichier (sans suivre de lien).
+// lireFin : les n derniers octets d'un fichier (sans suivre de lien). Le
+// dossier appartient à un compte de service exposé au web (www-data,
+// backup) : jamais de lien, de tube ni de périphérique (relecture du 21/11).
 func lireFin(chemin string, n int64) ([]byte, error) {
-	fd, err := os.Open(chemin) // #nosec G304 -- chemins figés dans le code (journaux de tâches Proxmox)
+	fd, err := ouvrirSur(chemin, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +103,23 @@ func analyserTaches(b []byte, source string) []TacheProxmox {
 	for _, t := range dernieres {
 		out = append(out, t)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Nom < out[j].Nom })
+	// Au-delà de maxTaches : les plus récentes sont gardées (relecture du
+	// 21/11 : la coupe par ordre alphabétique gardait les « backup … » et
+	// faisait disparaître nettoyage, vérification, élagage et synchro).
 	if len(out) > maxTaches {
+		// D'abord les tâches qui ne sont pas des sauvegardes d'un groupe
+		// (nettoyage, vérification, élagage, synchro, vzdump global), puis
+		// les plus récentes.
+		groupe := func(t TacheProxmox) bool { return strings.HasPrefix(t.Nom, "backup ") }
+		sort.Slice(out, func(i, j int) bool {
+			if gi, gj := groupe(out[i]), groupe(out[j]); gi != gj {
+				return !gi
+			}
+			return out[i].Debut.After(out[j].Debut)
+		})
 		out = out[:maxTaches]
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Nom < out[j].Nom })
 	return out
 }
 

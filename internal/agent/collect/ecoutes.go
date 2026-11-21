@@ -291,7 +291,14 @@ func adressesLocales(proc string) []adresseIP {
 	if b, err := os.ReadFile(filepath.Join(proc, "net", "fib_trie")); err == nil { // #nosec G304 -- chemin fixe sous /proc
 		for _, ip := range adressesFibTrie(string(b)) {
 			if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() {
-				ajouter(adresseIP{iface: routes.interfaceDe(ip), ip: ip.String()})
+				iface := routes.interfaceDe(ip)
+				if iface == "" {
+					// Adresse sans réseau à elle (VPS en /32, passerelle
+					// « on-link ») : celle de la route par défaut (relecture
+					// du 21/11 : l'adresse publique n'était jamais envoyée).
+					iface = defaut
+				}
+				ajouter(adresseIP{iface: iface, ip: ip.String()})
 			}
 		}
 	}

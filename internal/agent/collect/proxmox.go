@@ -302,6 +302,10 @@ func (p *Proxmox) io(chemin string) (lus, ecrits uint64, ok bool) {
 	if err != nil {
 		return 0, 0, false
 	}
+	// ok seulement si au moins un compteur a été lu (relecture du 21/11 :
+	// un io.stat vide, disques Ceph ou NFS, donnait 0/0 et les autres
+	// sources n'étaient jamais essayées).
+	lu := false
 	for len(data) > 0 {
 		var ligne []byte
 		ligne, data = ligneSuivante(data)
@@ -315,15 +319,17 @@ func (p *Proxmox) io(chemin string) (lus, ecrits uint64, ok bool) {
 			if v := apresPrefixe(champ, "rbytes="); v != nil {
 				if n, ok := entier(v); ok {
 					lus += n
+					lu = true
 				}
 			} else if v := apresPrefixe(champ, "wbytes="); v != nil {
 				if n, ok := entier(v); ok {
 					ecrits += n
+					lu = true
 				}
 			}
 		}
 	}
-	return lus, ecrits, true
+	return lus, ecrits, lu
 }
 
 // pression : total (secondes) de la ligne « some » ou « full ».

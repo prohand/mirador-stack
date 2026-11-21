@@ -58,3 +58,20 @@ func BenchmarkAllegeur(b *testing.B) {
 		a.Filtrer(lot)
 	}
 }
+
+// Relecture du 21/11 : horloge reculée → les jauges stables repartent.
+func TestAllegeurHorlogeReculee(t *testing.T) {
+	a := NouvelAllegeur(120_000)
+	lot := func(ms int64) *Batch {
+		b := NewBatch(1, nil)
+		b.Reset(ms)
+		b.Add("node_memory_MemTotal_bytes", 42)
+		return b
+	}
+	a.Filtrer(lot(10_000_000))
+	b := lot(10_000_000 - 3_600_000) // NTP recule l'horloge d'une heure
+	a.Filtrer(b)
+	if len(b.Samples) != 1 {
+		t.Error("jauge stable non envoyée après un recul d'horloge")
+	}
+}

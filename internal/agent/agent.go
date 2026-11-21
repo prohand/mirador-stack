@@ -400,8 +400,13 @@ func (a *Agent) Vider(delai time.Duration) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	// Serveur injoignable à l'arrêt : ce qui reste en mémoire va sur le
-	// tampon disque (s'il est activé) et partira au prochain démarrage.
+}
+
+// Sauver : à appeler APRÈS l'arrêt des envois (relecture du 21/11 : appelé
+// pendant qu'un lot partait encore, ce lot était aussi écrit sur disque et
+// renvoyé au démarrage suivant, en double). Ce qui reste en mémoire va sur
+// le tampon disque (s'il est activé) et partira au prochain démarrage.
+func (a *Agent) Sauver() {
 	a.file.Sauver()
 	if a.logs != nil {
 		a.logs.file.Sauver()

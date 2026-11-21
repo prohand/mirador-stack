@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/netip"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -136,6 +137,21 @@ func TestServeurSyslog(t *testing.T) {
 	if e.Refus[RefusFilterlog] != 1 || e.Refus[RefusFormat] != 1 || e.Refus[RefusDebit] != 8 || len(recues) != 3 || e.Lignes["nas"] != 3 {
 		t.Errorf("compteurs : %+v, %d reçues", e, len(recues))
 	}
+	// Connexions ouvertes puis fermées : aucune goroutine ne reste
+	// (relecture du 21/11 : une par connexion jusqu'au redémarrage).
+	mu.Unlock()
+	time.Sleep(100 * time.Millisecond)
+	avant := runtime.NumGoroutine()
+	for i := 0; i < 50; i++ {
+		if c, err := tls.Dial("tcp", s.Adresse().String(), &tls.Config{RootCAs: racines, ServerName: "syslog.lan.exemple.org", MinVersion: tls.VersionTLS12}); err == nil {
+			c.Close()
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	if apres := runtime.NumGoroutine(); apres > avant+5 {
+		t.Errorf("goroutines : %d avant, %d après 50 connexions fermées", avant, apres)
+	}
+	mu.Lock()
 	// Émetteur inconnu : fermé avant le TLS.
 	s.mu.Lock()
 	s.emetteurs = nil

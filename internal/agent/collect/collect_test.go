@@ -4,6 +4,9 @@ package collect
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -298,5 +301,43 @@ func BenchmarkFiltresElements(b *testing.B) {
 				_ = r.Collecter(lot)
 			}
 		})
+	}
+}
+
+// Relecture du 21/11 : montages du système (pid 1) plutôt que ceux du bac à
+// sable de l'agent ; un montage FUSE figé (hors liste « distants ») ne
+// bloque pas la collecte.
+func TestSystemesFichiersHoteEtFUSE(t *testing.T) {
+	proc := t.TempDir()
+	ligne := func(id int, point, typ, source string) string {
+		return fmt.Sprintf("%d 1 8:1 / %s rw - %s %s rw\n", id, point, typ, source)
+	}
+	_ = os.MkdirAll(filepath.Join(proc, "1"), 0o755)
+	_ = os.MkdirAll(filepath.Join(proc, "self"), 0o755)
+	_ = os.WriteFile(filepath.Join(proc, "1", "mountinfo"), []byte(ligne(1, "/", "ext4", "/dev/sda1")+ligne(2, "/mnt/cloud", "fuse.rclone", "gdrive:")), 0o644)
+	_ = os.WriteFile(filepath.Join(proc, "self", "mountinfo"), []byte(ligne(1, "/", "ext4", "/dev/sda1")+ligne(3, "/var/lib/mirador-agent", "ext4", "/dev/sda1")), 0o644)
+	def := config.Defaut()
+	s := NewSystemesFichiers(proc, def.ExclureMontages, def.ExclureTypesFS, def.ExclureTypesFSDistant)
+	bloque := make(chan struct{})
+	defer close(bloque)
+	s.statfs = func(chemin string, st *syscall.Statfs_t) error {
+		if chemin == "/mnt/cloud" {
+			<-bloque
+		}
+		*st = syscall.Statfs_t{Bsize: 4096, Blocks: 10}
+		return nil
+	}
+	debut := time.Now()
+	p := collecter(t, s)
+	if d := time.Since(debut); d > delaiLocal+time.Second {
+		t.Errorf("montage FUSE figé : collecte bloquée %v", d)
+	}
+	for k := range p {
+		if contient(k, "mountpoint=/var/lib/mirador-agent") {
+			t.Error("montage du bac à sable systemd vu comme un disque")
+		}
+	}
+	if _, ok := p["node_filesystem_size_bytes|device=/dev/sda1|fstype=ext4|mountpoint=/"]; !ok {
+		t.Errorf("/ absent : %v", p)
 	}
 }

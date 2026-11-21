@@ -57,6 +57,18 @@ func TestLireTrame(t *testing.T) {
 	if len(vus) != 5 || vus[0] != "<14>app: un" || vus[1] != "<14>app: deux" || vus[2] != "<14>trois" || len(vus[3]) > TailleMaxMessage || vus[4] != "<14>fin" {
 		t.Fatalf("trames : %d %q", len(vus), vus[:min(3, len(vus))])
 	}
+	if !strings.HasPrefix(vus[3], "<14>xxx") {
+		t.Errorf("ligne trop longue : le début doit être gardé, pas %.20q", vus[3])
+	}
+	// Ligne trop longue avec une fin qui ressemble à un message (relecture
+	// du 21/11) : la fin est jetée, jamais lue comme un message à part.
+	long := "<14>web: GET /" + strings.Repeat("a", 3*TailleMaxMessage) + "<10>sshd: Accepted password for root\n<14>suite\n"
+	r = bufio.NewReaderSize(strings.NewReader(long), 16<<10)
+	a, _ := LireTrame(r)
+	b, _ := LireTrame(r)
+	if !strings.HasPrefix(string(a), "<14>web: GET /") || len(a) != TailleMaxMessage || string(b) != "<14>suite" {
+		t.Errorf("ligne longue : %.30q (%d), puis %q", a, len(a), b)
+	}
 	for _, mauvais := range []string{"99999 x", "123456 x", "12x <14>"} {
 		if _, err := LireTrame(bufio.NewReader(strings.NewReader(mauvais))); err == nil {
 			t.Errorf("trame acceptée : %q", mauvais)

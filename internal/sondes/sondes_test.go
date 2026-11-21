@@ -258,3 +258,50 @@ func TestTournerMaintenant(t *testing.T) {
 		t.Fatal("deuxième signal sans essai")
 	}
 }
+
+// Relecture du 21/11 : la sonde DNS interroge vraiment le serveur visé
+// (pas /etc/hosts du collecteur) ; un code attendu 3xx n'est pas suivi.
+func TestDNSEtRedirection(t *testing.T) {
+	if err := essaiDNS(context.Background(), Sonde{Cible: "127.0.0.1:1", Question: "localhost"}, Options{}); err == nil {
+		t.Error("DNS : « localhost » répondu sans serveur DNS (fichier hosts lu)")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/accueil", http.StatusMovedPermanently)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	if r, err := essaiHTTP(context.Background(), Sonde{Type: HTTP, Cible: srv.URL + "/", Code: 301}, Options{}); err != nil || r.Code != 301 {
+		t.Errorf("code 301 attendu : %d %v", r.Code, err)
+	}
+	if r, err := essaiHTTP(context.Background(), Sonde{Type: HTTP, Cible: srv.URL + "/"}, Options{}); err != nil || r.Code != 200 {
+		t.Errorf("sans code attendu, la redirection est suivie : %d %v", r.Code, err)
+	}
+}
+
+// Relecture du 21/11 : un essai coupé par l'arrêt (redémarrage du
+// collecteur) n'est pas envoyé comme un échec.
+func TestTournerArretSansFauxEchec(t *testing.T) {
+	lent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(3 * time.Second):
+		}
+	}))
+	defer lent.Close()
+	ctx, fin := context.WithCancel(context.Background())
+	signal := make(chan struct{}, 1)
+	signal <- struct{}{}
+	rendus := make(chan Resultat, 2)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		fin()
+	}()
+	Tourner(ctx, Sonde{Nom: "lent", Type: HTTP, Cible: lent.URL, Intervalle: "1h"}, Options{Maintenant: signal},
+		func(_ Sonde, r Resultat) { rendus <- r })
+	if len(rendus) != 0 {
+		t.Errorf("faux échec envoyé à l'arrêt : %+v", <-rendus)
+	}
+}

@@ -326,10 +326,13 @@ func (s *Syslog) Valider(equipements []string) error {
 // LireEmetteur : adresse IP ou réseau CIDR d'un émetteur (privé, comme lui).
 func LireEmetteur(v string) (netip.Prefix, error) {
 	if p, err := netip.ParsePrefix(v); err == nil {
-		if !AdressePrivee(p.Addr()) {
-			return netip.Prefix{}, errors.New("réseau du LAN attendu")
+		// Tout le réseau doit être privé, pas seulement l'adresse écrite
+		// (relecture du 21/11 : « 10.0.0.0/0 » devenait « 0.0.0.0/0 »).
+		p = p.Masked()
+		if !AdressePrivee(p.Addr()) || !AdressePrivee(derniereAdresse(p)) {
+			return netip.Prefix{}, errors.New("réseau du LAN attendu (tout le réseau doit être privé)")
 		}
-		return p.Masked(), nil
+		return p, nil
 	}
 	a, err := netip.ParseAddr(v)
 	if err != nil {
@@ -413,5 +416,15 @@ func DefautCollecteur() Agent {
 	a.FichierConfigDistante = "/var/lib/mirador-collector/config-distante.json"
 	a.FichierActualiser = ""
 	a.DossierBin = "/var/lib/mirador-collector/bin"
+	return a
+}
+
+// derniereAdresse : plus haute adresse du réseau p (déjà masqué).
+func derniereAdresse(p netip.Prefix) netip.Addr {
+	b := p.Addr().AsSlice()
+	for i := p.Bits(); i < len(b)*8; i++ {
+		b[i/8] |= 0x80 >> (i % 8)
+	}
+	a, _ := netip.AddrFromSlice(b)
 	return a
 }

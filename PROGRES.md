@@ -1641,6 +1641,14 @@ navigateur (page restée ouverte). Vérifié sur iPhone simulé (horloge avancé
 de 11 min, bandeau qui bascule, réouverture avec le code). Test Go :
 bandeaux ouvert / fermé / désactivé, retour sur la page.
 
+## Relecture de l'agent et du collecteur (SPEC § 111, 21/11)
+
+Quatre relectures en parallèle, ~35 points signalés, 30 vérifiés et
+corrigés (sécurité de l'assistant root, syslog, sondes, mise à jour,
+tampon d'envoi, collecte). 4 laissés de côté, à décider (§ 111). Tests
+ajoutés pour chaque correction (la plupart échouent sans elle) ;
+`go test -race` sans alerte ; gosec sans alerte. Coût : négligeable.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

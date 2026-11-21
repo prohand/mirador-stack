@@ -102,7 +102,7 @@ func lireCertificats(locaux, distants []string) *Certificats {
 					continue
 				}
 			}
-			cert, ino, ok := lireCertificat(f)
+			cert, ino, ok := lireCertificat(f, distant)
 			if ino != 0 {
 				if vus[ino] {
 					res.Ecartes++
@@ -166,8 +166,17 @@ func raisonDistant(f string) string {
 // ouvert sans bloquer puis vérifié (fichier ordinaire, taille bornée) : un
 // tube ou un périphérique ne peut pas bloquer l'assistant. Renvoie aussi
 // l'inode (0 si inconnu) pour le dédoublonnage.
-func lireCertificat(chemin string) (Certificat, uint64, bool) {
-	f, err := os.OpenFile(chemin, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOCTTY, 0) // #nosec G304 -- fichiers trouvés par les motifs validés
+//
+// Relecture du 21/11 : ouverture par ouvrirSur. Pour un motif distant, le
+// chemin réel est contrôlé sur le fichier effectivement ouvert (avant : un
+// lien changé entre le contrôle et l'ouverture faisait lire n'importe quoi
+// par root).
+func lireCertificat(chemin string, distant bool) (Certificat, uint64, bool) {
+	var verifier func(string) bool
+	if distant {
+		verifier = func(reel string) bool { return config.FichierAccepteDistant(reel) && dossierAutorise(reel) }
+	}
+	f, err := ouvrirSur(chemin, true, verifier)
 	if err != nil {
 		return Certificat{}, 0, false
 	}

@@ -32,6 +32,17 @@ func TestSyslogValider(t *testing.T) {
 	if p, err := LireEmetteur("192.168.1.20"); err != nil || p.Bits() != 32 {
 		t.Errorf("LireEmetteur : %v %v", p, err)
 	}
+	// Réseaux : tout le réseau doit être privé (relecture du 21/11).
+	for _, bon := range []string{"192.168.1.0/24", "10.0.0.0/8", "172.16.0.0/12", "fd00::/8"} {
+		if _, err := LireEmetteur(bon); err != nil {
+			t.Errorf("%s refusé : %v", bon, err)
+		}
+	}
+	for _, mauvais := range []string{"10.0.0.0/0", "192.168.1.0/1", "fd00::/0", "10.0.0.0/7", "172.16.0.0/8", "8.8.8.0/24"} {
+		if _, err := LireEmetteur(mauvais); err == nil {
+			t.Errorf("%s accepté", mauvais)
+		}
+	}
 	c := Collecteur{Equipements: []string{"nas", "nas"}}
 	if c.Valider() == nil {
 		t.Error("équipement en double accepté")

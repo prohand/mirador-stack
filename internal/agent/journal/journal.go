@@ -115,7 +115,9 @@ func curseurValide(c string) bool { return reCurseur.MatchString(c) }
 //     Debian 13) ; la limite de AgeMax est appliquée par l'agent (lancer) ;
 //   - sans curseur : on part de la fin (-n 0), pas de relecture du passé.
 func (l *Lecteur) arguments() []string {
-	args := []string{"--follow", "--no-pager", "--quiet", "-o", "json",
+	// --all : sans lui, un champ de plus de 4 Kio arrive à null (traces Java
+	// ou Python perdues, relecture du 21/11) ; la taille reste bornée ici.
+	args := []string{"--follow", "--no-pager", "--quiet", "--all", "-o", "json",
 		"--output-fields=MESSAGE,PRIORITY,_SYSTEMD_UNIT,SYSLOG_IDENTIFIER,_TRANSPORT",
 		"-p", "0..6"}
 	l.mu.Lock()

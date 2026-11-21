@@ -10,7 +10,10 @@
 //   - rien n'est écrit sur disque tant que les envois réussissent.
 package envoi
 
-import "sync"
+import (
+	"bytes"
+	"sync"
+)
 
 // File est une file FIFO de lots (octets déjà compressés), bornée en taille.
 type File struct {
@@ -24,6 +27,7 @@ type File struct {
 	// Tampon disque (SPEC § 100) : nil = désactivé.
 	disque       *Debord
 	depuisDisque []byte // lot du disque rendu par Premier (à retirer après envoi)
+	numDisque    uint64 // son numéro de fichier (il a pu être jeté entre-temps)
 }
 
 // AvecDisque : les lots qui débordent de la mémoire vont sur disque. Les
@@ -79,6 +83,12 @@ func (f *File) Ajouter(lot []byte) bool {
 		f.jetes++
 		return false
 	}
+	// Lot gardé à sa taille réelle (relecture du 21/11 : l'encodeur rend un
+	// tableau prévu pour le pire cas, ~5 fois plus grand que le lot
+	// compressé ; la file comptait le lot mais gardait tout le tableau).
+	if cap(lot) > len(lot)+len(lot)/4 {
+		lot = bytes.Clone(lot)
+	}
 	for f.taille+len(lot) > f.max && len(f.lots) > 0 {
 		f.taille -= len(f.lots[0])
 		if f.disque != nil {
@@ -109,7 +119,7 @@ func (f *File) Premier() []byte {
 	defer f.mu.Unlock()
 	if f.disque != nil {
 		if b := f.disque.premier(); b != nil {
-			f.depuisDisque = b
+			f.depuisDisque, f.numDisque = b, f.disque.fichiers[0].num
 			return b
 		}
 	}
@@ -125,7 +135,12 @@ func (f *File) Retirer(lot []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(lot) > 0 && len(f.depuisDisque) > 0 && &f.depuisDisque[0] == &lot[0] {
-		f.disque.retirerPremier()
+		// Seulement si ce lot est encore en tête du disque (relecture du
+		// 21/11 : jeté pendant l'envoi pour faire de la place, c'était le
+		// lot SUIVANT, jamais envoyé, qui était supprimé).
+		if len(f.disque.fichiers) > 0 && f.disque.fichiers[0].num == f.numDisque {
+			f.disque.retirerPremier()
+		}
 		f.depuisDisque = nil
 		return
 	}
