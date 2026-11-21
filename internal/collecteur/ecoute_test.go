@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 // Relecture du 21/11 : écoute impossible (adresse pas encore posée au
 // démarrage, DHCP…) : la mesure dit 0, nouvel essai, erreur écrite une fois.
 func TestEcoutePerdueReessayee(t *testing.T) {
-	var log bytes.Buffer
+	var log tamponSur
 	journal := slog.New(slog.NewTextHandler(&log, nil))
 	cfg := config.DefautCollecteur()
 	cfg.Nom, cfg.URLLogs = "collecteur-lan", "https://mirador.exemple.invalid/api/agent/v1/logs"
@@ -31,9 +32,7 @@ func TestEcoutePerdueReessayee(t *testing.T) {
 	if err != nil || s.serveur == nil {
 		t.Fatal(err)
 	}
-	avant := reessaiEcoute
-	reessaiEcoute = 200 * time.Millisecond
-	defer func() { reessaiEcoute = avant }()
+	s.reessai = 200 * time.Millisecond
 	ctx, fin := context.WithCancel(context.Background())
 	defer fin()
 	go s.Tourner(ctx, ctx)
@@ -56,4 +55,22 @@ func TestEcoutePerdueReessayee(t *testing.T) {
 	if n := strings.Count(log.String(), "nouvel essai toutes les 30 s"); n != 1 {
 		t.Errorf("erreur écrite %d fois (une seule attendue) : %s", n, log.String())
 	}
+}
+
+// tamponSur : journal lu par le test pendant que la boucle d'écoute écrit.
+type tamponSur struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (t *tamponSur) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.b.Write(p)
+}
+
+func (t *tamponSur) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.b.String()
 }

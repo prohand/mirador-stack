@@ -36,6 +36,7 @@ type Syslog struct {
 	certs   syslog.Certificats
 	serveur *syslog.Serveur // nil : pas de certificat encore
 	canal   chan syslog.Ligne
+	reessai time.Duration // attente avant de rouvrir une écoute en échec (0 : reessaiEcoute)
 	masque  *logs.Masqueur
 	lot     *logs.Lot
 	file    *envoi.File
@@ -98,7 +99,7 @@ func urlLogs(brute string) string {
 }
 
 // reessaiEcoute : attente avant de rouvrir une écoute syslog en échec.
-var reessaiEcoute = 30 * time.Second
+const reessaiEcoute = 30 * time.Second
 
 // sortie : file d'attente vers le lot (jamais bloquante : pleine, la ligne
 // est perdue et comptée par le serveur syslog).
@@ -122,6 +123,10 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 	// port pris…) ou arrêtée : nouvel essai toutes les 30 s (relecture du
 	// 21/11 : une seule erreur, puis plus de syslog jusqu'au redémarrage).
 	// Une erreur qui se répète n'est écrite qu'une fois.
+	reessai := s.reessai
+	if reessai <= 0 {
+		reessai = reessaiEcoute
+	}
 	go func() {
 		derniere := ""
 		for {
@@ -136,7 +141,7 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(reessaiEcoute):
+			case <-time.After(reessai):
 			}
 		}
 	}()
