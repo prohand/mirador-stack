@@ -137,7 +137,7 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		"/":                    {"Vue d'ensemble", "vm-test", "en attente d'approbation"},
 		"/machines":            {"vm-test", "nouvelle", "192.0.2.4"},
 		"/machines/vm-test":    {"vm-test", "data-courbe=", "Occupation des systèmes de fichiers"},
-		"/mises-a-jour":        {"Versions publiées"},
+		"/mises-a-jour":        {"Versions sur le serveur"},
 		"/tableaux":            {"Serveurs Linux", "Proxmox"},
 		"/fragments/accueil":   {"machines"},
 		"/compte":              {"Mon compte"},

@@ -393,7 +393,7 @@ func TestImportGitHubInterface(t *testing.T) {
 		t.Fatalf("import : %+v", e)
 	}
 	_, corps, _ := b.get(c, "/mises-a-jour")
-	if !strings.Contains(corps, "<td>1.3.0</td>") || !strings.Contains(corps, `value="supprimer_version"`) {
+	if !strings.Contains(corps, "<b>1.3.0</b>") || !strings.Contains(corps, `value="supprimer_version"`) || !strings.Contains(corps, "Déployer la version 1.4.0") {
 		t.Error("version importée (ou bouton Supprimer) absente de la liste")
 	}
 	// Liste de GitHub : la plus récente non importée choisie d'office.

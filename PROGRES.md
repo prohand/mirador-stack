@@ -1627,6 +1627,13 @@ oubli après 5 min), sondes (essai sur signal), collecteur (nom inconnu
 ignoré), lien (en-tête envoyé et lu), console (bouton grisé, limite 10 s,
 rechargement 30 s).
 
+## Mises à jour des agents : page revue (SPEC § 109, 21/11)
+
+Maquette validée : tuiles, déploiement en 3 étapes (importer, essayer sur
+une machine, déployer), machines par état avec filtres, cartes de
+versions, réglages repliés. Audit : lignes séparées comme les logs.
+Coût : nul (mêmes lectures). Tests : états, étapes 1 à 4, cartes, filtre.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

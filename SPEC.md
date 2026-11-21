@@ -7642,3 +7642,28 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   n'envoie pas l'en-tête et n'en reçoit jamais. Aucun port ouvert.
 - Coût : nul hors usage (une petite table en mémoire, vide le plus souvent) ;
   un essai de plus par clic.
+
+## 109. Mises à jour des agents : page revue (21/11, maquette validée) **[Fait, à valider]**
+- **Tuiles** : version du parc, dernière publiée sur GitHub (importée ou
+  « à importer »), machines à jour (barre verte / orange / rouge), fenêtre
+  horaire.
+- **Déployer en 3 étapes** : 1. importer depuis GitHub, 2. essayer sur une
+  machine (version propre sur cette machine, retour seul en cas d'échec,
+  comme avant), 3. déployer sur tout le parc (version du parc). L'étape en
+  cours est en bleu, les étapes faites cochées ; l'état de la machine
+  d'essai est affiché (en cours, réussi, échec avec « Réessayer »).
+  Aucune nouvelle règle : mêmes actions qu'avant (cible, cible d'une
+  machine, « Mettre à jour maintenant »), avec code 2FA.
+- **Machines** : filtres Toutes / À jour / En retard / En échec ; échecs
+  en premier, barre rouge (échec) ou orange (retard) ; version en
+  pastille ; erreur sous la cible ; « Réessayer » / « Mettre à jour
+  maintenant » sur la ligne. Équipements relevés par un collecteur (sans
+  version) et machines en attente : non listés.
+- **Versions sur le serveur** : une carte par version (architectures,
+  agent et collecteur, retour autorisé, machines qui l'utilisent), celle du
+  parc encadrée ; « Assigner au parc », « Supprimer » (si inutilisée).
+- **Réglages repliés** : clé publique (ouverte d'office s'il n'y en a
+  aucune), fenêtre horaire, versions gardées, publication à la main, dépôt.
+- Coût : aucun calcul de plus côté serveur (mêmes lectures qu'avant, tri
+  en mémoire de quelques dizaines de lignes). Menaces : inchangées (mêmes
+  actions, code 2FA, signature vérifiée).
