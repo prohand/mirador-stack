@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"path"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -374,6 +375,9 @@ func depuis(ms int64) string {
 }
 
 func dureeLisible(d time.Duration) string {
+	if d < 0 {
+		return "-" + dureeLisible(-d) // relecture du 21/11 : « -3600 s » → « -1 h 00 »
+	}
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%d s", int(d.Seconds()))
@@ -464,32 +468,84 @@ func tailleLisible(n int64) string {
 	}
 }
 
-// chargerGabarits : chaque page = base.html (ou seule.html pour les pages
-// de connexion) + son propre fichier.
+// chargerGabarits : chaque page = un cadre (base.html, seule.html…) + son
+// propre fichier + les morceaux communs.
+//
+// Mesure du 21/11 (SPEC § 115) : relire base.html et morceaux.html (58 Ko)
+// pour chacune des ~70 pages gardait ~40 Mo en mémoire. Désormais un seul
+// ensemble : les morceaux sont lus une fois ; le « contenu » de chaque page
+// est renommé « contenu:dossier/page », et chaque page reçoit une copie de
+// son cadre (8 Ko) qui appelle ce nom-là.
 func chargerGabarits() (*gabarits, error) {
 	g := &gabarits{pages: map[string]*template.Template{}}
+	lire := func(chemin string) (string, error) {
+		b, err := fs.ReadFile(fichiers, chemin)
+		return string(b), err
+	}
+	morceaux, err := lire("gabarits/morceaux.html")
+	if err != nil {
+		return nil, err
+	}
+	ens, err := template.New("morceaux.html").Funcs(fonctions()).Parse(morceaux)
+	if err != nil {
+		return nil, fmt.Errorf("gabarit morceaux.html : %w", err)
+	}
+	definis := map[string]string{} // nom défini → fichier (doublon refusé)
+	for _, m := range reDefine.FindAllStringSubmatch(morceaux, -1) {
+		definis[m[1]] = "morceaux.html"
+	}
 	for _, cadre := range []struct{ base, dossier string }{
 		{"gabarits/base.html", "gabarits/pages"},
 		{"gabarits/seule.html", "gabarits/connexion"},
 		{"gabarits/fragment.html", "gabarits/fragments"},
 		{"gabarits/ecran.html", "gabarits/ecran"}, // écran mural (SPEC § 31)
 	} {
+		base, err := lire(cadre.base)
+		if err != nil {
+			return nil, err
+		}
+		if strings.Count(base, `{{template "contenu" .}}`) != 1 {
+			return nil, fmt.Errorf("gabarit %s : un seul {{template \"contenu\" .}} attendu", cadre.base)
+		}
 		entrees, err := fs.ReadDir(fichiers, cadre.dossier)
 		if err != nil {
 			return nil, err
 		}
 		for _, e := range entrees {
 			nom := strings.TrimSuffix(e.Name(), ".html")
-			t, err := template.New(path.Base(cadre.base)).Funcs(fonctions()).ParseFS(fichiers, cadre.base,
-				"gabarits/morceaux.html", cadre.dossier+"/"+e.Name())
+			cle := path.Base(cadre.dossier) + "/" + nom
+			texte, err := lire(cadre.dossier + "/" + e.Name())
 			if err != nil {
+				return nil, err
+			}
+			if strings.Count(texte, `{{define "contenu"}}`) != 1 {
+				return nil, fmt.Errorf("gabarit %s : un seul {{define \"contenu\"}} attendu", e.Name())
+			}
+			texte = strings.Replace(texte, `{{define "contenu"}}`, `{{define "contenu:`+cle+`"}}`, 1)
+			// Un nom déjà défini ailleurs remplacerait l'autre sans bruit :
+			// refusé.
+			for _, m := range reDefine.FindAllStringSubmatch(texte, -1) {
+				if f, ok := definis[m[1]]; ok {
+					return nil, fmt.Errorf("gabarit %s : « %s » déjà défini dans %s", e.Name(), m[1], f)
+				}
+				definis[m[1]] = e.Name()
+			}
+			if _, err := ens.New("fichier:" + cle).Parse(texte); err != nil {
 				return nil, fmt.Errorf("gabarit %s : %w", e.Name(), err)
+			}
+			page := strings.Replace(base, `{{template "contenu" .}}`, `{{template "contenu:`+cle+`" .}}`, 1)
+			t, err := ens.New("page:" + cle).Parse(page)
+			if err != nil {
+				return nil, fmt.Errorf("gabarit %s (%s) : %w", e.Name(), cadre.base, err)
 			}
 			g.pages[nom] = t
 		}
 	}
 	return g, nil
 }
+
+// reDefine : noms définis dans un fichier de gabarit.
+var reDefine = regexp.MustCompile(`\{\{-?\s*define\s+"([^"]+)"`)
 
 // executer rend dans un tampon d'abord : une erreur de gabarit ne laisse
 // pas une page à moitié envoyée.

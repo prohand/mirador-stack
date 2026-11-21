@@ -135,6 +135,11 @@ func (l *Lecteur) arguments() []string {
 // journalctl s'il s'arrête. Chaque entrée est passée à traiter.
 func (l *Lecteur) Tourner(ctx context.Context, traiter func(*Entree)) {
 	attente := time.Second
+	// abandonne : le curseur vient d'être abandonné. Une seule fois de suite
+	// (relecture du 21/11 : un journalctl qui donne une ligne puis échoue
+	// redonnait un curseur, et la relance sans attente tournait en boucle,
+	// ~450 lancements par seconde).
+	abandonne := false
 	for ctx.Err() == nil {
 		debut := time.Now()
 		err := l.lancer(ctx, traiter)
@@ -145,18 +150,19 @@ func (l *Lecteur) Tourner(ctx context.Context, traiter func(*Entree)) {
 		// Échec immédiat avec un curseur (curseur refusé, journal effacé…) :
 		// on l'abandonne et on repart de la fin, plutôt que d'échouer sans fin.
 		l.mu.Lock()
-		abandon := err != nil && l.curseur != "" && time.Since(debut) < 10*time.Second
+		abandon := err != nil && l.curseur != "" && time.Since(debut) < 10*time.Second && !abandonne
 		if abandon {
 			l.curseur = ""
 		}
 		l.mu.Unlock()
 		if abandon {
 			l.opt.Journal.Warn("journalctl refuse la reprise au curseur : reprise à la fin du journal", "erreur", err)
-			attente = time.Second
+			abandonne = true
 			continue
 		}
 		if time.Since(debut) > time.Minute {
 			attente = time.Second // il a tourné normalement : on repart du début
+			abandonne = false
 		}
 		l.opt.Journal.Warn("journalctl s'est arrêté, relance", "attente", attente.String(), "erreur", err)
 		select {

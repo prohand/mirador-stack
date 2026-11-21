@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"mirador-stack/internal/agent/majagent"
+	"mirador-stack/internal/motif"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/certsyslog"
 )
@@ -302,7 +303,7 @@ func (f *Flotte) binaire(w http.ResponseWriter, r *http.Request) {
 
 // --- Battement ---------------------------------------------------------------------
 
-var formatTexteCourt = regexp.MustCompile(`^[\p{L}\p{N} .,:;/()'+_-]{0,200}$`)
+var formatTexteCourt = motif.Doit(`^[\p{L}\p{N} .,:;/()'+_-]*$`, 0, 200)
 
 func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
 	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)

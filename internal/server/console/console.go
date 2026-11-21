@@ -589,6 +589,10 @@ func (c *Console) echecSensible(q *req, raison string) error {
 	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.EssaisSensibles++; n = s.EssaisSensibles })
 	if n >= essaisSensiblesMax {
 		c.sessions.Supprimer(q.s.Empreinte)
+		// Appareil de confiance : oublié aussi, sinon la session revenait
+		// aussitôt depuis le disque avec un compteur à zéro (relecture du
+		// 21/11).
+		_ = auth.OublierConfiance(q.r.Context(), c.db, q.s.Empreinte)
 		c.journal.Warn("console : session fermée après trop d'essais", "ip", q.ip.String(), "utilisateur", q.u.Nom)
 		return errSessionFermee
 	}

@@ -51,9 +51,8 @@ type donneesFiche struct {
 
 func (c *Console) ficheElement(q *req, cle string) {
 	ctx := q.r.Context()
-	acc := c.donneesAccueil(q)
 	var e *element
-	for _, x := range c.elementsDuParc(ctx, acc.Parc, q.t) {
+	for _, x := range c.elementsDuParc(ctx, c.parcLeger(q), q.t) {
 		if x.Cle == cle {
 			x := x
 			e = &x
@@ -198,13 +197,17 @@ func (c *Console) ficheElement(q *req, cle string) {
 			"/alertes?"+url.Values{"machine": {e.Groupe}, "conteneur": {e.Nom}}.Encode(), q.t)
 	}
 	// Derniers événements (7 jours) qui le citent.
-	for _, ev := range c.journalEvenements(ctx, filtreEvenements{Debut: q.t.Add(-7 * 24 * time.Hour), Fin: q.t, SansAuto: true, Max: 300}) {
-		if strings.Contains(ev.Texte, e.Nom) || (strings.HasPrefix(cle, "c:") && ev.Machine == e.Groupe && ev.Type == evChangement) {
-			d.Evenements = append(d.Evenements, ev)
-			if len(d.Evenements) == 15 {
-				break
-			}
-		}
+	// Filtre « Cite » appliqué dans les requêtes (relecture du 21/11 : on
+	// cherchait avant dans les 300 derniers événements du parc seulement).
+	periode := filtreEvenements{Debut: q.t.Add(-7 * 24 * time.Hour), Fin: q.t, SansAuto: true, Max: 15}
+	cite := periode
+	cite.Cite = e.Nom
+	d.Evenements = c.journalEvenements(ctx, cite)
+	if strings.HasPrefix(cle, "c:") && e.Groupe != "" {
+		// Conteneur : aussi les changements de sa machine.
+		chgt := periode
+		chgt.Machine, chgt.Types = e.Groupe, map[string]bool{evChangement: true}
+		d.Evenements = fusionnerEvenements(d.Evenements, c.journalEvenements(ctx, chgt), 15)
 	}
 	// Lien du menu en surbrillance : la liste de cette sorte d'élément.
 	menu := "elements"

@@ -166,6 +166,13 @@ func LireConfigPortee(ctx context.Context, db *sql.DB, portee string) (map[strin
 // modifier clé par clé (nil = retirer la clé), puis l'enregistre avec les
 // mêmes contrôles et la même ligne d'audit que DefinirConfig.
 func ModifierConfig(ctx context.Context, db *sql.DB, portee string, changer func(m map[string]any), qui string, maintenant time.Time) error {
+	return ModifierConfigSi(ctx, db, portee, func(m map[string]any) error { changer(m); return nil }, qui, maintenant)
+}
+
+// ModifierConfigSi : comme ModifierConfig, mais rien n'est enregistré si
+// « changer » renvoie une erreur (relecture du 21/11 : une saisie refusée
+// pouvait écrire un document à moitié changé, avec sa ligne d'audit).
+func ModifierConfigSi(ctx context.Context, db *sql.DB, portee string, changer func(m map[string]any) error, qui string, maintenant time.Time) error {
 	if err := ValiderPortee(portee); err != nil {
 		return err
 	}
@@ -182,7 +189,9 @@ func ModifierConfig(ctx context.Context, db *sql.DB, portee string, changer func
 			return err
 		}
 	}
-	changer(m)
+	if err := changer(m); err != nil {
+		return err
+	}
 	for k, v := range m {
 		if v == nil {
 			delete(m, k)

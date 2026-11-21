@@ -99,6 +99,13 @@ func (c *Console) postEssaiSonde(q *req) {
 			return errors.New("essai déjà demandé il y a moins de 10 s")
 		}
 		essaisRecents.m[nom] = q.t
+		// Demandes de plus de 30 s : plus utiles (relecture du 21/11 :
+		// une entrée par sonde, même retirée, gardée pour toujours).
+		for n, le := range essaisRecents.m {
+			if q.t.Sub(le) > fenetreEssai {
+				delete(essaisRecents.m, n)
+			}
+		}
 		essaisRecents.mu.Unlock()
 		machine := flotte.MachineServeur
 		if s.Depuis != essais.ServeurLocal {

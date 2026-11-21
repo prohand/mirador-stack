@@ -217,3 +217,16 @@ func BenchmarkEncode(b *testing.B) {
 	}
 	b.ReportMetric(float64(lot.Len()), "points/op")
 }
+
+// Relecture du 21/11 : un tampon rendu par la file (taille du résultat
+// compressé précédent) est réutilisé par le cycle suivant.
+func TestEncodeReutiliseTampon(t *testing.T) {
+	var e Encoder
+	// La file garde le lot à sa taille exacte (copie) : c'est ce tampon-là
+	// qui revient.
+	premier := append([]byte(nil), e.Encode(nil, lotExemple())...)
+	second := e.Encode(premier[:0], lotExemple())
+	if len(second) == 0 || &second[0] != &premier[:1][0] {
+		t.Error("tampon rendu non réutilisé")
+	}
+}

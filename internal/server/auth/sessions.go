@@ -126,6 +126,10 @@ func empreinteID(id string) string {
 // code 2FA) recevait un nouveau jeton, et le formulaire déjà affiché était
 // refusé. Le hachage ne révèle pas l'identifiant ; un autre site ne peut
 // pas le calculer sans le cookie.
+// CSRFDe : jeton de formulaire d'un identifiant de session (pour vérifier
+// une déconnexion dont la session n'est plus en mémoire).
+func CSRFDe(id string) string { return csrfDe(id) }
+
 func csrfDe(id string) string {
 	e := sha256.Sum256([]byte("mirador-csrf\x00" + id))
 	return hex.EncodeToString(e[:24])

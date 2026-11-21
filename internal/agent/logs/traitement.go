@@ -44,6 +44,7 @@ type Traitement struct {
 	erreursDisque uint64
 	oom           map[string]uint64 // processus tué → nombre
 	plantages     map[string]uint64 // conteneur → lignes panic/FATAL/segfault
+	plantageLe    map[string]time.Time
 	lignesDocker  uint64
 }
 
@@ -51,14 +52,15 @@ type Traitement struct {
 // lotDocker celles des conteneurs (peut être nil).
 func NewTraitement(opt Options, lot, lotDocker *Lot) *Traitement {
 	t := &Traitement{
-		lotDocker: lotDocker,
-		plantages: map[string]uint64{},
-		opt:       opt,
-		lot:       lot,
-		jetons:    opt.Rafale,
-		jetes:     map[string]uint64{},
-		oom:       map[string]uint64{},
-		horloge:   time.Now,
+		lotDocker:  lotDocker,
+		plantages:  map[string]uint64{},
+		plantageLe: map[string]time.Time{},
+		opt:        opt,
+		lot:        lot,
+		jetons:     opt.Rafale,
+		jetes:      map[string]uint64{},
+		oom:        map[string]uint64{},
+		horloge:    time.Now,
 	}
 	if opt.Bruit != "" {
 		t.bruit = regexp.MustCompile(opt.Bruit) // validée par la configuration
@@ -107,6 +109,10 @@ var reCrashConteneur = regexp.MustCompile(`panic:|FATAL|Segmentation fault`)
 // maxConteneursCompteurs : au-delà, les nouveaux conteneurs sont comptés sous « autre ».
 const maxConteneursCompteurs = 200
 
+// oubliPlantages : compteur d'un conteneur oublié après ce temps sans
+// ligne de plantage.
+const oubliPlantages = 24 * time.Hour
+
 // TraiterDocker : appelé pour chaque ligne d'un conteneur. Même filtrage,
 // même limite de débit (partagée avec le journal, comme Alloy) et même
 // masquage que le journal.
@@ -123,6 +129,7 @@ func (t *Traitement) TraiterDocker(temps time.Time, msg, conteneur, flux string)
 			nom = "autre"
 		}
 		t.plantages[nom]++
+		t.plantageLe[nom] = t.horloge()
 	}
 	if t.bruit != nil && t.bruit.MatchString(msg) {
 		t.jetes["bruit"]++
@@ -201,7 +208,17 @@ func (t *Traitement) Metriques(b *metrics.Batch) {
 	if t.lotDocker != nil {
 		b.Add("mirador_logs_docker_lines_total", float64(t.lignesDocker))
 	}
+	// Conteneur sans ligne de plantage depuis 24 h (souvent supprimé, ou
+	// recréé sous un autre nom) : compteur oublié, la série n'est plus
+	// envoyée (relecture du 21/11 : 200 au plus, gardés pour toujours).
+	// Une règle sur ce compteur doit regarder moins de 24 h (increase).
+	maintenant := t.horloge()
 	for nom, n := range t.plantages {
+		if maintenant.Sub(t.plantageLe[nom]) > oubliPlantages {
+			delete(t.plantages, nom)
+			delete(t.plantageLe, nom)
+			continue
+		}
 		b.Add("mirador_logs_container_crash_lines_total", float64(n), metrics.L("container", nom))
 	}
 	b.Add("mirador_logs_ssh_auth_failures_total", float64(t.echecsSSH))

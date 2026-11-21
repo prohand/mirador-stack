@@ -57,7 +57,7 @@ func TestMasquerEtGarder(t *testing.T) {
 	// liste a changé (rapprochement par « machine »).
 	var actuel, nouveau any
 	_ = json.Unmarshal([]byte(doc), &actuel)
-	_ = json.Unmarshal([]byte(`{"collecteur":{"snmp":[{"machine":"routeur","mot_de_passe":"***"},{"machine":"nas","mot_de_passe":"***"}],"unifi":{"cle_api":"***"}}}`), &nouveau)
+	_ = json.Unmarshal([]byte(`{"collecteur":{"snmp":[{"machine":"routeur","mot_de_passe":"***"},{"machine":"nas","adresse":"192.0.2.10","mot_de_passe":"***"}],"unifi":{"cle_api":"***"}}}`), &nouveau)
 	garde, err := Garder(nouveau, actuel)
 	if err != nil {
 		t.Fatal(err)
@@ -70,5 +70,16 @@ func TestMasquerEtGarder(t *testing.T) {
 	_ = json.Unmarshal([]byte(`{"collecteur":{"snmp":[{"machine":"inconnu","mot_de_passe":"***"}]}}`), &nouveau)
 	if _, err := Garder(nouveau, actuel); err == nil {
 		t.Error("« *** » sans valeur actuelle accepté")
+	}
+	// Relecture du 21/11 : « *** » pour une autre adresse ou une autre
+	// empreinte : refusé (le secret partirait vers une autre machine).
+	for _, d := range []string{
+		`{"collecteur":{"snmp":[{"machine":"nas","adresse":"192.0.2.66","mot_de_passe":"***"}]}}`,
+		`{"collecteur":{"snmp":[{"machine":"nas","adresse":"192.0.2.10","empreinte":"ab","mot_de_passe":"***"}]}}`,
+	} {
+		_ = json.Unmarshal([]byte(d), &nouveau)
+		if _, err := Garder(nouveau, actuel); err == nil {
+			t.Errorf("« *** » gardé malgré le changement : %s", d)
+		}
 	}
 }

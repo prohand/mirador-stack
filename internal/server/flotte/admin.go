@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -15,6 +16,7 @@ import (
 
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/ingestion"
+	essais "mirador-stack/internal/sondes"
 )
 
 // Actions d'administration des machines. Utilisées par les commandes du
@@ -373,9 +375,52 @@ func Renommer(ctx context.Context, db *sql.DB, nom, nouveau, qui string, mainten
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE machines SET nom = ? WHERE id = ?`, nouveau, id)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE machines SET nom = ? WHERE id = ?`, nouveau, id); err != nil {
+			return err
+		}
+		return renommerReferences(ctx, tx, nom, nouveau)
 	})
+}
+
+// renommerReferences : les réglages qui désignent une machine par son nom
+// suivent le renommage (relecture du 21/11 : renommer un collecteur
+// bloquait toutes les sondes, « n'est ni le serveur ni un collecteur
+// approuvé » ; une maintenance « machine:ancien » ne faisait plus taire
+// les alertes).
+func renommerReferences(ctx context.Context, tx *sql.Tx, ancien, nouveau string) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE maintenances SET cible = ? WHERE cible = ?`, "machine:"+nouveau, "machine:"+ancien); err != nil {
+		return err
+	}
+	var v string
+	err := tx.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleSondes).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var sondes []essais.Sonde
+	if err := json.Unmarshal([]byte(v), &sondes); err != nil {
+		return nil // réglage illisible : laissé tel quel (signalé ailleurs)
+	}
+	change := false
+	for i := range sondes {
+		if sondes[i].Depuis == ancien {
+			sondes[i].Depuis, change = nouveau, true
+		}
+		if sondes[i].Machine == ancien {
+			sondes[i].Machine, change = nouveau, true
+		}
+	}
+	if !change {
+		return nil
+	}
+	brut, err := json.Marshal(sondes)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE reglages SET valeur = ? WHERE cle = ?`, string(brut), cleSondes)
+	return err
 }
 
 // nomsReserves : adresses de l'interface placées sous /machines/ ; une
@@ -447,6 +492,23 @@ func NomsAnciens(ctx context.Context, db *sql.DB) (map[string]string, error) {
 // est effacé à part, sur demande ; les logs partent avec la rétention).
 func Supprimer(ctx context.Context, db *sql.DB, nom, qui string, maintenant time.Time) error {
 	return changer(ctx, db, nom, qui, "supprimer_machine", "", maintenant, func(tx *sql.Tx, id int64) error {
+		// Sondes faites depuis ce collecteur : refus (relecture du 21/11 :
+		// sinon plus aucune sonde ne pouvait être enregistrée).
+		var v string
+		if err := tx.QueryRowContext(ctx, `SELECT valeur FROM reglages WHERE cle = ?`, cleSondes).Scan(&v); err == nil {
+			var sondes []essais.Sonde
+			if json.Unmarshal([]byte(v), &sondes) == nil {
+				n := 0
+				for _, s := range sondes {
+					if s.Depuis == nom {
+						n++
+					}
+				}
+				if n > 0 {
+					return fmt.Errorf("%d sonde(s) faite(s) depuis %s : les faire depuis un autre collecteur ou les retirer d'abord (page Sondes)", n, nom)
+				}
+			}
+		}
 		_, err := tx.ExecContext(ctx, `DELETE FROM machines WHERE id = ?`, id)
 		return err
 	})

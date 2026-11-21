@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"mirador-stack/internal/motif"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/servicesmetier"
 )
@@ -32,7 +33,7 @@ const (
 
 var (
 	reCleEtiquette    = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
-	reValeurEtiquette = regexp.MustCompile(`^[\pL\pN _.:/-]{1,64}$`)
+	reValeurEtiquette = motif.Doit(`^[\pL\pN _.:/-]+$`, 1, 64)
 )
 
 // lireEtiquettes : élément (« m:pve1 ») → clé → valeur.

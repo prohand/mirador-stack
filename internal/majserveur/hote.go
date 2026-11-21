@@ -35,8 +35,12 @@ import (
 //  7. sinon : retour à l'ancienne image ET à la copie de la base (la nouvelle
 //     version a pu la migrer), relance, état « échec ».
 //
+//  8. après un succès : étiquettes de version sur la nouvelle image et la
+//     précédente, ménage des autres images du serveur (rangerImages).
+//
 // Seules commandes lancées : docker pull / compose stop / compose up -d /
-// cp, avec des arguments fixés ici ; la demande ne fournit que la version.
+// cp / image inspect / image ls / tag / image rm, avec des arguments fixés
+// ici ; la demande ne fournit que la version.
 
 // Reglages : /etc/mirador-maj-serveur.conf (CLE=valeur).
 type Reglages struct {
@@ -318,6 +322,7 @@ func (h *Hote) Appliquer(ctx context.Context) error {
 	if _, err := h.Docker.Lancer(ctx, "compose", "up", "-d", h.R.Service); err == nil && h.attendre(ctx, d.Version, debut) {
 		_ = EcrireFichier(h.R.DossierSauvegardes, fichierVersion, []byte(d.Version+"\n"), 0o600)
 		h.ranger()
+		h.rangerImages(ctx, ref, d.Version, valeurEnv(envAvant, "MIRADOR_IMAGE"), avant)
 		return h.finir(EtatOK, fmt.Sprintf("version %s en service (avant : %s)", d.Version, avant))
 	}
 	// 7. Retour arrière.
@@ -530,4 +535,99 @@ func TelechargerGitHub(ctx context.Context, adresse string, max int64) ([]byte, 
 		return nil, errors.New("fichier trop gros")
 	}
 	return b, nil
+}
+
+// --- Images ---------------------------------------------------------------------
+
+var (
+	formatIDImage = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	formatTag     = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
+)
+
+// rangerImages : après une mise à jour réussie (21/11, retour d'Arcane).
+// L'image est téléchargée par son empreinte : sans étiquette, un outil qui
+// surveille les images (Arcane, Watchtower…) ne voit que l'ancienne
+// étiquette « latest » restée sur la première image installée et annonce
+// une mise à jour déjà faite. Et chaque version laissait son image sur le
+// disque.
+//  1. étiquettes « IMAGE:VERSION » sur la nouvelle image et la précédente
+//     (le retour arrière à la main reste possible) ;
+//  2. étiquette « latest » retirée (elle ne disait pas la vérité) ;
+//  3. les autres images du serveur supprimées (Docker refuse celles qu'un
+//     conteneur utilise encore : rien de forcé).
+//
+// Rien ici ne fait échouer la mise à jour : chaque souci est noté.
+func (h *Hote) rangerImages(ctx context.Context, ref, version, refAvant, avant string) {
+	// garder : images à conserver ; vrai si elle porte son étiquette de
+	// version (on peut alors lui retirer « latest » sans la supprimer).
+	garder := map[string]bool{}
+	for _, x := range [][2]string{{ref, version}, {refAvant, avant}} {
+		r, v := x[0], x[1]
+		if !strings.HasPrefix(r, h.R.Image+"@") && !strings.HasPrefix(r, h.R.Image+":") {
+			continue
+		}
+		id, err := h.Docker.Lancer(ctx, "image", "inspect", "--format", "{{.Id}}", r)
+		if id = strings.TrimSpace(id); err != nil || !formatIDImage.MatchString(id) {
+			continue
+		}
+		garder[id] = garder[id] || h.etiqueter(ctx, r, v)
+	}
+	// Sans l'identifiant de l'image en service, on ne supprime rien à
+	// l'aveugle.
+	if len(garder) == 0 {
+		h.noter("images non rangées : image en service introuvable")
+		return
+	}
+	liste, err := h.Docker.Lancer(ctx, "image", "ls", "--digests", "--no-trunc", "--format", "{{.ID}}|{{.Tag}}|{{.Digest}}", h.R.Image)
+	if err != nil {
+		h.noter("images non rangées : %v", err)
+		return
+	}
+	retirees := 0
+	for _, l := range strings.Split(liste, "\n") {
+		p := strings.Split(strings.TrimSpace(l), "|")
+		if len(p) != 3 || !formatIDImage.MatchString(p[0]) {
+			continue // ligne inattendue (avertissement de Docker…) : ignorée
+		}
+		id, tag, emp := p[0], p[1], p[2]
+		var cible string
+		switch {
+		case garder[id] && tag == "latest":
+			cible = h.R.Image + ":latest" // l'étiquette seule (l'image a sa version)
+		case hasCle(garder, id):
+			continue
+		case tag != "<none>" && formatTag.MatchString(tag):
+			cible = h.R.Image + ":" + tag
+		case formatIDImage.MatchString(emp):
+			cible = h.R.Image + "@" + emp
+		default:
+			continue
+		}
+		if _, err := h.Docker.Lancer(ctx, "image", "rm", cible); err != nil {
+			h.noter("image %s gardée : %v", cible, err)
+			continue
+		}
+		retirees++
+	}
+	if retirees > 0 {
+		h.noter("images rangées : %d étiquette(s) ou image(s) ancienne(s) retirée(s)", retirees)
+	}
+}
+
+// etiqueter : « docker tag REF IMAGE:VERSION » (version vérifiée) ; vrai
+// si l'étiquette est posée.
+func (h *Hote) etiqueter(ctx context.Context, ref, version string) bool {
+	if !formatVersion.MatchString(version) {
+		return false
+	}
+	if _, err := h.Docker.Lancer(ctx, "tag", ref, h.R.Image+":"+version); err != nil {
+		h.noter("étiquette %s non posée : %v", version, err)
+		return false
+	}
+	return true
+}
+
+func hasCle(m map[string]bool, k string) bool {
+	_, ok := m[k]
+	return ok
 }

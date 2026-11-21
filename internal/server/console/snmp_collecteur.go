@@ -79,20 +79,19 @@ func (c *Console) postSNMP(q *req, m flotte.InfoMachine, action string) (string,
 		noms = append(noms, e.Nom)
 	}
 	portee := "machine:" + strconv.FormatInt(m.ID, 10)
-	var errValid error
 	modifier := func(changer func(col map[string]any) error) error {
-		err := flotte.ModifierConfig(ctx, c.db, portee, func(doc map[string]any) {
+		return flotte.ModifierConfigSi(ctx, c.db, portee, func(doc map[string]any) error {
 			col := lireCollecteurPortee(doc)
-			if errValid = changer(col); errValid != nil {
-				return
+			if err := changer(col); err != nil {
+				return err
 			}
 			if len(col) == 0 {
 				delete(doc, "collecteur")
 			} else {
 				doc["collecteur"] = col
 			}
+			return nil
 		}, q.qui(), q.t)
-		return errors.Join(errValid, err)
 	}
 	switch action {
 	case "snmp":

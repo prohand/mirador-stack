@@ -65,6 +65,10 @@ type filtreEvenements struct {
 	Types      map[string]bool
 	SansAuto   bool
 	Max        int
+	// Cite : seulement les événements dont le texte cite ce nom (fiche d'un
+	// élément, « element= » de la page). Filtré aussi dans les requêtes,
+	// avant la limite (relecture du 21/11).
+	Cite string
 }
 
 func (f filtreEvenements) veut(e evenement) bool {
@@ -72,6 +76,9 @@ func (f filtreEvenements) veut(e evenement) bool {
 		return false
 	}
 	if len(f.Types) > 0 && !f.Types[e.Type] {
+		return false
+	}
+	if f.Cite != "" && !strings.Contains(e.Texte, f.Cite) {
 		return false
 	}
 	return !(f.SansAuto && e.Auto)
@@ -88,10 +95,34 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			out = append(out, e)
 		}
 	}
+	// Filtre machine appliqué dans la requête, avant la limite (relecture
+	// du 21/11 : sinon, sur un parc chargé, les événements d'une machine
+	// calme étaient coupés par ceux des autres).
+	sqlAlerte, sqlChgt := "", ""
+	argsAlerte := []any{f.Debut.UnixMilli(), f.Fin.UnixMilli(), f.Debut.UnixMilli(), f.Fin.UnixMilli()}
+	argsChgt := []any{f.Debut.Unix(), f.Fin.Unix()}
+	if f.Machine != "" {
+		sqlAlerte = ` AND COALESCE(NULLIF(json_extract(etiquettes, '$.instance'), ''), json_extract(etiquettes, '$.host')) = ?`
+		argsAlerte = append(argsAlerte, f.Machine)
+		sqlChgt = ` AND machine = ?`
+		argsChgt = append(argsChgt, f.Machine)
+	}
+	// Tri grossier dans la requête (LIKE, sans casse) ; le tri exact se
+	// fait sur le texte final (veut).
+	sqlAuditCite, argsAuditCite := "", []any{}
+	if f.Cite != "" {
+		m := "%" + echapperLike(f.Cite) + "%"
+		sqlAlerte += ` AND (resume LIKE ? ESCAPE '\' OR regle LIKE ? ESCAPE '\' OR etiquettes LIKE ? ESCAPE '\')`
+		argsAlerte = append(argsAlerte, m, m, m)
+		sqlChgt += ` AND (detail LIKE ? ESCAPE '\' OR machine LIKE ? ESCAPE '\' OR type LIKE ? ESCAPE '\')`
+		argsChgt = append(argsChgt, m, m, m)
+		sqlAuditCite = ` AND (objet LIKE ? ESCAPE '\' OR action LIKE ? ESCAPE '\' OR qui LIKE ? ESCAPE '\')`
+		argsAuditCite = append(argsAuditCite, m, m, m)
+	}
 	// Alertes : début (passage en alerte) et fin.
 	if rows, err := c.db.QueryContext(ctx, `SELECT id, regle, etiquettes, gravite, active_le, fin, resume FROM alertes
-		WHERE active_le > 0 AND (active_le BETWEEN ? AND ? OR fin BETWEEN ? AND ?) ORDER BY active_le DESC LIMIT ?`,
-		f.Debut.UnixMilli(), f.Fin.UnixMilli(), f.Debut.UnixMilli(), f.Fin.UnixMilli(), 4*f.Max); err == nil {
+		WHERE active_le > 0 AND (active_le BETWEEN ? AND ? OR fin BETWEEN ? AND ?)`+sqlAlerte+` ORDER BY active_le DESC LIMIT ?`,
+		append(argsAlerte, 4*f.Max)...); err == nil {
 		for rows.Next() {
 			var id, active, fin int64
 			var regle, etq, gravite, resume string
@@ -129,8 +160,8 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 		}
 	}
 	// Changements repérés (SPEC § 47).
-	if rows, err := c.db.QueryContext(ctx, `SELECT machine, le, type, detail FROM changements WHERE le BETWEEN ? AND ? ORDER BY le DESC LIMIT ?`,
-		f.Debut.Unix(), f.Fin.Unix(), f.Max); err == nil {
+	if rows, err := c.db.QueryContext(ctx, `SELECT machine, le, type, detail FROM changements WHERE le BETWEEN ? AND ?`+sqlChgt+` ORDER BY le DESC LIMIT ?`,
+		append(argsChgt, f.Max)...); err == nil {
 		for rows.Next() {
 			var x changements.Changement
 			var le int64
@@ -177,8 +208,27 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 		}
 		_ = rows.Close()
 	}
-	if rows, err := c.db.QueryContext(ctx, `SELECT le, qui, action, objet FROM audit WHERE le BETWEEN ? AND ? ORDER BY le DESC LIMIT ?`,
-		f.Debut.Unix(), f.Fin.Unix(), 2*f.Max); err == nil {
+	sqlAudit, argsAudit := "", []any{f.Debut.Unix(), f.Fin.Unix()}
+	if f.Machine != "" {
+		// Objet « machine:ID … » ou « nom … » (premier mot).
+		var ids []string
+		for k, v := range noms {
+			if v == f.Machine && k != v {
+				ids = append(ids, k)
+			}
+		}
+		sqlAudit = ` AND (objet = ? OR objet LIKE ? ESCAPE '\'`
+		argsAudit = append(argsAudit, f.Machine, echapperLike(f.Machine)+" %")
+		for _, id := range ids {
+			sqlAudit += ` OR objet = ? OR objet LIKE ? ESCAPE '\'`
+			argsAudit = append(argsAudit, id, echapperLike(id)+" %")
+		}
+		sqlAudit += `)`
+	}
+	sqlAudit += sqlAuditCite
+	argsAudit = append(argsAudit, argsAuditCite...)
+	if rows, err := c.db.QueryContext(ctx, `SELECT le, qui, action, objet FROM audit WHERE le BETWEEN ? AND ?`+sqlAudit+` ORDER BY le DESC LIMIT ?`, // #nosec G202 -- morceaux SQL fixes, valeurs en paramètres
+		append(argsAudit, 2*f.Max)...); err == nil {
 		for rows.Next() {
 			var le int64
 			var qui, action, objet string
@@ -266,17 +316,13 @@ func (c *Console) pageEvenements(q *req) {
 			f.Types[evResolu] = true
 		}
 	}
-	evs := c.journalEvenements(ctx, f)
 	if d.Element = strings.TrimSpace(v.Get("element")); d.Element != "" && len(d.Element) <= 200 {
-		garde := evs[:0]
-		for _, e := range evs {
-			if strings.Contains(e.Texte, d.Element) {
-				garde = append(garde, e)
-			}
-		}
-		evs = garde
+		f.Cite = d.Element
 		d.FiltreSur = filtreSur{"« " + d.Element + " »", "/evenements"}
+	} else {
+		d.Element = ""
 	}
+	evs := c.journalEvenements(ctx, f)
 	d.Total = len(evs)
 	loc := fuseau.Load()
 	for _, e := range evs {
@@ -324,4 +370,27 @@ func textePanne(p flotte.Panne) string {
 		return "Processus tué faute de mémoire : " + p.Texte
 	}
 	return p.Type + " " + p.Objet
+}
+
+// echapperLike protège %, _ et \ d'un texte pour « LIKE … ESCAPE '\' ».
+func echapperLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
+}
+
+// fusionnerEvenements : deux listes (les plus récents d'abord), sans
+// doublon, max éléments au plus.
+func fusionnerEvenements(a, b []evenement, max int) []evenement {
+	vus := map[evenement]bool{}
+	var out []evenement
+	for _, e := range append(append([]evenement{}, a...), b...) {
+		if !vus[e] {
+			vus[e] = true
+			out = append(out, e)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Le.After(out[j].Le) })
+	if len(out) > max {
+		out = out[:max]
+	}
+	return out
 }

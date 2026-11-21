@@ -156,3 +156,28 @@ func TestCacheSansAnnulation(t *testing.T) {
 		t.Error("détection de l'annulation")
 	}
 }
+
+// Relecture du 21/11 : durées énormes ou négatives, décimales bornées,
+// import Grafana avec un nom de fichier quelconque.
+func TestRelectureTableaux(t *testing.T) {
+	if s := formater(1e10, "s", nil); strings.Contains(s, "-") || !strings.HasSuffix(s, " j") {
+		t.Errorf("1e10 s : %q", s)
+	}
+	if s := dureeLisible(-time.Hour); s != "-1 h 00" {
+		t.Errorf("-1 h : %q", s)
+	}
+	d := 100000000
+	tb := &Tableau{Version: 1, Nom: "essai", Titre: "Essai", Periode: "6h", Rangees: []Rangee{{Titre: "r", Panneaux: []Panneau{
+		{Type: PanneauChiffre, Titre: "p", Largeur: 3, Decimales: &d, Requetes: []Requete{{ID: "A", Expr: "up"}}}}}}}
+	if err := tb.Valider(); err == nil {
+		t.Error("100 000 000 décimales acceptées")
+	}
+	g := `{"title":"Node Exporter Full","time":{"from":"now-90d"},"panels":[{"type":"stat","title":"Up","gridPos":{"w":6},"targets":[{"expr":"up","refId":"A"}]}]}`
+	tg, err := DepuisGrafana("Node Exporter Full-1700000000000", []byte(g))
+	if err != nil {
+		t.Fatalf("import Grafana refusé : %v", err)
+	}
+	if tg.Periode != "31d" {
+		t.Errorf("période : %q", tg.Periode)
+	}
+}

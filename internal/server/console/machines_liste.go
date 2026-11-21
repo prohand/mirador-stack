@@ -109,6 +109,19 @@ func (f filtresPage) trouve(v vueMachine) bool {
 	if f.Q == "" {
 		return true
 	}
+	// « site:x », « type:x », « groupe:x » : valeur exacte de ce champ
+	// (lien « +N » de Réglages › Sites, relecture du 21/11 : la recherche
+	// libre comptait aussi les machines dont le nom contient le mot).
+	if cle, val, ok := strings.Cut(f.Q, ":"); ok {
+		switch cle {
+		case "site":
+			return strings.EqualFold(v.Site, val)
+		case "type":
+			return strings.EqualFold(v.Env, val)
+		case "groupe":
+			return strings.EqualFold(v.Groupe, val)
+		}
+	}
 	q := strings.ToLower(f.Q)
 	for _, champ := range []string{v.Nom, v.Site, v.Env, v.Groupe} {
 		if strings.Contains(strings.ToLower(champ), q) {

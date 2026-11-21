@@ -729,6 +729,11 @@ func (c *Console) postDeconnexion(w http.ResponseWriter, r *http.Request) {
 			c.sessions.Supprimer(s.Empreinte)
 			// Déconnexion volontaire : l'appareil n'est plus de confiance.
 			_ = auth.OublierConfiance(r.Context(), c.db, s.Empreinte)
+		} else if subtle.ConstantTimeCompare([]byte(r.PostFormValue("csrf")), []byte(auth.CSRFDe(ck.Value))) == 1 {
+			// Session plus en mémoire (inactivité, redémarrage) : l'appareil
+			// de confiance est quand même oublié (relecture du 21/11 : un
+			// cookie copié restait valable 30 jours après la déconnexion).
+			_ = auth.OublierConfiance(r.Context(), c.db, auth.EmpreinteDe(ck.Value))
 		}
 	}
 	auth.EffacerCookie(w)

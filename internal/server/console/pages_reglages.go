@@ -498,10 +498,17 @@ func (c *Console) postConservation(q *req) {
 	ok := "réglages enregistrés et appliqués"
 	if err == nil {
 		var attente bool
+		enCours, _ := LireAttente(ctx, c.db)
 		if attente, err = EcrireConservation(ctx, c.db, n, q.qui(), q.ip.String(), q.t); err == nil && attente {
 			ok = "réduction programmée dans 5 minutes : elle peut encore être annulée"
+			if enCours != nil {
+				ok += " (elle remplace la réduction qui attendait)"
+			}
 		} else if err == nil {
 			c.appliquerConservation(ctx, q.t)
+			if enCours != nil {
+				ok += " ; la réduction qui attendait est annulée (refaire la réduction si elle est toujours voulue)"
+			}
 		}
 	}
 	c.retour(q, "/reglages/conservation", err, ok)
@@ -782,14 +789,20 @@ func (c *Console) postAgents(q *req) {
 			return err
 		}
 		doc := map[string]any{}
-		if f.texte("action") != "retirer" {
-			// Les choix de surveillance (page de chaque machine, SPEC § 19 et 21) ne
-			// sont pas dans ce formulaire : ils sont gardés tels quels.
-			for k, v := range c.lirePortee(q.r.Context(), portee) {
-				if flotte.ClePageMachine(k) {
-					doc[k] = v
-				}
+		// Tout ce que ce formulaire ne gère pas est gardé tel quel, y compris
+		// pour « Tout hériter » : choix de surveillance (page de chaque
+		// machine, SPEC § 19 et 21) et, relecture du 21/11, la clé
+		// « collecteur » (SNMP, UniFi, syslog) qui était effacée.
+		gere := map[string]bool{}
+		for _, ch := range champsAgent {
+			gere[ch.Nom] = true
+		}
+		for k, v := range c.lirePortee(q.r.Context(), portee) {
+			if !gere[k] {
+				doc[k] = v
 			}
+		}
+		if f.texte("action") != "retirer" {
 			for _, ch := range champsAgent {
 				v := f.texte(ch.Nom)
 				if v == "" {
@@ -1036,7 +1049,14 @@ func (c *Console) postInterface(q *req) {
 			c.retour(q, "/reglages/interface", e, "")
 			return
 		}
-		if ing != r.Ingestion {
+		// Code aussi si le lien des messages change (relecture du 21/11 :
+		// Réglages › Notifications le demandait, ce chemin non ; un lien
+		// changé enverrait tous les destinataires vers un faux site).
+		lienChange := false
+		if rn, e := notif.LireReglages(q.r.Context(), c.db); e == nil && rn.Lien != f.texte("lien") {
+			lienChange = true
+		}
+		if ing != r.Ingestion || lienChange {
 			if e := c.verifierCode(q); e != nil {
 				c.retour(q, "/reglages/interface", e, "")
 				return

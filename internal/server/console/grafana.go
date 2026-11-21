@@ -179,6 +179,10 @@ func DepuisGrafana(nom string, brut []byte) (*Tableau, error) {
 		if strings.HasSuffix(m[1], "w") {
 			t.Periode = fmt.Sprint(7*atoiSur(strings.TrimSuffix(m[1], "w"))) + "d"
 		}
+		// Période de plus de 31 j : ramenée à 31 j au lieu de tout refuser.
+		if strings.HasSuffix(t.Periode, "d") && atoiSur(strings.TrimSuffix(t.Periode, "d")) > 31 {
+			t.Periode = "31d"
+		}
 	}
 	for _, v := range g.Templating.List {
 		if v.Type != "query" {
@@ -226,7 +230,14 @@ func DepuisGrafana(nom string, brut []byte) (*Tableau, error) {
 	}
 	convertir(g.Panels)
 	ajouterRangee()
-	return t, t.Valider()
+	// Relecture du 21/11 : le nom vient du fichier (« Node Exporter
+	// Full-1700000000000 ») et sera remplacé par un nom tiré du titre ;
+	// validé ici sous un nom provisoire, puis à l'enregistrement.
+	nomFichier := t.Nom
+	t.Nom = "import-grafana"
+	err := t.Valider()
+	t.Nom = nomFichier
+	return t, err
 }
 
 func atoiSur(s string) int {

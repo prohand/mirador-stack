@@ -32,17 +32,24 @@ const maxLabelsSerie = metrics.MaxLabels + 8
 // Encoder garde ses tampons d'un cycle à l'autre.
 type Encoder struct {
 	brut []byte // protobuf non compressé
+	comp []byte // sortie snappy (taille maximale possible)
 }
 
-// Encode écrit le lot en protobuf puis le compresse en snappy dans dst
-// (réutilisé si sa capacité suffit). Le résultat est prêt à être envoyé.
+// Encode écrit le lot en protobuf puis le compresse en snappy ; le résultat
+// est copié dans dst (réutilisé si sa capacité suffit), à sa taille exacte.
+//
+// Relecture du 21/11 : la compression demande un tampon de la taille
+// maximale possible (~4 fois le résultat) ; les tampons rendus par la file
+// d'envoi, eux, ont la taille du résultat : ils n'étaient jamais assez
+// grands et chaque cycle refaisait une grande allocation. La compression
+// se fait maintenant dans un tampon gardé ici, puis le résultat est copié.
 func (e *Encoder) Encode(dst []byte, b *metrics.Batch) []byte {
 	e.brut = AppendWriteRequest(e.brut[:0], b)
 	n := snappy.MaxEncodedLen(len(e.brut))
-	if cap(dst) < n {
-		dst = make([]byte, n)
+	if cap(e.comp) < n {
+		e.comp = make([]byte, n)
 	}
-	return snappy.Encode(dst[:n], e.brut)
+	return append(dst[:0], snappy.Encode(e.comp[:n], e.brut)...)
 }
 
 // AppendWriteRequest ajoute à dst le WriteRequest protobuf (non compressé).

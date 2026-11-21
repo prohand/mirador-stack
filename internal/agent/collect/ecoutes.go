@@ -165,24 +165,22 @@ func lirePortsEcoute(proc string) ([]portEcoute, error) {
 	var toutes []ecoute
 	var dernErr error
 	for _, f := range []string{"tcp", "tcp6"} {
-		contenu, err := os.ReadFile(filepath.Join(proc, "net", f)) // #nosec G304 -- chemin fixe sous /proc
-		if err != nil {
-			dernErr = err
-			continue
-		}
-		sc := bufio.NewScanner(bytes.NewReader(contenu))
-		sc.Scan() // en-tête
-		for sc.Scan() {
+		// Lu ligne à ligne (relecture du 21/11) : un serveur avec 100 000
+		// connexions a un fichier de ~12 Mio ; le lire d'un coup coûtait
+		// jusqu'à ~60 Mio (taille inconnue sous /proc) toutes les 5 min.
+		err := parLigne(filepath.Join(proc, "net", f), func(l []byte) {
 			// Tri rapide : seules les lignes en écoute (état « 0A ») sont
 			// découpées ; les connexions établies (souvent des milliers)
 			// sont sautées sans allocation.
-			if !bytes.Contains(sc.Bytes(), etatEcoute) {
-				continue
+			if !bytes.Contains(l, etatEcoute) {
+				return
 			}
-			ip, port, ok := ligneEcoute(sc.Text())
-			if ok {
+			if ip, port, ok := ligneEcoute(string(l)); ok {
 				toutes = append(toutes, ecoute{ip, port})
 			}
+		})
+		if err != nil {
+			dernErr = err
 		}
 	}
 	parPort := map[uint16][]netip.Addr{}
@@ -288,8 +286,8 @@ func adressesLocales(proc string) []adresseIP {
 		a.principale = a.iface == defaut
 		out = append(out, a)
 	}
-	if b, err := os.ReadFile(filepath.Join(proc, "net", "fib_trie")); err == nil { // #nosec G304 -- chemin fixe sous /proc
-		for _, ip := range adressesFibTrie(string(b)) {
+	if ips, err := adressesFibTrie(filepath.Join(proc, "net", "fib_trie")); err == nil {
+		for _, ip := range ips {
 			if !ip.IsLoopback() && !ip.IsLinkLocalUnicast() {
 				iface := routes.interfaceDe(ip)
 				if iface == "" {
@@ -313,25 +311,43 @@ func adressesLocales(proc string) []adresseIP {
 }
 
 // adressesFibTrie : adresses locales IPv4 (lignes « /32 host LOCAL » qui
-// suivent « |-- 192.168.1.10 »), sans doublon (tables Main et Local).
-func adressesFibTrie(contenu string) []netip.Addr {
+// suivent « |-- 192.168.1.10 »), sans doublon (tables Main et Local). Lu
+// ligne à ligne : sur un routeur avec une table BGP complète, le fichier
+// fait des centaines de Mio.
+func adressesFibTrie(chemin string) ([]netip.Addr, error) {
 	var out []netip.Addr
 	vu := map[netip.Addr]bool{}
-	var derniere string
-	for _, l := range strings.Split(contenu, "\n") {
-		t := strings.TrimSpace(l)
-		if adr, ok := strings.CutPrefix(t, "|-- "); ok {
-			derniere = adr
-			continue
+	var derniere []byte
+	err := parLigne(chemin, func(l []byte) {
+		t := bytes.TrimSpace(l)
+		if adr, ok := bytes.CutPrefix(t, []byte("|-- ")); ok {
+			derniere = append(derniere[:0], adr...)
+			return
 		}
-		if strings.HasPrefix(t, "/32 host LOCAL") {
-			if ip, err := netip.ParseAddr(derniere); err == nil && ip.Is4() && !vu[ip] {
+		if bytes.HasPrefix(t, []byte("/32 host LOCAL")) && len(out) < maxAdressesIP {
+			if ip, err := netip.ParseAddr(string(derniere)); err == nil && ip.Is4() && !vu[ip] {
 				vu[ip] = true
 				out = append(out, ip)
 			}
 		}
+	})
+	return out, err
+}
+
+// parLigne lit un fichier (souvent sous /proc) ligne à ligne, avec un
+// tampon fixe : la mémoire ne dépend pas de la taille du fichier.
+func parLigne(chemin string, f func(ligne []byte)) error {
+	fic, err := os.Open(chemin) // #nosec G304 -- chemins fixes sous /proc
+	if err != nil {
+		return err
 	}
-	return out
+	defer fic.Close() //nolint:errcheck // lecture seule
+	sc := bufio.NewScanner(fic)
+	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	for sc.Scan() {
+		f(sc.Bytes())
+	}
+	return sc.Err()
 }
 
 // routeIPv4 : une ligne de /proc/net/route.
@@ -355,21 +371,21 @@ func (rs routesIPv4) interfaceDe(ip netip.Addr) string {
 
 // lireRoutes : routes IPv4 et interface de la route par défaut.
 func lireRoutes(proc string) (routesIPv4, string) {
-	b, err := os.ReadFile(filepath.Join(proc, "net", "route")) // #nosec G304 -- chemin fixe sous /proc
-	if err != nil {
-		return nil, ""
-	}
 	var rs routesIPv4
 	defaut := ""
-	for i, l := range strings.Split(string(b), "\n") {
-		ch := strings.Fields(l)
+	i := -1
+	err := parLigne(filepath.Join(proc, "net", "route"), func(l []byte) {
+		i++
+		// Routes gardées : 10 000 au plus (une table BGP complète en a des
+		// centaines de milliers) ; la route par défaut est cherchée partout.
+		ch := strings.Fields(string(l))
 		if i == 0 || len(ch) < 8 {
-			continue
+			return
 		}
 		dest, ok1 := ipv4Hex(ch[1])
 		masque, ok2 := ipv4Hex(ch[7])
 		if !ok1 || !ok2 {
-			continue
+			return
 		}
 		bits := 0
 		for _, o := range masque.As4() {
@@ -383,12 +399,20 @@ func lireRoutes(proc string) (routesIPv4, string) {
 			if defaut == "" {
 				defaut = ch[0]
 			}
-			continue
+			return
 		}
-		rs = append(rs, routeIPv4{iface: ch[0], reseau: netip.PrefixFrom(dest, bits).Masked()})
+		if len(rs) < maxRoutes {
+			rs = append(rs, routeIPv4{iface: ch[0], reseau: netip.PrefixFrom(dest, bits).Masked()})
+		}
+	})
+	if err != nil {
+		return nil, ""
 	}
 	return rs, defaut
 }
+
+// maxRoutes : routes IPv4 gardées pour trouver l'interface d'une adresse.
+const maxRoutes = 10000
 
 // ipv4Hex : « 0101A8C0 » (ordre de la machine) → 192.168.1.1.
 func ipv4Hex(h string) (netip.Addr, bool) {

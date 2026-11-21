@@ -16,12 +16,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"mirador-stack/internal/motif"
 	"mirador-stack/internal/server/alertes"
 )
 
@@ -58,7 +58,7 @@ type Service struct {
 	Composants []Composant `json:"composants"`
 }
 
-var reNomService = regexp.MustCompile(`^[\pL\pN][\pL\pN _.()'-]{0,47}$`)
+var reNomService = motif.Doit(`^[\pL\pN][\pL\pN _.()'-]*$`, 1, 48)
 
 const cleReglage = "services_metier"
 

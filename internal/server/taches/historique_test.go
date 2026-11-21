@@ -126,3 +126,35 @@ func TestTextes(t *testing.T) {
 		}
 	}
 }
+
+// Relecture du 21/11 : une tâche disparue depuis plus de 180 jours est
+// oubliée (base et mémoire) ; une tâche encore vivante garde son historique.
+func TestOublierTachesDisparues(t *testing.T) {
+	db, err := base.Ouvrir(filepath.Join(t.TempDir(), "m.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if _, err := base.Migrer(ctx, db, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	var n Noteur
+	m := time.Now()
+	_ = n.Noter(ctx, db, "pc1|systemd|jetable.timer", Releve{Fin: m.Add(-200 * 24 * time.Hour)})
+	_ = n.Noter(ctx, db, "pc1|systemd|apt-daily.timer", Releve{Fin: m.Add(-time.Hour)})
+	if err := n.Oublier(ctx, db, m); err != nil {
+		t.Fatal(err)
+	}
+	var cles []string
+	rows, _ := db.Query(`SELECT DISTINCT cle FROM taches_executions`)
+	for rows.Next() {
+		var c string
+		_ = rows.Scan(&c)
+		cles = append(cles, c)
+	}
+	_ = rows.Close()
+	if strings.Join(cles, ",") != "pc1|systemd|apt-daily.timer" || len(n.vues) != 1 {
+		t.Errorf("après le ménage : base %v, mémoire %d", cles, len(n.vues))
+	}
+}

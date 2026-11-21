@@ -148,6 +148,9 @@ func (m *MisesAJour) lancerAptGet(ctx context.Context) ([]byte, error) {
 	var sortie limiteur
 	sortie.max = tailleMaxSortie
 	cmd.Stdout = &sortie
+	// Un enfant qui garderait la sortie ouverte ne bloque plus la mesure
+	// pour toujours (relecture du 21/11).
+	cmd.WaitDelay = 5 * time.Second
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}

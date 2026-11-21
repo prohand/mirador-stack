@@ -92,7 +92,10 @@ func (c *Console) donneesReglages(q *req) donneesReglages {
 			pris += c.opt.Logs.Taille()
 		}
 		e := etatCarte{Jauge: -1}
-		if plafond := cons.MaxBrut + cons.MaxAgrege + cons.MaxLogs; plafond > 0 {
+		// Un plafond à 0 veut dire « sans plafond » pour cette partie : la
+		// jauge n'a alors pas de sens (relecture du 21/11 : elle comptait
+		// toute la place prise contre les seuls plafonds posés).
+		if plafond := cons.MaxBrut + cons.MaxAgrege + cons.MaxLogs; cons.MaxBrut > 0 && cons.MaxAgrege > 0 && cons.MaxLogs > 0 {
 			e.Jauge = min(100, int(math.Round(100*float64(pris)/float64(plafond))))
 			e.Texte = fmt.Sprintf("%s sur %s · %d %%", tailleLisible(pris), tailleLisible(plafond), e.Jauge)
 		} else {

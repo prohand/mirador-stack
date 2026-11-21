@@ -214,6 +214,11 @@ func (c *Console) postAlerte(q *req) {
 		if !jusqua.IsZero() {
 			ok = "alerte prise en charge jusqu'à " + jusqua.In(fuseau.Load()).Format("15:04") + " : ensuite, rappel si elle dure"
 		}
+		// Heure dans le fuseau de l'interface : c'est elle que la ligne
+		// d'audit écrit (relecture du 21/11 : l'audit l'écrivait en UTC).
+		if !jusqua.IsZero() {
+			jusqua = jusqua.In(fuseau.Load())
+		}
 		err = notif.Acquitter(ctx, c.db, id, q.qui(), strings.TrimSpace(q.r.PostFormValue("commentaire")), jusqua, q.t)
 	case "reprendre":
 		err = notif.Reprendre(ctx, c.db, id, q.qui(), q.t)

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+	"mirador-stack/internal/motif"
 )
 
 // Types.
@@ -83,7 +84,7 @@ var reChampJSON = regexp.MustCompile(`^([^.\s]+(\.[^.\s]+)*)?$`)
 
 // Le deux-points est permis pour nommer un ping d'adresse IPv6 (« nas ping
 // 2001:db8::1 », SPEC § 62).
-var reNom = regexp.MustCompile(`^[\pL\pN][\pL\pN _.:()'-]{0,47}$`)
+var reNom = motif.Doit(`^[\pL\pN][\pL\pN _.:()'-]*$`, 1, 48)
 
 // Durees : intervalle et seuil « lente » effectifs.
 func (s *Sonde) Durees() (intervalle, lente time.Duration) {

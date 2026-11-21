@@ -60,7 +60,7 @@ document.addEventListener("click", function (e) {
     // Pas de rechargement pendant une saisie ou un menu ouvert dans la zone
     // (filtre et colonnes de la vue d'ensemble) : il reviendra au tour suivant.
     var actif = document.activeElement;
-    if ((actif && z.el.contains(actif) && actif.matches("input, select, textarea")) || z.el.querySelector("details.colonnes[open]") || z.el.querySelector(".edition-accueil")) { return; }
+    if ((actif && z.el.contains(actif) && actif.matches("input, select, textarea")) || z.el.querySelector("details.colonnes[open]") || z.el.matches(".edition-accueil") || z.el.querySelector(".edition-accueil")) { return; }
     z.enCours = true;
     fetch(z.url, { headers: { "X-Requested-With": "mirador" }, credentials: "same-origin" })
       .then(function (r) {
@@ -626,6 +626,8 @@ document.addEventListener("change", function (e) {
     document.querySelectorAll("[data-alertes]").forEach(function (z, n) { appliquer(z, n); });
   }
   tout();
+  // Bloc rechargé en fond : tri et filtres remis (relecture du 21/11).
+  document.addEventListener("mirador:fragment", tout);
   document.addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-alertes] th[data-tri] button");
     if (!b) { return; }
@@ -882,11 +884,13 @@ document.addEventListener("change", function (e) {
 // clic ailleurs.
 (function () {
   "use strict";
-  if (!document.querySelector("[data-nb-alertes]")) { return; }
+  // « body [data-nb-alertes] » : le <body> porte aussi cet attribut
+  // (relecture du 21/11 : l'heure de visite était notée sur toutes les pages).
+  if (!document.querySelector("body [data-nb-alertes]")) { return; }
   var CLE = "mirador.alertes.vu", vu = 0, titre = document.title.replace(/^\(\d+\) /, "");
   try { vu = parseInt(window.localStorage.getItem(CLE) || "0", 10) || 0; } catch (e) { vu = 0; }
   function marquer() {
-    var z = document.querySelector("[data-nb-alertes]");
+    var z = document.querySelector("body [data-nb-alertes]");
     if (!z) { return; }
     var n = 0;
     z.querySelectorAll("tr[data-depuis]").forEach(function (tr) {
@@ -1049,14 +1053,19 @@ document.addEventListener("change", function (e) {
       var r = svg.getBoundingClientRect();
       return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
     };
-    svg.addEventListener("mousedown", function (e) { x0 = pos(e); e.preventDefault(); });
-    window.addEventListener("mousemove", function (e) {
+    // Événements pointeur : souris et doigt (relecture du 21/11).
+    svg.addEventListener("pointerdown", function (e) {
+      x0 = pos(e); e.preventDefault();
+      try { svg.setPointerCapture(e.pointerId); } catch (x) { /* ancien navigateur */ }
+    });
+    svg.addEventListener("pointercancel", function () { x0 = null; sel.setAttribute("width", "0"); });
+    window.addEventListener("pointermove", function (e) {
       if (x0 === null) { return; }
       var x = pos(e);
       sel.setAttribute("x", String(Math.min(x0, x) * 1000));
       sel.setAttribute("width", String(Math.abs(x - x0) * 1000));
     });
-    window.addEventListener("mouseup", function (e) {
+    window.addEventListener("pointerup", function (e) {
       if (x0 === null) { return; }
       var x = pos(e), a = Math.min(x0, x), b = Math.max(x0, x);
       x0 = null;
@@ -1174,12 +1183,31 @@ document.addEventListener("change", function (e) {
         try { recevoir(JSON.parse(e.data).lignes || []); } catch (x) { /* lot illisible : ignoré */ }
       });
       flux.addEventListener("fin", arreter);
-      flux.onerror = function () { if (flux && flux.readyState === 2) { arreter(); } };
+      flux.onerror = function () {
+        if (flux && flux.readyState === 2) {
+          // Fermé par le serveur (refus : trop de pages en direct, session…).
+          arreter();
+          bouton.querySelector("span").textContent = "Direct indisponible";
+          bouton.title = "Le serveur a refusé le direct (trop de pages ouvertes ?). Réessayer plus tard.";
+          setTimeout(function () { if (!flux && !minuterie) { bouton.querySelector("span").textContent = "Direct"; } }, 8000);
+        }
+      };
       return;
     }
     bouton.querySelector("span").textContent = "En direct · 5 s";
     tirer();
     minuterie = setInterval(tirer, 5000);
+  });
+  // Onglet caché plus de 30 s : flux fermé (il occupe une des places du
+  // serveur), repris au retour (relecture du 21/11).
+  var cache = null, aReprendre = false;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      if (flux) { cache = setTimeout(function () { if (flux && document.hidden) { arreter(); aReprendre = true; } }, 30000); }
+      return;
+    }
+    clearTimeout(cache);
+    if (aReprendre && Date.now() < finDirect) { aReprendre = false; bouton.click(); }
   });
 })();
 
@@ -1587,7 +1615,7 @@ document.addEventListener("change", function (e) {
 (function () {
   var cle = "mirador-periode", communes = ["1h", "6h", "24h", "7d", "30d"];
   var p = window.location.pathname;
-  if (!/^\/(machines\/[^/]+|tableaux\/[^/]+|logs)$/.test(p)) { return; }
+  if (!/^\/(machines\/[^/]+|tableaux\/[^/]+|logs)$/.test(p) || p === "/machines/ajouter" || !document.querySelector("a[href*='periode='], [name=periode]")) { return; }
   var q = new URLSearchParams(window.location.search);
   var actuelle = q.get("periode");
   try {
@@ -1671,7 +1699,7 @@ document.addEventListener("change", function (e) {
 // bouton reste pour un navigateur sans JavaScript.
 document.addEventListener("change", function (ev) {
   var c = ev.target;
-  if (c && c.hasAttribute && c.hasAttribute("data-envoi-auto") && c.form && c.value) { c.form.submit(); }
+  if (c && c.hasAttribute && c.hasAttribute("data-envoi-auto") && c.form && (c.value || !c.required)) { c.form.submit(); }
 });
 
 // Téléphone : l'onglet actif d'une ligne d'onglets qui défile de côté est

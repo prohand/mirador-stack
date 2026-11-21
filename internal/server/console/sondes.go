@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"fmt"
 	"html/template"
 	"math"
 	"net/url"
@@ -456,6 +457,10 @@ func (c *Console) postSondes(q *req) {
 			if s.Nom != nom {
 				garde = append(garde, s)
 			}
+		}
+		if len(garde) == len(liste) {
+			c.retour(q, "/sondes", fmt.Errorf("sonde « %s » introuvable (déjà retirée ?)", nom), "")
+			return
 		}
 		err = flotte.EnregistrerSondes(ctx, c.db, garde, q.qui(), q.t)
 		c.retour(q, "/sondes", err, "sonde « "+nom+" » retirée")

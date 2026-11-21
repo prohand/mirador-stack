@@ -7787,3 +7787,192 @@ d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
   après une coupure).
 - Coût : nul (une ligne de plus dans le message signé des manifestes
   « retour »).
+
+## 113. Relecture de l'interface (21/11) **[Fait, à valider]**
+Quatre relectures en parallèle (sécurité, machines, alertes/logs/réglages,
+navigateur ordinateur et iPhone). Chaque point a été vérifié (test ou
+navigateur) avant d'être corrigé ; un test Go par correction côté serveur.
+
+**Sécurité**
+- Import « agents » : un secret « *** » (UniFi, SNMP) n'est gardé que si
+  l'adresse et l'empreinte TLS de l'équipement ne changent pas (même règle
+  que le formulaire). Menace couverte : un fichier d'import modifié qui
+  enverrait le mot de passe vers une autre machine du LAN ou d'Internet.
+- Rôle : un rôle fixé par un autre admin efface le changement en attente
+  de confirmation ; l'annulation automatique ne l'écrase plus.
+- Déconnexion alors que la session n'est plus en mémoire, et 5 codes faux :
+  l'appareil de confiance est oublié (le cookie volé ne revient plus).
+- Lien des messages (adresse de l'interface) : code 2FA demandé aussi
+  depuis Réglages › Interface.
+- Audit : le chemin de l'adresse ntfy (le sujet, secret sans jeton) est
+  masqué. Les lignes d'audit écrites avant le 21/11 le contiennent encore.
+
+**Machines, sondes, événements**
+- Renommer une machine emporte ses maintenances et ses sondes ; supprimer
+  un collecteur qui porte des sondes est refusé.
+- Réglages › Agents ne vide plus la partie « collecteur » d'une machine.
+- Événements filtrés par machine dans la requête (avant la limite).
+- Équipement créé seulement si le collecteur choisi en est un ; un réglage
+  SNMP refusé n'écrit plus rien (`ModifierConfigSi`).
+- Listes d'équipements relues après un détachement ou une suppression.
+- Sites, types, groupes : machines refusées ou en attente non touchées ;
+  lien « +N » vers une recherche exacte (`site:x`, `type:x`, `groupe:x`).
+- Retrait d'une sonde absente : message d'erreur clair, pas d'audit vide.
+- Nom de sonde proposé trop long : coupé proprement.
+
+**Alertes, logs, réglages**
+- « Voir autour » : deux lectures (avant / après) ; les lignes d'avant ne
+  sont plus perdues sur une machine bavarde.
+- Historique et incidents : les N alertes les plus récentes (pas les plus
+  anciennes) ; filtre machine aussi sur `host` et `src_ip`.
+- Règle : enregistrer une règle inconnue sans « Nouvelle règle » refusé.
+- Tableaux : décimales bornées (6), durées négatives et très longues
+  lisibles, import Grafana validé et période bornée à 31 j.
+- Conservation : réduction en attente remplacée = dit à l'écran et dans
+  l'audit ; jauge masquée si une partie est sans plafond ; saisie libre des
+  décimales.
+- Acquittement : heure de fin écrite dans le fuseau de l'interface.
+
+**Navigateur**
+- Modèles des messages : « Tous les canaux » fonctionne.
+- Vue d'ensemble : le mode « Modifier la vue » n'est plus coupé par le
+  rechargement automatique.
+- Alertes en cours : tri et filtres gardés après chaque rechargement.
+- Logs en direct : plus de lignes en double après une coupure réseau
+  (`id:` / `Last-Event-ID`) ; flux fermé après 30 s d'onglet caché et repris
+  au retour ; refus du serveur affiché.
+- « Nouvelles depuis ta dernière visite » et « (N) » du titre : calculés
+  sur le bloc des alertes (pas sur `<body>`).
+- iPhone : titre long de la barre coupé avec « … » ; zoom de l'histogramme
+  au doigt ; bouton « Rétablir les valeurs par défaut » de 44 px.
+- Période commune : plus de requête inutile sur une page sans période.
+
+**Fait ensuite (décision du 21/11)**
+- Fiche d'un élément et « Événements › element= » : le nom cherché est
+  filtré dans les requêtes (LIKE, avant la limite) puis sur le texte exact ;
+  un événement ancien n'est plus caché par l'activité du reste du parc.
+- Vue d'ensemble : le compte « à valider » reprend le cache de 60 s du menu
+  et de la page Machines (avant : la configuration de chaque machine
+  relue à chaque rechargement, toutes les 60 s par onglet ouvert).
+- Fiches et page Éléments : parc « léger » (état + CPU) : 1 requête de
+  métriques au lieu de 9, plus de prévision des disques ni de courbes.
+- Vue d'ensemble : plafond et jauge du stockage masqués si une partie est
+  sans plafond.
+
+Coût : une à quatre lectures de logs de plus pour « voir autour » (petites
+fenêtres) ; rien d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
+
+## 114. Mise à jour du serveur : étiquettes et ménage des images (21/11) **[Fait, à valider]**
+Retour de l'utilisateur : Arcane annonçait « mirador-server:latest 0.6.0 →
+0.6.6 » alors que le serveur tournait en 0.6.6.
+- Cause : `mirador-maj-serveur` télécharge l'image par son empreinte signée
+  (`image@sha256:…`, voulu) et ne touche pas aux étiquettes ; `:latest`
+  restait sur la première image installée. Chaque version laissait aussi
+  son image sur le disque (~30-50 Mo).
+- Après une mise à jour réussie, il :
+  1. pose `IMAGE:X.Y.Z` sur la nouvelle image et sur la précédente (gardée
+     pour un retour à la main) ;
+  2. retire l'étiquette `:latest` (seulement d'une image qui a reçu sa
+     version : jamais de suppression par ce biais) ;
+  3. supprime les autres images du dépôt `IMAGE` (par étiquette ou par
+     empreinte), sans forcer : Docker refuse celles qu'un conteneur
+     utilise.
+- Rien de cela ne fait échouer la mise à jour : chaque souci est noté dans
+  le journal. Sans l'identifiant de l'image en service, rien n'est supprimé.
+- Commandes ajoutées : `docker image inspect`, `docker image ls`,
+  `docker tag`, `docker image rm`. Arguments fixés par le programme ; les
+  noms lus dans la sortie de Docker sont contrôlés (format d'identifiant,
+  d'étiquette, d'empreinte) avant de servir.
+- Menaces : aucune nouvelle entrée (la demande ne fournit toujours que la
+  version, vérifiée). Risque traité : supprimer l'image du retour arrière
+  (gardée et étiquetée) ou une image en service (Docker refuse).
+- Coût : 4 à 10 commandes `docker` de plus après une mise à jour (quelques
+  secondes) ; disque récupéré à chaque version.
+- Sur le VPS actuel, la vieille `:latest` (0.6.0) partira à la prochaine
+  mise à jour faite avec ce binaire ; on peut aussi la retirer à la main :
+  `docker image rm ghcr.io/prohand/mirador-server:latest`.
+
+## 115. Performances du serveur : mémoire des gabarits et des expressions (21/11) **[Fait, à valider]**
+Mesure (test de charge, 50 agents, 2 h 30 d'historique) : CPU 3,7 à 10 %
+d'un cœur (1,0 % le 10/11). Profil CPU : 83 % dans le ramasse-miettes,
+car le tas vivant (~170 Mo) collait à `GOMEMLIMIT=200MiB`. Profil mémoire :
+- gabarits HTML : ~40 Mo (morceaux.html, 58 Ko, relu pour chacune des ~70
+  pages) ;
+- 5 expressions régulières à classe Unicode répétée (`{0,200}`) : 1 à 4 Mo
+  chacune, ~11 Mo ;
+- échantillons arrivés en retard (rattrapage après coupure) : ~58 Mo, voulu
+  et temporaire (libéré au rangement suivant).
+
+Fait :
+- un seul ensemble de gabarits : morceaux lus une fois, « contenu » renommé
+  par page, nom défini deux fois refusé au chargement. 38,9 → 6,1 Mo ;
+- paquet `motif` : expression simple + longueur vérifiée à part (même
+  réponse, test de comparaison). ~11 → ~0,3 Mo.
+
+Résultat (même test) : tas vivant 170 → 117 Mo, **CPU 3,75 → 1,27 %**. La
+RSS reste ~190 Mo sous charge : Go garde la place permise par GOMEMLIMIT et
+nettoie moins souvent (c'est le but). Au repos (1 machine, mesure longue
+§ 116) : 76 Mo de RSS, 46 Mo de mémoire propre.
+
+## 116. Fuites mémoire et CPU : agent et serveur (21/11) **[Fait, à valider]**
+Deux relectures (agent + collecteur, serveur) ; chaque point prouvé par un
+test (qui échoue sans la correction) avant d'être corrigé.
+
+**Agent**
+- journalctl qui donne une ligne puis échoue : relancé ~450 fois/s (curseur
+  abandonné en boucle sans attente) → abandon une seule fois de suite.
+- Configuration distante avec « recuperation » hors bornes : ~14 000
+  demandes/s → rythme pris seulement entre 5 min et 1 h.
+- Lot de logs : une rafale de longues lignes faisait un lot de ~8 Mio et
+  10 Mio restaient gardés pour toujours → vidé dès qu'il est plein (signal),
+  tampons agrandis rendus après l'envoi.
+- `/proc/net/tcp` (100 000 connexions : 12 Mio, jusqu'à 60 Mio alloués),
+  `fib_trie`, `route` : lus ligne à ligne, tampon fixe ; 10 000 routes au
+  plus gardées.
+- dpkg : ménage des installations de plus de 48 h à chaque passage ;
+  apt-get : `WaitDelay` (un enfant qui garde la sortie ne bloque plus).
+
+**Serveur**
+- Notifications : « Grouper par » changé pendant une alerte → sa fin n'était
+  jamais annoncée et un rappel partait toutes les 2 h jusqu'au redémarrage.
+  La fin est retrouvée dans tous les groupes.
+- Marques d'escalade et de rappel oubliées avec l'alerte.
+- Suivi des changements : une clé par conteneur jetable (nom aléatoire)
+  gardée pour toujours, en mémoire et en base → oubliée au ménage (6 h) si
+  la machine est vivante et le conteneur n'est plus vu.
+- Migration 0037 : index `alertes(active_le)` ; l'historique d'une période
+  (Événements, Incidents, Disponibilité, page de statut) ne lit plus toute
+  la table (15 ms à 100 000 alertes, coût qui grandissait avec l'âge).
+
+**Mesure longue** (vrai serveur + vrai agent, intervalle 10 s, 45 min,
+relevés toutes les 30 s) : serveur 76,3 → 76,6 Mo de RSS entre la 10ᵉ et
+la 44ᵉ minute, agent 17,5 à 18,6 Mo sans tendance ; fils (10) et
+descripteurs (13 et 25) constants ; CPU 0,14 % (serveur) et 0,06 % (agent).
+
+**Fait ensuite (décision du 21/11 : « fais tout »)**
+- Machines supprimées ou renommées : retirées de la mémoire de l'ingestion
+  (décalage, réceptions, avertissements) et de la flotte (dernier état,
+  « Actualiser » de plus d'un jour, essais de sondes périmés) toutes les
+  heures ; le direct rend ses relevés (300 au plus) 10 min après la fin et
+  fait son ménage à chaque minute (avant : seulement à l'ouverture d'une
+  page en direct).
+- Sondes retirées : dernier résultat et demandes d'essai oubliés.
+- Tâches planifiées sans exécution depuis 180 jours : historique effacé
+  (base et mémoire).
+- Purge quotidienne par âge (conservation de l'historique, 180 j) :
+  silences finis, maintenances ponctuelles finies, jetons d'installation
+  expirés jamais utilisés, tokens révoqués, notes d'incident, écarts
+  vmalert, historique des sauvegardes (la dernière réussie reste). Garde-fou :
+  rien n'est effacé si la durée lue est nulle.
+- Anciens noms des machines renommées : oubliés quand plus aucune donnée
+  ne les porte (plus longue conservation des métriques et des logs) ; les
+  graphiques ne les cherchent plus.
+- Agent : le tampon de compression est gardé par l'encodeur et le résultat
+  copié dans le tampon rendu par la file, qui sert enfin à nouveau (avant :
+  une grande allocation par cycle) ; compteur de plantages d'un conteneur
+  oublié après 24 h sans ligne de plantage (une règle sur ce compteur doit
+  regarder moins de 24 h).
+
+Coût des corrections : nul ou négatif (moins de mémoire, moins d'appels).
+Menaces : un serveur ou un mandataire bogué ne peut plus faire tourner
+l'agent en boucle ; un journal abîmé non plus.

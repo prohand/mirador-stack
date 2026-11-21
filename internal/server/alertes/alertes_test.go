@@ -564,3 +564,57 @@ func TestVmalertAdresseSansParametres(t *testing.T) {
 		}
 	}
 }
+
+// Relecture du 21/11 : le filtre « machine » suit la même règle que
+// Alerte.Machine() (instance, sinon host, sinon src_ip).
+func TestHistoriqueFiltreMachineHost(t *testing.T) {
+	db := baseTest(t)
+	if _, err := db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('SSHBrute', '{"host":"nas","alertname":"SSHBrute"}', 'warning', 'active', 1, 1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	as, err := HistoriqueFiltre(context.Background(), db, Filtre{Machine: "nas"})
+	if err != nil || len(as) != 1 {
+		t.Errorf("alerte avec « host » seulement : %d trouvée(s), %v", len(as), err)
+	}
+}
+
+// Relecture du 21/11 : au-delà de la limite, les alertes les plus récentes
+// (dont celles en cours) sont gardées.
+func TestHistoriquePeriodeGardeRecentes(t *testing.T) {
+	db := baseTest(t)
+	for i := 1; i <= 5; i++ {
+		if _, err := db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('Oscille', '{}', 'warning', 'resolue', ?, ?, ?)`, i*1000, i*1000, i*1000+500); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _ = db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('Panne', '{}', 'critical', 'active', 9000, 9000, 0)`)
+	as, err := HistoriquePeriode(context.Background(), db, time.UnixMilli(0), time.UnixMilli(20000), 3)
+	if err != nil || len(as) != 3 || as[2].Regle != "Panne" || as[0].ActiveLe.After(as[1].ActiveLe) {
+		t.Fatalf("%v : %+v", err, as)
+	}
+}
+
+// Relecture du 21/11 : l'historique d'une période passe par l'index sur
+// active_le (plus de lecture et de tri de toute la table).
+func TestHistoriquePeriodeIndex(t *testing.T) {
+	db := baseTest(t)
+	rows, err := db.Query(`EXPLAIN QUERY PLAN SELECT id FROM alertes
+		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le DESC LIMIT ?`, 2000, 1000, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var a, b, c int
+		var d string
+		if err := rows.Scan(&a, &b, &c, &d); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, d)
+	}
+	p := strings.Join(plan, " ; ")
+	if !strings.Contains(p, "alertes_active_le") || strings.Contains(p, "TEMP B-TREE") {
+		t.Errorf("plan : %s", p)
+	}
+}

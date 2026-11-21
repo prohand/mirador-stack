@@ -234,8 +234,16 @@ func DefinirRole(ctx context.Context, db *sql.DB, nom, role, qui, adresse string
 	if err != nil {
 		return err
 	}
-	return modifier(ctx, db, nom, "utilisateur_role", u.Role, role, qui, adresse, t, false,
-		`UPDATE utilisateurs SET role = ? WHERE nom = ?`, role)
+	if err := modifier(ctx, db, nom, "utilisateur_role", u.Role, role, qui, adresse, t, false,
+		`UPDATE utilisateurs SET role = ? WHERE nom = ?`, role); err != nil {
+		return err
+	}
+	// Un rôle fixé après coup remplace un changement en attente de
+	// confirmation : son annulation automatique ne doit pas écraser cette
+	// décision (relecture du 21/11). Pour son propre rôle, la console
+	// recrée l'attente juste après.
+	_, err = db.ExecContext(ctx, `DELETE FROM a_confirmer WHERE quoi = ?`, "role:"+nom)
+	return err
 }
 
 // DefinirDesactive active ou désactive un compte (sessions fermées).

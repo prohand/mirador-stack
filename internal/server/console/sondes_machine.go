@@ -299,11 +299,17 @@ func nomSonde(machine, quoi string) string {
 		}
 	}
 	m := []rune(b.String())
-	max := 47 - len([]rune(quoi))
+	q := []rune(quoi)
+	// Relecture du 21/11 : un « quoi » long (ping d'un nom d'hôte de plus de
+	// 40 caractères) rendait max négatif et faisait planter la page.
+	if len(q) > 40 {
+		q = q[:40]
+	}
+	max := 47 - len(q)
 	if len(m) > max {
 		m = m[:max]
 	}
-	return string(m) + " " + quoi
+	return strings.TrimSpace(string(m) + " " + string(q))
 }
 
 func typeDeValeur(v string) string { t, _, _ := strings.Cut(v, "|"); return t }
@@ -439,6 +445,12 @@ func (c *Console) postSondesMachine(q *req) {
 			if !(x.Nom == s && x.Machine == m.Nom) {
 				garde = append(garde, x)
 			}
+		}
+		// Rien retiré (sonde déjà partie, ou d'une autre machine) : dit
+		// clairement, sans écriture ni audit (relecture du 21/11).
+		if len(garde) == len(liste) {
+			c.retour(q, retour, fmt.Errorf("sonde « %s » introuvable sur cette machine", s), "")
+			return
 		}
 		err = flotte.EnregistrerSondes(ctx, c.db, garde, q.qui(), q.t)
 		c.retour(q, retour, err, "sonde « "+s+" » retirée")

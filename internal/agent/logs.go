@@ -126,6 +126,10 @@ func (c *chaineLogs) tourner(ctxLecture, ctxEnvoi context.Context) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	dernier := time.Now()
+	var pleinDocker <-chan struct{} // nil sans logs Docker : jamais prêt
+	if c.lotDocker != nil {
+		pleinDocker = c.lotDocker.SignalPlein()
+	}
 	for {
 		select {
 		case <-ctxLecture.Done():
@@ -133,6 +137,8 @@ func (c *chaineLogs) tourner(ctxLecture, ctxEnvoi context.Context) {
 			c.vider()       // dernier lot avant l'arrêt
 			return
 		case <-t.C:
+		case <-c.lot.SignalPlein():
+		case <-pleinDocker:
 		}
 		if c.lot.Plein() || (c.lotDocker != nil && c.lotDocker.Plein()) || time.Since(dernier) >= attenteLotLogs {
 			c.vider()

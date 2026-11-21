@@ -12,6 +12,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	essais "mirador-stack/internal/sondes"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -757,5 +759,100 @@ func TestEssaiSondeServeur(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("demande du serveur non transmise")
+	}
+}
+
+// Relecture du 21/11 : renommer un collecteur emporte ses sondes et les
+// maintenances de la machine ; le supprimer est refusé tant qu'il a des sondes.
+func TestRenommerEmporteReferences(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(nom, type, statut, cree_le) VALUES ('col1', 'collecteur', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnregistrerSondes(ctx, b.db, []essais.Sonde{{Nom: "box", Type: essais.TCP, Cible: "192.168.1.1:443", Depuis: "col1", Machine: "col1"}}, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.db.Exec(`INSERT INTO maintenances(cible, auteur, cree_le) VALUES ('machine:col1', 'admin', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Supprimer(ctx, b.db, "col1", "admin", t0); err == nil {
+		t.Error("collecteur supprimé malgré ses sondes")
+	}
+	if err := Renommer(ctx, b.db, "col1", "col2", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := LireSondes(ctx, b.db)
+	if len(s) != 1 || s[0].Depuis != "col2" || s[0].Machine != "col2" {
+		t.Errorf("sondes après renommage : %+v", s)
+	}
+	var cible string
+	_ = b.db.QueryRow(`SELECT cible FROM maintenances`).Scan(&cible)
+	if cible != "machine:col2" {
+		t.Errorf("maintenance : %q", cible)
+	}
+	// Les sondes restent modifiables.
+	if err := EnregistrerSondes(ctx, b.db, nil, "admin", t0); err != nil {
+		t.Errorf("sondes bloquées après renommage : %v", err)
+	}
+}
+
+// Relecture du 21/11 : équipement créé seulement si le collecteur en est
+// un ; configuration inchangée (ni audit) quand le changement est refusé.
+func TestEquipementEtModifierConfigSi(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(nom, type, statut, cree_le) VALUES ('web1', 'agent', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := IDMachine(ctx, b.db, "web1")
+	if err := CreerEquipement(ctx, b.db, "imprimante", id, "admin", t0); err == nil {
+		t.Error("équipement rattaché à un agent accepté")
+	}
+	if _, err := IDMachine(ctx, b.db, "imprimante"); err == nil {
+		t.Error("équipement créé malgré le refus")
+	}
+	var avant int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit`).Scan(&avant)
+	err := ModifierConfigSi(ctx, b.db, "machine:"+strconv.FormatInt(id, 10), func(m map[string]any) error {
+		m["intervalle"] = "10s"
+		return errors.New("saisie refusée")
+	}, "admin", t0)
+	if err == nil {
+		t.Fatal("erreur perdue")
+	}
+	var apres, nb int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit`).Scan(&apres)
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM reglages WHERE cle LIKE 'config_agent:%'`).Scan(&nb)
+	if apres != avant || nb != 0 {
+		t.Errorf("écrit malgré le refus : audit %d → %d, configs %d", avant, apres, nb)
+	}
+}
+
+// Relecture du 21/11 : machine supprimée, demande « Actualiser » de plus
+// d'un jour et essais périmés retirés de la mémoire.
+func TestOublierMachinesFlotte(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(id, nom, statut, cree_le) VALUES (500, 'garde', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	m := time.Now()
+	b.f.mu.Lock()
+	b.f.connus[500], b.f.connus[999] = "x", "y"
+	b.f.mu.Unlock()
+	DemanderActualisation(500, m.Add(-48*time.Hour))
+	DemanderActualisation(999, m)
+	DemanderEssai(500, "vieille", m.Add(-time.Hour))
+	DemanderEssai(999, "autre", m)
+	b.f.oublierMachines(context.Background(), m)
+	b.f.mu.Lock()
+	_, garde := b.f.connus[500]
+	n := len(b.f.connus)
+	b.f.mu.Unlock()
+	if !garde || n != 1 || actualisationDe(500) != 0 || actualisationDe(999) != 0 {
+		t.Errorf("connus %d (500 gardée : %v), actualisations 500=%d 999=%d", n, garde, actualisationDe(500), actualisationDe(999))
+	}
+	demandesEssai.mu.Lock()
+	defer demandesEssai.mu.Unlock()
+	if len(demandesEssai.m) != 0 {
+		t.Errorf("essais restants : %v", demandesEssai.m)
 	}
 }

@@ -207,3 +207,18 @@ func TestAjoutSondeDepuisPageSondes(t *testing.T) {
 		t.Errorf("ping non ajouté : %+v", l)
 	}
 }
+
+// Relecture du 21/11 : nom de sonde toujours valide, même avec une cible
+// très longue (avant : plantage).
+func TestNomSondeLong(t *testing.T) {
+	for _, c := range []struct{ machine, quoi string }{
+		{"nas", "ping monserveur-de-sauvegarde.maison.example.org"},
+		{strings.Repeat("m", 60), "ping " + strings.Repeat("a", 80)},
+		{"nas", "ping"},
+	} {
+		n := nomSonde(c.machine, c.quoi)
+		if len([]rune(n)) > 48 || n == "" {
+			t.Errorf("%q → %q (%d)", c.quoi, n, len([]rune(n)))
+		}
+	}
+}

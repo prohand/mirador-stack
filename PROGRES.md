@@ -1656,6 +1656,44 @@ Retour arrière signé valable 7 jours (date dans la signature, migration
 tel quel, sur décision. Tests : retour expiré / sans date refusé, date
 modifiée = signature cassée, ligne TTY longue.
 
+## Relecture de l'interface (SPEC § 113, 21/11)
+
+Quatre relectures (sécurité, machines, alertes/logs/réglages, navigateur
+ordinateur + iPhone, 524 pages visitées). ~45 points vérifiés et corrigés,
+2 laissés de côté (§ 113). Tests Go ajoutés (la plupart échouent sans la
+correction) ; corrections du navigateur revérifiées dans la démo (modèles,
+édition de la vue, tri des alertes). `go vet`, tests et gosec sans alerte.
+Coût : négligeable.
+
+## Suites : fiches, vue d'ensemble, images du serveur (SPEC § 113, § 114, 21/11)
+
+Fiche d'un élément : événements cherchés dans les requêtes (test : un
+événement d'il y a 3 jours retrouvé malgré 400 plus récents). Vue
+d'ensemble : compte « à valider » en cache 60 s ; fiches et page Éléments :
+1 requête de métriques au lieu de 9. `mirador-maj-serveur` : étiquettes de
+version et ménage des images après succès (test avec un Docker simulé :
+`latest` et anciennes images retirées, précédente gardée, image utilisée
+jamais supprimée). Tests, vet et gosec sans alerte.
+
+## Performances et fuites (SPEC § 115, § 116, 21/11)
+
+| Mesure | Avant | Après | Objectif |
+|---|---|---|---|
+| CPU, 50 agents + 2 h 30 d'historique | 3,75 % | **1,27 %** | < 5 % ✅ |
+| Tas vivant sous charge | 170 Mo | **117 Mo** | — |
+| RSS max sous charge | 223 Mo | 221 Mo (Go garde la place permise) | < 256 Mio ✅ |
+| Gabarits HTML | 38,9 Mo | 6,1 Mo | — |
+| Serveur au repos (1 agent, 45 min) | — | 76 Mo RSS, plat ; 0,14 % CPU | ✅ |
+| Agent (intervalle 10 s, 45 min) | — | 17,5-18,6 Mo, plat ; 0,06 % CPU | < 30 Mio ✅ |
+
+Fuites corrigées (chacune prouvée par un test) : agent 5 (journalctl en
+boucle, configuration en boucle, lot de logs, /proc/net/tcp, dpkg/apt-get),
+serveur 4 (fin d'alerte perdue, marques d'escalade, conteneurs jetables,
+index de l'historique). Points faibles faits ensuite (§ 116) : ménage des
+machines, sondes et tâches disparues, purge par âge de 8 tables, anciens
+noms oubliés, tampons d'envoi réutilisés, compteur de plantages borné dans
+le temps.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

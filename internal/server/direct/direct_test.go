@@ -73,3 +73,26 @@ func TestHubMaxAbonnes(t *testing.T) {
 		t.Error("au-delà de MaxAbonnes : accepté")
 	}
 }
+
+// Relecture du 21/11 : 10 min après la fin du direct, les relevés gardés
+// sont rendus, même si l'agent attend encore sa configuration (sa machine
+// reste connue pour pouvoir le réveiller).
+func TestHubRendRelevesApresDirect(t *testing.T) {
+	h := Nouveau()
+	m := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	h.maintenant = func() time.Time { return m }
+	a, _, _ := h.Abonner(1)
+	for i := 0; i < 50; i++ {
+		h.Recevoir(1, protocole.Direct{})
+	}
+	h.Desabonner(a)
+	for i := 0; i < 30; i++ { // l'agent attend sa configuration chaque minute
+		m = m.Add(time.Minute)
+		h.Signal(1)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if e := h.machines[1]; e == nil || e.points != nil {
+		t.Errorf("après 30 min : machine %v, relevés gardés %v", e != nil, e != nil && e.points != nil)
+	}
+}

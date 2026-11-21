@@ -203,6 +203,7 @@ func (g *Ingestion) DerniereDonneeNom(nom string) (int64, bool) {
 func (g *Ingestion) Boucle(ctx context.Context) {
 	t := time.NewTicker(intervalleVuLe)
 	defer t.Stop()
+	tours := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -213,6 +214,9 @@ func (g *Ingestion) Boucle(ctx context.Context) {
 			}
 			return
 		case <-t.C:
+			if tours++; tours%60 == 0 {
+				g.OublierMachines(ctx)
+			}
 			if err := g.auth.EcrireVus(ctx); err != nil {
 				g.opt.Journal.Error("écriture de vu_le", "erreur", err)
 			}
@@ -223,6 +227,58 @@ func (g *Ingestion) Boucle(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// OublierMachines : retire de la mémoire les machines supprimées ou
+// renommées (relecture du 21/11 : leurs entrées restaient jusqu'au
+// redémarrage). Appelé toutes les heures ; une erreur de lecture ne retire
+// rien.
+func (g *Ingestion) OublierMachines(ctx context.Context) {
+	ids, noms, err := machinesConnues(ctx, g.opt.DB)
+	if err != nil {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for id := range g.decalages {
+		if !ids[id] {
+			delete(g.decalages, id)
+		}
+	}
+	for id := range g.recues {
+		if !ids[id] {
+			delete(g.recues, id)
+		}
+	}
+	for id := range g.avertis {
+		if !ids[id] {
+			delete(g.avertis, id)
+		}
+	}
+	for nom := range g.recuesNom {
+		if !noms[nom] {
+			delete(g.recuesNom, nom)
+		}
+	}
+}
+
+// machinesConnues : identifiants et noms des machines en base.
+func machinesConnues(ctx context.Context, db *sql.DB) (map[int64]bool, map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, nom FROM machines`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	ids, noms := map[int64]bool{}, map[string]bool{}
+	for rows.Next() {
+		var id int64
+		var nom string
+		if err := rows.Scan(&id, &nom); err != nil {
+			return nil, nil, err
+		}
+		ids[id], noms[nom] = true, true
+	}
+	return ids, noms, rows.Err()
 }
 
 // Routes ajoute les points d'entrée au routeur des agents.

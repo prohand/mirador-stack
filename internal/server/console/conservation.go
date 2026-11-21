@@ -172,7 +172,14 @@ func EcrireConservation(ctx context.Context, db *sql.DB, n Conservation, qui, ad
 		err = ecrireReglage(ctx, tx, cleConservationAtt, string(ba2), qui, t)
 	} else {
 		if err = ecrireReglage(ctx, tx, cleConservation, string(bn), qui, t); err == nil {
-			_, err = tx.ExecContext(ctx, `DELETE FROM reglages WHERE cle = ?`, cleConservationAtt)
+			var res sql.Result
+			if res, err = tx.ExecContext(ctx, `DELETE FROM reglages WHERE cle = ?`, cleConservationAtt); err == nil {
+				// Réduction en attente remplacée : dit dans l'audit
+				// (relecture du 21/11 : elle disparaissait sans trace).
+				if n, _ := res.RowsAffected(); n > 0 {
+					err = Auditer(ctx, tx, qui, "conservation_reduction_annulee", cleConservation, "", "remplacée par un nouvel enregistrement", adresse, t)
+				}
+			}
 		}
 	}
 	if err != nil {

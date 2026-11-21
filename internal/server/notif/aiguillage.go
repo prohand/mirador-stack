@@ -118,6 +118,18 @@ func (g *Aiguilleur) Recevoir(evs []alertes.Evenement) {
 			gr = g.groupeDe(e.Alerte, t)
 		}
 		s := gr.alertes[h]
+		if s == nil && e.Type != "debut" {
+			// Fin d'une alerte rangée dans un autre groupe (« Grouper par »
+			// changé pendant qu'elle était en cours) : sans cela sa fin
+			// n'était jamais annoncée et les rappels continuaient
+			// (relecture du 21/11).
+			for _, x := range g.groupes {
+				if y := x.alertes[h]; y != nil {
+					s = y
+					break
+				}
+			}
+		}
 		switch {
 		case e.Type == "debut":
 			if s == nil || s.resolue { // nouvelle (ou revenue avant l'envoi de sa fin)
@@ -282,6 +294,7 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 			} else {
 				delete(gr.alertes, h) // jamais annoncée : sa fin ne l'est pas non plus
 				delete(g.deplacees, h)
+				g.oublier(s.a.ID)
 			}
 			continue
 		}
@@ -358,6 +371,7 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 		if s.resolue {
 			delete(gr.alertes, h)
 			delete(g.deplacees, h)
+			g.oublier(s.a.ID)
 		} else if _, sourd := enSourd[h]; !sourd {
 			s.notifiee = true
 		}
@@ -407,6 +421,14 @@ func trier(as []alertes.Alerte) {
 		}
 		return as[i].Debut.Before(as[j].Debut)
 	})
+}
+
+// oublier : alerte terminée et retirée de son groupe ; ses marques
+// d'escalade et de rappel ne servent plus (relecture du 21/11 : elles
+// restaient pour toujours).
+func (g *Aiguilleur) oublier(id int64) {
+	delete(g.escaladees, id)
+	delete(g.aRappeler, id)
 }
 
 // RaisonSourdine : pourquoi une alerte est en sourdine (dernier tour), "" sinon.
