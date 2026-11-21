@@ -36,6 +36,7 @@ type Syslog struct {
 	certs   syslog.Certificats
 	serveur *syslog.Serveur // nil : pas de certificat encore
 	canal   chan syslog.Ligne
+	reessai time.Duration // attente avant de rouvrir une écoute en échec (0 : reessaiEcoute)
 	masque  *logs.Masqueur
 	lot     *logs.Lot
 	file    *envoi.File
@@ -97,6 +98,9 @@ func urlLogs(brute string) string {
 	return u.String()
 }
 
+// reessaiEcoute : attente avant de rouvrir une écoute syslog en échec.
+const reessaiEcoute = 30 * time.Second
+
 // sortie : file d'attente vers le lot (jamais bloquante : pleine, la ligne
 // est perdue et comptée par le serveur syslog).
 func (s *Syslog) sortie(l syslog.Ligne) bool {
@@ -115,9 +119,30 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 		return
 	}
 	go s.exp.Tourner(ctxEnvoi)
+	// Écoute impossible (adresse pas encore posée au démarrage, DHCP lent,
+	// port pris…) ou arrêtée : nouvel essai toutes les 30 s (relecture du
+	// 21/11 : une seule erreur, puis plus de syslog jusqu'au redémarrage).
+	// Une erreur qui se répète n'est écrite qu'une fois.
+	reessai := s.reessai
+	if reessai <= 0 {
+		reessai = reessaiEcoute
+	}
 	go func() {
-		if err := s.serveur.Tourner(ctx); err != nil {
-			s.journal.Error("syslog : écoute arrêtée", "erreur", err)
+		derniere := ""
+		for {
+			err := s.serveur.Tourner(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil && err.Error() != derniere {
+				derniere = err.Error()
+				s.journal.Error("syslog : écoute impossible ou arrêtée, nouvel essai toutes les 30 s", "erreur", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(reessai):
+			}
 		}
 	}()
 	t := time.NewTicker(attenteLotSyslog)
@@ -132,6 +157,17 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 		case <-t.C:
 			s.vider()
 		case <-ctx.Done():
+			// Lignes encore dans la file : mises dans le dernier lot
+			// (relecture du 21/11 : jusqu'à 1 000 perdues à l'arrêt).
+			for {
+				select {
+				case l := <-s.canal:
+					s.lot.Ajouter(l.Heure, s.masque.Masquer(l.Texte), logs.Champs{{"host", l.Hote}, {"ident", l.App}, {"level", l.Niveau}})
+					continue
+				default:
+				}
+				break
+			}
 			s.vider()
 			return
 		}
@@ -173,7 +209,11 @@ func (s *Syslog) Collecter(b *metrics.Batch) error {
 		b.Add("mirador_collecteur_syslog_ecoute", 0)
 		return nil
 	}
-	b.Add("mirador_collecteur_syslog_ecoute", 1)
+	ouverte := 0.0
+	if s.serveur.Ouverte() {
+		ouverte = 1
+	}
+	b.Add("mirador_collecteur_syslog_ecoute", ouverte)
 	e := s.serveur.Etat()
 	b.Add("mirador_collecteur_syslog_connexions", float64(e.Connexions))
 	for eq, n := range e.Lignes {

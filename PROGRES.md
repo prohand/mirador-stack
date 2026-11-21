@@ -1694,6 +1694,16 @@ machines, sondes et tâches disparues, purge par âge de 8 tables, anciens
 noms oubliés, tampons d'envoi réutilisés, compteur de plantages borné dans
 le temps.
 
+## Collecteur : relecture et épreuve réelle (SPEC § 117, 21/11)
+
+Épreuve du vrai binaire (38 min, syslog TLS 200/s, SNMP v3, UniFi, sondes,
+pannes simulées) : RSS max 23,4 Mo (< 30 Mio ✅), aucune fuite. 12 points de
+relecture corrigés (syslog ISO, écoute jamais rouverte, sessions UniFi,
+SNMP colonne par colonne, certificats des sondes…) + relance sur place après
+un changement de configuration (agent et collecteur : plus de blocage au
+6ᵉ changement en 5 min). Coût réel du syslog corrigé dans § 23.14 (~120 µs
+par ligne, pas 7).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

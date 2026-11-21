@@ -9,7 +9,7 @@ import (
 )
 
 // purgerTables : ménage par âge des petites tables qui n'en avaient pas
-// (relecture du 21/11, SPEC § 117). Une fois par jour, avec la purge de
+// (relecture du 21/11, SPEC § 116). Une fois par jour, avec la purge de
 // l'historique des alertes.
 //   - hist : conservation de l'historique (alertes, envois ; 180 j par défaut) ;
 //   - donnees : la plus longue conservation des métriques et des logs.

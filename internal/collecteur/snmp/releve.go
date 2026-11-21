@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +32,10 @@ type Source interface {
 // Bornes d'un relevé.
 const (
 	maxOIDParGet   = 30
-	maxLignesTable = 2000 // lignes par table (protection mémoire)
-	maxTexte       = 128
+	maxLignesTable = 2000 // lignes par colonne de table (protection mémoire)
+	// maxReponsesReleve : réponses SNMP lues au plus pour tout un relevé.
+	maxReponsesReleve = 20000
+	maxTexte          = 128
 )
 
 // Releve lit les OID du préréglage et ajoute les métriques au lot.
@@ -65,56 +68,57 @@ func Releve(src Source, nomPrereglage string, b *metrics.Batch) error {
 			}
 		}
 	}
-	// Tables : GETBULK sur chaque entrée ; colonnes d'étiquettes gardées.
-	marches := map[string][]gosnmp.SnmpPDU{}
-	marche := func(racine string) []gosnmp.SnmpPDU {
-		if v, ok := marches[racine]; ok {
-			return v
+	// Tables : colonne par colonne (relecture du 21/11 : l'entrée entière
+	// était parcourue, toutes colonnes comprises, et gardée jusqu'à la fin
+	// du relevé : ~5 fois trop de trafic, colonnes utiles tronquées sur un
+	// grand switch, et jusqu'à ~30 Mio pour un équipement bogué). Budget de
+	// réponses pour tout le relevé ; seules les colonnes d'étiquettes (une
+	// par table, souvent partagée) restent en mémoire pendant le relevé.
+	budget := maxReponsesReleve
+	incompletes := 0
+	marcher := func(racine string) []gosnmp.SnmpPDU {
+		v, err := marcherBorne(src, racine, min(maxLignesTable, budget))
+		budget -= len(v)
+		if err != nil {
+			incompletes++ // marche coupée en route (délai, équipement muet, budget)
 		}
-		v := marcherBorne(src, racine, maxLignesTable*16) // table absente : rien
-		marches[racine] = v
 		return v
 	}
+	etiquettes := map[string]map[string]string{} // colonne d'étiquettes → index → valeur
 	for _, t := range p.tables {
-		// Étiquette de chaque index (lookup).
-		etiq := map[string]string{}
-		for _, pdu := range marche(t.colEtiq) {
-			if idx, ok := strings.CutPrefix(strings.TrimPrefix(pdu.Name, "."), t.colEtiq+"."); ok {
-				etiq[idx] = texte(pdu.Value)
+		etiq, ok := etiquettes[t.colEtiq]
+		if !ok {
+			etiq = map[string]string{}
+			for _, pdu := range marcher(t.colEtiq) {
+				if idx, ok := strings.CutPrefix(strings.TrimPrefix(pdu.Name, "."), t.colEtiq+"."); ok {
+					etiq[idx] = texte(pdu.Value)
+				}
 			}
+			etiquettes[t.colEtiq] = etiq
 		}
-		cols := map[string]colonne{}
 		for _, c := range t.colonnes {
-			cols[c.sous] = c
-		}
-		lignes := map[string]bool{}
-		for _, pdu := range marche(t.entree) {
-			reste, ok := strings.CutPrefix(strings.TrimPrefix(pdu.Name, "."), t.entree+".")
-			if !ok {
-				continue
-			}
-			col, idx, ok := strings.Cut(reste, ".")
-			c, connu := cols[col]
-			if !ok || !connu {
-				continue
-			}
-			if !lignes[idx] && len(lignes) >= maxLignesTable {
-				continue
-			}
-			lignes[idx] = true
-			valeurEtiq := etiq[idx]
-			if valeurEtiq == "" {
-				valeurEtiq = idx
-			}
-			labels := []metrics.Label{metrics.L(t.etiquette, valeurEtiq)}
-			if t.garderIndex != "" {
-				labels = append(labels, metrics.L(t.garderIndex, idx))
-			}
-			if emettre(b, c.nom, c.texte, pdu, labels) {
-				trouves++
+			racine := t.entree + "." + c.sous
+			for _, pdu := range marcher(racine) {
+				idx, ok := strings.CutPrefix(strings.TrimPrefix(pdu.Name, "."), racine+".")
+				if !ok {
+					continue
+				}
+				valeurEtiq := etiq[idx]
+				if valeurEtiq == "" {
+					valeurEtiq = idx
+				}
+				labels := []metrics.Label{metrics.L(t.etiquette, valeurEtiq)}
+				if t.garderIndex != "" {
+					labels = append(labels, metrics.L(t.garderIndex, idx))
+				}
+				if emettre(b, c.nom, c.texte, pdu, labels) {
+					trouves++
+				}
 			}
 		}
 	}
+	// Tables lues en partie : dit au lieu de rester silencieux.
+	b.Add("mirador_snmp_tables_incompletes", float64(incompletes))
 	if trouves == 0 {
 		return errors.New("aucune valeur reçue (OID absents : préréglage ou droits de l'utilisateur SNMP ?)")
 	}
@@ -180,23 +184,30 @@ var errAssez = errors.New("borne atteinte")
 // marcherBorne : marche d'une table, arrêtée à max réponses (relecture du
 // 21/11 : BulkWalkAll chargeait tout avant de couper ; un équipement bogué
 // aux OID sans fin faisait grossir la mémoire sans borne).
-func marcherBorne(src Source, racine string, max int) []gosnmp.SnmpPDU {
+// L'erreur dit si la marche a été coupée (borne atteinte comprise).
+func marcherBorne(src Source, racine string, max int) ([]gosnmp.SnmpPDU, error) {
+	if max <= 0 {
+		return nil, errAssez
+	}
 	m, ok := src.(interface {
 		BulkWalk(string, gosnmp.WalkFunc) error
 	})
 	if !ok {
-		v, _ := src.BulkWalkAll(racine)
-		return v[:min(len(v), max)]
+		v, err := src.BulkWalkAll(racine)
+		if len(v) > max {
+			return v[:max], errAssez
+		}
+		return v, err
 	}
 	var v []gosnmp.SnmpPDU
-	_ = m.BulkWalk(racine, func(pdu gosnmp.SnmpPDU) error {
+	err := m.BulkWalk(racine, func(pdu gosnmp.SnmpPDU) error {
 		if len(v) >= max {
 			return errAssez
 		}
 		v = append(v, pdu)
 		return nil
 	})
-	return v
+	return v, err
 }
 
 // dureeMaxReleve : un relevé complet (toutes les tables) ne dure jamais plus.
@@ -252,10 +263,15 @@ func (r *Releveur) Tourner(ctx context.Context) {
 		up := 1.0
 		if err != nil {
 			up = 0
-			if err.Error() != dernierEchec && r.Journal != nil {
-				r.Journal.Warn("SNMP : relevé en échec", "equipement", r.Cible.Machine, "erreur", err)
+			// Comparé sans les adresses (relecture du 21/11 : le port local
+			// UDP change à chaque essai ; la même panne était écrite toutes
+			// les 30 s, ~2 900 lignes par jour et par cible).
+			if forme := sansAdresses(err.Error()); forme != dernierEchec {
+				if r.Journal != nil {
+					r.Journal.Warn("SNMP : relevé en échec", "equipement", r.Cible.Machine, "erreur", err)
+				}
+				dernierEchec = forme
 			}
-			dernierEchec = err.Error()
 		} else {
 			dernierEchec = ""
 		}
@@ -296,3 +312,10 @@ func OuvrirReseau(c config.CibleSNMP) (Source, func(), error) {
 	}
 	return g, func() { _ = g.Conn.Close() }, nil
 }
+
+// reAdresse : adresse IP avec port (« 10.0.0.3:42635 », « [fe80::1]:161 »).
+var reAdresse = regexp.MustCompile(`\[[0-9A-Fa-f:.]+\]:\d+|\d{1,3}(\.\d{1,3}){3}:\d+`)
+
+// sansAdresses : texte d'erreur sans les adresses (pour reconnaître la même
+// panne d'un essai à l'autre).
+func sansAdresses(s string) string { return reAdresse.ReplaceAllString(s, "…") }

@@ -3,6 +3,7 @@
 package syslog
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -24,15 +25,19 @@ import (
 
 // ChargerOuCreerCle : clé ECDSA P-256 du fichier (0600), créée si absente.
 func ChargerOuCreerCle(chemin string) (*ecdsa.PrivateKey, error) {
-	if brut, err := os.ReadFile(chemin); err == nil { // #nosec G304 -- chemin de la configuration locale
+	if brut, err := os.ReadFile(chemin); err == nil && len(bytes.TrimSpace(brut)) > 0 { // #nosec G304 -- chemin de la configuration locale
 		bloc, _ := pem.Decode(brut)
 		if bloc == nil || bloc.Type != "EC PRIVATE KEY" {
 			return nil, errors.New("clé du syslog illisible : " + chemin)
 		}
 		return x509.ParseECPrivateKey(bloc.Bytes)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	// Absente, ou vide (coupure de courant pendant la première écriture :
+	// relecture du 21/11, le syslog restait coupé pour toujours) : créée.
+	// La clé ne sert qu'au certificat du syslog : une nouvelle clé donne
+	// une nouvelle demande de certificat au serveur.
 	cle, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -42,7 +47,18 @@ func ChargerOuCreerCle(chemin string) (*ecdsa.PrivateKey, error) {
 		return nil, err
 	}
 	tmp := chemin + ".tmp"
-	if err := os.WriteFile(tmp, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) // #nosec G304 -- chemin de la configuration locale
+	if err != nil {
+		return nil, err
+	}
+	_, err = f.Write(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
+	if err == nil {
+		err = f.Sync() // sur le disque avant le renommage
+	}
+	if errF := f.Close(); err == nil {
+		err = errF
+	}
+	if err != nil {
 		return nil, err
 	}
 	return cle, os.Rename(tmp, chemin)

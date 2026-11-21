@@ -88,6 +88,7 @@ type Serveur struct {
 	seaux    map[string]*seau
 	lignes   map[string]uint64 // par équipement
 	actives  atomic.Int64
+	ouverte  atomic.Bool // écoute ouverte en ce moment (mesure)
 	refus    map[string]*atomic.Uint64
 	ecoute   net.Addr
 	pret     chan struct{}
@@ -151,6 +152,9 @@ func (s *Serveur) Pret() <-chan struct{} { return s.pret }
 func (s *Serveur) Adresse() net.Addr { return s.ecoute }
 
 // Tourner écoute jusqu'à l'arrêt du contexte.
+// Ouverte : l'écoute est ouverte en ce moment.
+func (s *Serveur) Ouverte() bool { return s.ouverte.Load() }
+
 func (s *Serveur) Tourner(ctx context.Context) error {
 	var lc net.ListenConfig
 	l, err := lc.Listen(ctx, "tcp", s.opt.Ecoute)
@@ -158,6 +162,8 @@ func (s *Serveur) Tourner(ctx context.Context) error {
 		return fmt.Errorf("syslog : écoute impossible sur %s : %w", s.opt.Ecoute, err)
 	}
 	s.ecoute = l.Addr()
+	s.ouverte.Store(true)
+	defer s.ouverte.Store(false)
 	s.pretUnef.Do(func() { close(s.pret) })
 	if s.opt.Journal != nil {
 		s.opt.Journal.Info("syslog TLS : écoute ouverte", "adresse", l.Addr().String(), "emetteurs", len(s.emetteurs))

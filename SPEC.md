@@ -3864,7 +3864,11 @@ unpoller ≈ 180 Mo). Serveur : une lecture SQL par collecteur toutes les
 
 **Coût mesuré** (banc d'essai) : **7 µs par ligne** (lecture, masquage, mise
 en lot), soit ~0,0005 % d'un cœur au rythme actuel (0,6 ligne/s,
-52 500/jour) et 0,35 % à 500 lignes/s. Mémoire : file d'attente de 1 000
+52 500/jour) et 0,35 % à 500 lignes/s. **Corrigé le 21/11 (§ 117)** : sur
+le vrai binaire, ~120 µs par ligne tout compris (appels système et réveils,
+un par message ; l'analyse est minoritaire) : 0,01 % au rythme actuel,
+~2,4 % à 200 lignes/s, ~6 % à la limite de 500 lignes/s ; poignée de main
+TLS ~0,9 ms par connexion. Mémoire : file d'attente de 1 000
 lignes (quelques centaines de Ko en vrai, 8 Mio au pire), lots de 512 Kio,
 file d'envoi de 4 Mio. Aucune écriture disque (sauf la clé, une fois).
 Serveur : un passage par minute sur la table des certificats.
@@ -7976,3 +7980,58 @@ descripteurs (13 et 25) constants ; CPU 0,14 % (serveur) et 0,06 % (agent).
 Coût des corrections : nul ou négatif (moins de mémoire, moins d'appels).
 Menaces : un serveur ou un mandataire bogué ne peut plus faire tourner
 l'agent en boucle ; un journal abîmé non plus.
+
+## 117. Collecteur : relecture du code et épreuve réelle (21/11) **[Fait, à valider]**
+Deux recherches : relecture du code (bugs, fuites) et épreuve du vrai
+binaire 38 min (+ 9 min de profils) dans un réseau isolé : faux SNMP v3,
+faux UniFi (normal, 401, 500, lent), sondes, syslog TLS 200 messages/s sur
+20 connexions, messages mal formés ou énormes, connexions muettes,
+30 000 connexions courtes, 73 000 refus, changements de configuration.
+
+**Mesures (épreuve)** : RSS 16,9 à 23,4 Mo (objectif 30 Mio ✅), tas vivant
+4,7 à 6 Mo, fils 9 à 11, descripteurs revenus à leur niveau après chaque
+changement. CPU 0,18 % au calme ; 7,8 % sous 200 messages/s + connexions en
+rafale (cas d'épreuve). **Aucune fuite.**
+
+**Corrigé** (un test par point, qui échoue sans la correction)
+- Syslog :
+  - message BSD avec heure ISO (rsyslog RSYSLOG_ForwardFormat, syslog-ng
+    iso) : « 2026-11-21T10 » pris pour le programme, un flux de logs de plus
+    chaque heure, filtres par programme cassés ;
+  - écoute impossible (adresse pas encore posée, DHCP lent, port pris) :
+    plus jamais rouverte, et la mesure disait « écoute = 1 ». Nouvel essai
+    toutes les 30 s, mesure juste, erreur écrite une fois ;
+  - fin de message NUL acceptée (RFC 6587) ; lignes encore en file gardées
+    à l'arrêt ; clé écrite avec Sync, recréée si le fichier est vide.
+- UniFi : une connexion au compte par relevé, jamais fermée (1 440 sessions
+  par jour sur le contrôleur) → session gardée, rouverte si elle expire,
+  fermée à l'arrêt ; réponse lue élément par élément (avant ~4 fois sa
+  taille en mémoire : 35 Mo pour 8,5 Mo).
+- SNMP : colonnes utiles seulement (l'entrée entière était lue : ~5 fois trop
+  de trafic, colonnes tronquées sur un grand switch) ; budget de 20 000
+  réponses par relevé (un équipement bogué faisait ~68 Mo de pointe) ; tables
+  coupées signalées (`mirador_snmp_tables_incompletes`) ; une même panne
+  n'est plus écrite toutes les 30 s (port local dans le message).
+- Sondes : échéance d'un certificat refusé gardée (l'alerte « certificat
+  bientôt expiré » se résolvait au moment de l'expiration) ; messages
+  d'erreur fixes (certificat, DNS trié, nombre JSON) : une étiquette de plus
+  à chaque essai avant.
+- **Redémarrage après un changement de configuration** (agent et
+  collecteur) : passait par systemd (10 s sans syslog), et au 6ᵉ changement
+  en 5 min (StartLimitBurst=5) le programme restait arrêté. Il se relance
+  maintenant lui-même (execve, même PID, paquet `relance`) ; mise à jour et
+  retour arrière passent toujours par systemd. Plus d'avertissement
+  « context canceled » à chaque arrêt.
+
+**Laissé tel quel**
+- Coût par ligne syslog (~120 µs) : un appel système et un réveil par
+  message ; à revoir seulement si un équipement envoie des centaines de
+  lignes par seconde.
+- Agent relancé sur place pendant qu'un enfant tourne (apt-get de la liste
+  des mises à jour) : l'enfant finit en processus zombie jusqu'à l'arrêt
+  suivant (rare, sans effet).
+
+Coût des corrections : moins de trafic SNMP (colonnes) et de connexions
+UniFi ; mémoire de pointe bornée. Menaces : inchangées (rien de nouveau
+n'écoute ; la relance sur place exécute le même programme, mêmes
+arguments).

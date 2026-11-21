@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -37,11 +38,19 @@ import (
 	"mirador-stack/internal/agent/remotewrite"
 	"mirador-stack/internal/collecteur"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/relance"
 	"mirador-stack/internal/version"
 )
 
 func main() {
-	os.Exit(lancer(os.Args[1:], os.Stdout, os.Stderr))
+	code := lancer(os.Args[1:], os.Stdout, os.Stderr)
+	if code == relance.Code {
+		// Configuration modifiée : relance sur place (voir le paquet relance).
+		err := relance.Executer()
+		fmt.Fprintf(os.Stderr, "relance sur place impossible (%v) : systemd relance\n", err)
+		code = 0
+	}
+	os.Exit(code)
 }
 
 func lancer(args []string, sortie, erreurs io.Writer) int {
@@ -132,12 +141,14 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	a := agent.NouveauAvec(cfg, token, journal, agent.Options{Collecteurs: mesures, Job: collecteur.Job})
 	// « Vérifier maintenant » (SPEC § 108) : essais demandés dans l'interface.
 	decl := &collecteur.Declencheurs{Journal: journal}
+	var surPlace atomic.Bool // relance sur place demandée (configuration modifiée)
 	if cfg.Serveur != "" {
 		lien := &distant.Lien{Sonder: decl.Declencher, Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
 			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
 				journal.Info("redémarrage demandé", "raison", raison)
+				surPlace.Store(raison == distant.RaisonConfiguration)
 				arreter() // arrêt propre ; systemd relance le collecteur
 			}}
 		go lien.Tourner(ctx)
@@ -169,6 +180,9 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	a.Vider(5 * time.Second)
 	arreterEnvoi()
 	a.Sauver()
+	if surPlace.Load() {
+		return relance.Code
+	}
 	return 0
 }
 
