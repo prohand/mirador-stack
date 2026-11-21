@@ -1649,6 +1649,13 @@ tampon d'envoi, collecte). 4 laissés de côté, à décider (§ 111). Tests
 ajoutés pour chaque correction (la plupart échouent sans elle) ;
 `go test -race` sans alerte ; gosec sans alerte. Coût : négligeable.
 
+## Suites de la relecture (SPEC § 112, 21/11)
+
+Retour arrière signé valable 7 jours (date dans la signature, migration
+0036) ; longues lignes des conteneurs TTY gardées (début). Le reste laissé
+tel quel, sur décision. Tests : retour expiré / sans date refusé, date
+modifiée = signature cassée, ligne TTY longue.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

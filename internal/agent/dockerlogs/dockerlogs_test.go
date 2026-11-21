@@ -188,3 +188,18 @@ func TestSuiveurOublieConteneursDisparus(t *testing.T) {
 		t.Error("conteneur disparu gardé dans depuis")
 	}
 }
+
+// Relecture du 21/11 : conteneur avec TTY, ligne plus longue que le tampon :
+// le début (et son horodatage) est gardé, la ligne suivante aussi.
+func TestLireBrutLigneLongue(t *testing.T) {
+	longue := "2026-11-21T10:00:00.000000000Z " + strings.Repeat("x", 40<<10)
+	flux := longue + "\n2026-11-21T10:00:01.000000000Z suite\n"
+	var vues []string
+	_ = lireBrut(bufio.NewReaderSize(strings.NewReader(flux), 16<<10), func(b []byte, _ string) { vues = append(vues, string(b)) })
+	if len(vues) != 2 || !strings.HasPrefix(vues[0], "2026-11-21T10:00:00") || !strings.HasSuffix(vues[1], " suite") {
+		t.Fatalf("%d lignes, début %.40q", len(vues), vues)
+	}
+	if _, _, ok := couperHorodatage([]byte(vues[0])); !ok {
+		t.Error("horodatage de la ligne longue perdu")
+	}
+}

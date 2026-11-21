@@ -33,6 +33,17 @@ func manifeste(priv ed25519.PrivateKey, version string, binaire []byte, retour b
 	somme := sha256.Sum256(binaire)
 	m := &protocole.Manifeste{Version: version, Architecture: runtime.GOARCH,
 		SHA256: hex.EncodeToString(somme[:]), Taille: int64(len(binaire)), RetourAutorise: retour}
+	if retour {
+		m.RetourJusqua = time.Now().Add(time.Hour).Unix()
+	}
+	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
+	return m
+}
+
+// manifesteRetour : retour autorisé jusqu'à jusqua (0 : sans date, ancien format).
+func manifesteRetour(priv ed25519.PrivateKey, version string, binaire []byte, jusqua int64) *protocole.Manifeste {
+	m := manifeste(priv, version, binaire, true)
+	m.RetourJusqua = jusqua
 	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
 	return m
 }
@@ -58,6 +69,9 @@ func TestVerifierManifeste(t *testing.T) {
 		"signé par une autre clé": {manifeste(autrePriv, "1.2.0", bin, false), pub, ErrSignature},
 		"version plus ancienne":   {manifeste(priv, "1.0.9", bin, false), pub, ErrRetourArriere},
 		"retour arrière signé":    {manifeste(priv, "1.0.9", bin, true), pub, nil},
+		// Relecture du 21/11 : autorisation de retour limitée dans le temps.
+		"retour arrière expiré":    {manifesteRetour(priv, "1.0.9", bin, time.Now().Add(-time.Minute).Unix()), pub, ErrRetourArriere},
+		"retour arrière sans date": {manifesteRetour(priv, "1.0.9", bin, 0), pub, ErrRetourArriere},
 	}
 	for nom, c := range cas {
 		t.Run(nom, func(t *testing.T) {

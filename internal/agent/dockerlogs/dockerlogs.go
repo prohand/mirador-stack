@@ -282,13 +282,29 @@ func lireMultiplexe(r *bufio.Reader, ligne func([]byte, string)) error {
 }
 
 // lireBrut lit un flux de conteneur avec TTY : simples lignes (tout en stdout).
+//
+// Ligne plus longue que le tampon (relecture du 21/11) : le début est gardé
+// (avec l'horodatage de Docker en tête), la suite jusqu'à la fin de ligne est
+// jetée ; avant, toute la ligne était perdue.
+// tailleMaxLigneTTY : début gardé d'une ligne longue (le message est encore
+// coupé plus loin, à la taille maximale d'un log).
+const tailleMaxLigneTTY = 64 << 10
+
 func lireBrut(r *bufio.Reader, ligne func([]byte, string)) error {
+	var l []byte
 	for {
-		l, err := r.ReadSlice('\n')
-		if len(l) > 0 && err != bufio.ErrBufferFull {
+		morceau, err := r.ReadSlice('\n')
+		if place := tailleMaxLigneTTY - len(l); place > 0 {
+			l = append(l, morceau[:min(place, len(morceau))]...)
+		}
+		if err == bufio.ErrBufferFull {
+			continue // ligne pas finie
+		}
+		if len(l) > 0 {
 			ligne([]byte(strings.TrimRight(string(l), "\r\n")), "stdout")
 		}
-		if err != nil && err != bufio.ErrBufferFull {
+		l = l[:0]
+		if err != nil {
 			return finFlux(err)
 		}
 	}

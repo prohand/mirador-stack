@@ -281,7 +281,8 @@ MS cible 1.2.0
 
 Seuls les agents installés avec `--auto-update` se mettent à jour. Chacun
 vérifie la signature, l'empreinte, et refuse une version plus ancienne (sauf
-manifeste signé avec `-retour-autorise`). Il teste la nouvelle version
+manifeste signé avec `-retour-autorise`, valable 7 jours après la signature :
+passé ce délai, le signer de nouveau). Il teste la nouvelle version
 (`-self-test`) avant de basculer. S'il ne joint pas le serveur dans les
 10 minutes, il revient à l'ancienne version et ne retente pas celle-ci ;
 `MS machines` affiche l'échec.

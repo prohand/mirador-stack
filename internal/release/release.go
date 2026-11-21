@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 
@@ -199,9 +200,16 @@ func Signer(priv ed25519.PrivateKey, binaire []byte, produit, version, arch stri
 	}
 	m := &protocole.Manifeste{Produit: produit, Version: version, Architecture: arch, SHA256: hex.EncodeToString(h[:]),
 		Taille: int64(len(binaire)), RetourAutorise: retourAutorise}
+	if retourAutorise {
+		// Autorisation limitée dans le temps (relecture du 21/11).
+		m.RetourJusqua = time.Now().Add(DureeRetour).Unix()
+	}
 	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, m.MessageSigne()))
 	return m, nil
 }
+
+// DureeRetour : durée de validité d'un manifeste « retour autorisé ».
+var DureeRetour = 7 * 24 * time.Hour
 
 // formatEmpreinteImage : empreinte d'une image Docker (« sha256: » + 64 hex).
 var formatEmpreinteImage = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)

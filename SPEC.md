@@ -7768,3 +7768,22 @@ avant la correction quand c'était possible) avant d'être corrigé.
 Coût : un `statfs` par montage passe par une goroutine (une vingtaine par
 cycle de 10 s) ; une copie par lot mis en file (quelques Kio) ; rien
 d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
+
+## 112. Suites de la relecture (21/11, décisions de l'utilisateur) **[Fait, à valider]**
+- **Retour arrière limité dans le temps** : un manifeste « retour autorisé »
+  porte une date de fin (7 jours après la signature), signée avec lui
+  (`retour_jusqua`). L'agent refuse un retour sans date ou expiré. Les
+  manifestes normaux ne changent pas (même message signé, mêmes fichiers).
+  Les agents plus anciens refusent un manifeste « retour » au nouveau format
+  (champ inconnu) : refus sans risque. Serveur : colonne
+  `versions_binaires.retour_jusqua` (migration 0036). Menace couverte : un
+  serveur piraté ne peut plus ramener le parc vers une vieille version à
+  faille connue avec un manifeste « retour » signé des mois plus tôt.
+- **Logs Docker (TTY)** : ligne plus longue que le tampon : début gardé
+  (64 Kio, horodatage compris) au lieu de perdre toute la ligne.
+- **Laissés tels quels** (décision du 21/11) : pics Proxmox lors d'un retrait
+  à chaud (rare, cosmétique), croisement stdout/stderr Docker (très rare),
+  quota du serveur partagé (à revoir seulement si des refus 429 apparaissent
+  après une coupure).
+- Coût : nul (une ligne de plus dans le message signé des manifestes
+  « retour »).

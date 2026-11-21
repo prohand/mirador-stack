@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	clesdepot "mirador-stack/cles"
 	"mirador-stack/internal/protocole"
@@ -98,8 +99,20 @@ func VerifierManifeste(m *protocole.Manifeste, versionActuelle, clesIntegrees st
 	if cmp < 0 && !m.RetourAutorise {
 		return ErrRetourArriere
 	}
+	// Retour arrière : seulement avant la date signée (relecture du 21/11).
+	if cmp < 0 {
+		if m.RetourJusqua == 0 {
+			return fmt.Errorf("%w : manifeste sans date de fin (à signer de nouveau)", ErrRetourArriere)
+		}
+		if !maintenant().Before(time.Unix(m.RetourJusqua, 0)) {
+			return fmt.Errorf("%w : autorisation expirée le %s", ErrRetourArriere, time.Unix(m.RetourJusqua, 0).UTC().Format("02/01/2006"))
+		}
+	}
 	return nil
 }
+
+// maintenant : horloge (remplacée dans les tests).
+var maintenant = time.Now
 
 // VerifierSignature contrôle seulement la signature et la forme du manifeste
 // (taille, empreinte), sans regarder l'architecture ni la version : sert au
