@@ -104,6 +104,16 @@ func (x *sondeur) ajuster(ctx context.Context) {
 			delete(x.signaux, nom)
 		}
 	}
+	// Dernier résultat des sondes retirées : oublié (relecture du 21/11).
+	for nom := range x.resultats {
+		garder := false
+		for _, s := range voulues {
+			garder = garder || s.Nom == nom
+		}
+		if !garder {
+			delete(x.resultats, nom)
+		}
+	}
 	for cle, s := range voulues {
 		if _, ok := x.taches[cle]; ok {
 			continue

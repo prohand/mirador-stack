@@ -42,8 +42,34 @@ func (e Execution) Duree() time.Duration {
 // Noteur : note les nouvelles exécutions. Il retient la dernière fin notée
 // de chaque tâche : une exécution déjà vue ne coûte aucune écriture.
 type Noteur struct {
-	mu   sync.Mutex
-	vues map[string]int64
+	mu       sync.Mutex
+	vues     map[string]int64
+	menageLe time.Time
+}
+
+// OubliApres : une tâche sans exécution depuis ce temps a disparu (timer
+// systemd jetable, conteneur ponctuel retiré…) : son historique est effacé
+// (relecture du 21/11 : il restait pour toujours). Même durée que
+// l'historique des alertes.
+const OubliApres = 180 * 24 * time.Hour
+
+// Oublier : efface l'historique des tâches sans exécution depuis
+// OubliApres, en base et en mémoire.
+func (n *Noteur) Oublier(ctx context.Context, db *sql.DB, t time.Time) error {
+	limite := t.Add(-OubliApres).Unix()
+	if _, err := db.ExecContext(ctx, `DELETE FROM taches_executions WHERE cle IN (
+		SELECT cle FROM taches_executions GROUP BY cle HAVING max(fin) < ?)`, limite); err != nil {
+		return err
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for cle, fin := range n.vues {
+		if fin < limite {
+			delete(n.vues, cle)
+		}
+	}
+	n.menageLe = t
+	return nil
 }
 
 // Noter : enregistre la dernière exécution d'une tâche si elle est nouvelle.
@@ -57,7 +83,13 @@ func (n *Noteur) Noter(ctx context.Context, db *sql.DB, cle string, r Releve) er
 		n.vues = map[string]int64{}
 	}
 	deja := n.vues[cle] == fin
+	menage := time.Since(n.menageLe) > 24*time.Hour
 	n.mu.Unlock()
+	if menage {
+		if err := n.Oublier(ctx, db, time.Now()); err != nil {
+			return err
+		}
+	}
 	if deja {
 		return nil
 	}

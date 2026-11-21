@@ -107,6 +107,7 @@ func (f *Flotte) Boucle(ctx context.Context) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	prochainNettoyage := time.Now().Add(2 * time.Minute) // au démarrage, puis chaque jour
+	prochainMenage := time.Now().Add(time.Hour)
 	for {
 		select {
 		case <-ctx.Done():
@@ -120,6 +121,10 @@ func (f *Flotte) Boucle(ctx context.Context) {
 			if err := f.EcrireBattements(ctx); err != nil {
 				f.opt.Journal.Error("écriture des battements", "erreur", err)
 			}
+			if time.Now().After(prochainMenage) {
+				prochainMenage = time.Now().Add(time.Hour)
+				f.oublierMachines(ctx, time.Now())
+			}
 			if time.Now().After(prochainNettoyage) && f.opt.DossierVersions != "" {
 				prochainNettoyage = time.Now().Add(24 * time.Hour)
 				faites, err := NettoyerVersions(ctx, f.opt.DB, f.opt.DossierVersions, "systeme", time.Now())
@@ -132,6 +137,54 @@ func (f *Flotte) Boucle(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// oublierMachines : retire de la mémoire les machines supprimées, les
+// demandes « Actualiser » de plus d'un jour et les essais de sondes
+// périmés (relecture du 21/11). Une erreur de lecture ne retire rien.
+func (f *Flotte) oublierMachines(ctx context.Context, t time.Time) {
+	rows, err := f.opt.DB.QueryContext(ctx, `SELECT id FROM machines`)
+	if err != nil {
+		return
+	}
+	ids := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids[id] = true
+		}
+	}
+	_ = rows.Close() // lecture seule
+	if rows.Err() != nil {
+		return
+	}
+	f.mu.Lock()
+	for id := range f.connus {
+		if !ids[id] {
+			delete(f.connus, id)
+		}
+	}
+	f.mu.Unlock()
+	actualisations.mu.Lock()
+	for id, n := range actualisations.m {
+		if !ids[id] || n < t.Add(-24*time.Hour).UnixNano() {
+			delete(actualisations.m, id)
+		}
+	}
+	actualisations.mu.Unlock()
+	demandesEssai.mu.Lock()
+	limite := t.Add(-garderEssai).UnixNano()
+	for id, parNom := range demandesEssai.m {
+		for nom, n := range parNom {
+			if n < limite {
+				delete(parNom, nom)
+			}
+		}
+		if !ids[id] || len(parNom) == 0 {
+			delete(demandesEssai.m, id)
+		}
+	}
+	demandesEssai.mu.Unlock()
 }
 
 // --- Aides HTTP --------------------------------------------------------------------

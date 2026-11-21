@@ -343,6 +343,12 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 		} else if n > 0 {
 			s.journal.Info("historique des alertes purgé", "lignes", n)
 		}
+		donnees := max(time.Duration(cons.Brut), time.Duration(cons.Agrege), time.Duration(cons.Logs))
+		if n, err := purgerTables(ctx, s.db, t, hist, donnees); err != nil {
+			s.journal.Error("purge des tables anciennes", "erreur", err)
+		} else if n > 0 {
+			s.journal.Info("tables anciennes purgées", "lignes", n)
+		}
 		if n, err := console.PurgerAudit(ctx, s.db, t.Add(-time.Duration(cons.Audit))); err != nil {
 			s.journal.Error("purge du journal d'audit", "erreur", err)
 		} else if n > 0 {

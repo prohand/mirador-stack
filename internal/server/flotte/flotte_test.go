@@ -826,3 +826,33 @@ func TestEquipementEtModifierConfigSi(t *testing.T) {
 		t.Errorf("écrit malgré le refus : audit %d → %d, configs %d", avant, apres, nb)
 	}
 }
+
+// Relecture du 21/11 : machine supprimée, demande « Actualiser » de plus
+// d'un jour et essais périmés retirés de la mémoire.
+func TestOublierMachinesFlotte(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(id, nom, statut, cree_le) VALUES (500, 'garde', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	m := time.Now()
+	b.f.mu.Lock()
+	b.f.connus[500], b.f.connus[999] = "x", "y"
+	b.f.mu.Unlock()
+	DemanderActualisation(500, m.Add(-48*time.Hour))
+	DemanderActualisation(999, m)
+	DemanderEssai(500, "vieille", m.Add(-time.Hour))
+	DemanderEssai(999, "autre", m)
+	b.f.oublierMachines(context.Background(), m)
+	b.f.mu.Lock()
+	_, garde := b.f.connus[500]
+	n := len(b.f.connus)
+	b.f.mu.Unlock()
+	if !garde || n != 1 || actualisationDe(500) != 0 || actualisationDe(999) != 0 {
+		t.Errorf("connus %d (500 gardée : %v), actualisations 500=%d 999=%d", n, garde, actualisationDe(500), actualisationDe(999))
+	}
+	demandesEssai.mu.Lock()
+	defer demandesEssai.mu.Unlock()
+	if len(demandesEssai.m) != 0 {
+		t.Errorf("essais restants : %v", demandesEssai.m)
+	}
+}

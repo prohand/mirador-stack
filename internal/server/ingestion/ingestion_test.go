@@ -584,3 +584,27 @@ func TestLignesParHote(t *testing.T) {
 		t.Fatalf("pc : %d lignes comptées", n)
 	}
 }
+
+// Relecture du 21/11 : une machine supprimée ou renommée est retirée de la
+// mémoire de l'ingestion (décalage, dernières réceptions, avertissements).
+func TestOublierMachines(t *testing.T) {
+	b := nouveauBanc(t, nil)
+	b.g.mu.Lock()
+	b.g.decalages[999], b.g.recues[999], b.g.avertis[999] = time.Second, 1, time.Now()
+	b.g.recuesNom["ancien-nom"] = 1
+	b.g.mu.Unlock()
+	var id int64
+	var nom string
+	if err := b.db.QueryRow(`SELECT id, nom FROM machines LIMIT 1`).Scan(&id, &nom); err != nil {
+		t.Fatal(err)
+	}
+	b.g.mu.Lock()
+	b.g.recues[id], b.g.recuesNom[nom] = 1, 1
+	b.g.mu.Unlock()
+	b.g.OublierMachines(context.Background())
+	b.g.mu.Lock()
+	defer b.g.mu.Unlock()
+	if len(b.g.decalages) != 0 || len(b.g.avertis) != 0 || len(b.g.recues) != 1 || len(b.g.recuesNom) != 1 || b.g.recuesNom[nom] != 1 {
+		t.Errorf("restent : decalages %d, recues %d, avertis %d, recuesNom %v", len(b.g.decalages), len(b.g.recues), len(b.g.avertis), b.g.recuesNom)
+	}
+}

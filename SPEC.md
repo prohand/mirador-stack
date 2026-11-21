@@ -7949,16 +7949,29 @@ relevés toutes les 30 s) : serveur 76,3 → 76,6 Mo de RSS entre la 10ᵉ et
 la 44ᵉ minute, agent 17,5 à 18,6 Mo sans tendance ; fils (10) et
 descripteurs (13 et 25) constants ; CPU 0,14 % (serveur) et 0,06 % (agent).
 
-**Laissé de côté (faible)**
-- Maps par machine jamais nettoyées après suppression ou renommage
-  (quelques centaines d'octets par machine) ; résultats par sonde supprimée.
-- Tâches planifiées disparues (timers jetables) gardées dans l'historique
-  (60 lignes au plus par tâche).
-- Tables sans purge par âge : silences et maintenances passés, jetons
-  révoqués, notes d'incident ; `noms_anciens` jamais oublié.
-- Agent : tampons recyclés de la file d'envoi jamais réutilisés (CPU du
-  ramasse-miettes seulement) ; compteur de plantages par conteneur supprimé
-  (200 au plus).
+**Fait ensuite (décision du 21/11 : « fais tout »)**
+- Machines supprimées ou renommées : retirées de la mémoire de l'ingestion
+  (décalage, réceptions, avertissements) et de la flotte (dernier état,
+  « Actualiser » de plus d'un jour, essais de sondes périmés) toutes les
+  heures ; le direct rend ses relevés (300 au plus) 10 min après la fin et
+  fait son ménage à chaque minute (avant : seulement à l'ouverture d'une
+  page en direct).
+- Sondes retirées : dernier résultat et demandes d'essai oubliés.
+- Tâches planifiées sans exécution depuis 180 jours : historique effacé
+  (base et mémoire).
+- Purge quotidienne par âge (conservation de l'historique, 180 j) :
+  silences finis, maintenances ponctuelles finies, jetons d'installation
+  expirés jamais utilisés, tokens révoqués, notes d'incident, écarts
+  vmalert, historique des sauvegardes (la dernière réussie reste). Garde-fou :
+  rien n'est effacé si la durée lue est nulle.
+- Anciens noms des machines renommées : oubliés quand plus aucune donnée
+  ne les porte (plus longue conservation des métriques et des logs) ; les
+  graphiques ne les cherchent plus.
+- Agent : le tampon de compression est gardé par l'encodeur et le résultat
+  copié dans le tampon rendu par la file, qui sert enfin à nouveau (avant :
+  une grande allocation par cycle) ; compteur de plantages d'un conteneur
+  oublié après 24 h sans ligne de plantage (une règle sur ce compteur doit
+  regarder moins de 24 h).
 
 Coût des corrections : nul ou négatif (moins de mémoire, moins d'appels).
 Menaces : un serveur ou un mandataire bogué ne peut plus faire tourner

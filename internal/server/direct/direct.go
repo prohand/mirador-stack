@@ -52,6 +52,7 @@ type Hub struct {
 	machines   map[int64]*etat
 	nbAbonnes  int
 	maintenant func() time.Time
+	menageLe   time.Time // dernier ménage (oublier)
 }
 
 // Nouveau prépare le hub.
@@ -63,6 +64,13 @@ func Nouveau() *Hub {
 // machine dont l'agent attend sa configuration n'est jamais oubliée (sinon
 // le canal sur lequel il attend serait perdu et il ne serait plus réveillé).
 func (h *Hub) etatDe(machine int64) *etat {
+	// Ménage au plus une fois par minute, à chaque appel (les agents en
+	// attente de configuration en font un régulièrement) : relecture du
+	// 21/11, il n'avait lieu qu'à l'ouverture d'une page en direct.
+	if t := h.maintenant(); t.Sub(h.menageLe) > time.Minute {
+		h.menageLe = t
+		h.oublier(t)
+	}
 	e := h.machines[machine]
 	if e == nil {
 		e = &etat{abonnes: map[*Abonne]struct{}{}, signal: make(chan struct{})}
@@ -72,11 +80,18 @@ func (h *Hub) etatDe(machine int64) *etat {
 	return e
 }
 
-// oublier : machines sans page ni relevé depuis longtemps (appelé sous verrou).
+// oublier : machines sans page ni relevé depuis longtemps (appelé sous
+// verrou). Une machine dont l'agent attend encore sa configuration reste
+// (son canal de réveil), mais ses relevés (jusqu'à 300) sont rendus quand
+// le direct est fini depuis plus de 10 min.
 func (h *Hub) oublier(t time.Time) {
 	for id, e := range h.machines {
-		if len(e.abonnes) == 0 && t.Sub(e.vu) > oubli {
+		switch {
+		case len(e.abonnes) > 0:
+		case t.Sub(e.vu) > oubli:
 			delete(h.machines, id)
+		case e.points != nil && t.Sub(e.expire) > oubli:
+			e.points = nil
 		}
 	}
 }

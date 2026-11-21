@@ -1689,7 +1689,10 @@ jamais supprimée). Tests, vet et gosec sans alerte.
 Fuites corrigées (chacune prouvée par un test) : agent 5 (journalctl en
 boucle, configuration en boucle, lot de logs, /proc/net/tcp, dpkg/apt-get),
 serveur 4 (fin d'alerte perdue, marques d'escalade, conteneurs jetables,
-index de l'historique). Points faibles laissés de côté : § 116.
+index de l'historique). Points faibles faits ensuite (§ 116) : ménage des
+machines, sondes et tâches disparues, purge par âge de 8 tables, anciens
+noms oubliés, tampons d'envoi réutilisés, compteur de plantages borné dans
+le temps.
 
 ## Prochaine étape
 
