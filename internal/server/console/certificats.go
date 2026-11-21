@@ -5,6 +5,7 @@ package console
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -222,6 +223,8 @@ type ligneCertificat struct {
 	Renouveler bool // une demande existe : « Renouveler maintenant » possible
 	Avancement avancement
 	Erreur     string
+	// État résumé (retour du 21/11) : « Valide · expire dans 62 j ».
+	Classe, Etat string
 }
 
 type donneesCertificats struct {
@@ -243,8 +246,23 @@ func (c *Console) pageCertificats(q *req) {
 			continue
 		}
 		s := c.syslogDe(ctx, m)
-		d.Lignes = append(d.Lignes, ligneCertificat{Collecteur: col.Nom, Nom: s.Nom, Fin: col.Etat.Fin, Renouveler: col.Etat.CSR,
-			Avancement: c.avancementCertificat(ctx, col.Nom, s, d.R, q.t), Erreur: col.Etat.Erreur})
+		l := ligneCertificat{Collecteur: col.Nom, Nom: s.Nom, Fin: col.Etat.Fin, Renouveler: col.Etat.CSR,
+			Avancement: c.avancementCertificat(ctx, col.Nom, s, d.R, q.t), Erreur: col.Etat.Erreur}
+		l.Classe, l.Etat = l.Avancement.Classe, l.Avancement.Resume
+		if l.Fin > 0 && !l.Avancement.EnCours && l.Erreur == "" {
+			jours := int((l.Fin - q.t.Unix()) / 86400)
+			switch {
+			case jours < 0:
+				l.Classe, l.Etat = "erreur", "Expiré"
+			case jours <= 7:
+				l.Classe, l.Etat = "erreur", fmt.Sprintf("Valide · expire dans %d j", jours)
+			case jours <= 30:
+				l.Classe, l.Etat = "attention", fmt.Sprintf("Valide · expire dans %d j (renouvellement en cours)", jours)
+			default:
+				l.Classe, l.Etat = "ok", fmt.Sprintf("Valide · expire dans %d j", jours)
+			}
+		}
+		d.Lignes = append(d.Lignes, l)
 	}
 	c.rendre(q, "certificats", "Certificats", "reglages", d)
 }
