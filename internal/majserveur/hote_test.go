@@ -9,8 +9,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,14 +30,92 @@ type dockerSimule struct {
 	fichiers   map[string][]byte // fichiers du conteneur
 	appels     []string
 	echecPull  bool
+	images     []*imageSimulee // nil : commandes « image » en échec
+	utilisees  map[string]bool // images utilisées par un conteneur (refus de suppression)
+}
+
+type imageSimulee struct {
+	id, digest string
+	tags       []string
+}
+
+// trouver : image désignée par « IMAGE:tag » ou « IMAGE@digest ».
+func (d *dockerSimule) trouver(ref string) *imageSimulee {
+	for _, im := range d.images {
+		if _, dg, ok := strings.Cut(ref, "@"); ok && im.digest == dg {
+			return im
+		}
+		for _, t := range im.tags {
+			if ref == d.r.Image+":"+t {
+				return im
+			}
+		}
+	}
+	return nil
+}
+
+func (d *dockerSimule) lancerImage(args []string) (string, error) {
+	if d.images == nil {
+		return "", errors.New("pas d'image simulée")
+	}
+	switch {
+	case args[0] == "tag":
+		im := d.trouver(args[1])
+		if im == nil {
+			return "", errors.New("absente")
+		}
+		tag := strings.TrimPrefix(args[2], d.r.Image+":")
+		for _, x := range d.images {
+			x.tags = slices.DeleteFunc(x.tags, func(t string) bool { return t == tag })
+		}
+		im.tags = append(im.tags, tag)
+	case args[1] == "inspect":
+		if im := d.trouver(args[len(args)-1]); im != nil {
+			return im.id + "\n", nil
+		}
+		return "", errors.New("absente")
+	case args[1] == "ls":
+		var b strings.Builder
+		b.WriteString("WARNING: ligne parasite\n")
+		for _, im := range d.images {
+			if len(im.tags) == 0 {
+				fmt.Fprintf(&b, "%s|<none>|%s\n", im.id, im.digest)
+			}
+			for _, t := range im.tags {
+				fmt.Fprintf(&b, "%s|%s|%s\n", im.id, t, im.digest)
+			}
+		}
+		return b.String(), nil
+	case args[1] == "rm":
+		ref := args[2]
+		im := d.trouver(ref)
+		if im == nil {
+			return "", errors.New("absente")
+		}
+		if tag, ok := strings.CutPrefix(ref, d.r.Image+":"); ok && len(im.tags) > 1 {
+			im.tags = slices.DeleteFunc(im.tags, func(t string) bool { return t == tag })
+			return "", nil
+		}
+		if d.utilisees[im.id] {
+			return "", errors.New("conflict: image is being used by running container")
+		}
+		d.images = slices.DeleteFunc(d.images, func(x *imageSimulee) bool { return x == im })
+	}
+	return "", nil
 }
 
 func (d *dockerSimule) Lancer(_ context.Context, args ...string) (string, error) {
 	d.appels = append(d.appels, strings.Join(args, " "))
 	switch {
+	case args[0] == "tag" || args[0] == "image":
+		return d.lancerImage(args)
 	case args[0] == "pull":
 		if d.echecPull {
 			return "", errors.New("refusé")
+		}
+		if _, dg, ok := strings.Cut(args[1], "@"); ok && d.images != nil && d.trouver(args[1]) == nil {
+			d.images = append(d.images, &imageSimulee{id: "sha256:" + strings.Repeat("c", 64), digest: dg})
+			d.utilisees["sha256:"+strings.Repeat("c", 64)] = true
 		}
 	case args[0] == "cp":
 		src, dst := args[1], args[2]
@@ -96,7 +176,7 @@ func nouveauBanc(t *testing.T) *banc {
 	b := &banc{cle: priv, mfs: map[string][]byte{}, horloge: time.Date(2026, 11, 20, 22, 0, 0, 0, time.UTC)}
 	maintenant := func() time.Time { return b.horloge }
 	b.d = &dockerSimule{t: t, r: r, maintenant: maintenant, demarre: map[string]bool{"0.5.0": true, "0.6.0": true},
-		fichiers: map[string][]byte{r.FichierBase: []byte("base-0.5.0"), r.FichierBase + "-wal": []byte("wal")}}
+		fichiers: map[string][]byte{r.FichierBase: []byte("base-0.5.0"), r.FichierBase + "-wal": []byte("wal")}, utilisees: map[string]bool{}}
 	b.h = &Hote{R: r, Docker: b.d, Maintenant: maintenant, Dormir: func(d time.Duration) { b.horloge = b.horloge.Add(d) },
 		Telecharger: func(_ context.Context, adresse string, _ int64) ([]byte, error) {
 			if m, ok := b.mfs[adresse]; ok {
@@ -286,5 +366,46 @@ func TestEcrireInfo(t *testing.T) {
 	}
 	if i.DossierCompose != b.h.R.DossierCompose || i.Installee != "0.5.0" || len(i.Cles) != 1 || len(i.Cles[0]) != 16 || len(i.Problemes) != 1 {
 		t.Errorf("info : %+v", i)
+	}
+}
+
+// Retour d'Arcane (21/11) : après la mise à jour, l'image porte sa version,
+// la précédente aussi (retour possible) ; « latest » et les anciennes
+// images sont retirées ; une image utilisée n'est jamais forcée.
+func TestAppliquerRangeImages(t *testing.T) {
+	b := nouveauBanc(t)
+	id := func(c string) string { return "sha256:" + strings.Repeat(c, 64) }
+	b.d.images = []*imageSimulee{
+		{id: id("1"), digest: "sha256:" + strings.Repeat("1", 64), tags: []string{"latest"}},         // première installation (0.4.0)
+		{id: id("2"), digest: "sha256:" + strings.Repeat("2", 64), tags: []string{"0.5.0"}},          // version en service avant
+		{id: id("3"), digest: "sha256:" + strings.Repeat("3", 64)},                                   // ancienne, sans étiquette
+		{id: id("4"), digest: "sha256:" + strings.Repeat("4", 64), tags: []string{"0.3.0", "vieux"}}, // deux étiquettes
+	}
+	b.publier(t, "0.6.0")
+	b.demander(t, "0.6.0")
+	if err := b.h.Appliquer(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if e := b.etat(t); e.Etat != EtatOK {
+		t.Fatalf("état : %+v", e)
+	}
+	var restent []string
+	for _, im := range b.d.images {
+		restent = append(restent, im.id[7:8]+":"+strings.Join(im.tags, ","))
+	}
+	if strings.Join(restent, " ") != "2:0.5.0 c:0.6.0" {
+		t.Errorf("images restantes : %v (appels : %q)", restent, b.d.appels)
+	}
+	// Une image utilisée par un autre conteneur est gardée (jamais forcée).
+	b2 := nouveauBanc(t)
+	b2.d.images = []*imageSimulee{{id: id("9"), digest: "sha256:" + strings.Repeat("9", 64), tags: []string{"latest"}}}
+	b2.d.utilisees[id("9")] = true
+	b2.publier(t, "0.6.0")
+	b2.demander(t, "0.6.0")
+	if err := b2.h.Appliquer(context.Background()); err != nil || b2.etat(t).Etat != EtatOK {
+		t.Fatalf("mise à jour : %v %+v", err, b2.etat(t))
+	}
+	if len(b2.d.images) != 2 {
+		t.Errorf("image utilisée supprimée : %d image(s)", len(b2.d.images))
 	}
 }

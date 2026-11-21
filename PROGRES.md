@@ -1665,6 +1665,16 @@ correction) ; corrections du navigateur revérifiées dans la démo (modèles,
 édition de la vue, tri des alertes). `go vet`, tests et gosec sans alerte.
 Coût : négligeable.
 
+## Suites : fiches, vue d'ensemble, images du serveur (SPEC § 113, § 114, 21/11)
+
+Fiche d'un élément : événements cherchés dans les requêtes (test : un
+événement d'il y a 3 jours retrouvé malgré 400 plus récents). Vue
+d'ensemble : compte « à valider » en cache 60 s ; fiches et page Éléments :
+1 requête de métriques au lieu de 9. `mirador-maj-serveur` : étiquettes de
+version et ménage des images après succès (test avec un Docker simulé :
+`latest` et anciennes images retirées, précédente gardée, image utilisée
+jamais supprimée). Tests, vet et gosec sans alerte.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

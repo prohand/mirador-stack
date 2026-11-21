@@ -81,3 +81,27 @@ func TestEvenementsMachineAvantLimite(t *testing.T) {
 		t.Errorf("machine calme : %d changement(s), %d réglage(s) ; attendu 1 et 1", chgt, reglage)
 	}
 }
+
+// Relecture du 21/11 : un élément cité par un événement ancien le retrouve
+// même si le parc en a eu des centaines d'autres depuis (fiche, element=).
+func TestEvenementsCiteAvantLimite(t *testing.T) {
+	b := nouveauBanc(t)
+	m := b.h.maintenant()
+	b.machinesApprouvees(t, "web1")
+	for i := 0; i < 400; i++ {
+		if _, err := b.c.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('web1', ?, 'paquets', 'autre 1 → 2')`, m.Add(-time.Duration(i)*time.Minute).Unix()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.c.db.Exec(`INSERT INTO audit(le, qui, action, objet) VALUES (?, 'web:admin', 'sonde', 'box-internet')`, m.Add(-3*24*time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	ev := b.c.journalEvenements(context.Background(), filtreEvenements{Debut: m.Add(-7 * 24 * time.Hour), Fin: m, Max: 15, Cite: "box-internet"})
+	if len(ev) != 1 || !strings.Contains(ev[0].Texte, "box-internet") {
+		t.Fatalf("événements cités : %+v", ev)
+	}
+	cl, _ := b.premierAdmin("admin", mdpAdmin)
+	if _, corps, _ := b.get(cl, "/evenements?element=box-internet"); !strings.Contains(corps, "box-internet") || strings.Contains(corps, "autre 1") {
+		t.Error("page Événements filtrée par élément")
+	}
+}

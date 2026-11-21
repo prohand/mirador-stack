@@ -199,9 +199,8 @@ type donneesElements struct {
 func (c *Console) pageElements(q *req) {
 	ctx := q.r.Context()
 	d := donneesElements{Sorte: q.r.URL.Query().Get("sorte"), Filtre: strings.TrimSpace(q.r.URL.Query().Get("etiquette")), Compte: map[string]int{}}
-	acc := c.donneesAccueil(q)
 	cleF, valF, avecFiltre := strings.Cut(d.Filtre, "=")
-	for _, e := range c.elementsDuParc(ctx, acc.Parc, q.t) {
+	for _, e := range c.elementsDuParc(ctx, c.parcLeger(q), q.t) {
 		sorte := strings.SplitN(e.Sorte, " ", 2)[0]
 		if avecFiltre && e.Etiquettes[strings.TrimSpace(cleF)] != strings.TrimSpace(valF) {
 			continue

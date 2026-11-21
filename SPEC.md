@@ -7847,11 +7847,47 @@ navigateur) avant d'être corrigé ; un test Go par correction côté serveur.
   au doigt ; bouton « Rétablir les valeurs par défaut » de 44 px.
 - Période commune : plus de requête inutile sur une page sans période.
 
-**Laissé de côté**
-- Fiche d'un élément : les 15 derniers événements sont cherchés dans les
-  300 derniers du parc (texte) ; un parc très actif peut en cacher.
-- Page Machines : les « nouveautés » et les fiches sont recalculées à chaque
-  affichage (coût mesuré faible à 30 machines ; cache si le parc grandit).
+**Fait ensuite (décision du 21/11)**
+- Fiche d'un élément et « Événements › element= » : le nom cherché est
+  filtré dans les requêtes (LIKE, avant la limite) puis sur le texte exact ;
+  un événement ancien n'est plus caché par l'activité du reste du parc.
+- Vue d'ensemble : le compte « à valider » reprend le cache de 60 s du menu
+  et de la page Machines (avant : la configuration de chaque machine
+  relue à chaque rechargement, toutes les 60 s par onglet ouvert).
+- Fiches et page Éléments : parc « léger » (état + CPU) : 1 requête de
+  métriques au lieu de 9, plus de prévision des disques ni de courbes.
+- Vue d'ensemble : plafond et jauge du stockage masqués si une partie est
+  sans plafond.
 
 Coût : une à quatre lectures de logs de plus pour « voir autour » (petites
 fenêtres) ; rien d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
+
+## 114. Mise à jour du serveur : étiquettes et ménage des images (21/11) **[Fait, à valider]**
+Retour de l'utilisateur : Arcane annonçait « mirador-server:latest 0.6.0 →
+0.6.6 » alors que le serveur tournait en 0.6.6.
+- Cause : `mirador-maj-serveur` télécharge l'image par son empreinte signée
+  (`image@sha256:…`, voulu) et ne touche pas aux étiquettes ; `:latest`
+  restait sur la première image installée. Chaque version laissait aussi
+  son image sur le disque (~30-50 Mo).
+- Après une mise à jour réussie, il :
+  1. pose `IMAGE:X.Y.Z` sur la nouvelle image et sur la précédente (gardée
+     pour un retour à la main) ;
+  2. retire l'étiquette `:latest` (seulement d'une image qui a reçu sa
+     version : jamais de suppression par ce biais) ;
+  3. supprime les autres images du dépôt `IMAGE` (par étiquette ou par
+     empreinte), sans forcer : Docker refuse celles qu'un conteneur
+     utilise.
+- Rien de cela ne fait échouer la mise à jour : chaque souci est noté dans
+  le journal. Sans l'identifiant de l'image en service, rien n'est supprimé.
+- Commandes ajoutées : `docker image inspect`, `docker image ls`,
+  `docker tag`, `docker image rm`. Arguments fixés par le programme ; les
+  noms lus dans la sortie de Docker sont contrôlés (format d'identifiant,
+  d'étiquette, d'empreinte) avant de servir.
+- Menaces : aucune nouvelle entrée (la demande ne fournit toujours que la
+  version, vérifiée). Risque traité : supprimer l'image du retour arrière
+  (gardée et étiquetée) ou une image en service (Docker refuse).
+- Coût : 4 à 10 commandes `docker` de plus après une mise à jour (quelques
+  secondes) ; disque récupéré à chaque version.
+- Sur le VPS actuel, la vieille `:latest` (0.6.0) partira à la prochaine
+  mise à jour faite avec ce binaire ; on peut aussi la retirer à la main :
+  `docker image rm ghcr.io/prohand/mirador-server:latest`.

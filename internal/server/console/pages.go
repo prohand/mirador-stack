@@ -278,8 +278,10 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 		}
 	}
 	if cons, err := LireConservation(ctx, c.db); err == nil {
-		d.Plafond = cons.MaxBrut + cons.MaxAgrege + cons.MaxLogs
-		if d.Plafond > 0 {
+		// Une partie sans plafond (0) : ni plafond ni jauge (relecture du
+		// 21/11 : la place prise était comparée aux seuls plafonds posés).
+		if cons.MaxBrut > 0 && cons.MaxAgrege > 0 && cons.MaxLogs > 0 {
+			d.Plafond = cons.MaxBrut + cons.MaxAgrege + cons.MaxLogs
 			d.PctStockage = min(100, int(100*(d.Metriques+d.Logs)/d.Plafond))
 		}
 	}
@@ -1332,6 +1334,18 @@ const (
 
 // parc : une ligne par machine approuvée, les plus en difficulté d'abord.
 func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
+	return c.parcAvec(q, actives, true)
+}
+
+// parcLeger : état et CPU seulement (registre des éléments, fiches) ; une
+// requête de métriques au lieu de neuf (relecture du 21/11 : chaque fiche
+// recalculait toute la vue d'ensemble pour trouver un seul élément).
+func (c *Console) parcLeger(q *req) []ligneParc {
+	actives, _ := separerAttente(c.alertesEnCours(""))
+	return c.parcAvec(q, actives, false)
+}
+
+func (c *Console) parcAvec(q *req, actives []resumeAlerte, complet bool) []ligneParc {
 	ctx := q.r.Context()
 	ms, err := flotte.ListerMachines(ctx, c.db)
 	if err != nil {
@@ -1350,6 +1364,9 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	}
 	valeurs := func(expr string) map[string]float64 {
 		out := map[string]float64{}
+		if !complet && expr != exprCPU {
+			return out
+		}
 		if ech, err := c.instant(ctx, expr, q.t); err == nil {
 			for _, e := range ech {
 				out[e.Etiquettes.Get("instance")] = e.Valeur
@@ -1359,9 +1376,16 @@ func (c *Console) parc(q *req, actives []resumeAlerte) []ligneParc {
 	}
 	cpu, mem, disque := valeurs(exprCPU), valeurs(exprMemoire), valeurs(exprDisque)
 	paquets, securite, redemarrage := valeurs(exprPaquets), valeurs(exprPaquetsSecurite), valeurs(exprRedemarrage)
-	plein := pleinDansMachine(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t))
-	courbes := c.etincelles(ctx, q.t)
-	nouveautes := c.nouveautes(ctx, ms, q.t)
+	var plein map[string]float64
+	var courbes map[string]string
+	var nouveautes map[string]int
+	if complet {
+		plein = pleinDansMachine(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t))
+		courbes = c.etincelles(ctx, q.t)
+		// Compte « à valider » gardé 60 s, le même que le menu et la page
+		// Machines (relecture du 21/11 : relu à chaque rechargement).
+		nouveautes = c.aValider(ctx, q.t)
+	}
 	pct := func(m map[string]float64, nom string) string {
 		if v, ok := m[nom]; ok {
 			return formater(v, "percent", &zero)

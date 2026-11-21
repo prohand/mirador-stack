@@ -320,7 +320,13 @@ petit service du VPS (root, hors Docker, sans port ouvert). Celui-ci :
 - arrête le serveur, copie sa base dans `/var/lib/mirador-maj-serveur/`
   (3 copies gardées), change l'image dans le `.env` du compose, relance ;
 - revient tout seul à l'ancienne image et à la copie de la base si la
-  nouvelle version n'a pas démarré en 3 minutes.
+  nouvelle version n'a pas démarré en 3 minutes ;
+- après un succès, range les images : étiquette `:X.Y.Z` sur la nouvelle
+  image et sur la précédente (gardée pour un retour à la main), retrait de
+  l'étiquette `:latest` et des images plus anciennes (jamais une image
+  utilisée par un conteneur). Un outil qui surveille les images (Arcane,
+  Watchtower…) voit alors la vraie version au lieu d'annoncer une mise à
+  jour déjà faite.
 
 L'interface est coupée une à deux minutes. Le déroulé s'affiche sur la page
 (et la demande est notée dans l'audit). Code 2FA demandé, même en mode
