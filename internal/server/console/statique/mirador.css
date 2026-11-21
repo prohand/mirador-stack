@@ -1845,3 +1845,9 @@ form.pile.large.form-large, form.form-large { max-width: none; }
 .canaux-liste .cert-ligne > form { grid-column: 2; grid-row: 1; }
 .canaux-liste .cert-ligne:first-of-type { border-top: 0; }
 @media (max-width: 640px) { .canaux-liste .cert-ligne > form { grid-column: 1; grid-row: 3; } }
+/* Réglages › Interface (refonte du 21/11) : champs alignés en haut quand
+   leurs aides n'ont pas la même hauteur ; GéoIP aéré sous les tuiles. */
+.cons-champs.haut { align-items: flex-start; }
+@media (min-width: 700px) { .cons-champs.haut > label.case { margin-top: 34px; } }
+.geoip-test { margin-top: 16px; align-items: flex-end; }
+.geoip-auto { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bord); align-items: center; }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"net/url"
 	"slices"
 	"sort"
@@ -47,6 +48,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("POST /reglages/agents/masquage", c.lecture(c.postTestMasquage))
 	m.HandleFunc("GET /reglages/interface", c.lecture(c.pageInterface))
 	m.HandleFunc("POST /reglages/interface", c.admin(c.postInterface))
+	m.HandleFunc("GET /reglages/statut", c.lecture(c.pageStatutReglage))
 	m.HandleFunc("POST /reglages/statut", c.admin(c.postStatut))
 	m.HandleFunc("GET /reglages/olvid", c.admin(c.pageOlvid)) // lien d'invitation, contacts : admins seulement
 	m.HandleFunc("POST /reglages/olvid", c.admin(c.postOlvid))
@@ -515,12 +517,12 @@ type donneesSauvegardes struct {
 	// Résumé (retour du 21/11, maquette validée) : dernière exécution,
 	// prochaine, copie hors du VPS ; heure affichée dans le fuseau de
 	// l'interface (enregistrée en UTC).
-	Derniere              *sauvegarde.Execution
-	Prochaine             time.Time
-	HeureLocale, Fuseau   string
-	Heures                []string
-	HorsVPS, SFTP, S3     bool
-	TailleArchives        int64
+	Derniere            *sauvegarde.Execution
+	Prochaine           time.Time
+	HeureLocale, Fuseau string
+	Heures              []string
+	HorsVPS, SFTP, S3   bool
+	TailleArchives      int64
 }
 
 // heureLocale : « HH:MM » UTC → heure du fuseau (aujourd'hui).
@@ -943,8 +945,26 @@ type donneesInterface struct {
 	// notifications : adresse de l'interface (lien dans les messages) et
 	// fuseau des messages, s'il diffère encore de celui de l'interface.
 	Lien, FuseauMessages string
-	// Statut : page de statut publique (SPEC § 84).
-	Statut donneesStatutReglage
+	// GéoIP (retour du 21/11 : plus d'informations) : taille sur disque,
+	// essai d'une adresse (?ip=).
+	GeoTaille              int64
+	GeoTestIP, GeoTestPays string
+	GeoTestErreur          string
+	Fuseaux                []string
+}
+
+// fuseauxProposes : fuseaux courants (liste du sélecteur ; le fuseau réglé
+// est ajouté s'il n'y est pas).
+var fuseauxProposes = []string{"UTC", "Europe/Paris", "Europe/Brussels", "Europe/Zurich", "Europe/Luxembourg", "Europe/Monaco",
+	"Europe/London", "Europe/Lisbon", "Europe/Madrid", "Europe/Berlin", "Europe/Rome", "Europe/Amsterdam", "Europe/Athens",
+	"Europe/Helsinki", "Europe/Moscow", "Africa/Casablanca", "Africa/Algiers", "Africa/Tunis", "Africa/Dakar", "Africa/Abidjan",
+	"Indian/Reunion", "Indian/Mayotte", "America/Martinique", "America/Guadeloupe", "America/Cayenne", "America/Montreal",
+	"America/Toronto", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Pacific/Tahiti",
+	"Pacific/Noumea", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney"}
+
+// pageStatutReglage : Réglages › Page de statut (onglet à part, demande du 21/11).
+func (c *Console) pageStatutReglage(q *req) {
+	c.rendre(q, "statut-reglages", "Page de statut", "reglages", c.donneesStatutReglage(q))
 }
 
 func (c *Console) pageInterface(q *req) {
@@ -958,8 +978,28 @@ func (c *Console) pageInterface(q *req) {
 	if c.opt.GeoIP != nil {
 		d.GeoFichier, d.GeoEnMemoire, d.GeoErreur = c.opt.GeoIP.Etat()
 		d.GeoEssai, d.GeoDemande = c.opt.GeoIP.Essais()
+		d.GeoTaille = c.opt.GeoIP.Taille()
+		// Essai d'une adresse : lecture seule, rien ne sort du serveur.
+		if s := strings.TrimSpace(q.r.URL.Query().Get("ip")); s != "" && len(s) <= 45 {
+			d.GeoTestIP = s
+			switch a, err := netip.ParseAddr(s); {
+			case err != nil:
+				d.GeoTestErreur = "adresse IP illisible"
+			case d.GeoTaille == 0:
+				d.GeoTestErreur = "base pas encore téléchargée"
+			case a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast():
+				d.GeoTestErreur = "adresse privée : pas de pays"
+			default:
+				if d.GeoTestPays = c.opt.GeoIP.Pays(a); d.GeoTestPays == "" {
+					d.GeoTestErreur = "pays inconnu pour cette adresse"
+				}
+			}
+		}
 	}
-	d.Statut = c.donneesStatutReglage(q)
+	d.Fuseaux = slices.Clone(fuseauxProposes)
+	if !slices.Contains(d.Fuseaux, d.Fuseau) {
+		d.Fuseaux = append([]string{d.Fuseau}, d.Fuseaux...)
+	}
 	c.rendre(q, "interface", "Interface", "reglages", d)
 }
 
@@ -986,6 +1026,46 @@ func (c *Console) postInterface(q *req) {
 		}
 		c.retour(q, "/reglages/interface", nil, "téléchargement de la base GéoIP demandé (dans la minute)")
 		return
+	case "general":
+		// Fuseau, adresse de l'interface (lien des messages) et adresse
+		// d'ingestion, un seul « Enregistrer » (retour du 21/11). L'adresse
+		// d'ingestion est reprise dans une commande lancée en root : code
+		// 2FA ou mode administration, demandé seulement si elle change.
+		ing, e := normaliserIngestion(f.texte("ingestion"))
+		if e != nil {
+			c.retour(q, "/reglages/interface", e, "")
+			return
+		}
+		if ing != r.Ingestion {
+			if e := c.verifierCode(q); e != nil {
+				c.retour(q, "/reglages/interface", e, "")
+				return
+			}
+		}
+		r.Ingestion = ing
+		r.Fuseau = f.texte("fuseau")
+		if e := r.valider(); e != nil {
+			c.retour(q, "/reglages/interface", e, "")
+			return
+		}
+		if rn, e := notif.LireReglages(q.r.Context(), c.db); e == nil && rn.Lien != f.texte("lien") {
+			rn.Lien = f.texte("lien")
+			if e := notif.EcrireReglages(q.r.Context(), c.db, rn, c.opt.Cle, q.qui(), q.t); e != nil {
+				c.retour(q, "/reglages/interface", e, "")
+				return
+			}
+		}
+	case "apparence":
+		r.Theme, r.Menu, r.MenuReplie = f.texte("theme"), f.texte("menu"), f.coche("menu_replie")
+	case "geoip_auto":
+		avantGeo := r.GeoIP
+		r.GeoIP = f.coche("geoip")
+		if r.GeoIP && !avantGeo && c.opt.GeoIP != nil {
+			c.opt.GeoIP.Demander()
+		}
+		if !r.GeoIP && avantGeo && c.opt.GeoIP != nil {
+			c.opt.GeoIP.Supprimer()
+		}
 	case "adresse":
 		// Cette adresse est reprise dans la commande d'installation, lancée
 		// en root sur les machines : code 2FA ou mode administration

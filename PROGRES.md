@@ -1589,6 +1589,16 @@ en cas de baisse, téléphone corrigé (plafonds visibles). Coût : 2 `stat` de
 plus par affichage de la page. Tests : page, hausse, baisse refusée sans
 confirmation puis programmée, prévision et plafond.
 
+## Réglages revus (SPEC § 105, 21/11)
+
+Notifications, Sauvegardes, Certificats et Interface refaits d'après les
+maquettes validées ; Page de statut dans son propre onglet. Interface :
+blocs Général / Apparence / GéoIP détaillé (version, tailles, test d'une
+adresse) / Dépannage replié. Coût : un `stat` de plus par affichage
+d'Interface, rien en tâche de fond. Tests : bloc Général (fuseau, lien,
+ingestion sans code si inchangée, refus sans code si elle change, fuseau
+inconnu refusé), page de statut dans son onglet, certificats.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

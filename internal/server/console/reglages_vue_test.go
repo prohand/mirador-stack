@@ -221,6 +221,27 @@ func TestReglagesGeneralRanges(t *testing.T) {
 	if r, _ = notif.LireReglages(ctx, b.db); r.Fuseau != "America/Montreal" {
 		t.Errorf("fuseau des messages non aligné : %s", r.Fuseau)
 	}
+	// Bloc « Général » (refonte du 21/11) : fuseau, lien et ingestion en
+	// un seul envoi ; ingestion inchangée, donc pas de code demandé.
+	ingAvant := lireInterface(ctx, b.db).Ingestion
+	b.post(c, "/reglages/interface", url.Values{"csrf": {csrf}, "action": {"general"}, "fuseau": {"Europe/Paris"},
+		"lien": {"https://mirador2.exemple.fr"}, "ingestion": {ingAvant}})
+	if r, _ = notif.LireReglages(ctx, b.db); r.Fuseau != "Europe/Paris" || r.Lien != "https://mirador2.exemple.fr" {
+		t.Errorf("bloc Général : fuseau %s, lien %s", r.Fuseau, r.Lien)
+	}
+	// Fuseau inconnu : rien n'est écrit (ni le lien).
+	b.post(c, "/reglages/interface", url.Values{"csrf": {csrf}, "action": {"general"}, "fuseau": {"Mars/Olympe"},
+		"lien": {"https://autre.exemple.fr"}, "ingestion": {ingAvant}})
+	if r, _ = notif.LireReglages(ctx, b.db); r.Lien != "https://mirador2.exemple.fr" || lireInterface(ctx, b.db).Fuseau != "Europe/Paris" {
+		t.Errorf("fuseau invalide accepté : %s / %s", r.Lien, lireInterface(ctx, b.db).Fuseau)
+	}
+	// Page : blocs Général, Apparence, GéoIP ; lien vers la page de statut.
+	_, corps, _ = b.get(c, "/reglages/interface")
+	for _, attendu := range []string{`value="general"`, `value="apparence"`, `value="geoip_auto"`, `href="/reglages/statut"`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("Réglages › Interface : %q absent", attendu)
+		}
+	}
 }
 
 // Accueil des Réglages, Utilisateurs, Sécurité (SPEC § 38).

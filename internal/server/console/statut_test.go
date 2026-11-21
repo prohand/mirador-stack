@@ -51,9 +51,9 @@ func TestPageStatut(t *testing.T) {
 	if !r.Actif || len(r.Jeton) < 20 || len(r.Applications) != 1 {
 		t.Fatalf("réglage : %+v", r)
 	}
-	_, corps, _ := b.get(c, "/reglages/interface")
+	_, corps, _ := b.get(c, "/reglages/statut")
 	if !strings.Contains(corps, "/statut/"+r.Jeton) {
-		t.Error("adresse absente de Réglages › Interface")
+		t.Error("adresse absente de Réglages › Page de statut")
 	}
 	// Liste d'adresses restreinte : la page passe quand même (jeton).
 	sec := SecuriteDefaut()

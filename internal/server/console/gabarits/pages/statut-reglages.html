@@ -1,0 +1,15 @@
+{{define "contenu"}}{{$s := .D}}
+<h1>Page de statut</h1>
+{{template "onglets-reglages" (onglet $ "statut")}}
+{{/* Onglet à part (demande du 21/11) : avant, un bloc de Réglages › Interface. */}}
+<section class="carte" id="statut"><div class="entete-carte"><h2>Page de statut publique</h2>{{if $s.Actif}}<span class="pastille ok">activée</span>{{else}}<span class="pastille">désactivée</span>{{end}}</div>
+<p class="sous">Une page à partager (proches, clients, collègues) : l'état des applications choisies et leur disponibilité sur 90 jours. Seuls les noms choisis apparaissent : jamais de machine, d'adresse IP, de message d'alerte ni de log. Sans connexion, sans cookie ni script ; l'adresse secrète suffit. {{template "plus" "aide.md#statut"}}</p>
+{{if $s.URL}}<div class="lien-ping"><code id="url-statut">{{$s.URL}}</code><button type="button" class="secondaire petit" data-copier="#url-statut">Copier l'adresse</button>{{if $s.Actif}}<a class="bouton secondaire petit" href="{{$s.URL}}" target="_blank" rel="noopener">Aperçu</a>{{end}}</div>{{end}}
+{{if .Admin}}<form method="post" action="/reglages/statut" class="pile large form-large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="enregistrer">
+<div class="cons-champs haut"><label class="case"><input type="checkbox" name="actif" value="1"{{if $s.Actif}} checked{{end}}> Activée</label>
+<label>Titre <input name="titre" value="{{$s.Titre}}" maxlength="80"></label></div>
+<fieldset><legend>Applications montrées</legend>{{$ch := $s.Choisies}}{{range $s.Applications}}<label class="case"><input type="checkbox" name="applications" value="{{.}}"{{if index $ch .}} checked{{end}}> {{.}}</label>{{else}}<p class="vide">Aucune application : les créer d'abord (<a href="/services">Applications</a>).</p>{{end}}</fieldset>
+<div class="ligne"><button>Enregistrer</button></div></form>
+{{if $s.URL}}<form method="post" action="/reglages/statut">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="jeton"><button class="secondaire petit" data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button> <small class="doux">si l'adresse a trop circulé</small></form>{{end}}{{end}}
+</section>
+{{end}}

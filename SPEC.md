@@ -7542,3 +7542,35 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   Secure, SameSite=Strict) ; il ne révèle pas l'identifiant (hachage) ; la
   redirection ne quitte jamais le site. Coût : un SHA-256 à la création ou
   la reprise d'une session.
+
+## 105. Réglages revus : Notifications, Sauvegardes, Certificats, Interface, Page de statut (21/11, maquettes validées) **[Fait, à valider]**
+- **Notifications** : résumé en haut (mode, canal principal et s'il est
+  actif, dernier envoi), canaux en liste, durées en clair (« 5 min »,
+  « jamais ») au lieu de secondes.
+- **Sauvegardes** : résumé (dernière, prochaine), destinations en cartes,
+  heure saisie et affichée dans le fuseau de l'interface (enregistrée en
+  UTC comme avant).
+- **Certificats** : une ligne par collecteur, échéance en clair (« Valide ·
+  expire dans 42 j »), couleur selon l'échéance.
+- **Interface** : trois blocs.
+  - *Général* : fuseau (liste), adresse de l'interface (lien des messages)
+    et adresse d'ingestion, un seul « Enregistrer ». Le code 2FA (ou le mode
+    administration) n'est demandé que si l'adresse d'ingestion change : elle
+    est reprise dans la commande d'installation lancée en root.
+  - *Apparence par défaut* : thème, position du menu, menu replié.
+  - *GéoIP* détaillé : version de la base (mois), date du téléchargement,
+    taille sur le disque, présence en mémoire, test d'une adresse (« Tester »,
+    requête GET locale, rien n'est envoyé dehors), case « mettre à jour
+    chaque mois » et « Télécharger maintenant ».
+  - *Dépannage* replié (mode debug temporaire).
+- **Page de statut** : onglet à part (`/reglages/statut`, demande du 21/11),
+  même réglage qu'avant ; Interface n'en garde qu'un lien.
+- Coût : aucun travail en tâche de fond ajouté. Interface : un `stat` du
+  fichier GéoIP par affichage ; le test d'adresse est une recherche dans la
+  base déjà chargée (ou chargée pour l'occasion, ~8 Mo libérés après
+  10 min, comme pour les flux bloqués).
+- Menaces : l'adresse testée est validée (`netip`), jamais enregistrée ni
+  journalisée ; les formulaires gardent le jeton CSRF ; le changement
+  d'ingestion garde le code 2FA (testé : refus sans code par le bloc
+  Général) ; un fuseau inconnu est refusé avant toute écriture (lien
+  compris).

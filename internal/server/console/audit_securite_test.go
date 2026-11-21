@@ -117,6 +117,10 @@ func TestActionsProtegees(t *testing.T) {
 	if ingestion() != "" {
 		t.Errorf("adresse d'ingestion changée sans code : %q", ingestion())
 	}
+	b.post(c, "/reglages/interface", url.Values{"csrf": {csrf}, "action": {"general"}, "fuseau": {"Europe/Paris"}, "ingestion": {"https://attaquant.example"}})
+	if ingestion() != "" {
+		t.Errorf("adresse d'ingestion changée sans code (bloc Général) : %q", ingestion())
+	}
 	b.post(c, "/regles/action", url.Values{"csrf": {csrf}, "action": {"desactiver"}, "nom": {"RegleTest"}})
 	if !regleActive() {
 		t.Error("règle désactivée sans code")

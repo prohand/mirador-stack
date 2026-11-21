@@ -350,14 +350,14 @@ func (c *Console) postStatut(q *req) {
 			r.Jeton = nouveauJetonStatut()
 		}
 	default:
-		c.retour(q, "/reglages/interface#statut", errors.New("action inconnue"), "")
+		c.retour(q, "/reglages/statut", errors.New("action inconnue"), "")
 		return
 	}
 	if r.Titre == "" {
 		r.Titre = "État des services"
 	}
 	if len([]rune(r.Titre)) > 80 || strings.ContainsAny(r.Titre, "\r\n<>") {
-		c.retour(q, "/reglages/interface#statut", errors.New("titre : 80 caractères au plus, sans < >"), "")
+		c.retour(q, "/reglages/statut", errors.New("titre : 80 caractères au plus, sans < >"), "")
 		return
 	}
 	brut, _ := json.Marshal(r)
@@ -382,5 +382,5 @@ func (c *Console) postStatut(q *req) {
 	if f.texte("action") == "jeton" {
 		ok = "nouvelle adresse : l'ancienne ne marche plus"
 	}
-	c.retour(q, "/reglages/interface#statut", err, ok)
+	c.retour(q, "/reglages/statut", err, ok)
 }
