@@ -147,6 +147,20 @@ func fonctions() template.FuncMap {
 		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
 		"coupeURL":   coupeURL,
 		"choixDuree": choixDuree,
+		// heure : « aujourd'hui 03:43 », « demain 03:43 » ou date (fuseau de l'interface).
+		"heure": func(t time.Time) string {
+			loc := fuseau.Load()
+			l, n := t.In(loc), time.Now().In(loc)
+			switch {
+			case l.YearDay() == n.YearDay() && l.Year() == n.Year():
+				return "aujourd'hui " + l.Format("15:04")
+			case l.YearDay() == n.Add(24*time.Hour).YearDay():
+				return "demain " + l.Format("15:04")
+			}
+			return l.Format("02/01 15:04")
+		},
+		// heureLocaleDe : « HH:MM » UTC → heure du fuseau de l'interface.
+		"heureLocaleDe": func(utc string) string { return heureLocale(utc, fuseau.Load(), time.Now()) },
 		// dureeSec : durée réglable en secondes (attributs data-* lus par mirador.js).
 		"dureeSec": func(d any) int64 { return reflect.ValueOf(d).Int() / int64(time.Second) },
 		"heureLog": func(ms int64) string {

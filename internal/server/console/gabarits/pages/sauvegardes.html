@@ -1,32 +1,51 @@
-{{define "contenu"}}
-{{$r := .D.R}}
+{{define "contenu"}}{{$d := .D}}{{$r := $d.R}}
 <h1>Sauvegardes</h1>
 {{template "onglets-reglages" (onglet $ "sauvegardes")}}
-{{if .Admin}}<section class="carte"><h2>Sauvegarder maintenant</h2><form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant">
-<label class="case"><input type="checkbox" name="metriques" value="1"> Métriques</label><label class="case"><input type="checkbox" name="logs" value="1"> Logs</label><button>Sauvegarder</button></form>
-<small class="aide">Configuration et base : toujours. Métriques et logs : en option (volumineux).</small></section>{{end}}
-<section class="carte"><h2>Historique</h2>{{if .D.Historique}}<div class="defile"><table data-cartes><thead><tr><th>N°</th><th>Demandée</th><th>Origine</th><th>Statut</th><th>Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
-{{range .D.Historique}}<tr><td>Sauvegarde n° {{.ID}}</td><td>{{dateS .DemandeeLe}}</td><td>{{motTechnique .Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{motTechnique .Statut}}</span></td><td>{{taille .Taille}}</td><td>{{.Destinations}}</td><td>{{.Erreur}}</td></tr>{{end}}
-</tbody></table></div>{{else}}{{template "vide" "Aucune sauvegarde."}}{{end}}
-{{if .D.Archives}}<p>{{len .D.Archives}} {{accord (len .D.Archives) "archive(s)"}} dans le dossier local.</p>{{end}}</section>
-<form method="post" class="pile large">{{template "csrf" .CSRF}}
-<section class="carte"><h2>Planification</h2>
-<label class="case"><input type="checkbox" name="actif" value="1" {{if $r.Actif}}checked{{end}}> Chaque jour</label>
-<label>Heure (UTC) <input type="time" name="heure" value="{{$r.Heure}}" required> <small class="aide">Défaut {{.D.Defaut.Heure}}</small></label>
-<label>Archives gardées dans le dossier local <input type="number" name="conserver" value="{{$r.Conserver}}" min="1" max="365"> <small class="aide">Défaut {{.D.Defaut.Conserver}}</small></label>
-<label class="case"><input type="checkbox" name="metriques" value="1" {{if $r.Metriques}}checked{{end}}> Inclure les métriques</label>
-<label class="case"><input type="checkbox" name="logs" value="1" {{if $r.Logs}}checked{{end}}> Inclure les logs</label></section>
-<section class="carte"><h2>SFTP</h2>
+{{/* Retour du 21/11 (maquette validée) : résumé, destinations en cartes, heure dans le fuseau de l'interface. */}}
+<section class="carte"><div class="entete-carte"><h2>État</h2>{{with $d.Derniere}}{{if egal .Statut "ok"}}<span class="pastille ok">Dernière sauvegarde réussie</span>{{else if egal .Statut "echec"}}<span class="pastille erreur">Dernière sauvegarde en échec</span>{{else}}<span class="pastille info">{{motTechnique .Statut}}</span>{{end}}{{else}}<span class="pastille">Aucune sauvegarde</span>{{end}}</div>
+<div class="notif-tuiles">
+<div class="notif-tuile"><small>Dernière</small>{{with $d.Derniere}}<b>{{depuisS .DemandeeLe}}</b><small>{{dateS .DemandeeLe}}{{if .Taille}} · {{taille .Taille}}{{end}}{{with .Destinations}} · {{.}}{{end}}</small>{{if .Erreur}}<small class="erreur-texte">{{.Erreur}}</small>{{end}}{{else}}<b>—</b>{{end}}</div>
+<div class="notif-tuile"><small>Prochaine</small>{{if $d.Prochaine.IsZero}}<b>—</b><small>planification arrêtée</small>{{else}}<b>{{heure $d.Prochaine}}</b><small>chaque jour ({{$d.Fuseau}})</small>{{end}}</div>
+<div class="notif-tuile"><small>Contenu</small><b>Configuration et base</b><small>métriques : {{if $r.Metriques}}oui{{else}}non{{end}} · logs : {{if $r.Logs}}oui{{else}}non{{end}}</small></div>
+<div class="notif-tuile"><small>Hors du VPS</small>{{if $d.HorsVPS}}<b>{{if $d.SFTP}}SFTP{{end}}{{if and $d.SFTP $d.S3}} + {{end}}{{if $d.S3}}S3{{end}}</b><small>copie à chaque sauvegarde</small>{{else}}<b class="attention-texte">aucune copie</b><small>configurer SFTP ou S3 ci-dessous</small>{{end}}</div>
+</div>
+{{if .Admin}}<form method="post" class="ligne sauv-maintenant">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant"><button class="petit">Sauvegarder maintenant</button>
+<label class="case"><input type="checkbox" name="metriques" value="1"> + métriques</label><label class="case"><input type="checkbox" name="logs" value="1"> + logs</label><small class="doux">faite par le serveur dans la minute</small></form>{{end}}
+</section>
+
+<form method="post" class="pile large form-large">{{template "csrf" .CSRF}}
+<section class="carte"><h2>Destinations</h2><div class="cons-grille">
+<div class="cons-carte"><div class="cons-tete"><h3>Dossier local</h3><span class="pastille ok">toujours</span></div>
+<small class="doux">{{len $d.Archives}} {{accord (len $d.Archives) "archive(s)"}}{{if $d.TailleArchives}} · {{taille $d.TailleArchives}}{{end}} · dans le dossier des données du serveur</small>
+<label>Archives gardées <input type="number" name="conserver" value="{{$r.Conserver}}" min="1" max="365"> <small class="aide">défaut {{$d.Defaut.Conserver}} ; les plus anciennes partent en premier</small></label></div>
+<div class="cons-carte"><div class="cons-tete"><h3>SFTP</h3>{{if $d.SFTP}}<span class="pastille ok">configuré</span>{{else}}<span class="pastille">non configuré</span>{{end}}</div>
+<small class="doux">{{if $d.SFTP}}{{$r.SFTP.Utilisateur}}@{{$r.SFTP.Hote}}:{{$r.SFTP.Dossier}}{{else}}un autre serveur, par SSH (clé, empreinte de l'hôte vérifiée){{end}}</small>
+<details class="reglage-dest"><summary class="bouton secondaire petit">{{if $d.SFTP}}Modifier{{else}}Configurer{{end}}</summary><div class="pile">
 <div class="ligne"><label>Hôte:port <input name="sftp_hote" value="{{$r.SFTP.Hote}}" maxlength="200"></label><label>Utilisateur <input name="sftp_utilisateur" value="{{$r.SFTP.Utilisateur}}" maxlength="100"></label></div>
 <label>Dossier distant <input name="sftp_dossier" value="{{$r.SFTP.Dossier}}" maxlength="300"></label>
 <label>Empreinte de l'hôte (SHA256:…, obligatoire) <input name="sftp_empreinte" value="{{$r.SFTP.EmpreinteHote}}" maxlength="60"></label>
-<label>Clé privée SSH {{if $r.SFTP.CleSSH}}<small>(enregistrée)</small>{{end}} <textarea name="sftp_cle" rows="3" placeholder="(inchangée)" maxlength="10000"></textarea></label></section>
-<section class="carte"><h2>S3</h2>
+<label>Clé privée SSH {{if $r.SFTP.CleSSH}}<small>(enregistrée)</small>{{end}} <textarea name="sftp_cle" rows="3" placeholder="(inchangée)" maxlength="10000"></textarea></label>
+<small class="aide">Vider « Hôte:port » retire la destination.</small></div></details></div>
+<div class="cons-carte"><div class="cons-tete"><h3>S3</h3>{{if $d.S3}}<span class="pastille ok">configuré</span>{{else}}<span class="pastille">non configuré</span>{{end}}</div>
+<small class="doux">{{if $d.S3}}{{$r.S3.Seau}} · {{$r.S3.Adresse}}{{else}}Scaleway, OVH, Backblaze… conseil : clé en écriture seule{{end}}</small>
+<details class="reglage-dest"><summary class="bouton secondaire petit">{{if $d.S3}}Modifier{{else}}Configurer{{end}}</summary><div class="pile">
 <div class="ligne"><label>Adresse <input name="s3_adresse" value="{{$r.S3.Adresse}}" placeholder="https://s3.fr-par.scw.cloud" maxlength="200"></label><label>Région <input name="s3_region" value="{{$r.S3.Region}}" maxlength="40"></label></div>
 <div class="ligne"><label>Compartiment <input name="s3_seau" value="{{$r.S3.Seau}}" maxlength="100"></label><label>Préfixe <input name="s3_prefixe" value="{{$r.S3.Prefixe}}" maxlength="100"></label></div>
 <div class="ligne"><label>Clé d'accès <input name="s3_cle_acces" value="{{$r.S3.CleAcces}}" maxlength="200"></label><label>Secret {{template "secret" "s3_secret"}}</label></div>
 <label class="case"><input type="checkbox" name="s3_style_hote" value="1" {{if $r.S3.StyleHote}}checked{{end}}> Adresse de type https://compartiment.adresse/</label>
-<small class="aide">Conseil : clé S3 en écriture seule + règle de cycle de vie (un serveur compromis ne peut pas effacer les sauvegardes).</small></section>
-{{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut (destinations retirées) ?">Rétablir les valeurs par défaut</button></div></section>{{end}}
+<small class="aide">Conseil : clé S3 en écriture seule + règle de cycle de vie (un serveur compromis ne peut pas effacer les sauvegardes). Vider « Adresse » retire la destination.</small></div></details></div>
+</div></section>
+<section class="carte"><h2>Planification</h2><div class="ligne sauv-plan">
+<label class="case"><input type="checkbox" name="actif" value="1" {{if $r.Actif}}checked{{end}}> Chaque jour</label>
+<label>À <select name="heure_locale">{{range $d.Heures}}<option{{if egal . $d.HeureLocale}} selected{{end}}>{{.}}</option>{{end}}</select> <small class="aide">heure de {{$d.Fuseau}} (défaut {{heureLocaleDe $d.Defaut.Heure}})</small></label>
+<label class="case"><input type="checkbox" name="metriques" value="1" {{if $r.Metriques}}checked{{end}}> Inclure les métriques</label>
+<label class="case"><input type="checkbox" name="logs" value="1" {{if $r.Logs}}checked{{end}}> Inclure les logs</label></div>
+<small class="aide">Configuration et base : toujours. Métriques et logs : volumineux.</small></section>
+{{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut (destinations retirées) ?">Valeurs par défaut</button></div></section>{{end}}
 </form>
+
+<section class="carte"><h2>Historique</h2>{{if $d.Historique}}<div class="defile"><table data-cartes><thead><tr><th>Quand</th><th>Origine</th><th>État</th><th class="nombre">Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
+{{range $d.Historique}}<tr><td class="sans-coupure">{{dateS .DemandeeLe}}</td><td>{{motTechnique .Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{motTechnique .Statut}}</span></td><td class="nombre">{{if .Taille}}{{taille .Taille}}{{end}}</td><td>{{.Destinations}}</td><td>{{if .Erreur}}<span class="erreur-texte">{{.Erreur}}</span>{{end}}</td></tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune sauvegarde."}}{{end}}
+<p class="aide"><small class="aide">Restaurer une sauvegarde : <em>docs/sauvegarde-restauration.md</em>.</small></p></section>
 {{end}}

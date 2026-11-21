@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -510,6 +512,49 @@ type donneesSauvegardes struct {
 	Defaut     sauvegarde.Reglages
 	Historique []sauvegarde.Execution
 	Archives   []sauvegarde.Archive
+	// Résumé (retour du 21/11, maquette validée) : dernière exécution,
+	// prochaine, copie hors du VPS ; heure affichée dans le fuseau de
+	// l'interface (enregistrée en UTC).
+	Derniere              *sauvegarde.Execution
+	Prochaine             time.Time
+	HeureLocale, Fuseau   string
+	Heures                []string
+	HorsVPS, SFTP, S3     bool
+	TailleArchives        int64
+}
+
+// heureLocale : « HH:MM » UTC → heure du fuseau (aujourd'hui).
+func heureLocale(utc string, loc *time.Location, t time.Time) string {
+	h, err := time.Parse("15:04", utc)
+	if err != nil {
+		return utc
+	}
+	u := t.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), h.Hour(), h.Minute(), 0, 0, time.UTC).In(loc).Format("15:04")
+}
+
+// heureUTC : heure du fuseau « HH:MM » → UTC (aujourd'hui).
+func heureUTC(local string, loc *time.Location, t time.Time) (string, error) {
+	h, err := time.Parse("15:04", local)
+	if err != nil {
+		return "", errors.New("heure : HH:MM attendu")
+	}
+	l := t.In(loc)
+	return time.Date(l.Year(), l.Month(), l.Day(), h.Hour(), h.Minute(), 0, 0, loc).UTC().Format("15:04"), nil
+}
+
+// prochaineSauvegarde : prochain passage de l'heure UTC après t.
+func prochaineSauvegarde(utc string, t time.Time) time.Time {
+	h, err := time.Parse("15:04", utc)
+	if err != nil {
+		return time.Time{}
+	}
+	u := t.UTC()
+	p := time.Date(u.Year(), u.Month(), u.Day(), h.Hour(), h.Minute(), 0, 0, time.UTC)
+	if !p.After(u) {
+		p = p.Add(24 * time.Hour)
+	}
+	return p
 }
 
 func (c *Console) pageSauvegardes(q *req) {
@@ -521,11 +566,33 @@ func (c *Console) pageSauvegardes(q *req) {
 	d := donneesSauvegardes{R: r.Masques(), Defaut: sauvegarde.ReglagesDefaut()}
 	d.Historique, _ = sauvegarde.Historique(ctx, c.db, 30)
 	d.Archives, _ = sauvegarde.Lister(sauvegarde.DossierArchives(c.opt.Donnees))
+	d.SFTP = d.R.SFTP != nil && d.R.SFTP.Hote != ""
+	d.S3 = d.R.S3 != nil && d.R.S3.Adresse != ""
+	d.HorsVPS = d.SFTP || d.S3
 	if d.R.SFTP == nil {
 		d.R.SFTP = &sauvegarde.SFTP{}
 	}
 	if d.R.S3 == nil {
 		d.R.S3 = &sauvegarde.S3{}
+	}
+	if len(d.Historique) > 0 {
+		d.Derniere = &d.Historique[0]
+	}
+	loc := fuseau.Load()
+	d.Fuseau = loc.String()
+	d.HeureLocale = heureLocale(d.R.Heure, loc, q.t)
+	if d.R.Actif {
+		d.Prochaine = prochaineSauvegarde(d.R.Heure, q.t)
+	}
+	for m := 0; m < 24*60; m += 15 {
+		d.Heures = append(d.Heures, fmt.Sprintf("%02d:%02d", m/60, m%60))
+	}
+	if !slices.Contains(d.Heures, d.HeureLocale) {
+		d.Heures = append(d.Heures, d.HeureLocale)
+		sort.Strings(d.Heures)
+	}
+	for _, a := range d.Archives {
+		d.TailleArchives += a.Taille
 	}
 	c.rendre(q, "sauvegardes", "Sauvegardes", "reglages", d)
 }
@@ -542,7 +609,15 @@ func (c *Console) postSauvegardes(q *req) {
 			return "", err
 		}
 		var errs []error
-		r := sauvegarde.Reglages{Actif: f.coche("actif"), Heure: f.texte("heure"), Conserver: f.entier("conserver", &errs),
+		heure := f.texte("heure")
+		if hl := f.texte("heure_locale"); hl != "" { // page du 21/11 : heure du fuseau
+			h, err := heureUTC(hl, fuseau.Load(), q.t)
+			if err != nil {
+				return "", err
+			}
+			heure = h
+		}
+		r := sauvegarde.Reglages{Actif: f.coche("actif"), Heure: heure, Conserver: f.entier("conserver", &errs),
 			Metriques: f.coche("metriques"), Logs: f.coche("logs")}
 		if f.texte("action") == "defaut" {
 			r, errs = sauvegarde.ReglagesDefaut(), nil

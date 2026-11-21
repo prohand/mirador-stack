@@ -1833,4 +1833,11 @@ details.ecm-proc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
   .canaux-liste .canal-tete .pastille { grid-column: 2; }
   .canaux-liste .canal-desc { grid-column: 1 / -1; }
 }
-form#form-notif { max-width: none; }
+form.pile.large#form-notif { max-width: none; }
+
+/* Sauvegardes (retour du 21/11, maquette validée). */
+form.pile.large.form-large, form.form-large { max-width: none; }
+.sauv-plan { align-items: flex-end; }
+.sauv-maintenant { margin-top: 12px; }
+.reglage-dest > summary { display: inline-flex; margin-top: 2px; }
+.reglage-dest[open] > div { margin-top: 10px; padding: 12px; border-radius: 10px; background: var(--survol); }
