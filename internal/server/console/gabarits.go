@@ -145,7 +145,7 @@ func fonctions() template.FuncMap {
 		// coupeURL : adresse avec des points de coupure (<wbr>) après « / », « . »,
 		// « ? », « & » : sur téléphone, une longue adresse passe à la ligne à
 		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
-		"coupeURL": coupeURL,
+		"coupeURL":   coupeURL,
 		"choixDuree": choixDuree,
 		// dureeSec : durée réglable en secondes (attributs data-* lus par mirador.js).
 		"dureeSec": func(d any) int64 { return reflect.ValueOf(d).Int() / int64(time.Second) },
