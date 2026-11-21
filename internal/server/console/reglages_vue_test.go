@@ -130,7 +130,7 @@ func TestReglagesGeneralRanges(t *testing.T) {
 			t.Errorf("encore dans Notifications : %s", absent)
 		}
 	}
-	for _, attendu := range []string{`id="canal-telegram"`, "Envoi des notifications", `data-barre-enregistrer`, "Secours : aucun", `name="grouper_par"`} {
+	for _, attendu := range []string{`id="canal-telegram"`, "Mode ombre : tout est calculé", `data-barre-enregistrer`, "<small>Canal de secours</small><b>Aucun</b>", `name="grouper_par"`, `<option value="10s" selected>10 s</option>`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("absent de Notifications : %s", attendu)
 		}

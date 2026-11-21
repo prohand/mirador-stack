@@ -123,6 +123,16 @@ type donneesNotif struct {
 	// AppareilsPush : appareils abonnés aux notifications de l'application
 	// (tous comptes actifs), SPEC § 35.
 	AppareilsPush int
+	// Dernier : dernier message envoyé (ou calculé en mode ombre), pour le
+	// résumé en haut de la page (retour du 21/11).
+	Dernier *dernierEnvoi
+	// Actifs : canaux configurés et actifs, par nom (résumé du haut).
+	Actifs map[string]bool
+}
+
+type dernierEnvoi struct {
+	Le                           int64
+	Canal, Gravite, Type, Statut string
 }
 
 func (c *Console) pageNotifications(q *req) {
@@ -170,6 +180,10 @@ func (c *Console) pageNotifications(q *req) {
 		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif},
 		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}, {notif.NomWebhook, cn.Webhook != nil && cn.Webhook.Actif}} {
 		if x.actif {
+			if d.Actifs == nil {
+				d.Actifs = map[string]bool{}
+			}
+			d.Actifs[x.nom] = true
 			d.Testables = append(d.Testables, x.nom)
 		}
 	}
@@ -196,6 +210,11 @@ func (c *Console) pageNotifications(q *req) {
 		d.R.Canaux.Webhook = &notif.Webhook{Format: notif.FormatJSON}
 	}
 	d.AppareilsPush = notif.NombreAppareilsPush(ctx, c.db)
+	var de dernierEnvoi
+	if c.db.QueryRowContext(ctx, `SELECT le, canal, gravite, type, statut FROM envois WHERE type NOT IN ('test') ORDER BY id DESC LIMIT 1`).
+		Scan(&de.Le, &de.Canal, &de.Gravite, &de.Type, &de.Statut) == nil {
+		d.Dernier = &de
+	}
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
 }
 

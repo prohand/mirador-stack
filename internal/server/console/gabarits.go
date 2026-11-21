@@ -146,6 +146,7 @@ func fonctions() template.FuncMap {
 		// « ? », « & » : sur téléphone, une longue adresse passe à la ligne à
 		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
 		"coupeURL": coupeURL,
+		"choixDuree": choixDuree,
 		// dureeSec : durée réglable en secondes (attributs data-* lus par mirador.js).
 		"dureeSec": func(d any) int64 { return reflect.ValueOf(d).Int() / int64(time.Second) },
 		"heureLog": func(ms int64) string {
@@ -388,6 +389,8 @@ func dureeCourte(v any) string {
 		return fmt.Sprintf("%d h", d/time.Hour)
 	case d%time.Minute == 0:
 		return fmt.Sprintf("%d min", d/time.Minute)
+	case d < time.Minute && d%time.Second == 0:
+		return fmt.Sprintf("%d s", d/time.Second)
 	}
 	return d.String()
 }
