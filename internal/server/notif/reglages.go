@@ -157,6 +157,24 @@ func LireReglages(ctx context.Context, db *sql.DB) (Reglages, error) {
 // EcrireReglages enregistre des réglages vérifiés (audit avant / après,
 // sans secret). Les secrets donnés en clair sont chiffrés avec cle ; « *** »
 // garde le secret déjà enregistré.
+// pourAudit : réglages sans secret pour l'audit, lisible par les comptes
+// « lecture » : le sujet ntfy (chemin de l'adresse, secret quand il n'y a
+// pas de jeton) est masqué aussi (relecture du 21/11 : la page le cachait,
+// l'audit non).
+func pourAudit(r Reglages) Reglages {
+	m := r.Masques()
+	if m.Canaux.Ntfy != nil && m.Canaux.Ntfy.URL != "" {
+		n := *m.Canaux.Ntfy
+		if u, err := url.Parse(n.URL); err == nil && u.Host != "" {
+			n.URL = u.Scheme + "://" + u.Host + "/***"
+		} else {
+			n.URL = "***"
+		}
+		m.Canaux.Ntfy = &n
+	}
+	return m
+}
+
 func EcrireReglages(ctx context.Context, db *sql.DB, r Reglages, cle []byte, qui string, t time.Time) error {
 	avant, err := LireReglages(ctx, db)
 	if err != nil {
@@ -168,8 +186,8 @@ func EcrireReglages(ctx context.Context, db *sql.DB, r Reglages, cle []byte, qui
 	if err := r.Valider(); err != nil {
 		return err
 	}
-	brutAvant, _ := json.Marshal(avant.Masques())
-	masque, _ := json.Marshal(r.Masques())
+	brutAvant, _ := json.Marshal(pourAudit(avant))
+	masque, _ := json.Marshal(pourAudit(r))
 	brut, _ := json.Marshal(r)
 	return ecrire(ctx, db, "notif", func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES (?, ?, ?, ?)

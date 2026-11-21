@@ -51,7 +51,7 @@
 <td class="g-meta g-evol">{{.Evolution}}</td><td class="g-meta g-mach">{{.TexteMachines}}</td><td class="sans-coupure g-meta g-vu">{{if .PremierVu}}<span class="g-lib">vu la 1re fois </span>{{.PremierVu}}{{else}}<span class="pale">—</span>{{end}}{{if .Nouveau}} <span class="pastille attention">Nouveau</span>{{end}}</td><td class="mono g-meta g-der"><span class="g-lib">dernière </span>{{heureLog .Derniere}}</td><td class="g-meta g-lien"><a href="/logs?{{$d.Requete}}&amp;motif={{.Cle}}">Ces lignes</a></td></tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune ligne."}}{{end}}
 {{else}}
-<div class="logs-filtres-niveau"><span>Afficher</span>{{range $d.FiltresNiveau}}<a href="{{.Lien}}"{{if .Actif}} class="actif" aria-current="true"{{end}}>{{.Titre}}{{if ge .N 0}} <b>{{.N}}</b>{{end}}</a>{{end}}
+<div class="logs-filtres-niveau"><span>Afficher</span>{{range $d.FiltresNiveau}}<a href="{{.Lien}}"{{if .Actif}} class="actif" aria-current="true"{{end}}>{{.Titre}}{{if ge .N 0}} <b>{{.N}}{{if $d.Tronque}}+{{end}}</b>{{end}}</a>{{end}}
 <label class="case"><input type="checkbox" data-replier-semblables checked> Replier les lignes semblables</label></div>
 <div class="logs-nouvelles" data-logs-nouvelles hidden></div>
 {{if $d.Lignes}}{{template "lignes-logs" $d.Lignes}}

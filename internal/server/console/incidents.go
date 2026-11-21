@@ -123,9 +123,12 @@ func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*inci
 			}
 		}
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT id, regle, etiquettes, gravite, active_le, fin, resume, acquittee_par, acquittee_le FROM alertes
+	// Les plus RÉCENTES au-delà de la borne, remises ensuite dans l'ordre
+	// (relecture du 21/11 : la borne gardait les plus anciennes, et une panne
+	// en cours disparaissait quand une règle oscillait beaucoup).
+	rows, err := c.db.QueryContext(ctx, `SELECT * FROM (SELECT id, regle, etiquettes, gravite, active_le, fin, resume, acquittee_par, acquittee_le FROM alertes
 		WHERE active_le > 0 AND active_le <= ? AND (fin = 0 OR fin >= ?) AND gravite IN ('critical', 'warning')
-		ORDER BY active_le LIMIT ?`, fin.UnixMilli(), debut.UnixMilli(), maxAlertesLues)
+		ORDER BY active_le DESC LIMIT ?) ORDER BY active_le`, fin.UnixMilli(), debut.UnixMilli(), maxAlertesLues)
 	if err != nil {
 		return nil
 	}

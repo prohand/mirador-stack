@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -141,6 +142,17 @@ func Garder(nouveau, actuel any) (any, error) {
 		return a, nil
 	case map[string]any:
 		am, _ := actuel.(map[string]any)
+		// Secret gardé (« *** ») d'un équipement : seulement pour la même
+		// adresse et la même empreinte TLS (relecture du 21/11 : à l'import,
+		// un mot de passe UniFi ou SNMP pouvait partir vers une autre
+		// machine du LAN ; le formulaire refusait déjà ce cas).
+		if contientMasque(x) {
+			for _, k := range []string{"adresse", "empreinte"} {
+				if fmt.Sprint(vide(x[k])) != fmt.Sprint(vide(am[k])) {
+					return nil, fmt.Errorf("secret « *** » gardé alors que « %s » change : saisir le secret dans l'interface", k)
+				}
+			}
+		}
 		for k, e := range x {
 			g, err := Garder(e, am[k])
 			if err != nil {
@@ -172,4 +184,22 @@ func Garder(nouveau, actuel any) (any, error) {
 		}
 	}
 	return nouveau, nil
+}
+
+// contientMasque : un champ direct de m vaut « *** ».
+func contientMasque(m map[string]any) bool {
+	for _, v := range m {
+		if v == Masque {
+			return true
+		}
+	}
+	return false
+}
+
+// vide : nil et "" comptent pareil (champ absent).
+func vide(v any) any {
+	if v == nil {
+		return ""
+	}
+	return v
 }

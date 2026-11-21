@@ -377,6 +377,22 @@ func (c *Console) postEnregistrerRegle(q *req) {
 		c.rendre(q, "regle", r.Nom, "regles", d)
 		return
 	}
+	// Modification : la règle doit exister (relecture du 21/11 : le nom
+	// n'était protégé que par « readonly » dans le navigateur ; un nom changé
+	// créait une autre règle et laissait l'ancienne en place).
+	if !d.Nouvelle {
+		existe := false
+		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
+			for _, x := range rs {
+				existe = existe || x.Nom == r.Nom
+			}
+		}
+		if !existe {
+			c.flash(q, "", "règle inconnue : pour une nouvelle règle, passer par « Nouvelle règle »")
+			c.rendre(q, "regle", r.Nom, "regles", d)
+			return
+		}
+	}
 	if d.Nouvelle {
 		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
 			for _, x := range rs {

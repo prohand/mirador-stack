@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 
@@ -408,5 +410,32 @@ func TestAssistantAJour(t *testing.T) {
 	echs[2] = ech("mirador_agent_root_a_jour", 0)
 	if v := classerSurveillance(cfg, echs, true); !v.RacineAncienne {
 		t.Error("assistant trop ancien non signalé")
+	}
+}
+
+// Relecture du 21/11 : « Configuration des agents » (enregistrer ou « Tout
+// hériter ») garde la configuration du collecteur (SNMP, UniFi, syslog).
+func TestAgentsGardeCollecteur(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	if _, err := b.db.Exec(`INSERT INTO machines(nom, type, statut, cree_le) VALUES ('col', 'collecteur', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	_ = b.db.QueryRow(`SELECT id FROM machines WHERE nom = 'col'`).Scan(&id)
+	cle := "config_agent:machine:" + strconv.FormatInt(id, 10)
+	if _, err := b.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le) VALUES (?, '{"collecteur":{"equipements":["nas"]},"zfs":true}', 1)`, cle); err != nil {
+		t.Fatal(err)
+	}
+	portee := "machine:" + strconv.FormatInt(id, 10)
+	for _, action := range []string{"enregistrer", "retirer"} {
+		b.h.avancer(31 * time.Second)
+		b.post(c, "/reglages/agents", url.Values{"csrf": {b.csrf(c, "/reglages/agents")}, "portee": {portee}, "action": {action},
+			"intervalle": {"60s"}, "code": {b.code(secret)}})
+		var v string
+		_ = b.db.QueryRow(`SELECT valeur FROM reglages WHERE cle = ?`, cle).Scan(&v)
+		if !strings.Contains(v, `"collecteur"`) || !strings.Contains(v, `"zfs"`) {
+			t.Errorf("%s : configuration du collecteur perdue : %s", action, v)
+		}
 	}
 }

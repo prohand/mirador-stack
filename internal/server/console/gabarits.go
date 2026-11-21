@@ -374,6 +374,9 @@ func depuis(ms int64) string {
 }
 
 func dureeLisible(d time.Duration) string {
+	if d < 0 {
+		return "-" + dureeLisible(-d) // relecture du 21/11 : « -3600 s » → « -1 h 00 »
+	}
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%d s", int(d.Seconds()))

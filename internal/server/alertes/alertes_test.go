@@ -564,3 +564,32 @@ func TestVmalertAdresseSansParametres(t *testing.T) {
 		}
 	}
 }
+
+// Relecture du 21/11 : le filtre « machine » suit la même règle que
+// Alerte.Machine() (instance, sinon host, sinon src_ip).
+func TestHistoriqueFiltreMachineHost(t *testing.T) {
+	db := baseTest(t)
+	if _, err := db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('SSHBrute', '{"host":"nas","alertname":"SSHBrute"}', 'warning', 'active', 1, 1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	as, err := HistoriqueFiltre(context.Background(), db, Filtre{Machine: "nas"})
+	if err != nil || len(as) != 1 {
+		t.Errorf("alerte avec « host » seulement : %d trouvée(s), %v", len(as), err)
+	}
+}
+
+// Relecture du 21/11 : au-delà de la limite, les alertes les plus récentes
+// (dont celles en cours) sont gardées.
+func TestHistoriquePeriodeGardeRecentes(t *testing.T) {
+	db := baseTest(t)
+	for i := 1; i <= 5; i++ {
+		if _, err := db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('Oscille', '{}', 'warning', 'resolue', ?, ?, ?)`, i*1000, i*1000, i*1000+500); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _ = db.Exec(`INSERT INTO alertes(regle, etiquettes, gravite, etat, debut, active_le, fin) VALUES ('Panne', '{}', 'critical', 'active', 9000, 9000, 0)`)
+	as, err := HistoriquePeriode(context.Background(), db, time.UnixMilli(0), time.UnixMilli(20000), 3)
+	if err != nil || len(as) != 3 || as[2].Regle != "Panne" || as[0].ActiveLe.After(as[1].ActiveLe) {
+		t.Fatalf("%v : %+v", err, as)
+	}
+}

@@ -141,6 +141,9 @@ type Correspondance struct {
 	Couleur string   `json:"couleur,omitempty"`
 }
 
+// maxDecimales : décimales affichées au plus (formulaire et import).
+const maxDecimales = 6
+
 // Colonne d'un panneau « tableau » : une étiquette ou une requête (par son ID).
 type Colonne struct {
 	Champ           string           `json:"champ"`
@@ -207,6 +210,17 @@ func (t *Tableau) Valider() error {
 			}
 			if !slices.Contains(largeursPermises, p.Largeur) {
 				errs = append(errs, fmt.Errorf("%s : largeur %d non permise", p.Titre, p.Largeur))
+			}
+			// Décimales bornées comme dans le formulaire (relecture du 21/11 :
+			// un import avec 100 000 000 décimales faisait allouer ~100 Mo
+			// par valeur affichée).
+			if p.Decimales != nil && (*p.Decimales < 0 || *p.Decimales > maxDecimales) {
+				errs = append(errs, fmt.Errorf("%s : décimales de 0 à %d", p.Titre, maxDecimales))
+			}
+			for _, col := range p.Colonnes {
+				if col.Decimales != nil && (*col.Decimales < 0 || *col.Decimales > maxDecimales) {
+					errs = append(errs, fmt.Errorf("%s, colonne %s : décimales de 0 à %d", p.Titre, col.Titre, maxDecimales))
+				}
 			}
 			if len(p.Requetes) == 0 || len(p.Requetes) > 12 {
 				errs = append(errs, fmt.Errorf("%s : 1 à 12 requêtes", p.Titre))
@@ -357,6 +371,11 @@ func formater(v float64, unite string, decimales *int) string {
 	case "ops", "reqps":
 		return echelle(v, 1000, []string{"/s", "k/s", "M/s"}, dec(1))
 	case "s", "dtdurations":
+		// Au-delà de ~292 ans, time.Duration déborde (relecture du 21/11 :
+		// « -9223372036 s ») : affiché en jours sans conversion.
+		if math.Abs(v) > 9e9 {
+			return nombre(v/86400, 0) + " j"
+		}
 		return dureeLisible(time.Duration(v * float64(time.Second)))
 	case "ms":
 		return nombre(v, dec(0)) + " ms"

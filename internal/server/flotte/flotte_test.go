@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	essais "mirador-stack/internal/sondes"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -757,5 +758,39 @@ func TestEssaiSondeServeur(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("demande du serveur non transmise")
+	}
+}
+
+// Relecture du 21/11 : renommer un collecteur emporte ses sondes et les
+// maintenances de la machine ; le supprimer est refusé tant qu'il a des sondes.
+func TestRenommerEmporteReferences(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(nom, type, statut, cree_le) VALUES ('col1', 'collecteur', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnregistrerSondes(ctx, b.db, []essais.Sonde{{Nom: "box", Type: essais.TCP, Cible: "192.168.1.1:443", Depuis: "col1", Machine: "col1"}}, "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.db.Exec(`INSERT INTO maintenances(cible, auteur, cree_le) VALUES ('machine:col1', 'admin', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Supprimer(ctx, b.db, "col1", "admin", t0); err == nil {
+		t.Error("collecteur supprimé malgré ses sondes")
+	}
+	if err := Renommer(ctx, b.db, "col1", "col2", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := LireSondes(ctx, b.db)
+	if len(s) != 1 || s[0].Depuis != "col2" || s[0].Machine != "col2" {
+		t.Errorf("sondes après renommage : %+v", s)
+	}
+	var cible string
+	_ = b.db.QueryRow(`SELECT cible FROM maintenances`).Scan(&cible)
+	if cible != "machine:col2" {
+		t.Errorf("maintenance : %q", cible)
+	}
+	// Les sondes restent modifiables.
+	if err := EnregistrerSondes(ctx, b.db, nil, "admin", t0); err != nil {
+		t.Errorf("sondes bloquées après renommage : %v", err)
 	}
 }

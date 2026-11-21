@@ -264,7 +264,10 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 		args = append(args, f.Regle)
 	}
 	if f.Machine != "" {
-		q += ` AND json_extract(etiquettes, '$.instance') = ?`
+		// Même règle que Alerte.Machine() : instance, sinon host, sinon
+		// src_ip (relecture du 21/11 : une alerte qui ne portait que « host »
+		// apparaissait sur la fiche mais pas dans la liste filtrée).
+		q += ` AND COALESCE(json_extract(etiquettes, '$.instance'), json_extract(etiquettes, '$.host'), json_extract(etiquettes, '$.src_ip')) = ?`
 		args = append(args, f.Machine)
 	}
 	if f.Activees {
@@ -289,9 +292,12 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 // (en cours comprises), dans l'ordre de leur passage en alerte ; limite au
 // plus (frise de la page Alertes, SPEC § 28).
 func HistoriquePeriode(ctx context.Context, db *sql.DB, debut, fin time.Time, limite int) ([]Alerte, error) {
-	q := `SELECT id, regle, etiquettes, gravite, etat, debut, active_le, fin, valeur_debut, valeur_max, valeur, resume,
+	// Les plus récentes au-delà de la limite, remises dans l'ordre (relecture
+	// du 21/11 : la limite gardait les plus anciennes, et les alertes en
+	// cours manquaient quand il y en avait beaucoup).
+	q := `SELECT * FROM (SELECT id, regle, etiquettes, gravite, etat, debut, active_le, fin, valeur_debut, valeur_max, valeur, resume,
 		acquittee_le, acquittee_par, commentaire, description, acquittee_jusqua FROM alertes
-		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le LIMIT ?`
+		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le DESC LIMIT ?) ORDER BY active_le`
 	return lireAlertes(ctx, db, q, fin.UnixMilli(), debut.UnixMilli(), limite)
 }
 
