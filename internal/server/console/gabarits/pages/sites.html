@@ -1,18 +1,40 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}{{$l := $d.Liste}}
 <h1>Sites, types et groupes</h1>
 {{template "onglets-reglages" (onglet $ "sites")}}
-<p>Valeurs proposées en liste déroulante quand on ajoute une machine (jeton), à son approbation et dans sa fiche. Le serveur les applique à toutes les données de la machine (étiquettes <code>site</code>, <code>env</code> et <code>groupe</code>), utilisables comme filtres dans les tableaux, les logs et les règles. Le <strong>groupe de configuration</strong> sert en plus à donner les mêmes réglages d'agent à plusieurs machines (<a href="/reglages/agents">Configuration des agents</a>).</p>
-<div class="grille">
-{{range $l := (liste "sites" "types" "groupes")}}{{$titre := "Sites"}}{{$vals := $.D.Sites}}{{if egal $l "types"}}{{$titre = "Types de machine"}}{{$vals = $.D.Types}}{{else if egal $l "groupes"}}{{$titre = "Groupes de configuration"}}{{$vals = $.D.Groupes}}{{end}}
-<section class="carte"><h2>{{$titre}}</h2>
-{{if $vals}}<table><thead><tr><th>Valeur</th><th class="nombre">Machines</th>{{if $.Admin}}<th></th>{{end}}</tr></thead><tbody>
-{{range $vals}}<tr><td><code>{{.Valeur}}</code></td><td class="nombre">{{.Machines}}</td>
-{{if $.Admin}}<td>{{if not .Machines}}<form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l}}"><input type="hidden" name="valeur" value="{{.Valeur}}"><button name="action" value="supprimer" class="secondaire petit" data-confirmer="Supprimer « {{.Valeur}} » de la liste ?">Supprimer</button></form>{{else}}<small>Utilisé</small>{{end}}</td>{{end}}</tr>{{end}}
-</tbody></table>{{else}}<p class="vide">Aucune valeur.</p>{{end}}
-{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l}}">
-<label>Nouveau {{if egal $l "sites"}}site{{else if egal $l "groupes"}}groupe{{else}}type{{end}} <input name="valeur" required maxlength="63" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="{{if egal $l "sites"}}maison{{else if egal $l "groupes"}}dns{{else}}vm{{end}}"></label>
-<button name="action" value="ajouter">Ajouter</button></form>{{end}}
+{{/* Maquette v2 validée le 21/11 (SPEC § 107) : un onglet par liste, renommer avec ce qui change, fusion, « Machines… ». */}}
+<p class="sous">Proposés en liste quand on ajoute une machine et dans sa fiche ; appliqués à toutes ses données (étiquettes <code>site</code>, <code>env</code>, <code>groupe</code>), utilisables comme filtres partout. Le <strong>groupe de configuration</strong> donne en plus les mêmes réglages d'agent à ses machines (<a href="/reglages/agents">Configuration des agents</a>).</p>
+<nav class="onglets" aria-label="Listes">{{range $d.Onglets}}<a href="/reglages/sites?liste={{.Cle}}"{{if .Actif}} class="actif" aria-current="page"{{end}}>{{.Titre}} <small>{{.Nombre}}</small></a>{{end}}</nav>
+<section class="carte"><div class="entete-carte"><h2>{{$l.Titre}}</h2>
+{{if .Admin}}<details class="ajout-valeur"><summary class="bouton petit">+ Nouveau {{$l.Un}}</summary>
+<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="liste" value="{{$l.Cle}}"><input type="hidden" name="action" value="ajouter">
+<label>Nom <input name="valeur" required maxlength="63" size="16" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" placeholder="{{if egal $l.Cle "sites"}}maison{{else if egal $l.Cle "groupes"}}dns{{else}}vm{{end}}"></label><button class="petit">Ajouter</button></form></details>{{end}}</div>
+{{if $d.Lignes}}<div class="defile"><table class="liste-valeurs"><thead><tr><th>Nom</th><th>Machines</th><th>Aussi utilisé par</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range $d.Lignes}}<tr{{if and $d.Renommer (egal $d.Renommer.Ancien .Valeur)}} class="ouvert"{{end}}><td><strong>{{.Valeur}}</strong></td>
+<td>{{if .Machines}}{{range .Noms}}<a class="pastille" href="/machines/{{.}}">{{.}}</a> {{end}}{{if .Plus}}<a href="{{.Lien}}">+{{.Plus}}</a>{{end}}{{else}}<span class="doux">aucune</span>{{end}}</td>
+<td><small>{{if .Aussi}}{{range $i, $a := .Aussi}}{{if $i}} · {{end}}<a href="{{$a.Lien}}">{{$a.Texte}}</a>{{end}}{{else}}—{{end}}</small></td>
+{{if $.Admin}}<td class="sans-coupure"><a class="bouton secondaire petit" href="/reglages/sites?liste={{$l.Cle}}&amp;renommer={{.Valeur}}#renommer">✎ Renommer</a> <a class="bouton secondaire petit" href="/reglages/sites?liste={{$l.Cle}}&amp;machines={{.Valeur}}#machines">Machines…</a>
+{{if not .Machines}}<form method="post" class="en-ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l.Cle}}"><input type="hidden" name="valeur" value="{{.Valeur}}"><button name="action" value="supprimer" class="secondaire petit" data-confirmer="Supprimer « {{.Valeur}} » de la liste ?">Supprimer</button></form>{{end}}</td>{{end}}</tr>
+{{if and $.Admin $d.Renommer (egal $d.Renommer.Ancien .Valeur)}}{{with $d.Renommer}}<tr class="panneau-ligne"><td colspan="4"><div class="panneau-edition" id="renommer"><strong>Renommer « {{.Ancien}} »</strong>
+<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="liste" value="{{$l.Cle}}"><input type="hidden" name="valeur" value="{{.Ancien}}"><input type="hidden" name="action" value="renommer">
+<label>Nouveau nom <input name="nouveau" value="{{.Nouveau}}" required maxlength="63" size="18" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" autofocus></label>
+{{if .Fusion}}<label class="case"><input type="checkbox" name="fusionner" value="1" required> Fusionner « {{.Ancien}} » dans « {{.Nouveau}} »</label>{{end}}
+<button class="petit">{{if .Fusion}}Fusionner{{else}}Renommer{{end}}</button> <a class="bouton secondaire petit" href="/reglages/sites?liste={{$l.Cle}}">Annuler</a></form>
+{{$i := .Impact}}<ul class="impact">
+<li><strong>{{pluriel $i.Machines "machine"}}</strong> et leurs prochaines données passent sur le nouveau nom</li>
+{{if $i.Jetons}}<li>{{pluriel $i.Jetons "jeton"}} d'ajout pas encore utilisé(s) suivent</li>{{end}}
+{{if $i.Maintenances}}<li>{{pluriel $i.Maintenances "maintenance"}} (<code>{{$l.Un}}:{{.Ancien}}</code>) suit</li>{{end}}
+{{if $i.Config}}<li>ses réglages d'agent suivent{{if .Fusion}} (en cas de fusion, ceux de « {{.Nouveau}} » sont gardés){{end}}</li>{{end}}
+{{if $i.Modeles}}<li>{{pluriel $i.Modeles "modèle"}} attribué(s) suit{{if .Fusion}} (doublons : ceux de « {{.Nouveau}} » gardés){{end}}</li>{{end}}
+<li>données déjà enregistrées : gardent « {{.Ancien}} » jusqu'à la fin de leur conservation</li>
+{{if or $i.Regles $i.Tableaux}}<li class="a-verifier">à vérifier : {{if $i.Tableaux}}{{len $i.Tableaux}} tableau{{if gt (len $i.Tableaux) 1}}x{{end}} ({{range $k, $t := $i.Tableaux}}{{if $k}}, {{end}}<a href="/tableaux/{{$t}}">{{$t}}</a>{{end}}){{end}}{{if and $i.Regles $i.Tableaux}}, {{end}}{{if $i.Regles}}{{pluriel (len $i.Regles) "règle"}} ({{range $k, $r := $i.Regles}}{{if $k}}, {{end}}<a href="/regles/modifier/{{$r}}">{{$r}}</a>{{end}}){{end}} écrivent <code>{{$i.Motif}}</code> : à changer à la main</li>{{end}}
+</ul></div></td></tr>{{end}}{{end}}{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune valeur.</p>{{end}}
+</section>
+{{if and .Admin $d.Choisir}}<section class="carte" id="machines"><h2>Machines… : choisir les machines du {{$l.Un}} « {{$d.Choisir}} »</h2>
+<p class="sous">Coche les machines à mettre dans ce {{$l.Un}} (elles quittent leur {{$l.Un}} actuel) ; décocher retire la valeur.</p>
+{{if $d.Choix}}<form method="post">{{template "csrf" .CSRF}}<input type="hidden" name="liste" value="{{$l.Cle}}"><input type="hidden" name="valeur" value="{{$d.Choisir}}"><input type="hidden" name="action" value="machines">
+<div class="choix-machines">{{range $d.Choix}}<label class="case"><input type="checkbox" name="machine" value="{{.Nom}}"{{if .Coche}} checked{{end}}> {{.Nom}} {{if .Actuelle}}<small class="doux">({{.Actuelle}})</small>{{end}}</label>{{end}}</div>
+<div class="ligne"><button>Enregistrer</button> <a class="bouton secondaire" href="/reglages/sites?liste={{$l.Cle}}">Annuler</a></div></form>{{else}}<p class="vide">Aucune machine.</p>{{end}}
 </section>{{end}}
-</div>
-<p class="aide"><small class="aide">Lettres, chiffres, . - _ sans espace. Une valeur utilisée ne peut pas être supprimée.</small></p>
+<p class="aide"><small class="aide">Renommer vers un nom existant = <strong>fusionner</strong> (confirmation demandée). Lettres, chiffres, . _ - sans espace. Une valeur utilisée ne peut pas être supprimée.</small></p>
 {{end}}

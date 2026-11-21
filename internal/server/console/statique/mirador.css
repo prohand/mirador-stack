@@ -1851,3 +1851,18 @@ form.pile.large.form-large, form.form-large { max-width: none; }
 @media (min-width: 700px) { .cons-champs.haut > label.case { margin-top: 34px; } }
 .geoip-test { margin-top: 16px; align-items: flex-end; }
 .geoip-auto { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bord); align-items: center; }
+/* Réglages › Sites, types et groupes (maquette v2 du 21/11, SPEC § 107). */
+.liste-valeurs td { vertical-align: middle; }
+.liste-valeurs .pastille { text-decoration: none; color: var(--texte); }
+.liste-valeurs tr.ouvert td { border-bottom: 0; }
+.panneau-ligne > td { padding-top: 0; }
+.panneau-edition { background: var(--survol); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.panneau-edition .ligne { align-items: flex-end; }
+.panneau-edition .impact { margin: 0; padding-left: 20px; font-size: 13.5px; }
+.panneau-edition .a-verifier { color: var(--attention); }
+.ajout-valeur { margin-left: auto; }
+.ajout-valeur > summary { list-style: none; cursor: pointer; }
+.ajout-valeur > summary::-webkit-details-marker { display: none; }
+.ajout-valeur[open] > summary { margin-bottom: 8px; }
+.choix-machines { display: grid; gap: 6px 14px; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); margin: 0 0 12px; }
+form.en-ligne { display: inline; }

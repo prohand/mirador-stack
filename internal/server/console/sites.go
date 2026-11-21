@@ -5,12 +5,10 @@ package console
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"slices"
 	"sort"
-	"strings"
 
 	"mirador-stack/internal/server/flotte"
 )
@@ -72,23 +70,29 @@ func (c *Console) lireListes(ctx context.Context) ListesMachines {
 // ecrireListes : enregistrement + audit (lecture de l'ancienne valeur avant
 // la transaction : la base n'a qu'une connexion).
 func (c *Console) ecrireListes(ctx context.Context, l ListesMachines, q *req) error {
-	sort.Strings(l.Sites)
-	sort.Strings(l.Types)
-	sort.Strings(l.Groupes)
-	avant, _ := json.Marshal(c.lireListes(ctx))
-	b, _ := json.Marshal(l)
+	avant := c.lireListes(ctx)
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if err := ecrireReglage(ctx, tx, cleListesMachines, string(b), q.qui(), q.t); err != nil {
-		return err
-	}
-	if err := Auditer(ctx, tx, q.qui(), "sites_types", cleListesMachines, string(avant), string(b), q.ip.String(), q.t); err != nil {
+	if err := ecrireListesAvec(ctx, tx, avant, l, q); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// ecrireListesAvec : réglage trié et ligne d'audit, dans la transaction x.
+func ecrireListesAvec(ctx context.Context, x execer, avant, l ListesMachines, q *req) error {
+	sort.Strings(l.Sites)
+	sort.Strings(l.Types)
+	sort.Strings(l.Groupes)
+	a, _ := json.Marshal(avant)
+	b, _ := json.Marshal(l)
+	if err := ecrireReglage(ctx, x, cleListesMachines, string(b), q.qui(), q.t); err != nil {
+		return err
+	}
+	return Auditer(ctx, x, q.qui(), "sites_types", cleListesMachines, string(a), string(b), q.ip.String(), q.t)
 }
 
 // verifierChoix : site, type et groupe pris dans les listes (vide permis) ;
@@ -104,89 +108,4 @@ func (l ListesMachines) verifierChoix(site, env, groupe, siteActuel, envActuel, 
 		return fmt.Errorf("type %q inconnu : le créer d'abord dans Réglages › Sites, types et groupes", env)
 	}
 	return nil
-}
-
-type ligneListe struct {
-	Valeur   string
-	Machines int // machines qui l'utilisent
-}
-
-type donneesSites struct {
-	Sites, Types, Groupes []ligneListe
-}
-
-func (c *Console) pageSites(q *req) {
-	ctx := q.r.Context()
-	l := c.lireListes(ctx)
-	nbSite, nbType, nbGroupe := map[string]int{}, map[string]int{}, map[string]int{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
-		for _, m := range ms {
-			nbSite[m.Site]++
-			nbType[m.Env]++
-			nbGroupe[m.Groupe]++
-		}
-	}
-	var d donneesSites
-	for _, s := range l.Sites {
-		d.Sites = append(d.Sites, ligneListe{s, nbSite[s]})
-	}
-	for _, s := range l.Types {
-		d.Types = append(d.Types, ligneListe{s, nbType[s]})
-	}
-	for _, s := range l.Groupes {
-		d.Groupes = append(d.Groupes, ligneListe{s, nbGroupe[s]})
-	}
-	c.rendre(q, "sites", "Sites, types et groupes", "reglages", d)
-}
-
-func (c *Console) postSites(q *req) {
-	ctx := q.r.Context()
-	f := champs{q}
-	l := c.lireListes(ctx)
-	quelle := f.texte("liste")
-	cible := &l.Sites
-	nom := "site"
-	switch quelle {
-	case "sites":
-	case "types":
-		cible, nom = &l.Types, "type"
-	case "groupes":
-		cible, nom = &l.Groupes, "groupe"
-	default:
-		c.retour(q, "/reglages/sites", errors.New("liste inconnue"), "")
-		return
-	}
-	v := strings.TrimSpace(f.texte("valeur"))
-	err := func() error {
-		switch f.texte("action") {
-		case "ajouter":
-			if !reValeurListe.MatchString(v) {
-				return fmt.Errorf("%s %q : lettres, chiffres, . _ - (63 au plus, sans espace)", nom, v)
-			}
-			if slices.Contains(*cible, v) {
-				return fmt.Errorf("%s %q existe déjà", nom, v)
-			}
-			if len(*cible) >= 100 {
-				return errors.New("100 valeurs au plus")
-			}
-			*cible = append(*cible, v)
-		case "supprimer":
-			i := slices.Index(*cible, v)
-			if i < 0 {
-				return fmt.Errorf("%s %q inconnu", nom, v)
-			}
-			if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
-				for _, m := range ms {
-					if (quelle == "sites" && m.Site == v) || (quelle == "types" && m.Env == v) || (quelle == "groupes" && m.Groupe == v) {
-						return fmt.Errorf("%s %q utilisé par %s : changer d'abord ses machines", nom, v, m.Nom)
-					}
-				}
-			}
-			*cible = slices.Delete(*cible, i, i+1)
-		default:
-			return errors.New("action inconnue")
-		}
-		return c.ecrireListes(ctx, l, q)
-	}()
-	c.retour(q, "/reglages/sites", err, "liste enregistrée")
 }

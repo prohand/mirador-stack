@@ -7591,3 +7591,32 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   avant ; délai de 8 s au plus par essai. Menaces : requête vers la même
   origine seulement, avec les cookies de la session ; le HTML reçu vient du
   serveur lui-même (même gabarit qu'un rechargement normal).
+
+## 107. Sites, types et groupes : renommer, fusionner, ranger (21/11, maquette v2 validée) **[Fait, à valider]**
+- Un onglet par liste (Sites, Types de machine, Groupes de configuration),
+  avec le nombre de valeurs. Par valeur : ses machines (4 en pastilles, puis
+  « +N » vers la liste des machines filtrée), « Aussi utilisé par »
+  (maintenances, collecteur du site, réglages d'agent et modèles du groupe,
+  avec un lien).
+- **Renommer** : panneau sous la ligne, avec ce qui change avant de
+  valider : machines (et leurs prochaines données), jetons d'ajout pas
+  encore utilisés, maintenances (`site:` / `groupe:`), réglages d'agent et
+  modèles du groupe. Tout est changé dans **une seule transaction**, avec
+  une ligne d'audit (`renommer_site`…). Les données déjà enregistrées
+  gardent l'ancien nom (jamais réécrites) : c'est dit dans le panneau.
+- **Fusion** : renommer vers un nom existant demande de cocher
+  « Fusionner ». Groupe : en cas de doublon, les réglages d'agent et les
+  modèles du groupe gardé l'emportent ; ceux de l'ancien sont retirés.
+- **À vérifier** : les règles et tableaux qui écrivent `site="maison"` en
+  dur sont listés (lien vers chacun), **pas modifiés** : réécrire une
+  expression automatiquement pourrait en changer le sens sans qu'on le voie.
+- **Machines…** : cases à cocher pour ranger plusieurs machines d'un coup ;
+  décocher retire la valeur. Une ligne d'audit par machine (comme sa fiche).
+- Après chaque changement : caches des étiquettes vidés (effet immédiat sur
+  les prochaines données) et agents prévenus (réglages du groupe).
+- Coût : rien en tâche de fond. Affichage : quelques `COUNT` sur de petites
+  tables ; le panneau « Renommer » relit les règles et tableaux (quelques
+  dizaines de lignes) seulement quand il est ouvert.
+- Menaces : réservé aux administrateurs, jeton CSRF ; noms contrôlés
+  (lettres, chiffres, . _ -) ; requêtes SQL écrites en entier (aucun nom de
+  colonne assemblé) ; audit de chaque action.

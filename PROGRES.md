@@ -1607,6 +1607,15 @@ serveur ne répond pas, puis reprend toute seule. Vérifié dans Chromium
 remplacé, aucune navigation), fin (un seul rechargement complet). Coût :
 inchangé (une requête par période sur ces pages seulement).
 
+## Sites, types et groupes : renommer, fusionner, ranger (SPEC § 107, 21/11)
+
+Maquette v2 validée le 21/11 : onglets, machines en pastilles, « Aussi
+utilisé par », renommer avec ce qui change (une transaction, audit), fusion
+confirmée, règles/tableaux à vérifier listés, « Machines… ». Coût : rien en
+tâche de fond ; quelques COUNT à l'affichage. Tests : renommage (machines,
+maintenance, liste, audit), fusion refusée sans confirmation puis faite,
+fusion de groupes (réglages et modèles gardés), nom invalide, « Machines… ».
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
