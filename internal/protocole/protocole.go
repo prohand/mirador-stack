@@ -99,6 +99,23 @@ const CapaciteReessai = "reessai"
 // refuserait la clé : le serveur la lui retire.
 const CapaciteSondes = "sondes"
 
+// CapaciteSonder : mirador-collector sait faire tout de suite l'essai d'une
+// sonde demandé dans l'interface (bouton « Vérifier maintenant », SPEC
+// § 108), via EnteteSonde / EnteteSonder. Un collecteur plus ancien n'envoie
+// pas EnteteSonde : le bouton est alors grisé pour ses sondes.
+const CapaciteSonder = "sonder"
+
+// EnteteSonde (requête) : numéro de la dernière demande d'essai déjà faite
+// par le collecteur (0 au démarrage). EnteteSonder (réponse) : « N:nom1,nom2 »,
+// N = numéro de la demande la plus récente, noms des sondes à essayer
+// (échappés comme dans une URL), seulement celles plus récentes que
+// EnteteSonde. Rien d'autre ne peut être demandé : le collecteur n'essaie
+// que des sondes déjà dans sa configuration.
+const (
+	EnteteSonde  = "X-Mirador-Sonde"
+	EnteteSonder = "X-Mirador-Sonder"
+)
+
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
 const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai + "," + CapaciteDirect
 

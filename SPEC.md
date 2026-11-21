@@ -7620,3 +7620,25 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 - Menaces : réservé aux administrateurs, jeton CSRF ; noms contrôlés
   (lettres, chiffres, . _ -) ; requêtes SQL écrites en entier (aucun nom de
   colonne assemblé) ; audit de chaque action.
+
+## 108. Sondes : bouton « Vérifier maintenant » (21/11) **[Fait, à valider]**
+- Bouton sur chaque ligne de la page Sondes et en haut de la fiche d'une
+  sonde (administrateurs). L'essai part tout de suite, puis la sonde
+  reprend son rythme. La page se met à jour seule pendant 30 s (zone
+  `data-recharger`), puis se recharge une fois.
+- **Sonde du serveur** : la demande passe à la boucle des sondes du
+  serveur (canal en mémoire), essai dans la seconde.
+- **Sonde d'un collecteur** : le serveur garde la demande en mémoire et la
+  donne dans la réponse à la demande de configuration du collecteur, déjà
+  ouverte en permanence (en-têtes `X-Mirador-Sonde` / `X-Mirador-Sonder`,
+  réveil immédiat comme « Actualiser ») ; essai dans la seconde. Le
+  collecteur annonce la capacité `sonder` ; plus ancien, le bouton est grisé
+  (« collecteur à mettre à jour pour ce bouton »).
+- Menaces : ce n'est **pas** une commande à distance : le collecteur ne fait
+  qu'avancer l'essai d'une sonde déjà dans sa configuration (un nom inconnu
+  est ignoré), avec les mêmes contrôles qu'à son rythme. Un essai par sonde
+  toutes les 10 s au plus (refus au-delà) ; 100 noms au plus par en-tête,
+  noms échappés ; demandes oubliées après 5 min ; un agent (mirador-agent)
+  n'envoie pas l'en-tête et n'en reçoit jamais. Aucun port ouvert.
+- Coût : nul hors usage (une petite table en mémoire, vide le plus souvent) ;
+  un essai de plus par clic.

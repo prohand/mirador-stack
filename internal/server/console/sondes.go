@@ -54,10 +54,14 @@ type ligneSonde struct {
 	// Valeurs de tri (data-valeur, retour du 20/11) : état du plus grave au
 	// meilleur, dernier temps de réponse (ms), disponibilité (%).
 	TriEtat, TriDuree, TriDispo string
+	// « Vérifier maintenant » (SPEC § 108) : possible, sinon pourquoi.
+	Verifiable    bool
+	PasVerifiable string
 }
 
 type donneesSondes struct {
 	Lignes                    []ligneSonde
+	EnEssai                   bool // juste après « Vérifier maintenant » (SPEC § 108)
 	Total, OK, Echecs, Lentes int
 	Mediane                   string
 	Depuis                    []string // serveur + collecteurs (formulaire)
@@ -128,7 +132,7 @@ func (c *Console) nbSondesEnEchec(ctx context.Context, t time.Time) int {
 
 func (c *Console) pageSondes(q *req) {
 	ctx := q.r.Context()
-	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx)}
+	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx), EnEssai: enEssai(q)}
 	if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
 		d.Depuis = append(d.Depuis, cs...)
 	}
@@ -176,9 +180,11 @@ func (c *Console) pageSondes(q *req) {
 		}
 	}
 	var durees []float64
+	cols := c.collecteursParNom(ctx)
 	for _, s := range liste {
 		k := cleSonde(instanceDe(s), s.Nom)
 		l := ligneSonde{S: s, Depuis: s.Depuis, Attendu: attenduSonde(s), Dispo: "—"}
+		l.Verifiable, l.PasVerifiable = essaiPossible(s, cols)
 		l.CibleCourte, l.HTTPS, l.Puces = pucesSonde(s, lues, k, q.t)
 		var bilan int
 		l.Etat, l.ClasseEtat, bilan = etatSondeLue(lues, s)

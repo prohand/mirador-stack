@@ -1616,6 +1616,17 @@ tâche de fond ; quelques COUNT à l'affichage. Tests : renommage (machines,
 maintenance, liste, audit), fusion refusée sans confirmation puis faite,
 fusion de groupes (réglages et modèles gardés), nom invalide, « Machines… ».
 
+## Sondes : « Vérifier maintenant » (SPEC § 108, 21/11)
+
+Bouton sur la page Sondes et la fiche : essai tout de suite (serveur ou
+collecteur, via la demande de configuration déjà ouverte ; capacité
+`sonder`, collecteur à mettre à jour). Limite : un essai par sonde toutes
+les 10 s. Coût : nul hors usage. Tests : protocole (aller-retour des noms,
+valeurs mal formées), serveur (réveil immédiat, rien pour un agent,
+oubli après 5 min), sondes (essai sur signal), collecteur (nom inconnu
+ignoré), lien (en-tête envoyé et lu), console (bouton grisé, limite 10 s,
+rechargement 30 s).
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

@@ -709,3 +709,53 @@ func TestConfigEnDirect(t *testing.T) {
 		t.Fatalf("après traitement : %d après %v", w4.Code, d)
 	}
 }
+
+// « Vérifier maintenant » (SPEC § 108) : demande donnée au collecteur qui
+// envoie X-Mirador-Sonde, aussitôt pendant une attente ; rien pour un agent.
+func TestConfigEssaiSonde(t *testing.T) {
+	b := nouveauBanc(t)
+	token, _ := TokenManuel(ctx, b.db, "col", "admin", t0)
+	id, _ := IDMachine(ctx, b.db, "col")
+	w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "")
+	etag := w.Header().Get("ETag")
+	attendre := func(entetes ...string) (*httptest.ResponseRecorder, time.Duration) {
+		debut := time.Now()
+		// « Actualiser » d'un autre test (même numéro de machine, mémoire
+		// partagée) : marqué comme déjà traité.
+		e := append([]string{"If-None-Match", etag, protocole.EnteteAttendre, "2",
+			protocole.EnteteActualise, strconv.FormatInt(time.Now().UnixNano(), 10)}, entetes...)
+		w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", e...)
+		return w, time.Since(debut)
+	}
+	go func() { time.Sleep(200 * time.Millisecond); DemanderEssai(id, "Box (fibre)", time.Now()) }()
+	w1, d := attendre(protocole.EnteteSonde, "0")
+	n, noms := protocole.LireSonder(w1.Header().Get(protocole.EnteteSonder))
+	if w1.Code != http.StatusNotModified || d > 1500*time.Millisecond || n == 0 || len(noms) != 1 || noms[0] != "Box (fibre)" {
+		t.Fatalf("essai : %d après %v, %q", w1.Code, d, w1.Header().Get(protocole.EnteteSonder))
+	}
+	// Déjà fait : plus rien, attente normale.
+	if w2, d := attendre(protocole.EnteteSonde, strconv.FormatInt(n, 10)); w2.Header().Get(protocole.EnteteSonder) != "" || d < 1900*time.Millisecond {
+		t.Fatalf("après l'essai : %q après %v", w2.Header().Get(protocole.EnteteSonder), d)
+	}
+	// Sans X-Mirador-Sonde (agent, ancien collecteur) : jamais d'en-tête.
+	DemanderEssai(id, "Box (fibre)", time.Now())
+	if w3, _ := attendre(); w3.Header().Get(protocole.EnteteSonder) != "" {
+		t.Fatal("en-tête envoyé à un client qui ne le demande pas")
+	}
+	// Demande trop ancienne : oubliée.
+	if _, noms := essaisDe(id, 0, time.Now().Add(6*time.Minute)); len(noms) != 0 {
+		t.Fatalf("demande ancienne gardée : %v", noms)
+	}
+}
+
+func TestEssaiSondeServeur(t *testing.T) {
+	DemanderEssai(MachineServeur, "Site public", time.Now())
+	select {
+	case nom := <-EssaisServeur():
+		if nom != "Site public" {
+			t.Fatal(nom)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("demande du serveur non transmise")
+	}
+}

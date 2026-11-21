@@ -225,3 +225,36 @@ func TestHTTPJSONCertificat(t *testing.T) {
 		t.Error("seuil d'alerte remonté sans alerte demandée")
 	}
 }
+
+// « Vérifier maintenant » (SPEC § 108) : l'essai part sur le signal, sans
+// attendre le rythme (1 h ici), puis le rythme reprend.
+func TestTournerMaintenant(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	s := Sonde{Nom: "zz", Type: TCP, Cible: l.Addr().String(), Intervalle: "1h"}
+	ctx, fin := context.WithCancel(context.Background())
+	defer fin()
+	signal := make(chan struct{}, 1)
+	faits := make(chan Resultat, 4)
+	go Tourner(ctx, s, Options{Maintenant: signal}, func(_ Sonde, r Resultat) { faits <- r })
+	// Premier essai au démarrage (étalé sur 0 à 9 s selon le nom) : on
+	// déclenche tout de suite pour ne pas l'attendre.
+	signal <- struct{}{}
+	select {
+	case r := <-faits:
+		if !r.OK {
+			t.Fatalf("essai : %+v", r)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("essai non fait sur le signal")
+	}
+	signal <- struct{}{}
+	select {
+	case <-faits:
+	case <-time.After(3 * time.Second):
+		t.Fatal("deuxième signal sans essai")
+	}
+}

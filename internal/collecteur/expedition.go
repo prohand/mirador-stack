@@ -34,7 +34,7 @@ func Expedition(file *envoi.File, journal *slog.Logger) func(*metrics.Batch) {
 
 // TournerReleves : SNMP (une tâche par équipement), contrôleur UniFi et
 // sondes de certificats, jusqu'à l'arrêt de ctx.
-func TournerReleves(ctx context.Context, cfg config.Agent, envoyer func(*metrics.Batch), journal *slog.Logger) {
+func TournerReleves(ctx context.Context, cfg config.Agent, envoyer func(*metrics.Batch), journal *slog.Logger, decl *Declencheurs) {
 	var wg sync.WaitGroup
 	for _, c := range cfg.Collecteur.SNMP {
 		r := &snmp.Releveur{Cible: c, Envoyer: envoyer, Journal: journal}
@@ -55,7 +55,7 @@ func TournerReleves(ctx context.Context, cfg config.Agent, envoyer func(*metrics
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			essais.Tourner(ctx, s, essais.Options{}, func(s essais.Sonde, r essais.Resultat) {
+			essais.Tourner(ctx, s, essais.Options{Maintenant: decl.Canal(s.Nom)}, func(s essais.Sonde, r essais.Resultat) {
 				envoyer(LotSonde(s, r, time.Now()))
 			})
 		}()

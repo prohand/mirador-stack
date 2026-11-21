@@ -186,6 +186,9 @@ type Options struct {
 	// Refuser : adresse interdite (vrai = refusée), vérifiée à chaque
 	// connexion, après résolution du nom. nil : tout est permis (collecteur).
 	Refuser func(ip net.IP) bool
+	// Maintenant : un signal reçu fait l'essai tout de suite, sans attendre
+	// le rythme (bouton « Vérifier maintenant », SPEC § 108). nil : aucun.
+	Maintenant <-chan struct{}
 }
 
 // Essayer : un essai, Delai au plus.
@@ -462,10 +465,14 @@ func Tourner(ctx context.Context, s Sonde, o Options, rendre func(Sonde, Resulta
 	}
 	attente := time.Duration(h%10) * time.Second
 	for {
+		minuterie := time.NewTimer(attente)
 		select {
 		case <-ctx.Done():
+			minuterie.Stop()
 			return
-		case <-time.After(attente):
+		case <-minuterie.C:
+		case <-o.Maintenant: // demandé dans l'interface : rythme repris ensuite
+			minuterie.Stop()
 		}
 		rendre(s, Essayer(ctx, s, o))
 		attente = intervalle

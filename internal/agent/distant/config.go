@@ -197,7 +197,13 @@ type Recuperateur struct {
 	// déjà ; Direct : secondes de direct demandées par le serveur (0 : aucune).
 	DirectActif func() bool
 	Direct      int
-	etag        string
+	// Essais de sondes (SPEC § 108) : AvecSonde envoie Sonde (dernière
+	// demande faite) ; réponse : Sonder (la plus récente) et SonderNoms.
+	AvecSonde  bool
+	Sonde      int64
+	Sonder     int64
+	SonderNoms []string
+	etag       string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -222,6 +228,9 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	if r.DirectActif != nil && r.DirectActif() {
 		req.Header.Set(protocole.EnteteDirectActif, "1")
 	}
+	if r.AvecSonde {
+		req.Header.Set(protocole.EnteteSonde, strconv.FormatInt(r.Sonde, 10))
+	}
 	if r.Attendre > 0 {
 		req.Header.Set(protocole.EnteteAttendre, strconv.Itoa(int(r.Attendre.Seconds())))
 		req.Header.Set(protocole.EnteteActualise, strconv.FormatInt(r.Actualise, 10))
@@ -234,6 +243,7 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	r.Attente = resp.Header.Get(protocole.EnteteAttente) == "1"
 	r.Actualiser, _ = strconv.ParseInt(resp.Header.Get(protocole.EnteteActualiser), 10, 64)
 	r.Direct, _ = strconv.Atoi(resp.Header.Get(protocole.EnteteDirect))
+	r.Sonder, r.SonderNoms = protocole.LireSonder(resp.Header.Get(protocole.EnteteSonder))
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		return nil, ErrInchange

@@ -37,9 +37,14 @@ type donneesFiche struct {
 	Etiquettes  string // formulaire
 	Retour      string
 	// Sonde : formulaire « Modifier la sonde » (retour du 19/11).
-	Sonde  *essais.Sonde
-	Depuis []string // serveur + collecteurs
-	Toutes []string // machines approuvées (« Machine liée »)
+	Sonde *essais.Sonde
+	// « Vérifier maintenant » (SPEC § 108) : possible, sinon pourquoi ;
+	// EnEssai : page ouverte juste après une demande (mise à jour seule).
+	Verifiable    bool
+	PasVerifiable string
+	EnEssai       bool
+	Depuis        []string // serveur + collecteurs
+	Toutes        []string // machines approuvées (« Machine liée »)
 	// Dernières alertes de l'élément, avec le retour à la normale (§ 72).
 	Dernieres *blocDernieresAlertes
 }
@@ -65,6 +70,8 @@ func (c *Console) ficheElement(q *req, cle string) {
 			for i := range ss {
 				if ss[i].Nom == nom {
 					d.Sonde = &ss[i]
+					d.Verifiable, d.PasVerifiable = essaiPossible(ss[i], c.collecteursParNom(ctx))
+					d.EnEssai = enEssai(q)
 				}
 			}
 		}

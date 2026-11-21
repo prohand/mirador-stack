@@ -60,6 +60,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("POST /etiquettes", c.admin(c.postEtiquettes))
 	m.HandleFunc("POST /applications", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
+	m.HandleFunc("POST /sondes/{nom}/essai", c.admin(c.postEssaiSonde))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/{nom}/direct", c.lecture(c.fluxDirect)) // relevés en direct (SPEC § 97)
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
