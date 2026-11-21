@@ -415,7 +415,8 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 				// Seulement un jeton présent mais périmé (page restée ouverte) :
 				// sans jeton du tout, refus net.
 				if jeton != "" && r.Header.Get("X-CSRF") == "" && r.Header.Get("X-Requested-With") == "" {
-					c.retour(q, pageDOrigine(r), errors.New("la page avait expiré : elle a été rechargée, rien n'a été fait ; recommencer"), "")
+					c.flash(q, "", "la page avait expiré : elle a été rechargée, rien n'a été fait ; recommencer")
+					http.Redirect(w, r, pageDOrigine(r), http.StatusSeeOther) // #nosec G710 -- pageDOrigine : chemin du même site seulement, sinon « / »
 					return
 				}
 				http.Error(w, "jeton de formulaire invalide : recharger la page", http.StatusForbidden)
@@ -432,10 +433,15 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 // seulement), sinon l'accueil. Jamais une adresse d'un autre site.
 func pageDOrigine(r *http.Request) string {
 	u, err := url.Parse(r.Referer())
-	if err != nil || u.Host != r.Host || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
+	if err != nil || u.Host != r.Host || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") || strings.ContainsAny(u.Path, "\\\r\n") {
 		return "/"
 	}
-	return u.RequestURI()
+	// Chemin et paramètres seulement : jamais d'hôte ni de schéma.
+	v := u.EscapedPath()
+	if u.RawQuery != "" {
+		v += "?" + u.RawQuery
+	}
+	return v
 }
 
 // versConnexion : page de connexion pour une page, 401 pour un appel de
