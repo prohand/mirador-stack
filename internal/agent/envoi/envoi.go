@@ -33,7 +33,25 @@ type Options struct {
 	Journal                *slog.Logger
 	// Client HTTP (remplaçable dans les tests).
 	Client *http.Client
+	// PauseRattrapage : pause entre deux lots quand d'autres attendent
+	// (reprise après une coupure). Relecture du 21/11 : sans pause, la
+	// reprise prenait tout le quota de la machine sur le serveur
+	// (5 requêtes/s pour métriques, logs, configuration, direct…) et
+	// faisait refuser les autres envois. 0 : 500 ms.
+	PauseRattrapage time.Duration
 }
+
+// pauseRattrapageDefaut : au plus 2 lots par seconde pendant une reprise.
+const pauseRattrapageDefaut = 500 * time.Millisecond
+
+// erreurPlusTard : refus 429/503 avec « Retry-After » (attente demandée).
+type erreurPlusTard struct {
+	err   error
+	apres time.Duration
+}
+
+func (e *erreurPlusTard) Error() string { return e.err.Error() }
+func (e *erreurPlusTard) Unwrap() error { return e.err }
 
 // Expediteur vide une File vers une adresse HTTP, dans l'ordre, un lot à la fois.
 type Expediteur struct {
@@ -84,6 +102,9 @@ var erreurDefinitive = errors.New("lot refusé par le serveur")
 // Tourner envoie les lots jusqu'à l'arrêt du contexte.
 func (e *Expediteur) Tourner(ctx context.Context) {
 	attente := e.opt.AttenteMin
+	// reprise : un envoi a échoué et la file n'a pas encore été vidée
+	// depuis ; seulement là, les lots sont espacés (rattrapage).
+	reprise := false
 	for {
 		lot := e.file.Premier()
 		if lot == nil {
@@ -101,6 +122,20 @@ func (e *Expediteur) Tourner(ctx context.Context) {
 			e.OctetsEnvoy.Add(uint64(len(lot)))
 			e.file.Retirer(lot)
 			attente = e.opt.AttenteMin
+			lots, _, _ := e.file.Etat()
+			attend := lots > 0 || e.file.OctetsDisque() > 0
+			reprise = reprise && attend
+			if reprise { // rattrapage après une coupure : on laisse de la place
+				pause := e.opt.PauseRattrapage
+				if pause <= 0 {
+					pause = pauseRattrapageDefaut
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(pause):
+				}
+			}
 			continue
 		case errors.Is(err, erreurDefinitive):
 			// Format refusé : le garder bloquerait toute la file.
@@ -110,11 +145,16 @@ func (e *Expediteur) Tourner(ctx context.Context) {
 			continue
 		}
 		e.Echecs.Add(1)
+		reprise = true
 		e.opt.Journal.Warn("envoi en échec, nouvel essai plus tard",
 			"url", e.opt.URL, "attente", attente.String(), "erreur", err)
 		// Attente avec aléa (± 20 %) pour que 25 agents ne reviennent pas tous
 		// en même temps après une coupure du serveur.
 		alea := time.Duration(float64(attente) * (0.8 + 0.4*rand.Float64())) // #nosec G404 -- aléa de délai, pas de sécurité
+		var plusTard *erreurPlusTard
+		if errors.As(err, &plusTard) {
+			alea = max(alea, plusTard.apres) // attente demandée par le serveur
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -156,7 +196,12 @@ func (e *Expediteur) envoyer(ctx context.Context, lot []byte) error {
 		// Lot invalide ou trop gros : le renvoyer ne changerait rien.
 		return fmt.Errorf("%w : HTTP %d : %s", erreurDefinitive, resp.StatusCode, bytes.TrimSpace(extrait))
 	default:
-		// 401/403 (token refusé), 429 (limite ou quota), 5xx : on réessaie plus tard.
-		return fmt.Errorf("HTTP %d : %s", resp.StatusCode, bytes.TrimSpace(extrait))
+		// 401/403 (token refusé), 409 (horloge), 429 (limite ou quota), 5xx :
+		// on réessaie plus tard, au plus tôt après « Retry-After ».
+		err := fmt.Errorf("HTTP %d : %s", resp.StatusCode, bytes.TrimSpace(extrait))
+		if s, e := strconv.Atoi(resp.Header.Get("Retry-After")); e == nil && s > 0 {
+			return &erreurPlusTard{err: err, apres: min(time.Duration(s)*time.Second, 10*time.Minute)}
+		}
+		return err
 	}
 }

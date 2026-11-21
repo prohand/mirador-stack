@@ -11,12 +11,13 @@ import (
 
 // sourceFactice simule systemd.
 type sourceFactice struct {
-	unites    []uniteEtat
-	redem     map[string]uint32
-	actives   []string
-	props     map[string]proprietesService
-	timers    map[string]tacheTimer
-	appelsRed int
+	unites     []uniteEtat
+	redem      map[string]uint32
+	actives    []string
+	props      map[string]proprietesService
+	timers     map[string]tacheTimer
+	appelsRed  int
+	errActives error // ServicesActivesAuDemarrage en échec (relecture du 21/11)
 }
 
 func (f *sourceFactice) Timer(_ context.Context, u uniteEtat) (tacheTimer, error) {
@@ -37,7 +38,7 @@ func (f *sourceFactice) Redemarrages(_ context.Context, u uniteEtat) (uint32, er
 	return n, nil
 }
 func (f *sourceFactice) ServicesActivesAuDemarrage(context.Context) ([]string, error) {
-	return f.actives, nil
+	return f.actives, f.errActives
 }
 func (f *sourceFactice) Proprietes(_ context.Context, nom string) (proprietesService, error) {
 	p, ok := f.props[nom]
@@ -175,5 +176,24 @@ func TestSystemdTimers(t *testing.T) {
 	})
 	if codeTimer(tacheTimer{Resultat: "timeout"}) != 1 {
 		t.Error("échec sans code de retour : 1 attendu")
+	}
+}
+
+// Relecture du 21/11 : un passage où la liste des services échoue garde les
+// valeurs d'avant (pas de « 0 service arrêté » inventé).
+func TestSystemdEchecGardeValeurs(t *testing.T) {
+	src := sourceExemple()
+	s := newSystemdAvecSource(src, nil)
+	t0 := time.Unix(1_000_000, 0)
+	maintenant := t0
+	s.maintenant = func() time.Time { return maintenant }
+	avant := collecter(t, s)["node_systemd_enabled_units_total"]
+	if avant == 0 {
+		t.Fatal("aucun service suivi au départ")
+	}
+	src.errActives = errors.New("D-Bus : délai dépassé")
+	maintenant = t0.Add(6 * time.Minute)
+	if apres := collecter(t, s)["node_systemd_enabled_units_total"]; apres != avant {
+		t.Errorf("services suivis : %v puis %v après un échec D-Bus", avant, apres)
 	}
 }

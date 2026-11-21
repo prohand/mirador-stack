@@ -181,3 +181,54 @@ func TestTokenRefuseOnGarde(t *testing.T) {
 		t.Error("un 403 ne doit pas faire abandonner le lot")
 	}
 }
+
+// Relecture du 21/11 : pendant une reprise, pause entre deux lots ; un 429
+// avec Retry-After est respecté.
+func TestRattrapageEspaceEtRetryAfter(t *testing.T) {
+	var mu sync.Mutex
+	var heures []time.Time
+	refus := 1
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		if refus > 0 {
+			refus--
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		heures = append(heures, time.Now())
+	}))
+	defer srv.Close()
+	f := NewFile(1 << 20)
+	for i := 0; i < 3; i++ {
+		f.Ajouter([]byte{byte(i)})
+	}
+	e := NewExpediteur(f, Options{URL: srv.URL, Client: srv.Client(), Delai: time.Second,
+		AttenteMin: 10 * time.Millisecond, AttenteMax: 20 * time.Millisecond, PauseRattrapage: 100 * time.Millisecond,
+		Journal: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	ctx, fin := context.WithCancel(context.Background())
+	debut := time.Now()
+	go e.Tourner(ctx)
+	defer fin()
+	for i := 0; i < 300; i++ {
+		mu.Lock()
+		n := len(heures)
+		mu.Unlock()
+		if n == 3 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(heures) != 3 {
+		t.Fatalf("%d lots reçus", len(heures))
+	}
+	if heures[0].Sub(debut) < 900*time.Millisecond {
+		t.Errorf("Retry-After non respecté : premier envoi après %v", heures[0].Sub(debut))
+	}
+	if heures[1].Sub(heures[0]) < 90*time.Millisecond || heures[2].Sub(heures[1]) < 90*time.Millisecond {
+		t.Errorf("pas de pause pendant le rattrapage : %v, %v", heures[1].Sub(heures[0]), heures[2].Sub(heures[1]))
+	}
+}

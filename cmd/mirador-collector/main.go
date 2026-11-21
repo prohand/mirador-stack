@@ -163,8 +163,12 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	<-relevesFinis
 
 	journal.Info("arrêt demandé, envoi des derniers lots")
+	// Syslog aussi (relecture du 21/11 : le dernier lot, et tout le retard
+	// si le serveur était injoignable, était perdu à chaque redémarrage).
+	sys.Vider(5 * time.Second)
 	a.Vider(5 * time.Second)
 	arreterEnvoi()
+	a.Sauver()
 	return 0
 }
 

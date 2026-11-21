@@ -84,6 +84,11 @@ func Tourner(ctx context.Context, sondes []config.Sonde, envoyer func(*metrics.B
 	for {
 		for _, s := range sondes {
 			r, err := Sonder(ctx, s)
+			// Arrêt pendant l'essai (redémarrage du collecteur) : rien
+			// envoyé, sinon un faux échec (relecture du 21/11).
+			if err != nil && ctx.Err() != nil {
+				return
+			}
 			b := metrics.NewBatch(8, []metrics.Label{metrics.L("instance", s.Machine), metrics.L("job", "certs")})
 			b.Reset(time.Now().UnixMilli())
 			Ajouter(b, s, r, err)

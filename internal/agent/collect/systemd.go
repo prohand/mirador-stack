@@ -222,7 +222,8 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 
 	var actives []serviceActive
 	var proposes []string
-	if noms, err := s.source.ServicesActivesAuDemarrage(ctx); err == nil {
+	noms, errNoms := s.source.ServicesActivesAuDemarrage(ctx)
+	if errNoms == nil {
 		sort.Strings(noms)
 		for _, nom := range noms {
 			if strings.HasSuffix(nom, "@.service") || s.ignorer[nom] {
@@ -262,12 +263,22 @@ func (s *Systemd) rafraichir(ctx context.Context, unites []uniteEtat) {
 	}
 
 	s.mu.Lock()
-	s.redemarrage = redem
-	s.actives = actives
-	s.proposes = proposes
-	s.timers = timers
+	defer s.mu.Unlock()
 	s.rafraichi = s.maintenant()
-	s.mu.Unlock()
+	// Relecture du 21/11 : un passage coupé (systemd lent, délai dépassé)
+	// ou la liste des services en échec gardent les valeurs d'avant ; avant,
+	// un résultat partiel faisait disparaître des séries, et
+	// « enabled_units_down » passait à 0 alors que des services étaient
+	// arrêtés.
+	if ctx.Err() != nil {
+		return
+	}
+	s.redemarrage = redem
+	if errNoms == nil {
+		s.actives = actives
+		s.proposes = proposes
+	}
+	s.timers = timers
 }
 
 // dureeMaxTacheDemarrage : un service « simple » qui s'arrête seul, code 0,

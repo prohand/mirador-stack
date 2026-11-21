@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -141,10 +142,9 @@ func TestReleveur(t *testing.T) {
 	var lots []*metrics.Batch
 	cible := config.CibleSNMP{Machine: "nas", Prereglage: "synology", Intervalle: config.Duree(time.Hour)}
 	for _, src := range []Source{nasSimule(), sourceEnPanne{}} {
-		r := &Releveur{Cible: cible, Envoyer: func(b *metrics.Batch) { lots = append(lots, b) },
-			Ouvrir: func(config.CibleSNMP) (Source, func(), error) { return src, func() {}, nil }}
 		ctx, fin := context.WithCancel(context.Background())
-		fin() // un seul relevé
+		r := &Releveur{Cible: cible, Envoyer: func(b *metrics.Batch) { lots = append(lots, b); fin() }, // un seul relevé
+			Ouvrir: func(config.CibleSNMP) (Source, func(), error) { return src, func() {}, nil }}
 		r.Tourner(ctx)
 	}
 	if len(lots) != 2 {
@@ -171,5 +171,22 @@ func BenchmarkReleve(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		lot.Reset(0)
 		_ = Releve(nas, "synology", lot)
+	}
+}
+
+// Relecture du 21/11 : la marche d'une table s'arrête à sa borne.
+type sourceSansFin struct{ sourceEnPanne }
+
+func (sourceSansFin) BulkWalk(racine string, f gosnmp.WalkFunc) error {
+	for i := 0; ; i++ {
+		if err := f(gosnmp.SnmpPDU{Name: racine + "." + strconv.Itoa(i)}); err != nil {
+			return err
+		}
+	}
+}
+
+func TestMarcheBornee(t *testing.T) {
+	if v := marcherBorne(sourceSansFin{}, "1.3.6.1", 100); len(v) != 100 {
+		t.Errorf("%d réponses gardées", len(v))
 	}
 }

@@ -1950,3 +1950,9 @@ form.en-ligne { display: inline; }
 tr[id^="sonde-"] { scroll-margin-top: 90px; }
 tr[id^="sonde-"]:target td { background: var(--accent-fond); }
 @media (max-width: 640px) { table.en-cartes tr[id^="sonde-"]:target { box-shadow: 0 0 0 2px var(--accent); } }
+/* Mode administration fermé (retour du 21/11) : bandeau discret avec
+   « Ouvrir » (code 2FA dans la fenêtre habituelle). */
+.bandeau.admin-ferme { background: var(--survol); color: var(--doux); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bandeau.admin-ferme[hidden] { display: none; }
+.bandeau.admin[hidden] { display: none; }
+@media (max-width: 640px) { .bandeau.admin-ferme { flex-wrap: nowrap; } .bandeau.admin-ferme form { margin-left: auto; } }

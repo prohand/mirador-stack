@@ -142,6 +142,9 @@ func Tourner(ctx context.Context, cfg config.UniFi, envoyer func(*metrics.Batch)
 		b := metrics.NewBatch(1024, []metrics.Label{metrics.L("instance", cfg.Machine), metrics.L("job", "unifi")})
 		b.Reset(debut.UnixMilli())
 		err := Releve(ctx, cfg, b)
+		if err != nil && ctx.Err() != nil {
+			return // relevé coupé par l'arrêt : pas de faux « up=0 » (relecture du 21/11)
+		}
 		up := 1.0
 		if err != nil {
 			up = 0

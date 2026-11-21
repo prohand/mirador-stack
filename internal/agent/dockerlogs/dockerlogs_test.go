@@ -164,3 +164,42 @@ func FuzzMultiplexe(f *testing.F) {
 		_ = lireMultiplexe(bufio.NewReader(bytes.NewReader(b)), func(l []byte, _ string) { couperHorodatage(l) })
 	})
 }
+
+// Relecture du 21/11 : la reprise d'un conteneur disparu (flux déjà fini)
+// est oubliée, sinon une entrée restait par conteneur éphémère.
+func TestSuiveurOublieConteneursDisparus(t *testing.T) {
+	srv := httptest.NewServer(&fauxDocker{})
+	defer srv.Close()
+	s, err := NewSuiveur(srv.URL, func(time.Time, string, string, string) {}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ephemere := strings.Repeat("e", 64)
+	s.depuis[ephemere] = time.Now() // conteneur « --rm » fini, plus dans actifs
+	ctx, annuler := context.WithCancel(context.Background())
+	defer annuler()
+	if err := s.synchroniser(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	_, reste := s.depuis[ephemere]
+	s.mu.Unlock()
+	if reste {
+		t.Error("conteneur disparu gardé dans depuis")
+	}
+}
+
+// Relecture du 21/11 : conteneur avec TTY, ligne plus longue que le tampon :
+// le début (et son horodatage) est gardé, la ligne suivante aussi.
+func TestLireBrutLigneLongue(t *testing.T) {
+	longue := "2026-11-21T10:00:00.000000000Z " + strings.Repeat("x", 40<<10)
+	flux := longue + "\n2026-11-21T10:00:01.000000000Z suite\n"
+	var vues []string
+	_ = lireBrut(bufio.NewReaderSize(strings.NewReader(flux), 16<<10), func(b []byte, _ string) { vues = append(vues, string(b)) })
+	if len(vues) != 2 || !strings.HasPrefix(vues[0], "2026-11-21T10:00:00") || !strings.HasSuffix(vues[1], " suite") {
+		t.Fatalf("%d lignes, début %.40q", len(vues), vues)
+	}
+	if _, _, ok := couperHorodatage([]byte(vues[0])); !ok {
+		t.Error("horodatage de la ligne longue perdu")
+	}
+}

@@ -83,3 +83,24 @@ func TestBoucleDirectAncienServeur(t *testing.T) {
 		t.Errorf("%d essais (3 attendus avant l'arrêt)", n)
 	}
 }
+
+// Relecture du 21/11 : le délai d'essai d'une mise à jour est compté depuis
+// son début, pas depuis le dernier redémarrage.
+func TestResteEssai(t *testing.T) {
+	debut := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		maintenant time.Time
+		attendu    time.Duration
+	}{
+		{debut.Add(3 * time.Minute), 7 * time.Minute},
+		{debut.Add(12 * time.Minute), 0},
+		{debut.Add(-time.Hour), 10 * time.Minute}, // horloge reculée : au plus le délai
+	} {
+		if r := resteEssai(debut, 10*time.Minute, c.maintenant); r != c.attendu {
+			t.Errorf("%v : %v, attendu %v", c.maintenant.Sub(debut), r, c.attendu)
+		}
+	}
+	if resteEssai(time.Time{}, 10*time.Minute, debut) != 10*time.Minute {
+		t.Error("essai sans date : délai complet attendu")
+	}
+}

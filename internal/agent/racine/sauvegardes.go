@@ -92,9 +92,9 @@ func cheminJournal(upid string) string {
 	return ""
 }
 
-// lireDebut : les n premiers octets d'un fichier.
+// lireDebut : les n premiers octets d'un fichier (même règle que lireFin).
 func lireDebut(chemin string, n int64) ([]byte, error) {
-	fd, err := os.Open(chemin) // #nosec G304 -- chemin construit sous /var/log/pve/tasks à partir d'un UPID vérifié
+	fd, err := ouvrirSur(chemin, false, nil)
 	if err != nil {
 		return nil, err
 	}

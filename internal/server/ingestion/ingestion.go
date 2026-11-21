@@ -474,7 +474,11 @@ func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dec == HeureRefuse {
-		g.refuser(w, http.StatusBadRequest, "horloge de la machine trop décalée : "+d.Round(time.Second).String(), 0)
+		// 409 et non 400 (relecture du 21/11) : le lot est bon, c'est l'heure
+		// d'envoi qui est fausse ; l'agent le garde et réessaie (un 400
+		// faisait jeter tout le tampon d'un coup au démarrage d'une machine
+		// sans horloge matérielle, avant NTP).
+		g.refuser(w, http.StatusConflict, "horloge de la machine trop décalée : "+d.Round(time.Second).String(), 0)
 		return
 	}
 	series, ignorees, err := DecoderRemoteWrite(corps, g.opt.Decodage)
@@ -594,7 +598,11 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dec == HeureRefuse {
-		g.refuser(w, http.StatusBadRequest, "horloge de la machine trop décalée : "+d.Round(time.Second).String(), 0)
+		// 409 et non 400 (relecture du 21/11) : le lot est bon, c'est l'heure
+		// d'envoi qui est fausse ; l'agent le garde et réessaie (un 400
+		// faisait jeter tout le tampon d'un coup au démarrage d'une machine
+		// sans horloge matérielle, avant NTP).
+		g.refuser(w, http.StatusConflict, "horloge de la machine trop décalée : "+d.Round(time.Second).String(), 0)
 		return
 	}
 	lignes, ignorees, err := DecoderJsonline(r.Body, compresse, g.opt.Lignes, maintenant)

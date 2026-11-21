@@ -78,11 +78,15 @@ func lireUneTrame(r *bufio.Reader) ([]byte, error) {
 		return bytes.TrimRight(msg, "\r\n\x00"), nil
 	}
 	// Une ligne par message.
+	// Ligne trop longue (relecture du 21/11) : le DÉBUT est gardé (8 Kio),
+	// tout le reste jusqu'à la fin de ligne est jeté. Avant, un morceau trop
+	// long était jeté mais les suivants gardés : la ligne disparaissait, ou
+	// seule sa fin restait (et pouvait passer pour un autre message).
 	var ligne []byte
 	for {
 		morceau, err := r.ReadSlice('\n')
-		if len(ligne)+len(morceau) <= TailleMaxMessage {
-			ligne = append(ligne, morceau...)
+		if place := TailleMaxMessage - len(ligne); place > 0 {
+			ligne = append(ligne, morceau[:min(place, len(morceau))]...)
 		}
 		if err == nil || (len(ligne) > 0 && errors.Is(err, io.EOF)) {
 			return bytes.TrimRight(ligne, "\r\n\x00"), nil

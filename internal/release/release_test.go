@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"mirador-stack/internal/agent/majagent"
 )
@@ -119,6 +120,15 @@ func TestSignatureAccepteeParLAgent(t *testing.T) {
 	m2, _ := Signer(priv, binaire, protocole.ProduitAgent, "1.2.3", runtime.GOARCH, true)
 	if err := majagent.VerifierManifeste(m2, "2.0.0", f.Publique); err != nil {
 		t.Errorf("retour arrière autorisé refusé : %v", err)
+	}
+	// Relecture du 21/11 : date de fin signée (7 jours), et la changer casse
+	// la signature.
+	if d := time.Until(time.Unix(m2.RetourJusqua, 0)); d < DureeRetour-time.Minute || d > DureeRetour {
+		t.Errorf("fin du retour arrière : dans %v", d)
+	}
+	m2.RetourJusqua += 365 * 24 * 3600
+	if err := majagent.VerifierManifeste(m2, "2.0.0", f.Publique); err == nil {
+		t.Error("date de fin modifiée acceptée")
 	}
 	// Mauvais fichiers.
 	autre := map[string]string{"amd64": "arm64", "arm64": "amd64"}[runtime.GOARCH]

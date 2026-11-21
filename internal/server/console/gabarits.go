@@ -596,19 +596,25 @@ type Page struct {
 	Flash, Alerte string
 	ModeOmbre     bool
 	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
-	AConfirmer    []AConfirmer
-	Version       string
-	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
-	ThemeChoix    string // choix affiché dans le sélecteur : clair, sombre, auto
-	SansAides     bool   // aides masquées (bouton du menu, SPEC § 26)
-	Chemin        string // page affichée (retour après le choix du thème sans JavaScript)
-	Disposition   string // gauche ou haut (réglage « Interface »)
-	Replie        bool   // menu replié par défaut
-	NbAlertes     int    // alertes actives (compteur du menu)
-	NbAValider    int    // machines avec des éléments « à valider » (compteur du menu)
-	NbConteneurs  int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
-	NbSondes      int    // sondes en échec (compteur du menu, SPEC § 48)
-	NbTaches      int    // tâches planifiées en échec ou en retard (SPEC § 80)
+	// Retour du 21/11 : secondes restantes du mode (le navigateur sait
+	// quand il se ferme, même page restée ouverte) ; ModeAdminPossible :
+	// administrateur et mode activé dans Réglages › Sécurité (bandeau
+	// « fermé » avec un bouton pour le rouvrir).
+	ModeAdminReste    int
+	ModeAdminPossible bool
+	AConfirmer        []AConfirmer
+	Version           string
+	Theme             string // data-theme forcé (clair, sombre) ; vide = suit le système
+	ThemeChoix        string // choix affiché dans le sélecteur : clair, sombre, auto
+	SansAides         bool   // aides masquées (bouton du menu, SPEC § 26)
+	Chemin            string // page affichée (retour après le choix du thème sans JavaScript)
+	Disposition       string // gauche ou haut (réglage « Interface »)
+	Replie            bool   // menu replié par défaut
+	NbAlertes         int    // alertes actives (compteur du menu)
+	NbAValider        int    // machines avec des éléments « à valider » (compteur du menu)
+	NbConteneurs      int    // conteneurs non sains ou arrêtés à tort (compteur du menu, SPEC § 42)
+	NbSondes          int    // sondes en échec (compteur du menu, SPEC § 48)
+	NbTaches          int    // tâches planifiées en échec ou en retard (SPEC § 80)
 	// ClassesAccueil : ordre et cartes masquées de la vue d'ensemble (SPEC § 83).
 	ClassesAccueil map[string]string
 	// Menu réorganisable (SPEC § 79) : entrées dans l'ordre par défaut avec
@@ -635,7 +641,9 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	}
 	if q.t.Before(q.s.AdminJusqua) {
 		p.ModeAdmin = q.s.AdminJusqua.In(fuseau.Load()).Format("15:04")
+		p.ModeAdminReste = int(q.s.AdminJusqua.Sub(q.t).Seconds())
 	}
+	p.ModeAdminPossible = p.Admin && c.dureeModeAdmin() > 0
 	p.AConfirmer, _ = ListerAConfirmer(q.r.Context(), c.db)
 	p.Olvid = c.olvidActive(q.r.Context())
 	// Thème : celui choisi par l'utilisateur (sélecteur du menu), sinon

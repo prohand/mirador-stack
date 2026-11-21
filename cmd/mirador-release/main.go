@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"golang.org/x/term"
 
@@ -203,7 +204,8 @@ func signer(cheminCle, cheminBinaire, produit, ver, arch string, retour bool, so
 	}
 	fmt.Fprintf(sortie, "Manifeste écrit : %s\n  %s, version %s, %s, %d octets, SHA-256 %s", chemin, m.ProduitEffectif(), m.Version, m.Architecture, m.Taille, m.SHA256)
 	if m.RetourAutorise {
-		fmt.Fprint(sortie, "\n  RETOUR ARRIÈRE AUTORISÉ : les agents plus récents l'accepteront aussi")
+		fmt.Fprintf(sortie, "\n  RETOUR ARRIÈRE AUTORISÉ jusqu'au %s : les agents plus récents l'accepteront aussi, jusqu'à cette date",
+			time.Unix(m.RetourJusqua, 0).Local().Format("02/01/2006 15:04"))
 	}
 	fmt.Fprintln(sortie)
 	return nil

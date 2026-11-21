@@ -212,7 +212,13 @@ type Manifeste struct {
 	SHA256         string `json:"sha256"`          // empreinte du binaire, hexadécimal
 	Taille         int64  `json:"taille"`          // octets
 	RetourAutorise bool   `json:"retour_autorise"` // instruction signée : accepter une version plus ancienne
-	Signature      string `json:"signature"`       // Ed25519, base64, sur MessageSigne()
+	// RetourJusqua : fin (secondes Unix) de l'autorisation de retour arrière,
+	// signée avec elle (relecture du 21/11 : sans limite, un manifeste
+	// « retour autorisé » signé une fois permettait, des mois plus tard, à un
+	// serveur piraté de ramener le parc vers une version à faille connue).
+	// 0 : pas de date (manifeste ancien) : retour refusé par les agents.
+	RetourJusqua int64  `json:"retour_jusqua,omitempty"`
+	Signature    string `json:"signature"` // Ed25519, base64, sur MessageSigne()
 }
 
 // ProduitEffectif : produit du manifeste (mirador-agent si vide).
@@ -230,6 +236,12 @@ func (m *Manifeste) MessageSigne() []byte {
 	if m.RetourAutorise {
 		retour = "oui"
 	}
-	return []byte(m.ProduitEffectif() + "\n" + m.Version + "\n" + m.Architecture + "\n" +
-		m.SHA256 + "\n" + strconv.FormatInt(m.Taille, 10) + "\n" + retour + "\n")
+	msg := m.ProduitEffectif() + "\n" + m.Version + "\n" + m.Architecture + "\n" +
+		m.SHA256 + "\n" + strconv.FormatInt(m.Taille, 10) + "\n" + retour + "\n"
+	// Date de fin du retour arrière : ajoutée seulement si elle existe (les
+	// manifestes sans retour arrière gardent exactement le même message).
+	if m.RetourJusqua != 0 {
+		msg += strconv.FormatInt(m.RetourJusqua, 10) + "\n"
+	}
+	return []byte(msg)
 }

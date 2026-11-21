@@ -231,7 +231,11 @@ func (s *Serveur) rendrePlace(ip netip.Addr) {
 // servir lit les messages d'une connexion (fermée après 5 min sans rien).
 func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string) {
 	defer c.Close()
-	go func() { <-ctx.Done(); _ = c.Close() }()
+	// Fermeture à l'arrêt du collecteur ; la surveillance s'arrête avec la
+	// connexion (relecture du 21/11 : une goroutine restait par connexion
+	// jusqu'au redémarrage, ~14 Kio chacune).
+	arret := context.AfterFunc(ctx, func() { _ = c.Close() })
+	defer arret()
 	_ = c.SetDeadline(time.Now().Add(DelaiPoigneeDeMain))
 	if err := c.HandshakeContext(ctx); err != nil {
 		s.refus[RefusTLS].Add(1)

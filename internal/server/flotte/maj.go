@@ -88,10 +88,10 @@ func Publier(ctx context.Context, db *sql.DB, dossier string, m *protocole.Manif
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if _, err := tx.ExecContext(ctx, `INSERT INTO versions_binaires(produit, version, architecture, sha256, taille, retour_autorise, signature, publiee_le, publiee_par)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(produit, version, architecture) DO UPDATE SET sha256 = excluded.sha256, taille = excluded.taille,
-		retour_autorise = excluded.retour_autorise, signature = excluded.signature, publiee_le = excluded.publiee_le, publiee_par = excluded.publiee_par`,
-		m.ProduitEffectif(), m.Version, m.Architecture, m.SHA256, m.Taille, retour, m.Signature, maintenant.Unix(), qui); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO versions_binaires(produit, version, architecture, sha256, taille, retour_autorise, retour_jusqua, signature, publiee_le, publiee_par)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(produit, version, architecture) DO UPDATE SET sha256 = excluded.sha256, taille = excluded.taille,
+		retour_autorise = excluded.retour_autorise, retour_jusqua = excluded.retour_jusqua, signature = excluded.signature, publiee_le = excluded.publiee_le, publiee_par = excluded.publiee_par`,
+		m.ProduitEffectif(), m.Version, m.Architecture, m.SHA256, m.Taille, retour, m.RetourJusqua, m.Signature, maintenant.Unix(), qui); err != nil {
 		return err
 	}
 	objet := m.Version + "/" + m.Architecture
@@ -211,8 +211,8 @@ func (f *Flotte) manifeste(ctx context.Context, produit, version, arch string) (
 		m.Produit = produit
 	}
 	var retour int
-	err := f.opt.DB.QueryRowContext(ctx, `SELECT sha256, taille, retour_autorise, signature FROM versions_binaires WHERE produit = ? AND version = ? AND architecture = ?`,
-		produit, version, arch).Scan(&m.SHA256, &m.Taille, &retour, &m.Signature)
+	err := f.opt.DB.QueryRowContext(ctx, `SELECT sha256, taille, retour_autorise, retour_jusqua, signature FROM versions_binaires WHERE produit = ? AND version = ? AND architecture = ?`,
+		produit, version, arch).Scan(&m.SHA256, &m.Taille, &retour, &m.RetourJusqua, &m.Signature)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

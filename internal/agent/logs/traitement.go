@@ -32,6 +32,10 @@ type Traitement struct {
 	mu       sync.Mutex
 	jetons   float64
 	derniere time.Time
+	// horloge : heure réelle pour la limite de débit (relecture du 21/11 :
+	// l'heure des lignes servait, et une seule ligne datée dans le futur
+	// bloquait la recharge des jetons). Remplacée dans les tests.
+	horloge func() time.Time
 
 	// Compteurs (alertes de logs calculées par l'agent, SPEC.md § 4.6 bis).
 	parNiveau     [8]uint64
@@ -54,6 +58,7 @@ func NewTraitement(opt Options, lot, lotDocker *Lot) *Traitement {
 		jetons:    opt.Rafale,
 		jetes:     map[string]uint64{},
 		oom:       map[string]uint64{},
+		horloge:   time.Now,
 	}
 	if opt.Bruit != "" {
 		t.bruit = regexp.MustCompile(opt.Bruit) // validée par la configuration
@@ -85,7 +90,7 @@ func (t *Traitement) Traiter(e *journal.Entree) {
 		t.jetes["bruit"]++
 		return
 	}
-	if !t.jeton(e.Temps) {
+	if !t.jeton(t.horloge()) {
 		t.jetes["debit"]++
 		return
 	}
@@ -123,7 +128,7 @@ func (t *Traitement) TraiterDocker(temps time.Time, msg, conteneur, flux string)
 		t.jetes["bruit"]++
 		return
 	}
-	if !t.jeton(temps) {
+	if !t.jeton(t.horloge()) {
 		t.jetes["debit"]++
 		return
 	}

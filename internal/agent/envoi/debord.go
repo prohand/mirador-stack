@@ -52,6 +52,12 @@ func OuvrirDebord(dossier string, quota int64, maxLot int) (*Debord, error) {
 		return nil, err
 	}
 	for _, e := range entrees {
+		// Lot à moitié écrit (arrêt brutal pendant l'écriture) : supprimé
+		// (relecture du 21/11 : ces fichiers restaient, hors quota).
+		if strings.HasSuffix(e.Name(), extLot+".tmp") && e.Type().IsRegular() {
+			_ = os.Remove(filepath.Join(dossier, e.Name()))
+			continue
+		}
 		nom, ok := strings.CutSuffix(e.Name(), extLot)
 		if !ok || !e.Type().IsRegular() {
 			continue
