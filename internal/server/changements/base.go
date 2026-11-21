@@ -40,7 +40,7 @@ const fenetreFusion = 30 * time.Minute
 const tailleMaxDetail = 4000
 
 // ecrire : état et changements en une transaction ; ménage de temps en temps.
-func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nouveau, t time.Time) error {
+func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nouveau, disparus []string, t time.Time) error {
 	purger := t.Sub(d.purgeeLe) >= 6*time.Hour
 	if len(maj) == 0 && len(evs) == 0 && !purger {
 		return nil
@@ -78,6 +78,12 @@ func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nou
 		if _, err := tx.ExecContext(ctx, `DELETE FROM changements WHERE le < ?`, t.Add(-Conservation).Unix()); err != nil {
 			return err
 		}
+		// Conteneurs disparus (voir conteneursDisparus).
+		for _, k := range disparus {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM changements_etat WHERE cle = ?`, k); err != nil {
+				return err
+			}
+		}
 		// Paquets : l'agent ne les envoie que 48 h ; état gardé 4 jours.
 		if _, err := tx.ExecContext(ctx, `DELETE FROM changements_etat WHERE cle LIKE 'pkg|%' AND CAST(valeur AS INTEGER) < ?`,
 			t.Add(-96*time.Hour).Unix()); err != nil {
@@ -92,6 +98,9 @@ func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nou
 	}
 	if purger {
 		d.purgeeLe = t
+		for _, k := range disparus {
+			delete(d.etat, k)
+		}
 		for k, v := range d.etat {
 			if strings.HasPrefix(k, "pkg|") {
 				if le, err := strconv.ParseInt(v, 10, 64); err == nil && le < t.Add(-96*time.Hour).Unix() {

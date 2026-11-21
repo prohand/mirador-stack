@@ -55,3 +55,22 @@ func TestJournalDpkg(t *testing.T) {
 		t.Fatalf("ménage : %+v", j.liste)
 	}
 }
+
+// Relecture du 21/11 : sans nouvelle installation (fichier inchangé), les
+// paquets de plus de 48 h ne sont plus envoyés.
+func TestJournalDpkgMenageSansChangement(t *testing.T) {
+	chemin := filepath.Join(t.TempDir(), "dpkg.log")
+	maintenant := time.Date(2026, 11, 18, 12, 0, 0, 0, time.Local)
+	if err := os.WriteFile(chemin, []byte("2026-11-18 03:12:40 upgrade openssl:amd64 1 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	j := journalDpkg{chemin: chemin}
+	j.lire(maintenant)
+	if len(j.liste) != 1 {
+		t.Fatalf("liste : %+v", j.liste)
+	}
+	j.lire(maintenant.Add(72 * time.Hour))
+	if len(j.liste) != 0 {
+		t.Errorf("paquet de plus de 48 h encore envoyé : %+v", j.liste)
+	}
+}

@@ -593,3 +593,28 @@ func TestHistoriquePeriodeGardeRecentes(t *testing.T) {
 		t.Fatalf("%v : %+v", err, as)
 	}
 }
+
+// Relecture du 21/11 : l'historique d'une période passe par l'index sur
+// active_le (plus de lecture et de tri de toute la table).
+func TestHistoriquePeriodeIndex(t *testing.T) {
+	db := baseTest(t)
+	rows, err := db.Query(`EXPLAIN QUERY PLAN SELECT id FROM alertes
+		WHERE active_le > 0 AND active_le < ? AND (fin = 0 OR fin > ?) ORDER BY active_le DESC LIMIT ?`, 2000, 1000, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var a, b, c int
+		var d string
+		if err := rows.Scan(&a, &b, &c, &d); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, d)
+	}
+	p := strings.Join(plan, " ; ")
+	if !strings.Contains(p, "alertes_active_le") || strings.Contains(p, "TEMP B-TREE") {
+		t.Errorf("plan : %s", p)
+	}
+}

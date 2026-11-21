@@ -49,6 +49,7 @@ func (j *journalDpkg) lire(maintenant time.Time) bool {
 		return false
 	}
 	if fi.Size() == j.taille && fi.ModTime().Equal(j.modifie) {
+		j.menage(maintenant) // sans nouvelle installation aussi (relecture du 21/11)
 		return false
 	}
 	premier := j.modifie.IsZero()
@@ -80,7 +81,12 @@ func (j *journalDpkg) lire(maintenant time.Time) bool {
 		}
 	}
 	j.taille, j.modifie = fi.Size(), fi.ModTime()
-	// Ménage : 48 h, 200 au plus (les plus récentes).
+	j.menage(maintenant)
+	return nouveau
+}
+
+// menage : installations de moins de 48 h, 200 au plus (les plus récentes).
+func (j *journalDpkg) menage(maintenant time.Time) {
 	garde := j.liste[:0]
 	for _, p := range j.liste {
 		if maintenant.Sub(p.le) < dureeInstallees {
@@ -91,7 +97,6 @@ func (j *journalDpkg) lire(maintenant time.Time) bool {
 		garde = garde[len(garde)-maxInstallees:]
 	}
 	j.liste = garde
-	return nouveau
 }
 
 // lireLigneDpkg : « date heure upgrade|install paquet:arch avant après ».

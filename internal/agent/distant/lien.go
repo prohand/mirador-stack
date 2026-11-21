@@ -297,8 +297,14 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 		case err != nil:
 			l.Journal.Warn("configuration distante non récupérée", "erreur", err)
 		default:
+			// Rythme pris seulement dans les bornes de la configuration
+			// (5 min à 1 h) : une valeur hors bornes (refusée par appliquer)
+			// faisait redemander sans attente (relecture du 21/11 : ~14 000
+			// demandes par seconde).
 			if d.Recuperation != nil {
-				rythme = time.Duration(*d.Recuperation)
+				if r := time.Duration(*d.Recuperation); r >= 5*time.Minute && r <= time.Hour {
+					rythme = r
+				}
 			}
 			l.appliquer(d)
 		}

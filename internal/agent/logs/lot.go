@@ -28,6 +28,10 @@ type Lot struct {
 	tailleMax int
 	gz        *gzip.Writer
 	sortie    bytes.Buffer
+	// plein : signalé dès que le lot atteint sa taille d'envoi, pour vider
+	// sans attendre le tour d'une seconde (relecture du 21/11 : une rafale
+	// de longues lignes faisait un lot de ~8 Mio au lieu de 0,5).
+	plein chan struct{}
 }
 
 // tailleMaxMessage : au-delà, le message est coupé.
@@ -36,7 +40,7 @@ const tailleMaxMessage = 16 << 10
 // NewLot prépare un lot. tailleMax : taille non compressée qui déclenche un
 // envoi (512 Kio, comme Alloy).
 func NewLot(host, job, site, env string, tailleMax int) *Lot {
-	l := &Lot{tailleMax: tailleMax}
+	l := &Lot{tailleMax: tailleMax, plein: make(chan struct{}, 1)}
 	var c []byte
 	for _, kv := range [][2]string{{"host", host}, {"job", job}, {"site", site}, {"env", env}} {
 		if kv[1] == "" {
@@ -82,7 +86,16 @@ func (l *Lot) Ajouter(t time.Time, msg string, champs Champs) {
 	b = append(b, "}\n"...)
 	l.buf.Write(b)
 	l.lignes++
+	if l.buf.Len() >= l.tailleMax {
+		select {
+		case l.plein <- struct{}{}:
+		default: // déjà signalé
+		}
+	}
 }
+
+// SignalPlein : reçoit quand le lot atteint sa taille d'envoi.
+func (l *Lot) SignalPlein() <-chan struct{} { return l.plein }
 
 // Plein dit si le lot a atteint sa taille d'envoi.
 func (l *Lot) Plein() bool {
@@ -106,7 +119,16 @@ func (l *Lot) Vider() ([]byte, int) {
 	n := l.lignes
 	l.buf.Reset()
 	l.lignes = 0
-	return bytes.Clone(l.sortie.Bytes()), n
+	out := bytes.Clone(l.sortie.Bytes())
+	// Tampons agrandis par une rafale : rendus à la mémoire au lieu d'être
+	// gardés à leur plus grande taille pour toute la vie de l'agent.
+	if l.buf.Cap() > 2*l.tailleMax {
+		l.buf = bytes.Buffer{}
+	}
+	if l.sortie.Cap() > 2*l.tailleMax {
+		l.sortie = bytes.Buffer{}
+	}
+	return out, n
 }
 
 // ajouterChaine écrit s en chaîne JSON : guillemets, échappements, et

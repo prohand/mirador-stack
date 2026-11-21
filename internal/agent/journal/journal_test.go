@@ -199,3 +199,25 @@ func FuzzAnalyser(f *testing.F) {
 		analyser(b, &e)
 	})
 }
+
+// Relecture du 21/11 : journalctl qui donne une ligne (donc un curseur)
+// puis s'arrête en erreur n'est plus relancé en boucle sans attente.
+func TestRelanceAvecAttente(t *testing.T) {
+	dir := t.TempDir()
+	donnees := filepath.Join(dir, "sortie.json")
+	if err := os.WriteFile(donnees, []byte(sortieJournal), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(dir, "journalctl")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ncat "+donnees+"\nexit 1\n"), 0o700); err != nil { // #nosec G306 -- script de test exécutable
+		t.Fatal(err)
+	}
+	l := NewLecteur(Options{FichierCurseur: filepath.Join(dir, "c"), Commande: script, Journal: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	ctx, fin := context.WithTimeout(context.Background(), 3*time.Second)
+	defer fin()
+	l.Tourner(ctx, func(*Entree) {})
+	// Attente 1 s, 2 s… : quelques lancements, pas des centaines.
+	if n := l.Relances.Load(); n > 5 {
+		t.Errorf("%d relances en 3 s", n)
+	}
+}

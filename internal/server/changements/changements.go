@@ -93,8 +93,10 @@ func (d *Detecteur) Tour(ctx context.Context, t time.Time) error {
 	}
 	premier := len(d.etat) == 0 // tout premier tour : on note sans rien signaler
 	maj := map[string]string{}
+	vues := map[string]bool{} // clés lues à ce tour (ménage des conteneurs disparus)
 	var evs []nouveau
 	noter := func(cle, valeur string) (avant string, connu bool) {
+		vues[cle] = true
 		avant, connu = d.etat[cle]
 		if !connu || avant != valeur {
 			maj[cle] = valeur
@@ -173,7 +175,31 @@ func (d *Detecteur) Tour(ctx context.Context, t time.Time) error {
 	evs = append(evs, d.conteneurs(lire, noter)...)
 	evs = append(evs, d.paquets(lire, noter, premier)...)
 
-	return d.ecrire(ctx, maj, evs, t)
+	return d.ecrire(ctx, maj, evs, d.conteneursDisparus(vues), t)
+}
+
+// conteneursDisparus : clés « ct|machine|nom » plus lues, seulement pour
+// les machines dont des conteneurs ont été lus à ce tour (une machine muette
+// garde les siens). Relecture du 21/11 : les conteneurs jetables à nom
+// aléatoire (docker run sans --name, CI) laissaient une clé chacun, pour
+// toujours, en mémoire et en base.
+func (d *Detecteur) conteneursDisparus(vues map[string]bool) []string {
+	vivantes := map[string]bool{}
+	for k := range vues {
+		if r, ok := strings.CutPrefix(k, "ct|"); ok {
+			inst, _, _ := strings.Cut(r, "|")
+			vivantes[inst] = true
+		}
+	}
+	var out []string
+	for k := range d.etat {
+		if r, ok := strings.CutPrefix(k, "ct|"); ok && !vues[k] {
+			if inst, _, _ := strings.Cut(r, "|"); vivantes[inst] {
+				out = append(out, k)
+			}
+		}
+	}
+	return out
 }
 
 // conteneurs : redémarré à la main ou recréé (heure de démarrage changée
