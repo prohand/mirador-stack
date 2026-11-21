@@ -1945,3 +1945,8 @@ form.en-ligne { display: inline; }
 .plis-maj summary small { font-weight: 400; color: var(--doux); }
 .plis-maj summary .pastille { margin-left: auto; }
 .plis-maj .corps { padding: 0 16px 14px; }
+/* « Vérifier maintenant » (retour du 21/11) : retour sur la ligne de la
+   sonde, mise en avant, au lieu du haut de la page. */
+tr[id^="sonde-"] { scroll-margin-top: 90px; }
+tr[id^="sonde-"]:target td { background: var(--accent-fond); }
+@media (max-width: 640px) { table.en-cartes tr[id^="sonde-"]:target { box-shadow: 0 0 0 2px var(--accent); } }

@@ -29,13 +29,13 @@ func TestVerifierSonde(t *testing.T) {
 	}
 	csrf := b.csrf(c, "/sondes")
 	essai := func(nom string) (string, string) {
-		_, _, ent := b.post(c, "/sondes/"+url.PathEscape(nom)+"/essai", url.Values{"csrf": {csrf}, "retour": {"/sondes"}})
+		_, _, ent := b.post(c, "/sondes/"+url.PathEscape(nom)+"/essai", url.Values{"csrf": {csrf}, "retour": {"/sondes#sonde-" + ancre(nom)}})
 		_, corps, _ := b.get(c, ent.Get("Location"))
 		return ent.Get("Location"), corps
 	}
 	// Collecteur trop ancien : bouton grisé avec la raison, demande refusée.
 	_, corps, _ := b.get(c, "/sondes")
-	if !strings.Contains(corps, `disabled title="collecteur « col-ancien » à mettre à jour pour ce bouton"`) ||
+	if !strings.Contains(corps, `>↻ col-ancien à mettre à jour (0.6.4)</a>`) ||
 		!strings.Contains(corps, `action="/sondes/Site%20public/essai"`) {
 		t.Error("boutons « Vérifier maintenant » absents ou mal grisés")
 	}
@@ -52,7 +52,7 @@ func TestVerifierSonde(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("essai du serveur non demandé")
 	}
-	if !strings.HasPrefix(loc, "/sondes?essai=") || !strings.Contains(corps, `data-recharger="5"`) || !strings.Contains(corps, "résultat dans quelques secondes") {
+	if !strings.HasPrefix(loc, "/sondes?essai=") || !strings.Contains(loc, "#sonde-") || !strings.Contains(corps, `data-recharger="5"`) || !strings.Contains(corps, "résultat dans quelques secondes") {
 		t.Errorf("retour après la demande : %q", loc)
 	}
 	// Deuxième demande dans les 10 s : refusée.

@@ -5,6 +5,7 @@ package console
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"mirador-stack/internal/server/auth"
@@ -60,5 +61,12 @@ func retourLocal(v string) string {
 	if err != nil || v == "" || u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(v, "//") || strings.ContainsAny(v, "\\\r\n") {
 		return "/"
 	}
+	// Ancre gardée si elle est simple (« #sonde-nextcloud ») : retour sur la
+	// ligne concernée (retour du 21/11). Rien d'autre n'est recopié.
+	if f := u.Fragment; f != "" && len(f) <= 80 && reAncreRetour.MatchString(f) {
+		return u.RequestURI() + "#" + f
+	}
 	return u.RequestURI()
 }
+
+var reAncreRetour = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)

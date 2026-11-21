@@ -43,7 +43,7 @@ func essaiPossible(s essais.Sonde, collecteurs map[string]flotte.InfoMachine) (b
 		return false, "collecteur « " + s.Depuis + " » inconnu"
 	}
 	if !flotte.ACapacite(m.Capacites, protocole.CapaciteSonder) {
-		return false, "collecteur « " + s.Depuis + " » à mettre à jour pour ce bouton"
+		return false, s.Depuis + " à mettre à jour (0.6.4)"
 	}
 	return true, ""
 }

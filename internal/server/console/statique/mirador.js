@@ -993,6 +993,9 @@ document.addEventListener("change", function (e) {
         var copie = document.importNode(neuf, true);
         el.replaceWith(copie);
         el = copie;
+        // Bloc neuf : tableaux en cartes sur téléphone, tri… (retour du
+        // 21/11 : la liste des sondes redevenait un tableau trop large).
+        document.dispatchEvent(new Event("mirador:fragment"));
         suivant();
       })
       .catch(function () { clearTimeout(minuterie); absent(); });

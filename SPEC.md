@@ -7633,7 +7633,13 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   ouverte en permanence (en-têtes `X-Mirador-Sonde` / `X-Mirador-Sonder`,
   réveil immédiat comme « Actualiser ») ; essai dans la seconde. Le
   collecteur annonce la capacité `sonder` ; plus ancien, le bouton est grisé
-  (« collecteur à mettre à jour pour ce bouton »).
+  (« collecteur à mettre à jour »).
+- Retour du 21/11 (téléphone) : à la place du bouton grisé (raison visible
+  seulement au survol de la souris), la raison est écrite en clair
+  (« ↻ collecteur-lan à mettre à jour (0.6.4) », lien vers les mises à
+  jour) ; après le clic, retour sur la ligne de la sonde (ancre) et non en
+  haut de la page ; pendant la mise à jour seule de la page, la liste garde
+  son affichage en cartes.
 - Menaces : ce n'est **pas** une commande à distance : le collecteur ne fait
   qu'avancer l'essai d'une sonde déjà dans sa configuration (un nom inconnu
   est ignoré), avec les mêmes contrôles qu'à son rythme. Un essai par sonde
