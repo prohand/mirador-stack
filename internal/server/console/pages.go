@@ -60,6 +60,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("POST /etiquettes", c.admin(c.postEtiquettes))
 	m.HandleFunc("POST /applications", c.admin(c.postServices))
 	m.HandleFunc("POST /sondes", c.admin(c.postSondes))
+	m.HandleFunc("POST /sondes/{nom}/essai", c.admin(c.postEssaiSonde))
 	m.HandleFunc("GET /machines/{nom}/detail/{quoi}", c.lecture(c.detailMachine))
 	m.HandleFunc("GET /machines/{nom}/direct", c.lecture(c.fluxDirect)) // relevés en direct (SPEC § 97)
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
@@ -1003,6 +1004,7 @@ type donneesMaj struct {
 	// une liste ; ListeGitHub : message si la liste n'a pas pu être lue.
 	Proposees   []versionProposee
 	ListeGitHub string
+	Vue         vueMajParc // page revue le 21/11 (SPEC § 109)
 }
 
 // versionProposee : une version de GitHub dans la liste d'import.
@@ -1146,6 +1148,11 @@ func (c *Console) pageMisesAJour(q *req) {
 			}
 		}
 	}
+	filtre := q.r.URL.Query().Get("etat")
+	if !slices.Contains([]string{majAJour, majRetard, majEchec}, filtre) {
+		filtre = ""
+	}
+	construireVueMaj(&d, filtre)
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
 }
 
@@ -1158,6 +1165,19 @@ func (c *Console) postMisesAJour(q *req) {
 		case "cible":
 			err = flotte.DefinirCible(ctx, c.db, 0, q.r.PostFormValue("version"), q.qui(), q.t)
 			ok = "version assignée à toutes les machines sans version propre"
+		case "essayer":
+			// Étape 2 (SPEC § 109) : la version sur une seule machine.
+			var id int64
+			if id, err = flotte.IDMachine(ctx, c.db, q.r.PostFormValue("machine")); err == nil {
+				err = flotte.DefinirCible(ctx, c.db, id, q.r.PostFormValue("version"), q.qui(), q.t)
+			}
+			ok = "version assignée à " + q.r.PostFormValue("machine") + " : elle se met à jour dans la fenêtre horaire (ou tout de suite avec « Mettre à jour maintenant »)"
+		case "forcer":
+			var id int64
+			if id, err = flotte.IDMachine(ctx, c.db, q.r.PostFormValue("machine")); err == nil {
+				err = flotte.ForcerMaj(ctx, c.db, id, q.qui(), q.t)
+			}
+			ok = "mise à jour demandée à " + q.r.PostFormValue("machine") + " : elle vérifie dans la minute"
 		case "depot":
 			err = flotte.DefinirDepot(ctx, c.db, q.r.PostFormValue("depot"), q.qui(), q.t)
 			ok = "dépôt des versions enregistré"

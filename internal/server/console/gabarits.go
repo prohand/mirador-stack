@@ -147,6 +147,7 @@ func fonctions() template.FuncMap {
 		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
 		"coupeURL":   coupeURL,
 		"choixDuree": choixDuree,
+		"pluriel":    pluriel,
 		// moisAnnee : « novembre 2026 » (version de la base GéoIP).
 		"moisAnnee": func(t time.Time) string {
 			mois := []string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}

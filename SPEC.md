@@ -7591,3 +7591,79 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   avant ; délai de 8 s au plus par essai. Menaces : requête vers la même
   origine seulement, avec les cookies de la session ; le HTML reçu vient du
   serveur lui-même (même gabarit qu'un rechargement normal).
+
+## 107. Sites, types et groupes : renommer, fusionner, ranger (21/11, maquette v2 validée) **[Fait, à valider]**
+- Un onglet par liste (Sites, Types de machine, Groupes de configuration),
+  avec le nombre de valeurs. Par valeur : ses machines (4 en pastilles, puis
+  « +N » vers la liste des machines filtrée), « Aussi utilisé par »
+  (maintenances, collecteur du site, réglages d'agent et modèles du groupe,
+  avec un lien).
+- **Renommer** : panneau sous la ligne, avec ce qui change avant de
+  valider : machines (et leurs prochaines données), jetons d'ajout pas
+  encore utilisés, maintenances (`site:` / `groupe:`), réglages d'agent et
+  modèles du groupe. Tout est changé dans **une seule transaction**, avec
+  une ligne d'audit (`renommer_site`…). Les données déjà enregistrées
+  gardent l'ancien nom (jamais réécrites) : c'est dit dans le panneau.
+- **Fusion** : renommer vers un nom existant demande de cocher
+  « Fusionner ». Groupe : en cas de doublon, les réglages d'agent et les
+  modèles du groupe gardé l'emportent ; ceux de l'ancien sont retirés.
+- **À vérifier** : les règles et tableaux qui écrivent `site="maison"` en
+  dur sont listés (lien vers chacun), **pas modifiés** : réécrire une
+  expression automatiquement pourrait en changer le sens sans qu'on le voie.
+- **Machines…** : cases à cocher pour ranger plusieurs machines d'un coup ;
+  décocher retire la valeur. Une ligne d'audit par machine (comme sa fiche).
+- Après chaque changement : caches des étiquettes vidés (effet immédiat sur
+  les prochaines données) et agents prévenus (réglages du groupe).
+- Coût : rien en tâche de fond. Affichage : quelques `COUNT` sur de petites
+  tables ; le panneau « Renommer » relit les règles et tableaux (quelques
+  dizaines de lignes) seulement quand il est ouvert.
+- Menaces : réservé aux administrateurs, jeton CSRF ; noms contrôlés
+  (lettres, chiffres, . _ -) ; requêtes SQL écrites en entier (aucun nom de
+  colonne assemblé) ; audit de chaque action.
+
+## 108. Sondes : bouton « Vérifier maintenant » (21/11) **[Fait, à valider]**
+- Bouton sur chaque ligne de la page Sondes et en haut de la fiche d'une
+  sonde (administrateurs). L'essai part tout de suite, puis la sonde
+  reprend son rythme. La page se met à jour seule pendant 30 s (zone
+  `data-recharger`), puis se recharge une fois.
+- **Sonde du serveur** : la demande passe à la boucle des sondes du
+  serveur (canal en mémoire), essai dans la seconde.
+- **Sonde d'un collecteur** : le serveur garde la demande en mémoire et la
+  donne dans la réponse à la demande de configuration du collecteur, déjà
+  ouverte en permanence (en-têtes `X-Mirador-Sonde` / `X-Mirador-Sonder`,
+  réveil immédiat comme « Actualiser ») ; essai dans la seconde. Le
+  collecteur annonce la capacité `sonder` ; plus ancien, le bouton est grisé
+  (« collecteur à mettre à jour pour ce bouton »).
+- Menaces : ce n'est **pas** une commande à distance : le collecteur ne fait
+  qu'avancer l'essai d'une sonde déjà dans sa configuration (un nom inconnu
+  est ignoré), avec les mêmes contrôles qu'à son rythme. Un essai par sonde
+  toutes les 10 s au plus (refus au-delà) ; 100 noms au plus par en-tête,
+  noms échappés ; demandes oubliées après 5 min ; un agent (mirador-agent)
+  n'envoie pas l'en-tête et n'en reçoit jamais. Aucun port ouvert.
+- Coût : nul hors usage (une petite table en mémoire, vide le plus souvent) ;
+  un essai de plus par clic.
+
+## 109. Mises à jour des agents : page revue (21/11, maquette validée) **[Fait, à valider]**
+- **Tuiles** : version du parc, dernière publiée sur GitHub (importée ou
+  « à importer »), machines à jour (barre verte / orange / rouge), fenêtre
+  horaire.
+- **Déployer en 3 étapes** : 1. importer depuis GitHub, 2. essayer sur une
+  machine (version propre sur cette machine, retour seul en cas d'échec,
+  comme avant), 3. déployer sur tout le parc (version du parc). L'étape en
+  cours est en bleu, les étapes faites cochées ; l'état de la machine
+  d'essai est affiché (en cours, réussi, échec avec « Réessayer »).
+  Aucune nouvelle règle : mêmes actions qu'avant (cible, cible d'une
+  machine, « Mettre à jour maintenant »), avec code 2FA.
+- **Machines** : filtres Toutes / À jour / En retard / En échec ; échecs
+  en premier, barre rouge (échec) ou orange (retard) ; version en
+  pastille ; erreur sous la cible ; « Réessayer » / « Mettre à jour
+  maintenant » sur la ligne. Équipements relevés par un collecteur (sans
+  version) et machines en attente : non listés.
+- **Versions sur le serveur** : une carte par version (architectures,
+  agent et collecteur, retour autorisé, machines qui l'utilisent), celle du
+  parc encadrée ; « Assigner au parc », « Supprimer » (si inutilisée).
+- **Réglages repliés** : clé publique (ouverte d'office s'il n'y en a
+  aucune), fenêtre horaire, versions gardées, publication à la main, dépôt.
+- Coût : aucun calcul de plus côté serveur (mêmes lectures qu'avant, tri
+  en mémoire de quelques dizaines de lignes). Menaces : inchangées (mêmes
+  actions, code 2FA, signature vérifiée).

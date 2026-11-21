@@ -239,8 +239,19 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	// rendue pendant l'attente (elle ne sert qu'aux envois de données).
 	actu := actualisationDe(m.ID)
 	vu, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteActualise), 10, 64)
+	// Essais de sondes demandés (SPEC § 108) : seulement pour un collecteur
+	// qui envoie EnteteSonde (il sait les faire).
+	_, avecSonde := r.Header[http.CanonicalHeaderKey(protocole.EnteteSonde)]
+	vuSonde, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteSonde), 10, 64)
+	essaisEnAttente := func() (int64, []string) {
+		if !avecSonde {
+			return 0, nil
+		}
+		return essaisDe(m.ID, vuSonde, time.Now())
+	}
+	dernierEssai, nomsEssai := essaisEnAttente()
 	if attente := lireAttente(r.Header.Get(protocole.EnteteAttendre)); attente > 0 &&
-		r.Header.Get("If-None-Match") == etag && actu <= vu && !directEnAttente {
+		r.Header.Get("If-None-Match") == etag && actu <= vu && !directEnAttente && len(nomsEssai) == 0 {
 		liberer()
 		libere = true
 		minuterie := time.NewTimer(attente)
@@ -258,6 +269,10 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		actu = actualisationDe(m.ID)
+		dernierEssai, nomsEssai = essaisEnAttente()
+	}
+	if v := protocole.FormerSonder(dernierEssai, nomsEssai); v != "" {
+		w.Header().Set(protocole.EnteteSonder, v)
 	}
 	w.Header().Set(protocole.EnteteAttente, "1") // ce serveur sait garder la demande ouverte
 	if f.opt.Direct != nil {

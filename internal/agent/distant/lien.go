@@ -52,6 +52,10 @@ type Lien struct {
 	Installateur *majagent.Installateur // nil : pas de mise à jour
 	// Redemarrer arrête l'agent proprement ; systemd le relance.
 	Redemarrer func(raison string)
+	// Sonder (mirador-collector, SPEC § 108) : essais de sondes demandés
+	// dans l'interface (« Vérifier maintenant »). nil : l'agent ne les
+	// demande pas (le serveur n'en envoie alors aucun).
+	Sonder func(noms []string)
 	// CSRSyslog : demande de certificat du syslog (mirador-collector), jointe
 	// à chaque battement ('' : rien).
 	CSRSyslog string
@@ -265,7 +269,7 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 
 func (l *Lien) boucleConfig(ctx context.Context) {
 	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte,
-		Attendre: l.attenteConfig, DirectActif: l.enDirect.Load}
+		Attendre: l.attenteConfig, DirectActif: l.enDirect.Load, AvecSonde: l.Sonder != nil}
 	if !attendre(ctx, l.etale()) {
 		return
 	}
@@ -288,6 +292,14 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 		// réponse : une ancienne demande ne relance pas l'assistant à chaque
 		// démarrage de l'agent).
 		if err == nil || errors.Is(err, ErrInchange) {
+			// Essais de sondes demandés (le collecteur ne fait que les
+			// sondes de sa configuration ; un nom inconnu est ignoré).
+			if l.Sonder != nil && r.Sonder > r.Sonde {
+				if len(r.SonderNoms) > 0 {
+					l.Sonder(r.SonderNoms)
+				}
+				r.Sonde = r.Sonder
+			}
 			if r.Actualiser > r.Actualise {
 				if !premiere {
 					l.actualiserRacine()

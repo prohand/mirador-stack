@@ -27,6 +27,7 @@ type sondeur struct {
 	s         *Serveur
 	mu        sync.Mutex
 	taches    map[string]context.CancelFunc // réglage (JSON) → arrêt
+	signaux   map[string]chan struct{}      // nom → « essayer maintenant »
 	resultats map[string]essais.Resultat    // nom → dernier essai (page Sondes)
 }
 
@@ -38,14 +39,35 @@ func refuserDepuisServeur(ip net.IP) bool {
 
 func (x *sondeur) boucle(ctx context.Context) {
 	x.taches = map[string]context.CancelFunc{}
+	x.signaux = map[string]chan struct{}{}
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
 		x.ajuster(ctx)
+		if !x.attendre(ctx, t.C) {
+			return
+		}
+	}
+}
+
+// attendre : jusqu'au prochain tour (faux : arrêt). Pendant l'attente, les
+// demandes « Vérifier maintenant » (SPEC § 108) sont passées aux sondes.
+func (x *sondeur) attendre(ctx context.Context, tour <-chan time.Time) bool {
+	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-t.C:
+			return false
+		case <-tour:
+			return true
+		case nom := <-flotte.EssaisServeur():
+			x.mu.Lock()
+			if ch := x.signaux[nom]; ch != nil {
+				select {
+				case ch <- struct{}{}:
+				default: // un essai est déjà demandé
+				}
+			}
+			x.mu.Unlock()
 		}
 	}
 }
@@ -73,13 +95,24 @@ func (x *sondeur) ajuster(ctx context.Context) {
 			delete(x.taches, cle)
 		}
 	}
+	for nom := range x.signaux {
+		garder := false
+		for _, s := range voulues {
+			garder = garder || s.Nom == nom
+		}
+		if !garder {
+			delete(x.signaux, nom)
+		}
+	}
 	for cle, s := range voulues {
 		if _, ok := x.taches[cle]; ok {
 			continue
 		}
 		c, arreter := context.WithCancel(ctx)
 		x.taches[cle] = arreter
-		go essais.Tourner(c, s, essais.Options{Refuser: refuserDepuisServeur}, func(s essais.Sonde, r essais.Resultat) {
+		ch := make(chan struct{}, 1)
+		x.signaux[s.Nom] = ch
+		go essais.Tourner(c, s, essais.Options{Refuser: refuserDepuisServeur, Maintenant: ch}, func(s essais.Sonde, r essais.Resultat) {
 			x.rendre(c, s, r)
 		})
 	}

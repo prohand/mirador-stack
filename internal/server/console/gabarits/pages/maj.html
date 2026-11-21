@@ -1,72 +1,98 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}{{$v := $d.Vue}}
 <h1>Mises à jour des agents</h1>
 {{template "onglets-machines" "maj"}}
-<p>Seuls les agents installés avec <code>--auto-update</code> se mettent à jour. Chaque version est <strong>signée par la CI de GitHub</strong> à chaque tag (ou à la main avec mirador-release) ; le serveur vérifie la signature et ne signe jamais. Déploiement conseillé : assigner d'abord la version à une <strong>machine test</strong> (page de la machine), attendre son battement, puis l'assigner à toutes.</p>
+{{/* Page revue le 21/11 (maquette validée, SPEC § 109). */}}
+<p class="sous">Les agents installés avec <code>--auto-update</code> se mettent à jour seuls, une fois la version assignée. Chaque version est <strong>signée</strong> (CI de GitHub ou mirador-release) ; le serveur vérifie la signature et ne signe jamais.</p>
+<div class="maj-kpi">
+ <div class="t"><small>Version du parc</small><b>{{if $d.Cible}}{{$d.Cible}}{{else}}—{{end}}</b><span class="s">{{if $d.Cible}}assignée aux machines sans version propre{{else}}aucune : pas de mise à jour{{end}}</span></div>
+ <div class="t"><small>Dernière publiée</small><b>{{if $v.Derniere}}{{$v.Derniere}}{{else}}—{{end}}</b><span class="s">{{if $v.Derniere}}{{if $v.DerniereImportee}}<span class="pastille ok">importée</span>{{else}}<span class="pastille attention">à importer</span>{{end}}{{if $v.DerniereDate}} · {{$v.DerniereDate}}{{end}}{{else}}sur GitHub (<code>{{$d.Depot}}</code>){{end}}</span></div>
+ <div class="t"><small>Machines à jour</small><b>{{$v.AJour}} / {{$v.Total}}</b>{{if $v.Total}}<div class="maj-barre" role="img" aria-label="{{$v.AJour}} à jour, {{$v.Retard}} en retard, {{$v.Echec}} en échec"><i class="ok" data-largeur="{{$v.PctAJour}}"></i><i class="retard" data-largeur="{{$v.PctRetard}}"></i><i class="echec" data-largeur="{{$v.PctEchec}}"></i></div>{{end}}<span class="s">{{if or $v.Retard $v.Echec}}{{$v.Retard}} en retard · {{$v.Echec}} en échec{{else}}tout le parc est à jour{{end}}</span></div>
+ <div class="t"><small>Fenêtre horaire</small><b>{{if $d.Fenetre.Active}}{{$d.Fenetre.Debut}} – {{$d.Fenetre.Fin}}{{else}}à toute heure{{end}}</b><span class="s">{{if $d.Fenetre.Active}}{{$d.Fenetre.Fuseau}}{{else}}désactivée{{end}}</span></div>
+</div>
 
-<section class="carte" id="cle"><h2>Clé publique de signature</h2>
-{{if .D.Cles}}<p>{{range .D.Cles}}<code>{{.Valeur}}</code> — empreinte <strong><code>{{.Empreinte}}</code></strong><br>{{end}}</p>
+<section class="carte" id="github"{{if $d.Import.EnCours}} data-recharger="5"{{end}}><div class="entete-carte"><h2>{{if and $v.Deployer (lt $v.Etape 4) (gt $v.Etape 0)}}Déployer la version {{$v.Deployer}}{{else}}Déployer une nouvelle version{{end}}</h2><small class="doux">en 3 étapes, sans risque pour le parc</small></div>
+{{with $d.Import}}{{if .EnCours}}<p class="message">Import de {{.Tag}} en cours… (la page se met à jour seule)</p>{{else if .Resultat}}<p class="message {{if .Erreur}}erreur{{end}}">Import de {{.Tag}} ({{date .Le}}) : {{.Resultat}}</p>{{end}}{{end}}
+{{if or (eq $v.Etape 0) (eq $v.Etape 4)}}<p class="message ok">{{if $d.Cible}}Le parc est en <strong>{{$d.Cible}}</strong>{{else}}Aucune version assignée{{end}}{{if $v.Derniere}}, dernière publiée : {{$v.Derniere}}{{end}}. Rien à déployer.</p>{{end}}
+<div class="maj-etapes">
+ <div class="maj-etape {{if eq $v.Etape 1}}actif{{else if gt $v.Etape 1}}fait{{end}}"><span class="num">{{if gt $v.Etape 1}}✓{{else}}1{{end}}</span><h3>Importer depuis GitHub</h3>
+  <p>Version signée par la CI (amd64, arm64). Le serveur vérifie la signature avant de la garder.</p>
+  {{if .Admin}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
+  {{if $d.Proposees}}<select name="tag" class="petit" aria-label="Version">{{$choisie := false}}{{range $d.Proposees}}<option value="{{.Tag}}"{{if and (not .Importee) (not $choisie)}} selected{{$choisie = true}}{{end}}>{{.Tag}}{{if .Date}} — {{.Date}}{{end}}{{if .Importee}} (déjà importée){{end}}</option>{{end}}</select>
+  <input name="tag_autre" maxlength="20" size="7" placeholder="autre" title="Une version plus ancienne que les 5 dernières" pattern="v?[0-9]+\.[0-9]+\.[0-9]+" class="petit">
+  {{else}}<input name="tag" required maxlength="20" size="9" placeholder="v0.6.3" pattern="v?[0-9]+\.[0-9]+\.[0-9]+" aria-label="Version">{{end}}
+  {{template "code2fa"}}<button class="petit{{if ne $v.Etape 1}} secondaire{{end}}">Importer</button>
+  <label class="case" title="Par défaut, seulement les architectures des machines du parc"><input type="checkbox" name="toutes"> <small>toutes les architectures</small></label></form>
+  {{if $d.ListeGitHub}}<p class="aide"><small class="aide">{{$d.ListeGitHub}}.</small></p>{{end}}{{end}}
+ </div>
+ <div class="maj-etape {{if eq $v.Etape 2}}actif{{else if gt $v.Etape 2}}fait{{end}}"><span class="num">{{if gt $v.Etape 2}}✓{{else}}2{{end}}</span><h3>Essayer sur une machine</h3>
+  {{with $v.Essai}}<p><a href="/machines/{{.Nom}}">{{.Nom}}</a> : {{if eq .Etat "ajour"}}<span class="pastille ok">en {{.Version}}, essai réussi</span>{{else if eq .Etat "echec"}}<span class="pastille erreur">échec</span> {{.MajEchec}}{{else}}<span class="pastille info">en cours</span> encore en {{.Version}}{{end}}</p>
+  {{else}}<p>{{if $v.Deployer}}Elle passe en {{$v.Deployer}}{{else}}Elle passe dans la nouvelle version{{end}} ; si elle ne répond plus en 10 min, elle revient seule à l'ancienne.</p>{{end}}
+  {{if and .Admin (eq $v.Etape 2) $v.Candidates}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="essayer"><input type="hidden" name="version" value="{{$v.Deployer}}">
+  <select name="machine" class="petit" aria-label="Machine d'essai">{{range $v.Candidates}}<option{{if and $v.Essai (egal . $v.Essai.Nom)}} selected{{end}}>{{.}}</option>{{end}}</select>{{template "code2fa"}}<button class="petit">{{if $v.Essai}}Changer{{else}}Essayer{{end}}</button></form>
+  {{with $v.Essai}}{{if ne .Etat "ajour"}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="forcer"><input type="hidden" name="machine" value="{{.Nom}}">{{template "code2fa"}}<button class="secondaire petit">{{if eq .Etat "echec"}}Réessayer{{else}}Mettre à jour maintenant{{end}}</button></form>{{end}}{{end}}{{end}}
+ </div>
+ <div class="maj-etape {{if eq $v.Etape 3}}actif{{else if gt $v.Etape 3}}fait{{end}}"><span class="num">{{if gt $v.Etape 3}}✓{{else}}3{{end}}</span><h3>Déployer sur tout le parc</h3>
+  <p>Une fois l'essai réussi. Les machines se mettent à jour {{if $d.Fenetre.Active}}entre {{$d.Fenetre.Debut}} et {{$d.Fenetre.Fin}}{{else}}dans la minute{{end}}.</p>
+  {{if and .Admin $v.Deployer (or (eq $v.Etape 2) (eq $v.Etape 3))}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible"><input type="hidden" name="version" value="{{$v.Deployer}}">{{template "code2fa"}}<button class="petit{{if ne $v.Etape 3}} secondaire{{end}}" data-confirmer="Assigner {{$v.Deployer}} à toutes les machines sans version propre ?{{if ne $v.Etape 3}} L'essai n'est pas encore réussi.{{end}}">Déployer {{$v.Deployer}}</button></form>{{end}}
+ </div>
+</div></section>
+
+<section class="carte" id="machines"><div class="entete-carte"><h2>Machines</h2></div>
+<nav class="filtres-maj" aria-label="Filtrer par état"><a href="/mises-a-jour#machines"{{if eq $v.Filtre ""}} class="actif" aria-current="page"{{end}}>Toutes <b>{{$v.Total}}</b></a><a href="/mises-a-jour?etat=ajour#machines"{{if eq $v.Filtre "ajour"}} class="actif" aria-current="page"{{end}}>À jour <b>{{$v.AJour}}</b></a><a href="/mises-a-jour?etat=retard#machines"{{if eq $v.Filtre "retard"}} class="actif" aria-current="page"{{end}}>En retard <b>{{$v.Retard}}</b></a><a href="/mises-a-jour?etat=echec#machines"{{if eq $v.Filtre "echec"}} class="actif" aria-current="page"{{end}}>En échec <b>{{$v.Echec}}</b></a></nav>
+{{if $v.Lignes}}<div class="defile"><table class="table-maj" data-cartes><thead><tr><th>Machine</th><th>Version</th><th>Cible</th><th>Dernier contact</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range $v.Lignes}}<tr class="{{.Etat}}"><td><a class="maj-machine" href="/machines/{{.Nom}}"><span class="ic"><svg class="icone"><use href="#i-{{if egal .Type "collecteur"}}routeur{{else}}machines{{end}}"></use></svg></span><span><b>{{.Nom}}</b><small>{{if egal .Type "collecteur"}}collecteur{{else}}agent{{end}}{{if .Architecture}} · {{.Architecture}}{{end}}{{if .Essai}} · machine d'essai{{end}}</small></span></a></td>
+<td><span class="ver {{if eq .Etat "ajour"}}ok{{else}}vieux{{end}}">{{.Version}}</span></td>
+<td>{{if eq .Etat "ajour"}}{{if .CiblePropre}}<span class="ver">{{.Cible}}</span> <small class="doux">propre</small>{{else}}<small class="doux">{{if .Cible}}celle du parc{{else}}aucune{{end}}</small>{{end}}{{else}}<span class="ver{{if eq .Etat "echec"}} err{{end}}">{{.Cible}}</span>{{if .CiblePropre}} <small class="doux">propre</small>{{end}}{{if .MajEchec}}<div class="maj-err">{{.MajEchec}}</div>{{else if eq .Etat "encours"}}<div class="doux"><small>téléchargement / redémarrage en cours</small></div>{{end}}{{end}}</td>
+<td>{{depuisS .BattementLe}}</td>
+{{if $.Admin}}<td class="sans-coupure">{{if or (eq .Etat "echec") (eq .Etat "retard")}}<form method="post" action="/mises-a-jour#machines" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="forcer"><input type="hidden" name="machine" value="{{.Nom}}">{{template "code2fa"}}<button class="secondaire petit">{{if eq .Etat "echec"}}Réessayer{{else}}Mettre à jour maintenant{{end}}</button></form>{{end}}</td>{{end}}</tr>{{end}}
+</tbody></table></div>{{else}}{{template "vide" "Aucune machine dans cet état."}}{{end}}
+</section>
+
+<section class="carte" id="versions"><div class="entete-carte"><h2>Versions sur le serveur</h2><small class="doux">gardées : la cible, celles en service et les {{$d.Garder}} plus récentes</small></div>
+{{if $v.Cartes}}<div class="maj-versions">{{range $v.Cartes}}<div class="maj-version{{if .Parc}} parc{{end}}"><div class="tete"><b>{{.Version}}</b>{{if .Parc}}<span class="pastille info">version du parc</span>{{else if .Machines}}<span class="pastille">en service</span>{{else}}<span class="pastille">gardée</span>{{end}}</div>
+<small>Signature vérifiée ✓ · {{range $i, $a := .Archs}}{{if $i}}, {{end}}{{$a}}{{end}}{{if .Collecteur}} · agent et collecteur{{end}}{{if .Retour}} · retour arrière autorisé{{end}}</small>
+<small>Publiée le {{dateS .Le}} par {{.Par}} · {{if .Machines}}{{pluriel .Machines "machine"}}{{else}}aucune machine{{end}}</small>
+{{if $.Admin}}<div class="ligne">{{if not .Parc}}<form method="post" action="/mises-a-jour#versions" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="cible"><input type="hidden" name="version" value="{{.Version}}">{{template "code2fa"}}<button class="secondaire petit" data-confirmer="Assigner {{.Version}} à toutes les machines sans version propre ?">Assigner au parc</button></form>{{end}}
+{{if .Supprimable}}<form method="post" action="/mises-a-jour#versions" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="supprimer_version"><input type="hidden" name="version" value="{{.Version}}">{{template "code2fa"}}<button class="secondaire petit" data-confirmer="Supprimer la version {{.Version}} du serveur ? (réimportable depuis GitHub)">Supprimer</button></form>{{end}}</div>{{end}}
+</div>{{end}}</div>{{else}}{{template "vide" "Aucune version sur le serveur : importer depuis GitHub ci-dessus."}}{{end}}
+<p class="aide"><small class="aide">Revenir à une version plus ancienne : seulement avec un manifeste signé « retour autorisé ».</small></p>
+</section>
+
+<h2 class="titre-plis">Réglages</h2>
+<div class="plis-maj">
+<details id="cle"{{if not $d.Cles}} open{{end}}><summary>Clé publique de signature <small>{{if $d.Cles}}{{pluriel (len $d.Cles) "clé"}} · empreinte {{(index $d.Cles 0).Empreinte}}{{end}}</small>{{if $d.Cles}}<span class="pastille ok">OK</span>{{else}}<span class="pastille erreur">Aucune clé</span>{{end}}</summary><div class="corps">
+{{if $d.Cles}}<p>{{range $d.Cles}}<code>{{.Valeur}}</code> — empreinte <strong><code>{{.Empreinte}}</code></strong><br>{{end}}</p>
 {{else}}<p class="message erreur">Aucune clé : les agents installés n'accepteront aucune mise à jour, et aucune version ne peut être publiée.</p>{{end}}
 <p><small>Clé <strong>publique</strong> (<code>mirador-release cle</code>). La changer ne touche <strong>pas</strong> les machines installées : relancer le script avec <code>--cle-publique</code>. {{template "plus" "aide.md#cle-publique"}}</small></p>
 {{if .Admin}}<form method="post" action="/mises-a-jour#cle" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cles">
-<label>Clé(s) publique(s), une par ligne <textarea name="cles" rows="2" maxlength="200" spellcheck="false">{{range $i, $k := .D.Cles}}{{if $i}}
+<label>Clé(s) publique(s), une par ligne <textarea name="cles" rows="2" maxlength="200" spellcheck="false">{{range $i, $k := $d.Cles}}{{if $i}}
 {{end}}{{$k.Valeur}}{{end}}</textarea></label>
-{{template "code2fa"}}<button data-confirmer="Changer la clé publique de signature ?">Enregistrer</button></form>{{end}}
-</section>
-
-<section class="carte" id="github"><h2>Importer une version signée depuis GitHub</h2>
-<p>Dépôt : <a href="https://github.com/{{.D.Depot}}/releases" rel="noopener noreferrer" target="_blank"><code>{{.D.Depot}}</code></a> — à chaque tag <code>vX.Y.Z</code>, sa CI compile et signe l'agent (amd64, arm64) et l'ajoute à la Release.</p>
-{{with .D.Import}}{{if .EnCours}}<p class="message">Import de {{.Tag}} en cours… (recharger la page)</p>{{else if .Resultat}}<p class="message {{if .Erreur}}erreur{{end}}">Import de {{.Tag}} ({{date .Le}}) : {{.Resultat}}</p>{{end}}{{end}}
-{{if .Admin}}<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="importer">
-{{if .D.Proposees}}<label>Version <select name="tag">{{$choisie := false}}{{range .D.Proposees}}<option value="{{.Tag}}"{{if and (not .Importee) (not $choisie)}} selected{{$choisie = true}}{{end}}>{{.Tag}}{{if .Date}} — {{.Date}}{{end}}{{if .Importee}} (déjà importée){{end}}</option>{{end}}</select></label>
-<label title="Une version plus ancienne que les 5 dernières">ou autre <input name="tag_autre" maxlength="20" size="8" placeholder="v0.2.9" pattern="v?[0-9]+\.[0-9]+\.[0-9]+"></label>
-{{else}}<label>Version <input name="tag" required maxlength="20" size="10" placeholder="v0.2.9" pattern="v?[0-9]+\.[0-9]+\.[0-9]+"></label>{{end}}
-<label class="case" title="Par défaut, seulement les architectures des machines du parc"><input type="checkbox" name="toutes"> Toutes les architectures</label>
-{{template "code2fa"}}<button>Importer</button></form>
-{{if .D.ListeGitHub}}<p class="aide"><small class="aide">{{.D.ListeGitHub}}.</small></p>{{else if .D.Proposees}}<p class="aide"><small class="aide">Les 5 dernières versions publiées sur GitHub (liste relue toutes les 10 min). La signature est vérifiée à l'import.</small></p>{{end}}
-<details><summary><small>Changer de dépôt (fork)</small></summary>
-<form method="post" action="/mises-a-jour#github" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="depot">
-<label>Dépôt GitHub <input name="depot" value="{{.D.Depot}}" required maxlength="140" size="28" placeholder="propriétaire/nom"></label>
-{{template "code2fa"}}<button>Enregistrer</button></form>
-<p class="aide"><small class="aide">Seules les versions signées par ces clés sont acceptées, quel que soit le dépôt.</small></p></details>{{end}}
-</section>
-
-<div class="grille">
-<section class="carte"><h2>Version de toutes les machines</h2>
-<p>Actuelle : <strong>{{if .D.Cible}}{{.D.Cible}}{{else}}aucune (pas de mise à jour){{end}}</strong></p>
-{{if .Admin}}<form method="post" action="/mises-a-jour" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="cible">
-<label>Nouvelle version <select name="version"><option value="">Aucune (pas de mise à jour)</option>{{range .D.Choix}}<option {{if egal . $.D.Cible}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-{{template "code2fa"}}<button data-confirmer="Assigner cette version à toutes les machines sans version propre ?">Assigner</button></form>{{end}}
-</section>
-<section class="carte"><h2>Fenêtre horaire</h2>
-<p>{{if .D.Fenetre.Active}}Mises à jour seulement de {{.D.Fenetre.Debut}} à {{.D.Fenetre.Fin}} ({{.D.Fenetre.Fuseau}}).{{else}}Désactivée : à toute heure.{{end}}</p>
-{{if .Admin}}<form method="post" action="/mises-a-jour" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="fenetre">
-<label class="case"><input type="checkbox" name="active" value="1" {{if .D.Fenetre.Active}}checked{{end}}> Activer</label>
-<div class="ligne"><label>De <input type="time" name="debut" value="{{.D.Fenetre.Debut}}" required></label><label>À <input type="time" name="fin" value="{{.D.Fenetre.Fin}}" required></label></div>
-<label>Fuseau <input name="fuseau" value="{{.D.Fenetre.Fuseau}}" required maxlength="64"></label>
+{{template "code2fa"}}<div class="ligne"><button data-confirmer="Changer la clé publique de signature ?">Enregistrer</button></div></form>{{end}}
+</div></details>
+<details id="fenetre"><summary>Fenêtre horaire <small>{{if $d.Fenetre.Active}}{{$d.Fenetre.Debut}} – {{$d.Fenetre.Fin}}, {{$d.Fenetre.Fuseau}}{{else}}à toute heure{{end}}</small>{{if $d.Fenetre.Active}}<span class="pastille info">Activée</span>{{else}}<span class="pastille">Désactivée</span>{{end}}</summary><div class="corps">
+{{if .Admin}}<form method="post" action="/mises-a-jour#fenetre" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="fenetre">
+<label class="case"><input type="checkbox" name="active" value="1" {{if $d.Fenetre.Active}}checked{{end}}> Mettre à jour seulement dans cette fenêtre</label>
+<div class="ligne"><label>De <input type="time" name="debut" value="{{$d.Fenetre.Debut}}" required></label><label>À <input type="time" name="fin" value="{{$d.Fenetre.Fin}}" required></label><label>Fuseau <input name="fuseau" value="{{$d.Fenetre.Fuseau}}" required maxlength="64" size="16"></label></div>
+{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button></div></form>{{else}}<p class="doux">Réglée par un administrateur.</p>{{end}}
+</div></details>
+<details id="gardees"><summary>Versions gardées <small>les {{$d.Garder}} plus récentes + la cible + celles en service</small></summary><div class="corps">
+<p class="aide"><small class="aide">Les autres sont supprimées chaque jour (réimportables depuis GitHub).</small></p>
+{{if .Admin}}<form method="post" action="/mises-a-jour#gardees" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="versions_gardees">
+<label>Versions récentes gardées <input type="number" name="nombre" min="1" max="10" value="{{$d.Garder}}" required></label>
 {{template "code2fa"}}<button>Enregistrer</button></form>{{end}}
-</section>
-</div>
-
-<section class="carte"><h2>Versions publiées</h2>
-{{if .D.Versions}}<div class="defile"><table><thead><tr><th>Version</th><th>Programme</th><th>Arch.</th><th>Taille</th><th>SHA-256</th><th>Retour arrière signé</th><th>Publiée</th></tr></thead><tbody>
-{{range .D.Versions}}<tr><td>{{.Version}}</td><td>{{if egal .Produit "mirador-collector"}}Collecteur{{else}}Agent{{end}}</td><td>{{.Architecture}}</td><td>{{taille .Taille}}</td><td><code>{{.SHA256}}</code></td><td>{{if .RetourAutorise}}Oui{{else}}Non{{end}}</td><td>{{dateS .PublieeLe}} par {{.PublieePar}}</td></tr>{{end}}
-</tbody></table></div>{{else}}{{template "vide" "Aucune version publiée."}}{{end}}
-<p class="aide"><small class="aide">Retour arrière : seulement avec un manifeste signé « retour autorisé ».</small></p>
-<p class="aide"><small class="aide">Gardées : la cible, les versions en service et les {{.D.Garder}} plus récentes. Les autres sont supprimées chaque jour (réimportables).</small></p>
-{{if .Admin}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="versions_gardees">
-<label>Versions récentes gardées <input type="number" name="nombre" min="1" max="10" value="{{.D.Garder}}" required></label>
-{{template "code2fa"}}<button>Enregistrer</button></form>{{end}}
-{{if and .Admin .D.Choix}}<form method="post" action="/mises-a-jour" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="supprimer_version">
-<label>Supprimer la version <select name="version">{{range .D.Choix}}<option>{{.}}</option>{{end}}</select></label>
-{{template "code2fa"}}<button>Supprimer</button></form>{{end}}
-{{if .Admin}}<form method="post" action="/mises-a-jour/publier" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
-<h3>Publier une version à la main (signée sur ton poste)</h3>
+</div></details>
+{{if .Admin}}<details id="publier"><summary>Publier une version à la main <small>manifeste et binaire signés sur ton poste</small></summary><div class="corps">
+<form method="post" action="/mises-a-jour/publier" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Manifeste signé (.json, fait par mirador-release) <input type="file" name="manifeste" accept=".json,application/json" required></label>
 <label>Binaire (mirador-agent-…-linux-amd64, 30 Mo au plus) <input type="file" name="binaire" required></label>
-{{template "code2fa"}}<button>Publier</button></form>{{end}}
-</section>
-
-<section class="carte"><h2>Versions sur les machines</h2><div class="defile"><table><thead><tr><th>Machine</th><th>Version</th><th>Cible propre</th><th>Essai</th><th>Échec</th><th>Battement</th></tr></thead><tbody>
-{{range .D.Machines}}{{if egal .Statut "approuvee"}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td>{{.Version}}</td><td>{{.VersionCible}}</td><td>{{.MajEssai}}</td><td class="erreur">{{.MajEchec}}</td><td>{{depuisS .BattementLe}}</td></tr>{{end}}{{end}}
-</tbody></table></div></section>
+{{template "code2fa"}}<div class="ligne"><button>Publier</button></div></form>
+</div></details>
+<details id="depot"><summary>Dépôt GitHub <small>{{$d.Depot}}</small></summary><div class="corps">
+<p>À chaque tag <code>vX.Y.Z</code>, la CI de <a href="https://github.com/{{$d.Depot}}/releases" rel="noopener noreferrer" target="_blank"><code>{{$d.Depot}}</code></a> compile et signe l'agent et le collecteur (amd64, arm64).</p>
+<form method="post" action="/mises-a-jour#depot" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="depot">
+<label>Dépôt (fork) <input name="depot" value="{{$d.Depot}}" required maxlength="140" size="28" placeholder="propriétaire/nom"></label>
+{{template "code2fa"}}<button>Enregistrer</button></form>
+<p class="aide"><small class="aide">Seules les versions signées par ces clés sont acceptées, quel que soit le dépôt.</small></p>
+</div></details>{{end}}
+</div>
 {{end}}

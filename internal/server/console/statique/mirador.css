@@ -1851,3 +1851,97 @@ form.pile.large.form-large, form.form-large { max-width: none; }
 @media (min-width: 700px) { .cons-champs.haut > label.case { margin-top: 34px; } }
 .geoip-test { margin-top: 16px; align-items: flex-end; }
 .geoip-auto { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bord); align-items: center; }
+/* Réglages › Sites, types et groupes (maquette v2 du 21/11, SPEC § 107). */
+.liste-valeurs td { vertical-align: middle; }
+.liste-valeurs .pastille { text-decoration: none; color: var(--texte); }
+.liste-valeurs tr.ouvert td { border-bottom: 0; }
+.panneau-ligne > td { padding-top: 0; }
+.panneau-edition { background: var(--survol); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.panneau-edition .ligne { align-items: flex-end; }
+.panneau-edition .impact { margin: 0; padding-left: 20px; font-size: 13.5px; }
+.panneau-edition .a-verifier { color: var(--attention); }
+.ajout-valeur { margin-left: auto; }
+.ajout-valeur > summary { list-style: none; cursor: pointer; }
+.ajout-valeur > summary::-webkit-details-marker { display: none; }
+.ajout-valeur[open] > summary { margin-bottom: 8px; }
+.choix-machines { display: grid; gap: 6px 14px; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); margin: 0 0 12px; }
+form.en-ligne { display: inline; }
+/* Audit : lignes aussi nettes que dans les logs (retour du 21/11) : fond
+   blanc, trait plein entre les lignes, survol, barre rouge pour une action
+   sensible, « Détail » sur une seule ligne. */
+@media (min-width: 641px) {
+  table.table-audit { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+  table.table-audit thead th { background: var(--entete-table); border-bottom: 1px solid var(--bord); }
+  table.table-audit .ligne-audit td { border-bottom: 1px solid var(--bord); padding-top: 10px; padding-bottom: 10px; }
+  table.table-audit tbody tr:last-child td { border-bottom: 0; }
+  table.table-audit .ligne-audit:hover td { background: var(--survol); }
+  table.table-audit .ligne-audit.sensible td:first-child { box-shadow: inset 3px 0 0 var(--erreur); }
+  table.table-audit .detail-audit > summary { white-space: nowrap; }
+}
+/* Téléphone (tableau en cartes) : barre rouge sur la carte d'une action sensible. */
+@media (max-width: 640px) { table.table-audit tr.ligne-audit.sensible { box-shadow: inset 3px 0 0 var(--erreur); } }
+/* --- Mises à jour des agents (maquette validée le 21/11, SPEC § 109) --- */
+.maj-kpi { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); margin: 0 0 16px; }
+.maj-kpi .t { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.maj-kpi small { color: var(--pale); font-size: 12.5px; }
+.maj-kpi b { font-size: 22px; letter-spacing: -.01em; }
+.maj-kpi .s { font-size: 12.5px; color: var(--doux); }
+.maj-barre { height: 6px; border-radius: 99px; background: var(--bord-doux); overflow: hidden; display: flex; margin-top: 4px; }
+.maj-barre i { display: block; height: 100%; }
+.maj-barre i.ok { background: var(--ok); } .maj-barre i.retard { background: var(--attention-trait); } .maj-barre i.echec { background: var(--erreur); }
+.maj-etapes { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--bord); border-radius: 14px; overflow: hidden; }
+.maj-etape { padding: 16px 18px; border-right: 1px solid var(--bord); display: flex; flex-direction: column; gap: 8px; }
+.maj-etape:last-child { border-right: 0; }
+.maj-etape .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--bord-doux); color: var(--doux); }
+.maj-etape.fait .num { background: var(--ok-fond); color: var(--ok); }
+.maj-etape.actif { background: var(--accent-fond); }
+.maj-etape.actif .num { background: var(--accent); color: var(--sur-accent); }
+.maj-etape h3 { margin: 0; font-size: 15px; }
+.maj-etape p { margin: 0; font-size: 13px; color: var(--doux); }
+.maj-etape .ligne { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: auto; }
+@media (max-width: 760px) {
+  .maj-etapes { grid-template-columns: 1fr; }
+  .maj-etape { border-right: 0; border-bottom: 1px solid var(--bord); }
+  .maj-etape:last-child { border-bottom: 0; }
+}
+.filtres-maj { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.filtres-maj a { padding: 5px 12px; border-radius: 99px; border: 1px solid var(--bord); text-decoration: none; color: var(--texte); font-size: 13.5px; background: var(--carte); }
+.filtres-maj a.actif { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); }
+.filtres-maj a b { margin-left: 4px; }
+.maj-machine { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.maj-machine .ic { width: 30px; height: 30px; border-radius: 8px; background: var(--survol); display: grid; place-items: center; flex: none; }
+.maj-machine b { display: block; font-weight: 600; color: var(--accent-texte); }
+.maj-machine small { color: var(--pale); }
+.ver { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; padding: 2px 8px; border-radius: 99px; background: var(--survol); white-space: nowrap; }
+.ver.ok { background: var(--ok-fond); color: var(--ok); }
+.ver.vieux { background: var(--attention-fond); color: var(--attention); }
+.ver.err { background: var(--erreur-fond); color: var(--erreur); }
+.maj-err { font-size: 12.5px; color: var(--erreur); margin-top: 3px; }
+@media (min-width: 641px) {
+  table.table-maj { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+  table.table-maj thead th { background: var(--entete-table); border-bottom: 1px solid var(--bord); }
+  table.table-maj td { border-bottom: 1px solid var(--bord); padding-top: 10px; padding-bottom: 10px; vertical-align: middle; }
+  table.table-maj tbody tr:last-child td { border-bottom: 0; }
+  table.table-maj tr.echec td:first-child { box-shadow: inset 3px 0 0 var(--erreur); }
+  table.table-maj tr.retard td:first-child { box-shadow: inset 3px 0 0 var(--attention-trait); }
+  table.table-maj tr.encours td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+}
+@media (max-width: 640px) {
+  table.table-maj tr.echec { box-shadow: inset 3px 0 0 var(--erreur); }
+  table.table-maj tr.retard { box-shadow: inset 3px 0 0 var(--attention-trait); }
+  table.table-maj tr.encours { box-shadow: inset 3px 0 0 var(--accent); }
+}
+.maj-versions { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.maj-version { border: 1px solid var(--bord); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.maj-version.parc { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-fond); }
+.maj-version .tete { display: flex; align-items: center; gap: 8px; }
+.maj-version .tete b { font-size: 18px; }
+.maj-version .tete .pastille { margin-left: auto; }
+.maj-version small { color: var(--doux); }
+.maj-version .ligne { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.titre-plis { font-size: 16px; margin: 22px 0 10px; }
+.plis-maj details { border: 1px solid var(--bord); border-radius: 12px; background: var(--carte); margin-bottom: 10px; }
+.plis-maj summary { padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+.plis-maj summary small { font-weight: 400; color: var(--doux); }
+.plis-maj summary .pastille { margin-left: auto; }
+.plis-maj .corps { padding: 0 16px 14px; }

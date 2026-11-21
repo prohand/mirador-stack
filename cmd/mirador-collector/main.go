@@ -48,7 +48,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// Ce binaire est mirador-collector : manifestes, noms des binaires
 	// installés et capacités annoncées au serveur.
 	majagent.ProduitCourant = protocole.ProduitCollecteur
-	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes
+	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes + "," + protocole.CapaciteSonder
 
 	fs := flag.NewFlagSet("mirador-collector", flag.ContinueOnError)
 	fs.SetOutput(erreurs)
@@ -130,8 +130,10 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		mesures, csr = append(mesures, sys), sys.CSR
 	}
 	a := agent.NouveauAvec(cfg, token, journal, agent.Options{Collecteurs: mesures, Job: collecteur.Job})
+	// « Vérifier maintenant » (SPEC § 108) : essais demandés dans l'interface.
+	decl := &collecteur.Declencheurs{Journal: journal}
 	if cfg.Serveur != "" {
-		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
+		lien := &distant.Lien{Sonder: decl.Declencher, Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
 			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
@@ -153,7 +155,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// SNMP v3 et sondes de certificats (partie 5) : lots par équipement.
 	relevesFinis := make(chan struct{})
 	go func() {
-		collecteur.TournerReleves(ctx, cfg, collecteur.Expedition(a.File(), journal), journal)
+		collecteur.TournerReleves(ctx, cfg, collecteur.Expedition(a.File(), journal), journal, decl)
 		close(relevesFinis)
 	}()
 	a.Tourner(ctx)
