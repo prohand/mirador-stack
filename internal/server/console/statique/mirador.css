@@ -1866,3 +1866,17 @@ form.pile.large.form-large, form.form-large { max-width: none; }
 .ajout-valeur[open] > summary { margin-bottom: 8px; }
 .choix-machines { display: grid; gap: 6px 14px; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); margin: 0 0 12px; }
 form.en-ligne { display: inline; }
+/* Audit : lignes aussi nettes que dans les logs (retour du 21/11) : fond
+   blanc, trait plein entre les lignes, survol, barre rouge pour une action
+   sensible, « Détail » sur une seule ligne. */
+@media (min-width: 641px) {
+  table.table-audit { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+  table.table-audit thead th { background: var(--entete-table); border-bottom: 1px solid var(--bord); }
+  table.table-audit .ligne-audit td { border-bottom: 1px solid var(--bord); padding-top: 10px; padding-bottom: 10px; }
+  table.table-audit tbody tr:last-child td { border-bottom: 0; }
+  table.table-audit .ligne-audit:hover td { background: var(--survol); }
+  table.table-audit .ligne-audit.sensible td:first-child { box-shadow: inset 3px 0 0 var(--erreur); }
+  table.table-audit .detail-audit > summary { white-space: nowrap; }
+}
+/* Téléphone (tableau en cartes) : barre rouge sur la carte d'une action sensible. */
+@media (max-width: 640px) { table.table-audit tr.ligne-audit.sensible { box-shadow: inset 3px 0 0 var(--erreur); } }
