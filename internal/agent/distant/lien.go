@@ -294,6 +294,8 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 		d, err := r.Recuperer(ctx)
 		switch {
 		case errors.Is(err, ErrInchange):
+		case err != nil && ctx.Err() != nil:
+			// Arrêt demandé : la demande en cours est coupée, rien à dire.
 		case err != nil:
 			l.Journal.Warn("configuration distante non récupérée", "erreur", err)
 		default:
@@ -389,8 +391,12 @@ func (l *Lien) appliquer(d *ConfigDistante) {
 		return
 	}
 	l.Journal.Info("configuration distante modifiée : redémarrage pour l'appliquer")
-	l.Redemarrer("configuration modifiée")
+	l.Redemarrer(RaisonConfiguration)
 }
+
+// RaisonConfiguration : redémarrage pour appliquer une configuration
+// modifiée (relance sur place, sans passer par systemd).
+const RaisonConfiguration = "configuration modifiée"
 
 // EnregistrerConfig garde le document reçu (0600, écriture atomique).
 func EnregistrerConfig(chemin string, d *ConfigDistante) error {

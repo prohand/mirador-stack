@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -262,10 +263,15 @@ func (r *Releveur) Tourner(ctx context.Context) {
 		up := 1.0
 		if err != nil {
 			up = 0
-			if err.Error() != dernierEchec && r.Journal != nil {
-				r.Journal.Warn("SNMP : relevé en échec", "equipement", r.Cible.Machine, "erreur", err)
+			// Comparé sans les adresses (relecture du 21/11 : le port local
+			// UDP change à chaque essai ; la même panne était écrite toutes
+			// les 30 s, ~2 900 lignes par jour et par cible).
+			if forme := sansAdresses(err.Error()); forme != dernierEchec {
+				if r.Journal != nil {
+					r.Journal.Warn("SNMP : relevé en échec", "equipement", r.Cible.Machine, "erreur", err)
+				}
+				dernierEchec = forme
 			}
-			dernierEchec = err.Error()
 		} else {
 			dernierEchec = ""
 		}
@@ -306,3 +312,10 @@ func OuvrirReseau(c config.CibleSNMP) (Source, func(), error) {
 	}
 	return g, func() { _ = g.Conn.Close() }, nil
 }
+
+// reAdresse : adresse IP avec port (« 10.0.0.3:42635 », « [fe80::1]:161 »).
+var reAdresse = regexp.MustCompile(`\[[0-9A-Fa-f:.]+\]:\d+|\d{1,3}(\.\d{1,3}){3}:\d+`)
+
+// sansAdresses : texte d'erreur sans les adresses (pour reconnaître la même
+// panne d'un essai à l'autre).
+func sansAdresses(s string) string { return reAdresse.ReplaceAllString(s, "…") }

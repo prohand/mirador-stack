@@ -27,14 +27,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"mirador-stack/internal/agent/veille"
-	"mirador-stack/internal/protocole"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -45,11 +44,21 @@ import (
 	"mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/agent/racine"
 	"mirador-stack/internal/agent/remotewrite"
+	"mirador-stack/internal/agent/veille"
+	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/relance"
 	"mirador-stack/internal/version"
 )
 
 func main() {
-	os.Exit(lancer(os.Args[1:], os.Stdout, os.Stderr))
+	code := lancer(os.Args[1:], os.Stdout, os.Stderr)
+	if code == relance.Code {
+		// Configuration modifiée : relance sur place (voir le paquet relance).
+		err := relance.Executer()
+		fmt.Fprintf(os.Stderr, "relance sur place impossible (%v) : systemd relance\n", err)
+		code = 0
+	}
+	os.Exit(code)
 }
 
 func lancer(args []string, sortie, erreurs io.Writer) int {
@@ -154,12 +163,14 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// est prévenu (s'il est connu).
 	veilleur := &veille.Veilleur{Systemd: cfg.Systemd, Journal: journal, Garder: gardeServices(cfg),
 		Signaler: func(protocole.EvenementAgent) { a.Reveiller() }}
+	var surPlace atomic.Bool // relance sur place demandée (configuration modifiée)
 	if cfg.Serveur != "" {
 		lien := &distant.Lien{Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal,
 			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
 				journal.Info("redémarrage demandé", "raison", raison)
+				surPlace.Store(raison == distant.RaisonConfiguration)
 				arreterCollecte() // arrêt propre ; systemd relance l'agent
 			}}
 		go lien.Tourner(ctxCollecte)
@@ -190,6 +201,9 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	a.Sauver()
 	if lots, _, _ := a.File().Etat(); lots > 0 {
 		journal.Warn("arrêt avec des lots non envoyés", "lots", lots)
+	}
+	if surPlace.Load() {
+		return relance.Code
 	}
 	return 0
 }

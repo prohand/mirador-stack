@@ -86,3 +86,13 @@ func TestEquipementBogueBorne(t *testing.T) {
 		t.Error("tables coupées non signalées")
 	}
 }
+
+// Relecture du 21/11 : la même panne (port local UDP différent à chaque
+// essai) est reconnue comme la même.
+func TestSansAdresses(t *testing.T) {
+	a := sansAdresses("read udp 10.95.71.3:42635->10.95.71.9:161: recvfrom: connection refused")
+	b := sansAdresses("read udp 10.95.71.3:51022->10.95.71.9:161: recvfrom: connection refused")
+	if a != b || strings.Contains(a, "42635") {
+		t.Errorf("%q ≠ %q", a, b)
+	}
+}
