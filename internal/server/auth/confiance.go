@@ -126,10 +126,11 @@ func ListerConfiance(ctx context.Context, db *sql.DB) ([]Confiance, error) {
 
 // Restaurer : remet en mémoire la session d'un appareil de confiance (après
 // la fermeture de la PWA ou un redémarrage du serveur), sous le même
-// identifiant de cookie ; nouveau jeton CSRF. Renvoie une copie.
+// identifiant de cookie ; même jeton CSRF qu'avant (tiré de l'identifiant :
+// un formulaire déjà affiché reste valable). Renvoie une copie.
 func (m *Magasin) Restaurer(id string, s *Session, t time.Time) *Session {
 	s.Empreinte = empreinteID(id)
-	s.CSRF = Aleatoire(24)
+	s.CSRF = csrfDe(id)
 	s.Etape, s.Confiance, s.Vue = EtapeComplet, true, t
 	m.mu.Lock()
 	defer m.mu.Unlock()

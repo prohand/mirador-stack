@@ -7523,3 +7523,22 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 - Coût : une lecture de la taille de la base (stat de 2 fichiers) en plus à
   l'affichage de la page ; rien en tâche de fond. Menaces : inchangées (mêmes
   bornes, même délai, même audit).
+
+## 104. Jeton de formulaire stable sur téléphone (21/11) **[Fait, à valider]**
+- Constat : sur téléphone (appareil de confiance), « jeton de formulaire
+  invalide » en validant le code 2FA. La PWA passe en arrière-plan le temps
+  de lire le code ; le serveur retire la session de sa mémoire ; au retour,
+  elle est reprise depuis le disque avec un **nouveau** jeton, et le
+  formulaire déjà affiché est refusé.
+- Correction : le jeton est tiré de l'identifiant secret de la session
+  (SHA-256 de « mirador-csrf » + identifiant, cookie HttpOnly) : le même
+  tant que l'identifiant ne change pas, donc aussi après une reprise. Un
+  nouvel identifiant (changement de droits) donne un nouveau jeton.
+- Jeton présent mais périmé, sur un formulaire : rien n'est fait, la page
+  d'origine (même site seulement, sinon l'accueil) est rechargée avec
+  « la page avait expiré… recommencer ». Sans jeton, ou appel de script :
+  refus net (403), comme avant.
+- Menaces : le jeton reste impossible à calculer sans le cookie (HttpOnly,
+  Secure, SameSite=Strict) ; il ne révèle pas l'identifiant (hachage) ; la
+  redirection ne quitte jamais le site. Coût : un SHA-256 à la création ou
+  la reprise d'une session.

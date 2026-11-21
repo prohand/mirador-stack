@@ -119,11 +119,23 @@ func empreinteID(id string) string {
 	return hex.EncodeToString(e[:])
 }
 
+// csrfDe : jeton de formulaire tiré de l'identifiant secret de la session
+// (cookie HttpOnly) : le même tant que l'identifiant ne change pas. Avant
+// (retour du 21/11) : tiré au sort ; une session d'appareil de confiance
+// reprise depuis le disque (PWA mise en arrière-plan le temps de lire le
+// code 2FA) recevait un nouveau jeton, et le formulaire déjà affiché était
+// refusé. Le hachage ne révèle pas l'identifiant ; un autre site ne peut
+// pas le calculer sans le cookie.
+func csrfDe(id string) string {
+	e := sha256.Sum256([]byte("mirador-csrf\x00" + id))
+	return hex.EncodeToString(e[:24])
+}
+
 // creer ajoute une session et renvoie l'identifiant à mettre dans le cookie.
 func (m *Magasin) Creer(s *Session, t time.Time) string {
 	id := Aleatoire(tailleIdentifant)
 	s.Empreinte = empreinteID(id)
-	s.CSRF = Aleatoire(24)
+	s.CSRF = csrfDe(id)
 	s.Creee, s.Vue = t, t
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -210,7 +222,7 @@ func (m *Magasin) Renouveler(empreinte string, t time.Time, f func(*Session)) st
 	delete(m.tout, empreinte)
 	id := Aleatoire(tailleIdentifant)
 	s.Empreinte = empreinteID(id)
-	s.CSRF = Aleatoire(24)
+	s.CSRF = csrfDe(id) // nouvel identifiant (changement de droits) : nouveau jeton
 	s.Vue = t
 	f(s)
 	m.tout[s.Empreinte] = s

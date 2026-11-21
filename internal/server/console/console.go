@@ -409,6 +409,16 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 			}
 			if subtle.ConstantTimeCompare([]byte(jeton), []byte(q.s.CSRF)) != 1 {
 				c.journal.Warn("console : jeton CSRF absent ou faux", "ip", q.ip.String(), "utilisateur", u.Nom, "chemin", r.URL.Path)
+				// Formulaire (pas un appel de script) : rien n'est fait, la
+				// page est rechargée avec un message (avant : page d'erreur
+				// brute, retour du 21/11).
+				// Seulement un jeton présent mais périmé (page restée ouverte) :
+				// sans jeton du tout, refus net.
+				if jeton != "" && r.Header.Get("X-CSRF") == "" && r.Header.Get("X-Requested-With") == "" {
+					c.flash(q, "", "la page avait expiré : elle a été rechargée, rien n'a été fait ; recommencer")
+					http.Redirect(w, r, pageDOrigine(r), http.StatusSeeOther) // #nosec G710 -- pageDOrigine : chemin du même site seulement, sinon « / »
+					return
+				}
 				http.Error(w, "jeton de formulaire invalide : recharger la page", http.StatusForbidden)
 				return
 			}
@@ -417,6 +427,21 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 		c.toucherConfiance(r.Context(), q.s, t)
 		f(q)
 	}
+}
+
+// pageDOrigine : page d'où vient le formulaire (en-tête Referer, même site
+// seulement), sinon l'accueil. Jamais une adresse d'un autre site.
+func pageDOrigine(r *http.Request) string {
+	u, err := url.Parse(r.Referer())
+	if err != nil || u.Host != r.Host || !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") || strings.ContainsAny(u.Path, "\\\r\n") {
+		return "/"
+	}
+	// Chemin et paramètres seulement : jamais d'hôte ni de schéma.
+	v := u.EscapedPath()
+	if u.RawQuery != "" {
+		v += "?" + u.RawQuery
+	}
+	return v
 }
 
 // versConnexion : page de connexion pour une page, 401 pour un appel de
