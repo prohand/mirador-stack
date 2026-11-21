@@ -7417,7 +7417,7 @@ Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
   (expression stricte) avant tout usage ; le tag n'est posé que sur le
   commit de `main` du lancement.
 
-## 102. Retours du 20/11 : affichage, « En ce moment » en direct, mise à jour du serveur depuis l'interface **[Fait, à valider]**
+## 102. Retours du 20/11 : affichage, « En ce moment » en direct, mise à jour du serveur depuis l'interface **[Fait, validé le 21/11]**
 
 ### 102.1 Affichage
 - Vue d'ensemble : carte « Sauvegardes des dernières 24 h » retirée (demande).
