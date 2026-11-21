@@ -114,7 +114,7 @@ func TestSyslogInterface(t *testing.T) {
 	b.post(c, "/reglages/certificats", url.Values{"csrf": {csrf}, "action": {"reglages"}, "fournisseur": {"desec"},
 		"domaine": {"exemple.org"}, "dns_desec_jeton": {"jeton-desec-tres-secret"}, "attente_max": {"300"}})
 	_, corps, _ := b.get(c, "/reglages/certificats")
-	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") || !strings.Contains(corps, "zone <code>exemple.org</code>") ||
+	if strings.Contains(corps, "jeton-desec-tres-secret") || !strings.Contains(corps, "déjà enregistré") || !strings.Contains(corps, "one <code>exemple.org</code>") ||
 		!strings.Contains(corps, `<option value="300" selected>5 min</option>`) || !strings.Contains(corps, "(300 s au plus)") {
 		t.Error("jeton deSEC réaffiché ou non enregistré")
 	}

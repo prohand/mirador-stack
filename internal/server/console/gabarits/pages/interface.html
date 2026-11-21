@@ -1,42 +1,41 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}
 <h1>Interface</h1>
 {{template "onglets-reglages" (onglet $ "interface")}}
-<section class="carte"><h2>Affichage</h2><form method="post" class="pile">{{template "csrf" .CSRF}}
-<label>Fuseau horaire <input name="fuseau" value="{{.D.Fuseau}}" required maxlength="64"> <small class="aide">Défaut Europe/Paris. Sert aussi aux heures écrites dans les notifications.</small></label>
-{{if .D.FuseauMessages}}<p class="message">Les notifications utilisent encore le fuseau <code>{{.D.FuseauMessages}}</code> : « Enregistrer » les aligne sur celui-ci.</p>{{end}}
-<label class="case"><input type="checkbox" name="geoip" value="1" {{if .D.GeoIP}}checked{{end}}> Base GéoIP téléchargée chaque mois (pays des flux bloqués)</label>
-<label>Thème <select name="theme">{{$t := .D.Theme}}<option value="auto" {{if egal "auto" $t}}selected{{end}}>Automatique (comme l'appareil)</option><option value="clair" {{if egal "clair" $t}}selected{{end}}>Clair</option><option value="sombre" {{if egal "sombre" $t}}selected{{end}}>Sombre</option></select></label>
-<label>Position du menu <select name="menu">{{$m := .D.Menu}}<option value="gauche" {{if egal "gauche" $m}}selected{{end}}>À gauche (repliable)</option><option value="haut" {{if egal "haut" $m}}selected{{end}}>En haut</option></select> <small class="aide">Sur téléphone : menu toujours en haut, replié.</small></label>
-<label class="case"><input type="checkbox" name="menu_replie" value="1" {{if .D.MenuReplie}}checked{{end}}> Menu replié par défaut (icônes seules)</label>
-{{if .Admin}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire">Rétablir les valeurs par défaut</button></div>{{end}}</form></section>
-<section class="carte" id="adresse-interface"><h2>Adresse de cette interface</h2>
-<p>Adresse publique de l'interface (ex. <code>https://console.exemple.fr</code>). Elle sert au <strong>lien direct</strong> mis dans les notifications (« ouvrir l'alerte »). Vide : pas de lien.</p>
-<form method="post" action="/reglages/notifications" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="lien">
-<label>Adresse de l'interface <input name="lien" value="{{.D.Lien}}" placeholder="https://console.exemple.fr" maxlength="200" size="40" {{if not .Admin}}readonly{{end}}></label>
-{{if .Admin}}{{template "code2fa"}}<button>Enregistrer</button>{{end}}</form></section>
-<section class="carte" id="adresse"><h2>Adresse du serveur pour les agents (ingestion)</h2>
-<p>Adresse publique du <strong>vhost d'ingestion</strong> (celui des agents, ex. <code>https://mirador-ingest.exemple.fr</code>), <strong>pas</strong> celle de cette interface. Les machines s'y enrôlent, y téléchargent l'agent et y envoient leurs données. Elle sert à afficher la commande d'installation complète dans <a href="/machines#ajouter">Machines</a>.</p>
-<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="adresse">
-<label>Adresse d'ingestion <input name="ingestion" value="{{.D.Ingestion}}" placeholder="https://mirador-ingest.exemple.fr" maxlength="200" size="40" {{if not .Admin}}readonly{{end}}></label>
-{{if .Admin}}<button data-code>Enregistrer</button>{{end}}</form></section>
-<section class="carte"><h2>Base GéoIP (DB-IP)</h2>
-<p>{{if .D.GeoFichier.IsZero}}Pas encore téléchargée.{{else}}Base du {{date .D.GeoFichier}}{{if .D.GeoEnMemoire}}, chargée en mémoire (libérée après 10 min sans usage){{end}}.{{end}}
-{{if .D.GeoDemande}}<br>Téléchargement demandé : fait dans la minute (recharger la page).{{else if not .D.GeoEssai.IsZero}}<br>Dernier essai : {{date .D.GeoEssai}}.{{end}}
-{{if .D.GeoErreur}}<br><span class="erreur">Dernière erreur : {{.D.GeoErreur}}</span> <small>(nouvel essai dans 30 min)</small>{{end}}</p>
-{{if not .D.GeoIP}}<p><small>Décochée : la base est effacée et les pays disparaissent.</small></p>{{else if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<button name="action" value="geoip" class="secondaire">Télécharger maintenant</button></form>{{end}}
-<p><small>Source : download.db-ip.com. IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).</small></p></section>
-<section class="carte"><h2>Mode debug temporaire</h2>
-<p>Journal du serveur : {{if gt .D.DebugJusqua 0}}debug jusqu'au {{dateS .D.DebugJusqua}} (puis retour automatique à « info »){{else}}normal (info){{end}}.</p>
+{{/* Retour du 21/11 (maquette validée) : réglages généraux ensemble, apparence par défaut, GéoIP détaillé, dépannage replié. La page de statut a son propre onglet. */}}
+<section class="carte" id="adresse-interface"><h2>Général</h2><p class="sous">Pour tout le monde.</p>
+<form method="post" class="pile large form-large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="general">
+<div class="cons-champs haut"><label>Fuseau horaire <select name="fuseau">{{range $d.Fuseaux}}<option{{if egal . $d.Fuseau}} selected{{end}}>{{.}}</option>{{end}}</select><small class="aide">heures de l'interface et des notifications</small></label>
+<label>Adresse de l'interface <input name="lien" value="{{$d.Lien}}" placeholder="https://console.exemple.fr" maxlength="200" {{if not .Admin}}readonly{{end}}><small class="aide">lien « ouvrir l'alerte » dans les messages ; vide : pas de lien</small></label>
+<label id="adresse">Adresse d'ingestion (agents) <input name="ingestion" value="{{$d.Ingestion}}" placeholder="https://mirador-ingest.exemple.fr" maxlength="200" {{if not .Admin}}readonly{{end}}><small class="aide">vhost des agents (pas celui de l'interface) ; sert à la commande d'installation dans <a href="/machines">Machines</a></small></label></div>
+{{if $d.FuseauMessages}}<p class="message">Les notifications utilisent encore le fuseau <code>{{$d.FuseauMessages}}</code> : « Enregistrer » les aligne.</p>{{end}}
+{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}</form></section>
+
+<section class="carte"><h2>Apparence par défaut</h2><p class="sous">Chaque compte peut ensuite choisir la sienne (en bas du menu).</p>
+<form method="post" class="pile large form-large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="apparence">
+<div class="cons-champs haut"><label>Thème <select name="theme">{{$t := $d.Theme}}<option value="auto" {{if egal "auto" $t}}selected{{end}}>Automatique (comme l'appareil)</option><option value="clair" {{if egal "clair" $t}}selected{{end}}>Clair</option><option value="sombre" {{if egal "sombre" $t}}selected{{end}}>Sombre</option></select></label>
+<label>Position du menu <select name="menu">{{$m := $d.Menu}}<option value="gauche" {{if egal "gauche" $m}}selected{{end}}>À gauche (repliable)</option><option value="haut" {{if egal "haut" $m}}selected{{end}}>En haut</option></select><small class="aide">sur téléphone : toujours en haut, replié</small></label>
+<label class="case"><input type="checkbox" name="menu_replie" value="1" {{if $d.MenuReplie}}checked{{end}}> Menu replié par défaut (icônes seules)</label></div>
+{{if .Admin}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir l'affichage par défaut ?">Valeurs par défaut</button></div>{{end}}</form></section>
+
+<section class="carte" id="geoip"><div class="entete-carte"><h2>Pays des adresses (GéoIP)</h2>{{if not $d.GeoIP}}<span class="pastille">désactivée</span>{{else if $d.GeoErreur}}<span class="pastille erreur">erreur</span>{{else if $d.GeoFichier.IsZero}}<span class="pastille attention">pas encore téléchargée</span>{{else}}<span class="pastille ok">à jour</span>{{end}}</div>
+<p class="sous">Donne le pays d'une adresse IP : flux bloqués du pare-feu (Logs › Flux bloqués), connexions à l'interface. Tout se fait sur le serveur : <strong>aucune adresse n'est envoyée dehors</strong>. Base gratuite « DB-IP country lite », une nouvelle version chaque mois.</p>
+<div class="notif-tuiles">
+<div class="notif-tuile"><small>Version</small>{{if $d.GeoFichier.IsZero}}<b>—</b>{{else}}<b>{{moisAnnee $d.GeoFichier}}</b><small>DB-IP country lite</small>{{end}}</div>
+<div class="notif-tuile"><small>Téléchargée</small>{{if $d.GeoFichier.IsZero}}<b>jamais</b>{{else}}<b>{{date $d.GeoFichier}}</b>{{end}}<small>{{if $d.GeoDemande}}téléchargement demandé : dans la minute{{else if not $d.GeoEssai.IsZero}}dernier essai {{date $d.GeoEssai}}{{else}}vérifiée toutes les 6 h{{end}}</small></div>
+<div class="notif-tuile"><small>Sur le disque</small><b>{{if $d.GeoTaille}}{{taille $d.GeoTaille}}{{else}}—{{end}}</b><small>compressée, dossier des données</small></div>
+<div class="notif-tuile"><small>En mémoire</small><b>{{if $d.GeoEnMemoire}}oui{{else}}non{{end}}</b><small>~8 Mo pendant l'usage, libérée après 10 min</small></div>
+</div>
+{{if $d.GeoErreur}}<p class="message erreur">Dernière erreur : {{$d.GeoErreur}} (nouvel essai dans 30 min)</p>{{end}}
+<form method="get" action="/reglages/interface#geoip" class="ligne geoip-test"><label>Tester une adresse <input name="ip" value="{{$d.GeoTestIP}}" placeholder="ex. 185.199.108.153" size="22" maxlength="45" inputmode="decimal"></label><button class="secondaire petit">Tester</button>
+{{if $d.GeoTestIP}}<span>→ {{if $d.GeoTestPays}}<strong>{{drapeau $d.GeoTestPays}} {{nomPays $d.GeoTestPays}} ({{$d.GeoTestPays}})</strong>{{else}}<span class="doux">{{$d.GeoTestErreur}}</span>{{end}}</span>{{end}}</form>
+{{if .Admin}}<form method="post" class="ligne geoip-auto">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="geoip_auto">
+<label class="case"><input type="checkbox" name="geoip" value="1" {{if $d.GeoIP}}checked{{end}}> Télécharger et mettre à jour chaque mois</label><button class="secondaire petit">Enregistrer</button>
+{{if $d.GeoIP}}<button name="action" value="geoip" class="secondaire petit">Télécharger maintenant</button>{{end}}</form>{{end}}
+<p class="aide"><small class="aide">Source : download.db-ip.com (adresse figée dans le code) · IP Geolocation by <a href="https://db-ip.com" rel="noopener noreferrer">DB-IP</a> (CC BY 4.0). Décocher efface la base du disque tout de suite.</small></p></section>
+
+<details class="carte" id="depannage"{{if gt $d.DebugJusqua 0}} open{{end}}><summary><strong>Dépannage</strong> <span class="doux">· journal du serveur : {{if gt $d.DebugJusqua 0}}debug jusqu'au {{dateS $d.DebugJusqua}}{{else}}normal (info){{end}}</span></summary>
+<p>Le mode debug écrit beaucoup plus dans le journal du serveur, puis revient tout seul à « info ».</p>
 {{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="debug">
-<label>Pendant (minutes, 0 = arrêter) <input type="number" name="minutes" value="30" min="0" max="240"></label><button>Appliquer</button></form>{{end}}</section>
-{{with .D.Statut}}<section class="carte" id="statut"><h2>Page de statut publique</h2>
-<p class="sous">Une page à partager (proches, clients, collègues) : l'état des applications choisies et leur disponibilité sur 90 jours. Seuls les noms choisis apparaissent : jamais de machine, d'adresse IP, de message d'alerte ni de log. Sans connexion, sans cookie ni script ; l'adresse secrète suffit. {{template "plus" "aide.md#statut"}}</p>
-{{if .URL}}<div class="lien-ping"><code id="url-statut">{{.URL}}</code><button type="button" class="secondaire petit" data-copier="#url-statut">Copier</button>{{if .Actif}}<a class="bouton secondaire petit" href="{{.URL}}" target="_blank" rel="noopener">Ouvrir</a>{{end}}</div>{{end}}
-{{if $.Admin}}<form method="post" action="/reglages/statut" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="enregistrer">
-<label class="case"><input type="checkbox" name="actif" value="1"{{if .Actif}} checked{{end}}> Activée</label>
-<label>Titre <input name="titre" value="{{.Titre}}" maxlength="80"></label>
-<fieldset><legend>Montrer</legend>{{$ch := .Choisies}}{{range .Applications}}<label class="case"><input type="checkbox" name="applications" value="{{.}}"{{if index $ch .}} checked{{end}}> {{.}}</label>{{else}}<p class="vide">Aucune application : les créer d'abord (Applications).</p>{{end}}</fieldset>
-<div class="ligne"><button>Enregistrer</button></div></form>
-{{if .URL}}<form method="post" action="/reglages/statut">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="jeton"><button class="secondaire petit" data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button></form>{{end}}{{end}}
-</section>{{end}}
+<label>Pendant (minutes, 0 = arrêter) <input type="number" name="minutes" value="30" min="0" max="240"></label><button>Appliquer</button></form>{{end}}</details>
+<p class="aide"><small class="aide">La page de statut publique se règle dans son onglet : <a href="/reglages/statut">Page de statut</a>.</small></p>
 {{end}}

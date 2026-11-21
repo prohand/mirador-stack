@@ -9,7 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"net/url"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +48,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("POST /reglages/agents/masquage", c.lecture(c.postTestMasquage))
 	m.HandleFunc("GET /reglages/interface", c.lecture(c.pageInterface))
 	m.HandleFunc("POST /reglages/interface", c.admin(c.postInterface))
+	m.HandleFunc("GET /reglages/statut", c.lecture(c.pageStatutReglage))
 	m.HandleFunc("POST /reglages/statut", c.admin(c.postStatut))
 	m.HandleFunc("GET /reglages/olvid", c.admin(c.pageOlvid)) // lien d'invitation, contacts : admins seulement
 	m.HandleFunc("POST /reglages/olvid", c.admin(c.postOlvid))
@@ -123,6 +127,16 @@ type donneesNotif struct {
 	// AppareilsPush : appareils abonnés aux notifications de l'application
 	// (tous comptes actifs), SPEC § 35.
 	AppareilsPush int
+	// Dernier : dernier message envoyé (ou calculé en mode ombre), pour le
+	// résumé en haut de la page (retour du 21/11).
+	Dernier *dernierEnvoi
+	// Actifs : canaux configurés et actifs, par nom (résumé du haut).
+	Actifs map[string]bool
+}
+
+type dernierEnvoi struct {
+	Le                           int64
+	Canal, Gravite, Type, Statut string
 }
 
 func (c *Console) pageNotifications(q *req) {
@@ -170,6 +184,10 @@ func (c *Console) pageNotifications(q *req) {
 		{notif.NomNtfy, cn.Ntfy != nil && cn.Ntfy.Actif}, {notif.NomEmail, cn.Email != nil && cn.Email.Actif},
 		{notif.NomApplication, cn.Application != nil && cn.Application.Actif}, {notif.NomWebhook, cn.Webhook != nil && cn.Webhook.Actif}} {
 		if x.actif {
+			if d.Actifs == nil {
+				d.Actifs = map[string]bool{}
+			}
+			d.Actifs[x.nom] = true
 			d.Testables = append(d.Testables, x.nom)
 		}
 	}
@@ -196,6 +214,11 @@ func (c *Console) pageNotifications(q *req) {
 		d.R.Canaux.Webhook = &notif.Webhook{Format: notif.FormatJSON}
 	}
 	d.AppareilsPush = notif.NombreAppareilsPush(ctx, c.db)
+	var de dernierEnvoi
+	if c.db.QueryRowContext(ctx, `SELECT le, canal, gravite, type, statut FROM envois WHERE type NOT IN ('test') ORDER BY id DESC LIMIT 1`).
+		Scan(&de.Le, &de.Canal, &de.Gravite, &de.Type, &de.Statut) == nil {
+		d.Dernier = &de
+	}
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
 }
 
@@ -491,6 +514,49 @@ type donneesSauvegardes struct {
 	Defaut     sauvegarde.Reglages
 	Historique []sauvegarde.Execution
 	Archives   []sauvegarde.Archive
+	// Résumé (retour du 21/11, maquette validée) : dernière exécution,
+	// prochaine, copie hors du VPS ; heure affichée dans le fuseau de
+	// l'interface (enregistrée en UTC).
+	Derniere            *sauvegarde.Execution
+	Prochaine           time.Time
+	HeureLocale, Fuseau string
+	Heures              []string
+	HorsVPS, SFTP, S3   bool
+	TailleArchives      int64
+}
+
+// heureLocale : « HH:MM » UTC → heure du fuseau (aujourd'hui).
+func heureLocale(utc string, loc *time.Location, t time.Time) string {
+	h, err := time.Parse("15:04", utc)
+	if err != nil {
+		return utc
+	}
+	u := t.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), h.Hour(), h.Minute(), 0, 0, time.UTC).In(loc).Format("15:04")
+}
+
+// heureUTC : heure du fuseau « HH:MM » → UTC (aujourd'hui).
+func heureUTC(local string, loc *time.Location, t time.Time) (string, error) {
+	h, err := time.Parse("15:04", local)
+	if err != nil {
+		return "", errors.New("heure : HH:MM attendu")
+	}
+	l := t.In(loc)
+	return time.Date(l.Year(), l.Month(), l.Day(), h.Hour(), h.Minute(), 0, 0, loc).UTC().Format("15:04"), nil
+}
+
+// prochaineSauvegarde : prochain passage de l'heure UTC après t.
+func prochaineSauvegarde(utc string, t time.Time) time.Time {
+	h, err := time.Parse("15:04", utc)
+	if err != nil {
+		return time.Time{}
+	}
+	u := t.UTC()
+	p := time.Date(u.Year(), u.Month(), u.Day(), h.Hour(), h.Minute(), 0, 0, time.UTC)
+	if !p.After(u) {
+		p = p.Add(24 * time.Hour)
+	}
+	return p
 }
 
 func (c *Console) pageSauvegardes(q *req) {
@@ -502,11 +568,33 @@ func (c *Console) pageSauvegardes(q *req) {
 	d := donneesSauvegardes{R: r.Masques(), Defaut: sauvegarde.ReglagesDefaut()}
 	d.Historique, _ = sauvegarde.Historique(ctx, c.db, 30)
 	d.Archives, _ = sauvegarde.Lister(sauvegarde.DossierArchives(c.opt.Donnees))
+	d.SFTP = d.R.SFTP != nil && d.R.SFTP.Hote != ""
+	d.S3 = d.R.S3 != nil && d.R.S3.Adresse != ""
+	d.HorsVPS = d.SFTP || d.S3
 	if d.R.SFTP == nil {
 		d.R.SFTP = &sauvegarde.SFTP{}
 	}
 	if d.R.S3 == nil {
 		d.R.S3 = &sauvegarde.S3{}
+	}
+	if len(d.Historique) > 0 {
+		d.Derniere = &d.Historique[0]
+	}
+	loc := fuseau.Load()
+	d.Fuseau = loc.String()
+	d.HeureLocale = heureLocale(d.R.Heure, loc, q.t)
+	if d.R.Actif {
+		d.Prochaine = prochaineSauvegarde(d.R.Heure, q.t)
+	}
+	for m := 0; m < 24*60; m += 15 {
+		d.Heures = append(d.Heures, fmt.Sprintf("%02d:%02d", m/60, m%60))
+	}
+	if !slices.Contains(d.Heures, d.HeureLocale) {
+		d.Heures = append(d.Heures, d.HeureLocale)
+		sort.Strings(d.Heures)
+	}
+	for _, a := range d.Archives {
+		d.TailleArchives += a.Taille
 	}
 	c.rendre(q, "sauvegardes", "Sauvegardes", "reglages", d)
 }
@@ -523,7 +611,15 @@ func (c *Console) postSauvegardes(q *req) {
 			return "", err
 		}
 		var errs []error
-		r := sauvegarde.Reglages{Actif: f.coche("actif"), Heure: f.texte("heure"), Conserver: f.entier("conserver", &errs),
+		heure := f.texte("heure")
+		if hl := f.texte("heure_locale"); hl != "" { // page du 21/11 : heure du fuseau
+			h, err := heureUTC(hl, fuseau.Load(), q.t)
+			if err != nil {
+				return "", err
+			}
+			heure = h
+		}
+		r := sauvegarde.Reglages{Actif: f.coche("actif"), Heure: heure, Conserver: f.entier("conserver", &errs),
 			Metriques: f.coche("metriques"), Logs: f.coche("logs")}
 		if f.texte("action") == "defaut" {
 			r, errs = sauvegarde.ReglagesDefaut(), nil
@@ -849,8 +945,26 @@ type donneesInterface struct {
 	// notifications : adresse de l'interface (lien dans les messages) et
 	// fuseau des messages, s'il diffère encore de celui de l'interface.
 	Lien, FuseauMessages string
-	// Statut : page de statut publique (SPEC § 84).
-	Statut donneesStatutReglage
+	// GéoIP (retour du 21/11 : plus d'informations) : taille sur disque,
+	// essai d'une adresse (?ip=).
+	GeoTaille              int64
+	GeoTestIP, GeoTestPays string
+	GeoTestErreur          string
+	Fuseaux                []string
+}
+
+// fuseauxProposes : fuseaux courants (liste du sélecteur ; le fuseau réglé
+// est ajouté s'il n'y est pas).
+var fuseauxProposes = []string{"UTC", "Europe/Paris", "Europe/Brussels", "Europe/Zurich", "Europe/Luxembourg", "Europe/Monaco",
+	"Europe/London", "Europe/Lisbon", "Europe/Madrid", "Europe/Berlin", "Europe/Rome", "Europe/Amsterdam", "Europe/Athens",
+	"Europe/Helsinki", "Europe/Moscow", "Africa/Casablanca", "Africa/Algiers", "Africa/Tunis", "Africa/Dakar", "Africa/Abidjan",
+	"Indian/Reunion", "Indian/Mayotte", "America/Martinique", "America/Guadeloupe", "America/Cayenne", "America/Montreal",
+	"America/Toronto", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Pacific/Tahiti",
+	"Pacific/Noumea", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney"}
+
+// pageStatutReglage : Réglages › Page de statut (onglet à part, demande du 21/11).
+func (c *Console) pageStatutReglage(q *req) {
+	c.rendre(q, "statut-reglages", "Page de statut", "reglages", c.donneesStatutReglage(q))
 }
 
 func (c *Console) pageInterface(q *req) {
@@ -864,8 +978,28 @@ func (c *Console) pageInterface(q *req) {
 	if c.opt.GeoIP != nil {
 		d.GeoFichier, d.GeoEnMemoire, d.GeoErreur = c.opt.GeoIP.Etat()
 		d.GeoEssai, d.GeoDemande = c.opt.GeoIP.Essais()
+		d.GeoTaille = c.opt.GeoIP.Taille()
+		// Essai d'une adresse : lecture seule, rien ne sort du serveur.
+		if s := strings.TrimSpace(q.r.URL.Query().Get("ip")); s != "" && len(s) <= 45 {
+			d.GeoTestIP = s
+			switch a, err := netip.ParseAddr(s); {
+			case err != nil:
+				d.GeoTestErreur = "adresse IP illisible"
+			case d.GeoTaille == 0:
+				d.GeoTestErreur = "base pas encore téléchargée"
+			case a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast():
+				d.GeoTestErreur = "adresse privée : pas de pays"
+			default:
+				if d.GeoTestPays = c.opt.GeoIP.Pays(a); d.GeoTestPays == "" {
+					d.GeoTestErreur = "pays inconnu pour cette adresse"
+				}
+			}
+		}
 	}
-	d.Statut = c.donneesStatutReglage(q)
+	d.Fuseaux = slices.Clone(fuseauxProposes)
+	if !slices.Contains(d.Fuseaux, d.Fuseau) {
+		d.Fuseaux = append([]string{d.Fuseau}, d.Fuseaux...)
+	}
 	c.rendre(q, "interface", "Interface", "reglages", d)
 }
 
@@ -892,6 +1026,46 @@ func (c *Console) postInterface(q *req) {
 		}
 		c.retour(q, "/reglages/interface", nil, "téléchargement de la base GéoIP demandé (dans la minute)")
 		return
+	case "general":
+		// Fuseau, adresse de l'interface (lien des messages) et adresse
+		// d'ingestion, un seul « Enregistrer » (retour du 21/11). L'adresse
+		// d'ingestion est reprise dans une commande lancée en root : code
+		// 2FA ou mode administration, demandé seulement si elle change.
+		ing, e := normaliserIngestion(f.texte("ingestion"))
+		if e != nil {
+			c.retour(q, "/reglages/interface", e, "")
+			return
+		}
+		if ing != r.Ingestion {
+			if e := c.verifierCode(q); e != nil {
+				c.retour(q, "/reglages/interface", e, "")
+				return
+			}
+		}
+		r.Ingestion = ing
+		r.Fuseau = f.texte("fuseau")
+		if e := r.valider(); e != nil {
+			c.retour(q, "/reglages/interface", e, "")
+			return
+		}
+		if rn, e := notif.LireReglages(q.r.Context(), c.db); e == nil && rn.Lien != f.texte("lien") {
+			rn.Lien = f.texte("lien")
+			if e := notif.EcrireReglages(q.r.Context(), c.db, rn, c.opt.Cle, q.qui(), q.t); e != nil {
+				c.retour(q, "/reglages/interface", e, "")
+				return
+			}
+		}
+	case "apparence":
+		r.Theme, r.Menu, r.MenuReplie = f.texte("theme"), f.texte("menu"), f.coche("menu_replie")
+	case "geoip_auto":
+		avantGeo := r.GeoIP
+		r.GeoIP = f.coche("geoip")
+		if r.GeoIP && !avantGeo && c.opt.GeoIP != nil {
+			c.opt.GeoIP.Demander()
+		}
+		if !r.GeoIP && avantGeo && c.opt.GeoIP != nil {
+			c.opt.GeoIP.Supprimer()
+		}
 	case "adresse":
 		// Cette adresse est reprise dans la commande d'installation, lancée
 		// en root sur les machines : code 2FA ou mode administration

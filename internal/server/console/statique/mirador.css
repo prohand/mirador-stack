@@ -1800,3 +1800,54 @@ details.ecm-proc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .cons-baisse ul { margin: 6px 0 8px; padding-left: 20px; }
 .cons-bas { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px; }
 .message-carte.attention { border-left: 4px solid var(--attention-trait); }
+
+/* Notifications (retour du 21/11, maquette validée) : résumé en haut,
+   canaux en liste compacte (une ligne par canal, réglages dépliés dessous). */
+.notif-etat .entete-carte { flex-wrap: wrap; }
+.notif-mode { margin-left: auto; }
+.notif-tuiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); margin-top: 6px; }
+.notif-tuile { border: 1px solid var(--bord); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.notif-tuile > small { color: var(--pale); }
+.notif-tuile b { font-size: 17px; }
+.notif-tuile .pastille { align-self: flex-start; }
+.attention-texte { color: var(--attention); }
+.notif-essai { margin: 12px 0 0; }
+.canaux-liste .canal { display: grid; grid-template-columns: minmax(0, 1fr) auto 120px; align-items: center; gap: 4px 10px; position: relative; padding: 12px 0; border-top: 1px solid var(--bord-doux); }
+.canaux-liste .canal:first-of-type { border-top: 0; }
+.canaux-liste .canal-tete { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 2px 10px; }
+.canaux-liste .canal-tete .puce { grid-row: 1 / span 2; }
+.canaux-liste .canal-tete h3 { margin: 0; font-size: 15px; }
+.canaux-liste .canal-tete .pastille { justify-self: start; }
+.canaux-liste .canal-desc { grid-column: 2 / -1; margin: 0; font-size: 13px; }
+.canaux-liste .canal > button { grid-column: 2; grid-row: 1; }
+.canaux-liste .canal > details.reglage-canal { grid-column: 1 / -1; grid-row: 2; }
+.canaux-liste .canal > details.reglage-canal > summary { position: absolute; top: 14px; right: 0; width: 112px; justify-content: center; }
+.canaux-liste .canal > details.reglage-canal[open] > div { margin-top: 10px; padding: 12px; border-radius: 10px; background: var(--survol); }
+.canaux-liste .canal.inactif .canal-tete h3 { color: var(--doux); }
+.table-routage select { min-height: 36px; }
+@media (max-width: 640px) {
+  .canaux-liste .canal { grid-template-columns: minmax(0, 1fr) 104px; }
+  .canaux-liste .canal > button { grid-column: 1; grid-row: 3; justify-self: start; }
+  .canaux-liste .canal > details.reglage-canal > summary { width: 100px; }
+  .canaux-liste .canal-tete { grid-template-columns: auto 1fr; }
+  .canaux-liste .canal-tete .pastille { grid-column: 2; }
+  .canaux-liste .canal-desc { grid-column: 1 / -1; }
+}
+form.pile.large#form-notif { max-width: none; }
+
+/* Sauvegardes (retour du 21/11, maquette validée). */
+form.pile.large.form-large, form.form-large { max-width: none; }
+.sauv-plan { align-items: flex-end; }
+.sauv-maintenant { margin-top: 12px; }
+.reglage-dest > summary { display: inline-flex; margin-top: 2px; }
+.reglage-dest[open] > div { margin-top: 10px; padding: 12px; border-radius: 10px; background: var(--survol); }
+/* Certificats (retour du 21/11) : une ligne par collecteur. */
+.canaux-liste .cert-ligne > form { grid-column: 2; grid-row: 1; }
+.canaux-liste .cert-ligne:first-of-type { border-top: 0; }
+@media (max-width: 640px) { .canaux-liste .cert-ligne > form { grid-column: 1; grid-row: 3; } }
+/* Réglages › Interface (refonte du 21/11) : champs alignés en haut quand
+   leurs aides n'ont pas la même hauteur ; GéoIP aéré sous les tuiles. */
+.cons-champs.haut { align-items: flex-start; }
+@media (min-width: 700px) { .cons-champs.haut > label.case { margin-top: 34px; } }
+.geoip-test { margin-top: 16px; align-items: flex-end; }
+.geoip-auto { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bord); align-items: center; }

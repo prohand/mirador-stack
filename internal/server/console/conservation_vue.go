@@ -196,3 +196,37 @@ func (f champs) gio(k string, errs *[]error) int64 {
 	}
 	return int64(math.Round(v * (1 << 30)))
 }
+
+// choixDuree : liste de durées en clair pour un réglage au format vmalert
+// (« 10s », « 5m », « 2h ») ; zero : texte de « 0 » (« jamais », « tout de
+// suite »). La valeur actuelle est ajoutée si elle n'est pas dans la liste
+// (page Notifications, retour du 21/11).
+func choixDuree(courante alertes.Duree, zero string, valeurs ...string) []optionDuree {
+	var out []optionDuree
+	vue := false
+	for _, v := range valeurs {
+		d, err := alertes.LireDuree(v)
+		if err != nil {
+			continue
+		}
+		t := dureeCourte(d)
+		if d == 0 {
+			t = zero
+		}
+		o := optionDuree{Valeur: d.String(), Texte: t, Secondes: int64(time.Duration(d) / time.Second), Choisie: d == courante}
+		vue = vue || o.Choisie
+		out = append(out, o)
+	}
+	if !vue {
+		o := optionDuree{Valeur: courante.String(), Texte: dureeCourte(courante), Secondes: int64(time.Duration(courante) / time.Second), Choisie: true}
+		if courante == 0 {
+			o.Texte = zero
+		}
+		i := 0
+		for i < len(out) && out[i].Secondes < o.Secondes {
+			i++
+		}
+		out = append(out[:i], append([]optionDuree{o}, out[i:]...)...)
+	}
+	return out
+}

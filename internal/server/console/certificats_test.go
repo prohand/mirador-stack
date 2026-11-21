@@ -67,7 +67,7 @@ func TestRenouvelerDepuisReglages(t *testing.T) {
 	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
 	_, _ = b.c.db.Exec(`INSERT INTO certificats_syslog(machine_id, nom, csr, csr_recue_le) VALUES (?, '', 'x', 1)`, idC)
 	_, corps, _ := b.get(c, "/reglages/certificats")
-	for _, attendu := range []string{`href="/machines/collecteur-lan#certificat">collecteur-lan</a>`, `class="pastille "`, "Syslog pas réglé",
+	for _, attendu := range []string{`href="/machines/collecteur-lan#certificat">collecteur-lan</a>`, `<span class="pastille">syslog pas réglé</span>`, `href="/machines/collecteur-lan#syslog"`,
 		`value="renouveler"`, "Compte DNS et Let's Encrypt", `<span class="pastille attention">À faire</span>`, `href="/reglages/certificats">Certificats</a>`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page Certificats : %q absent", attendu)

@@ -1,21 +1,18 @@
 {{define "contenu"}}{{$r := .D.R}}
 <h1>Certificats</h1>
 {{template "onglets-reglages" (onglet $ "certificats")}}
-<section class="carte"><h2>Certificats des collecteurs</h2>
-<p class="sous">Chaque collecteur a son propre certificat pour le syslog TLS (clé privée restée sur le collecteur). Le serveur fait le défi DNS chez ton fournisseur avec le compte ci-dessous, et les renouvelle seul 30 jours avant l'échéance.</p>
-{{if .D.Lignes}}<div class="defile"><table><thead><tr><th>Collecteur</th><th>Certificat</th><th>Où en est-on</th><th>Fin</th><th></th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><a href="/machines/{{.Collecteur}}#certificat">{{.Collecteur}}</a></td><td>{{if .Nom}}<code>{{.Nom}}</code>{{else}}—{{end}}</td>
-<td><span class="pastille {{.Avancement.Classe}}">{{.Avancement.Resume}}</span>{{if .Erreur}}<br><small class="erreur-texte">{{.Erreur}}</small>{{end}}</td>
-<td>{{if .Fin}}{{dateS .Fin}}{{else}}—{{end}}</td>
-<td>{{if and $.Admin .Renouveler}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="renouveler"><input type="hidden" name="collecteur" value="{{.Collecteur}}">{{template "code2fa"}}<button class="secondaire petit">Renouveler</button></form>{{end}}</td></tr>
-<tr class="ligne-detail"><td colspan="5"><details{{if .Avancement.EnCours}} open{{end}}><summary>Avancement pas à pas</summary>{{template "avancement-certificat" .Avancement}}</details></td></tr>{{end}}
-</tbody></table></div>
-{{else}}<p class="vide">Aucun collecteur approuvé. <a href="/machines#ajouter">Ajouter un collecteur</a></p>{{end}}
+<section class="carte canaux-liste"><div class="entete-carte"><h2>Certificats des collecteurs</h2><small class="doux">syslog TLS · clé privée restée sur le collecteur · renouvelés seuls 30 j avant la fin</small></div>
+{{range .D.Lignes}}<div class="canal cert-ligne"><div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-cadenas"></use></svg></span><h3><a href="/machines/{{.Collecteur}}#certificat">{{.Collecteur}}</a></h3>
+{{if .Nom}}<span class="pastille {{.Classe}}">{{.Etat}}</span>{{else}}<span class="pastille">syslog pas réglé</span>{{end}}
+<p class="doux canal-desc">{{if .Nom}}<code>{{.Nom}}</code>{{if .Fin}} · fin le {{dateS .Fin}}{{end}}{{else}}<a href="/machines/{{.Collecteur}}#syslog">Régler le syslog de ce collecteur ›</a>{{end}}{{if .Erreur}} · <span class="erreur-texte">{{.Erreur}}</span>{{end}}</p></div>
+{{if and $.Admin .Renouveler}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="renouveler"><input type="hidden" name="collecteur" value="{{.Collecteur}}">{{template "code2fa"}}<button class="secondaire petit">Renouveler</button></form>{{end}}
+{{if .Nom}}<details class="reglage-canal"><summary class="bouton secondaire petit">Détail ▾</summary><div>{{template "avancement-certificat" .Avancement}}</div></details>{{end}}
+</div>{{else}}<p class="vide">Aucun collecteur approuvé. <a href="/machines#ajouter">Ajouter un collecteur</a></p>{{end}}
 </section>
 
-<section class="carte" id="compte-dns"><h2>Compte DNS et Let's Encrypt</h2>
+<section class="carte" id="compte-dns"><div class="entete-carte"><h2>Compte DNS et Let's Encrypt</h2>{{if $r.Faits}}<span class="pastille ok">Réglé</span>{{else}}<span class="pastille attention">À faire</span>{{end}}</div>
 <p class="sous">Communs à tous les collecteurs. Tous les noms de certificat doivent être dans cette zone (ex. <code>syslog.lan.{{if $r.Domaine}}{{$r.Domaine}}{{else}}exemple.org{{end}}</code>). Jeton limité au plus juste ; chiffré sur le serveur, jamais réaffiché.</p>
-{{if $r.Faits}}<p><span class="pastille ok">Réglé</span> zone <code>{{$r.Domaine}}</code>{{if $r.Annuaire}}, annuaire <code>{{$r.Annuaire}}</code>{{else}}, Let's Encrypt (production){{end}}, publication DNS vérifiée{{if $r.AttenteMax}} ({{$r.AttenteMax}} s au plus){{end}}.</p>{{else}}<p><span class="pastille attention">À faire</span> sans ce réglage, aucun certificat ne peut être obtenu.</p>{{end}}
+{{if $r.Faits}}<p>Zone <code>{{$r.Domaine}}</code>{{if $r.Annuaire}}, annuaire <code>{{$r.Annuaire}}</code>{{else}}, Let's Encrypt (production){{end}}, publication DNS vérifiée{{if $r.AttenteMax}} ({{$r.AttenteMax}} s au plus){{end}}.</p>{{else}}<p><span class="pastille attention">À faire</span> sans ce réglage, aucun certificat ne peut être obtenu.</p>{{end}}
 {{if .Admin}}<details{{if not $r.Faits}} open{{end}}><summary>{{if $r.Faits}}Modifier{{else}}Régler{{end}} le compte DNS</summary>
 <form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="reglages">
 <label>Fournisseur DNS <select name="fournisseur" data-choix-fournisseur>{{range $r.Fournisseurs}}<option value="{{.Nom}}"{{if eq .Nom $r.Fournisseur}} selected{{end}}>{{.Titre}}</option>{{end}}</select></label>

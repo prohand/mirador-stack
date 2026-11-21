@@ -19,6 +19,7 @@
 </section>{{end}}
 {{define "rangees"}}{{range .}}<details class="rangee" id="{{ancre .Titre}}" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
 <div class="panneaux{{if .Douze}} douze{{end}}">{{range .Panneaux}}{{template "panneau" .}}{{end}}</div></details>{{end}}{{end}}
+{{define "gravite-texte"}}{{if egal . "critical"}}critique{{else if egal . "warning"}}avertissement{{else if egal . "info"}}info{{else}}{{.}}{{end}}{{end}}
 {{define "gravite"}}<span class="pastille {{.}}">{{if egal . "critical"}}Critique{{else if egal . "warning"}}Avertissement{{else if egal . "info"}}Info{{else}}{{.}}{{end}}</span>{{end}}
 {{define "liste-alertes"}}{{if .}}<div data-alertes>
 <div class="ligne filtres-alertes"><label>Gravité <select data-filtre-gravite><option value="">Toutes</option><option value="3">Critique</option><option value="2">Avertissement</option><option value="1">Info</option></select></label>

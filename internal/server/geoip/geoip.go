@@ -71,6 +71,14 @@ type table struct {
 
 func (b *Base) chemin() string { return filepath.Join(b.Dossier, nomFichier) }
 
+// Taille : octets de la base sur disque (0 : absente). Page Interface.
+func (b *Base) Taille() int64 {
+	if info, err := os.Stat(b.chemin()); err == nil {
+		return info.Size()
+	}
+	return 0
+}
+
 // Etat : date de la base sur disque, dernière erreur, chargée ou non.
 func (b *Base) Etat() (fichier time.Time, enMemoire bool, erreur string) {
 	if st, err := os.Stat(b.chemin()); err == nil {

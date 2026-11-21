@@ -145,7 +145,27 @@ func fonctions() template.FuncMap {
 		// coupeURL : adresse avec des points de coupure (<wbr>) après « / », « . »,
 		// « ? », « & » : sur téléphone, une longue adresse passe à la ligne à
 		// ces endroits plutôt qu'au milieu d'un mot (retour du 20/11).
-		"coupeURL": coupeURL,
+		"coupeURL":   coupeURL,
+		"choixDuree": choixDuree,
+		// moisAnnee : « novembre 2026 » (version de la base GéoIP).
+		"moisAnnee": func(t time.Time) string {
+			mois := []string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
+			return mois[t.Month()-1] + " " + strconv.Itoa(t.Year())
+		},
+		// heure : « aujourd'hui 03:43 », « demain 03:43 » ou date (fuseau de l'interface).
+		"heure": func(t time.Time) string {
+			loc := fuseau.Load()
+			l, n := t.In(loc), time.Now().In(loc)
+			switch {
+			case l.YearDay() == n.YearDay() && l.Year() == n.Year():
+				return "aujourd'hui " + l.Format("15:04")
+			case l.YearDay() == n.Add(24*time.Hour).YearDay():
+				return "demain " + l.Format("15:04")
+			}
+			return l.Format("02/01 15:04")
+		},
+		// heureLocaleDe : « HH:MM » UTC → heure du fuseau de l'interface.
+		"heureLocaleDe": func(utc string) string { return heureLocale(utc, fuseau.Load(), time.Now()) },
 		// dureeSec : durée réglable en secondes (attributs data-* lus par mirador.js).
 		"dureeSec": func(d any) int64 { return reflect.ValueOf(d).Int() / int64(time.Second) },
 		"heureLog": func(ms int64) string {
@@ -388,6 +408,8 @@ func dureeCourte(v any) string {
 		return fmt.Sprintf("%d h", d/time.Hour)
 	case d%time.Minute == 0:
 		return fmt.Sprintf("%d min", d/time.Minute)
+	case d < time.Minute && d%time.Second == 0:
+		return fmt.Sprintf("%d s", d/time.Second)
 	}
 	return d.String()
 }
@@ -547,6 +569,7 @@ var sectionsReglages = []sectionReglages{
 	{Cle: "sauvegardes", Icone: "sauvegarde", Teinte: "vert", Titre: "Sauvegardes", Href: "/reglages/sauvegardes", Aide: "Fréquence, destinations, rétention, sauvegarde immédiate"},
 	{Cle: "serveur", Icone: "telechargement", Teinte: "bleu", Titre: "Mise à jour du serveur", Href: "/reglages/serveur", Aide: "Version installée, dernière version publiée, mise à jour en un clic (image signée, retour automatique)"},
 	{Cle: "certificats", Icone: "cadenas", Teinte: "vert", Titre: "Certificats", Href: "/reglages/certificats", Aide: "Compte DNS pour Let's Encrypt (syslog TLS des collecteurs), avancement et renouvellement"},
+	{Cle: "statut", Icone: "globe", Teinte: "vert", Titre: "Page de statut", Href: "/reglages/statut", Aide: "Page publique à partager : état des applications choisies, sans détail technique"},
 	{Cle: "sites", Icone: "maison", Teinte: "bleu", Titre: "Sites, types et groupes", Href: "/reglages/sites", Aide: "Listes proposées à l'ajout d'une machine et dans sa fiche"},
 	{Cle: "interface", Icone: "ecran", Teinte: "bleu", Titre: "Interface", Href: "/reglages/interface", Aide: "Fuseau, thème, menu, adresses de l'interface et d'ingestion, debug"},
 	{Cle: "export", Icone: "fichier", Teinte: "bleu", Titre: "Export / import", Href: "/reglages/export", Aide: "Toute la configuration en YAML, avec ou sans les secrets chiffrés"},

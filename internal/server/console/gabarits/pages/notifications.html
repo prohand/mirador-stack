@@ -2,24 +2,23 @@
 {{$r := .D.R}}{{$c := $r.Canaux}}
 <h1>Notifications</h1>
 {{template "onglets-reglages" (onglet $ "notifications")}}
-<div class="resume-notif">
-{{if $c.Principal}}{{$e := index .D.EtatPar $c.Principal}}<span class="pastille {{if $e.EnPanne}}erreur{{else}}ok{{end}}">Principal : {{majuscule $c.Principal}} · {{if $e.EnPanne}}en panne depuis {{depuisS $e.Depuis.Unix | sansIlYA}}{{else}}OK{{end}}</span>{{end}}
-{{if $c.Secours}}{{$e := index .D.EtatPar $c.Secours}}<span class="pastille {{if $e.EnPanne}}erreur{{else}}ok{{end}}">Secours : {{majuscule $c.Secours}}</span>{{else}}<span class="pastille attention" title="Si le canal principal tombe, rien ne part">Secours : aucun</span>{{end}}
-<span class="pastille{{if .D.File}} attention{{end}}">File d'attente : {{.D.File}}</span>
-{{with $c.Heartbeat}}{{if .Actif}}<span class="pastille {{if $.D.HbErr}}erreur{{else}}ok{{end}}">Heartbeat {{if $.D.HbErr}}en erreur{{else}}OK{{end}}</span>{{end}}{{end}}
+<section class="carte notif-etat" id="mode"><div class="entete-carte"><h2>État</h2>{{if egal $r.Mode "actif"}}<span class="pastille ok">Envoi actif : les messages partent</span>{{else}}<span class="pastille attention">Mode ombre : tout est calculé, rien n'est envoyé</span>{{end}}
+{{if .Admin}}<form method="post" class="ligne notif-mode">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="mode">{{template "code2fa"}}
+{{if egal $r.Mode "actif"}}<button name="mode" value="ombre" class="secondaire petit" data-confirmer="Passer en mode ombre ? Plus aucun message ne partira.">Passer en ombre</button>{{else}}<button name="mode" value="actif" class="petit">Activer l'envoi</button>{{end}}</form>{{end}}</div>
+<div class="notif-tuiles">
+<div class="notif-tuile"><small>Canal principal</small>{{if $c.Principal}}{{$e := index .D.EtatPar $c.Principal}}<b>{{majuscule $c.Principal}}</b> {{if not (index .D.Actifs $c.Principal)}}<span class="pastille erreur">pas configuré</span>{{else if $e.EnPanne}}<span class="pastille erreur" title="{{$e.Erreur}}">en panne depuis {{depuisS $e.Depuis.Unix | sansIlYA}}</span>{{else}}<span class="pastille ok">OK</span>{{end}}{{else}}<b>Aucun</b> <span class="pastille erreur">à choisir</span>{{end}}</div>
+<div class="notif-tuile"><small>Canal de secours</small>{{if $c.Secours}}{{$e := index .D.EtatPar $c.Secours}}<b>{{majuscule $c.Secours}}</b> {{if not (index .D.Actifs $c.Secours)}}<span class="pastille erreur">pas configuré</span>{{else if $e.EnPanne}}<span class="pastille erreur">en panne</span>{{else}}<span class="pastille ok">OK</span>{{end}}{{else}}<b>Aucun</b> <span class="pastille attention" title="Si le canal principal tombe, rien ne part">à choisir</span>{{end}}</div>
+<div class="notif-tuile"><small>Dernier message</small>{{with .D.Dernier}}<b>{{depuisMs .Le}}</b><small>{{if egal .Statut "ombre"}}calculé (ombre){{else if egal .Statut "echec"}}<span class="erreur-texte">échec</span>{{else}}envoyé{{end}}{{if and .Canal (ne .Canal "ombre")}} · {{majuscule .Canal}}{{end}}{{with .Gravite}} · {{template "gravite-texte" .}}{{end}}</small>{{else}}<b>—</b><small>aucun pour l'instant</small>{{end}}</div>
+<div class="notif-tuile"><small>File d'attente</small><b{{if .D.File}} class="attention-texte"{{end}}>{{.D.File}}</b>{{with $c.Heartbeat}}{{if .Actif}}<small>heartbeat {{if $.D.HbErr}}<span class="erreur-texte">en erreur</span>{{else}}OK{{end}}</small>{{end}}{{end}}</div>
 </div>
-<section class="carte mode-envoi" id="mode"><div class="ligne">
-<div><strong>Envoi des notifications :</strong> {{if egal $r.Mode "actif"}}<span class="pastille ok">Actif</span> les messages partent.{{else}}<span class="pastille attention">Ombre</span> tout est calculé, <strong>rien n'est envoyé</strong>.{{end}}</div>
-{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="mode">{{template "code2fa"}}
-{{if egal $r.Mode "actif"}}<button name="mode" value="ombre" class="secondaire" data-confirmer="Passer en mode ombre ? Plus aucun message ne partira.">Passer en ombre</button>{{else}}<button name="mode" value="actif">Activer l'envoi</button>{{end}}</form>{{end}}
-</div></section>
+{{if and .Admin $c.Principal (index .D.Actifs $c.Principal)}}<p class="notif-essai"><button form="form-notif" name="action" value="tester:{{$c.Principal}}" class="secondaire petit" formnovalidate>Envoyer un message d'essai</button> <small class="doux">sur le canal principal ({{majuscule $c.Principal}}) ; les autres canaux : « Régler » puis « Tester »</small></p>{{end}}
+</section>
 
-<form method="post" class="pile large" data-barre-enregistrer>{{template "csrf" .CSRF}}
-<h2 class="titre-section">Canaux</h2>
-<div class="grille canaux">
-{{$e := index $.D.EtatPar "telegram"}}{{$actif := $c.Telegram.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-telegram">
-<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-envoi"></use></svg></span><h3>Telegram</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "telegram" "C" $c)}}</div>
-<p class="doux">{{if $actif}}{{if $c.Telegram.Acquitter}}Bouton « Acquitter » sous les alertes{{else}}Groupe {{$c.Telegram.Chat}}{{end}}{{else}}Le plus simple pour commencer : un bot et un groupe.{{end}}</p>
+<form method="post" class="pile large" data-barre-enregistrer id="form-notif">{{template "csrf" .CSRF}}
+<section class="carte canaux-liste"><div class="entete-carte"><h2>Canaux</h2><small class="doux">un actif suffit ; le secours prend le relais si le principal tombe</small></div>
+{{$e := index $.D.EtatPar "telegram"}}{{$actif := $c.Telegram.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-telegram">
+<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-envoi"></use></svg></span><h3>Telegram</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "telegram" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}{{if $c.Telegram.Acquitter}}Bouton « Acquitter » sous les alertes{{else}}Groupe {{$c.Telegram.Chat}}{{end}}{{else}}Le plus simple pour commencer : un bot et un groupe.{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="tg_actif" value="1" {{if $c.Telegram.Actif}}checked{{end}}> Actif</label>
 <label>Jeton du bot {{if $c.Telegram.Jeton}}<small>(enregistré)</small>{{end}} {{template "secret" "tg_jeton"}}</label>
@@ -29,9 +28,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "telegram" "heartbeat")}}<button name="action" value="tester:telegram" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "application"}}{{$actif := $c.Application.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-application">
-<div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-telephone"></use></svg></span><h3>Application (push)</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "application" "C" $c)}}</div>
-<p class="doux">{{if $actif}}{{$.D.AppareilsPush}} {{accord $.D.AppareilsPush "appareil(s) abonné(s)"}}{{if $c.Application.Copie}} · reçoivent aussi les alertes{{end}}{{else}}Notifications sur téléphone ou navigateur, sans compte tiers.{{end}}</p>
+{{$e := index $.D.EtatPar "application"}}{{$actif := $c.Application.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-application">
+<div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-telephone"></use></svg></span><h3>Application (push)</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "application" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}{{$.D.AppareilsPush}} {{accord $.D.AppareilsPush "appareil(s) abonné(s)"}}{{if $c.Application.Copie}} · reçoivent aussi les alertes{{end}}{{else}}Notifications sur téléphone ou navigateur, sans compte tiers.{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="app_actif" value="1" {{if $c.Application.Actif}}checked{{end}}> Actif</label>
 <label class="case"><input type="checkbox" name="app_copie" value="1" {{if $c.Application.Copie}}checked{{end}}> Recevoir aussi les alertes en notification sur les appareils, en plus {{if and $c.Principal (ne $c.Principal "application")}}de {{majuscule $c.Principal}}{{else}}du canal principal{{end}}</label>
@@ -40,9 +39,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "application" "heartbeat")}}<button name="action" value="tester:application" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "email"}}{{$actif := $c.Email.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-email">
-<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-courrier"></use></svg></span><h3>E-mail</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "email" "C" $c)}}</div>
-<p class="doux">{{if $actif}}Vers {{range $i, $e := $c.Email.A}}{{if $i}}, {{end}}{{$e}}{{end}}{{else}}Serveur SMTP à renseigner.{{end}}</p>
+{{$e := index $.D.EtatPar "email"}}{{$actif := $c.Email.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-email">
+<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-courrier"></use></svg></span><h3>E-mail</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "email" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}Vers {{range $i, $e := $c.Email.A}}{{if $i}}, {{end}}{{$e}}{{end}}{{else}}Serveur SMTP à renseigner.{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="mail_actif" value="1" {{if $c.Email.Actif}}checked{{end}}> Actif</label>
 <div class="ligne"><label>Serveur SMTP (hôte:port) <input name="mail_serveur" value="{{$c.Email.Serveur}}" maxlength="200"></label>
@@ -53,9 +52,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "email" "heartbeat")}}<button name="action" value="tester:email" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "ntfy"}}{{$actif := $c.Ntfy.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-ntfy">
-<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-eclair"></use></svg></span><h3>ntfy</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "ntfy" "C" $c)}}</div>
-<p class="doux">{{if $actif}}Sujet ntfy configuré{{else}}Bon candidat pour le canal de secours.{{end}}</p>
+{{$e := index $.D.EtatPar "ntfy"}}{{$actif := $c.Ntfy.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-ntfy">
+<div class="canal-tete"><span class="puce bleu"><svg class="icone"><use href="#i-eclair"></use></svg></span><h3>ntfy</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "ntfy" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}Sujet ntfy configuré{{else}}Bon candidat pour le canal de secours.{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="ntfy_actif" value="1" {{if $c.Ntfy.Actif}}checked{{end}}> Actif</label>
 <label>Adresse du sujet <input name="ntfy_url" value="{{$c.Ntfy.URL}}" placeholder="https://ntfy.sh/mon-sujet" maxlength="300"></label>
@@ -63,9 +62,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "ntfy" "heartbeat")}}<button name="action" value="tester:ntfy" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "webhook"}}{{$actif := $c.Webhook.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-webhook">
-<div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-envoi"></use></svg></span><h3>Webhook</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "webhook" "C" $c)}}</div>
-<p class="doux">{{if $actif}}{{range $.D.FormatsWebhook}}{{if eq (index . 0) $c.Webhook.Format}}{{index . 1}}{{end}}{{end}}{{if $c.Webhook.ReseauPrive}} · réseau local{{end}}{{else}}Home Assistant, Discord, Gotify, Matrix, Slack, Mattermost…{{end}}</p>
+{{$e := index $.D.EtatPar "webhook"}}{{$actif := $c.Webhook.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-webhook">
+<div class="canal-tete"><span class="puce violet"><svg class="icone"><use href="#i-envoi"></use></svg></span><h3>Webhook</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "webhook" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}{{range $.D.FormatsWebhook}}{{if eq (index . 0) $c.Webhook.Format}}{{index . 1}}{{end}}{{end}}{{if $c.Webhook.ReseauPrive}} · réseau local{{end}}{{else}}Home Assistant, Discord, Gotify, Matrix, Slack, Mattermost…{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="wh_actif" value="1" {{if $c.Webhook.Actif}}checked{{end}}> Actif</label>
 <label>Adresse (secrète) {{if $c.Webhook.URL}}<small>(enregistrée)</small>{{end}} <input type="password" name="wh_url" autocomplete="new-password" placeholder="{{if $c.Webhook.URL}}(inchangée){{else}}https://ha.lan:8123/api/webhook/mirador-…{{end}}" maxlength="1000"></label>
@@ -81,9 +80,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "webhook" "heartbeat")}}<button name="action" value="tester:webhook" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "olvid"}}{{$actif := $c.Olvid.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-olvid">
-<div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-cle"></use></svg></span><h3>Olvid</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "olvid" "C" $c)}}</div>
-<p class="doux">{{if $actif}}Discussion n° {{$c.Olvid.Discussion}}{{else}}Messagerie chiffrée ; daemon à installer (assistant).{{end}}</p>
+{{$e := index $.D.EtatPar "olvid"}}{{$actif := $c.Olvid.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-olvid">
+<div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-cle"></use></svg></span><h3>Olvid</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "olvid" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}Discussion n° {{$c.Olvid.Discussion}}{{else}}Messagerie chiffrée ; daemon à installer (assistant).{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="olvid_actif" value="1" {{if $c.Olvid.Actif}}checked{{end}}> Actif</label>
 <label>Adresse du daemon (réseau Docker interne) <input name="olvid_adresse" value="{{$c.Olvid.Adresse}}" placeholder="172.30.0.21:50051" maxlength="100"></label>
@@ -94,9 +93,9 @@
 </div></details>
 {{if and $.Admin $actif (ne "olvid" "heartbeat")}}<button name="action" value="tester:olvid" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-{{$e := index $.D.EtatPar "heartbeat"}}{{$actif := $c.Heartbeat.Actif}}<section class="carte canal{{if not $actif}} inactif{{end}}" id="canal-heartbeat">
-<div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-activite"></use></svg></span><h3>Heartbeat</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "heartbeat" "C" $c)}}</div>
-<p class="doux">{{if $actif}}{{with $c.Heartbeat}}{{.NomService}} · toutes les {{.Intervalle}}{{end}}{{if $.D.HbErr}} · <span class="erreur-texte">{{$.D.HbErr}}</span>{{else if not $.D.HbOK.IsZero}} · dernier envoi {{depuisS $.D.HbOK.Unix}}{{end}}{{else}}Un service externe vous prévient si mirador s'arrête.{{end}}</p>
+{{$e := index $.D.EtatPar "heartbeat"}}{{$actif := $c.Heartbeat.Actif}}<section class="canal{{if not $actif}} inactif{{end}}" id="canal-heartbeat">
+<div class="canal-tete"><span class="puce vert"><svg class="icone"><use href="#i-activite"></use></svg></span><h3>Heartbeat</h3>{{template "etat-canal" (dict "Actif" $actif "E" $e "Nom" "heartbeat" "C" $c)}}
+<p class="doux canal-desc">{{if $actif}}{{with $c.Heartbeat}}{{.NomService}} · toutes les {{.Intervalle}}{{end}}{{if $.D.HbErr}} · <span class="erreur-texte">{{$.D.HbErr}}</span>{{else if not $.D.HbOK.IsZero}} · dernier envoi {{depuisS $.D.HbOK.Unix}}{{end}}{{else}}Un service externe vous prévient si mirador s'arrête.{{end}}</p></div>
 <details class="reglage-canal"{{if and $actif $e.EnPanne}} open{{end}}><summary class="bouton {{if $actif}}secondaire {{end}}petit">{{if $actif}}Régler ▾{{else}}Configurer ▾{{end}}</summary><div class="pile">
 <label class="case"><input type="checkbox" name="hb_actif" value="1" {{if $c.Heartbeat.Actif}}checked{{end}}> Actif</label>
 <label>Service <select name="hb_service">{{$s := $c.Heartbeat.Service}}{{range .D.ServicesHB}}<option value="{{.Code}}" {{if or (egal .Code $s) (and (egal .Code "autre") (egal $s ""))}}selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
@@ -107,13 +106,13 @@
 </div></details>
 {{if and $.Admin $c.Heartbeat.URL}}<button name="action" value="tester-heartbeat" class="secondaire petit" formnovalidate>Tester</button>{{end}}
 </section>
-</div>
+</section>
 <section class="carte lien-modeles"><div class="ligne"><div><strong>Modèles des messages</strong> : {{if .D.R.Modeles}}{{len .D.R.Modeles}} modèle(s) personnalisé(s){{else}}mise en forme de mirador{{end}}. Le texte des alertes, résolutions, rappels… à votre façon, avec aperçu par canal.</div>
 <a class="bouton secondaire petit" href="/reglages/notifications/modeles">Modifier les modèles</a></div></section>
 <section class="carte" id="bascule"><h2>Principal, secours, bascule</h2>
 <p>Les alertes partent sur <strong>un seul canal</strong> : le principal. S'il tombe en panne, elles partent sur le secours (avec un message « canal principal en panne »), puis reviennent sur le principal quand il remarche.</p>
-<div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option {{if egal . $c.Principal}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-<label>Canal de secours <select name="secours"><option value="">Aucun</option>{{range $.D.Canaux}}<option {{if egal . $c.Secours}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+<div class="ligne"><label>Canal principal <select name="principal">{{range $.D.Canaux}}<option value="{{.}}" {{if egal . $c.Principal}}selected{{end}}>{{majuscule .}}</option>{{end}}</select></label>
+<label>Canal de secours <select name="secours"><option value="">Aucun</option>{{range $.D.Canaux}}<option value="{{.}}" {{if egal . $c.Secours}}selected{{end}}>{{majuscule .}}</option>{{end}}</select></label>
 <label>Panne après <span class="unite"><input type="number" name="echecs" value="{{$c.Echecs}}" min="1" max="20"> échecs</span></label>
 <label>Retour après <span class="unite"><input type="number" name="retours" value="{{$c.Retours}}" min="1" max="20"> réussites</span></label></div>
 <details class="avance"><summary>Avancé : vérifications, adresses privées</summary>
@@ -121,11 +120,13 @@
 <label>Vérification des autres <input name="verif_autres" value="{{$c.VerifAutres}}" size="6" maxlength="10"></label></div>
 <label class="case"><input type="checkbox" name="reseau_prive" value="1" {{if $c.ReseauPrive}}checked{{end}}> Autoriser ntfy / SMTP / heartbeat sur une adresse privée (sinon refusé : protection SSRF)</label></details>
 </section>
-<section class="carte" id="routage"><h2>Routage par gravité</h2><div class="defile"><table><thead><tr><th>Gravité</th><th>Attente avant le 1er message</th><th>Écart entre deux messages</th><th>Rappel (0 = jamais)</th><th>Escalade (0 = coupée)</th><th>Son</th></tr></thead><tbody>
+<section class="carte" id="routage"><h2>Quand prévenir</h2><div class="defile"><table class="table-routage"><thead><tr><th>Gravité</th><th>Attendre avant le 1er message</th><th>Regrouper pendant</th><th>Rappeler toutes les</th><th>Escalader au secours après</th><th>Son</th></tr></thead><tbody>
 {{range $g := (liste "critical" "warning" "info")}}{{$ro := index $r.Routes $g}}<tr><td>{{template "gravite" $g}}</td>
-<td><input name="attente_{{$g}}" value="{{$ro.Attente}}" size="6" maxlength="10"></td><td><input name="intervalle_{{$g}}" value="{{$ro.Intervalle}}" size="6" maxlength="10"></td>
-<td><input name="rappel_{{$g}}" value="{{$ro.Rappel}}" size="6" maxlength="10"></td><td><input name="escalade_{{$g}}" value="{{$ro.Escalade}}" size="6" maxlength="10" title="Pas prise en charge après ce délai : aussi envoyée au canal de secours"></td><td><input type="checkbox" name="son_{{$g}}" value="1" {{if $ro.Son}}checked{{end}}></td></tr>{{end}}
-</tbody></table></div><small class="aide">Défauts : critique 10s / 5m / 2h avec son ; avertissement et info 30s / 5m / 12h. Escalade : alerte pas prise en charge après ce délai, aussi envoyée au canal de secours (une fois).</small>
+<td><select name="attente_{{$g}}" aria-label="Attente avant le premier message">{{range choixDuree $ro.Attente "tout de suite" "0s" "10s" "30s" "1m" "2m" "5m" "10m" "15m"}}<option value="{{.Valeur}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></td>
+<td><select name="intervalle_{{$g}}" aria-label="Écart entre deux messages">{{range choixDuree $ro.Intervalle "aucun" "30s" "1m" "2m" "5m" "10m" "15m" "30m" "1h"}}<option value="{{.Valeur}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></td>
+<td><select name="rappel_{{$g}}" aria-label="Rappel">{{range choixDuree $ro.Rappel "jamais" "0s" "30m" "1h" "2h" "4h" "6h" "12h" "1d"}}<option value="{{.Valeur}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></td>
+<td><select name="escalade_{{$g}}" aria-label="Escalade" title="Pas prise en charge après ce délai : aussi envoyée au canal de secours">{{range choixDuree $ro.Escalade "jamais" "0s" "5m" "10m" "15m" "30m" "1h" "2h" "4h"}}<option value="{{.Valeur}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></td><td><input type="checkbox" name="son_{{$g}}" value="1"{{if $ro.Son}} checked{{end}} aria-label="Son"></td></tr>{{end}}
+</tbody></table></div><small class="aide">Défauts : critique 10 s / 5 min / 2 h avec son ; avertissement et info 30 s / 5 min / 12 h. « Regrouper pendant » : écart minimum entre deux messages d'un même groupe. Escalade : alerte pas prise en charge après ce délai, aussi envoyée au canal de secours (une fois).</small>
 <label class="regrouper">Regrouper dans un même message les alertes qui ont les mêmes étiquettes <input name="grouper_par" value="{{range $i, $e := $r.GrouperPar}}{{if $i}}, {{end}}{{$e}}{{end}}" maxlength="300"> <small class="aide">Défaut : alertname, instance</small></label>
 <label class="case"><input type="checkbox" name="extraits_logs" value="1" {{if not $r.SansExtraitsLogs}}checked{{end}}> Joindre les 5 dernières lignes de logs du service, du conteneur ou du noyau en cause (alertes nouvelles seulement ; logs déjà masqués par l'agent)</label>
 </section>
