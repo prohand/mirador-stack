@@ -1581,6 +1581,14 @@ fois à la main), `mirador-maj-serveur` installé sur le VPS (« Tout est
 prêt ») ; agents en 0.6.0 ; « En ce moment » en direct vérifié sur les
 machines. Premier essai du bouton : à la prochaine version (0.6.1).
 
+## Conservation des données : page revue (SPEC § 103, 21/11)
+
+Maquette validée le 21/11 : barre du disque, une carte par type, durées en
+clair, plafonds en Go, prévision pendant la saisie, avertissement seulement
+en cas de baisse, téléphone corrigé (plafonds visibles). Coût : 2 `stat` de
+plus par affichage de la page. Tests : page, hausse, baisse refusée sans
+confirmation puis programmée, prévision et plafond.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

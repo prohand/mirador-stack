@@ -362,12 +362,13 @@ func (c *Console) postNotifications(q *req) {
 // --- Conservation des données ------------------------------------------------------------
 
 type donneesConservation struct {
-	C, Defaut        Conservation
-	Attente          *ReductionEnAttente
-	Etat             EtatStockage
-	EstimM, EstimL   int64
-	Proposee         *Conservation // estimation demandée (bouton « estimer »)
-	EstimPM, EstimPL int64
+	C, Defaut               Conservation
+	Attente                 *ReductionEnAttente
+	Etat                    EtatStockage
+	Cartes                  []carteConservation // métriques brutes, agrégées, logs
+	Disque                  vueDisque
+	OptAudit, OptHistorique []optionDuree
+	AttenteTexte            string // réduction programmée, en clair
 }
 
 // Les plafonds se saisissent en Mio.
@@ -387,8 +388,42 @@ func (c *Console) donneesConservation(q *req) donneesConservation {
 		c.flash(q, "", err.Error())
 	}
 	d.Attente, _ = LireAttente(ctx, c.db)
-	d.EstimM, d.EstimL = d.Etat.Estimation(d.C)
+	d.Cartes, d.Disque = c.cartesConservation(d.Etat, d.C, q.t)
+	d.OptAudit, d.OptHistorique = optionsDuree(joursAudit, d.C.Audit), optionsDuree(joursHistorique, d.C.Historique)
+	if a := d.Attente; a != nil {
+		d.AttenteTexte = texteChangements(d.C, a.Valeur)
+	}
 	return d
+}
+
+// texteChangements : « logs 30 j → 14 j · plafond des logs 4 Go → 2 Go ».
+func texteChangements(a, n Conservation) string {
+	var l []string
+	dur := func(nom string, x, y alertes.Duree) {
+		if x != y {
+			l = append(l, nom+" "+dureeCourte(x)+" → "+dureeCourte(y))
+		}
+	}
+	pla := func(nom string, x, y int64) {
+		if x != y {
+			txt := func(v int64) string {
+				if v == 0 {
+					return "sans plafond"
+				}
+				return goTexte(v) + " Go"
+			}
+			l = append(l, "plafond "+nom+" "+txt(x)+" → "+txt(y))
+		}
+	}
+	dur("métriques brutes", a.Brut, n.Brut)
+	dur("métriques agrégées", a.Agrege, n.Agrege)
+	dur("logs", a.Logs, n.Logs)
+	dur("journal d'audit", a.Audit, n.Audit)
+	dur("alertes et envois", a.Historique, n.Historique)
+	pla("des métriques brutes", a.MaxBrut, n.MaxBrut)
+	pla("des agrégats", a.MaxAgrege, n.MaxAgrege)
+	pla("des logs", a.MaxLogs, n.MaxLogs)
+	return strings.Join(l, " · ")
 }
 
 func (c *Console) pageConservation(q *req) {
@@ -404,8 +439,15 @@ func (c *Console) postConservation(q *req) {
 		return
 	}
 	var errs []error
+	// Plafonds en Go (page du 21/11) ; en Mio pour l'ancien formulaire.
+	plafond := func(k string) int64 {
+		if q.r.PostForm.Has(k + "_go") {
+			return f.gio(k+"_go", &errs)
+		}
+		return f.mio(k, &errs)
+	}
 	n := Conservation{Brut: f.duree("brut", &errs), Agrege: f.duree("agrege", &errs), Logs: f.duree("logs", &errs),
-		MaxBrut: f.mio("max_brut", &errs), MaxAgrege: f.mio("max_agrege", &errs), MaxLogs: f.mio("max_logs", &errs)}
+		MaxBrut: plafond("max_brut"), MaxAgrege: plafond("max_agrege"), MaxLogs: plafond("max_logs")}
 	// Audit et historique : champ absent (ancien formulaire, script) = inchangé.
 	actuel, _ := LireConservation(ctx, c.db)
 	n.Audit, n.Historique = actuel.Audit, actuel.Historique
@@ -419,19 +461,12 @@ func (c *Console) postConservation(q *req) {
 		n, errs = ConservationDefaut(), nil
 	}
 	err := errors.Join(append(errs, n.Valider())...)
-	if err == nil && f.texte("action") == "estimer" {
-		d := c.donneesConservation(q)
-		d.Proposee = &n
-		d.EstimPM, d.EstimPL = d.Etat.Estimation(n)
-		c.rendre(q, "conservation", "Conservation des données", "reglages", d)
-		return
-	}
 	if err == nil {
 		avant, _ := LireConservation(ctx, c.db)
 		if avant.reduit(n) {
 			// Garde-fou du brief : confirmation + 2FA avant toute réduction.
 			if !f.coche("confirmer") {
-				err = errors.New("cette modification supprimera des données : cocher la confirmation")
+				err = errors.New("cette modification supprimera des données (" + texteChangements(avant, n) + ") : cocher la confirmation")
 			} else {
 				err = c.verifierCode(q)
 			}

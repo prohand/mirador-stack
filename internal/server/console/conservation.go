@@ -262,7 +262,8 @@ type EtatStockage struct {
 	Brut, Agrege, Logs                               int64 // octets
 	Series                                           uint64
 	PlusAncienBrut, PlusAncienAgrege, PlusAncienLogs time.Time
-	BrutParJour, LogsParJour                         float64 // octets par jour (mesurés)
+	BrutParJour, AgregeParJour, LogsParJour          float64 // octets par jour (mesurés)
+	Base                                             int64   // base SQLite (audit, historique, réglages)
 	DisqueLibre, DisqueTotal                         int64
 	AuditLignes, AuditOctets                         int64
 	PlusAncienAudit                                  time.Time
@@ -292,6 +293,12 @@ func (c *Console) etatStockage(t time.Time) EtatStockage {
 			e.PlusAncienAgrege = time.UnixMilli(a)
 		}
 		e.BrutParJour = parJour(e.Brut, e.PlusAncienBrut)
+		// Agrégats : mesurés s'il y a au moins un jour d'historique, sinon
+		// ~1/10 du brut (un point par 5 min au lieu d'un toutes les 30 s).
+		e.AgregeParJour = e.BrutParJour / 10
+		if !e.PlusAncienAgrege.IsZero() && t.Sub(e.PlusAncienAgrege) >= 24*time.Hour {
+			e.AgregeParJour = parJour(e.Agrege, e.PlusAncienAgrege)
+		}
 	}
 	if c.opt.Logs != nil {
 		e.Logs = c.opt.Logs.Taille()
@@ -299,6 +306,7 @@ func (c *Console) etatStockage(t time.Time) EtatStockage {
 		e.LogsParJour = parJour(e.Logs, e.PlusAncienLogs)
 	}
 	e.DisqueLibre, e.DisqueTotal = espaceDisque(c.opt.Donnees)
+	e.Base = tailleBase(c.opt.Donnees)
 	ctx := context.Background()
 	var plusAncien int64
 	_ = c.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(LENGTH(qui) + LENGTH(action) + LENGTH(objet) + LENGTH(avant) + LENGTH(apres) + LENGTH(adresse) + 40), 0),
@@ -335,7 +343,7 @@ func (e EtatStockage) Estimation(c Conservation) (metriques, logs int64) {
 		}
 		return int64(v)
 	}
-	metriques = plafond(e.BrutParJour*jours(c.Brut), c.MaxBrut) + plafond(e.BrutParJour/10*jours(c.Agrege), c.MaxAgrege)
+	metriques = plafond(e.BrutParJour*jours(c.Brut), c.MaxBrut) + plafond(e.AgregeParJour*jours(c.Agrege), c.MaxAgrege)
 	logs = plafond(e.LogsParJour*jours(c.Logs), c.MaxLogs)
 	return
 }

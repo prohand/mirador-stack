@@ -1,44 +1,43 @@
-{{define "contenu"}}
+{{define "contenu"}}{{$d := .D}}{{$e := $d.Etat}}
 <h1>Conservation des données</h1>
 {{template "onglets-reglages" (onglet $ "conservation")}}
-{{with .D.Attente}}<section class="carte"><h2 class="erreur">Réduction programmée</h2>
-<p>Les nouveaux réglages (brut {{.Valeur.Brut}}, agrégé {{.Valeur.Agrege}}, logs {{.Valeur.Logs}}, audit {{.Valeur.Audit}}, historique {{.Valeur.Historique}}) seront appliqués le <strong>{{dateS .Le}}</strong> (demandé par {{.Par}}). Des données seront alors supprimées.</p>
+{{with $d.Attente}}<section class="carte message-carte attention"><h2>Réduction programmée</h2>
+<p>{{$d.AttenteTexte}}. Appliquée le <strong>{{dateS .Le}}</strong> (demandée par {{.Par}}) : les données au-delà seront alors supprimées.</p>
 {{if $.Admin}}<form method="post">{{template "csrf" $.CSRF}}<button name="action" value="annuler">Annuler la réduction</button></form>{{end}}</section>{{end}}
-{{$e := .D.Etat}}
-<div class="chiffres">
-<div class="chiffre"><b>{{taille $e.Brut}}</b><span>Métriques brutes{{if not $e.PlusAncienBrut.IsZero}} depuis {{date $e.PlusAncienBrut}}{{end}}</span></div>
-<div class="chiffre"><b>{{taille $e.Agrege}}</b><span>Agrégats 5 min{{if not $e.PlusAncienAgrege.IsZero}} depuis {{date $e.PlusAncienAgrege}}{{end}}</span></div>
-<div class="chiffre"><b>{{taille $e.Logs}}</b><span>Logs{{if not $e.PlusAncienLogs.IsZero}} depuis {{date $e.PlusAncienLogs}}{{end}}</span></div>
-<div class="chiffre"><b>{{$e.Series}}</b><span>Séries actives</span></div>
-<div class="chiffre"><b>{{taille (entier $e.LogsParJour)}}</b><span>Logs par jour (mesuré)</span></div>
-<div class="chiffre"><b>{{$e.AuditLignes}}</b><span>Lignes d'audit (~{{taille $e.AuditOctets}}){{if not $e.PlusAncienAudit.IsZero}} depuis {{date $e.PlusAncienAudit}}{{end}}</span></div>
-<div class="chiffre"><b>{{$e.HistoriqueLignes}}</b><span>Alertes résolues et envois gardés</span></div>
-<div class="chiffre"><b>{{taille $e.DisqueLibre}}</b><span>Libres sur {{taille $e.DisqueTotal}}</span></div>
-</div>
-<p>Avec les réglages actuels, le stockage utilisera environ <strong>{{taille .D.EstimM}}</strong> pour les métriques et <strong>{{taille .D.EstimL}}</strong> pour les logs (d'après le volume réellement mesuré).</p>
-{{with .D.Proposee}}<p class="message ok">Avec les réglages proposés : environ <strong>{{taille $.D.EstimPM}}</strong> (métriques) et <strong>{{taille $.D.EstimPL}}</strong> (logs).</p>{{end}}
-<section class="carte"><h2>Réglages</h2>
-{{$c := .D.C}}{{with .D.Proposee}}{{$c = .}}{{end}}
-<form method="post" class="pile large">{{template "csrf" .CSRF}}
-<div class="defile"><table class="formulaire">
-<thead><tr><th>Données</th><th>Durée</th><th>Plafond (Mio, 0 = aucun)</th><th>Limites</th></tr></thead><tbody>
-<tr><td>Métriques brutes (30 s)</td><td><input name="brut" value="{{$c.Brut}}" size="7" maxlength="10" aria-label="Durée des métriques brutes"></td>
-<td><input type="number" name="max_brut" value="{{mio $c.MaxBrut}}" min="0" aria-label="Plafond des métriques brutes"></td><td><small class="aide">1 à 90 jours (défaut {{dureeC .D.Defaut.Brut}})</small></td></tr>
-<tr><td>Métriques agrégées (5 min)</td><td><input name="agrege" value="{{$c.Agrege}}" size="7" maxlength="10" aria-label="Durée des métriques agrégées"></td>
-<td><input type="number" name="max_agrege" value="{{mio $c.MaxAgrege}}" min="0" aria-label="Plafond des métriques agrégées"></td><td><small class="aide">7 à 730 jours (défaut {{dureeC .D.Defaut.Agrege}})</small></td></tr>
-<tr><td>Logs</td><td><input name="logs" value="{{$c.Logs}}" size="7" maxlength="10" aria-label="Durée des logs"></td>
-<td><input type="number" name="max_logs" value="{{mio $c.MaxLogs}}" min="0" aria-label="Plafond des logs"></td><td><small class="aide">1 à 365 jours (défaut {{dureeC .D.Defaut.Logs}})</small></td></tr>
-<tr><td>Journal d'audit</td><td><input name="audit" value="{{$c.Audit}}" size="7" maxlength="10" aria-label="Durée du journal d'audit"></td>
-<td></td><td><small class="aide">90 jours à 10 ans (défaut {{dureeC .D.Defaut.Audit}})</small></td></tr>
-<tr><td>Alertes résolues et envois</td><td><input name="historique" value="{{$c.Historique}}" size="7" maxlength="10" aria-label="Durée de l'historique des alertes"></td>
-<td></td><td><small class="aide">30 à 730 jours (défaut {{dureeC .D.Defaut.Historique}})</small></td></tr>
-</tbody></table></div>
-<small class="aide">Plafond atteint : les données les plus anciennes partent en premier. {{template "plus" "aide.md#conservation-plafonds"}}</small>
-<label class="case"><input type="checkbox" name="confirmer" value="1"> Je confirme : une réduction supprimera des données (appliquée dans 5 min, annulable)</label>
-{{template "code2fa"}}
-{{if .Admin}}<div class="ligne"><button name="action" value="estimer" class="secondaire">Estimer sans enregistrer</button><button name="action" value="enregistrer">Enregistrer</button>
-<button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut ?">Rétablir les valeurs par défaut</button></div>{{end}}
-</form>
 
-</section>
+{{with $d.Disque}}<section class="carte" data-cons-disque data-total="{{.Total}}" data-libre="{{.Libre}}" data-mirador="{{.Mirador}}" data-base="{{.Base}}">
+<div class="entete-carte"><h2>Place sur le disque</h2>{{if .Texte}}<span class="pastille {{.Classe}}" data-cons-etat>{{.Texte}}</span>{{end}}</div>
+{{if .Total}}<div class="cons-barre" role="img" aria-label="Occupation du disque des données">{{if .PctBrut}}<i class="c-brut" data-largeur="{{.PctBrut}}"></i>{{end}}{{if .PctAgrege}}<i class="c-agrege" data-largeur="{{.PctAgrege}}"></i>{{end}}{{if .PctLogs}}<i class="c-logs" data-largeur="{{.PctLogs}}"></i>{{end}}{{if .PctBase}}<i class="c-base" data-largeur="{{.PctBase}}"></i>{{end}}<i class="c-autre" data-largeur="{{.PctAutres}}"></i></div>
+<div class="cons-leg"><span><i class="c-brut"></i>Métriques brutes {{taille $e.Brut}}</span><span><i class="c-agrege"></i>Agrégats {{taille $e.Agrege}}</span><span><i class="c-logs"></i>Logs {{taille $e.Logs}}</span><span><i class="c-base"></i>Base (audit, historique, réglages) {{taille .Base}}</span><span><i class="c-autre"></i>Autres fichiers {{taille .Autres}}</span><span><i class="c-libre"></i>Libres {{taille .Libre}} sur {{taille .Total}}</span></div>{{end}}
+<p class="sous cons-resume">mirador occupe <b>{{taille .Mirador}}</b> aujourd'hui ; avec les réglages ci-dessous, au plus <b data-cons-prevu-total>{{taille .Prevu}}</b> (plafonds compris).</p>
+</section>{{end}}
+
+<form method="post" class="carte cons-form" data-cons>{{template "csrf" .CSRF}}
+<h2>Durées et plafonds</h2>
+<div class="cons-grille">
+{{range $d.Cartes}}<div class="cons-carte" data-cons-carte="{{.Cle}}" data-par-jour="{{printf "%.0f" .ParJour}}" data-occupe="{{.Occupe}}" data-actuel-sec="{{dureeSec .Duree}}" data-actuel-plafond="{{.Plafond}}">
+<div class="cons-tete"><h3>{{.Titre}}</h3><small>{{.Sous}}</small></div>
+<div class="cons-chiffres"><span><b>{{taille .Occupe}}</b>gardé{{if eq .Cle "logs"}}s{{else}}es{{end}}</span><span><b>{{.Garde}}</b>la plus ancienne</span><span><b>{{if .ParJour}}{{taille (entier .ParJour)}}{{else}}—{{end}}</b>par jour</span></div>
+{{if .Plafond}}<div><div class="cons-jauge"><i class="{{.Couleur}} largeur-{{.PctPlafond}}"></i></div><small class="doux">{{taille .Occupe}} sur {{taille .Plafond}} de plafond</small></div>{{end}}
+<div class="cons-champs"><label>Garder <select name="{{.Cle}}" data-cons-duree>{{range .Options}}<option value="{{.Valeur}}" data-sec="{{.Secondes}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></label>
+<label>Plafond <span class="unite"><input type="number" name="max_{{.Cle}}_go" value="{{.PlafondGo}}" min="0" max="4096" step="0.5" inputmode="decimal" data-cons-plafond> Go</span></label></div>
+<p class="cons-prev" data-cons-prev>{{.TextePrevu}}</p>
+</div>{{end}}
+<div class="cons-carte" data-cons-carte="historique" data-actuel-audit="{{dureeSec $d.C.Audit}}" data-actuel-historique="{{dureeSec $d.C.Historique}}">
+<div class="cons-tete"><h3>Historique</h3><small>dans la base du serveur</small></div>
+<div class="cons-chiffres"><span><b>{{$e.AuditLignes}}</b>lignes d'audit</span><span><b>{{$e.HistoriqueLignes}}</b>alertes résolues et envois</span><span><b>{{taille $e.Base}}</b>base en tout</span></div>
+<div class="cons-champs"><label>Journal d'audit <select name="audit" data-cons-duree="audit">{{range $d.OptAudit}}<option value="{{.Valeur}}" data-sec="{{.Secondes}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></label>
+<label>Alertes résolues et envois <select name="historique" data-cons-duree="historique">{{range $d.OptHistorique}}<option value="{{.Valeur}}" data-sec="{{.Secondes}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></label></div>
+<p class="cons-prev">Purgés une fois par jour. Journal d'audit : 90 jours au moins (on ne peut pas effacer vite ses propres traces).</p>
+</div>
+</div>
+{{/* Sans JavaScript, ce bloc reste visible ; mirador.js ne le montre que si une durée ou un plafond baisse. */}}
+<div class="message attention cons-baisse" data-cons-baisse>
+<p data-cons-baisse-texte>Si une durée ou un plafond baisse, les données au-delà seront supprimées <b>5 min</b> après l'enregistrement (annulable d'ici là).</p>
+<label class="case"><input type="checkbox" name="confirmer" value="1" data-cons-confirmer> Je confirme : ces données seront supprimées</label>
+</div>
+<p class="aide"><small class="aide">Plafond atteint : les données les plus anciennes partent en premier ; 0 = sans plafond. {{template "plus" "aide.md#conservation-plafonds"}}</small></p>
+{{if .Admin}}<div class="cons-bas">{{template "code2fa"}}<button name="action" value="enregistrer">Enregistrer</button>
+<button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut ?">Valeurs par défaut</button></div>{{end}}
+</form>
 {{end}}
