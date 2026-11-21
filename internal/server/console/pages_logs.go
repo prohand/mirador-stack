@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"mirador-stack/internal/motif"
 	"mirador-stack/internal/server/stockage"
 	"mirador-stack/internal/server/stockage/journaux"
 )
@@ -36,7 +37,7 @@ var champsLogs = []struct{ Nom, Titre string }{
 	{"site", "Site"}, {"env", "Type"}, {"groupe", "Groupe"},
 }
 
-var reValeurChamp = regexp.MustCompile(`^[\p{L}\p{N} ._:/@+-]{1,200}$`)
+var reValeurChamp = motif.Doit(`^[\p{L}\p{N} ._:/@+-]+$`, 1, 200)
 
 type compte struct {
 	Nom string
