@@ -3,6 +3,7 @@
 package console
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -46,5 +47,37 @@ func TestEvenements(t *testing.T) {
 	_, corps, _ = b.get(cl, "/evenements?machine=web1&type=alerte")
 	if strings.Contains(corps, "Maintenance de") || strings.Contains(corps, "Paquets") || !strings.Contains(corps, "Agent muet") {
 		t.Error("filtres machine et type")
+	}
+}
+
+// Relecture du 21/11 : le filtre machine passe avant la limite ; une
+// machine calme garde ses événements même si une autre en a beaucoup.
+func TestEvenementsMachineAvantLimite(t *testing.T) {
+	b := nouveauBanc(t)
+	m := b.h.maintenant()
+	b.machinesApprouvees(t, "bavarde", "calme")
+	for i := 0; i < 30; i++ {
+		if _, err := b.c.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('bavarde', ?, 'paquets', 'x 1 → 2')`, m.Add(-time.Duration(i)*time.Minute).Unix()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := b.c.db.Exec(`INSERT INTO audit(le, qui, action, objet) VALUES (?, 'web:admin', 'machine_renommee', 'bavarde')`, m.Add(-time.Duration(i)*time.Minute).Unix()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, _ = b.c.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('calme', ?, 'paquets', 'y 1 → 2')`, m.Add(-2*time.Hour).Unix())
+	_, _ = b.c.db.Exec(`INSERT INTO audit(le, qui, action, objet) VALUES (?, 'web:admin', 'machine_renommee', 'calme')`, m.Add(-2*time.Hour).Unix())
+	_, _ = b.c.db.Exec(`INSERT INTO audit(le, qui, action, objet) VALUES (?, 'web:admin', 'machine_renommee', 'calme_x')`, m.Add(-2*time.Hour).Unix())
+	ev := b.c.journalEvenements(context.Background(), filtreEvenements{Debut: m.Add(-24 * time.Hour), Fin: m, Machine: "calme", Max: 10})
+	var chgt, reglage int
+	for _, e := range ev {
+		switch e.Type {
+		case evChangement:
+			chgt++
+		case evReglage:
+			reglage++
+		}
+	}
+	if chgt != 1 || reglage != 1 {
+		t.Errorf("machine calme : %d changement(s), %d réglage(s) ; attendu 1 et 1", chgt, reglage)
 	}
 }

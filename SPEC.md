@@ -7787,3 +7787,71 @@ d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
   après une coupure).
 - Coût : nul (une ligne de plus dans le message signé des manifestes
   « retour »).
+
+## 113. Relecture de l'interface (21/11) **[Fait, à valider]**
+Quatre relectures en parallèle (sécurité, machines, alertes/logs/réglages,
+navigateur ordinateur et iPhone). Chaque point a été vérifié (test ou
+navigateur) avant d'être corrigé ; un test Go par correction côté serveur.
+
+**Sécurité**
+- Import « agents » : un secret « *** » (UniFi, SNMP) n'est gardé que si
+  l'adresse et l'empreinte TLS de l'équipement ne changent pas (même règle
+  que le formulaire). Menace couverte : un fichier d'import modifié qui
+  enverrait le mot de passe vers une autre machine du LAN ou d'Internet.
+- Rôle : un rôle fixé par un autre admin efface le changement en attente
+  de confirmation ; l'annulation automatique ne l'écrase plus.
+- Déconnexion alors que la session n'est plus en mémoire, et 5 codes faux :
+  l'appareil de confiance est oublié (le cookie volé ne revient plus).
+- Lien des messages (adresse de l'interface) : code 2FA demandé aussi
+  depuis Réglages › Interface.
+- Audit : le chemin de l'adresse ntfy (le sujet, secret sans jeton) est
+  masqué. Les lignes d'audit écrites avant le 21/11 le contiennent encore.
+
+**Machines, sondes, événements**
+- Renommer une machine emporte ses maintenances et ses sondes ; supprimer
+  un collecteur qui porte des sondes est refusé.
+- Réglages › Agents ne vide plus la partie « collecteur » d'une machine.
+- Événements filtrés par machine dans la requête (avant la limite).
+- Équipement créé seulement si le collecteur choisi en est un ; un réglage
+  SNMP refusé n'écrit plus rien (`ModifierConfigSi`).
+- Listes d'équipements relues après un détachement ou une suppression.
+- Sites, types, groupes : machines refusées ou en attente non touchées ;
+  lien « +N » vers une recherche exacte (`site:x`, `type:x`, `groupe:x`).
+- Retrait d'une sonde absente : message d'erreur clair, pas d'audit vide.
+- Nom de sonde proposé trop long : coupé proprement.
+
+**Alertes, logs, réglages**
+- « Voir autour » : deux lectures (avant / après) ; les lignes d'avant ne
+  sont plus perdues sur une machine bavarde.
+- Historique et incidents : les N alertes les plus récentes (pas les plus
+  anciennes) ; filtre machine aussi sur `host` et `src_ip`.
+- Règle : enregistrer une règle inconnue sans « Nouvelle règle » refusé.
+- Tableaux : décimales bornées (6), durées négatives et très longues
+  lisibles, import Grafana validé et période bornée à 31 j.
+- Conservation : réduction en attente remplacée = dit à l'écran et dans
+  l'audit ; jauge masquée si une partie est sans plafond ; saisie libre des
+  décimales.
+- Acquittement : heure de fin écrite dans le fuseau de l'interface.
+
+**Navigateur**
+- Modèles des messages : « Tous les canaux » fonctionne.
+- Vue d'ensemble : le mode « Modifier la vue » n'est plus coupé par le
+  rechargement automatique.
+- Alertes en cours : tri et filtres gardés après chaque rechargement.
+- Logs en direct : plus de lignes en double après une coupure réseau
+  (`id:` / `Last-Event-ID`) ; flux fermé après 30 s d'onglet caché et repris
+  au retour ; refus du serveur affiché.
+- « Nouvelles depuis ta dernière visite » et « (N) » du titre : calculés
+  sur le bloc des alertes (pas sur `<body>`).
+- iPhone : titre long de la barre coupé avec « … » ; zoom de l'histogramme
+  au doigt ; bouton « Rétablir les valeurs par défaut » de 44 px.
+- Période commune : plus de requête inutile sur une page sans période.
+
+**Laissé de côté**
+- Fiche d'un élément : les 15 derniers événements sont cherchés dans les
+  300 derniers du parc (texte) ; un parc très actif peut en cacher.
+- Page Machines : les « nouveautés » et les fiches sont recalculées à chaque
+  affichage (coût mesuré faible à 30 machines ; cache si le parc grandit).
+
+Coût : une à quatre lectures de logs de plus pour « voir autour » (petites
+fenêtres) ; rien d'autre de mesurable. Menaces : réduites (voir « Sécurité »).

@@ -1510,7 +1510,7 @@ form:has(.choix-repeter option[value="mois"]:checked) :is(.si-une-fois, .si-sema
   .appli:not(.ouvert) .barre .logo .txt { display: none; }
   .appli:not(.ouvert) .barre .logo svg { width: 30px; height: 30px; }
   .appli:not(.ouvert) button.aller { width: 40px; height: 40px; min-height: 40px; border-radius: 999px; background: var(--carte); border: 1px solid var(--bord); color: var(--accent); }
-  .titre-ios { position: absolute; left: 64px; right: 64px; bottom: 4px; height: 44px; display: flex; align-items: center; justify-content: center;
+  .titre-ios { position: absolute; left: 64px; right: 64px; bottom: 4px; height: 44px; display: block; line-height: 44px; text-align: center;
     font-weight: 600; font-size: 17px; color: var(--texte); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     opacity: 0; transition: opacity .2s; pointer-events: none; }
   .appli:not(.ouvert) .barre { position: sticky; }
@@ -1956,3 +1956,9 @@ tr[id^="sonde-"]:target td { background: var(--accent-fond); }
 .bandeau.admin-ferme[hidden] { display: none; }
 .bandeau.admin[hidden] { display: none; }
 @media (max-width: 640px) { .bandeau.admin-ferme { flex-wrap: nowrap; } .bandeau.admin-ferme form { margin-left: auto; } }
+
+/* Relecture du 21/11 : histogramme des logs zoomable au doigt (le défilement
+   vertical reste possible) ; « Rétablir les valeurs par défaut » assez grand
+   pour le doigt sur téléphone. */
+.logs-histo[data-zoom-logs] { touch-action: pan-y; }
+@media (max-width: 640px) { button.lien-discret { min-height: 44px; padding: 0 8px; } }

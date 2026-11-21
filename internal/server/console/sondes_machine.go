@@ -446,6 +446,12 @@ func (c *Console) postSondesMachine(q *req) {
 				garde = append(garde, x)
 			}
 		}
+		// Rien retiré (sonde déjà partie, ou d'une autre machine) : dit
+		// clairement, sans écriture ni audit (relecture du 21/11).
+		if len(garde) == len(liste) {
+			c.retour(q, retour, fmt.Errorf("sonde « %s » introuvable sur cette machine", s), "")
+			return
+		}
 		err = flotte.EnregistrerSondes(ctx, c.db, garde, q.qui(), q.t)
 		c.retour(q, retour, err, "sonde « "+s+" » retirée")
 		return

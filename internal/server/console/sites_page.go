@@ -118,9 +118,9 @@ func (c *Console) pageSites(q *req) {
 	}
 	usages := c.usages(ctx, liste)
 	for _, v := range *l.valeurs(liste.Cle) {
-		lg := ligneListe{Valeur: v, Lien: "/machines?q=" + url.QueryEscape(v), Aussi: usages[v]}
+		lg := ligneListe{Valeur: v, Lien: "/machines?q=" + url.QueryEscape(prefixeRecherche[liste.Cle]+v), Aussi: usages[v]}
 		for _, m := range ms {
-			if valeurDe(m, liste.Cle) == v {
+			if m.Statut == "approuvee" && valeurDe(m, liste.Cle) == v {
 				lg.Machines++
 				if len(lg.Noms) < machinesVisibles {
 					lg.Noms = append(lg.Noms, m.Nom)
@@ -280,7 +280,19 @@ func (c *Console) rangerMachines(ctx context.Context, liste listeMachines, v str
 		return 0, err
 	}
 	n := 0
+	// Étiquettes relues par l'ingestion même si une écriture échoue en
+	// route (les machines déjà rangées le restent).
+	defer func() {
+		if n > 0 {
+			c.oublierEtiquettes()
+		}
+	}()
 	for _, m := range ms {
+		// Machines refusées ou en attente : pas touchées (relecture du
+		// 21/11 : elles perdaient leur site sans être dans la liste).
+		if m.Statut != "approuvee" {
+			continue
+		}
 		avant := valeurDe(m, liste.Cle)
 		apres := avant
 		if slices.Contains(cochees, m.Nom) {
@@ -305,7 +317,6 @@ func (c *Console) rangerMachines(ctx context.Context, liste listeMachines, v str
 		}
 		n++
 	}
-	c.oublierEtiquettes()
 	return n, nil
 }
 
@@ -318,3 +329,7 @@ func (c *Console) oublierEtiquettes() {
 	}
 	flotte.SignalerConfig()
 }
+
+// prefixeRecherche : recherche exacte de la liste des machines pour chaque
+// liste de Réglages › Sites (même compte que le lien « +N »).
+var prefixeRecherche = map[string]string{"sites": "site:", "types": "type:", "groupes": "groupe:"}

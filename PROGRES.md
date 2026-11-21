@@ -1656,6 +1656,15 @@ Retour arrière signé valable 7 jours (date dans la signature, migration
 tel quel, sur décision. Tests : retour expiré / sans date refusé, date
 modifiée = signature cassée, ligne TTY longue.
 
+## Relecture de l'interface (SPEC § 113, 21/11)
+
+Quatre relectures (sécurité, machines, alertes/logs/réglages, navigateur
+ordinateur + iPhone, 524 pages visitées). ~45 points vérifiés et corrigés,
+2 laissés de côté (§ 113). Tests Go ajoutés (la plupart échouent sans la
+correction) ; corrections du navigateur revérifiées dans la démo (modèles,
+édition de la vue, tri des alertes). `go vet`, tests et gosec sans alerte.
+Coût : négligeable.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

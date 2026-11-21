@@ -967,9 +967,6 @@ func (c *Console) postMachine(q *req) {
 			err = flotte.RattacherEquipement(ctx, c.db, idC, idE, q.qui(), q.t)
 			ok = eq + " rattaché : le collecteur reçoit sa nouvelle liste tout de suite"
 		}
-		if c.opt.Ingestion != nil {
-			c.opt.Ingestion.OublierEquipements()
-		}
 	case "supprimer":
 		err = flotte.Supprimer(ctx, c.db, nom, q.qui(), q.t)
 		if err == nil && f("historique") != "" && c.opt.Metriques != nil {
@@ -984,6 +981,12 @@ func (c *Console) postMachine(q *req) {
 	}
 	if err == nil && c.opt.Ingestion != nil {
 		c.opt.Ingestion.Auth().Oublier() // effet immédiat sur les tokens
+		// Liste des équipements par collecteur relue aussi après un
+		// détachement ou une suppression (relecture du 21/11 : seul le
+		// rattachement la vidait).
+		if action == "rattacher" || action == "detacher" || action == "supprimer" {
+			c.opt.Ingestion.OublierEquipements()
+		}
 	}
 	c.retour(q, vers, err, ok)
 }

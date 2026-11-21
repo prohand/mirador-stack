@@ -271,6 +271,13 @@ func CreerEquipement(ctx context.Context, db *sql.DB, nom string, collecteur int
 	if err := nomLibre(ctx, tx, nom, 0); err != nil {
 		return err
 	}
+	// Collecteur vérifié avant la création (relecture du 21/11 : sinon
+	// l'équipement restait créé mais rattaché à personne).
+	if nomC, typC, err := typeDe(ctx, tx, collecteur); err != nil {
+		return err
+	} else if typC != "collecteur" {
+		return fmt.Errorf("%s n'est pas un collecteur", nomC)
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO machines(nom, statut, cree_le) VALUES (?, 'approuvee', ?)`, nom, maintenant.Unix()); err != nil {
 		return err
 	}

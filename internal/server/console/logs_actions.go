@@ -115,6 +115,12 @@ func (c *Console) logsFlux(q *req) {
 	}
 	defer nbFluxLogs.Add(-1)
 	depuis, _ := strconv.ParseInt(v.Get("depuis"), 10, 64)
+	// Reconnexion seule du navigateur (réseau coupé) : il renvoie le dernier
+	// « id » reçu ; on repart de là au lieu de renvoyer les mêmes lignes
+	// (relecture du 21/11 : lignes en double à chaque reconnexion).
+	if id, err := strconv.ParseInt(q.r.Header.Get("Last-Event-ID"), 10, 64); err == nil && id > depuis {
+		depuis = id
+	}
 	if depuis <= 0 {
 		depuis = c.maintenant().Add(-time.Minute).UnixMilli()
 	}
@@ -154,7 +160,7 @@ func (c *Console) logsFlux(q *req) {
 		if err == nil && len(out.Lignes) > 0 {
 			depuis = out.Fin
 			b, _ := json.Marshal(out)
-			if !ecrire("event: lignes\ndata: " + string(b) + "\n\n") {
+			if !ecrire("id: " + strconv.FormatInt(out.Fin, 10) + "\nevent: lignes\ndata: " + string(b) + "\n\n") {
 				return
 			}
 		}

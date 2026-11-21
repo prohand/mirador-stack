@@ -498,10 +498,17 @@ func (c *Console) postConservation(q *req) {
 	ok := "réglages enregistrés et appliqués"
 	if err == nil {
 		var attente bool
+		enCours, _ := LireAttente(ctx, c.db)
 		if attente, err = EcrireConservation(ctx, c.db, n, q.qui(), q.ip.String(), q.t); err == nil && attente {
 			ok = "réduction programmée dans 5 minutes : elle peut encore être annulée"
+			if enCours != nil {
+				ok += " (elle remplace la réduction qui attendait)"
+			}
 		} else if err == nil {
 			c.appliquerConservation(ctx, q.t)
+			if enCours != nil {
+				ok += " ; la réduction qui attendait est annulée (refaire la réduction si elle est toujours voulue)"
+			}
 		}
 	}
 	c.retour(q, "/reglages/conservation", err, ok)

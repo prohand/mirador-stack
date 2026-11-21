@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	essais "mirador-stack/internal/sondes"
 	"net"
 	"net/http"
@@ -792,5 +793,36 @@ func TestRenommerEmporteReferences(t *testing.T) {
 	// Les sondes restent modifiables.
 	if err := EnregistrerSondes(ctx, b.db, nil, "admin", t0); err != nil {
 		t.Errorf("sondes bloquées après renommage : %v", err)
+	}
+}
+
+// Relecture du 21/11 : équipement créé seulement si le collecteur en est
+// un ; configuration inchangée (ni audit) quand le changement est refusé.
+func TestEquipementEtModifierConfigSi(t *testing.T) {
+	b := nouveauBanc(t)
+	if _, err := b.db.Exec(`INSERT INTO machines(nom, type, statut, cree_le) VALUES ('web1', 'agent', 'approuvee', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := IDMachine(ctx, b.db, "web1")
+	if err := CreerEquipement(ctx, b.db, "imprimante", id, "admin", t0); err == nil {
+		t.Error("équipement rattaché à un agent accepté")
+	}
+	if _, err := IDMachine(ctx, b.db, "imprimante"); err == nil {
+		t.Error("équipement créé malgré le refus")
+	}
+	var avant int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit`).Scan(&avant)
+	err := ModifierConfigSi(ctx, b.db, "machine:"+strconv.FormatInt(id, 10), func(m map[string]any) error {
+		m["intervalle"] = "10s"
+		return errors.New("saisie refusée")
+	}, "admin", t0)
+	if err == nil {
+		t.Fatal("erreur perdue")
+	}
+	var apres, nb int
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM audit`).Scan(&apres)
+	_ = b.db.QueryRow(`SELECT COUNT(*) FROM reglages WHERE cle LIKE 'config_agent:%'`).Scan(&nb)
+	if apres != avant || nb != 0 {
+		t.Errorf("écrit malgré le refus : audit %d → %d, configs %d", avant, apres, nb)
 	}
 }

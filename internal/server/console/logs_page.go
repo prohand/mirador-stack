@@ -636,12 +636,35 @@ func (c *Console) autour(q *req, v url.Values, a string) (*vueAutour, error) {
 		nApres = 20
 	}
 	nAvant, nApres = min(nAvant, autourMax), min(nApres, autourMax)
-	res, err := c.chercherLogs(q.r.Context(), journaux.Requete{Debut: t - autourFenetre.Milliseconds(), Fin: t + autourFenetre.Milliseconds(),
-		Champs: map[string]string{"host": h}, Limite: lignesAnalyse})
+	// Deux lectures (relecture du 21/11 : une seule lecture de ±1 h,
+	// limitée aux lignes les plus récentes, perdait les lignes d'avant sur
+	// une machine bavarde).
+	//  - avant : les plus récentes avant t, donc les plus proches ;
+	//  - après : fenêtre qui grandit (1 min, 4 min…) jusqu'à avoir assez
+	//    de lignes ; si elle déborde, on garde la fenêtre précédente, lue
+	//    en entier (les lignes les plus proches de t).
+	champs := map[string]string{"host": h}
+	res, err := c.chercherLogs(q.r.Context(), journaux.Requete{Debut: t - autourFenetre.Milliseconds(), Fin: t - 1, Champs: champs, Limite: nAvant})
 	if err != nil {
 		return nil, err
 	}
 	ls := res.Lignes
+	var apres []stockage.Ligne
+	for w := time.Minute; ; w *= 4 {
+		w = min(w, autourFenetre)
+		r, err := c.chercherLogs(q.r.Context(), journaux.Requete{Debut: t, Fin: t + w.Milliseconds(), Champs: champs, Limite: lignesAnalyse})
+		if err != nil {
+			return nil, err
+		}
+		if r.Tronque && apres != nil {
+			break
+		}
+		apres = r.Lignes
+		if r.Tronque || len(apres) > nApres || w >= autourFenetre {
+			break
+		}
+	}
+	ls = append(ls, apres...)
 	sort.SliceStable(ls, func(i, j int) bool { return ls[i].T < ls[j].T }) // du plus ancien au plus récent
 	i := sort.Search(len(ls), func(k int) bool { return ls[k].T >= t })
 	debut, fin := max(0, i-nAvant), min(len(ls), i+nApres+1)

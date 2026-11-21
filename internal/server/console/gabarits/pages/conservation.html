@@ -20,7 +20,7 @@
 <div class="cons-chiffres"><span><b>{{taille .Occupe}}</b>gardé{{if eq .Cle "logs"}}s{{else}}es{{end}}</span><span><b>{{.Garde}}</b>la plus ancienne</span><span><b>{{if .ParJour}}{{taille (entier .ParJour)}}{{else}}—{{end}}</b>par jour</span></div>
 {{if .Plafond}}<div><div class="cons-jauge"><i class="{{.Couleur}} largeur-{{.PctPlafond}}"></i></div><small class="doux">{{taille .Occupe}} sur {{taille .Plafond}} de plafond</small></div>{{end}}
 <div class="cons-champs"><label>Garder <select name="{{.Cle}}" data-cons-duree>{{range .Options}}<option value="{{.Valeur}}" data-sec="{{.Secondes}}"{{if .Choisie}} selected{{end}}>{{.Texte}}</option>{{end}}</select></label>
-<label>Plafond <span class="unite"><input type="number" name="max_{{.Cle}}_go" value="{{.PlafondGo}}" min="0" max="4096" step="0.5" inputmode="decimal" data-cons-plafond> Go</span></label></div>
+<label>Plafond <span class="unite"><input type="number" name="max_{{.Cle}}_go" value="{{.PlafondGo}}" min="0" max="4096" step="any" inputmode="decimal" data-cons-plafond> Go</span></label></div>
 <p class="cons-prev" data-cons-prev>{{.TextePrevu}}</p>
 </div>{{end}}
 <div class="cons-carte" data-cons-carte="historique" data-actuel-audit="{{dureeSec $d.C.Audit}}" data-actuel-historique="{{dureeSec $d.C.Historique}}">

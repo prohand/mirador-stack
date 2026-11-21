@@ -88,10 +88,22 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			out = append(out, e)
 		}
 	}
+	// Filtre machine appliqué dans la requête, avant la limite (relecture
+	// du 21/11 : sinon, sur un parc chargé, les événements d'une machine
+	// calme étaient coupés par ceux des autres).
+	sqlAlerte, sqlChgt := "", ""
+	argsAlerte := []any{f.Debut.UnixMilli(), f.Fin.UnixMilli(), f.Debut.UnixMilli(), f.Fin.UnixMilli()}
+	argsChgt := []any{f.Debut.Unix(), f.Fin.Unix()}
+	if f.Machine != "" {
+		sqlAlerte = ` AND COALESCE(NULLIF(json_extract(etiquettes, '$.instance'), ''), json_extract(etiquettes, '$.host')) = ?`
+		argsAlerte = append(argsAlerte, f.Machine)
+		sqlChgt = ` AND machine = ?`
+		argsChgt = append(argsChgt, f.Machine)
+	}
 	// Alertes : début (passage en alerte) et fin.
 	if rows, err := c.db.QueryContext(ctx, `SELECT id, regle, etiquettes, gravite, active_le, fin, resume FROM alertes
-		WHERE active_le > 0 AND (active_le BETWEEN ? AND ? OR fin BETWEEN ? AND ?) ORDER BY active_le DESC LIMIT ?`,
-		f.Debut.UnixMilli(), f.Fin.UnixMilli(), f.Debut.UnixMilli(), f.Fin.UnixMilli(), 4*f.Max); err == nil {
+		WHERE active_le > 0 AND (active_le BETWEEN ? AND ? OR fin BETWEEN ? AND ?)`+sqlAlerte+` ORDER BY active_le DESC LIMIT ?`,
+		append(argsAlerte, 4*f.Max)...); err == nil {
 		for rows.Next() {
 			var id, active, fin int64
 			var regle, etq, gravite, resume string
@@ -129,8 +141,8 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 		}
 	}
 	// Changements repérés (SPEC § 47).
-	if rows, err := c.db.QueryContext(ctx, `SELECT machine, le, type, detail FROM changements WHERE le BETWEEN ? AND ? ORDER BY le DESC LIMIT ?`,
-		f.Debut.Unix(), f.Fin.Unix(), f.Max); err == nil {
+	if rows, err := c.db.QueryContext(ctx, `SELECT machine, le, type, detail FROM changements WHERE le BETWEEN ? AND ?`+sqlChgt+` ORDER BY le DESC LIMIT ?`,
+		append(argsChgt, f.Max)...); err == nil {
 		for rows.Next() {
 			var x changements.Changement
 			var le int64
@@ -177,8 +189,25 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 		}
 		_ = rows.Close()
 	}
-	if rows, err := c.db.QueryContext(ctx, `SELECT le, qui, action, objet FROM audit WHERE le BETWEEN ? AND ? ORDER BY le DESC LIMIT ?`,
-		f.Debut.Unix(), f.Fin.Unix(), 2*f.Max); err == nil {
+	sqlAudit, argsAudit := "", []any{f.Debut.Unix(), f.Fin.Unix()}
+	if f.Machine != "" {
+		// Objet « machine:ID … » ou « nom … » (premier mot).
+		var ids []string
+		for k, v := range noms {
+			if v == f.Machine && k != v {
+				ids = append(ids, k)
+			}
+		}
+		sqlAudit = ` AND (objet = ? OR objet LIKE ? ESCAPE '\'`
+		argsAudit = append(argsAudit, f.Machine, echapperLike(f.Machine)+" %")
+		for _, id := range ids {
+			sqlAudit += ` OR objet = ? OR objet LIKE ? ESCAPE '\'`
+			argsAudit = append(argsAudit, id, echapperLike(id)+" %")
+		}
+		sqlAudit += `)`
+	}
+	if rows, err := c.db.QueryContext(ctx, `SELECT le, qui, action, objet FROM audit WHERE le BETWEEN ? AND ?`+sqlAudit+` ORDER BY le DESC LIMIT ?`, // #nosec G202 -- morceaux SQL fixes, valeurs en paramètres
+		append(argsAudit, 2*f.Max)...); err == nil {
 		for rows.Next() {
 			var le int64
 			var qui, action, objet string
@@ -324,4 +353,9 @@ func textePanne(p flotte.Panne) string {
 		return "Processus tué faute de mémoire : " + p.Texte
 	}
 	return p.Type + " " + p.Objet
+}
+
+// echapperLike protège %, _ et \ d'un texte pour « LIKE … ESCAPE '\' ».
+func echapperLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
 }

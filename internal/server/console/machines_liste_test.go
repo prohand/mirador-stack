@@ -204,3 +204,18 @@ func TestPageAjouter(t *testing.T) {
 		t.Error("équipement « ajouter » créé : sa page serait inaccessible")
 	}
 }
+
+// Relecture du 21/11 : « site:x » cherche la valeur exacte du site (lien
+// « +N » de Réglages › Sites), pas un mot dans le nom.
+func TestRechercheExacteSite(t *testing.T) {
+	f := lireFiltresMachines("", "", "site:maison")
+	if !f.trouve(vm("nas", "maison", "", false, "", "", "agent")) {
+		t.Error("machine du site non trouvée")
+	}
+	if f.trouve(vm("maison-pc", "ovh", "", false, "", "", "agent")) || f.trouve(vm("x", "maison2", "", false, "", "", "agent")) {
+		t.Error("recherche exacte : nom ou site voisin compté")
+	}
+	if !lireFiltresMachines("", "", "groupe:web").trouve(vm("a", "", "web", false, "", "", "agent")) {
+		t.Error("groupe:")
+	}
+}
