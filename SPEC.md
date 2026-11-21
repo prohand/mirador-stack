@@ -7673,3 +7673,22 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 - Coût : aucun calcul de plus côté serveur (mêmes lectures qu'avant, tri
   en mémoire de quelques dizaines de lignes). Menaces : inchangées (mêmes
   actions, code 2FA, signature vérifiée).
+
+## 110. Mode administration : rouvrir facilement (21/11) **[Fait, à valider]**
+- Constat : sur un appareil enregistré, une fois le mode administration
+  expiré, il ne se rouvrait que depuis « Mon compte ». Et sur une page
+  restée ouverte (PWA), le navigateur le croyait encore ouvert : il ne
+  demandait pas le code et l'action était refusée.
+- Correction :
+  - bandeau discret « Mode administration fermé · **Ouvrir** » sur toutes
+    les pages (administrateurs, mode activé dans Réglages › Sécurité) ;
+    « Ouvrir » demande le code 2FA dans la fenêtre habituelle et revient
+    sur la même page ;
+  - la page connaît les secondes restantes : à la fin, le bandeau vert
+    laisse place au bandeau « fermé » et le code est de nouveau demandé
+    avant d'envoyer un formulaire (contrôle aussi au retour sur l'appli,
+    minuteries gelées en arrière-plan sur téléphone).
+- Menaces : inchangées. Le serveur reste seul juge (heure de fin dans la
+  session) ; le navigateur ne fait que demander le code au bon moment.
+  Ouvrir le mode exige toujours un code 2FA neuf (anti-rejeu, limite
+  d'essais). Coût : nul.

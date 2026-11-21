@@ -596,6 +596,12 @@ type Page struct {
 	Flash, Alerte string
 	ModeOmbre     bool
 	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
+	// Retour du 21/11 : secondes restantes du mode (le navigateur sait
+	// quand il se ferme, même page restée ouverte) ; ModeAdminPossible :
+	// administrateur et mode activé dans Réglages › Sécurité (bandeau
+	// « fermé » avec un bouton pour le rouvrir).
+	ModeAdminReste    int
+	ModeAdminPossible bool
 	AConfirmer    []AConfirmer
 	Version       string
 	Theme         string // data-theme forcé (clair, sombre) ; vide = suit le système
@@ -635,7 +641,9 @@ func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	}
 	if q.t.Before(q.s.AdminJusqua) {
 		p.ModeAdmin = q.s.AdminJusqua.In(fuseau.Load()).Format("15:04")
+		p.ModeAdminReste = int(q.s.AdminJusqua.Sub(q.t).Seconds())
 	}
+	p.ModeAdminPossible = p.Admin && c.dureeModeAdmin() > 0
 	p.AConfirmer, _ = ListerAConfirmer(q.r.Context(), c.db)
 	p.Olvid = c.olvidActive(q.r.Context())
 	// Thème : celui choisi par l'utilisateur (sélecteur du menu), sinon

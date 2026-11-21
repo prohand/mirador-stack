@@ -1634,6 +1634,13 @@ une machine, déployer), machines par état avec filtres, cartes de
 versions, réglages repliés. Audit : lignes séparées comme les logs.
 Coût : nul (mêmes lectures). Tests : états, étapes 1 à 4, cartes, filtre.
 
+## Mode administration : rouvrir facilement (SPEC § 110, 21/11)
+
+Bandeau « fermé · Ouvrir » sur toutes les pages ; fin du mode suivie par le
+navigateur (page restée ouverte). Vérifié sur iPhone simulé (horloge avancée
+de 11 min, bandeau qui bascule, réouverture avec le code). Test Go :
+bandeaux ouvert / fermé / désactivé, retour sur la page.
+
 ## Prochaine étape
 
 Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),

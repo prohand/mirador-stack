@@ -1253,9 +1253,31 @@ document.addEventListener("change", function (e) {
     boite.showModal();
     champ.focus();
   }
+  // Mode administration (retour du 21/11) : ouvert seulement jusqu'à sa fin,
+  // même sur une page restée ouverte longtemps (PWA). À la fin, le bandeau
+  // vert laisse place au bandeau « fermé » avec son bouton « Ouvrir », et
+  // le code 2FA est de nouveau demandé avant d'envoyer un formulaire.
+  var resteAdmin = parseInt(document.body.getAttribute("data-mode-admin-reste") || "0", 10);
+  var finAdmin = resteAdmin > 0 ? Date.now() + resteAdmin * 1000 : 0;
+  function modeAdminOuvert() { return finAdmin > 0 && Date.now() < finAdmin; }
+  function fermerModeAdmin() {
+    finAdmin = 0;
+    document.body.removeAttribute("data-mode-admin");
+    var vert = document.querySelector("[data-bandeau-admin]"), ferme = document.querySelector("[data-bandeau-admin-ferme]");
+    if (vert) { vert.hidden = true; }
+    if (ferme) { ferme.hidden = false; }
+  }
+  if (finAdmin) {
+    // Minuterie, et contrôle au retour sur l'appli (minuteries gelées en
+    // arrière-plan sur téléphone).
+    window.setTimeout(fermerModeAdmin, resteAdmin * 1000);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && finAdmin && !modeAdminOuvert()) { fermerModeAdmin(); }
+    });
+  }
   document.addEventListener("submit", function (e) {
     var b = e.submitter, form = e.target;
-    if (!b || !form || !form.querySelector || document.body.hasAttribute("data-mode-admin")) { return; }
+    if (!b || !form || !form.querySelector || modeAdminOuvert()) { return; }
     var besoin = b.hasAttribute("data-code");
     if (besoin && b.getAttribute("data-code-sauf")) {
       var c = form.querySelector('input[type="checkbox"][name="' + b.getAttribute("data-code-sauf") + '"]');

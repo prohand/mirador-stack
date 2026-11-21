@@ -17,7 +17,7 @@
 <script src="{{statique "uplot/uPlot.iife.min.js"}}" defer></script>
 <script src="{{statique "graphes.js"}}" defer></script>
 </head>
-<body{{if .SansAides}} class="sans-aides"{{end}} data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}" data-nb-alertes="{{.NbAlertes}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}"{{end}}>
+<body{{if .SansAides}} class="sans-aides"{{end}} data-csrf="{{.CSRF}}" data-utilisateur="{{.Utilisateur}}" data-nb-alertes="{{.NbAlertes}}"{{if .ModeAdmin}} data-mode-admin="{{.ModeAdmin}}" data-mode-admin-reste="{{.ModeAdminReste}}"{{end}}>
 {{template "icones"}}
 <div class="appli menu-{{.Disposition}}{{if .Replie}} replie{{end}}" id="appli" data-replie-defaut="{{if .Replie}}1{{else}}0{{end}}">
   <aside class="barre">
@@ -55,7 +55,9 @@
     {{end}}    <button type="button" data-menu-plus aria-expanded="false" aria-label="Ouvrir ou fermer tout le menu"><svg class="icone"><use href="#i-menu"></use></svg><span>Plus</span></button>
   </nav>
   <div class="contenu">
-    {{if .ModeAdmin}}<div class="bandeau admin"><svg class="icone"><use href="#i-cadenas"></use></svg> <span>Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong><span class="masque-tel"> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes).</span></span> <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}
+    {{if .ModeAdmin}}<div class="bandeau admin" data-bandeau-admin><svg class="icone"><use href="#i-cadenas"></use></svg> <span>Mode administration jusqu'à <strong>{{.ModeAdmin}}</strong><span class="masque-tel"> : plus besoin du code 2FA pour les actions (sauf la sécurité des comptes).</span></span> <form method="post" action="/mode-admin/quitter" class="en-ligne">{{template "csrf" .CSRF}}<button class="lien">Quitter</button></form></div>{{end}}
+    {{/* Mode fermé (retour du 21/11) : le rouvrir d'ici, sans passer par « Mon compte ». Caché tant que le mode est ouvert ; le navigateur l'affiche à l'expiration. */}}
+    {{if .ModeAdminPossible}}<div class="bandeau admin-ferme" data-bandeau-admin-ferme{{if .ModeAdmin}} hidden{{end}}><svg class="icone"><use href="#i-cadenas"></use></svg> <span>Mode administration fermé<span class="masque-tel"> : le code 2FA est demandé pour chaque action</span>.</span> <form method="post" action="/mode-admin/ouvrir" class="en-ligne">{{template "csrf" .CSRF}}<input type="hidden" name="retour" value="{{.Chemin}}"><button class="lien" data-code data-ouvrir-admin>Ouvrir</button></form><noscript><a href="/compte#mode-admin">Ouvrir</a></noscript></div>{{end}}
     {{range .AConfirmer}}<div class="bandeau aconfirmer">
       <span>Changement « {{.Quoi}} » fait par {{.Par}} : <strong>à confirmer avant {{dateS .ExpireLe}}</strong>, sinon l'ancienne valeur revient.</span>
       <form method="post" action="/confirmer" class="enligne"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button>Confirmer</button></form>
