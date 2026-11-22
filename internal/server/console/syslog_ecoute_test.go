@@ -49,7 +49,19 @@ func TestEcouteSyslogInterface(t *testing.T) {
 	if err != nil || cfg.Collecteur == nil || cfg.Collecteur.Syslog == nil || cfg.Collecteur.Syslog.Ecoute != "192.168.35.10:6515" {
 		t.Fatalf("écoute enregistrée : %+v %v", cfg.Collecteur, err)
 	}
-	if _, page, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(page, `value="192.168.35.10" checked`) || !strings.Contains(page, `name="ecoute_port" value="6515"`) {
+	_, page, _ = b.get(c, "/machines/collecteur-lan")
+	if !strings.Contains(page, `value="192.168.35.10" checked`) || !strings.Contains(page, `name="ecoute_port" value="6515"`) {
 		t.Error("écoute enregistrée non réaffichée")
+	}
+	// Case « filterlog » : seulement avec un pare-feu parmi les émetteurs.
+	if strings.Contains(page, `name="garder_filterlog"`) {
+		t.Error("case filterlog affichée sans pare-feu")
+	}
+	app = db.Appender(ctx)
+	_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_collecteur_syslog_refus_total", "instance", "collecteur-lan", "motif", "filterlog"), m.Add(-time.Minute).UnixMilli(), 120)
+	_ = app.Commit()
+	b.h.avancer(2 * time.Minute) // cache des requêtes de la page
+	if _, page, _ := b.get(c, "/machines/collecteur-lan"); !strings.Contains(page, `name="garder_filterlog"`) {
+		t.Error("case filterlog absente alors que des lignes filterlog sont arrivées")
 	}
 }

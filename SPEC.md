@@ -8051,8 +8051,10 @@ arguments).
   l'interface propose ses adresses privées à cocher (route par défaut
   d'abord) et le port. Une seule écoute (une interface) ; adresse tapée à
   la main tant que le collecteur n'a pas envoyé ses adresses.
-- « Garder filterlog » renommé : « Garder aussi le journal des paquets du
-  pare-feu OPNsense (filterlog, très volumineux) ».
+- Case « filterlog » affichée seulement quand elle sert : un émetteur a les
+  mesures d'un pare-feu OPNsense (`pf_entries`), ou le collecteur a déjà
+  jeté des lignes filterlog (7 jours), ou elle est cochée ; libellé
+  « Pare-feu OPNsense : garder aussi son journal des paquets ».
 
 Coût : une série par interface du collecteur (quelques-unes) toutes les
 5 min. Menaces : inchangées (l'écoute reste limitée aux adresses privées,

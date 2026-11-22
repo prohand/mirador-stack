@@ -33,8 +33,12 @@ type vueSyslog struct {
 	Cert            certsyslog.Etat
 	// Écoute choisie dans l'interface (retour du 22/11) : port et une
 	// adresse parmi celles des interfaces du collecteur (mirador_adresse_info).
-	Port          string
-	Adresses      []choixAdresse
+	Port     string
+	Adresses []choixAdresse
+	// AvecPareFeu : un émetteur est un pare-feu OPNsense, ou des lignes
+	// « filterlog » ont déjà été reçues : la case « garder filterlog » ne
+	// sert qu'à eux (retour du 22/11 : affichée pour tout le monde).
+	AvecPareFeu   bool
 	ReglagesFaits bool       // compte DNS réglé (Réglages › Certificats)
 	Avancement    avancement // de la configuration à l'écoute ouverte (SPEC § 32)
 }
@@ -90,6 +94,26 @@ func (c *Console) adressesCollecteur(ctx context.Context, nom, actuelle string, 
 	return out
 }
 
+// pareFeuParmiEmetteurs : lignes « filterlog » déjà jetées par ce
+// collecteur (7 derniers jours), ou un équipement émetteur qui a les
+// mesures d'un pare-feu OPNsense (pf_entries, Telegraf).
+func (c *Console) pareFeuParmiEmetteurs(ctx context.Context, collecteur, emetteurs string, t time.Time) bool {
+	if e, err := c.instant(ctx, `max(max_over_time(mirador_collecteur_syslog_refus_total{instance=`+strconv.Quote(collecteur)+`, motif="filterlog"}[7d])) > 0`, t); err == nil && len(e) > 0 {
+		return true
+	}
+	for _, l := range strings.Split(emetteurs, "\n") {
+		ch := strings.Fields(l)
+		if len(ch) < 2 {
+			continue
+		}
+		expr := `count(pf_entries{instance=` + strconv.Quote(ch[1]) + `}) or count(pf_entries{host=` + strconv.Quote(ch[1]) + `})`
+		if e, err := c.instant(ctx, expr, t); err == nil && len(e) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // syslogAvecAvancement : réglages, certificat et avancement (page du collecteur).
 func (c *Console) syslogAvecAvancement(ctx context.Context, m flotte.InfoMachine, t time.Time) vueSyslog {
 	v := c.syslogDe(ctx, m)
@@ -99,6 +123,7 @@ func (c *Console) syslogAvecAvancement(ctx context.Context, m flotte.InfoMachine
 	}
 	v.Port = port
 	v.Adresses = c.adressesCollecteur(ctx, m.Nom, ip, t)
+	v.AvecPareFeu = v.GarderFilterlog || c.pareFeuParmiEmetteurs(ctx, m.Nom, v.Emetteurs, t)
 	r := lireReglagesCertificats(ctx, c)
 	v.ReglagesFaits = r.Faits()
 	v.Avancement = c.avancementCertificat(ctx, m.Nom, v, r, t)
