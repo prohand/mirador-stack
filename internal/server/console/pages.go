@@ -774,14 +774,16 @@ func (c *Console) pageMachine(q *req) {
 	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
 	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
 	// les courbes Linux, vides, alors que ses données arrivaient.
-	nomTableau, variable := "serveurs-linux", "instance"
-	if d.RelevePar != "" {
-		nomTableau, variable = c.tableauEquipement(ctx, m.Nom, q.t)
+	// Équipement sans agent (aucune version) : OPNsense par Telegraf aussi
+	// (retour du 22/11 : « comment remonter les métriques de fw ? »).
+	nomTableau, variable, valeur := "serveurs-linux", "instance", m.Nom
+	if d.RelevePar != "" || m.Version == "" {
+		nomTableau, variable, valeur = c.tableauEquipement(ctx, m.Nom, q.t)
 	}
 	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && m.Type == "agent" {
 		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
 		if variable != "" {
-			v.Set(variable, m.Nom)
+			v.Set(variable, valeur)
 		}
 		vals, periode, duree, err := lireFiltres(t, v)
 		if err == nil {
@@ -818,16 +820,23 @@ func (c *Console) pageMachine(q *req) {
 // tableauEquipement : tableau d'un équipement relevé par un collecteur,
 // choisi d'après ses mesures, et la variable qui le filtre sur lui (vide :
 // pas de filtre). Sans mesure reconnue : courbes Linux (agent).
-func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time) (string, string) {
+func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time) (tableau, variable, valeur string) {
 	for _, x := range []struct{ expr, tableau, variable string }{
 		{`count(systemStatus{job="snmp", instance=` + strconv.Quote(nom) + `})`, "synology", "nas"},
 		{`count(up{job="unifi", instance=` + strconv.Quote(nom) + `})`, "unifi", ""},
 	} {
 		if e, err := c.instant(ctx, x.expr, t); err == nil && len(e) > 0 {
-			return x.tableau, x.variable
+			return x.tableau, x.variable, nom
 		}
 	}
-	return "serveurs-linux", "instance"
+	// OPNsense (Telegraf) : le tableau filtre sur l'étiquette « host » que
+	// Telegraf pose (nom d'hôte du pare-feu), pas sur le nom dans mirador.
+	if e, err := c.instant(ctx, `max by (host) (last_over_time(cpu_usage_idle{cpu="cpu-total", instance=`+strconv.Quote(nom)+`}[15m]))`, t); err == nil && len(e) > 0 {
+		if h := e[0].Etiquettes.Get("host"); h != "" {
+			return "opnsense", "host", h
+		}
+	}
+	return "serveurs-linux", "instance", nom
 }
 
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce

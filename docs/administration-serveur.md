@@ -104,6 +104,12 @@ importées marchent tels quels.
    MS etiquettes -site bureau -env firewall opnsense
    ```
 
+   Équipement déjà créé (par exemple rattaché à un collecteur pour son
+   syslog et son certificat) : page de la machine › Réglages › *Modifier la
+   machine* › *Token* › **Nouveau token** (affiché une seule fois). Les deux
+   marchent ensemble : Telegraf envoie avec ce token, le collecteur garde le
+   syslog et la sonde de certificat.
+
 2. Dans OPNsense, Services › Telegraf › Output, sortie **InfluxDB v2** :
    - URL : `https://ADRESSE-INGESTION/api/agent/v1/influx` (Telegraf ajoute
      lui-même `/api/v2/write`) ;
@@ -111,7 +117,8 @@ importées marchent tels quels.
    - Organisation et Bucket : au choix (ignorés par mirador).
 
 3. Vérifier : `MS machines` (dernière réception de `opnsense`), puis le
-   tableau « OPNsense ».
+   tableau « OPNsense ». La page de la machine montre aussi ce tableau,
+   filtré sur l'étiquette `host` envoyée par Telegraf (0.6.11 et suivantes).
 
 Le nom de la machine (`instance`) est imposé par le token ; l'étiquette `host`
 envoyée par Telegraf est gardée. Lignes invalides ignorées et comptées ;

@@ -33,7 +33,15 @@ type tuileMachine struct {
 	Point       string     // ok, attention, erreur
 	Icone       string
 	Equipements []puceEquipement // collecteur : équipements relevés du même bloc
+	// Collecteur : nombre d'équipements relevés du bloc ; pastilles gardées
+	// pour ceux en difficulté seulement, 4 au plus (Autres : le reste). Les
+	// équipements ont leur tuile : la tuile du collecteur ne grandit pas
+	// avec le parc (question du 22/11).
+	NbEquipements, Autres int
 }
+
+// pucesMax : pastilles d'équipements en difficulté dans la tuile d'un collecteur.
+const pucesMax = 4
 
 // puceEquipement : un équipement dans la tuile de son collecteur.
 type puceEquipement struct {
@@ -58,6 +66,10 @@ func iconeMachine(v vueMachine) string {
 	switch {
 	case v.Collecteur():
 		return "reseau"
+	case strings.Contains(strings.ToLower(v.Env), "stockage"), strings.Contains(strings.ToLower(v.Env), "nas"):
+		return "stockage"
+	case strings.Contains(strings.ToLower(v.Env), "firewall"), strings.Contains(strings.ToLower(v.Env), "pare-feu"):
+		return "bouclier"
 	case v.ReleveePar != "":
 		return "routeur"
 	case strings.Contains(strings.ToLower(v.Env), "physique"):
@@ -67,21 +79,28 @@ func iconeMachine(v vueMachine) string {
 }
 
 // tuilesDe : tuiles d'un bloc ; un équipement placé sous son collecteur
-// (Sous) devient une puce dans la tuile du collecteur.
+// (Sous) a sa tuile, juste après lui, et une puce dans la tuile du
+// collecteur (retour du 22/11 : « il manque des machines » quand
+// l'équipement n'était qu'une puce).
 func tuilesDe(ms []vueMachine, mesures map[string]*ligneParc) []tuileMachine {
 	var out []tuileMachine
 	for _, v := range ms {
 		m := mesures[v.Nom]
-		if v.Sous && len(out) > 0 {
-			t := &out[len(out)-1]
+		if v.Sous {
 			for i := len(out) - 1; i >= 0; i-- {
 				if out[i].Nom == v.ReleveePar {
-					t = &out[i]
+					t := &out[i]
+					t.NbEquipements++
+					if p := pointMachine(v, m); p != "ok" {
+						if len(t.Equipements) < pucesMax {
+							t.Equipements = append(t.Equipements, puceEquipement{Nom: v.Nom, Point: p})
+						} else {
+							t.Autres++
+						}
+					}
 					break
 				}
 			}
-			t.Equipements = append(t.Equipements, puceEquipement{Nom: v.Nom, Point: pointMachine(v, m)})
-			continue
 		}
 		out = append(out, tuileMachine{vueMachine: v, M: m, Point: pointMachine(v, m), Icone: iconeMachine(v)})
 	}

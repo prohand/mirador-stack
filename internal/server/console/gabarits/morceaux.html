@@ -14,7 +14,8 @@
 {{if ge .PctMemoire 0}}<span>Mém.</span><div class="jauge {{.ClasseMemoire}}"><i class="largeur-{{.PctMemoire}}"></i></div><span>{{.Memoire}}</span>{{end}}
 {{if ge .PctDisque 0}}<span>Disque</span><div class="jauge {{.ClasseDisque}}"><i class="largeur-{{.PctDisque}}"></i></div><span>{{.Disque}}</span>{{end}}
 </div>{{end}}{{end}}
-{{if .Equipements}}<div class="puces-tuile">{{range .Equipements}}<a class="pastille" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div>{{end}}
+{{if .NbEquipements}}<small class="sous">relève {{.NbEquipements}} {{accord .NbEquipements "équipement(s)"}}{{if not .Equipements}} · tous vont bien{{end}}</small>{{end}}
+{{if .Equipements}}<div class="puces-tuile">{{range .Equipements}}<a class="pastille" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}{{if .Autres}}<a class="pastille" href="/machines/{{.Nom}}#equipements">+{{.Autres}}</a>{{end}}</div>{{end}}
 <div class="puces-tuile">{{if not .VuLe}}<span class="pastille erreur">Jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">Muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{end}}
 {{if .MajEchec}}<a class="pastille erreur" href="/machines/{{.Nom}}#maj" title="{{.MajEchec}}">Mise à jour en échec</a>{{end}}
 {{with .M}}{{if and .Alertes (not .Muette)}}<a class="pastille {{.ClasseAlertes}}" href="/machines/{{.Nom}}">{{.Alertes}} {{accord .Alertes "alerte(s)"}}</a>{{end}}
@@ -51,7 +52,7 @@
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
-  <p>{{sub .D.Machines .D.Muettes}} {{accord (sub .D.Machines .D.Muettes) "machine(s)"}} sur {{.D.Machines}} répondent{{if .D.Actives}} · {{.D.Actives}} {{accord .D.Actives "alerte(s)"}} à regarder{{else}} · aucune alerte active{{end}}</p></div>
+  {{/* Sous-titre : ce que le bandeau ne dit pas (retour du 22/11 : « doublon »). */}}<p>{{.D.Machines}} {{accord .D.Machines "machine(s)"}}{{with .D.R.NbSites}} · {{.}} {{accord . "site(s)"}}{{end}} · mise à jour chaque minute</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a>{{end}}{{if ne .D.Vue "ruche"}}<button type="button" class="secondaire" data-modifier-accueil title="Déplacer ou masquer les cartes de cette page">Modifier la vue</button>{{end}}</div>
 </div>
