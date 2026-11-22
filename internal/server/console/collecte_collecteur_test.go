@@ -67,6 +67,8 @@ func TestOngletCollecte(t *testing.T) {
 	if cfg, _ = flotte.ConfigEffective(ctx, b.c.db, idC); len(cfg.Collecteur.Syslog.Emetteurs) != 1 || cfg.Collecteur.Syslog.Emetteurs[0].Machine != "fw" {
 		t.Fatalf("émetteur non retiré : %+v", cfg.Collecteur.Syslog.Emetteurs)
 	}
+	// Le NAS revient comme émetteur (équipement discret, plus bas).
+	poster(url.Values{"action": {"emetteur_ajouter"}, "emetteur_adresse": {"192.168.1.21"}, "machine": {"nas"}})
 
 	// Mesures : sonde du NAS valide 61 j, syslog du pare-feu reçu, 3 refus.
 	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
@@ -82,6 +84,12 @@ func TestOngletCollecte(t *testing.T) {
 		_, _ = app.Append(0, labels.FromStrings("__name__", "probe_success", "job", "certs", "instance", "nas", "path", "192.168.1.20:5001"), ts.UnixMilli(), 1)
 		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_collecteur_syslog_lignes_total", "instance", "collecteur-lan", "equipement", "fw"), ts.UnixMilli(), float64(i*20))
 		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_collecteur_syslog_refus_total", "instance", "collecteur-lan", "motif", "emetteur"), ts.UnixMilli(), float64(i/40))
+		// NAS discret : 3 lignes il y a 1 h 30, rien depuis (retour du 22/11).
+		nasLignes := 0.0
+		if ts.After(m.Add(-90 * time.Minute)) {
+			nasLignes = 3
+		}
+		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_collecteur_syslog_lignes_total", "instance", "collecteur-lan", "equipement", "nas"), ts.UnixMilli(), nasLignes)
 	}
 	_ = app.Commit()
 	b.c.lecteur = alertes.NouveauLecteur(db, nil)
@@ -89,9 +97,10 @@ func TestOngletCollecte(t *testing.T) {
 	_, page, _ := b.get(c, "/machines/collecteur-lan?pour=fw")
 	for _, attendu := range []string{
 		`<span>:5001<small>expire dans 61 j</small></span>`, // sonde du NAS
-		`<span>reçu<small>`,                     // syslog du pare-feu
-		`<span class="pastille ok">61 j</span>`, // carte des sondes
-		`>3</b>`,                                // refus sur 24 h
+		`<span>reçu<small>`,                         // syslog du pare-feu
+		`<span>reçu<small>3 lignes en 24 h</small>`, // NAS discret : rien dans l'heure
+		`<span class="pastille ok">61 j</span>`,     // carte des sondes
+		`>3</b>`,                                    // refus sur 24 h
 		`href="/machines/collecteur-lan?ajout=snmp&amp;pour=nas#snmp"`,
 		`name="sonde_adresse" value="192.168.1.20:5001"`,
 		`name="emetteur_adresse" value="192.168.1.1"`,

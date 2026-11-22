@@ -125,6 +125,10 @@ func (c *Console) collecteDe(ctx context.Context, col flotte.InfoMachine, eqs []
 	}
 	inst := `instance=` + strconv.Quote(col.Nom)
 	lignesH := c.parEtiquette(ctx, `sum by (equipement) (increase(mirador_collecteur_syslog_lignes_total{`+inst+`}[1h]))`, t, "equipement")
+	// Équipement discret (un NAS envoie parfois quelques lignes par jour) :
+	// « reçu » aussi sur 24 h (retour du 22/11 : syslog du NAS « rien reçu »
+	// alors que sa connexion TLS était ouverte).
+	lignesJ := c.parEtiquette(ctx, `sum by (equipement) (increase(mirador_collecteur_syslog_lignes_total{`+inst+`}[24h]))`, t, "equipement")
 	if r := c.parEtiquette(ctx, `sum(increase(mirador_collecteur_syslog_refus_total{`+inst+`, motif!="filterlog"}[24h]))`, t); len(r) > 0 {
 		for _, x := range r {
 			v.Refus24h = int(math.Round(x))
@@ -208,9 +212,12 @@ func (c *Console) collecteDe(ctx context.Context, col flotte.InfoMachine, eqs []
 		}
 		for _, x := range v.Emetteurs {
 			if x.Machine == e.Nom {
-				ce := cellule{Classe: "gris", Texte: "rien reçu", Detail: "depuis 1 h"}
-				if nb := lignesH[e.Nom]; nb >= 1 {
+				ce := cellule{Classe: "gris", Texte: "rien reçu", Detail: "depuis 24 h"}
+				switch nb, nj := lignesH[e.Nom], lignesJ[e.Nom]; {
+				case nb >= 1:
 					ce = cellule{Classe: "ok", Texte: "reçu", Detail: fmt.Sprintf("%.0f lignes/h", nb)}
+				case nj >= 0.5:
+					ce = cellule{Classe: "ok", Texte: "reçu", Detail: accorderTexte(fmt.Sprintf("%.0f ligne(s) en 24 h", math.Max(1, math.Round(nj))))}
 				}
 				if x.PareFeu {
 					if s.GarderFilterlog {

@@ -8293,6 +8293,10 @@ cartes repliées quand tout va bien.
   rattaché envoie lui-même au serveur avec son token (Telegraf d'OPNsense) :
   reçu il y a…, plus rien, refusé (motif) ou rien reçu (« on ne voit pas
   Telegraf ici »).
+- **Onglet Collecte, colonne Syslog** : « reçu » aussi sur 24 h (« N lignes
+  en 24 h ») pour un équipement discret ; avant, un NAS qui envoie quelques
+  lignes par jour restait « rien reçu » alors que sa connexion TLS était
+  ouverte (retour du 22/11). Une requête de plus par collecteur.
 - **Pastille du menu** : dernier calcul, refait par la boucle de la console
   toutes les 2 min (jamais sur le chemin d'une autre page).
 - **Services root** pris en compte : `mirador-maj-serveur` (VPS) et
