@@ -8171,3 +8171,13 @@ l'échappement de `html/template`.
   montre le tableau OPNsense dès que `cpu_usage_idle` arrive, filtré sur
   l'étiquette `host` de Telegraf (une requête instantanée en plus, en cache).
 
+- **Champs du code 2FA et gestionnaires de mots de passe** (vérification du
+  22/11) : connexion et boîte « Action protégée » déjà bonnes. Corrigé :
+  - les champs des actions protégées reçoivent un id `totp-N` (Bitwarden
+    repère un champ TOTP par son id ou son nom) ;
+  - la création de la 2FA à la première connexion a le compte caché
+    (`username`) et le champ `id="totp"`, comme la page du code ;
+  - Mise à jour du serveur : ses deux champs maison (sans mention TOTP,
+    8 chiffres) remplacés par le champ commun.
+  Un test parcourt tous les gabarits : chaque champ `name="code"` porte
+  `autocomplete="one-time-code"`, la mention TOTP et la saisie numérique.

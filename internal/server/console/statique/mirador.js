@@ -552,13 +552,16 @@ document.addEventListener("change", function (e) {
 // caché « nom d'utilisateur » rattache le formulaire au bon compte, pour que
 // Vaultwarden / Bitwarden propose d'y remplir le code TOTP. Champ SANS nom :
 // il n'est jamais envoyé au serveur.
+// Chaque champ porte aussi un id « totp-N » : Bitwarden repère les champs
+// TOTP par leur id ou leur nom (vérification du 22/11 : seule la boîte
+// « Action protégée » en avait un).
 (function () {
   var nom = document.body.getAttribute("data-utilisateur");
-  if (!nom) { return; }
   var champs = document.querySelectorAll('form input[name="code"][autocomplete="one-time-code"]');
   for (var i = 0; i < champs.length; i++) {
+    if (!champs[i].id) { champs[i].id = "totp-" + (i + 1); }
     var f = champs[i].form;
-    if (!f || f.querySelector('input[autocomplete="username"]')) { continue; }
+    if (!nom || !f || f.querySelector('input[autocomplete="username"]')) { continue; }
     var u = document.createElement("input");
     u.type = "text";
     u.autocomplete = "username";
