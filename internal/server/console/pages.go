@@ -673,8 +673,9 @@ type donneesMachine struct {
 	Equipements []flotte.Equipement
 	Candidats   []string
 	RelevePar   string
-	Syslog      vueSyslog // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
-	SNMP        vueSNMP   // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
+	Syslog      vueSyslog   // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
+	SNMP        vueSNMP     // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
+	Collecte    vueCollecte // onglet « Collecte » : tableau et cartes (SPEC § 119)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -744,6 +745,7 @@ func (c *Console) pageMachine(q *req) {
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 		d.Syslog = c.syslogAvecAvancement(ctx, m, q.t)
 		d.SNMP = c.snmpDe(ctx, m)
+		d.Collecte = c.collecteDe(ctx, m, d.Equipements, d.Syslog, d.SNMP, q.r.URL.Query().Get("pour"), q.r.URL.Query().Get("ajout"), q.r.URL.Query().Get("snmp"), q.t)
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
@@ -852,7 +854,8 @@ func (c *Console) postMachine(q *req) {
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
 		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true,
 		// SNMP et sondes d'un collecteur (SPEC § 23.15).
-		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true}
+		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true,
+		"sonde_ajouter": true, "sonde_retirer": true, "emetteur_ajouter": true, "emetteur_retirer": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -958,7 +961,7 @@ func (c *Console) postMachine(q *req) {
 			}
 			err = flotte.DefinirCible(ctx, c.db, id, v, q.qui(), q.t)
 		}
-	case "syslog", "syslog_retirer", "certificat_renouveler":
+	case "syslog", "syslog_retirer", "certificat_renouveler", "emetteur_ajouter", "emetteur_retirer":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")
@@ -966,13 +969,18 @@ func (c *Console) postMachine(q *req) {
 		}
 		vers += "#syslog"
 		ok, err = c.postSyslog(q, m, action)
-	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer":
+	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer", "sonde_ajouter", "sonde_retirer":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")
 			break
 		}
-		vers += "#snmp"
+		// Ancre : la carte de la méthode (nouvelle page du 22/11).
+		vers += map[string]string{"unifi": "#unifi", "unifi_retirer": "#unifi", "sondes": "#sondes-cert",
+			"sonde_ajouter": "#sondes-cert", "sonde_retirer": "#sondes-cert"}[action]
+		if !strings.Contains(vers, "#") {
+			vers += "#snmp"
+		}
 		ok, err = c.postSNMP(q, m, action)
 	case "rattacher", "detacher":
 		// Page du collecteur : l'équipement choisi ; page de l'équipement :

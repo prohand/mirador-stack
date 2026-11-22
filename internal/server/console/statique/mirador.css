@@ -1963,6 +1963,71 @@ tr[id^="sonde-"]:target td { background: var(--accent-fond); }
 .logs-histo[data-zoom-logs] { touch-action: pan-y; }
 @media (max-width: 640px) { button.lien-discret { min-height: 44px; padding: 0 8px; } }
 
-/* Écoute syslog du collecteur : une interface à cocher (retour du 22/11). */
-fieldset.choix-ecoute { display: flex; flex-direction: column; gap: 4px; }
-fieldset.choix-ecoute legend { padding: 0 6px; color: var(--doux); font-size: 13px; }
+/* Onglet « Collecte » d'un collecteur (maquette validée le 22/11, SPEC § 119) :
+   cases d'état, tableau équipement × méthode, une carte par méthode. */
+.texte-attention { color: var(--attention); }
+.collecte-kpi { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); margin-bottom: 16px; }
+.collecte-kpi .t { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.collecte-kpi small { color: var(--pale); font-size: 12.5px; }
+.collecte-kpi b { font-size: 20px; letter-spacing: -.01em; }
+.collecte-kpi .s { font-size: 12.5px; color: var(--doux); overflow-wrap: anywhere; }
+.collecte-kpi .pastille, .collecte-f .tete .pastille, details.collecte-form > summary .pastille { white-space: normal; }
+.collecte-f .tete h2 { white-space: nowrap; }
+.collecte-cadre { border: 1px solid var(--bord); border-radius: 12px; overflow: hidden; background: var(--carte); }
+table.collecte-tab { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; margin: 0; }
+table.collecte-tab th { text-align: left; color: var(--pale); font-weight: 500; font-size: 12.5px; padding: 9px 12px; background: var(--entete-table); border-bottom: 1px solid var(--bord); }
+table.collecte-tab td { padding: 10px 12px; border-bottom: 1px solid var(--bord); vertical-align: middle; }
+table.collecte-tab tbody tr:last-child td { border-bottom: 0; }
+td.collecte-action { text-align: right; width: 1%; }
+.collecte-eq { display: flex; align-items: center; gap: 10px; }
+.collecte-eq .puce { width: 30px; height: 30px; border-radius: 8px; }
+.collecte-eq .puce .icone { width: 16px; height: 16px; }
+.collecte-eq small { display: block; color: var(--pale); font-size: 12.5px; }
+.collecte-c { display: flex; align-items: baseline; gap: 6px; font-size: 13px; white-space: nowrap; }
+.collecte-c + .collecte-c { margin-top: 4px; }
+.collecte-c .p { width: 8px; height: 8px; border-radius: 50%; background: var(--bord); flex: none; align-self: center; }
+.collecte-c .p.ok { background: var(--ok); } .collecte-c .p.attention { background: var(--attention-trait); } .collecte-c .p.erreur { background: var(--erreur); }
+.collecte-c small { display: block; color: var(--pale); font-size: 12px; }
+a.collecte-plus { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 1px dashed var(--bord); border-radius: 8px; color: var(--pale); text-decoration: none; font-size: 15px; }
+a.collecte-plus:hover { border-color: var(--accent); color: var(--accent); }
+.collecte-ajout { display: flex; gap: 8px 10px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border-top: 1px solid var(--bord); background: var(--entete-table); }
+.collecte-ajout label { display: flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; margin: 0; }
+.collecte-grille { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); align-items: start; margin-top: 16px; }
+.collecte-f { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; scroll-margin-top: 16px; }
+.collecte-f .tete { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+.collecte-f .tete h2 { margin: 0; font-size: 16px; flex: 1 0 auto; }
+.collecte-f .tete .puce { width: 34px; height: 34px; }
+.collecte-f p.d { margin: 0; color: var(--doux); font-size: 13px; }
+.collecte-f p.vide, .collecte-f p.aide { margin: 0; }
+.collecte-lignes { display: flex; flex-direction: column; border: 1px solid var(--bord); border-radius: 10px; overflow: hidden; }
+.collecte-lignes > .l, .collecte-lignes > p.vide { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--bord); font-size: 13.5px; margin: 0; }
+.collecte-lignes > :last-child { border-bottom: 0; }
+.collecte-lignes .l .e { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.collecte-lignes .l code { font-size: 12.5px; }
+.collecte-lignes form.l.ajout { background: var(--entete-table); gap: 8px; flex-wrap: wrap; }
+.collecte-lignes form.l.ajout input { flex: 1 1 140px; min-width: 0; }
+.collecte-lignes form.l.ajout select { flex: 0 1 auto; }
+button.collecte-x { border: 0; background: none; color: var(--pale); cursor: pointer; font-size: 15px; padding: 4px 6px; min-height: 0; box-shadow: none; }
+button.collecte-x:hover { color: var(--erreur); background: none; }
+details.collecte-form > summary { cursor: pointer; color: var(--accent-texte, var(--accent)); font-size: 13.5px; font-weight: 600; }
+details.collecte-form[open] > summary { margin-bottom: 10px; }
+details.collecte-form > summary .pastille { margin-left: 6px; }
+h3.collecte-sous { margin: 4px 0 -4px; font-size: 13px; color: var(--doux); font-weight: 600; }
+.collecte-pied { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* Téléphone : le tableau devient une carte par équipement. */
+@media (max-width: 760px) {
+  table.collecte-tab thead { display: none; }
+  table.collecte-tab, table.collecte-tab tbody, table.collecte-tab tr { display: block; }
+  table.collecte-tab tr { border-bottom: 1px solid var(--bord); padding: 6px 0; }
+  table.collecte-tab tbody tr:last-child { border-bottom: 0; }
+  table.collecte-tab td { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; padding: 5px 12px; }
+  table.collecte-tab td[data-titre]::before { content: attr(data-titre); color: var(--pale); font-size: 12.5px; }
+  table.collecte-tab td.collecte-action { width: auto; justify-content: flex-end; }
+  .collecte-c { text-align: right; }
+}
+
+/* Écoute syslog du collecteur : une interface à choisir (retour du 22/11). */
+fieldset.choix-ecoute { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 0; }
+fieldset.choix-ecoute legend { padding: 0 0 6px; color: var(--doux); font-size: 13px; }
+fieldset.choix-ecoute label.case { display: flex; flex-direction: row; align-items: center; gap: 8px; border: 1px solid var(--bord); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+fieldset.choix-ecoute label.case:has(input:checked) { border-color: var(--accent); background: var(--accent-fond); }

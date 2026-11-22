@@ -8059,3 +8059,39 @@ arguments).
 Coût : une série par interface du collecteur (quelques-unes) toutes les
 5 min. Menaces : inchangées (l'écoute reste limitée aux adresses privées,
 vérifiée par le serveur et par le collecteur).
+
+## 119. Page du collecteur : nouvelle présentation (22/11) **[Fait, à valider]**
+
+Maquette validée le 22/11 (« Propose autre chose au niveau design »).
+
+**Ce qui change (onglet « Collecte »)**
+- 4 cases d'état en haut : équipements relevés, état du syslog (écoute,
+  émetteurs, lignes/h), jours restants du certificat, refus du syslog sur 24 h
+  (hors filterlog).
+- Tableau « Ce que relève ce collecteur » : une ligne par équipement, une
+  colonne par méthode (SNMP, UniFi, certificat HTTPS, syslog). Point vert,
+  orange, rouge ou gris d'après les mesures reçues ; « + » pour ajouter une
+  méthode (ouvre la carte, l'équipement déjà choisi : `?ajout=…&pour=…`).
+  Sur téléphone : une carte par équipement.
+- Une carte par méthode. Sondes de certificats et émetteurs syslog : une ligne
+  chacun, avec ✕ pour la retirer et une ligne d'ajout. Plus de zone de texte
+  (la 2e ligne qui disparaissait ne peut plus arriver).
+- SNMP : « Modifier » préremplit le formulaire (mots de passe jamais réaffichés).
+- Certificat du syslog : replié quand tout va bien, ouvert sinon.
+
+**Actions ajoutées** (code 2FA ou mode administration, comme les autres) :
+`sonde_ajouter`, `sonde_retirer`, `emetteur_ajouter`, `emetteur_retirer`.
+Même adresse = remplacement, pas de doublon. Chaque changement passe les
+mêmes contrôles que l'enregistrement complet (équipement rattaché, adresse
+du LAN). L'enregistrement de l'écoute garde les émetteurs, le débit et la
+rafale déjà réglés.
+
+**Coût** : 6 requêtes instantanées au plus par affichage (`up` SNMP et UniFi,
+échéance et succès des sondes, lignes et refus du syslog), filtrées sur les
+équipements du collecteur et passées par le cache de requêtes de la console.
+Rien de gardé en mémoire en plus ; rien de changé sur le collecteur.
+
+**Menaces** : aucune surface nouvelle. Les noms d'équipements sont échappés
+(`regexp.QuoteMeta` puis `strconv.Quote`) avant d'entrer dans une requête ;
+les actions refusent un équipement non rattaché ou une adresse publique ; le
+retrait ne touche que la ligne visée.

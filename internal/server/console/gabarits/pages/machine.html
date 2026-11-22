@@ -37,71 +37,69 @@
 <span class="segment periode">{{$p := .D.Periode}}{{range .D.Periodes}}<a href="/machines/{{$m.Nom}}?periode={{.}}#graphiques"{{if egal . $p}} class="actif"{{end}}>{{periodeFr .}}</a>{{end}}</span></nav>
 <div id="graphiques" data-regrouper-vides data-memoire-replie="machine">{{template "rangees" .D.Rangees}}</div>{{end}}
 </div>{{end}}
-{{if .D.Collecteur}}<div class="panneau-onglet" data-panneau-onglet="collecte">
-{{if .D.Collecteur}}<section class="carte" id="equipements">
-<div class="entete-carte"><div><h2>Équipements relevés par ce collecteur</h2><p class="sous">Le collecteur n'a le droit d'envoyer que pour ces équipements (et pour lui-même) : le reste est refusé par le serveur. Chacun garde sa fiche (site, type, groupe) et apparaît dans Machines.</p></div></div>
-{{if .D.Equipements}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Site · type · groupe</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
-{{range .D.Equipements}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if not (egal .Statut "approuvee")}} <span class="pastille attention">{{.Statut}}</span>{{end}}</td><td><small>{{if .Site}}{{.Site}}{{else}}—{{end}} · {{if .Env}}{{.Env}}{{else}}—{{end}} · {{if .Groupe}}{{.Groupe}}{{else}}—{{end}}</small></td><td><small>{{if .VuLe}}{{dateS .VuLe}}{{else}}jamais{{end}}</small></td>
-<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detacher"><input type="hidden" name="equipement" value="{{.Nom}}">{{template "code2fa"}}<button class="secondaire petit">Détacher</button></form>{{end}}</td></tr>{{end}}
-</tbody></table></div>{{else}}<p class="vide">Aucun équipement rattaché : le collecteur n'envoie que ses propres mesures.</p>{{end}}
-{{if and $.Admin .D.Candidats}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="rattacher">
-<label>Rattacher <select name="equipement">{{range .D.Candidats}}<option>{{.}}</option>{{end}}</select></label>{{template "code2fa"}}<button>Rattacher</button></form>
-<p class="aide"><small class="aide">Équipement absent : le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a>.</small></p>{{end}}
-</section>{{end}}
-{{if .D.Collecteur}}{{$s := .D.Syslog}}<section class="carte" id="syslog">
-<div class="entete-carte"><div><h2>Syslog TLS</h2><p class="sous">Le collecteur reçoit le syslog des équipements sur le LAN (TLS obligatoire), et seulement des émetteurs listés : chaque ligne est rangée sous l'équipement de l'émetteur. Pour un pare-feu OPNsense, le journal des paquets (« filterlog » : une ligne par paquet bloqué ou laissé passer, souvent des milliers par heure) est jeté et seulement compté, sauf choix contraire (la case apparaît dès qu'un pare-feu est parmi les émetteurs).</p></div></div>
-<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog">
-<div class="ligne">
-{{if $s.Adresses}}<fieldset class="choix-ecoute"><legend>Écouter sur l'interface</legend>{{range $s.Adresses}}<label class="case"><input type="radio" name="ecoute_ip" value="{{.IP}}" {{if .Cochee}}checked{{end}} required {{if not $.Admin}}disabled{{end}}> <code>{{.IP}}</code> <span class="doux">{{.Interface}}{{if .Principale}} · route par défaut{{end}}</span></label>{{end}}</fieldset>
-<label>Port <input name="ecoute_port" value="{{$s.Port}}" required inputmode="numeric" pattern="[0-9]{4,5}" size="6" {{if not .Admin}}disabled{{end}}></label>
-{{else}}<label>Écoute (adresse privée du collecteur : port) <input name="ecoute" value="{{$s.Ecoute}}" required size="22" placeholder="192.168.1.10:6514" {{if not .Admin}}disabled{{end}}><small class="aide">Les interfaces du collecteur seront proposées dès qu'il les aura envoyées (version 0.6.9 et suivantes).</small></label>{{end}}
-<label>Nom du certificat <input name="nom_certificat" value="{{$s.Nom}}" required size="30" placeholder="syslog.lan.exemple.org" {{if not .Admin}}disabled{{end}}></label>
-{{if $s.AvecPareFeu}}<label class="case"><input type="checkbox" name="garder_filterlog" value="1" {{if $s.GarderFilterlog}}checked{{end}} {{if not .Admin}}disabled{{end}}> Pare-feu OPNsense : garder aussi son journal des paquets (« filterlog », très volumineux)</label>{{end}}
+{{if .D.Collecteur}}<div class="panneau-onglet" data-panneau-onglet="collecte">{{$v := .D.Collecte}}{{$s := .D.Syslog}}{{$n := .D.SNMP}}{{$moi := .D.M.Nom}}
+<div class="collecte-kpi">
+<div class="t"><small>Équipements relevés</small><b>{{len .D.Equipements}}</b><span class="s">{{range $i, $e := .D.Equipements}}{{if $i}} · {{end}}{{$e.Nom}}{{else}}aucun pour l'instant{{end}}</span></div>
+<div class="t"><small>Syslog TLS</small><b><span class="pastille{{if $v.SyslogClasse}} {{$v.SyslogClasse}}{{end}}">{{$v.SyslogEtat}}</span></b><span class="s">{{$v.SyslogDetail}}</span></div>
+<div class="t"><small>Certificat du syslog</small><b{{if $v.CertClasse}} class="texte-{{$v.CertClasse}}"{{end}}>{{$v.CertTexte}}</b><span class="s">{{$v.CertDetail}}</span></div>
+<div class="t"><small>Refus du syslog (24 h)</small><b{{if $v.Refus24h}} class="texte-attention"{{end}}>{{$v.Refus24h}}</b><span class="s">émetteur inconnu, TLS, débit… (hors filterlog)</span></div>
 </div>
-<label class="pile">Émetteurs : « adresse équipement », une ligne par émetteur <textarea name="emetteurs" rows="4" cols="50" spellcheck="false" placeholder="192.168.1.20 nas&#10;192.168.1.1 opnsense" {{if not .Admin}}disabled{{end}}>{{with index $.Saisie "emetteurs"}}{{.}}{{else}}{{$s.Emetteurs}}{{end}}</textarea>
-<small class="aide">IP ou réseau du LAN, d'un équipement rattaché. Émetteur inconnu : coupé avant le TLS.</small></label>
-{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
-</form>
-{{if and $s.Regle .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog_retirer">{{template "code2fa"}}<button class="secondaire" data-confirmer="Arrêter le syslog de ce collecteur ?">Arrêter le syslog</button></form>{{end}}
-{{if $s.Regle}}<p class="aide"><small class="aide">Sur chaque équipement : syslog <strong>TCP + TLS</strong> vers <code>{{$s.Nom}}</code>, qui doit pointer vers l'adresse privée du collecteur.</small></p>{{end}}
 
-<h3 id="certificat">Certificat du syslog</h3>
-{{if not $s.ReglagesFaits}}<p class="message attention">Compte DNS pas encore réglé (une fois pour tous les collecteurs) : <a href="/reglages/certificats">Réglages › Certificats</a>.</p>{{end}}
-{{template "avancement-certificat" $s.Avancement}}
-{{if and .Admin $s.Cert.CSR}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_renouveler">{{template "code2fa"}}<button class="secondaire">Renouveler maintenant</button></form>{{end}}
-<p class="aide"><small class="aide"><a href="/reglages/certificats">Réglages des certificats ›</a> compte DNS et Let's Encrypt, communs à tous les collecteurs.</small></p>
-</section>{{end}}
-{{if .D.Collecteur}}{{$n := .D.SNMP}}<section class="carte" id="snmp">
-<div class="entete-carte"><div><h2>SNMP v3, UniFi et sondes de certificats</h2><p class="sous">Lecture seule, liste d'OID figée par préréglage (mêmes noms que snmp_exporter : règles et tableau « Synology » inchangés). Authentification et chiffrement obligatoires ; utilisateur SNMP en lecture seule conseillé. Les mots de passe sont chiffrés sur le serveur et jamais réaffichés.</p></div></div>
-{{if $n.Cibles}}<div class="defile"><table><thead><tr><th>Équipement</th><th>Adresse</th><th>Préréglage</th><th>Utilisateur</th><th>Sécurité</th><th>Intervalle</th><th></th></tr></thead><tbody>
-{{range $n.Cibles}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td><td><code>{{.Adresse}}</code></td><td>{{.Prereglage}}</td><td>{{.Utilisateur}}</td><td><small>{{.Auth}} / {{.Chiffrement}}</small></td><td><small>{{if .Intervalle}}{{.Intervalle}}{{else}}60s{{end}}</small></td>
-<td>{{if $.Admin}}<form method="post" class="ligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}">{{template "code2fa"}}<button class="secondaire petit">Retirer</button></form>{{end}}</td></tr>{{end}}
-</tbody></table></div>{{else if not .D.Equipements}}<p class="vide">Aucun relevé SNMP. Il faut d'abord un équipement rattaché à ce collecteur (Machines › Ajouter une machine › Équipement).</p>{{end}}
-{{if and .Admin .D.Equipements}}<details{{if not $n.Cibles}} open{{end}}><summary>Ajouter ou modifier un relevé SNMP</summary>
+<section class="carte" id="equipements">
+<div class="entete-carte"><div><h2>Ce que relève ce collecteur</h2><p class="sous">Une ligne par équipement, une colonne par méthode. Le serveur refuse toute mesure d'un équipement non rattaché ; chacun garde sa fiche et apparaît dans Machines.</p></div></div>
+{{if $v.Lignes}}<div class="collecte-cadre"><table class="collecte-tab"><thead><tr><th>Équipement</th><th>SNMP v3</th><th>UniFi</th><th>Certificat HTTPS</th><th>Syslog</th><th>Dernière donnée</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range $v.Lignes}}{{$eq := .Nom}}<tr>
+<td class="collecte-nom"><div class="collecte-eq"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><span><a href="/machines/{{.Nom}}"><b>{{.Nom}}</b></a>{{if not (egal .Statut "approuvee")}} <span class="pastille attention">{{.Statut}}</span>{{end}}{{if .Detail}}<small>{{.Detail}}</small>{{end}}</span></div></td>
+<td data-titre="SNMP v3">{{with .SNMP}}{{template "cellule-collecte" .}}{{else}}{{if $.Admin}}<a class="collecte-plus" href="/machines/{{$moi}}?ajout=snmp&amp;pour={{$eq}}#snmp" title="Relever {{$eq}} en SNMP" aria-label="Relever {{$eq}} en SNMP">+</a>{{else}}<span class="doux">—</span>{{end}}{{end}}</td>
+<td data-titre="UniFi">{{with .UniFi}}{{template "cellule-collecte" .}}{{else}}{{if and $.Admin $v.UniFiLibre}}<a class="collecte-plus" href="/machines/{{$moi}}?ajout=unifi&amp;pour={{$eq}}#unifi" title="Relever le contrôleur UniFi de {{$eq}}" aria-label="Relever le contrôleur UniFi de {{$eq}}">+</a>{{else}}<span class="doux">—</span>{{end}}{{end}}</td>
+<td data-titre="Certificat HTTPS">{{range .Certs}}{{template "cellule-collecte" .}}{{else}}{{if $.Admin}}<a class="collecte-plus" href="/machines/{{$moi}}?pour={{$eq}}#sondes-cert" title="Surveiller un certificat de {{$eq}}" aria-label="Surveiller un certificat de {{$eq}}">+</a>{{else}}<span class="doux">—</span>{{end}}{{end}}</td>
+<td data-titre="Syslog">{{with .Syslog}}{{template "cellule-collecte" .}}{{else}}{{if and $.Admin $s.Regle}}<a class="collecte-plus" href="/machines/{{$moi}}?pour={{$eq}}#syslog" title="Recevoir le syslog de {{$eq}}" aria-label="Recevoir le syslog de {{$eq}}">+</a>{{else}}<span class="doux">—</span>{{end}}{{end}}</td>
+<td data-titre="Dernière donnée"><small>{{if .VuLe}}{{depuisS .VuLe}}{{else}}jamais{{end}}</small></td>
+{{if $.Admin}}<td class="collecte-action"><form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="detacher"><input type="hidden" name="equipement" value="{{.Nom}}"><button class="secondaire petit" data-code data-confirmer="Détacher {{.Nom}} de ce collecteur ? Ses mesures seront refusées.">Détacher</button></form></td>{{end}}
+</tr>{{end}}
+</tbody></table>
+{{if and $.Admin .D.Candidats}}<form method="post" class="collecte-ajout">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="rattacher"><label>Rattacher <select name="equipement">{{range .D.Candidats}}<option>{{.}}</option>{{end}}</select></label><button class="petit" data-code>Rattacher</button><small class="doux">Absent ? le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a>.</small></form>{{end}}
+</div>{{else}}<p class="vide">Aucun équipement rattaché : le collecteur n'envoie que ses propres mesures.</p>
+{{if and $.Admin .D.Candidats}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="rattacher"><label>Rattacher <select name="equipement">{{range .D.Candidats}}<option>{{.}}</option>{{end}}</select></label><button data-code>Rattacher</button></form>{{end}}
+<p class="aide"><small class="aide">Équipement absent : le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a>.</small></p>{{end}}
+{{if and .Admin $v.Lignes}}<p class="aide"><small class="aide">Un « + » ouvre la carte de la méthode, l'équipement déjà choisi.</small></p>{{end}}
+</section>
+
+<div class="collecte-grille">
+<section class="collecte-f" id="snmp"><div class="tete"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-reseau"></use></svg></span><h2>SNMP v3</h2>{{if $n.Cibles}}<span class="pastille ok">{{len $n.Cibles}} {{accord (len $n.Cibles) "relevé(s)"}}</span>{{end}}</div>
+<p class="d">Lecture seule, authentification et chiffrement obligatoires. Préréglage « synology » : mêmes noms que snmp_exporter. Mots de passe chiffrés sur le serveur, jamais réaffichés.</p>
+{{if $n.Cibles}}<div class="collecte-lignes">{{range $n.Cibles}}<div class="l"><span class="e"><b>{{.Machine}}</b> · <code>{{.Adresse}}</code> · {{.Prereglage}} · {{.Utilisateur}} <small class="doux">{{.Auth}} / {{.Chiffrement}} · {{if .Intervalle}}{{dureeC .Intervalle}}{{else}}1 min{{end}}</small></span>
+{{if $.Admin}}<a class="pastille" href="/machines/{{$moi}}?snmp={{.Machine}}#snmp">Modifier</a><form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="snmp_retirer"><input type="hidden" name="machine" value="{{.Machine}}"><button class="collecte-x" data-code data-confirmer="Arrêter le relevé SNMP de « {{.Machine}} » ?" title="Retirer" aria-label="Retirer le relevé SNMP de {{.Machine}}">✕</button></form>{{end}}</div>{{end}}</div>
+{{else}}<p class="vide">Aucun relevé SNMP.</p>{{end}}
+{{if and .Admin .D.Equipements}}<details class="collecte-form"{{if or $v.Modif (egal $v.Ajout "snmp")}} open{{end}}><summary>{{with $v.Modif}}Modifier le relevé de {{.Machine}}{{else}}+ Ajouter un relevé SNMP{{end}}</summary>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="snmp">
 <div class="ligne">
-<label>Équipement <select name="machine">{{range .D.Equipements}}<option>{{.Nom}}</option>{{end}}</select></label>
-<label>Adresse <input name="adresse" required size="18" placeholder="192.168.1.20"></label>
-<label>Préréglage <select name="prereglage">{{range $n.Prereglages}}<option>{{.}}</option>{{end}}</select></label>
-<label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option{{if or (and $v.Modif (egal $v.Modif.Machine .Nom)) (and (not $v.Modif) (egal $v.Pour .Nom))}} selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+<label>Adresse <input name="adresse" required size="16" placeholder="192.168.1.20" value="{{with $v.Modif}}{{.Adresse}}{{end}}"></label>
+<label>Préréglage <select name="prereglage">{{range $n.Prereglages}}<option{{if and $v.Modif (egal $v.Modif.Prereglage .)}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Intervalle <input name="intervalle" size="5" placeholder="60s" value="{{$v.ModifIntervalle}}"></label>
 </div><div class="ligne">
-<label>Utilisateur SNMP v3 <input name="utilisateur" required size="14" autocomplete="off"></label>
-<label>Authentification <select name="auth"><option>SHA</option><option>SHA256</option><option>SHA512</option></select></label>
-<label>Mot de passe <input name="mot_de_passe" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
-<label>Chiffrement <select name="chiffrement"><option>AES</option><option>AES256</option></select></label>
-<label>Clé de chiffrement <input name="cle_chiffrement" type="password" size="16" autocomplete="new-password" placeholder="vide = garder"></label>
+<label>Utilisateur SNMP v3 <input name="utilisateur" required size="14" autocomplete="off" value="{{with $v.Modif}}{{.Utilisateur}}{{end}}"></label>
+<label>Authentification <select name="auth">{{range liste "SHA" "SHA256" "SHA512"}}<option{{if and $v.Modif (egal $v.Modif.Auth .)}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Mot de passe <input name="mot_de_passe" type="password" size="16" autocomplete="new-password" placeholder="{{if $v.Modif}}vide = garder{{end}}"></label>
+<label>Chiffrement <select name="chiffrement">{{range liste "AES" "AES256"}}<option{{if and $v.Modif (egal $v.Modif.Chiffrement .)}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+<label>Clé de chiffrement <input name="cle_chiffrement" type="password" size="16" autocomplete="new-password" placeholder="{{if $v.Modif}}vide = garder{{end}}"></label>
 </div>
-<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-<small class="aide">Même équipement : relevé remplacé (mots de passe vides = gardés). Synology : Terminal et SNMP › SNMP v3.</small>
-</form></details>{{end}}
-<h3>Contrôleur UniFi</h3>
-{{if and (not $n.UniFi) (not .D.Equipements)}}<p class="vide">Aucun contrôleur relevé (même condition : un équipement rattaché).</p>{{end}}
-{{if $n.UniFi}}<p>Relevé : <a href="/machines/{{$n.UniFi.Machine}}">{{$n.UniFi.Machine}}</a>, <code>{{$n.UniFi.Adresse}}</code>, {{if $n.UniFiCle}}clé API{{else}}compte <code>{{$n.UniFi.Utilisateur}}</code>{{end}}{{if $n.UniFi.Empreinte}}, certificat épinglé{{end}}{{if $n.UniFi.Sites}}, sites {{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}.</p>
-{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi_retirer">{{template "code2fa"}}<button class="secondaire">Arrêter le relevé UniFi</button></form>{{end}}{{end}}
-{{if and .Admin .D.Equipements}}<details{{if not $n.UniFi}} open{{end}}><summary>{{if $n.UniFi}}Modifier{{else}}Relever un contrôleur UniFi (remplace unpoller){{end}}</summary>
+<div class="ligne"><button data-code>Enregistrer</button>{{if $v.Modif}}<a class="pastille" href="/machines/{{$moi}}#snmp">Annuler</a>{{end}}</div>
+<small class="aide">Même équipement : relevé remplacé (mots de passe vides = gardés, si l'adresse ne change pas). Synology : Terminal et SNMP › SNMP v3.</small>
+</form></details>{{else if not .D.Equipements}}<p class="aide"><small class="aide">Rattacher d'abord un équipement (tableau ci-dessus).</small></p>{{end}}
+</section>
+
+<section class="collecte-f" id="unifi"><div class="tete"><span class="puce violet" aria-hidden="true"><svg class="icone"><use href="#i-wifi"></use></svg></span><h2>Contrôleur UniFi</h2>{{if $n.UniFi}}<span class="pastille{{if not (egal $v.UniFi.Classe "gris")}} {{$v.UniFi.Classe}}{{end}}">{{majuscule $v.UniFi.Texte}}</span>{{end}}</div>
+<p class="d">Compte en lecture seule (rôle « View Only ») ou clé API ; la session est gardée entre deux relevés. Remplace unpoller.</p>
+{{with $n.UniFi}}<div class="collecte-lignes"><div class="l"><span class="e"><b>{{.Machine}}</b> · <code>{{.Adresse}}</code> · {{if $n.UniFiCle}}clé API{{else}}compte <code>{{.Utilisateur}}</code>{{end}}{{if .Sites}} <small class="doux">sites {{joindre .Sites}}</small>{{end}}</span>
+{{if $.Admin}}<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="unifi_retirer"><button class="collecte-x" data-code data-confirmer="Arrêter le relevé UniFi ?" title="Arrêter" aria-label="Arrêter le relevé UniFi">✕</button></form>{{end}}</div></div>
+{{if $v.EmpreinteCourte}}<p class="aide"><small class="aide">Certificat épinglé (SHA-256 <code>{{$v.EmpreinteCourte}}</code>) : seul ce certificat est accepté.</small></p>{{end}}
+{{else}}<p class="vide">Aucun contrôleur relevé.</p>{{end}}
+{{if and .Admin .D.Equipements}}<details class="collecte-form"{{if egal $v.Ajout "unifi"}} open{{end}}><summary>{{if $n.UniFi}}Modifier{{else}}+ Relever un contrôleur UniFi{{end}}</summary>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="unifi">
 <div class="ligne">
-<label>Équipement <select name="machine">{{range .D.Equipements}}<option{{if and $n.UniFi (eq $n.UniFi.Machine .Nom)}} selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
+<label>Équipement <select name="machine">{{range .D.Equipements}}<option{{if or (and $n.UniFi (egal $n.UniFi.Machine .Nom)) (and (not $n.UniFi) (egal $v.Pour .Nom))}} selected{{end}}>{{.Nom}}</option>{{end}}</select></label>
 <label>Adresse <input name="adresse" required size="26" placeholder="https://192.168.1.5" value="{{if $n.UniFi}}{{$n.UniFi.Adresse}}{{end}}"></label>
 <label>Intervalle <input name="intervalle" size="5" placeholder="60s"></label>
 </div><div class="ligne">
@@ -110,19 +108,56 @@
 <label>Mot de passe ou clé API <input name="secret" type="password" size="20" autocomplete="new-password" placeholder="{{if $n.UniFi}}vide = garder{{end}}"></label>
 </div><div class="ligne">
 <label>Empreinte SHA-256 du certificat (si fait maison) <input name="empreinte" size="50" spellcheck="false" value="{{if $n.UniFi}}{{$n.UniFi.Empreinte}}{{end}}"></label>
-<label>Sites (vide = tous) <input name="sites" size="16" placeholder="default" value="{{if $n.UniFi}}{{range $i, $x := $n.UniFi.Sites}}{{if $i}}, {{end}}{{$x}}{{end}}{{end}}"></label>
+<label>Sites (vide = tous) <input name="sites" size="16" placeholder="default" value="{{if $n.UniFi}}{{joindre $n.UniFi.Sites}}{{end}}"></label>
 </div>
-<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>
-<small class="aide">Compte en <strong>lecture seule</strong> (rôle « View Only ») ou clé API. Empreinte du certificat : {{template "plus" "aide.md#unifi"}}</small>
+<div class="ligne"><button data-code>Enregistrer</button></div>
+<small class="aide">Empreinte du certificat : {{template "plus" "aide.md#unifi"}}</small>
 </form></details>{{end}}
+</section>
 
-<h3>Sondes de certificats</h3>
-<form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sondes">
-<label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{with index .Saisie "sondes"}}{{.}}{{else}}{{$n.Sondes}}{{end}}</textarea>
-<small class="aide">Échéance lue toutes les 5 min ; tableau « Certificats TLS ».</small></label>
-{{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
+<section class="collecte-f" id="sondes-cert"><div class="tete"><span class="puce vert" aria-hidden="true"><svg class="icone"><use href="#i-cadenas"></use></svg></span><h2>Sondes de certificats</h2>{{if $v.Sondes}}<span class="pastille ok">{{len $v.Sondes}} {{accord (len $v.Sondes) "sonde(s)"}}</span>{{end}}</div>
+<p class="d">Échéance des certificats HTTPS du LAN, lue toutes les 5 min ; tableau « Certificats TLS ».</p>
+<div class="collecte-lignes">{{range $v.Sondes}}<div class="l"><span class="e"><code>{{.Adresse}}</code> → <b>{{.Machine}}</b>{{if .Nom}} <small class="doux">nom présenté {{.Nom}}</small>{{end}}</span><span class="pastille{{if not (egal .Etat.Classe "gris")}} {{.Etat.Classe}}{{end}}">{{.Etat.Texte}}</span>
+{{if $.Admin}}<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="sonde_retirer"><input type="hidden" name="sonde_adresse" value="{{.Adresse}}"><button class="collecte-x" data-code data-confirmer="Retirer la sonde {{.Adresse}} ?" title="Retirer" aria-label="Retirer la sonde {{.Adresse}}">✕</button></form>{{end}}</div>{{else}}<p class="vide">Aucune sonde.</p>{{end}}
+{{if and .Admin .D.Equipements}}<form method="post" class="l ajout">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sonde_ajouter">
+<input name="sonde_adresse" required placeholder="adresse:port" aria-label="Adresse et port du service HTTPS" spellcheck="false" value="{{index .Saisie "sonde_adresse"}}">
+<select name="machine" aria-label="Équipement">{{range .D.Equipements}}<option{{if egal $v.Pour .Nom}} selected{{end}}>{{.Nom}}</option>{{end}}</select>
+<input name="sonde_nom" placeholder="nom présenté (facultatif)" aria-label="Nom présenté (SNI), facultatif" spellcheck="false" value="{{index .Saisie "sonde_nom"}}">
+<button class="secondaire petit" data-code>+ Ajouter</button></form>{{end}}
+</div>
+</section>
+
+<section class="collecte-f" id="syslog"><div class="tete"><span class="puce orange" aria-hidden="true"><svg class="icone"><use href="#i-logs"></use></svg></span><h2>Syslog TLS</h2><span class="pastille{{if $v.SyslogClasse}} {{$v.SyslogClasse}}{{end}}">{{$v.SyslogEtat}}</span></div>
+<p class="d">Journaux des équipements reçus sur le LAN, en TLS, des seuls émetteurs listés. Le « filterlog » d'un pare-feu OPNsense (une ligne par paquet) est jeté et compté, sauf choix contraire.</p>
+<form method="post" class="pile">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog">
+<div class="ligne">
+{{if $s.Adresses}}<label>Port <input name="ecoute_port" value="{{$s.Port}}" required inputmode="numeric" pattern="[0-9]{4,5}" size="6" {{if not .Admin}}disabled{{end}}></label>
+{{else}}<label>Écoute (adresse privée : port) <input name="ecoute" value="{{$s.Ecoute}}" required size="22" placeholder="192.168.1.10:6514" {{if not .Admin}}disabled{{end}}></label>{{end}}
+<label>Nom du certificat <input name="nom_certificat" value="{{$s.Nom}}" required size="26" placeholder="syslog.lan.exemple.org" {{if not .Admin}}disabled{{end}}></label>
+</div>
+{{if $s.Adresses}}<fieldset class="choix-ecoute"><legend>Écouter sur</legend>{{range $s.Adresses}}<label class="case"><input type="radio" name="ecoute_ip" value="{{.IP}}" {{if .Cochee}}checked{{end}} required {{if not $.Admin}}disabled{{end}}> <span><b>{{.Interface}}</b> <small class="doux">{{.IP}}{{if .Principale}} · principale{{end}}</small></span></label>{{end}}</fieldset>
+{{else}}<small class="aide">Les interfaces du collecteur seront proposées dès qu'il les aura envoyées (version 0.6.9 et suivantes).</small>{{end}}
+{{if $s.AvecPareFeu}}<label class="case"><input type="checkbox" name="garder_filterlog" value="1" {{if $s.GarderFilterlog}}checked{{end}} {{if not .Admin}}disabled{{end}}> Pare-feu OPNsense : garder aussi son journal des paquets (« filterlog », très volumineux)</label>{{end}}
+{{if .Admin}}<div class="ligne"><button data-code>{{if $s.Regle}}Enregistrer{{else}}Ouvrir l'écoute{{end}}</button></div>{{end}}
 </form>
-</section>{{end}}
+{{if $s.Regle}}<h3 class="collecte-sous">Émetteurs</h3>
+<div class="collecte-lignes">{{range $v.Emetteurs}}<div class="l"><span class="e"><code>{{.Adresse}}</code> → <b>{{.Machine}}</b></span>{{if .PareFeu}}<span class="pastille">filterlog {{if $s.GarderFilterlog}}gardé{{else}}compté{{end}}</span>{{end}}
+{{if $.Admin}}<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="emetteur_retirer"><input type="hidden" name="emetteur_adresse" value="{{.Adresse}}"><button class="collecte-x" data-code data-confirmer="Retirer l'émetteur {{.Adresse}} ? Ses journaux seront refusés." title="Retirer" aria-label="Retirer l'émetteur {{.Adresse}}">✕</button></form>{{end}}</div>{{else}}<p class="vide">Aucun émetteur : tout est refusé.</p>{{end}}
+{{if and .Admin .D.Equipements}}<form method="post" class="l ajout">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="emetteur_ajouter">
+<input name="emetteur_adresse" required placeholder="IP ou réseau du LAN" aria-label="Adresse IP ou réseau de l'émetteur" spellcheck="false" value="{{index .Saisie "emetteur_adresse"}}">
+<select name="machine" aria-label="Équipement">{{range .D.Equipements}}<option{{if egal $v.Pour .Nom}} selected{{end}}>{{.Nom}}</option>{{end}}</select>
+<button class="secondaire petit" data-code>+ Ajouter</button></form>{{end}}
+</div>
+<p class="aide"><small class="aide">Sur chaque équipement : syslog <strong>TCP + TLS</strong> vers <code>{{$s.Nom}}</code>, qui doit pointer vers l'adresse d'écoute.</small></p>
+{{else}}<p class="aide"><small class="aide">Les émetteurs s'ajoutent une fois l'écoute ouverte.</small></p>{{end}}
+<details class="collecte-form" id="certificat"{{if or $s.Avancement.EnCours (and $s.Regle (not (egal $s.Avancement.Classe "ok")))}} open{{end}}><summary>Certificat du syslog <span class="pastille{{if $s.Avancement.Classe}} {{$s.Avancement.Classe}}{{end}}">{{$s.Avancement.Resume}}</span></summary>
+{{if not $s.ReglagesFaits}}<p class="message attention">Compte DNS pas encore réglé (une fois pour tous les collecteurs) : <a href="/reglages/certificats">Réglages › Certificats</a>.</p>{{end}}
+{{template "avancement-certificat" $s.Avancement}}
+<p class="aide"><small class="aide"><a href="/reglages/certificats">Réglages des certificats ›</a> compte DNS et Let's Encrypt, communs à tous les collecteurs.</small></p>
+</details>
+{{if and .Admin $s.Regle}}<div class="collecte-pied">{{if $s.Cert.CSR}}<form method="post" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="certificat_renouveler"><button class="secondaire petit" data-code>Renouveler le certificat</button></form>{{end}}<form method="post" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog_retirer"><button class="secondaire petit" data-code data-confirmer="Arrêter le syslog de ce collecteur ?">Arrêter le syslog</button></form></div>{{end}}
+</section>
+</div>
 </div>{{end}}
 <div class="panneau-onglet" data-panneau-onglet="activite">
 {{with .D.Dernieres}}{{template "dernieres-alertes" .}}{{end}}

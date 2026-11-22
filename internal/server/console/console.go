@@ -564,7 +564,7 @@ func (c *Console) retour(q *req, vers string, err error, ok string) {
 
 // champsGardes : grands champs de texte réaffichés après un refus (jamais
 // un secret ni un code).
-var champsGardes = []string{"sondes", "emetteurs"}
+var champsGardes = []string{"sondes", "emetteurs", "sonde_adresse", "sonde_nom", "emetteur_adresse"}
 
 // garderSaisie : texte des champs gardés, pour un seul affichage.
 func (c *Console) garderSaisie(q *req) {

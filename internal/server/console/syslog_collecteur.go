@@ -152,7 +152,16 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 	f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
 	switch action {
 	case "syslog":
-		ems, err := lireEmetteurs(q.r.PostFormValue("emetteurs"))
+		// Émetteurs : ajoutés et retirés un par un depuis la nouvelle page
+		// (22/11) ; gardés tels quels si le formulaire n'en porte pas.
+		ancien := c.syslogDe(ctx, m)
+		var ems []config.Emetteur
+		var err error
+		if q.r.PostForm.Has("emetteurs") {
+			ems, err = lireEmetteurs(q.r.PostFormValue("emetteurs"))
+		} else {
+			ems, err = lireEmetteurs(ancien.Emetteurs)
+		}
 		if err != nil {
 			return "", err
 		}
@@ -167,6 +176,10 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 		}
 		s := config.Syslog{Ecoute: ecoute, NomCertificat: strings.ToLower(f("nom_certificat")), Emetteurs: ems,
 			GarderFilterlog: f("garder_filterlog") != ""}
+		// Débit et rafale réglés à la main : gardés (ils n'ont pas de champ ici).
+		if cfg, err := flotte.ConfigEffective(ctx, c.db, m.ID); err == nil && cfg.Collecteur != nil && cfg.Collecteur.Syslog != nil {
+			s.Debit, s.Rafale = cfg.Collecteur.Syslog.Debit, cfg.Collecteur.Syslog.Rafale
+		}
 		eqs, err := flotte.EquipementsDe(ctx, c.db, m.ID)
 		if err != nil {
 			return "", err
@@ -194,6 +207,8 @@ func (c *Console) postSyslog(q *req, m flotte.InfoMachine, action string) (strin
 			doc["collecteur"] = col
 		}, q.qui(), q.t)
 		return "syslog enregistré : le collecteur crée sa clé et demande son certificat (quelques minutes, puis l'écoute s'ouvre)", err
+	case "emetteur_ajouter", "emetteur_retirer":
+		return c.postEmetteur(q, m, action)
 	case "syslog_retirer":
 		err := flotte.ModifierConfig(ctx, c.db, "machine:"+strconv.FormatInt(m.ID, 10), func(doc map[string]any) {
 			if col, ok := doc["collecteur"].(map[string]any); ok {

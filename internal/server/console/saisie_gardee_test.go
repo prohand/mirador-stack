@@ -12,10 +12,10 @@ import (
 	"mirador-stack/internal/server/flotte"
 )
 
-// Retour du 22/11 : deux sondes de certificats dont une vise un équipement
-// pas encore rattaché : refus avec un message qui dit quoi faire, page
-// ouverte en haut (sans ancre, le message est visible) et texte saisi
-// réaffiché une fois.
+// Retour du 22/11 : une sonde de certificat qui vise un équipement pas
+// encore rattaché : refus avec un message qui dit quoi faire, page ouverte
+// en haut (sans ancre, le message est visible) et texte saisi réaffiché une
+// fois (ajout ligne par ligne de la nouvelle page).
 func TestSaisieGardeeApresRefus(t *testing.T) {
 	b := nouveauBanc(t)
 	c, secret := b.premierAdmin("admin", mdpAdmin)
@@ -24,8 +24,8 @@ func TestSaisieGardeeApresRefus(t *testing.T) {
 	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
 	idNas, _ := flotte.IDMachine(ctx, b.c.db, "nas")
 	_ = flotte.RattacherEquipement(ctx, b.c.db, idC, idNas, "admin", time.Now())
-	saisie := "fw.ous.local.srv-home.fr:10443 fw\r\nnas.ous.local.srv-home.fr:5001 nas"
-	_, _, entetes := b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {b.csrf(c, "/machines")}, "action": {"sondes"}, "code": {b.code(secret)}, "sondes": {saisie}})
+	_, _, entetes := b.post(c, "/machines/collecteur-lan", url.Values{"csrf": {b.csrf(c, "/machines")}, "action": {"sonde_ajouter"}, "code": {b.code(secret)},
+		"sonde_adresse": {"fw.ous.local.srv-home.fr:10443"}, "machine": {"fw"}, "sonde_nom": {"fw.lan"}})
 	if loc := entetes.Get("Location"); strings.Contains(loc, "#") {
 		t.Errorf("redirection avec ancre après un refus : %q", loc)
 	}
@@ -33,7 +33,7 @@ func TestSaisieGardeeApresRefus(t *testing.T) {
 	if !strings.Contains(page, "rattacher d&#39;abord") {
 		t.Error("message sans la marche à suivre")
 	}
-	if !strings.Contains(page, "fw.ous.local.srv-home.fr:10443 fw") {
+	if !strings.Contains(page, `value="fw.ous.local.srv-home.fr:10443"`) || !strings.Contains(page, `value="fw.lan"`) {
 		t.Error("saisie perdue après le refus")
 	}
 	// Une seule fois : la page suivante montre la configuration enregistrée.

@@ -1704,6 +1704,13 @@ un changement de configuration (agent et collecteur : plus de blocage au
 6ᵉ changement en 5 min). Coût réel du syslog corrigé dans § 23.14 (~120 µs
 par ligne, pas 7).
 
+## Page du collecteur, nouvelle présentation (22/11)
+
+- Maquette validée, codée (SPEC § 119) : cases d'état, tableau équipement × méthode, cartes par méthode, ajout et retrait ligne par ligne.
+- Tests : `TestOngletCollecte`, `TestSaisieGardeeApresRefus` (réécrit), suite console complète verte avec `-race`.
+- Coût : 6 requêtes instantanées au plus par affichage de la page, en cache ; aucun changement côté collecteur.
+- Captures ordinateur et téléphone vérifiées (aucun débordement).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 (0.6.8 publiée le 21/11).
