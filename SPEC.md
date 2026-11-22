@@ -8217,6 +8217,14 @@ l'échappement de `html/template`.
   puis « Machine » avec « En ce moment » et les rangées Ressources,
   Disques et Réseau du tableau Linux (« comme pour les linux »). Coût
   collecteur mesuré (4 CPU) : 101 séries (CPU 33, charge 3, mémoire 6,
-  disques 21, réseau 18, montages 20), moins de 1 ms par cycle. Unité systemd inchangée (`/proc/stat` et
+  disques 21, réseau 18, montages 20), moins de 1 ms par cycle.
+- **« En ce moment » en direct sur le collecteur** (0.6.13). Le collecteur
+  annonce la capacité `direct` : sa page « Machine » reçoit un relevé par
+  seconde tant qu'elle est ouverte, par la même boucle que l'agent
+  (`distant.Lien`, 16 min au plus, arrêt sans page). Collecteur plus
+  ancien : moyennes des 5 dernières minutes, sans message « agent trop
+  ancien ». Coût : nul sans page ouverte ; sinon celui de l'agent (§ 97).
+  Avec `ProtectProc=invisible`, la liste des processus ne montre que le
+  collecteur lui-même (voulu : unité systemd inchangée). Unité systemd inchangée (`/proc/stat` et
   `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
   lus dans `/proc/self/mountinfo`).

@@ -57,7 +57,10 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// Ce binaire est mirador-collector : manifestes, noms des binaires
 	// installés et capacités annoncées au serveur.
 	majagent.ProduitCourant = protocole.ProduitCollecteur
-	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes + "," + protocole.CapaciteSonder
+	// Direct (SPEC § 97) : sa page « Machine » montre ses relevés chaque
+	// seconde, comme un agent (retour du 22/11 : « En ce moment n'est pas en
+	// direct sur le collecteur »). Même boucle que l'agent (distant.Lien).
+	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes + "," + protocole.CapaciteSonder + "," + protocole.CapaciteDirect
 
 	fs := flag.NewFlagSet("mirador-collector", flag.ContinueOnError)
 	fs.SetOutput(erreurs)

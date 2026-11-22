@@ -797,7 +797,12 @@ func (c *Console) pageMachine(q *req) {
 	// mesure (ressources, disques, réseau).
 	collecteurLinux := m.Type == "collecteur" && m.Statut == "approuvee"
 	if collecteurLinux {
-		d.Maintenant = blocEnCeMoment(m.Nom, "", c.enCeMoment(ctx, m, q.t))
+		// Direct : collecteur 0.6.13 et suivants (capacité annoncée) ; plus
+		// ancien, les moyennes des 5 dernières minutes seulement.
+		if c.opt.Direct != nil && flotte.ACapacite(m.Capacites, protocole.CapaciteDirect) {
+			d.Direct = "ok"
+		}
+		d.Maintenant = blocEnCeMoment(m.Nom, d.Direct, c.enCeMoment(ctx, m, q.t))
 	}
 	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && (m.Type == "agent" || collecteurLinux) {
 		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
