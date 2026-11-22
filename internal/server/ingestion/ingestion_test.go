@@ -3,6 +3,8 @@
 package ingestion
 
 import (
+	"mirador-stack/internal/collecteur"
+
 	"bytes"
 	"context"
 	"database/sql"
@@ -230,6 +232,23 @@ func TestNomImpose(t *testing.T) {
 	}
 	if s = b.mem.Series[3]; s.Valeur("instance") != "collecteur-lan" {
 		t.Fatalf("collecteur, mesures propres : %+v", s.Labels)
+	}
+	// Retour du 22/11 : mesures propres avec le nom local du collecteur
+	// (« obscollector », autre que celui de l'interface) : gardées, à son nom.
+	horsParc := b.g.Compteurs.SeriesHorsParc.Load()
+	if c := b.metriques(tokenCollecteur, requeteSimple(reception.UnixMilli(), [2]string{"instance", "obscollector"}, [2]string{"job", "mirador-collector"})); c != http.StatusNoContent {
+		t.Fatal(c)
+	}
+	if s = b.mem.Series[len(b.mem.Series)-1]; s.Valeur("instance") != "collecteur-lan" || s.Valeur("job") != "mirador-collector" || b.g.Compteurs.SeriesHorsParc.Load() != horsParc {
+		t.Fatalf("collecteur, nom local différent : %+v", s.Labels)
+	}
+	// Même nom local, autre job (relevé d'un équipement inconnu) : refusé.
+	n := len(b.mem.Series)
+	if c := b.metriques(tokenCollecteur, requeteSimple(reception.UnixMilli(), [2]string{"instance", "obscollector"}, [2]string{"job", "snmp"})); c != http.StatusNoContent {
+		t.Fatal(c)
+	}
+	if len(b.mem.Series) != n || b.g.Compteurs.SeriesHorsParc.Load() != horsParc+1 {
+		t.Fatalf("relevé d'un équipement inconnu accepté : %d séries", len(b.mem.Series))
 	}
 	// Logs : hôte rattaché gardé, hôte inconnu rangé sous le collecteur.
 	if w := b.envoyer(protocole.CheminLogs, tokenCollecteur, "gzip", lotLogs(1, "nas", reception)); w.Code != http.StatusNoContent {
@@ -606,5 +625,12 @@ func TestOublierMachines(t *testing.T) {
 	defer b.g.mu.Unlock()
 	if len(b.g.decalages) != 0 || len(b.g.avertis) != 0 || len(b.g.recues) != 1 || len(b.g.recuesNom) != 1 || b.g.recuesNom[nom] != 1 {
 		t.Errorf("restent : decalages %d, recues %d, avertis %d, recuesNom %v", len(b.g.decalages), len(b.g.recues), len(b.g.avertis), b.g.recuesNom)
+	}
+}
+
+// Le job reconnu par le serveur est bien celui que pose mirador-collector.
+func TestJobCollecteurAligne(t *testing.T) {
+	if jobCollecteur != collecteur.Job {
+		t.Fatalf("serveur %q, collecteur %q", jobCollecteur, collecteur.Job)
 	}
 }

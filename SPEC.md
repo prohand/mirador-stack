@@ -8141,3 +8141,17 @@ Maquettes validées le 22/11 (sans la case « Tâches de la nuit », jugée inut
 **Menaces** : aucune surface nouvelle (lecture seule, mêmes droits que les
 pages d'avant). Les noms de machines et textes d'erreur passent par
 l'échappement de `html/template`.
+
+### 118.1 Mesures propres d'un collecteur renommé (22/11, après la 0.6.9)
+
+- Constat : sur la page du collecteur, aucune interface proposée pour
+  l'écoute syslog, alors que le collecteur 0.6.9 lisait bien ses adresses.
+- Cause : le collecteur s'appelle `collecteur-lan` dans l'interface et
+  `obscollector` sur sa machine. Ses mesures propres portent
+  `instance="obscollector"` : le serveur les prenait pour celles d'un
+  équipement non rattaché et les jetait (adresses, état de l'écoute syslog,
+  échéance de son certificat, mesures internes).
+- Correction (serveur) : une série avec `job="mirador-collector"` est
+  toujours rangée sous le collecteur lui-même. Aucun relevé d'équipement ne
+  porte ce job (snmp, unifi, certs) : un équipement non rattaché reste refusé.
+- Coût : une comparaison de chaîne par série d'un collecteur.

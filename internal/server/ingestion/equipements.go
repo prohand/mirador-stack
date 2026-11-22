@@ -73,15 +73,26 @@ func (g *Ingestion) OublierEquipements() {
 	g.equipements.mu.Unlock()
 }
 
+// jobCollecteur : étiquette « job » des mesures propres d'un collecteur
+// (mirador-collector : son état, ses adresses, son syslog, ses mesures
+// internes). Aucun relevé d'équipement ne la porte (snmp, unifi, certs).
+const jobCollecteur = "mirador-collector"
+
 // etiqueterSerie impose le nom et les étiquettes d'une série. Agent : son
 // nom. Collecteur : son nom, ou celui d'un équipement rattaché (étiquettes
 // de sa fiche, nom renvoyé) ; sinon la série est refusée (false).
+//
+// Mesures propres d'un collecteur (job mirador-collector) : toujours sous
+// son nom. Retour du 22/11 : un collecteur nommé « collecteur-lan » dans
+// l'interface mais « obscollector » sur sa machine voyait ses propres
+// mesures (adresses, écoute syslog) prises pour un équipement non
+// rattaché, et jetées.
 func etiqueterSerie(m Machine, eqs map[string]Equipement, s *stockage.Serie) (equipement string, ok bool) {
 	inst := m.Nom
 	site, env, groupe := m.Site, m.Env, m.Groupe
 	if m.Type == "collecteur" {
 		s.Remplacer("collecteur", m.Nom)
-		if v := s.Valeur("instance"); v != "" && v != m.Nom {
+		if v := s.Valeur("instance"); v != "" && v != m.Nom && s.Valeur("job") != jobCollecteur {
 			q, ok := eqs[v]
 			if !ok {
 				return "", false
