@@ -26,6 +26,11 @@ import (
 type Releveur struct {
 	Proc, Sys, Passwd string // /proc, /sys, /etc/passwd (remplacés dans les tests)
 
+	// SourceProcessus (mirador-collector) : processus relevés par le
+	// compagnon sans réseau, qui voit toute la machine (SPEC § 120.1).
+	// ok faux : relevé local (seulement les processus visibles d'ici).
+	SourceProcessus func(maintenant time.Time) (l []protocole.ProcessusDirect, ok bool)
+
 	avant      time.Time
 	cpuTotal   uint64
 	cpuRepos   uint64
@@ -131,9 +136,31 @@ func (r *Releveur) Relever(maintenant time.Time) protocole.Direct {
 		}
 		r.disqueLu, r.disqueEcr = lu, ecr
 	}
-	d.Processus = r.lireProcessus(premier, ecart, maintenant)
+	if l, ok := r.sourceExterne(maintenant); ok {
+		d.Processus = l
+	} else {
+		d.Processus = r.lireProcessus(premier, ecart, maintenant)
+	}
 	r.avant = maintenant
 	return d
+}
+
+func (r *Releveur) sourceExterne(maintenant time.Time) ([]protocole.ProcessusDirect, bool) {
+	if r.SourceProcessus == nil {
+		return nil, false
+	}
+	return r.SourceProcessus(maintenant)
+}
+
+// ReleverProcessus : seulement les processus les plus gourmands en CPU
+// depuis l'appel précédent (compagnon de mirador-collector).
+func (r *Releveur) ReleverProcessus(maintenant time.Time) []protocole.ProcessusDirect {
+	r.init()
+	ecart := maintenant.Sub(r.avant).Seconds()
+	premier := r.avant.IsZero() || ecart <= 0
+	l := r.lireProcessus(premier, ecart, maintenant)
+	r.avant = maintenant
+	return l
 }
 
 // virtuelles : interfaces qui ne sortent pas de la machine (ou qui doublent une carte).

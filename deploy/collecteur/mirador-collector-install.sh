@@ -9,7 +9,9 @@
 #   - utilisateur système « mirador-collector » (sans droits root) ;
 #   - binaire dans /var/lib/mirador-collector/bin (lien « current ») ;
 #   - configuration dans /etc/mirador-collector ;
-#   - unités systemd durcies : collecteur, retour arrière ;
+#   - unités systemd durcies : collecteur, retour arrière, compagnon des
+#     processus (sans réseau, compte « mirador-processus », binaire posé par
+#     root dans /usr/local/libexec : le collecteur ne peut pas le remplacer) ;
 #   - ping sans droits pour son groupe (net.ipv4.ping_group_range, sondes).
 #
 # Usage :
@@ -43,6 +45,11 @@ ETC=/etc/mirador-collector
 VARLIB=/var/lib/mirador-collector
 BIN_DIR=$VARLIB/bin
 UNITES=/etc/systemd/system
+# Compagnon des processus (SPEC § 120.1) : voit tous les processus, sans
+# réseau, sous son propre compte. Binaire à root : remis à jour à chaque
+# passage de ce script (pas par la mise à jour automatique du collecteur).
+UTILISATEUR_PROC=mirador-processus
+BIN_PROC=/usr/local/libexec/mirador-collector-processus
 
 BINAIRE=""; SERVEUR=""; NOM=""; JETON=""; CLE_PUBLIQUE=""; MAJ_AUTO=non; MODE=installer
 
@@ -73,12 +80,14 @@ unset MIRADOR_JETON
 # ---------------------------------------------------------------- désinstallation
 if [ "$MODE" = desinstaller ]; then
   info "Arrêt et suppression de mirador-collector"
-  systemctl disable --now mirador-collector.service >/dev/null 2>&1 || true
-  rm -f "$UNITES/mirador-collector.service" "$UNITES/mirador-collector-retour.service"
+  systemctl disable --now mirador-collector.service mirador-collector-processus.service >/dev/null 2>&1 || true
+  rm -f "$UNITES/mirador-collector.service" "$UNITES/mirador-collector-retour.service" "$UNITES/mirador-collector-processus.service"
+  rm -f "$BIN_PROC"
   rm -f /etc/sysctl.d/60-mirador-collector-ping.conf
   systemctl daemon-reload
   rm -rf -- "$ETC" "$VARLIB"
   if id "$UTILISATEUR" >/dev/null 2>&1; then userdel "$UTILISATEUR" 2>/dev/null || true; fi
+  if id "$UTILISATEUR_PROC" >/dev/null 2>&1; then userdel "$UTILISATEUR_PROC" 2>/dev/null || true; fi
   info "Fait. Retirer aussi le collecteur dans l'interface (Machines)."
   exit 0
 fi
@@ -162,6 +171,10 @@ ProtectControlGroups=yes
 ProtectClock=yes
 ProtectHostname=yes
 ProtectProc=invisible
+# Repère du direct pour le compagnon des processus (fichier vide ; le
+# compagnon n'en lit que la date).
+RuntimeDirectory=mirador-collector
+RuntimeDirectoryMode=0755
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
@@ -201,10 +214,70 @@ ReadWritePaths=/var/lib/mirador-collector
 EOF
 }
 
+unite_processus() {
+  cat <<'EOF'
+# mirador-collector-processus — compagnon du collecteur : relève les
+# processus de la machine (nom, CPU, mémoire, compte ; jamais les lignes de
+# commande) pour sa page « Machine » et la « cause probable » des alertes.
+# Aucun réseau, aucun token, aucune configuration ; écrit seulement dans
+# /run/mirador-processus (lisible par tous, comme « ps »).
+[Unit]
+Description=mirador-collector : relevé des processus (sans réseau)
+Documentation=https://github.com/prohand/mirador-stack
+
+[Service]
+User=mirador-processus
+Group=mirador-processus
+ExecStart=/usr/local/libexec/mirador-collector-processus -processus
+Restart=always
+RestartSec=10
+Environment=GOMEMLIMIT=12MiB
+Nice=10
+CPUWeight=10
+MemoryMax=40M
+RuntimeDirectory=mirador-processus
+RuntimeDirectoryMode=0755
+UMask=0022
+
+# Aucun réseau : ni IPv4/IPv6 (familles refusées), ni adresse permise.
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+# Rien du collecteur n'est visible (token, configuration).
+InaccessiblePaths=-/var/lib/mirador-collector -/etc/mirador-collector
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
 if [ "$MODE" = afficher ]; then
   echo "----- $ETC/collector.conf"; config_collecteur
   echo "----- mirador-collector.service"; unite_collecteur
   echo "----- mirador-collector-retour.service"; unite_retour
+  echo "----- mirador-collector-processus.service"; unite_processus
   exit 0
 fi
 
@@ -262,6 +335,9 @@ if ! id "$UTILISATEUR" >/dev/null 2>&1; then
   useradd --system --no-create-home --home-dir "$VARLIB" --shell /usr/sbin/nologin "$UTILISATEUR"
 fi
 install -d -o root -g "$UTILISATEUR" -m 0750 "$ETC"
+if ! id "$UTILISATEUR_PROC" >/dev/null 2>&1; then
+  useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin "$UTILISATEUR_PROC"
+fi
 
 # ---------------------------------------------------------------- ping sans droits
 # Sondes ping (SPEC § 48, § 67) : le collecteur, sans droits, ouvre un socket
@@ -304,6 +380,11 @@ info "Binaire $VERSION"
 ecrire_collecteur "$BIN_DIR/mirador-collector-$VERSION" 0755 < "$BINAIRE" || die "copie du binaire impossible"
 runuser -u "$UTILISATEUR" -- sh -c 'ln -sfn "$1" "$2/current.nouveau" && mv -Tf "$2/current.nouveau" "$2/current"' \
   sh "mirador-collector-$VERSION" "$BIN_DIR" || die "lien current impossible"
+
+# Compagnon : copie à root, jamais dans les dossiers du collecteur.
+install -d -o root -g root -m 0755 "$(dirname "$BIN_PROC")"
+install -o root -g root -m 0755 "$BINAIRE" "$BIN_PROC.nouveau" && mv -f "$BIN_PROC.nouveau" "$BIN_PROC" \
+  || die "copie du compagnon des processus impossible"
 
 if [ -n "$JETON" ]; then
   if [ -s "$VARLIB/token" ]; then
@@ -356,14 +437,19 @@ runuser -u "$UTILISATEUR" -- "$BIN_DIR/current" -verifier -config "$ETC/collecto
 info "Unités systemd"
 unite_collecteur > "$UNITES/mirador-collector.service"
 unite_retour     > "$UNITES/mirador-collector-retour.service"
+unite_processus  > "$UNITES/mirador-collector-processus.service"
 chmod 0644 "$UNITES"/mirador-collector*.service
 systemctl daemon-reload
-systemctl enable mirador-collector.service >/dev/null
-systemctl reset-failed mirador-collector.service 2>/dev/null || true
-systemctl restart mirador-collector.service
+systemctl enable mirador-collector.service mirador-collector-processus.service >/dev/null
+systemctl reset-failed mirador-collector.service mirador-collector-processus.service 2>/dev/null || true
+systemctl restart mirador-collector.service mirador-collector-processus.service
 sleep 5
 systemctl is-active --quiet mirador-collector.service \
   || die "mirador-collector ne tourne pas : journalctl -u mirador-collector -n 40 --no-pager"
+# Le compagnon n'est pas indispensable : sans lui, la page « Machine » ne
+# montre que le collecteur dans la liste des processus.
+systemctl is-active --quiet mirador-collector-processus.service \
+  || echo "ATTENTION : compagnon des processus arrêté : journalctl -u mirador-collector-processus -n 40 --no-pager"
 
 echo
 echo "================================================================"
@@ -374,4 +460,5 @@ if [ -s "$VARLIB/jeton" ]; then
 fi
 echo " Mises à jour automatiques : $MAJ_AUTO"
 echo " Suivi : journalctl -u mirador-collector -f"
+echo " Processus (compagnon sans réseau) : systemctl status mirador-collector-processus"
 echo

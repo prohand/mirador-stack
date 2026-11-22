@@ -24,6 +24,7 @@ import (
 	"unicode"
 
 	"mirador-stack/internal/agent/config"
+	"mirador-stack/internal/agent/direct"
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/version"
@@ -82,6 +83,9 @@ type Lien struct {
 	sansEvenements atomic.Bool
 	// releveDirect : relevé en direct (remplacé dans les tests ; nil = /proc).
 	releveDirect func(time.Time) protocole.Direct
+	// Direct : releveur du direct (mirador-collector : processus lus chez son
+	// compagnon) ; nil : direct.Nouveau().
+	Direct *direct.Releveur
 }
 
 // AttenteConfig : durée demandée au serveur pour garder la demande de

@@ -8224,7 +8224,35 @@ l'échappement de `html/template`.
   (`distant.Lien`, 16 min au plus, arrêt sans page). Collecteur plus
   ancien : moyennes des 5 dernières minutes, sans message « agent trop
   ancien ». Coût : nul sans page ouverte ; sinon celui de l'agent (§ 97).
-  Avec `ProtectProc=invisible`, la liste des processus ne montre que le
-  collecteur lui-même (voulu : unité systemd inchangée). Unité systemd inchangée (`/proc/stat` et
+  Processus : voir le compagnon ci-dessous.
+- **Compagnon des processus** (« voir tous les processus mais sécuriser »,
+  0.6.13). Le collecteur garde `ProtectProc=invisible` (il écoute sur le
+  LAN). Un second service, `mirador-collector-processus`, relève les
+  processus :
+  - même binaire, option `-processus`, mais copie posée par root dans
+    `/usr/local/libexec` (le collecteur ne peut pas la remplacer : sinon un
+    collecteur compromis prendrait la place du compagnon) ;
+  - compte à part `mirador-processus` (le collecteur ne peut ni le tracer
+    ni lui envoyer de signal) ;
+  - aucun réseau (`RestrictAddressFamilies=AF_UNIX`, `IPAddressDeny=any` ;
+    pas de `PrivateNetwork`, refusé dans certains conteneurs LXC), token et
+    configuration du collecteur inaccessibles (`InaccessiblePaths`) ;
+    `systemd-analyze security` : 1,1 (OK) ;
+  - ne lit que `/proc/<pid>/stat`, le compte et le cgroup, jamais
+    `cmdline` ni `environ`.
+  Échanges par fichiers : repère vide `/run/mirador-collector/direct`
+  touché par le collecteur pendant le direct (le compagnon n'en lit que la
+  date) ; relevés `direct.json` (chaque seconde pendant le direct) et
+  `minute.json` (5 plus gourmands en CPU et en mémoire, chaque minute) dans
+  `/run/mirador-processus` (0644 : ce que `ps` montre déjà à tout compte).
+  Le collecteur relit ces fichiers bornés (64 Kio, 10 ou 5 processus, noms
+  de 64 octets, valeurs finies, moins de 5 s ou 3 min) et envoie les mêmes
+  séries que l'agent (`mirador_processus_*`). Sans compagnon : direct avec
+  ses seuls processus, pas de « cause probable » (plutôt qu'une liste
+  trompeuse). Mise à jour : le compagnon suit le script d'installation, pas
+  la mise à jour automatique du collecteur (format versionné, `v: 1`).
+  Coût : un `stat` du repère par seconde ; un parcours de `/proc` par
+  minute (et par seconde pendant le direct, comme l'agent) ; mémoire
+  plafonnée à 12 Mio (`GOMEMLIMIT`), 40 Mio au plus (`MemoryMax`). Unité systemd inchangée (`/proc/stat` et
   `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
   lus dans `/proc/self/mountinfo`).

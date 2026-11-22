@@ -85,6 +85,17 @@ par service HTTPS du LAN.
 Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
 Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
 
+Compagnon des processus (0.6.13 et suivantes) : le service
+`mirador-collector-processus` relève les processus de la machine du
+collecteur (nom, CPU, mémoire, compte ; jamais les lignes de commande) pour
+la page « Machine » et la « cause probable » des alertes. Il n'a aucun
+réseau, tourne sous le compte `mirador-processus` et s'exécute depuis
+`/usr/local/libexec/mirador-collector-processus`, posé par root : le
+collecteur, qui écoute sur le LAN, ne peut ni le remplacer ni le piloter.
+Il est installé (et remis à jour) par le script d'installation : le
+relancer une fois après la mise à jour du collecteur en 0.6.13.
+Vérifier : `systemctl status mirador-collector-processus`.
+
 ## OPNsense (Telegraf) vers mirador
 
 OPNsense n'a pas d'agent : il envoie ses métriques avec Telegraf (plugin
