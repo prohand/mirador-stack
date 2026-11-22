@@ -1627,6 +1627,10 @@ document.addEventListener("change", function (e) {
       return;
     }
     if (q.get("de") || q.get("avant") || q.get("motif")) { return; }
+    // Message affiché une seule fois (retour d'une action : un nouveau token,
+    // une erreur) : pas de rechargement, sinon il disparaît (retour du 22/11 :
+    // le token apparaissait puis disparaissait).
+    if (document.querySelector("[data-message-unique]")) { return; }
     var retenue = window.localStorage.getItem(cle);
     if (retenue && communes.indexOf(retenue) >= 0) {
       q.set("periode", retenue);

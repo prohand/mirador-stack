@@ -8181,3 +8181,9 @@ l'échappement de `html/template`.
     8 chiffres) remplacés par le champ commun.
   Un test parcourt tous les gabarits : chaque champ `name="code"` porte
   `autocomplete="one-time-code"`, la mention TOTP et la saisie numérique.
+- **« Nouveau token » : le token apparaissait puis disparaissait.** Cause : la
+  période des courbes retenue par le navigateur (§ 57) rechargeait la page
+  machine aussitôt (`?periode=…`) ; le message, affiché une seule fois,
+  était perdu au second chargement. Correction : pas de rechargement quand
+  un message de retour est affiché (`data-message-unique`). Le bouton
+  demande aussi le code 2FA dans la petite boîte (mode administration fermé).
