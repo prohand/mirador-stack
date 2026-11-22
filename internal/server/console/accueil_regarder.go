@@ -176,8 +176,13 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		x := r.Regarder[0]
 		r.Bandeau = bandeauAccueil{Classe: "attention", Titre: x.Titre, Texte: x.Texte, Lien: x.Lien, Action: x.Action}
 	default:
-		r.Bandeau = bandeauAccueil{Classe: "ok", Titre: "Tout va bien",
-			Texte: strconv.Itoa(d.Machines) + " sur " + strconv.Itoa(d.Machines) + " répondent · aucune alerte active"}
+		// Texte : ce que les cases du dessous ne disent pas (retour du
+		// 22/11 : « 5 sur 5 répondent » répétait la case Machines).
+		texte := "rien à regarder pour l'instant"
+		if n := len(r.Regarder); n > 0 {
+			texte = accorderTexte(strconv.Itoa(n) + " point(s) à regarder plus bas, sans urgence")
+		}
+		r.Bandeau = bandeauAccueil{Classe: "ok", Titre: "Tout va bien", Texte: texte}
 	}
 
 	// Aperçu par site.

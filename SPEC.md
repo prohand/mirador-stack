@@ -8161,6 +8161,10 @@ l'échappement de `html/template`.
 - **Doublon sur la vue d'ensemble** : le sous-titre répétait le bandeau
   (« 5 sur 5 répondent · aucune alerte active »). Il dit maintenant ce que le
   bandeau ne dit pas : « 5 machines · 1 site · mise à jour chaque minute ».
+  Second retour (« Toujours doublon ») : « 5 machines » répétait encore la
+  case Machines, et « 5 sur 5 répondent » aussi. Sous-titre : « 1 site · mise
+  à jour chaque minute » ; bandeau vert : « rien à regarder pour
+  l'instant » ou « N points à regarder plus bas, sans urgence ».
 - **« Il manque des machines »** (page Machines, tuiles) : un équipement
   relevé par un collecteur n'était qu'une pastille dans la tuile du
   collecteur. Il a de nouveau sa tuile, juste après le collecteur ; la

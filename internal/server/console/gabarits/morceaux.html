@@ -52,7 +52,7 @@
 {{define "corps-accueil"}}
 <div class="titre-page">
   <div><h1>Vue d'ensemble</h1>
-  {{/* Sous-titre : ce que le bandeau ne dit pas (retour du 22/11 : « doublon »). */}}<p>{{.D.Machines}} {{accord .D.Machines "machine(s)"}}{{with .D.R.NbSites}} · {{.}} {{accord . "site(s)"}}{{end}} · mise à jour chaque minute</p></div>
+  {{/* Sous-titre : ce que le bandeau ne dit pas (retour du 22/11 : « doublon »). */}}<p>{{with .D.R.NbSites}}{{.}} {{accord . "site(s)"}} · {{end}}mise à jour chaque minute</p></div>
   {{if .D.Nouveautes}}<span class="pastille attention" title="Éléments détectés par les agents, à valider sur la page de chaque machine">{{.D.Nouveautes}} à valider</span>{{end}}
   <div class="actions">{{if .D.EnAttente}}<a class="bouton secondaire" href="/machines">{{.D.EnAttente}} en attente d'approbation</a>{{end}}{{if .Admin}}<a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a>{{end}}{{if ne .D.Vue "ruche"}}<button type="button" class="secondaire" data-modifier-accueil title="Déplacer ou masquer les cartes de cette page">Modifier la vue</button>{{end}}</div>
 </div>
