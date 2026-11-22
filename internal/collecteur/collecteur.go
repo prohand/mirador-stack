@@ -21,8 +21,20 @@ import (
 const Job = "mirador-collector"
 
 // Collecteurs : ce que le collecteur mesure à chaque cycle.
+//
+// CPU, charge, mémoire, disques, réseau et systèmes de fichiers de sa
+// machine (retour du 22/11 : sa tuile et sa page n'avaient pas les jauges et
+// courbes des machines Linux) : les collecteurs de l'agent, mêmes séries
+// node_*. Coût mesuré : voir SPEC § 120.1.
 func Collecteurs(cfg config.Agent) []collect.Collecteur {
-	return []collect.Collecteur{&etat{cfg: cfg}, &adresses{proc: cfg.RacineProc}}
+	return []collect.Collecteur{&etat{cfg: cfg}, &adresses{proc: cfg.RacineProc},
+		collect.NewCPU(cfg.RacineProc),
+		collect.NewCharge(cfg.RacineProc),
+		collect.NewMemoire(cfg.RacineProc),
+		collect.NewDisques(cfg.RacineProc, cfg.ExclureDisques, cfg.IgnorerDisques...),
+		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces, cfg.IgnorerInterfaces...),
+		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant, cfg.IgnorerMontages...),
+	}
 }
 
 // adresses : adresses des interfaces du collecteur (même série que l'agent,

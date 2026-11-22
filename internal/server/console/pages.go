@@ -697,6 +697,17 @@ type donneesMachine struct {
 	Syslog      vueSyslog   // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
 	SNMP        vueSNMP     // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
 	Collecte    vueCollecte // onglet « Collecte » : tableau et cartes (SPEC § 119)
+	Token       vueToken    // bloc « Token » : actif ou non, dernier envoi, dernier refus
+}
+
+// vueToken : état du token d'une machine (retour du 22/11 : « on ne voit
+// pas s'il y en a un de configuré », et Telegraf d'OPNsense refusé sans que
+// la page le dise). Envoi et refus : depuis le démarrage du serveur.
+type vueToken struct {
+	Actifs       int
+	CreeLe       int64 // token actif le plus récent
+	DernierEnvoi int64 // dernières métriques reçues avec son propre token (0 : aucune)
+	Refus        *ingestion.Refus
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -770,6 +781,7 @@ func (c *Console) pageMachine(q *req) {
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
+	d.Token = c.vueTokenDe(ctx, m)
 	// Tableau de la page : celui de l'équipement s'il est relevé par un
 	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
 	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
@@ -780,7 +792,14 @@ func (c *Console) pageMachine(q *req) {
 	if d.RelevePar != "" || m.Version == "" {
 		nomTableau, variable, valeur = c.tableauEquipement(ctx, m.Nom, q.t)
 	}
-	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && m.Type == "agent" {
+	// Collecteur : courbes Linux de sa machine, comme une machine à agent
+	// (retour du 22/11 : « comme pour les linux »), limitées à ce qu'il
+	// mesure (ressources, disques, réseau).
+	collecteurLinux := m.Type == "collecteur" && m.Statut == "approuvee"
+	if collecteurLinux {
+		d.Maintenant = blocEnCeMoment(m.Nom, "", c.enCeMoment(ctx, m, q.t))
+	}
+	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && (m.Type == "agent" || collecteurLinux) {
 		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
 		if variable != "" {
 			v.Set(variable, valeur)
@@ -791,7 +810,7 @@ func (c *Console) pageMachine(q *req) {
 			garder := map[string]bool{}
 			for _, r := range t.Rangees {
 				if r.Titre != "Vue d'ensemble" {
-					garder[r.Titre] = true
+					garder[r.Titre] = !collecteurLinux || r.Titre == "Ressources" || r.Titre == "Disques" || r.Titre == "Réseau"
 				}
 			}
 			d.Rangees = c.evaluerTableau(ctx, t, vals, periode, duree, q.t, garder)
@@ -837,6 +856,21 @@ func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time
 		}
 	}
 	return "serveurs-linux", "instance", nom
+}
+
+// vueTokenDe : état du token d'une machine.
+func (c *Console) vueTokenDe(ctx context.Context, m flotte.InfoMachine) vueToken {
+	v := vueToken{Actifs: m.TokensActifs}
+	if m.TokensActifs > 0 {
+		v.CreeLe, _ = flotte.TokenCreeLe(ctx, c.db, m.ID)
+	}
+	if c.opt.Ingestion != nil {
+		v.DernierEnvoi, _ = c.opt.Ingestion.DerniereReception(m.ID)
+		if r, ok := c.opt.Ingestion.DernierRefus(m.ID); ok && r.T > v.DernierEnvoi {
+			v.Refus = &r // refus plus récent que le dernier envoi réussi
+		}
+	}
+	return v
 }
 
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce
@@ -1384,11 +1418,29 @@ func barre(m map[string]float64, nom string) (int, string) {
 }
 
 // Requêtes de la vue d'ensemble (celles du tableau « Serveurs Linux »).
+//
+// Équipements sans agent (retour du 22/11 : « collecteur-lan, fw et nas
+// n'ont pas les mêmes infos » que les machines à agent) : mêmes jauges,
+// tirées de ce qu'ils envoient, en repli (« or ») quand il n'y a pas de
+// node_* pour l'instance :
+//   - OPNsense (Telegraf) : cpu_usage_idle, mem_used_percent, disk_used_percent ;
+//   - SNMP (UCD-SNMP-MIB, NAS Synology…) : ssCpuIdle, memAvailReal +
+//     tampons + cache sur memTotalReal, et volumes RAID (Synology) ;
+//   - le collecteur envoie ses node_* lui-même (0.6.12).
+//
+// Coût : les mêmes requêtes, un peu plus longues ; rien si ces séries
+// n'existent pas.
 const (
-	exprCPU     = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))`
+	exprCPU = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))` +
+		` or (100 - max by (instance) (cpu_usage_idle{cpu="cpu-total"}))` +
+		` or (100 - max by (instance) (ssCpuIdle{job="snmp"}))`
 	exprCPU6h   = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[10m])))`
-	exprMemoire = `100 * (1 - max by (instance) (node_memory_MemAvailable_bytes) / max by (instance) (node_memory_MemTotal_bytes))`
-	exprDisque  = `max by (instance) (100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"}))`
+	exprMemoire = `100 * (1 - max by (instance) (node_memory_MemAvailable_bytes) / max by (instance) (node_memory_MemTotal_bytes))` +
+		` or max by (instance) (mem_used_percent)` +
+		` or (100 * (1 - (max by (instance) (memAvailReal{job="snmp"}) + max by (instance) (memBuffer{job="snmp"}) + max by (instance) (memCached{job="snmp"})) / max by (instance) (memTotalReal{job="snmp"} > 0)))`
+	exprDisque = `max by (instance) (100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"}))` +
+		` or max by (instance) (disk_used_percent{fstype!~"devfs|fdescfs|tmpfs|nullfs|procfs"})` +
+		` or max by (instance) (100 * (1 - raidFreeSize{job="snmp"} / (raidTotalSize{job="snmp"} > 0)))`
 	// Mises à jour de paquets : dernière valeur des 3 dernières heures
 	// (l'agent les compte toutes les quelques heures seulement).
 	exprPaquets         = `max by (instance) (last_over_time(apt_upgrades_pending[3h]))`

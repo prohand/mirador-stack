@@ -19,8 +19,8 @@
 {{/* Onglets (retour du 19/11 : « tout est mélangé », SPEC § 66). Sans
      JavaScript, tous les panneaux restent visibles, l'un sous l'autre. */}}
 <nav class="onglets onglets-machine" data-onglets-panneaux="machine" aria-label="Parties de la page">
-{{if or .D.Maintenant .D.Gourmands .D.Rangees .D.Taches}}<a href="#vue" data-onglet="vue">Vue d'ensemble</a>{{end}}
-{{if .D.Collecteur}}<a href="#collecte" data-onglet="collecte">Collecte</a>{{end}}
+{{/* Collecteur : « Collecte » d'abord (son rôle), puis sa machine. */}}{{if .D.Collecteur}}<a href="#collecte" data-onglet="collecte">Collecte</a>{{end}}
+{{if or .D.Maintenant .D.Gourmands .D.Rangees .D.Taches}}<a href="#vue" data-onglet="vue">{{if .D.Collecteur}}Machine{{else}}Vue d'ensemble{{end}}</a>{{end}}
 <a href="#activite" data-onglet="activite">Activité{{with .D.Taches}}{{if .NbProbleme}} <span class="pastille erreur" title="tâches planifiées en échec ou en retard">{{.NbProbleme}}</span>{{end}}{{end}}{{with .D.Services}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}{{with .D.Paquets}}{{if .NbSecurite}} <span class="pastille attention" title="paquets de sécurité">{{.NbSecurite}}</span>{{end}}{{end}}</a>
 {{if or .D.Sondes .D.Element .D.RelevePar}}<a href="#reseau" data-onglet="reseau">Sondes et liens{{with .D.Sondes}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}</a>{{end}}
 <a href="#reglages" data-onglet="reglages">Réglages{{if .D.Agent}}{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}}</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}}</span>{{end}}{{end}}</a>
@@ -296,6 +296,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 </form>
 </section>{{end}}
 {{if .D.Agent}}</details>{{end}}
+{{with .D.Token.Refus}}<p class="message erreur" id="token-refus">Envoi refusé {{depuisS .T}} : <strong>{{.Motif}}</strong>{{if .Adresse}} (depuis <code>{{.Adresse}}</code>){{end}}.{{if egal .Motif "adresse non autorisée"}} Ajouter cette adresse dans Modifier la machine › Adresses autorisées pour le token (ou vider la liste).{{end}}</p>{{end}}
 <details class="carte"><summary><strong>Détails de la machine</strong></summary>
 <table>
 <tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>
@@ -305,7 +306,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 <tr><th>Version de l'agent</th><td>{{$m.Version}} {{$m.Architecture}}{{if $m.VersionCible}} → cible {{$m.VersionCible}}{{end}}</td></tr>
 {{if $m.MajEssai}}<tr><th>Mise à jour en cours</th><td>{{$m.MajEssai}}</td></tr>{{end}}
 {{if $m.MajEchec}}<tr><th>Mise à jour en échec</th><td class="erreur">{{$m.MajEchec}}</td></tr>{{end}}
-<tr><th>Tokens actifs</th><td>{{$m.TokensActifs}}</td></tr>
+<tr><th>Token</th><td>{{template "etat-token" .}}</td></tr>
 <tr><th>Adresses autorisées</th><td><code>{{if $m.IPsAutorisees}}{{$m.IPsAutorisees}}{{else}}Toutes{{end}}</code></td></tr>
 <tr><th>Dernière adresse vue</th><td><code>{{$m.DerniereIP}}</code></td></tr>
 <tr><th>Token lié à la machine</th><td>{{if $m.EmpreinteLiee}}Oui{{else}}Non{{end}}</td></tr>
@@ -342,6 +343,7 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
   {{template "code2fa"}}<button>Assigner</button></form>
 <form method="post" class="pile">{{template "csrf" .CSRF}}
   <h3>Token</h3>
+  <p>{{template "etat-token" .}}</p>
   {{template "code2fa"}}
   <div class="ligne"><button name="action" value="token" data-code data-confirmer="Créer un nouveau token ? L'ancien sera révoqué.">Nouveau token</button>
   <button name="action" value="revoquer" class="danger" data-confirmer="Révoquer les tokens de {{$m.Nom}} ? Elle ne pourra plus envoyer.">Révoquer</button></div></form>

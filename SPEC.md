@@ -8161,6 +8161,10 @@ l'échappement de `html/template`.
 - **Doublon sur la vue d'ensemble** : le sous-titre répétait le bandeau
   (« 5 sur 5 répondent · aucune alerte active »). Il dit maintenant ce que le
   bandeau ne dit pas : « 5 machines · 1 site · mise à jour chaque minute ».
+  Second retour (« Toujours doublon ») : « 5 machines » répétait encore la
+  case Machines, et « 5 sur 5 répondent » aussi. Sous-titre : « 1 site · mise
+  à jour chaque minute » ; bandeau vert : « rien à regarder pour
+  l'instant » ou « N points à regarder plus bas, sans urgence ».
 - **« Il manque des machines »** (page Machines, tuiles) : un équipement
   relevé par un collecteur n'était qu'une pastille dans la tuile du
   collecteur. Il a de nouveau sa tuile, juste après le collecteur ; la
@@ -8187,3 +8191,32 @@ l'échappement de `html/template`.
   était perdu au second chargement. Correction : pas de rechargement quand
   un message de retour est affiché (`data-message-unique`). Le bouton
   demande aussi le code 2FA dans la petite boîte (mode administration fermé).
+- **État du token visible** (« on ne voit pas s'il y en a un de configuré »,
+  OPNsense qui n'envoyait rien sans que la page le dise). Page machine, bloc
+  Token et Détails : « Token actif, créé le … », dernier envoi reçu avec ce
+  token, ou « Aucun token » (équipement : données par le collecteur). Le
+  dernier envoi **refusé** d'une machine dont le token est reconnu (adresse
+  non autorisée, token lié à une autre machine, lot invalide ou trop gros)
+  s'affiche en rouge en haut de la page, avec l'adresse d'origine, tant
+  qu'aucun envoi n'a réussi depuis. Coût : une entrée en mémoire par
+  machine (perdue au redémarrage), une requête SQL de plus sur la page
+  machine. Menace : le motif est un texte fixe (rien tiré de la requête),
+  l'adresse est déjà montrée (« Dernière adresse vue »).
+- **Jauges des équipements et du collecteur** (« collecteur-lan, fw et nas
+  n'ont pas les mêmes infos »). Tuiles et tableau du parc : CPU, mémoire,
+  disque aussi pour :
+  - OPNsense (Telegraf) : `cpu_usage_idle{cpu="cpu-total"}`,
+    `mem_used_percent`, `disk_used_percent` (hors devfs, tmpfs…) ;
+  - SNMP (NAS) : `ssCpuIdle`, mémoire libre + tampons + cache sur
+    `memTotalReal`, volume RAID le plus plein (Synology) ;
+  - le collecteur : il envoie désormais les `node_*` de sa machine (CPU,
+    charge, mémoire, débit disque, réseau, systèmes de fichiers ;
+    collecteurs de l'agent réutilisés).
+  Repli « or » dans les trois requêtes du parc : rien ne change pour une
+  machine à agent. Page du collecteur : onglets « Collecte » (d'abord),
+  puis « Machine » avec « En ce moment » et les rangées Ressources,
+  Disques et Réseau du tableau Linux (« comme pour les linux »). Coût
+  collecteur mesuré (4 CPU) : 101 séries (CPU 33, charge 3, mémoire 6,
+  disques 21, réseau 18, montages 20), moins de 1 ms par cycle. Unité systemd inchangée (`/proc/stat` et
+  `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
+  lus dans `/proc/self/mountinfo`).

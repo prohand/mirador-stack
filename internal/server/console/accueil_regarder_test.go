@@ -3,8 +3,11 @@
 package console
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"mirador-stack/internal/server/notif"
 )
 
 // Vue d'ensemble (maquette validée le 22/11, SPEC § 120) : bandeau du plus
@@ -37,11 +40,27 @@ func TestAccueilARegarder(t *testing.T) {
 		}
 	}
 	// Sous-titre sans doublon avec le bandeau (retour du 22/11).
-	if !strings.Contains(corps, "<p>3 machines · 1 site · mise à jour chaque minute</p>") || strings.Contains(corps, "sur 3 répondent") {
+	if !strings.Contains(corps, "<p>1 site · mise à jour chaque minute</p>") || strings.Contains(corps, "3 machines ·") || strings.Contains(corps, "sur 3 répondent") {
 		t.Error("sous-titre de la vue d'ensemble")
 	}
 	// Plus de case « Notifications » (dans la ligne du bas).
 	if strings.Contains(corps, `data-bloc="notifications"`) {
 		t.Error("case Notifications encore là")
+	}
+}
+
+// Bandeau « Tout va bien » : rien qui répète la case Machines (retour du
+// 22/11 : « Toujours doublon »).
+func TestBandeauToutVaBien(t *testing.T) {
+	b := nouveauBanc(t)
+	d := &donneesAccueil{Machines: 5, SauvegardeOK: true, Canaux: []notif.EtatCanal{{}}}
+	r := b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "rien à regarder pour l'instant" {
+		t.Errorf("bandeau : %+v", r.Bandeau)
+	}
+	d.Nouveautes = 2
+	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "1 point à regarder plus bas, sans urgence" {
+		t.Errorf("bandeau avec un point : %+v", r.Bandeau)
 	}
 }
