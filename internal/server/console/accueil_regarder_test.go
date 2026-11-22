@@ -36,6 +36,10 @@ func TestAccueilARegarder(t *testing.T) {
 			t.Errorf("%s : pas masqué par défaut", bloc)
 		}
 	}
+	// Sous-titre sans doublon avec le bandeau (retour du 22/11).
+	if !strings.Contains(corps, "<p>3 machines · 1 site · mise à jour chaque minute</p>") || strings.Contains(corps, "sur 3 répondent") {
+		t.Error("sous-titre de la vue d'ensemble")
+	}
 	// Plus de case « Notifications » (dans la ligne du bas).
 	if strings.Contains(corps, `data-bloc="notifications"`) {
 		t.Error("case Notifications encore là")

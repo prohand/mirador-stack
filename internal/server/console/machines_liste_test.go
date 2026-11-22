@@ -164,6 +164,23 @@ func TestPageMachines(t *testing.T) {
 			t.Errorf("tuiles : %q absent", attendu)
 		}
 	}
+	// Retour du 22/11 : un équipement relevé par un collecteur a sa tuile
+	// (pas seulement une puce dans celle du collecteur).
+	tuiles := tuilesDe([]vueMachine{{InfoMachine: flotte.InfoMachine{Nom: "collecteur-lan", Type: "collecteur", VuLe: 1}},
+		{InfoMachine: flotte.InfoMachine{Nom: "nas", Env: "nas", VuLe: 1}, ReleveePar: "collecteur-lan", Sous: true}}, nil)
+	// Équipement qui va bien : compté, sans pastille (la tuile du collecteur
+	// ne grandit pas avec le parc).
+	if len(tuiles) != 2 || tuiles[1].Nom != "nas" || tuiles[1].Icone != "stockage" || tuiles[0].NbEquipements != 1 || len(tuiles[0].Equipements) != 0 {
+		t.Errorf("tuiles d'un collecteur et de son équipement : %+v", tuiles)
+	}
+	// 6 équipements muets : 4 pastilles et « +2 ».
+	ms := []vueMachine{{InfoMachine: flotte.InfoMachine{Nom: "col", Type: "collecteur", VuLe: 1}}}
+	for i := 0; i < 6; i++ {
+		ms = append(ms, vueMachine{InfoMachine: flotte.InfoMachine{Nom: "eq" + itoa(int64(i))}, ReleveePar: "col", Sous: true, Muette: true})
+	}
+	if tu := tuilesDe(ms, nil); len(tu) != 7 || tu[0].NbEquipements != 6 || len(tu[0].Equipements) != 4 || tu[0].Autres != 2 {
+		t.Errorf("collecteur avec 6 équipements muets : %d tuiles, %d pastilles, +%d", len(tu), len(tu[0].Equipements), tu[0].Autres)
+	}
 	_, corps, _ = b.get(c, "/machines?filtre=problemes")
 	if strings.Contains(corps, `href="/machines/srv-web"`) || !strings.Contains(corps, `href="/machines/pve-maison"`) {
 		t.Error("filtre « problèmes »")

@@ -4,7 +4,13 @@
 <p>Ou saisir la clé à la main : <code class="secret">{{.D.Secret}}</code></p>
 <form method="post" action="/connexion/2fa-creer" class="pile">
   {{template "csrf" .D.Jeton}}
-  {{template "code2fa"}}
+  {{/* Gestionnaires de mots de passe : même repères que la page du code
+       (compte « username », champ id « totp », autocomplete
+       « one-time-code ») : la clé ajoutée à Bitwarden / Vaultwarden peut
+       remplir le premier code. */}}
+  <input type="text" name="username" value="{{.D.Nom}}" autocomplete="username" readonly hidden>
+  <label for="totp">Code 2FA (TOTP)</label>
+  <input id="totp" class="champ-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus placeholder="123456" aria-label="Code 2FA à usage unique (TOTP)">
   <button>Enregistrer la 2FA</button>
 </form>
 {{end}}

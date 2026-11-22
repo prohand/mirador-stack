@@ -8155,3 +8155,35 @@ l'échappement de `html/template`.
   toujours rangée sous le collecteur lui-même. Aucun relevé d'équipement ne
   porte ce job (snmp, unifi, certs) : un équipement non rattaché reste refusé.
 - Coût : une comparaison de chaîne par série d'un collecteur.
+
+### 120.1 Retours du 22/11 au soir (0.6.10 installée)
+
+- **Doublon sur la vue d'ensemble** : le sous-titre répétait le bandeau
+  (« 5 sur 5 répondent · aucune alerte active »). Il dit maintenant ce que le
+  bandeau ne dit pas : « 5 machines · 1 site · mise à jour chaque minute ».
+- **« Il manque des machines »** (page Machines, tuiles) : un équipement
+  relevé par un collecteur n'était qu'une pastille dans la tuile du
+  collecteur. Il a de nouveau sa tuile, juste après le collecteur ; la
+  pastille reste. Icône d'après son type (stockage, pare-feu).
+- **Métriques d'un OPNsense rattaché au collecteur** : Telegraf avec un
+  token propre (bouton « Nouveau token » de sa page) ; le collecteur garde
+  son syslog et sa sonde de certificat. La page d'un équipement sans agent
+  montre le tableau OPNsense dès que `cpu_usage_idle` arrive, filtré sur
+  l'étiquette `host` de Telegraf (une requête instantanée en plus, en cache).
+
+- **Champs du code 2FA et gestionnaires de mots de passe** (vérification du
+  22/11) : connexion et boîte « Action protégée » déjà bonnes. Corrigé :
+  - les champs des actions protégées reçoivent un id `totp-N` (Bitwarden
+    repère un champ TOTP par son id ou son nom) ;
+  - la création de la 2FA à la première connexion a le compte caché
+    (`username`) et le champ `id="totp"`, comme la page du code ;
+  - Mise à jour du serveur : ses deux champs maison (sans mention TOTP,
+    8 chiffres) remplacés par le champ commun.
+  Un test parcourt tous les gabarits : chaque champ `name="code"` porte
+  `autocomplete="one-time-code"`, la mention TOTP et la saisie numérique.
+- **« Nouveau token » : le token apparaissait puis disparaissait.** Cause : la
+  période des courbes retenue par le navigateur (§ 57) rechargeait la page
+  machine aussitôt (`?periode=…`) ; le message, affiché une seule fois,
+  était perdu au second chargement. Correction : pas de rechargement quand
+  un message de retour est affiché (`data-message-unique`). Le bouton
+  demande aussi le code 2FA dans la petite boîte (mode administration fermé).

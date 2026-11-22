@@ -64,8 +64,8 @@
     </div>{{end}}
     <main>
       {{if .ModeOmbre}}<div class="etat-ombre"><a href="/reglages/notifications" title="Les alertes sont calculées mais aucune notification ne part. Cliquer pour changer.">Mode ombre : aucune notification</a></div>{{end}}
-      {{if .Flash}}<p class="message ok" role="status">{{.Flash}}</p>{{end}}
-      {{if .Alerte}}<p class="message erreur" role="alert">{{.Alerte}}</p>{{end}}
+      {{if .Flash}}<p class="message ok" role="status" data-message-unique>{{.Flash}}</p>{{end}}
+      {{if .Alerte}}<p class="message erreur" role="alert" data-message-unique>{{.Alerte}}</p>{{end}}
       {{template "contenu" .}}
     </main>
     <footer class="pied">mirador-stack {{.Version}} — GPL-3.0-or-later</footer>

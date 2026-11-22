@@ -65,6 +65,7 @@ type donneesRegarder struct {
 	Sondes   casesSondes
 	Cert     caseCertificat
 	Apercu   []siteApercu
+	NbSites  int // sites nommés (sous-titre de la page)
 	// ChaleurCPU : carte du processeur réduite aux plus chargées.
 	ChaleurCPU *vueChaleur
 }
@@ -201,6 +202,11 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 			return ms[i].Nom < ms[j].Nom
 		})
 		r.Apercu = append(r.Apercu, siteApercu{Titre: s, Machines: ms})
+	}
+	for _, a := range r.Apercu {
+		if a.Titre != "" {
+			r.NbSites++
+		}
 	}
 	// « sans site » en dernier.
 	sort.SliceStable(r.Apercu, func(i, j int) bool { return r.Apercu[i].Titre != "" && r.Apercu[j].Titre == "" })

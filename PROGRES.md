@@ -1722,23 +1722,22 @@ par ligne, pas 7).
 
 ## Prochaine étape
 
-Mise à jour le 22/11 (0.6.8 publiée le 21/11).
+Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
-   (`docs/bascule-collecteur.md`), choisie le 22/11. D'abord l'inventaire
-   (machine du collecteur, SNMP v3 du NAS, contrôleur UniFi, émetteurs
-   syslog et noms d'aujourd'hui), puis installation, quelques jours en
-   parallèle d'Alloy et d'unpoller, mesures 24 h, arrêt d'Alloy et
-   d'unpoller **sur validation**.
-2. Installer la 0.6.8 (serveur, agents, collecteur) et vérifier la
-   stabilité.
-3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
+   (`docs/bascule-collecteur.md`). Fait le 22/11 sur obscollector
+   (collecteur 0.6.9, serveur 0.6.10) : SNMP v3 du NAS, contrôleur UniFi
+   (émetteur du certificat vérifié), `fw` rattaché, 2 sondes de
+   certificats, syslog TLS sur 192.168.35.10:6515. Reste : **mesures 24 h**
+   (collecteur contre Alloy + unpoller), puis arrêt d'Alloy et d'unpoller
+   **sur validation**.
+2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
    § 5) : repoussée tant que le parc compte peu de machines (choix du 22/11).
-4. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
+3. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
    validation de l'étape 6. Question à trancher avant la phase C : garder
    Grafana ou non.
-5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
-6. À valider au fil de l'eau : SPEC § 39 à § 117 (« Fait, à valider »),
+4. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+5. À valider au fil de l'eau : SPEC § 39 à § 120 (« Fait, à valider »),
    en priorité § 39 (site injoignable), § 48 et § 108 (sondes), § 49
    (disponibilité), § 51 (ruche), § 110 (mode administration).
 

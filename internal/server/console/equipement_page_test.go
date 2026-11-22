@@ -52,3 +52,39 @@ func TestPageEquipementSNMP(t *testing.T) {
 		t.Error("page d'une machine avec agent : tableau Synology affiché")
 	}
 }
+
+// Retour du 22/11 : OPNsense (Telegraf, token propre) rattaché au
+// collecteur pour son syslog et son certificat : sa page montre le tableau
+// OPNsense, filtré sur l'étiquette « host » de Telegraf.
+func TestPageEquipementOPNsense(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 1), ('fw', 'approuvee', 'agent', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
+	idFw, _ := flotte.IDMachine(ctx, b.c.db, "fw")
+	if err := flotte.RattacherEquipement(ctx, b.c.db, idC, idFw, "admin", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := b.h.maintenant()
+	app := db.Appender(ctx)
+	for ts := m.Add(-10 * time.Minute); !ts.After(m); ts = ts.Add(30 * time.Second) {
+		_, _ = app.Append(0, labels.FromStrings("__name__", "cpu_usage_idle", "cpu", "cpu-total", "instance", "fw", "host", "OPNsense.localdomain"), ts.UnixMilli(), 90)
+		_, _ = app.Append(0, labels.FromStrings("__name__", "pf_entries", "instance", "fw", "host", "OPNsense.localdomain"), ts.UnixMilli(), 1200)
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	if tab, variable, valeur := b.c.tableauEquipement(ctx, "fw", m); tab != "opnsense" || variable != "host" || valeur != "OPNsense.localdomain" {
+		t.Fatalf("tableau de fw : %s %s=%s", tab, variable, valeur)
+	}
+	if _, corps, _ := b.get(c, "/machines/fw"); !strings.Contains(corps, "Pare-feu (pf)") {
+		t.Error("page de fw : rangées du tableau OPNsense absentes")
+	}
+}
