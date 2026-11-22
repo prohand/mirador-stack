@@ -99,3 +99,67 @@ func TestPageEquipementOPNsense(t *testing.T) {
 		t.Error("page de fw avec token : état absent")
 	}
 }
+
+// Retour du 22/11 : « collecteur-lan, fw et nas n'ont pas les mêmes infos »
+// que les machines à agent. Les tuiles des équipements ont leurs jauges,
+// tirées de Telegraf (OPNsense) et du SNMP (NAS).
+func TestJaugesEquipements(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le) VALUES ('fw', 'approuvee', 'agent', 1, ?), ('nas', 'approuvee', 'agent', 1, ?)`,
+		b.h.maintenant().Unix(), b.h.maintenant().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := b.h.maintenant()
+	app := db.Appender(context.Background())
+	for ts := m.Add(-10 * time.Minute); !ts.After(m); ts = ts.Add(30 * time.Second) {
+		for _, s := range []struct {
+			l []string
+			v float64
+		}{
+			{[]string{"__name__", "cpu_usage_idle", "cpu", "cpu-total", "instance", "fw"}, 90},
+			{[]string{"__name__", "mem_used_percent", "instance", "fw"}, 40},
+			{[]string{"__name__", "disk_used_percent", "fstype", "zfs", "instance", "fw"}, 25},
+			{[]string{"__name__", "disk_used_percent", "fstype", "devfs", "instance", "fw"}, 100}, // ignoré
+			{[]string{"__name__", "ssCpuIdle", "job", "snmp", "instance", "nas"}, 95},
+			{[]string{"__name__", "memTotalReal", "job", "snmp", "instance", "nas"}, 1000},
+			{[]string{"__name__", "memAvailReal", "job", "snmp", "instance", "nas"}, 200},
+			{[]string{"__name__", "memBuffer", "job", "snmp", "instance", "nas"}, 100},
+			{[]string{"__name__", "memCached", "job", "snmp", "instance", "nas"}, 200},
+			{[]string{"__name__", "raidFreeSize", "job", "snmp", "raidName", "Volume 1", "instance", "nas"}, 300},
+			{[]string{"__name__", "raidTotalSize", "job", "snmp", "raidName", "Volume 1", "instance", "nas"}, 1000},
+		} {
+			_, _ = app.Append(0, labels.FromStrings(s.l...), ts.UnixMilli(), s.v)
+		}
+	}
+	_ = app.Commit()
+	b.c.lecteur = alertes.NouveauLecteur(db, nil)
+	_, corps, _ := b.get(c, "/machines")
+	tuile := func(nom string) string {
+		i := strings.Index(corps, `href="/machines/`+nom+`">`+nom+`</a>`)
+		if i < 0 {
+			t.Fatalf("tuile %s absente", nom)
+		}
+		fin := strings.Index(corps[i:], `class="tuile-machine`)
+		if fin < 0 {
+			fin = len(corps) - i
+		}
+		return corps[i : i+fin]
+	}
+	for nom, attendus := range map[string][]string{
+		"fw":  {"largeur-10", "largeur-40", "largeur-25"},
+		"nas": {"largeur-5", "largeur-50", "largeur-70"},
+	} {
+		x := tuile(nom)
+		for _, a := range attendus {
+			if !strings.Contains(x, a) {
+				t.Errorf("tuile %s : %s absent", nom, a)
+			}
+		}
+	}
+}

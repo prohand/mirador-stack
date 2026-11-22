@@ -1411,11 +1411,29 @@ func barre(m map[string]float64, nom string) (int, string) {
 }
 
 // Requêtes de la vue d'ensemble (celles du tableau « Serveurs Linux »).
+//
+// Équipements sans agent (retour du 22/11 : « collecteur-lan, fw et nas
+// n'ont pas les mêmes infos » que les machines à agent) : mêmes jauges,
+// tirées de ce qu'ils envoient, en repli (« or ») quand il n'y a pas de
+// node_* pour l'instance :
+//   - OPNsense (Telegraf) : cpu_usage_idle, mem_used_percent, disk_used_percent ;
+//   - SNMP (UCD-SNMP-MIB, NAS Synology…) : ssCpuIdle, memAvailReal +
+//     tampons + cache sur memTotalReal, et volumes RAID (Synology) ;
+//   - le collecteur envoie ses node_* lui-même (0.6.12).
+//
+// Coût : les mêmes requêtes, un peu plus longues ; rien si ces séries
+// n'existent pas.
 const (
-	exprCPU     = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))`
+	exprCPU = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))` +
+		` or (100 - max by (instance) (cpu_usage_idle{cpu="cpu-total"}))` +
+		` or (100 - max by (instance) (ssCpuIdle{job="snmp"}))`
 	exprCPU6h   = `100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[10m])))`
-	exprMemoire = `100 * (1 - max by (instance) (node_memory_MemAvailable_bytes) / max by (instance) (node_memory_MemTotal_bytes))`
-	exprDisque  = `max by (instance) (100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"}))`
+	exprMemoire = `100 * (1 - max by (instance) (node_memory_MemAvailable_bytes) / max by (instance) (node_memory_MemTotal_bytes))` +
+		` or max by (instance) (mem_used_percent)` +
+		` or (100 * (1 - (max by (instance) (memAvailReal{job="snmp"}) + max by (instance) (memBuffer{job="snmp"}) + max by (instance) (memCached{job="snmp"})) / max by (instance) (memTotalReal{job="snmp"} > 0)))`
+	exprDisque = `max by (instance) (100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.lxcfs"}))` +
+		` or max by (instance) (disk_used_percent{fstype!~"devfs|fdescfs|tmpfs|nullfs|procfs"})` +
+		` or max by (instance) (100 * (1 - raidFreeSize{job="snmp"} / (raidTotalSize{job="snmp"} > 0)))`
 	// Mises à jour de paquets : dernière valeur des 3 dernières heures
 	// (l'agent les compte toutes les quelques heures seulement).
 	exprPaquets         = `max by (instance) (last_over_time(apt_upgrades_pending[3h]))`

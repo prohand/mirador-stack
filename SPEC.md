@@ -8202,3 +8202,17 @@ l'échappement de `html/template`.
   machine (perdue au redémarrage), une requête SQL de plus sur la page
   machine. Menace : le motif est un texte fixe (rien tiré de la requête),
   l'adresse est déjà montrée (« Dernière adresse vue »).
+- **Jauges des équipements et du collecteur** (« collecteur-lan, fw et nas
+  n'ont pas les mêmes infos »). Tuiles et tableau du parc : CPU, mémoire,
+  disque aussi pour :
+  - OPNsense (Telegraf) : `cpu_usage_idle{cpu="cpu-total"}`,
+    `mem_used_percent`, `disk_used_percent` (hors devfs, tmpfs…) ;
+  - SNMP (NAS) : `ssCpuIdle`, mémoire libre + tampons + cache sur
+    `memTotalReal`, volume RAID le plus plein (Synology) ;
+  - le collecteur : il envoie désormais les `node_*` de sa machine (CPU,
+    mémoire, systèmes de fichiers ; collecteurs de l'agent réutilisés).
+  Repli « or » dans les trois requêtes du parc : rien ne change pour une
+  machine à agent. Coût collecteur mesuré (4 CPU) : 33 + 6 + 20 séries,
+  moins de 0,3 ms par cycle. Unité systemd inchangée (`/proc/stat` et
+  `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
+  lus dans `/proc/self/mountinfo`).
