@@ -18,7 +18,7 @@ func TestRuche(t *testing.T) {
 	_, _ = b.c.db.Exec(`UPDATE machines SET site = 'maison'`)
 	cl, _ := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(cl, "/")
-	if !strings.Contains(corps, `data-vue-accueil="ruche"`) || strings.Contains(corps, `class="ruche"`) || !strings.Contains(corps, `class="kpis o-0 t-0" data-bloc="tuiles"`) {
+	if !strings.Contains(corps, `data-vue-accueil="ruche"`) || strings.Contains(corps, `class="ruche"`) || !strings.Contains(corps, `class="kpis o-1 t-1" data-bloc="tuiles"`) {
 		t.Fatal("par défaut : résumé, avec l'onglet Ruche")
 	}
 	_, corps, _ = b.get(cl, "/?vue=ruche")

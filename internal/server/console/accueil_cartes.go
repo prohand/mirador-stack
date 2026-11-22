@@ -21,11 +21,16 @@ import (
 
 // Tuiles (dans la rangée du haut) puis blocs (la page), ordre par défaut.
 var (
-	tuilesAccueil = []string{"machines", "alertes", "notifications", "stockage"}
-	blocsAccueil  = []string{"tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "parc", "chaleur", "bas"}
-	// « sauvegardes » (carte des dernières 24 h) retirée le 20/11 à la demande :
-	// une disposition enregistrée qui la cite encore est acceptée et ignorée.
-	clesRetirees = []string{"sauvegardes"}
+	tuilesAccueil = []string{"machines", "alertes", "sondes", "certificats", "stockage"}
+	blocsAccueil  = []string{"bandeau", "tuiles", "sites", "alertes-cours", "prises", "masquees", "attente", "regarder", "apercu", "parc", "chaleur", "bas"}
+	// « sauvegardes » (carte des dernières 24 h) retirée le 20/11 à la demande,
+	// « notifications » le 22/11 (dans la ligne du bas, SPEC § 120) : une
+	// disposition enregistrée qui les cite encore est acceptée et ignorée.
+	clesRetirees = []string{"sauvegardes", "notifications"}
+	// cachesParDefaut : blocs masqués tant que la disposition n'a pas été
+	// changée (nouvelle présentation du 22/11 : le tableau du parc et la
+	// carte de chaleur complète restent à un clic dans « Modifier la vue »).
+	cachesParDefaut = map[string]bool{"parc": true, "chaleur": true}
 )
 
 func cleAccueil(c string) bool {
@@ -76,10 +81,10 @@ func classesAccueil(u auth.Utilisateur) map[string]string {
 		ro, rt := rangsListe(p.Ordi.Ordre, l), rangsListe(p.Tel.Ordre, l)
 		for _, c := range l {
 			cl := "o-" + strconv.Itoa(ro[c]) + " t-" + strconv.Itoa(rt[c])
-			if p.Ordi.cache(c) {
+			if p.Ordi.cache(c) || (cachesParDefaut[c] && p.Ordi.parDefaut()) {
 				cl += " cache-o"
 			}
-			if p.Tel.cache(c) {
+			if p.Tel.cache(c) || (cachesParDefaut[c] && p.Tel.parDefaut()) {
 				cl += " cache-t"
 			}
 			out[c] = cl
@@ -137,3 +142,6 @@ func (c *Console) postAccueil(q *req) {
 	c.oublierComptes()
 	q.w.WriteHeader(http.StatusNoContent)
 }
+
+// parDefaut : aucune disposition enregistrée pour ce mode.
+func (p prefMode) parDefaut() bool { return len(p.Ordre) == 0 && len(p.Caches) == 0 }

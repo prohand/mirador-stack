@@ -8095,3 +8095,49 @@ Rien de gardé en mémoire en plus ; rien de changé sur le collecteur.
 (`regexp.QuoteMeta` puis `strconv.Quote`) avant d'entrer dans une requête ;
 les actions refusent un équipement non rattaché ou une adresse publique ; le
 retrait ne touche que la ligne visée.
+
+## 120. Page Machines et vue d'ensemble : nouvelle présentation (22/11) **[Fait, à valider]**
+
+Maquettes validées le 22/11 (sans la case « Tâches de la nuit », jugée inutile).
+
+**Page Machines**
+- 4 cases en haut : en ligne (barre verte / rouge), muettes (noms), à regarder
+  (mise à jour en échec, disque bientôt plein, alertes), paquets à mettre à jour
+  (dont sécurité).
+- Demande d'approbation : un bandeau d'une ligne (« nouvelle-vm demande à
+  entrer »), le tableau d'approbation s'ouvre au clic (inchangé).
+- Une tuile par machine, rangée par site (ou groupe, ou liste) : point de
+  couleur, type et version, jauges CPU / mémoire / disque, pastilles de
+  problème. Muette ou mise à jour en échec : fond rouge, en premier.
+- Un collecteur montre ses équipements en pastilles dans sa tuile.
+- Bouton « Tuiles / Tableau » : le tableau d'avant reste ; le choix est gardé
+  par le navigateur (localStorage). Sans JavaScript : les tuiles.
+
+**Vue d'ensemble**
+- Bandeau du plus grave (machines muettes, alertes critiques…), sinon « Tout va
+  bien ». Rien quand le bloc « Sites injoignables » le dit déjà.
+- Cases : machines, alertes, sondes (réussies / total), certificat le plus
+  proche de l'échéance, stockage. La case « Notifications » passe dans la
+  ligne du bas.
+- « À regarder », du plus grave au moins grave, avec un lien d'action : muettes,
+  mises à jour en échec, sauvegarde du serveur, canal en panne, sondes en
+  échec, tâches en échec, disques bientôt pleins, certificat sous 21 j,
+  paquets de sécurité, redémarrages, éléments à valider, machines en attente,
+  aucun canal.
+- « Le parc d'un coup d'œil » : une pastille par machine, par site, et la carte
+  de chaleur du processeur réduite aux 5 plus chargées.
+- Ligne du bas : sauvegarde du serveur, canaux, mode ombre.
+- Le tableau du parc et la carte de chaleur complète restent des blocs de
+  « Modifier la vue », masqués par défaut tant que la disposition n'a pas été
+  changée.
+
+**Coût**
+- Page Machines : les mesures de la vue d'ensemble (même fonction, 9 requêtes
+  instantanées passées par le cache de la console). Rien en base.
+- Vue d'ensemble : 3 requêtes instantanées en plus (sondes, deux échéances de
+  certificats), en cache. Le reste vient des données déjà lues.
+- JavaScript : une trentaine de lignes (bascule tuiles / tableau).
+
+**Menaces** : aucune surface nouvelle (lecture seule, mêmes droits que les
+pages d'avant). Les noms de machines et textes d'erreur passent par
+l'échappement de `html/template`.

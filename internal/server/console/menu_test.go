@@ -131,8 +131,8 @@ func TestPostAccueil(t *testing.T) {
 	}
 	for _, chemin := range []string{"/", "/fragments/accueil"} {
 		_, corps, _ := b.get(c, chemin)
-		for _, attendu := range []string{`class="kpi o-0 t-3" data-bloc="stockage"`, `class="kpi o-1 t-0" data-bloc="machines"`,
-			`class="kpi o-2 t-1 cache-o" data-bloc="alertes"`, `class="carte o-0 t-6" data-parc data-bloc="parc"`, `class="kpis o-1 t-0" data-bloc="tuiles"`,
+		for _, attendu := range []string{`class="kpi o-0 t-4" data-bloc="stockage"`, `class="kpi o-1 t-0" data-bloc="machines"`,
+			`class="kpi o-2 t-1 cache-o" data-bloc="alertes"`, `class="carte o-0 t-9 cache-t" data-parc data-bloc="parc"`, `class="kpis o-1 t-1" data-bloc="tuiles"`,
 			`data-bloc="chaleur"`} {
 			if !strings.Contains(corps, attendu) {
 				t.Errorf("%s : %q absent", chemin, attendu)
@@ -143,7 +143,7 @@ func TestPostAccueil(t *testing.T) {
 		t.Error("menu masqué perdu ou bouton absent")
 	}
 	for _, mauvais := range []string{`{"mode":"ordi","ordre":["inconnu"]}`, `{"mode":"ordi","ordre":["parc","parc"]}`, `{"mode":"montre"}`,
-		`{"mode":"tel","caches":["machines","alertes","notifications","stockage","tuiles","sites","alertes-cours","prises","masquees","attente","parc","chaleur","sauvegardes","bas"]}`} {
+		`{"mode":"tel","caches":["machines","alertes","notifications","sondes","certificats","stockage","bandeau","tuiles","sites","alertes-cours","prises","masquees","attente","regarder","apercu","parc","chaleur","sauvegardes","bas"]}`} {
 		if code := envoyer("/compte/accueil", mauvais); code != http.StatusBadRequest {
 			t.Errorf("%s accepté : %d", mauvais, code)
 		}

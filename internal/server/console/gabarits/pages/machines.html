@@ -3,9 +3,16 @@
 <p>{{.D.Approuvees}} {{accord .D.Approuvees "machine(s)"}}{{if .D.Sites}} · {{.D.Sites}} {{accord .D.Sites "site(s)"}}{{end}}{{if .D.TotalAttente}} · <strong>{{.D.TotalAttente}} en attente</strong>{{end}}</p></div>
 {{if .Admin}}<div class="actions"><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></div>{{end}}</div>
 {{template "onglets-machines" "machines"}}
+{{with .D.Cases}}{{if .Approuvees}}<div class="cases-etat">
+<a class="case-etat" href="/machines"><small>En ligne</small><b>{{.EnLigne}} <i>/ {{.Approuvees}}</i></b><span class="barre-etat"><i class="ok largeur-{{.PctEnLigne}}"></i><i class="erreur largeur-{{.PctMuettes}}"></i></span><span class="s">{{if .Muettes}}{{.Muettes}} {{accord .Muettes "muette(s)"}}{{else}}toutes répondent{{end}}{{if .EnAttente}} · {{.EnAttente}} en attente{{end}}</span></a>
+<a class="case-etat{{if .Muettes}} erreur{{end}}" href="/machines?filtre=problemes"><small>Muettes</small><b>{{.Muettes}}</b><span class="s">{{if .Muettes}}{{.NomsMuettes}}{{else}}aucune{{end}}</span></a>
+<a class="case-etat{{if .ARegarder}} attention{{end}}" href="/machines?filtre=problemes"><small>À regarder</small><b>{{.ARegarder}}</b><span class="s">{{if .ARegarder}}{{.DetailRegarder}}{{else}}rien à signaler{{end}}</span></a>
+<a class="case-etat{{if .Securite}} attention{{end}}" href="/"><small>Paquets à mettre à jour</small><b>{{.Paquets}}</b><span class="s">{{if .Securite}}{{.DetailPaquets}}{{else if .Paquets}}aucun de sécurité{{else}}tout est à jour{{end}}</span></a>
+</div>{{end}}{{end}}
 
-{{if .D.EnAttente}}<section class="carte attente-approbation" id="attente">
-<h2>À approuver ({{.D.TotalAttente}})</h2>
+{{if .D.EnAttente}}<details class="bandeau-attente" id="attente"{{if .D.ToutesAttente}} open{{end}}>
+<summary><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><span class="t">{{with index .D.EnAttente 0}}<b>{{if eq $.D.TotalAttente 1}}{{.Nom}} demande à entrer{{else}}{{$.D.TotalAttente}} machines demandent à entrer{{end}}</b>
+<small>{{if eq $.D.TotalAttente 1}}{{.IPEnrolement}} · {{depuisS .CreeLe}}{{if .AdresseInconnue}} · adresse inconnue (indice, rien de bloqué){{end}}{{if .NomBanal}} · nom à changer ?{{end}}{{else}}la plus ancienne : {{.Nom}}, {{depuisS .CreeLe}}{{end}}</small>{{end}}</span><span class="bouton">Examiner{{if $.Admin}} et approuver{{end}}</span></summary>
 <div class="defile"><table class="table-attente" data-cartes><thead><tr><th>Nom</th><th>Demande</th><th>Site</th><th>Type</th><th>Groupe</th><th title="Le token de la machine ne marchera que depuis cette adresse">Limiter à l'adresse</th><th></th></tr></thead><tbody>
 {{range .D.EnAttente}}{{$id := printf "ap-%s" .Nom}}<tr>
 <td>{{if $.Admin}}<input form="{{$id}}" name="nouveau_nom" value="{{.Nom}}" required maxlength="63" size="13" pattern="[A-Za-z0-9][A-Za-z0-9._\-]*" aria-label="Nom de la machine">{{else}}<strong>{{.Nom}}</strong>{{end}}
@@ -23,7 +30,7 @@
 </tr>{{end}}</tbody></table></div>
 {{if .D.AttenteCachees}}<p><a href="/machines?attente=toutes#attente">Voir les {{.D.AttenteCachees}} autres</a></p>{{end}}
 <p class="aide"><small class="aide">Une par une : approuver donne un token à la machine. Les pastilles orange sont des indices, rien n'est bloqué. {{template "plus" "aide.md#machines-en-attente"}}</small></p>
-</section>{{end}}
+</details>{{end}}
 
 <form method="get" action="/machines" class="filtres-machines">
 <span class="recherche-machines"><input type="search" name="q" value="{{$f.Q}}" placeholder="Chercher une machine…" maxlength="100" aria-label="Chercher une machine (nom, site, type, groupe)"><button class="secondaire">Chercher</button>{{if $f.Q}} <a href="/machines">Effacer</a>{{end}}</span>
@@ -37,9 +44,15 @@
 <a href="{{$f.Lien "vue" "site"}}"{{if eq $f.Vue "site"}} class="actif" aria-current="page"{{end}}>Par site</a>
 <a href="{{$f.Lien "vue" "groupe"}}"{{if eq $f.Vue "groupe"}} class="actif" aria-current="page"{{end}}>Par groupe</a>
 <a href="{{$f.Lien "vue" "liste"}}"{{if eq $f.Vue "liste"}} class="actif" aria-current="page"{{end}}>Liste</a></span>
+<span class="segment" aria-label="Présentation" data-bascule-machines hidden><button type="button" data-affichage="tuiles" class="actif" aria-pressed="true">Tuiles</button><button type="button" data-affichage="tableau" aria-pressed="false">Tableau</button></span>
 </form>
+<div class="machines-groupes" data-affichage-machines="tuiles">
 
-{{range .D.Groupes}}{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines" open>
+{{range .D.Groupes}}<section class="vue-tuiles bloc-tuiles">
+<div class="titre-tuiles">{{if ne $f.Vue "liste"}}<h2>{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</h2>{{end}}<small class="doux">{{len .Machines}} {{accord (len .Machines) "machine(s)"}}</small>{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}</div>
+<div class="grille-tuiles">{{range .Tuiles}}{{template "tuile-machine" .}}{{end}}</div>
+</section>
+<div class="vue-tableau">{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines" open>
 <summary><strong class="titre-bloc">{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</strong>
 <span class="doux">· {{len .Machines}} {{accord (len .Machines) "machine(s)"}}</span>
 {{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}</summary>{{end}}
@@ -53,7 +66,8 @@
 <td>{{if not .VuLe}}<span class="pastille erreur">Jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">Muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
 <td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td>
 </tr>{{end}}</tbody></table></div>
-{{if eq $f.Vue "liste"}}</section>{{else}}</details>{{end}}{{else}}{{if .D.Approuvees}}{{template "vide" "Aucune machine ne correspond à ce choix."}}<p><a href="/machines">Tout afficher</a></p>{{else}}<section class="carte">{{template "vide" "Aucune machine approuvée."}}{{if .Admin}}<p><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></p>{{end}}</section>{{end}}{{end}}
+{{if eq $f.Vue "liste"}}</section>{{else}}</details>{{end}}</div>{{else}}{{if .D.Approuvees}}{{template "vide" "Aucune machine ne correspond à ce choix."}}<p><a href="/machines">Tout afficher</a></p>{{else}}<section class="carte">{{template "vide" "Aucune machine approuvée."}}{{if .Admin}}<p><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></p>{{end}}</section>{{end}}{{end}}
+</div>
 
 {{if .D.Autres}}<details class="carte"><summary><strong>Refusées ({{len .D.Autres}})</strong></summary>
 <ul>{{range .D.Autres}}<li><a href="/machines/{{.Nom}}">{{.Nom}}</a> — {{if eq .Statut "refusee"}}refusée{{else}}{{.Statut}}{{end}}</li>{{end}}</ul></details>{{end}}

@@ -142,7 +142,7 @@ func TestPageMachines(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, corps, _ := b.get(c, "/machines")
-	for _, attendu := range []string{"À approuver (2)", "Nom à changer ?", "Adresse inconnue", `href="/machines/ajouter"`,
+	for _, attendu := range []string{"2 machines demandent à entrer", "Nom à changer ?", "Adresse inconnue", `href="/machines/ajouter"`,
 		"Problèmes (1)", ">ovh<", ">maison<", "refusée", `form="ap-debian"`} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("absent de /machines : %q", attendu)
@@ -155,6 +155,14 @@ func TestPageMachines(t *testing.T) {
 	// Plus ancienne demande d'abord.
 	if strings.Index(corps, `form="ap-debian"`) > strings.Index(corps, `form="ap-srv-mail"`) {
 		t.Error("ordre des machines en attente")
+	}
+	// Tuiles (SPEC § 120) : une par machine, cases d'état en haut ; le
+	// tableau reste dans la page (bascule par le navigateur).
+	for _, attendu := range []string{`<div class="tuile-machine point-erreur">`, `<a class="nom" href="/machines/pve-maison">pve-maison</a>`,
+		`title="signature refusée">Mise à jour en échec</a>`, `<small>Muettes</small>`, `data-bascule-machines hidden`, `<div class="vue-tableau">`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("tuiles : %q absent", attendu)
+		}
 	}
 	_, corps, _ = b.get(c, "/machines?filtre=problemes")
 	if strings.Contains(corps, `href="/machines/srv-web"`) || !strings.Contains(corps, `href="/machines/pve-maison"`) {
@@ -171,7 +179,7 @@ func TestPageMachines(t *testing.T) {
 		}
 	}
 	_, corps, _ = b.get(c, "/machines")
-	if !strings.Contains(corps, "À approuver (7)") || !strings.Contains(corps, "Voir les 2 autres") || strings.Count(corps, `form="ap-`) != 5*5 {
+	if !strings.Contains(corps, "7 machines demandent à entrer") || !strings.Contains(corps, "Voir les 2 autres") || strings.Count(corps, `form="ap-`) != 5*5 {
 		t.Errorf("liste bornée : %d champs", strings.Count(corps, `form="ap-`))
 	}
 	if _, corps, _ = b.get(c, "/machines?attente=toutes"); strings.Count(corps, `form="ap-`) != 7*5 {

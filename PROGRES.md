@@ -1711,6 +1711,15 @@ par ligne, pas 7).
 - Coût : 6 requêtes instantanées au plus par affichage de la page, en cache ; aucun changement côté collecteur.
 - Captures ordinateur et téléphone vérifiées (aucun débordement).
 
+## Page Machines et vue d'ensemble, nouvelle présentation (22/11)
+
+- Maquettes validées (sans « Tâches de la nuit »), codées (SPEC § 120).
+- Machines : cases d'état, bandeau d'approbation, tuiles par site, bascule tuiles / tableau gardée par le navigateur.
+- Vue d'ensemble : bandeau, 5 cases, « À regarder », « Le parc d'un coup d'œil », ligne du bas.
+- Tests : `TestAccueilARegarder` (nouveau), `TestPageMachines`, `TestPostAccueil`, `TestRuche` mis à jour ; suite console complète verte avec `-race`.
+- Coût : 3 requêtes instantanées en plus sur la vue d'ensemble (en cache) ; la page Machines réutilise les mesures de la vue d'ensemble.
+- Captures ordinateur et téléphone vérifiées (aucun débordement).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 (0.6.8 publiée le 21/11).

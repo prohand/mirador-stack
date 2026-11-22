@@ -2031,3 +2031,100 @@ fieldset.choix-ecoute { display: flex; flex-wrap: wrap; gap: 8px; border: 0; pad
 fieldset.choix-ecoute legend { padding: 0 0 6px; color: var(--doux); font-size: 13px; }
 fieldset.choix-ecoute label.case { display: flex; flex-direction: row; align-items: center; gap: 8px; border: 1px solid var(--bord); border-radius: 10px; padding: 8px 12px; cursor: pointer; }
 fieldset.choix-ecoute label.case:has(input:checked) { border-color: var(--accent); background: var(--accent-fond); }
+
+/* Page Machines (maquette validée le 22/11, SPEC § 120) : cases d'état,
+   demande d'approbation en bandeau, tuiles ou tableau. */
+.cases-etat { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); margin: 4px 0 16px; }
+a.case-etat { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: var(--texte); min-width: 0; }
+a.case-etat:hover { border-color: var(--accent); }
+a.case-etat.erreur { box-shadow: inset 3px 0 0 var(--erreur); }
+a.case-etat.attention { box-shadow: inset 3px 0 0 var(--attention-trait); }
+.case-etat small { color: var(--pale); font-size: 12.5px; }
+.case-etat b { font-size: 22px; letter-spacing: -.01em; }
+.case-etat b i { font-style: normal; font-size: 14px; color: var(--pale); font-weight: 500; }
+.case-etat .s { font-size: 12.5px; color: var(--doux); overflow-wrap: anywhere; }
+.barre-etat { height: 6px; border-radius: 99px; background: var(--bord); overflow: hidden; display: flex; margin: 4px 0 2px; }
+.barre-etat i { display: block; height: 100%; }
+.barre-etat i.ok { background: var(--ok); } .barre-etat i.erreur { background: var(--erreur); }
+details.bandeau-attente { background: var(--info-fond); border-radius: 16px; padding: 14px 18px; margin-bottom: 16px; }
+details.bandeau-attente > summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; cursor: pointer; list-style: none; }
+details.bandeau-attente > summary::-webkit-details-marker { display: none; }
+details.bandeau-attente > summary .t { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+details.bandeau-attente > summary .t b { font-size: 16px; }
+details.bandeau-attente > summary .t small { color: var(--doux); }
+details.bandeau-attente[open] > summary .bouton { display: none; }
+details.bandeau-attente[open] > summary { margin-bottom: 12px; }
+details.bandeau-attente .defile { background: var(--carte); border-radius: 12px; }
+[data-affichage-machines="tuiles"] .vue-tableau, [data-affichage-machines="tableau"] .vue-tuiles { display: none; }
+.titre-tuiles { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 18px 0 10px; }
+.titre-tuiles h2 { margin: 0; font-size: 17px; }
+.grille-tuiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); }
+.tuile-machine { position: relative; background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tuile-machine:hover { border-color: var(--accent); }
+.tuile-machine.point-erreur { background: var(--erreur-fond); border-color: transparent; }
+.tuile-machine .h { display: flex; align-items: center; gap: 8px; }
+.tuile-machine a.nom { flex: 1; min-width: 0; font-weight: 600; font-size: 14.5px; color: var(--texte); text-decoration: none; overflow-wrap: anywhere; }
+.tuile-machine a.nom::after { content: ""; position: absolute; inset: 0; border-radius: 12px; } /* toute la tuile mène à la machine */
+.tuile-machine .puce { width: 28px; height: 28px; border-radius: 8px; }
+.tuile-machine .puce .icone { width: 15px; height: 15px; }
+.tuile-machine .sous { color: var(--pale); font-size: 12.5px; margin-top: -4px; }
+.tuile-machine .puces-tuile { display: flex; gap: 6px; flex-wrap: wrap; }
+.tuile-machine .puces-tuile:empty { display: none; }
+.tuile-machine .puces-tuile a, .tuile-machine .puces-tuile span { position: relative; z-index: 1; } /* au-dessus du lien de la tuile */
+.jauges-tuile { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 12px; color: var(--doux); }
+.jauges-tuile .jauge { margin: 0; height: 5px; }
+.jauges-tuile .jauge i { height: 5px; }
+.point { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.point.attention { background: var(--attention-trait); } .point.erreur { background: var(--erreur); }
+.segment button { padding: 5px 12px; border-radius: 8px; font-size: 13px; color: var(--doux); background: none; border: 0; min-height: 0; font-weight: 400; box-shadow: none; }
+.segment button.actif { background: var(--carte); color: var(--texte); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.segment button:hover { background: var(--carte); color: var(--texte); }
+details.bandeau-attente > summary .bouton { white-space: nowrap; display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: var(--sur-accent); font-weight: 600; }
+details.bandeau-attente > summary .puce { background: var(--carte); }
+.puces-tuile .pastille .point { width: 7px; height: 7px; }
+
+/* Vue d'ensemble (maquette validée le 22/11, SPEC § 120) : bandeau d'état,
+   « À regarder » et « Le parc d'un coup d'œil » côte à côte, ligne de pied. */
+.blocs-accueil .kpis { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
+.blocs-accueil .kpi .kpi-bas { overflow-wrap: anywhere; }
+.kpi.kpi-erreur { box-shadow: inset 3px 0 0 var(--erreur), 0 1px 2px rgba(17,24,39,.06); }
+.kpi.kpi-attention { box-shadow: inset 3px 0 0 var(--attention-trait), 0 1px 2px rgba(17,24,39,.06); }
+.bandeau-accueil { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-radius: 16px; padding: 16px 20px; margin-bottom: 18px; background: var(--ok-fond); }
+.bandeau-accueil.erreur { background: var(--erreur-fond); }
+.bandeau-accueil.attention { background: var(--attention-fond); }
+.bandeau-accueil .d { flex: 1; min-width: 200px; }
+.bandeau-accueil h2 { margin: 0; font-size: 18px; }
+.bandeau-accueil p { margin: 2px 0 0; color: var(--doux); font-size: 13.5px; overflow-wrap: anywhere; }
+.bandeau-accueil .puce { background: var(--carte); width: 44px; height: 44px; border-radius: 12px; }
+@media (min-width: 1100px) {
+  .blocs-accueil:not(.edition-accueil .blocs-accueil) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+  .blocs-accueil > * { grid-column: 1 / -1; }
+  .blocs-accueil > .bloc-moitie { grid-column: auto; }
+}
+.liste-regarder { display: flex; flex-direction: column; border: 1px solid var(--bord); border-radius: 10px; overflow: hidden; }
+.liste-regarder .l { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bord); font-size: 14px; }
+.liste-regarder .l:last-child { border-bottom: 0; }
+.liste-regarder .l.erreur { box-shadow: inset 3px 0 0 var(--erreur); }
+.liste-regarder .l.attention { box-shadow: inset 3px 0 0 var(--attention-trait); }
+.liste-regarder .l.info { box-shadow: inset 3px 0 0 var(--accent); }
+.liste-regarder .l .e { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.liste-regarder .l .e small { display: block; color: var(--pale); font-size: 12.5px; }
+.liste-regarder .puce, .pied-accueil .puce { width: 30px; height: 30px; border-radius: 8px; }
+.liste-regarder .puce .icone, .pied-accueil .puce .icone { width: 16px; height: 16px; }
+.apercu-site h3 { font-size: 14px; margin: 0 0 8px; }
+.apercu-site + .apercu-site { margin-top: 14px; }
+.apercu-puces { display: flex; gap: 8px; flex-wrap: wrap; }
+.apercu-puces a.pastille { font-size: 13px; padding: 4px 11px; font-weight: 500; color: var(--texte); background: var(--carte); border: 1px solid var(--bord); }
+.apercu-puces a.pastille.apercu-erreur { background: var(--erreur-fond); border-color: transparent; }
+.apercu-titre-chaleur { font-size: 13.5px; margin: 18px 0 8px; }
+.pied-accueil { display: flex; gap: 10px 22px; flex-wrap: wrap; font-size: 13px; color: var(--doux); padding: 6px 4px; }
+.pied-accueil a { display: flex; align-items: center; gap: 8px; color: var(--doux); text-decoration: none; }
+.pied-accueil a:hover { color: var(--texte); }
+/* Téléphone : cases deux par ligne (vue d'ensemble et Machines). */
+@media (max-width: 640px) {
+  .cases-etat, .blocs-accueil .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .blocs-accueil .kpi { padding: 14px; }
+  .blocs-accueil .kpi .kpi-valeur { font-size: 26px; }
+  .blocs-accueil .kpi .kpi-bas { font-size: 12.5px; overflow-wrap: anywhere; }
+  a.case-etat { padding: 12px 14px; }
+}

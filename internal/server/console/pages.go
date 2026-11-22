@@ -197,6 +197,7 @@ type donneesAccueil struct {
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
 	Ruche                        *vueRuche
+	R                            donneesRegarder // bandeau, cases, « À regarder », aperçu (SPEC § 120)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -290,9 +291,16 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	for _, l := range d.Parc {
 		d.Nouveautes += l.Nouveautes
 	}
+	majEchec := map[string]string{}
 	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
 		d.Chaleur = c.chaleurParc(ctx, ms, q.t)
+		for _, m := range ms {
+			if m.Statut == "approuvee" && m.MajEchec != "" {
+				majEchec[m.Nom] = m.MajEchec
+			}
+		}
 	}
+	d.R = c.regarderAccueil(ctx, &d, majEchec, q.t)
 	return d
 }
 
@@ -382,6 +390,7 @@ type donneesMachines struct {
 	Filtres           filtresPage
 	Compteurs         compteursFiltres
 	Groupes           []groupeMachines
+	Cases             casesMachines // cases du haut (SPEC § 120)
 }
 
 // donneesAjout : page « Ajouter une machine » (SPEC § 36), en étapes.
@@ -460,6 +469,18 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 	d.Compteurs = d.Filtres.compter(approuvees)
 	d.Groupes = regrouperMachines(approuvees, d.Filtres)
 	d.Listes = c.lireListes(ctx)
+	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble.
+	mesures := map[string]*ligneParc{}
+	if c.lecteur != nil {
+		actives, _ := separerAttente(c.alertesEnCours(""))
+		for _, l := range c.parc(q, actives) {
+			mesures[l.Nom] = &l
+		}
+	}
+	for i := range d.Groupes {
+		d.Groupes[i].Tuiles = tuilesDe(d.Groupes[i].Machines, mesures)
+	}
+	d.Cases = calculerCases(approuvees, mesures, d.TotalAttente)
 	return d
 }
 

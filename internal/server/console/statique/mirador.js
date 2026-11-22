@@ -2454,3 +2454,30 @@ document.addEventListener("change", function (ev) {
   f.addEventListener("change", calculer);
   calculer();
 })();
+
+// Page Machines (SPEC § 120) : présentation en tuiles ou en tableau, choix
+// gardé par le navigateur. Sans JavaScript : les tuiles.
+(function () {
+  var zone = document.querySelector("[data-affichage-machines]");
+  var bascule = document.querySelector("[data-bascule-machines]");
+  if (!zone || !bascule) { return; }
+  var cle = "mirador.machines.affichage";
+  function choisir(v, garder) {
+    if (v !== "tableau") { v = "tuiles"; }
+    zone.setAttribute("data-affichage-machines", v);
+    bascule.querySelectorAll("button[data-affichage]").forEach(function (b) {
+      var oui = b.getAttribute("data-affichage") === v;
+      b.classList.toggle("actif", oui);
+      b.setAttribute("aria-pressed", oui ? "true" : "false");
+    });
+    if (garder) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+  }
+  var lu = null;
+  try { lu = window.localStorage.getItem(cle); } catch (e) { /* rien */ }
+  choisir(lu, false);
+  bascule.hidden = false;
+  bascule.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-affichage]");
+    if (b) { choisir(b.getAttribute("data-affichage"), true); }
+  });
+})();
