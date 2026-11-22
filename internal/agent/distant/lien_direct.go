@@ -27,7 +27,11 @@ func (l *Lien) boucleDirect(ctx context.Context) {
 	defer l.enDirect.Store(false)
 	relever := l.releveDirect
 	if relever == nil {
-		relever = direct.Nouveau().Relever
+		r := l.Direct
+		if r == nil {
+			r = direct.Nouveau()
+		}
+		relever = r.Relever
 	}
 	relever(time.Now()) // compteurs de départ : le premier envoi a déjà des débits
 	debut := time.Now()

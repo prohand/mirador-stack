@@ -41,6 +41,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
+	m.HandleFunc("GET /sante-mirador", c.lecture(c.pageSante))       // Santé de mirador (SPEC § 121)
 	m.HandleFunc("GET /taches", c.lecture(c.pageTaches))             // tâches planifiées (SPEC § 80)
 	m.HandleFunc("GET /taches/erreur", c.lecture(c.pageErreurTache)) // « Voir l'erreur » (SPEC § 93)
 	m.HandleFunc("POST /taches", c.admin(c.postTaches))
@@ -797,7 +798,12 @@ func (c *Console) pageMachine(q *req) {
 	// mesure (ressources, disques, réseau).
 	collecteurLinux := m.Type == "collecteur" && m.Statut == "approuvee"
 	if collecteurLinux {
-		d.Maintenant = blocEnCeMoment(m.Nom, "", c.enCeMoment(ctx, m, q.t))
+		// Direct : collecteur 0.6.13 et suivants (capacité annoncée) ; plus
+		// ancien, les moyennes des 5 dernières minutes seulement.
+		if c.opt.Direct != nil && flotte.ACapacite(m.Capacites, protocole.CapaciteDirect) {
+			d.Direct = "ok"
+		}
+		d.Maintenant = blocEnCeMoment(m.Nom, d.Direct, c.enCeMoment(ctx, m, q.t))
 	}
 	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && (m.Type == "agent" || collecteurLinux) {
 		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
@@ -1612,7 +1618,7 @@ func (c *Console) donneesAller(q *req) {
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
 		{"Sondes", "Page", "/sondes"}, {"Tâches planifiées", "Page", "/taches"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
-		{"Coupures", "Page", "/coupures"},
+		{"Coupures", "Page", "/coupures"}, {"Santé de mirador", "Page", "/sante-mirador"},
 	}
 	ctx := q.r.Context()
 	// Sondes, services, conteneurs (SPEC § 58) : leurs fiches.

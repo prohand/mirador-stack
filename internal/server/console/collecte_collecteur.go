@@ -37,6 +37,7 @@ type vueCollecte struct {
 	Sondes     []sondeCert
 	Emetteurs  []emetteurVue
 	UniFi      cellule // état du contrôleur (pastille de la carte)
+	AvecDirect bool    // un équipement au moins envoie lui-même (colonne « Envoi direct »)
 	SNMPActifs int
 	// Pour : équipement choisi d'avance (lien « + » du tableau) ; Modif :
 	// relevé SNMP à modifier (lien « Modifier »), formulaire prérempli.
@@ -58,6 +59,7 @@ type ligneCollecte struct {
 	VuLe        int64
 	SNMP, UniFi *cellule
 	Certs       []cellule
+	Direct      *cellule // envoi direct au serveur avec son token (Telegraf)
 	Syslog      *cellule
 }
 
@@ -123,6 +125,10 @@ func (c *Console) collecteDe(ctx context.Context, col flotte.InfoMachine, eqs []
 	}
 	inst := `instance=` + strconv.Quote(col.Nom)
 	lignesH := c.parEtiquette(ctx, `sum by (equipement) (increase(mirador_collecteur_syslog_lignes_total{`+inst+`}[1h]))`, t, "equipement")
+	// Équipement discret (un NAS envoie parfois quelques lignes par jour) :
+	// « reçu » aussi sur 24 h (retour du 22/11 : syslog du NAS « rien reçu »
+	// alors que sa connexion TLS était ouverte).
+	lignesJ := c.parEtiquette(ctx, `sum by (equipement) (increase(mirador_collecteur_syslog_lignes_total{`+inst+`}[24h]))`, t, "equipement")
 	if r := c.parEtiquette(ctx, `sum(increase(mirador_collecteur_syslog_refus_total{`+inst+`, motif!="filterlog"}[24h]))`, t); len(r) > 0 {
 		for _, x := range r {
 			v.Refus24h = int(math.Round(x))
@@ -206,9 +212,12 @@ func (c *Console) collecteDe(ctx context.Context, col flotte.InfoMachine, eqs []
 		}
 		for _, x := range v.Emetteurs {
 			if x.Machine == e.Nom {
-				ce := cellule{Classe: "gris", Texte: "rien reçu", Detail: "depuis 1 h"}
-				if nb := lignesH[e.Nom]; nb >= 1 {
+				ce := cellule{Classe: "gris", Texte: "rien reçu", Detail: "depuis 24 h"}
+				switch nb, nj := lignesH[e.Nom], lignesJ[e.Nom]; {
+				case nb >= 1:
 					ce = cellule{Classe: "ok", Texte: "reçu", Detail: fmt.Sprintf("%.0f lignes/h", nb)}
+				case nj >= 0.5:
+					ce = cellule{Classe: "ok", Texte: "reçu", Detail: accorderTexte(fmt.Sprintf("%.0f ligne(s) en 24 h", math.Max(1, math.Round(nj))))}
 				}
 				if x.PareFeu {
 					if s.GarderFilterlog {
@@ -226,6 +235,12 @@ func (c *Console) collecteDe(ctx context.Context, col flotte.InfoMachine, eqs []
 				}
 				break
 			}
+		}
+		// Envoi direct (Telegraf d'OPNsense…) : l'équipement envoie lui-même
+		// au serveur avec son token, sans passer par le collecteur (retour
+		// du 22/11 : « on ne voit pas Telegraf ici »).
+		if ce, ok := c.celluleDirect(ctx, e, t); ok {
+			l.Direct, v.AvecDirect = &ce, true
 		}
 		var d []string
 		if adresse != "" {
@@ -418,4 +433,29 @@ func (c *Console) postEmetteur(q *req, m flotte.InfoMachine, action string) (str
 		return nil
 	})
 	return "émetteur " + adresse + " → " + machine + " ajouté : le collecteur l'accepte tout de suite", err
+}
+
+// celluleDirect : envoi direct d'un équipement avec son propre token
+// (Telegraf), vu par la réception des données. Faux : pas de token.
+func (c *Console) celluleDirect(ctx context.Context, e flotte.Equipement, t time.Time) (cellule, bool) {
+	var n int
+	if err := c.db.QueryRowContext(ctx, `SELECT count(*) FROM tokens WHERE machine_id = ? AND revoque_le = 0`, e.ID).Scan(&n); err != nil || n == 0 {
+		return cellule{}, false
+	}
+	ce := cellule{Classe: "gris", Texte: "rien reçu", Detail: "token prêt"}
+	if c.opt.Ingestion == nil {
+		return ce, true
+	}
+	envoi, _ := c.opt.Ingestion.DerniereReception(e.ID)
+	if r, ok := c.opt.Ingestion.DernierRefus(e.ID); ok && r.T > envoi {
+		return cellule{Classe: "erreur", Texte: "refusé", Detail: r.Motif}, true
+	}
+	if envoi > 0 {
+		age := t.Sub(time.Unix(envoi, 0))
+		ce = cellule{Classe: "ok", Texte: "reçu", Detail: "il y a " + dureeLisible(age)}
+		if age > 10*time.Minute {
+			ce.Classe, ce.Texte = "attention", "plus rien"
+		}
+	}
+	return ce, true
 }

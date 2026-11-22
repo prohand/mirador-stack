@@ -2128,3 +2128,53 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .blocs-accueil .kpi .kpi-bas { font-size: 12.5px; overflow-wrap: anywhere; }
   a.case-etat { padding: 12px 14px; }
 }
+
+/* Santé de mirador (SPEC § 121) : une carte par lieu, une ligne par service. */
+.puces-sante { display: flex; gap: 6px; flex-wrap: wrap; margin: -8px 0 16px; }
+.carte-sante { padding: 16px 18px; }
+.entete-sante { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.entete-sante h2 { margin: 0; font-size: 16px; flex: 1; min-width: 0; }
+.entete-sante .puce, .liste-sante .puce { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.entete-sante .puce .icone, .liste-sante .puce .icone { width: 16px; height: 16px; }
+.liste-sante { display: flex; flex-direction: column; border: 1px solid var(--bord); border-radius: 10px; overflow: hidden; }
+.liste-sante .l { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bord); font-size: 14px; }
+.liste-sante .l:last-child { border-bottom: 0; }
+.liste-sante .l.erreur { box-shadow: inset 3px 0 0 var(--erreur); }
+.liste-sante .l.attention { box-shadow: inset 3px 0 0 var(--attention-trait); }
+.liste-sante .l.eteint { opacity: .72; }
+.liste-sante .l[data-onglet-cache] { display: none; }
+.liste-sante .e { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.liste-sante .e b { font-size: 14.5px; }
+.liste-sante .e code { font-size: 12.5px; }
+.liste-sante .e .pastille { margin-left: 4px; vertical-align: 1px; }
+.liste-sante .e small { display: block; color: var(--pale); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+.liste-sante .e small strong { color: var(--texte); }
+.pastille.root { font-family: ui-monospace, monospace; font-size: 11.5px; background: var(--info-fond); color: var(--accent); }
+.chiffres-sante { display: flex; gap: 18px; flex-wrap: wrap; }
+.chiffres-sante span { display: flex; flex-direction: column; align-items: flex-end; min-width: 64px; }
+.chiffres-sante b { font-size: 14.5px; white-space: nowrap; }
+.chiffres-sante small { color: var(--pale); font-size: 11.5px; white-space: nowrap; }
+.voir-sante { font-size: 13px; white-space: nowrap; text-decoration: none; }
+.deplier-sante { display: none; }
+.carte-sante[data-vide] { display: none; }
+@media (max-width: 700px) {
+  .liste-sante .l { flex-wrap: wrap; }
+  .chiffres-sante { width: 100%; padding-left: 42px; }
+  .chiffres-sante span { align-items: flex-start; }
+  .voir-sante { margin-left: 42px; }
+  .entete-sante small { flex-basis: 100%; padding-left: 40px; }
+  /* Téléphone : carte où tout va bien repliée ; ailleurs, seules les lignes
+     à regarder restent visibles (« N autres services · voir »). */
+  .carte-sante:not(.ouverte) .liste-sante .l.ok, .carte-sante:not(.ouverte) .liste-sante .l.eteint { display: none; }
+  .carte-sante.toute-ok:not(.ouverte) .liste-sante { display: none; }
+  .carte-sante:not(.ouverte) .deplier-sante { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; background: none; border: 0; padding: 4px 2px; color: var(--doux); font: inherit; font-size: 13.5px; text-align: left; min-height: 44px; box-shadow: none; }
+  .carte-sante.toute-ok:not(.ouverte) .deplier-sante { margin-top: 0; }
+  .carte-sante.filtree:not(.ouverte) .liste-sante, .carte-sante.filtree:not(.ouverte) .liste-sante .l:not([data-onglet-cache]) { display: flex; }
+  .carte-sante.filtree .deplier-sante { display: none; }
+}
+@media (max-width: 700px) {
+  .kpis-sante { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpis-sante .kpi { padding: 14px; }
+  .kpis-sante .kpi-valeur { font-size: 22px; margin-top: 8px; }
+  .kpis-sante .kpi-bas { font-size: 12px; }
+}

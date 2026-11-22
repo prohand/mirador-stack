@@ -33,10 +33,12 @@ import (
 
 	"mirador-stack/internal/agent"
 	"mirador-stack/internal/agent/config"
+	"mirador-stack/internal/agent/direct"
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/agent/majagent"
 	"mirador-stack/internal/agent/remotewrite"
 	"mirador-stack/internal/collecteur"
+	"mirador-stack/internal/collecteur/compagnon"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/relance"
 	"mirador-stack/internal/version"
@@ -57,7 +59,10 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	// Ce binaire est mirador-collector : manifestes, noms des binaires
 	// installés et capacités annoncées au serveur.
 	majagent.ProduitCourant = protocole.ProduitCollecteur
-	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes + "," + protocole.CapaciteSonder
+	// Direct (SPEC § 97) : sa page « Machine » montre ses relevés chaque
+	// seconde, comme un agent (retour du 22/11 : « En ce moment n'est pas en
+	// direct sur le collecteur »). Même boucle que l'agent (distant.Lien).
+	distant.Capacites = protocole.CapaciteCollecteur + "," + protocole.CapaciteSondes + "," + protocole.CapaciteSonder + "," + protocole.CapaciteDirect
 
 	fs := flag.NewFlagSet("mirador-collector", flag.ContinueOnError)
 	fs.SetOutput(erreurs)
@@ -67,8 +72,12 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	retourArriere := fs.Bool("retour-arriere", false, "remettre la version précédente (mise à jour en échec)")
 	dossierBin := fs.String("dossier-bin", "/var/lib/mirador-collector/bin", "dossier des binaires (mise à jour)")
 	afficherVersion := fs.Bool("version", false, "afficher la version")
+	modeProcessus := fs.Bool("processus", false, "compagnon sans réseau : relève les processus de la machine (service mirador-collector-processus)")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if *modeProcessus {
+		return lancerCompagnon(erreurs)
 	}
 	if *afficherVersion {
 		fmt.Fprintln(sortie, "mirador-collector", version.Complete())
@@ -143,7 +152,11 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 	decl := &collecteur.Declencheurs{Journal: journal}
 	var surPlace atomic.Bool // relance sur place demandée (configuration modifiée)
 	if cfg.Serveur != "" {
-		lien := &distant.Lien{Sonder: decl.Declencher, Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
+		// Direct : processus lus chez le compagnon sans réseau (il voit toute
+		// la machine ; le collecteur ne voit que lui-même).
+		releveur := direct.Nouveau()
+		releveur.SourceProcessus = compagnon.NouveauLecteur().ProcessusDirect
+		lien := &distant.Lien{Direct: releveur, Sonder: decl.Declencher, Cfg: cfg, Locale: locale, Token: token, Client: client, Journal: journal, CSRSyslog: csr,
 			Empreinte:    config.EmpreinteMachine(""),
 			Installateur: majagent.NewInstallateur(*dossierBin, *chemin),
 			Redemarrer: func(raison string) {
@@ -207,4 +220,23 @@ func niveau(n string) slog.Level {
 		return slog.LevelInfo
 	}
 	return l
+}
+
+// lancerCompagnon : service mirador-collector-processus (SPEC § 120.1).
+// Aucune configuration, aucun token, aucun réseau : il lit /proc et écrit
+// ses relevés dans /run/mirador-processus.
+func lancerCompagnon(erreurs io.Writer) int {
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(12 << 20)
+	}
+	journal := slog.New(slog.NewTextHandler(erreurs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	ctx, arreter := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer arreter()
+	journal.Info("compagnon des processus : démarrage", "version", version.Complete())
+	c := &compagnon.Compagnon{Sortie: compagnon.DossierSortie, Repere: compagnon.RepereDirect, Proc: "/proc", Journal: journal}
+	if err := c.Tourner(ctx); err != nil {
+		journal.Error("compagnon des processus", "erreur", err)
+		return 1
+	}
+	return 0
 }

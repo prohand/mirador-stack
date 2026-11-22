@@ -1,0 +1,20 @@
+{{define "contenu"}}{{$d := .D}}
+<div class="titre-page"><h1>Santé de mirador</h1></div>
+<p class="sous">Tout ce qui fait tourner mirador : le serveur, les collecteurs du LAN, les agents et les envois des équipements. Lecture seule : la page montre ce que les services envoient déjà, aucune commande à distance.</p>
+<div class="puces-sante"><span class="pastille">{{$d.NbServices}} services</span>{{if $d.NbProblemes}}<span class="pastille attention">{{$d.NbProblemes}} à regarder</span>{{end}}{{if $d.NbRoot}}<span class="pastille">dont {{$d.NbRoot}} en root</span>{{end}}<span class="pastille">calculé {{depuisS $d.CalculeLe.Unix}}</span></div>
+{{if $d.NbProblemes}}<div class="bandeau-accueil attention"><span class="puce orange" aria-hidden="true"><svg class="icone"><use href="#i-attention"></use></svg></span><div class="d"><h2>{{$d.NbProblemes}} {{accord $d.NbProblemes "service(s) à regarder"}}</h2><p>{{range $i, $p := $d.Problemes}}{{if $i}} · {{end}}{{$p}}{{end}}</p></div></div>
+{{else}}<div class="bandeau-accueil ok"><span class="puce vert" aria-hidden="true"><svg class="icone"><use href="#i-ok"></use></svg></span><div class="d"><h2>Tous les services de mirador vont bien</h2><p>{{$d.NbServices}} services relus à l'instant</p></div></div>{{end}}
+<div class="kpis kpis-sante">{{range $d.Cases}}<a class="kpi{{if .Classe}} kpi-{{.Classe}}{{end}}" href="{{.Ancre}}"><div class="kpi-tete"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span>{{.Titre}}</div>
+<div class="kpi-valeur">{{.Valeur}}{{if .Sur}}<span> / {{.Sur}}</span>{{end}}</div><div class="kpi-bas">{{.Texte}}</div></a>{{end}}</div>
+<p class="onglets" data-filtres-sante><button type="button" class="actif" aria-pressed="true" data-filtre="">Tous ({{$d.NbServices}})</button><button type="button" aria-pressed="false" data-filtre="probleme">À regarder ({{$d.NbProblemes}})</button><button type="button" aria-pressed="false" data-filtre="root">Root ({{$d.NbRoot}})</button><button type="button" aria-pressed="false" data-filtre="serveur">Serveur ({{$d.NbServeur}})</button><button type="button" aria-pressed="false" data-filtre="lan">LAN ({{$d.NbLAN}})</button></p>
+{{range $i, $k := $d.Cartes}}<section class="carte carte-sante{{if not $k.NbProblemes}} toute-ok{{end}}" id="carte-{{$i}}" data-carte-sante>
+<div class="entete-sante"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-{{$k.Icone}}"></use></svg></span><h2>{{$k.Titre}}</h2>{{with $k.Sous}}<small class="doux">{{.}}</small>{{end}}</div>
+<div class="liste-sante">{{range $k.Lignes}}<div class="l {{.Etat}}" data-groupes="{{.Groupes}}">
+<span class="puce {{if eq .Etat "ok"}}vert{{else if eq .Etat "erreur"}}rouge{{else if eq .Etat "attention"}}orange{{else}}gris{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span>
+<div class="e"><b>{{.Nom}}</b>{{with .Version}} <code>{{.}}</code>{{end}}{{if .Root}} <span class="pastille root" title="Tourne en root, sans réseau">root</span>{{end}} <span class="pastille {{if eq .Etat "ok"}}ok{{else if eq .Etat "eteint"}}{{else}}{{.Etat}}{{end}}">{{.TexteEtat}}</span>
+<small>{{if .Alerte}}<strong>{{.Alerte}}</strong>{{if .Sous}} · {{end}}{{end}}{{.Sous}}</small></div>
+{{if .Chiffres}}<div class="chiffres-sante">{{range .Chiffres}}<span><b>{{.Valeur}}</b><small>{{.Legende}}</small></span>{{end}}</div>{{end}}
+{{if .Lien}}<a class="voir-sante" href="{{.Lien}}">{{.LienTexte}} ›</a>{{end}}</div>{{end}}</div>
+<button type="button" class="deplier-sante" data-deplier-sante>{{if $k.NbProblemes}}<span class="pastille ok">En marche</span> {{$k.NbOK}} {{accord $k.NbOK "autre(s) service(s)"}} · voir{{else}}<span class="pastille ok">Tout va bien</span> {{$k.NbOK}} services · voir{{end}} ›</button>
+</section>{{end}}
+{{end}}

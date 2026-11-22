@@ -81,3 +81,22 @@ func TestFluxDirect(t *testing.T) {
 		t.Error("page fermée : toujours abonnée")
 	}
 }
+
+// Collecteur (retour du 22/11 : « En ce moment n'est pas en direct sur le
+// collecteur ») : direct dès qu'il annonce la capacité, sinon les moyennes,
+// sans message « agent trop ancien ».
+func TestDirectCollecteur(t *testing.T) {
+	b := nouveauBanc(t)
+	b.c.opt.Direct = direct.Nouveau()
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, version_agent, capacites) VALUES
+		('col-neuf', 'approuvee', 'collecteur', 1, '0.6.13', 'collecteur,sondes,sonder,direct'), ('col-vieux', 'approuvee', 'collecteur', 1, '0.6.12', 'collecteur,sondes,sonder')`); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := b.premierAdmin("admin", "une longue phrase de passe")
+	if _, corps, _ := b.get(c, "/machines/col-neuf"); !strings.Contains(corps, `data-direct="/machines/col-neuf/direct"`) {
+		t.Error("collecteur récent : bloc « En direct » absent")
+	}
+	if _, corps, _ := b.get(c, "/machines/col-vieux"); strings.Contains(corps, "data-direct=") || strings.Contains(corps, "trop ancien pour le direct") {
+		t.Error("collecteur ancien : direct proposé ou message d'agent")
+	}
+}
