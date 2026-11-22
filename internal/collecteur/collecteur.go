@@ -30,14 +30,15 @@ const Job = "mirador-collector"
 // courbes des machines Linux) : les collecteurs de l'agent, mêmes séries
 // node_*. Coût mesuré : voir SPEC § 120.1.
 func Collecteurs(cfg config.Agent) []collect.Collecteur {
-	return []collect.Collecteur{&etat{cfg: cfg}, &adresses{proc: cfg.RacineProc},
+	lecteur := compagnon.NouveauLecteur()
+	return []collect.Collecteur{&etat{cfg: cfg, compagnon: lecteur}, &adresses{proc: cfg.RacineProc},
 		collect.NewCPU(cfg.RacineProc),
 		collect.NewCharge(cfg.RacineProc),
 		collect.NewMemoire(cfg.RacineProc),
 		collect.NewDisques(cfg.RacineProc, cfg.ExclureDisques, cfg.IgnorerDisques...),
 		collect.NewReseau(cfg.RacineProc, cfg.ExclureInterfaces, cfg.IgnorerInterfaces...),
 		collect.NewSystemesFichiers(cfg.RacineProc, cfg.ExclureMontages, cfg.ExclureTypesFS, cfg.ExclureTypesFSDistant, cfg.IgnorerMontages...),
-		&processus{l: compagnon.NouveauLecteur()},
+		&processus{l: lecteur},
 	}
 }
 
@@ -85,7 +86,10 @@ func (a *adresses) Collecter(b *metrics.Batch) error {
 }
 
 // etat : état du collecteur lui-même (équipements rattachés, version).
-type etat struct{ cfg config.Agent }
+type etat struct {
+	cfg       config.Agent
+	compagnon *compagnon.Lecteur
+}
 
 func (e *etat) Nom() string { return "collecteur" }
 func (e *etat) Lent() bool  { return false }
@@ -93,5 +97,16 @@ func (e *etat) Lent() bool  { return false }
 func (e *etat) Collecter(b *metrics.Batch) error {
 	b.Add("mirador_collecteur_info", 1, metrics.L("version", version.Version))
 	b.Add("mirador_collecteur_equipements", float64(len(e.cfg.Collecteur.Equipements)))
+	// Compagnon des processus en marche (page « Santé de mirador »).
+	if e.compagnon != nil {
+		b.Add("mirador_collecteur_compagnon", bool01(e.compagnon.Present()))
+	}
 	return nil
+}
+
+func bool01(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }
