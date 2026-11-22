@@ -61,6 +61,23 @@ type adresseIP struct {
 	principale bool // interface de la route par défaut
 }
 
+// AdresseIP : adresse d'une interface de la machine.
+type AdresseIP struct {
+	Interface, IP string
+	Principale    bool // interface de la route par défaut
+}
+
+// AdressesLocales : adresses des interfaces de la machine (route par
+// défaut d'abord). Sert au collecteur : choix de l'écoute syslog dans
+// l'interface (retour du 22/11).
+func AdressesLocales(proc string) []AdresseIP {
+	var out []AdresseIP
+	for _, a := range adressesLocales(proc) {
+		out = append(out, AdresseIP{Interface: a.iface, IP: a.ip, Principale: a.principale})
+	}
+	return out
+}
+
 type portEcoute struct {
 	port    uint16
 	adresse string // « * » ou adresse précise

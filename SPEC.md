@@ -8035,3 +8035,109 @@ Coût des corrections : moins de trafic SNMP (colonnes) et de connexions
 UniFi ; mémoire de pointe bornée. Menaces : inchangées (rien de nouveau
 n'écoute ; la relance sur place exécute le même programme, mêmes
 arguments).
+
+## 118. Bascule du collecteur : retours du 22/11 **[Fait, à valider]**
+- Page d'un équipement relevé par un collecteur : courbes de son tableau
+  (Synology filtré sur lui, UniFi) au lieu des courbes Linux vides de
+  l'agent. Choix par ses mesures (`systemStatus{job="snmp"}`,
+  `up{job="unifi"}`) ; deux requêtes courtes à l'affichage de la page.
+- Formulaire refusé (ex. sonde de certificat pour un équipement pas encore
+  rattaché) : la page s'ouvre en haut, là où est le message ; les grands
+  champs de texte (sondes, émetteurs syslog) sont réaffichés tels que
+  saisis, une fois (gardés dans la session, jamais un secret ni un code) ;
+  le message dit quoi faire (rattacher l'équipement d'abord).
+- Écoute syslog : le collecteur envoie les adresses de ses interfaces
+  (`mirador_adresse_info`, comme l'agent, réseaux de conteneurs exclus) ;
+  l'interface propose ses adresses privées à cocher (route par défaut
+  d'abord) et le port. Une seule écoute (une interface) ; adresse tapée à
+  la main tant que le collecteur n'a pas envoyé ses adresses.
+- Case « filterlog » affichée seulement quand elle sert : un émetteur a les
+  mesures d'un pare-feu OPNsense (`pf_entries`), ou le collecteur a déjà
+  jeté des lignes filterlog (7 jours), ou elle est cochée ; libellé
+  « Pare-feu OPNsense : garder aussi son journal des paquets ».
+
+Coût : une série par interface du collecteur (quelques-unes) toutes les
+5 min. Menaces : inchangées (l'écoute reste limitée aux adresses privées,
+vérifiée par le serveur et par le collecteur).
+
+## 119. Page du collecteur : nouvelle présentation (22/11) **[Fait, à valider]**
+
+Maquette validée le 22/11 (« Propose autre chose au niveau design »).
+
+**Ce qui change (onglet « Collecte »)**
+- 4 cases d'état en haut : équipements relevés, état du syslog (écoute,
+  émetteurs, lignes/h), jours restants du certificat, refus du syslog sur 24 h
+  (hors filterlog).
+- Tableau « Ce que relève ce collecteur » : une ligne par équipement, une
+  colonne par méthode (SNMP, UniFi, certificat HTTPS, syslog). Point vert,
+  orange, rouge ou gris d'après les mesures reçues ; « + » pour ajouter une
+  méthode (ouvre la carte, l'équipement déjà choisi : `?ajout=…&pour=…`).
+  Sur téléphone : une carte par équipement.
+- Une carte par méthode. Sondes de certificats et émetteurs syslog : une ligne
+  chacun, avec ✕ pour la retirer et une ligne d'ajout. Plus de zone de texte
+  (la 2e ligne qui disparaissait ne peut plus arriver).
+- SNMP : « Modifier » préremplit le formulaire (mots de passe jamais réaffichés).
+- Certificat du syslog : replié quand tout va bien, ouvert sinon.
+
+**Actions ajoutées** (code 2FA ou mode administration, comme les autres) :
+`sonde_ajouter`, `sonde_retirer`, `emetteur_ajouter`, `emetteur_retirer`.
+Même adresse = remplacement, pas de doublon. Chaque changement passe les
+mêmes contrôles que l'enregistrement complet (équipement rattaché, adresse
+du LAN). L'enregistrement de l'écoute garde les émetteurs, le débit et la
+rafale déjà réglés.
+
+**Coût** : 6 requêtes instantanées au plus par affichage (`up` SNMP et UniFi,
+échéance et succès des sondes, lignes et refus du syslog), filtrées sur les
+équipements du collecteur et passées par le cache de requêtes de la console.
+Rien de gardé en mémoire en plus ; rien de changé sur le collecteur.
+
+**Menaces** : aucune surface nouvelle. Les noms d'équipements sont échappés
+(`regexp.QuoteMeta` puis `strconv.Quote`) avant d'entrer dans une requête ;
+les actions refusent un équipement non rattaché ou une adresse publique ; le
+retrait ne touche que la ligne visée.
+
+## 120. Page Machines et vue d'ensemble : nouvelle présentation (22/11) **[Fait, à valider]**
+
+Maquettes validées le 22/11 (sans la case « Tâches de la nuit », jugée inutile).
+
+**Page Machines**
+- 4 cases en haut : en ligne (barre verte / rouge), muettes (noms), à regarder
+  (mise à jour en échec, disque bientôt plein, alertes), paquets à mettre à jour
+  (dont sécurité).
+- Demande d'approbation : un bandeau d'une ligne (« nouvelle-vm demande à
+  entrer »), le tableau d'approbation s'ouvre au clic (inchangé).
+- Une tuile par machine, rangée par site (ou groupe, ou liste) : point de
+  couleur, type et version, jauges CPU / mémoire / disque, pastilles de
+  problème. Muette ou mise à jour en échec : fond rouge, en premier.
+- Un collecteur montre ses équipements en pastilles dans sa tuile.
+- Bouton « Tuiles / Tableau » : le tableau d'avant reste ; le choix est gardé
+  par le navigateur (localStorage). Sans JavaScript : les tuiles.
+
+**Vue d'ensemble**
+- Bandeau du plus grave (machines muettes, alertes critiques…), sinon « Tout va
+  bien ». Rien quand le bloc « Sites injoignables » le dit déjà.
+- Cases : machines, alertes, sondes (réussies / total), certificat le plus
+  proche de l'échéance, stockage. La case « Notifications » passe dans la
+  ligne du bas.
+- « À regarder », du plus grave au moins grave, avec un lien d'action : muettes,
+  mises à jour en échec, sauvegarde du serveur, canal en panne, sondes en
+  échec, tâches en échec, disques bientôt pleins, certificat sous 21 j,
+  paquets de sécurité, redémarrages, éléments à valider, machines en attente,
+  aucun canal.
+- « Le parc d'un coup d'œil » : une pastille par machine, par site, et la carte
+  de chaleur du processeur réduite aux 5 plus chargées.
+- Ligne du bas : sauvegarde du serveur, canaux, mode ombre.
+- Le tableau du parc et la carte de chaleur complète restent des blocs de
+  « Modifier la vue », masqués par défaut tant que la disposition n'a pas été
+  changée.
+
+**Coût**
+- Page Machines : les mesures de la vue d'ensemble (même fonction, 9 requêtes
+  instantanées passées par le cache de la console). Rien en base.
+- Vue d'ensemble : 3 requêtes instantanées en plus (sondes, deux échéances de
+  certificats), en cache. Le reste vient des données déjà lues.
+- JavaScript : une trentaine de lignes (bascule tuiles / tableau).
+
+**Menaces** : aucune surface nouvelle (lecture seule, mêmes droits que les
+pages d'avant). Les noms de machines et textes d'erreur passent par
+l'échappement de `html/template`.

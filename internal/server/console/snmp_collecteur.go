@@ -272,6 +272,46 @@ func (c *Console) postSNMP(q *req, m flotte.InfoMachine, action string) (string,
 			return nil
 		})
 		return "sondes de certificats enregistrées", err
+	case "sonde_ajouter", "sonde_retirer":
+		// Une sonde à la fois (retour du 22/11 : la zone de texte perdait
+		// des lignes). Même adresse : la sonde est remplacée.
+		adresse := f("sonde_adresse")
+		if adresse == "" {
+			return "", errors.New("sonde : « adresse:port » attendu (ex. 192.168.1.20:5001)")
+		}
+		err := modifier(func(col map[string]any) error {
+			liste, _ := col["sondes"].([]any)
+			var garde []any
+			for _, e := range liste {
+				if x, _ := e.(map[string]any); x != nil && x["adresse"] == adresse {
+					continue
+				}
+				garde = append(garde, e)
+			}
+			if action == "sonde_ajouter" {
+				if f("machine") == "" {
+					return errors.New("sonde : choisir l'équipement")
+				}
+				s := map[string]any{"adresse": adresse, "machine": f("machine")}
+				if nom := strings.ToLower(f("sonde_nom")); nom != "" {
+					s["nom"] = nom
+				}
+				garde = append(garde, s)
+			}
+			if len(garde) == 0 {
+				delete(col, "sondes")
+				return nil
+			}
+			if err := verifierCollecteur(col, "sondes", garde, noms); err != nil {
+				return err
+			}
+			col["sondes"] = garde
+			return nil
+		})
+		if action == "sonde_retirer" {
+			return "sonde " + adresse + " retirée", err
+		}
+		return "sonde " + adresse + " ajoutée : échéance lue sous 5 min", err
 	}
 	return "", errors.New("action inconnue")
 }

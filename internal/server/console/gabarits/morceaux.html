@@ -5,6 +5,24 @@
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
 {{define "code2fa-toujours"}}<label class="code toujours">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456"></label>{{end}}
 {{define "code2fa"}}<label class="code">Code 2FA <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" aria-label="Code 2FA à usage unique (TOTP)" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"></label>{{end}}
+{{define "cellule-collecte"}}<span class="collecte-c"><span class="p {{.Classe}}" aria-hidden="true"></span><span>{{.Texte}}{{if .Detail}}<small>{{.Detail}}</small>{{end}}</span></span>{{end}}
+{{define "tuile-machine"}}<div class="tuile-machine point-{{.Point}}">
+<div class="h"><span class="point {{.Point}}" aria-hidden="true"></span><a class="nom" href="/machines/{{.Nom}}">{{.Nom}}</a><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span></div>
+{{with .Sous}}<small class="sous">{{.}}</small>{{end}}
+{{with .M}}{{if ge .PctCPU 0}}<div class="jauges-tuile">
+<span>CPU</span><div class="jauge {{.ClasseCPU}}"><i class="largeur-{{.PctCPU}}"></i></div><span>{{.CPU}}</span>
+{{if ge .PctMemoire 0}}<span>Mém.</span><div class="jauge {{.ClasseMemoire}}"><i class="largeur-{{.PctMemoire}}"></i></div><span>{{.Memoire}}</span>{{end}}
+{{if ge .PctDisque 0}}<span>Disque</span><div class="jauge {{.ClasseDisque}}"><i class="largeur-{{.PctDisque}}"></i></div><span>{{.Disque}}</span>{{end}}
+</div>{{end}}{{end}}
+{{if .Equipements}}<div class="puces-tuile">{{range .Equipements}}<a class="pastille" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div>{{end}}
+<div class="puces-tuile">{{if not .VuLe}}<span class="pastille erreur">Jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">Muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{end}}
+{{if .MajEchec}}<a class="pastille erreur" href="/machines/{{.Nom}}#maj" title="{{.MajEchec}}">Mise à jour en échec</a>{{end}}
+{{with .M}}{{if and .Alertes (not .Muette)}}<a class="pastille {{.ClasseAlertes}}" href="/machines/{{.Nom}}">{{.Alertes}} {{accord .Alertes "alerte(s)"}}</a>{{end}}
+{{if .PleinDans}}<span class="pastille {{if .PleinUrgent}}erreur{{else}}attention{{end}}">Disque {{.PleinDans}}</span>{{end}}
+{{if .PaquetsSecurite}}<span class="pastille attention">{{.PaquetsSecurite}} {{accord .PaquetsSecurite "paquet(s) de sécurité"}}</span>{{end}}
+{{if .Redemarrage}}<span class="pastille attention" title="Redémarrage nécessaire (/run/reboot-required)">Redémarrer</span>{{end}}{{end}}
+{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance">{{.AValider}} à valider</a>{{end}}</div>
+</div>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
 {{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}{{if and (egal .P.Type "barres") (not .Barres) (not .Erreur)}} panneau-vide{{end}}">
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
@@ -40,6 +58,7 @@
 <p class="onglets onglets-accueil"><a {{if ne .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=resume" data-vue-accueil="resume">Résumé</a><a {{if eq .D.Vue "ruche"}}class="actif" aria-current="page"{{end}} href="/?vue=ruche" data-vue-accueil="ruche">Ruche</a></p>
 {{if eq .D.Vue "ruche"}}{{template "ruche" .D.Ruche}}{{else}}
 <div class="blocs-accueil" data-accueil>
+<div class="{{index $.ClassesAccueil "bandeau"}}" data-bloc="bandeau" data-titre="Bandeau d'état">{{with .D.R.Bandeau}}{{if .Titre}}<div class="bandeau-accueil {{.Classe}}"><span class="puce {{if eq .Classe "ok"}}vert{{else if eq .Classe "erreur"}}rouge{{else}}orange{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-{{if eq .Classe "ok"}}ok{{else}}attention{{end}}"></use></svg></span><div class="d"><h2>{{.Titre}}</h2><p>{{.Texte}}</p></div>{{if .Lien}}<a class="bouton secondaire" href="{{.Lien}}">{{.Action}}</a>{{end}}</div>{{end}}{{end}}</div>
 <div class="kpis {{index $.ClassesAccueil "tuiles"}}" data-bloc="tuiles" data-titre="Tuiles du haut">
   <a class="kpi {{index $.ClassesAccueil "machines"}}" data-bloc="machines" data-titre="Machines" href="/machines"><div class="kpi-tete"><span class="puce bleu"><svg class="icone"><use href="#i-machines"></use></svg></span>Machines</div>
     <div class="kpi-valeur">{{sub .D.Machines .D.Muettes}}<span> / {{.D.Machines}}</span></div>
@@ -47,10 +66,11 @@
   <a class="kpi {{index $.ClassesAccueil "alertes"}}" data-bloc="alertes" data-titre="Alertes" href="/alertes"><div class="kpi-tete"><span class="puce rouge"><svg class="icone"><use href="#i-alertes"></use></svg></span>Alertes</div>
     <div class="kpi-valeur">{{.D.Actives}}</div>
     <div class="kpi-bas">{{.D.Critiques}} {{accord .D.Critiques "critique(s)"}} · {{.D.Avertissements}} {{accord .D.Avertissements "avertissement(s)"}}</div></a>
-  <a class="kpi {{index $.ClassesAccueil "notifications"}}" data-bloc="notifications" data-titre="Notifications" href="/reglages/notifications"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-envoi"></use></svg></span>Notifications</div>
-    {{if .D.Principal.Nom}}<div class="kpi-valeur moyen">{{majuscule .D.Principal.Nom}}</div>
-    <div class="kpi-bas {{if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}">Principal {{if .D.Principal.EnPanne}}en panne{{else}}OK{{end}}{{if .D.Secours.Nom}} · secours {{majuscule .D.Secours.Nom}} {{if .D.Secours.EnPanne}}en panne{{else}}OK{{end}}{{end}}</div>
-    {{else}}<div class="kpi-valeur moyen">Aucun canal</div><div class="kpi-bas rouge">À configurer</div>{{end}}</a>
+  {{with .D.R.Sondes}}<a class="kpi {{index $.ClassesAccueil "sondes"}}{{if lt .OK .Total}} kpi-erreur{{end}}" data-bloc="sondes" data-titre="Sondes" href="/sondes"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-globe"></use></svg></span>Sondes</div>
+    <div class="kpi-valeur">{{.OK}}<span> / {{.Total}}</span></div>
+    <div class="kpi-bas {{if lt .OK .Total}}rouge{{end}}">{{if not .Total}}Aucune sonde{{else if lt .OK .Total}}En échec : {{.Echecs}}{{else}}Toutes réussissent{{end}}</div></a>{{end}}
+  {{with .D.R.Cert}}<a class="kpi {{index $.ClassesAccueil "certificats"}}{{if eq .Classe "erreur"}} kpi-erreur{{else if eq .Classe "attention"}} kpi-attention{{end}}" data-bloc="certificats" data-titre="Certificats" href="/sondes"><div class="kpi-tete"><span class="puce vert"><svg class="icone"><use href="#i-cadenas"></use></svg></span>Certificats</div>
+    {{if .Connu}}<div class="kpi-valeur">{{.Jours}}<span> j</span></div><div class="kpi-bas">Le plus proche : {{.Nom}}</div>{{else}}<div class="kpi-valeur moyen">—</div><div class="kpi-bas">Aucun certificat suivi</div>{{end}}</a>{{end}}
   <a class="kpi {{index $.ClassesAccueil "stockage"}}" data-bloc="stockage" data-titre="Stockage" href="/reglages/conservation"><div class="kpi-tete"><span class="puce violet"><svg class="icone"><use href="#i-stockage"></use></svg></span>Stockage</div>
     <div class="kpi-valeur">{{enGo (somme .D.Metriques .D.Logs)}}<span> Go{{if .D.Plafond}} / {{enGoEntier .D.Plafond}}{{end}}</span></div>
     {{if .D.Plafond}}<div class="jauge violette"><i class="largeur-{{.D.PctStockage}}"></i></div>{{end}}</a>
@@ -60,6 +80,16 @@
 <div class="{{index $.ClassesAccueil "prises"}}" data-bloc="prises" data-titre="Alertes prises en charge">{{template "liste-prises" (dict "L" .D.Prises "Admin" .Admin "CSRF" .CSRF "Retour" "/")}}</div>
 <div class="{{index $.ClassesAccueil "masquees"}}" data-bloc="masquees" data-titre="Alertes masquées">{{template "liste-masquees" .D.Masquees}}</div>
 <div class="{{index $.ClassesAccueil "attente"}}" data-bloc="attente" data-titre="En attente">{{template "liste-attente" .D.Attente}}</div>
+<section class="carte bloc-moitie {{index $.ClassesAccueil "regarder"}}" data-bloc="regarder" data-titre="À regarder"><div class="entete-carte"><h2>À regarder</h2>{{with .D.R.Regarder}}<span class="pastille">{{len .}}</span>{{end}}</div>
+{{if .D.R.Regarder}}<div class="liste-regarder">{{range .D.R.Regarder}}<div class="l {{.Classe}}"><span class="puce {{.Puce}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><span class="e"><b>{{.Titre}}</b>{{if .Texte}}<small>{{.Texte}}</small>{{end}}</span>{{if .Lien}}<a class="pastille" href="{{.Lien}}">{{.Action}}</a>{{end}}</div>{{end}}</div>
+{{else}}<p class="vide">Rien à signaler.</p>{{end}}</section>
+<section class="carte bloc-moitie {{index $.ClassesAccueil "apercu"}}" data-bloc="apercu" data-titre="Le parc d'un coup d'œil"><div class="entete-carte"><h2>Le parc d'un coup d'œil</h2><a href="/machines">Toutes les machines →</a></div>
+{{range .D.R.Apercu}}<div class="apercu-site"><h3>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}} <small class="doux">{{len .Machines}}</small></h3><div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div></div>{{else}}<p class="vide">Aucune machine approuvée.</p>{{end}}
+{{with .D.R.ChaleurCPU}}{{if .Lignes}}<h3 class="apercu-titre-chaleur">{{.Titre}} sur 24 h <small class="doux">les {{len .Lignes}} plus chargées</small></h3>
+<div class="defile"><table class="table-chaleur" data-sans-tri><colgroup><col class="ch-col-nom"></colgroup>
+<thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
+<tbody>{{range .Lignes}}<tr><th><a href="/machines/{{.Nom}}" title="{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div>{{end}}{{end}}
+</section>
 <section class="carte {{index $.ClassesAccueil "parc"}}" data-parc data-bloc="parc" data-titre="Machines">
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
@@ -105,9 +135,10 @@
 <p class="chaleur-pied"><button type="button" class="secondaire petit" data-chaleur-plus hidden></button>{{if .Cachees}} <small class="doux" data-chaleur-cachees>+ {{.Cachees}} {{accord .Cachees "machine(s) non affichée(s)"}} (les moins chargées)</small>{{end}}</p></div>{{end}}</div>
 <p class="vide" data-chaleur-vide hidden>Aucune machine ne correspond aux filtres.</p>
 <p class="legende-chaleur"><span class="ch-0"></span> &lt; 20 % <span class="ch-1"></span> 20 % <span class="ch-2"></span> 40 % <span class="ch-3"></span> 60 % <span class="ch-4"></span> 75 % <span class="ch-5"></span> ≥ 90 % <span class="ch-vide"></span> pas de données</p></section>{{end}}</div>
-<div class="grille {{index $.ClassesAccueil "bas"}}" data-bloc="bas" data-titre="Sauvegarde et canaux">
-  <section class="carte"><h2>Sauvegarde</h2><p>{{if .D.SauvegardeOK}}Dernière réussie {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}).{{else}}<span class="erreur-texte">Aucune sauvegarde réussie.</span>{{end}} <a href="/reglages/sauvegardes">Réglages</a></p></section>
-  <section class="carte"><h2>Canaux de notification</h2>{{if .D.Canaux}}<div class="ligne">{{range .D.Canaux}}<span class="pastille {{if .EnPanne}}erreur{{else}}ok{{end}}" title="{{.Erreur}}">{{majuscule .Nom}} ({{.Role}}) : {{if .EnPanne}}en panne{{else}}OK{{end}}</span>{{end}}</div>{{else}}<p class="vide">Aucun canal configuré. <a href="/reglages/notifications">Configurer</a></p>{{end}}</section>
+<div class="pied-accueil {{index $.ClassesAccueil "bas"}}" data-bloc="bas" data-titre="Sauvegarde, canaux et mode">
+  <a href="/reglages/sauvegardes"><span class="puce {{if .D.SauvegardeOK}}vert{{else}}rouge{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-sauvegarde"></use></svg></span>{{if .D.SauvegardeOK}}Sauvegarde du serveur : {{depuisS .D.DerniereSauvegarde.Fin}} ({{taille .D.DerniereSauvegarde.Taille}}){{else}}<span class="erreur-texte">Aucune sauvegarde réussie</span>{{end}}</a>
+  <a href="/reglages/notifications"><span class="puce {{if not .D.Canaux}}gris{{else if .D.Principal.EnPanne}}rouge{{else}}vert{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-envoi"></use></svg></span>{{if .D.Canaux}}Canaux : {{range $i, $c := .D.Canaux}}{{if $i}}, {{end}}{{majuscule .Nom}} {{if .EnPanne}}en panne{{else}}OK{{end}}{{end}}{{else}}Canaux : aucun · configurer{{end}}</a>
+  {{if eq .D.Mode "ombre"}}<a href="/reglages/notifications"><span class="puce orange" aria-hidden="true"><svg class="icone"><use href="#i-eclair"></use></svg></span>Mode ombre : aucune notification envoyée</a>{{end}}
 </div>
 </div>
 {{end}}

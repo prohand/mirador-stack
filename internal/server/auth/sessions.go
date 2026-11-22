@@ -63,6 +63,9 @@ type Session struct {
 	VueDisque     time.Time
 	Adresse       string
 	Flash, Alerte string // message affiché une fois (succès / erreur)
+	// Saisie : texte des grands champs d'un formulaire refusé, réaffiché une
+	// fois (retour du 22/11 : une liste refusée était perdue).
+	Saisie map[string]string
 	// Passkeys (SPEC § 20) : défi en cours (à usage unique, 5 min) et nom
 	// choisi pour la clé en cours de création.
 	DefiPasskey   string

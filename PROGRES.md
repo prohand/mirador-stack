@@ -1704,28 +1704,43 @@ un changement de configuration (agent et collecteur : plus de blocage au
 6ᵉ changement en 5 min). Coût réel du syslog corrigé dans § 23.14 (~120 µs
 par ligne, pas 7).
 
+## Page du collecteur, nouvelle présentation (22/11)
+
+- Maquette validée, codée (SPEC § 119) : cases d'état, tableau équipement × méthode, cartes par méthode, ajout et retrait ligne par ligne.
+- Tests : `TestOngletCollecte`, `TestSaisieGardeeApresRefus` (réécrit), suite console complète verte avec `-race`.
+- Coût : 6 requêtes instantanées au plus par affichage de la page, en cache ; aucun changement côté collecteur.
+- Captures ordinateur et téléphone vérifiées (aucun débordement).
+
+## Page Machines et vue d'ensemble, nouvelle présentation (22/11)
+
+- Maquettes validées (sans « Tâches de la nuit »), codées (SPEC § 120).
+- Machines : cases d'état, bandeau d'approbation, tuiles par site, bascule tuiles / tableau gardée par le navigateur.
+- Vue d'ensemble : bandeau, 5 cases, « À regarder », « Le parc d'un coup d'œil », ligne du bas.
+- Tests : `TestAccueilARegarder` (nouveau), `TestPageMachines`, `TestPostAccueil`, `TestRuche` mis à jour ; suite console complète verte avec `-race`.
+- Coût : 3 requêtes instantanées en plus sur la vue d'ensemble (en cache) ; la page Machines réutilise les mesures de la vue d'ensemble.
+- Captures ordinateur et téléphone vérifiées (aucun débordement).
+
 ## Prochaine étape
 
-Mise à jour le 18/11. Validés le 18/11 : SPEC § 40 (guide de l'étape 7),
-§ 41 (logs dans les messages), § 42 (Conteneurs, Services, Paquets, détail
-au clic), § 43 (connexion), § 44 (réessayer la mise à jour), § 45
-(AgentMuet au-delà de 24 h, vérifié sur le serveur).
+Mise à jour le 22/11 (0.6.8 publiée le 21/11).
 
-1. À valider : § 39 (message unique « Site injoignable », pas encore vu),
-   § 46 (si les données disparaissent), § 47 (changements), § 48 (sondes), § 49 (disponibilité), § 50 (services), § 51 (ruche),
-   § 52 (motifs de logs), § 53 à 59 (design et architecture : journal
-   d'événements, incidents, éléments, fiches, période commune, Ctrl+K,
-   étiquettes).
-2. Étape 6, partie 7 : bascule du collecteur sur le LAN
-   (`docs/bascule-collecteur.md`) : sortie du `snmpwalk` sur le NAS
-   d'abord, puis installation, quelques jours en parallèle, mesures 24 h
-   (collecteur et nœud Proxmox), arrêt d'Alloy et d'unpoller **sur
-   validation**.
-3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md` § 5).
+1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
+   (`docs/bascule-collecteur.md`), choisie le 22/11. D'abord l'inventaire
+   (machine du collecteur, SNMP v3 du NAS, contrôleur UniFi, émetteurs
+   syslog et noms d'aujourd'hui), puis installation, quelques jours en
+   parallèle d'Alloy et d'unpoller, mesures 24 h, arrêt d'Alloy et
+   d'unpoller **sur validation**.
+2. Installer la 0.6.8 (serveur, agents, collecteur) et vérifier la
+   stabilité.
+3. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
+   § 5) : repoussée tant que le parc compte peu de machines (choix du 22/11).
 4. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
    validation de l'étape 6. Question à trancher avant la phase C : garder
-   Grafana (API de lecture compatible Prometheus, à étudier) ou non.
+   Grafana ou non.
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+6. À valider au fil de l'eau : SPEC § 39 à § 117 (« Fait, à valider »),
+   en priorité § 39 (site injoignable), § 48 et § 108 (sondes), § 49
+   (disponibilité), § 51 (ruche), § 110 (mode administration).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.

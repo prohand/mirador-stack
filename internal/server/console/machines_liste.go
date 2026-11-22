@@ -80,6 +80,7 @@ type groupeMachines struct {
 	Titre     string // vide : « sans site » / « sans groupe » ; vue liste : pas de titre
 	Machines  []vueMachine
 	Problemes int
+	Tuiles    []tuileMachine // présentation en tuiles (SPEC § 120)
 }
 
 // Probleme : machine muette ou dont la mise à jour a échoué.

@@ -197,6 +197,7 @@ type donneesAccueil struct {
 	Chaleur                      []vueChaleur // carte de chaleur du parc sur 24 h (SPEC § 31)
 	Vue                          string       // "" (résumé) ou "ruche" (SPEC § 51)
 	Ruche                        *vueRuche
+	R                            donneesRegarder // bandeau, cases, « À regarder », aperçu (SPEC § 120)
 }
 
 func (c *Console) pageAccueil(q *req) {
@@ -290,9 +291,16 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	for _, l := range d.Parc {
 		d.Nouveautes += l.Nouveautes
 	}
+	majEchec := map[string]string{}
 	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
 		d.Chaleur = c.chaleurParc(ctx, ms, q.t)
+		for _, m := range ms {
+			if m.Statut == "approuvee" && m.MajEchec != "" {
+				majEchec[m.Nom] = m.MajEchec
+			}
+		}
 	}
+	d.R = c.regarderAccueil(ctx, &d, majEchec, q.t)
 	return d
 }
 
@@ -382,6 +390,7 @@ type donneesMachines struct {
 	Filtres           filtresPage
 	Compteurs         compteursFiltres
 	Groupes           []groupeMachines
+	Cases             casesMachines // cases du haut (SPEC § 120)
 }
 
 // donneesAjout : page « Ajouter une machine » (SPEC § 36), en étapes.
@@ -460,6 +469,18 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 	d.Compteurs = d.Filtres.compter(approuvees)
 	d.Groupes = regrouperMachines(approuvees, d.Filtres)
 	d.Listes = c.lireListes(ctx)
+	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble.
+	mesures := map[string]*ligneParc{}
+	if c.lecteur != nil {
+		actives, _ := separerAttente(c.alertesEnCours(""))
+		for _, l := range c.parc(q, actives) {
+			mesures[l.Nom] = &l
+		}
+	}
+	for i := range d.Groupes {
+		d.Groupes[i].Tuiles = tuilesDe(d.Groupes[i].Machines, mesures)
+	}
+	d.Cases = calculerCases(approuvees, mesures, d.TotalAttente)
 	return d
 }
 
@@ -673,8 +694,9 @@ type donneesMachine struct {
 	Equipements []flotte.Equipement
 	Candidats   []string
 	RelevePar   string
-	Syslog      vueSyslog // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
-	SNMP        vueSNMP   // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
+	Syslog      vueSyslog   // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
+	SNMP        vueSNMP     // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
+	Collecte    vueCollecte // onglet « Collecte » : tableau et cartes (SPEC § 119)
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -744,11 +766,23 @@ func (c *Console) pageMachine(q *req) {
 		d.Ingestion = lireInterface(ctx, c.db).Ingestion
 		d.Syslog = c.syslogAvecAvancement(ctx, m, q.t)
 		d.SNMP = c.snmpDe(ctx, m)
+		d.Collecte = c.collecteDe(ctx, m, d.Equipements, d.Syslog, d.SNMP, q.r.URL.Query().Get("pour"), q.r.URL.Query().Get("ajout"), q.r.URL.Query().Get("snmp"), q.t)
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
-	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
-		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
+	// Tableau de la page : celui de l'équipement s'il est relevé par un
+	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
+	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
+	// les courbes Linux, vides, alors que ses données arrivaient.
+	nomTableau, variable := "serveurs-linux", "instance"
+	if d.RelevePar != "" {
+		nomTableau, variable = c.tableauEquipement(ctx, m.Nom, q.t)
+	}
+	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && m.Type == "agent" {
+		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
+		if variable != "" {
+			v.Set(variable, m.Nom)
+		}
 		vals, periode, duree, err := lireFiltres(t, v)
 		if err == nil {
 			d.Periode = periode
@@ -779,6 +813,21 @@ func (c *Console) pageMachine(q *req) {
 		}
 	}
 	c.rendre(q, "machine", m.Nom, "machines", d)
+}
+
+// tableauEquipement : tableau d'un équipement relevé par un collecteur,
+// choisi d'après ses mesures, et la variable qui le filtre sur lui (vide :
+// pas de filtre). Sans mesure reconnue : courbes Linux (agent).
+func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time) (string, string) {
+	for _, x := range []struct{ expr, tableau, variable string }{
+		{`count(systemStatus{job="snmp", instance=` + strconv.Quote(nom) + `})`, "synology", "nas"},
+		{`count(up{job="unifi", instance=` + strconv.Quote(nom) + `})`, "unifi", ""},
+	} {
+		if e, err := c.instant(ctx, x.expr, t); err == nil && len(e) > 0 {
+			return x.tableau, x.variable
+		}
+	}
+	return "serveurs-linux", "instance"
 }
 
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce
@@ -826,7 +875,8 @@ func (c *Console) postMachine(q *req) {
 		// Syslog et certificat d'un collecteur (SPEC § 23.14).
 		"syslog": true, "syslog_retirer": true, "certificat_renouveler": true,
 		// SNMP et sondes d'un collecteur (SPEC § 23.15).
-		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true}
+		"snmp": true, "snmp_retirer": true, "sondes": true, "unifi": true, "unifi_retirer": true,
+		"sonde_ajouter": true, "sonde_retirer": true, "emetteur_ajouter": true, "emetteur_retirer": true}
 	if sensible[action] {
 		if err = c.verifierCode(q); err != nil {
 			c.retour(q, vers, err, "")
@@ -932,7 +982,7 @@ func (c *Console) postMachine(q *req) {
 			}
 			err = flotte.DefinirCible(ctx, c.db, id, v, q.qui(), q.t)
 		}
-	case "syslog", "syslog_retirer", "certificat_renouveler":
+	case "syslog", "syslog_retirer", "certificat_renouveler", "emetteur_ajouter", "emetteur_retirer":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")
@@ -940,13 +990,18 @@ func (c *Console) postMachine(q *req) {
 		}
 		vers += "#syslog"
 		ok, err = c.postSyslog(q, m, action)
-	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer":
+	case "snmp", "snmp_retirer", "sondes", "unifi", "unifi_retirer", "sonde_ajouter", "sonde_retirer":
 		m, trouve := c.machine(q)
 		if !trouve || m.Type != "collecteur" {
 			err = errors.New("ce n'est pas un collecteur")
 			break
 		}
-		vers += "#snmp"
+		// Ancre : la carte de la méthode (nouvelle page du 22/11).
+		vers += map[string]string{"unifi": "#unifi", "unifi_retirer": "#unifi", "sondes": "#sondes-cert",
+			"sonde_ajouter": "#sondes-cert", "sonde_retirer": "#sondes-cert"}[action]
+		if !strings.Contains(vers, "#") {
+			vers += "#snmp"
+		}
 		ok, err = c.postSNMP(q, m, action)
 	case "rattacher", "detacher":
 		// Page du collecteur : l'équipement choisi ; page de l'équipement :

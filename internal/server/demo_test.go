@@ -357,8 +357,47 @@ func TestDemoInterface(t *testing.T) {
 	// Machine sans site (SPEC § 60) : on choisit le site du ping.
 	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, version_agent, architecture) VALUES ('portable', 'approuvee', ?, ?, '0.5.0', 'amd64')`,
 		now.Unix()-3600, now.Unix())
+	// Équipements relevés par le collecteur (onglet « Collecte », SPEC § 119) :
+	// NAS en SNMP, pare-feu en syslog, contrôleur UniFi ; secrets factices.
+	_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, site, env, cree_le, vu_le) VALUES ('nas', 'approuvee', 'maison', 'stockage', ?, ?),
+		('fw', 'approuvee', 'maison', 'reseau', ?, ?), ('unifi', 'approuvee', 'maison', 'reseau', ?, ?)`,
+		now.Unix()-3600, now.Unix()-12, now.Unix()-3600, now.Unix()-1, now.Unix()-3600, now.Unix()-28)
+	_, _ = s.db.Exec(`INSERT INTO equipements_collecteur(machine_id, collecteur_id, rattache_le, rattache_par)
+		SELECT e.id, c.id, ?, 'demo' FROM machines e, machines c WHERE e.nom IN ('nas', 'fw', 'unifi') AND c.nom = 'collecteur-lan'`, now.Unix())
 	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) SELECT 'config_agent:machine:' || id,
-		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
+		'{"collecteur":{"syslog":{"ecoute":"192.168.1.10:6515","nom_certificat":"syslog.lan.exemple.org","emetteurs":[{"adresse":"192.168.1.254","machine":"fw"},{"adresse":"192.168.1.7","machine":"nas"}]},
+		"snmp":[{"machine":"nas","adresse":"192.168.1.7","prereglage":"synology","utilisateur":"srvhome","auth":"SHA","mot_de_passe":"chiffre:v1:demo","chiffrement":"AES","cle_chiffrement":"chiffre:v1:demo","intervalle":"30s"}],
+		"sondes":[{"machine":"nas","adresse":"nas.lan:5001"},{"machine":"fw","adresse":"fw.lan:10443"}],
+		"unifi":{"machine":"unifi","adresse":"https://unifi.lan:11443","utilisateur":"lecture","mot_de_passe":"chiffre:v1:demo","empreinte":"79f8a78b0c1d2e3f405162738495a6b7c8d9e0f1a2b3c4d5e6f708192a3b1deb"}}}', ?, 'demo' FROM machines WHERE nom = 'collecteur-lan'`, now.Unix())
+	var collecte []stockage.Serie
+	serie := func(val func(k int) float64, etq ...string) {
+		sr := stockage.Serie{}
+		for j := 0; j+1 < len(etq); j += 2 {
+			sr.Labels = append(sr.Labels, stockage.Label{Nom: etq[j], Valeur: etq[j+1]})
+		}
+		for k := 120; k >= 0; k-- {
+			sr.Points = append(sr.Points, stockage.Point{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), V: val(k)})
+		}
+		collecte = append(collecte, sr)
+	}
+	un := func(int) float64 { return 1 }
+	serie(un, "__name__", "up", "instance", "nas", "job", "snmp")
+	serie(un, "__name__", "up", "instance", "unifi", "job", "unifi")
+	for _, x := range []struct {
+		inst, path string
+		jours      int
+	}{{"nas", "nas.lan:5001", 61}, {"fw", "fw.lan:10443", 89}} {
+		fin := float64(now.Add(time.Duration(x.jours)*24*time.Hour + time.Hour).Unix())
+		serie(func(int) float64 { return fin }, "__name__", "ssl_cert_not_after_timestamp_seconds", "instance", x.inst, "job", "certs", "path", x.path)
+		serie(un, "__name__", "probe_success", "instance", x.inst, "job", "certs", "path", x.path)
+	}
+	serie(func(k int) float64 { return float64((120 - k) * 21) }, "__name__", "mirador_collecteur_syslog_lignes_total", "equipement", "fw", "instance", "collecteur-lan")
+	serie(func(k int) float64 { return float64((120 - k) * 3) }, "__name__", "mirador_collecteur_syslog_lignes_total", "equipement", "nas", "instance", "collecteur-lan")
+	serie(func(int) float64 { return 0 }, "__name__", "mirador_collecteur_syslog_refus_total", "instance", "collecteur-lan", "motif", "emetteur")
+	serie(un, "__name__", "pf_entries", "instance", "fw", "job", "telegraf")
+	serie(un, "__name__", "mirador_adresse_info", "adresse", "192.168.1.10", "instance", "collecteur-lan", "interface", "eth0", "principale", "1")
+	serie(un, "__name__", "mirador_adresse_info", "adresse", "10.0.50.2", "instance", "collecteur-lan", "interface", "eth1", "principale", "0")
+	_ = s.met.Ecrire(ctx, collecte)
 	_, _ = s.db.Exec(`INSERT INTO certificats_syslog(machine_id, csr, csr_recue_le, etape, etape_le, etape_jusqua)
 		SELECT id, 'demande', ?, 'propagation', ?, ? FROM machines WHERE nom = 'collecteur-lan'`, now.Add(-2*time.Minute).Unix(), now.Add(-30*time.Second).Unix(), now.Add(30*time.Second).Unix())
 	// Coupure passée du site « maison » (SPEC § 39) : page Alertes › Coupures.
