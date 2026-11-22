@@ -792,7 +792,14 @@ func (c *Console) pageMachine(q *req) {
 	if d.RelevePar != "" || m.Version == "" {
 		nomTableau, variable, valeur = c.tableauEquipement(ctx, m.Nom, q.t)
 	}
-	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && m.Type == "agent" {
+	// Collecteur : courbes Linux de sa machine, comme une machine à agent
+	// (retour du 22/11 : « comme pour les linux »), limitées à ce qu'il
+	// mesure (ressources, disques, réseau).
+	collecteurLinux := m.Type == "collecteur" && m.Statut == "approuvee"
+	if collecteurLinux {
+		d.Maintenant = blocEnCeMoment(m.Nom, "", c.enCeMoment(ctx, m, q.t))
+	}
+	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && (m.Type == "agent" || collecteurLinux) {
 		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
 		if variable != "" {
 			v.Set(variable, valeur)
@@ -803,7 +810,7 @@ func (c *Console) pageMachine(q *req) {
 			garder := map[string]bool{}
 			for _, r := range t.Rangees {
 				if r.Titre != "Vue d'ensemble" {
-					garder[r.Titre] = true
+					garder[r.Titre] = !collecteurLinux || r.Titre == "Ressources" || r.Titre == "Disques" || r.Titre == "Réseau"
 				}
 			}
 			d.Rangees = c.evaluerTableau(ctx, t, vals, periode, duree, q.t, garder)

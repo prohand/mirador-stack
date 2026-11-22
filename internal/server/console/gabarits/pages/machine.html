@@ -19,8 +19,8 @@
 {{/* Onglets (retour du 19/11 : « tout est mélangé », SPEC § 66). Sans
      JavaScript, tous les panneaux restent visibles, l'un sous l'autre. */}}
 <nav class="onglets onglets-machine" data-onglets-panneaux="machine" aria-label="Parties de la page">
-{{if or .D.Maintenant .D.Gourmands .D.Rangees .D.Taches}}<a href="#vue" data-onglet="vue">Vue d'ensemble</a>{{end}}
-{{if .D.Collecteur}}<a href="#collecte" data-onglet="collecte">Collecte</a>{{end}}
+{{/* Collecteur : « Collecte » d'abord (son rôle), puis sa machine. */}}{{if .D.Collecteur}}<a href="#collecte" data-onglet="collecte">Collecte</a>{{end}}
+{{if or .D.Maintenant .D.Gourmands .D.Rangees .D.Taches}}<a href="#vue" data-onglet="vue">{{if .D.Collecteur}}Machine{{else}}Vue d'ensemble{{end}}</a>{{end}}
 <a href="#activite" data-onglet="activite">Activité{{with .D.Taches}}{{if .NbProbleme}} <span class="pastille erreur" title="tâches planifiées en échec ou en retard">{{.NbProbleme}}</span>{{end}}{{end}}{{with .D.Services}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}{{with .D.Paquets}}{{if .NbSecurite}} <span class="pastille attention" title="paquets de sécurité">{{.NbSecurite}}</span>{{end}}{{end}}</a>
 {{if or .D.Sondes .D.Element .D.RelevePar}}<a href="#reseau" data-onglet="reseau">Sondes et liens{{with .D.Sondes}}{{if .NbEchec}} <span class="pastille erreur">{{.NbEchec}}</span>{{end}}{{end}}</a>{{end}}
 <a href="#reglages" data-onglet="reglages">Réglages{{if .D.Agent}}{{if .D.Surv.NbAValider}} <span class="pastille attention">{{.D.Surv.NbAValider}}</span>{{end}}{{if .D.Modeles.Proposes}} <span class="pastille attention">{{.D.Modeles.Proposes}}</span>{{end}}{{end}}</a>

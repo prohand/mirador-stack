@@ -16,7 +16,7 @@ func TestCollecteursMachine(t *testing.T) {
 	for _, c := range Collecteurs(config.Agent{RacineProc: "/proc"}) {
 		noms[c.Nom()] = true
 	}
-	for _, n := range []string{"collecteur", "adresses", "cpu", "memoire", "fs"} {
+	for _, n := range []string{"collecteur", "adresses", "cpu", "charge", "memoire", "disques", "reseau", "fs"} {
 		if !noms[n] {
 			t.Errorf("collecteur %q absent", n)
 		}

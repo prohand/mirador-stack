@@ -1730,8 +1730,8 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    (émetteur du certificat vérifié), `fw` rattaché, 2 sondes de
    certificats, syslog TLS sur 192.168.35.10:6515. Le 22/11 au soir : `fw`
    envoie aussi ses métriques par Telegraf (token propre, IP publique
-   ajoutée aux adresses autorisées). Collecteur 0.6.12 : + 59 séries pour
-   sa machine (CPU, mémoire, disques), < 0,3 ms par cycle. Reste : **mesures 24 h**
+   ajoutée aux adresses autorisées). Collecteur 0.6.12 : + 101 séries pour
+   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Reste : **mesures 24 h**
    (collecteur contre Alloy + unpoller), puis arrêt d'Alloy et d'unpoller
    **sur validation**.
 2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`

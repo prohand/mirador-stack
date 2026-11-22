@@ -8210,9 +8210,13 @@ l'échappement de `html/template`.
   - SNMP (NAS) : `ssCpuIdle`, mémoire libre + tampons + cache sur
     `memTotalReal`, volume RAID le plus plein (Synology) ;
   - le collecteur : il envoie désormais les `node_*` de sa machine (CPU,
-    mémoire, systèmes de fichiers ; collecteurs de l'agent réutilisés).
+    charge, mémoire, débit disque, réseau, systèmes de fichiers ;
+    collecteurs de l'agent réutilisés).
   Repli « or » dans les trois requêtes du parc : rien ne change pour une
-  machine à agent. Coût collecteur mesuré (4 CPU) : 33 + 6 + 20 séries,
-  moins de 0,3 ms par cycle. Unité systemd inchangée (`/proc/stat` et
+  machine à agent. Page du collecteur : onglets « Collecte » (d'abord),
+  puis « Machine » avec « En ce moment » et les rangées Ressources,
+  Disques et Réseau du tableau Linux (« comme pour les linux »). Coût
+  collecteur mesuré (4 CPU) : 101 séries (CPU 33, charge 3, mémoire 6,
+  disques 21, réseau 18, montages 20), moins de 1 ms par cycle. Unité systemd inchangée (`/proc/stat` et
   `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
   lus dans `/proc/self/mountinfo`).

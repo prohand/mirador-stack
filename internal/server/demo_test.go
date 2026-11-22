@@ -399,6 +399,11 @@ func TestDemoInterface(t *testing.T) {
 	// collecteur, Telegraf de fw, SNMP du NAS.
 	cst := func(v float64) func(int) float64 { return func(int) float64 { return v } }
 	serie(func(k int) float64 { return float64(120-k) * 60 * 0.92 }, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "idle", "instance", "collecteur-lan", "job", "mirador-collector")
+	serie(func(k int) float64 { return float64(120-k)*60*0.05 + 5*math.Sin(float64(k)/9) }, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "user", "instance", "collecteur-lan", "job", "mirador-collector")
+	serie(func(k int) float64 { return float64(120-k) * 60 * 0.02 }, "__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "system", "instance", "collecteur-lan", "job", "mirador-collector")
+	serie(func(k int) float64 { return 0.15 + 0.08*math.Sin(float64(k)/12) }, "__name__", "node_load5", "instance", "collecteur-lan", "job", "mirador-collector")
+	serie(func(k int) float64 { return float64(120-k)*60*180e3 + 2e6*math.Sin(float64(k)/7) }, "__name__", "node_network_receive_bytes_total", "device", "eth0", "instance", "collecteur-lan", "job", "mirador-collector")
+	serie(func(k int) float64 { return float64(120-k) * 60 * 25e3 }, "__name__", "node_network_transmit_bytes_total", "device", "eth0", "instance", "collecteur-lan", "job", "mirador-collector")
 	serie(cst(2<<30), "__name__", "node_memory_MemTotal_bytes", "instance", "collecteur-lan", "job", "mirador-collector")
 	serie(cst(1.38*(1<<30)), "__name__", "node_memory_MemAvailable_bytes", "instance", "collecteur-lan", "job", "mirador-collector")
 	serie(cst(16<<30), "__name__", "node_filesystem_size_bytes", "instance", "collecteur-lan", "job", "mirador-collector", "fstype", "ext4", "mountpoint", "/", "device", "/dev/sda1")
