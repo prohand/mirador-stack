@@ -1962,3 +1962,7 @@ tr[id^="sonde-"]:target td { background: var(--accent-fond); }
    pour le doigt sur téléphone. */
 .logs-histo[data-zoom-logs] { touch-action: pan-y; }
 @media (max-width: 640px) { button.lien-discret { min-height: 44px; padding: 0 8px; } }
+
+/* Écoute syslog du collecteur : une interface à cocher (retour du 22/11). */
+fieldset.choix-ecoute { display: flex; flex-direction: column; gap: 4px; }
+fieldset.choix-ecoute legend { padding: 0 6px; color: var(--doux); font-size: 13px; }

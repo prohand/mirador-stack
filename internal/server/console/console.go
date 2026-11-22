@@ -548,10 +548,35 @@ func (c *Console) flash(q *req, ok, erreur string) {
 func (c *Console) retour(q *req, vers string, err error, ok string) {
 	if err != nil {
 		c.flash(q, "", err.Error())
+		// Retour du 22/11 : le message d'erreur est en haut de la page ; sans
+		// l'ancre, la page s'ouvre là où on le voit (avec l'ancre, elle
+		// sautait au formulaire et l'erreur passait inaperçue). Les grands
+		// champs de texte sont réaffichés tels que saisis.
+		if i := strings.IndexByte(vers, '#'); i >= 0 {
+			vers = vers[:i]
+		}
+		c.garderSaisie(q)
 	} else {
 		c.flash(q, ok, "")
 	}
 	http.Redirect(q.w, q.r, vers, http.StatusSeeOther)
+}
+
+// champsGardes : grands champs de texte réaffichés après un refus (jamais
+// un secret ni un code).
+var champsGardes = []string{"sondes", "emetteurs"}
+
+// garderSaisie : texte des champs gardés, pour un seul affichage.
+func (c *Console) garderSaisie(q *req) {
+	saisie := map[string]string{}
+	for _, nom := range champsGardes {
+		if v := q.r.PostFormValue(nom); v != "" && len(v) <= 20000 {
+			saisie[nom] = v
+		}
+	}
+	if len(saisie) > 0 {
+		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Saisie = saisie })
+	}
 }
 
 // delaiEssaiPush : temps entre deux notifications d'essai d'une session.

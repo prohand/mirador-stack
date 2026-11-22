@@ -8035,3 +8035,25 @@ Coût des corrections : moins de trafic SNMP (colonnes) et de connexions
 UniFi ; mémoire de pointe bornée. Menaces : inchangées (rien de nouveau
 n'écoute ; la relance sur place exécute le même programme, mêmes
 arguments).
+
+## 118. Bascule du collecteur : retours du 22/11 **[Fait, à valider]**
+- Page d'un équipement relevé par un collecteur : courbes de son tableau
+  (Synology filtré sur lui, UniFi) au lieu des courbes Linux vides de
+  l'agent. Choix par ses mesures (`systemStatus{job="snmp"}`,
+  `up{job="unifi"}`) ; deux requêtes courtes à l'affichage de la page.
+- Formulaire refusé (ex. sonde de certificat pour un équipement pas encore
+  rattaché) : la page s'ouvre en haut, là où est le message ; les grands
+  champs de texte (sondes, émetteurs syslog) sont réaffichés tels que
+  saisis, une fois (gardés dans la session, jamais un secret ni un code) ;
+  le message dit quoi faire (rattacher l'équipement d'abord).
+- Écoute syslog : le collecteur envoie les adresses de ses interfaces
+  (`mirador_adresse_info`, comme l'agent, réseaux de conteneurs exclus) ;
+  l'interface propose ses adresses privées à cocher (route par défaut
+  d'abord) et le port. Une seule écoute (une interface) ; adresse tapée à
+  la main tant que le collecteur n'a pas envoyé ses adresses.
+- « Garder filterlog » renommé : « Garder aussi le journal des paquets du
+  pare-feu OPNsense (filterlog, très volumineux) ».
+
+Coût : une série par interface du collecteur (quelques-unes) toutes les
+5 min. Menaces : inchangées (l'écoute reste limitée aux adresses privées,
+vérifiée par le serveur et par le collecteur).

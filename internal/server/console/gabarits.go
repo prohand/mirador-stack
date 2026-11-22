@@ -650,6 +650,7 @@ type Page struct {
 	Admin         bool
 	CSRF          string
 	Flash, Alerte string
+	Saisie        map[string]string // texte d'un formulaire refusé, réaffiché une fois
 	ModeOmbre     bool
 	ModeAdmin     string // heure de fin du mode administration (vide : fermé)
 	// Retour du 21/11 : secondes restantes du mode (le navigateur sait
@@ -690,7 +691,10 @@ func (c *Console) rendre(q *req, nom, titre, menu string, d any) {
 func (c *Console) rendreCode(q *req, code int, nom, titre, menu string, d any) {
 	p := Page{Titre: titre, Menu: menu, Utilisateur: q.u.Nom, Admin: q.admin(), CSRF: q.s.CSRF,
 		Version: c.opt.Version, D: d}
-	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", "" })
+	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) {
+		p.Flash, p.Alerte, s.Flash, s.Alerte = s.Flash, s.Alerte, "", ""
+		p.Saisie, s.Saisie = s.Saisie, nil
+	})
 	p.Flash, p.Alerte = majusculeDebut(p.Flash), majusculeDebut(p.Alerte)
 	if c.opt.Aiguilleur != nil {
 		p.ModeOmbre = c.opt.Aiguilleur.Mode() == "ombre"

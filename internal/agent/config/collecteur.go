@@ -64,7 +64,7 @@ func validerUniFi(u *UniFi, connus map[string]bool) error {
 		return nil
 	}
 	if !reNomEquipement.MatchString(u.Machine) || (len(connus) > 0 && !connus[u.Machine]) {
-		return fmt.Errorf("unifi : %q n'est pas un équipement rattaché à ce collecteur", u.Machine)
+		return fmt.Errorf("unifi : %q n'est pas un équipement rattaché à ce collecteur (le rattacher d'abord : bloc « Équipements relevés » de la page du collecteur)", u.Machine)
 	}
 	reste, ok := strings.CutPrefix(u.Adresse, "https://")
 	if !ok || strings.ContainsAny(reste, "/?#@") {
@@ -185,7 +185,7 @@ func validerSNMP(cibles []CibleSNMP, connus map[string]bool) error {
 		quoi := "snmp " + c.Machine
 		switch {
 		case !reNomEquipement.MatchString(c.Machine) || (len(connus) > 0 && !connus[c.Machine]):
-			return fmt.Errorf("%s : n'est pas un équipement rattaché à ce collecteur", quoi)
+			return fmt.Errorf("%s : n'est pas un équipement rattaché à ce collecteur (le rattacher d'abord : bloc « Équipements relevés » de la page du collecteur)", quoi)
 		case vus[c.Machine]:
 			return fmt.Errorf("%s : en double", quoi)
 		case !Prereglages[c.Prereglage]:
@@ -215,7 +215,7 @@ func validerSondes(sondes []Sonde, connus map[string]bool) error {
 	vus := map[string]bool{}
 	for _, s := range sondes {
 		if !reNomEquipement.MatchString(s.Machine) || (len(connus) > 0 && !connus[s.Machine]) {
-			return fmt.Errorf("sonde %s : %q n'est pas un équipement rattaché", s.Adresse, s.Machine)
+			return fmt.Errorf("sonde %s : %q n'est pas un équipement rattaché à ce collecteur (le rattacher d'abord : bloc « Équipements relevés » de la page du collecteur)", s.Adresse, s.Machine)
 		}
 		if _, err := hoteDuLAN(s.Adresse, false); err != nil {
 			return fmt.Errorf("sonde %s : %w", s.Adresse, err)
@@ -311,7 +311,7 @@ func (s *Syslog) Valider(equipements []string) error {
 		// posée par le serveur) : le serveur retire lui-même les émetteurs
 		// d'équipements non rattachés.
 		if len(connus) > 0 && !connus[e.Machine] {
-			return fmt.Errorf("syslog : émetteur %s : %q n'est pas un équipement rattaché à ce collecteur", e.Adresse, e.Machine)
+			return fmt.Errorf("syslog : émetteur %s : %q n'est pas un équipement rattaché à ce collecteur (le rattacher d'abord : bloc « Équipements relevés » de la page du collecteur)", e.Adresse, e.Machine)
 		}
 	}
 	if s.Debit < 0 || s.Debit > 10000 || s.Rafale < 0 || s.Rafale > 50000 {

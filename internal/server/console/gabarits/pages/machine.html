@@ -49,14 +49,16 @@
 <p class="aide"><small class="aide">Équipement absent : le créer dans <a href="/machines#equipement">Machines › Équipement sans agent</a>.</small></p>{{end}}
 </section>{{end}}
 {{if .D.Collecteur}}{{$s := .D.Syslog}}<section class="carte" id="syslog">
-<div class="entete-carte"><div><h2>Syslog TLS</h2><p class="sous">Le collecteur reçoit le syslog des équipements sur le LAN (TLS obligatoire), et seulement des émetteurs listés : chaque ligne est rangée sous l'équipement de l'émetteur. Les lignes « filterlog » du pare-feu d'OPNsense sont jetées (et comptées), sauf choix contraire.</p></div></div>
+<div class="entete-carte"><div><h2>Syslog TLS</h2><p class="sous">Le collecteur reçoit le syslog des équipements sur le LAN (TLS obligatoire), et seulement des émetteurs listés : chaque ligne est rangée sous l'équipement de l'émetteur. Le journal des paquets du pare-feu OPNsense (« filterlog » : une ligne par paquet bloqué ou laissé passer, souvent des milliers par heure) est jeté et seulement compté, sauf choix contraire.</p></div></div>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="syslog">
 <div class="ligne">
-<label>Écoute (adresse privée du collecteur : port) <input name="ecoute" value="{{$s.Ecoute}}" required size="22" placeholder="192.168.1.10:6514" {{if not .Admin}}disabled{{end}}></label>
+{{if $s.Adresses}}<fieldset class="choix-ecoute"><legend>Écouter sur l'interface</legend>{{range $s.Adresses}}<label class="case"><input type="radio" name="ecoute_ip" value="{{.IP}}" {{if .Cochee}}checked{{end}} required {{if not $.Admin}}disabled{{end}}> <code>{{.IP}}</code> <span class="doux">{{.Interface}}{{if .Principale}} · route par défaut{{end}}</span></label>{{end}}</fieldset>
+<label>Port <input name="ecoute_port" value="{{$s.Port}}" required inputmode="numeric" pattern="[0-9]{4,5}" size="6" {{if not .Admin}}disabled{{end}}></label>
+{{else}}<label>Écoute (adresse privée du collecteur : port) <input name="ecoute" value="{{$s.Ecoute}}" required size="22" placeholder="192.168.1.10:6514" {{if not .Admin}}disabled{{end}}><small class="aide">Les interfaces du collecteur seront proposées dès qu'il les aura envoyées (version 0.6.9 et suivantes).</small></label>{{end}}
 <label>Nom du certificat <input name="nom_certificat" value="{{$s.Nom}}" required size="30" placeholder="syslog.lan.exemple.org" {{if not .Admin}}disabled{{end}}></label>
-<label class="case"><input type="checkbox" name="garder_filterlog" value="1" {{if $s.GarderFilterlog}}checked{{end}} {{if not .Admin}}disabled{{end}}> Garder « filterlog »</label>
+<label class="case"><input type="checkbox" name="garder_filterlog" value="1" {{if $s.GarderFilterlog}}checked{{end}} {{if not .Admin}}disabled{{end}}> Garder aussi le journal des paquets du pare-feu OPNsense (« filterlog », très volumineux)</label>
 </div>
-<label class="pile">Émetteurs : « adresse équipement », une ligne par émetteur <textarea name="emetteurs" rows="4" cols="50" spellcheck="false" placeholder="192.168.1.20 nas&#10;192.168.1.1 opnsense" {{if not .Admin}}disabled{{end}}>{{$s.Emetteurs}}</textarea>
+<label class="pile">Émetteurs : « adresse équipement », une ligne par émetteur <textarea name="emetteurs" rows="4" cols="50" spellcheck="false" placeholder="192.168.1.20 nas&#10;192.168.1.1 opnsense" {{if not .Admin}}disabled{{end}}>{{with index $.Saisie "emetteurs"}}{{.}}{{else}}{{$s.Emetteurs}}{{end}}</textarea>
 <small class="aide">IP ou réseau du LAN, d'un équipement rattaché. Émetteur inconnu : coupé avant le TLS.</small></label>
 {{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
 </form>
@@ -116,7 +118,7 @@
 
 <h3>Sondes de certificats</h3>
 <form method="post" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="sondes">
-<label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{$n.Sondes}}</textarea>
+<label class="pile">« adresse:port équipement [nom présenté] », une ligne par service HTTPS du LAN <textarea name="sondes" rows="3" cols="60" spellcheck="false" placeholder="192.168.1.20:5001 nas&#10;192.168.1.5:8443 unifi unifi.lan" {{if not .Admin}}disabled{{end}}>{{with index .Saisie "sondes"}}{{.}}{{else}}{{$n.Sondes}}{{end}}</textarea>
 <small class="aide">Échéance lue toutes les 5 min ; tableau « Certificats TLS ».</small></label>
 {{if .Admin}}<div class="ligne">{{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
 </form>

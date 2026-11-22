@@ -22,7 +22,26 @@ const Job = "mirador-collector"
 
 // Collecteurs : ce que le collecteur mesure à chaque cycle.
 func Collecteurs(cfg config.Agent) []collect.Collecteur {
-	return []collect.Collecteur{&etat{cfg: cfg}}
+	return []collect.Collecteur{&etat{cfg: cfg}, &adresses{proc: cfg.RacineProc}}
+}
+
+// adresses : adresses des interfaces du collecteur (même série que l'agent,
+// mirador_adresse_info), pour proposer l'écoute syslog dans l'interface
+// (retour du 22/11 : choisir l'interface au lieu de taper l'adresse).
+type adresses struct{ proc string }
+
+func (a *adresses) Nom() string { return "adresses" }
+func (a *adresses) Lent() bool  { return true }
+
+func (a *adresses) Collecter(b *metrics.Batch) error {
+	for _, x := range collect.AdressesLocales(a.proc) {
+		p := "0"
+		if x.Principale {
+			p = "1"
+		}
+		b.Add("mirador_adresse_info", 1, metrics.L("interface", x.Interface), metrics.L("adresse", x.IP), metrics.L("principale", p))
+	}
+	return nil
 }
 
 // etat : état du collecteur lui-même (équipements rattachés, version).
