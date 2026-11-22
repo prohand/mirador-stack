@@ -8256,3 +8256,52 @@ l'échappement de `html/template`.
   plafonnée à 12 Mio (`GOMEMLIMIT`), 40 Mio au plus (`MemoryMax`). Unité systemd inchangée (`/proc/stat` et
   `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
   lus dans `/proc/self/mountinfo`).
+
+## 121. Santé de mirador (22/11) **[Fait, à valider]**
+
+Retour du 22/11 : « une page qui récapitule tous les services liés à
+mirador ». Maquette validée : menu **Supervision**, tout en bas, nom
+**Santé de mirador** (pastille : services à regarder) ; pas de carte
+« ancienne pile », pas de bouton « copier le résumé » ; sur téléphone,
+cartes repliées quand tout va bien.
+
+- **Page `/sante`** (tout compte connecté, lecture seule) : bandeau (le
+  plus grave, ou « tous les services vont bien »), quatre cases (Serveur,
+  Collecteurs, Agents, Envois sans agent), filtres (Tous, À regarder, Root,
+  Serveur, LAN), puis une carte par lieu :
+  - **Serveur · VPS** : mirador-server (version, en marche depuis, mémoire,
+    données), mirador-maj-serveur (**root**, dernier contrôle, version
+    disponible), réception des données (points/min, rejetés, tokens
+    refusés), stockage des métriques (état du disque de la page
+    Conservation), logs (lignes/min, taille), règles et alertes (dernier
+    tour réussi, règles en erreur), notifications (canaux en panne, envois
+    et échecs 24 h, mode ombre), sauvegarde (dernière réussie, prochaine),
+    certificats Let's Encrypt des collecteurs, sondes du serveur, page de
+    statut ;
+  - **une carte par collecteur** : le collecteur (dernier envoi, mémoire,
+    CPU de sa machine), compagnon des processus (série
+    `mirador_collecteur_compagnon`, 0.6.13), syslog TLS, SNMP, UniFi (vue de
+    l'onglet Collecte), sondes du LAN ;
+  - **Agents et envois** : agents (en ligne, à jour avec la version cible,
+    muets, en échec), **assistant root** des agents (plus ancien relevé,
+    erreurs, à jour : séries `mirador_agent_root_*`), et un « envoi direct »
+    par machine sans agent qui a son token (Telegraf : dernier envoi, dernier
+    refus).
+  Chaque ligne : état (En marche, À regarder, En panne, Pas utilisé), une
+  phrase, deux ou trois chiffres, lien vers son réglage.
+- **Onglet Collecte** : colonne « Envoi direct » quand un équipement
+  rattaché envoie lui-même au serveur avec son token (Telegraf d'OPNsense) :
+  reçu il y a…, plus rien, refusé (motif) ou rien reçu (« on ne voit pas
+  Telegraf ici »).
+- **Pastille du menu** : dernier calcul, refait par la boucle de la console
+  toutes les 2 min (jamais sur le chemin d'une autre page).
+- **Services root** pris en compte : `mirador-maj-serveur` (VPS) et
+  `mirador-agent-root` (machines à agent). Le collecteur n'en a aucun.
+
+Coût : à l'ouverture de la page et toutes les 2 min, une vingtaine de
+requêtes instantanées (cache de 20 s de la console), 6 de plus par
+collecteur, quelques lectures en base ; la version publiée du serveur vient
+du cache d'une heure de la page Mise à jour. Collecteur : une série de plus.
+Menaces : lecture seule, aucune commande ; mêmes droits que les autres pages
+de supervision (adresses autorisées et motifs de refus déjà visibles sur la
+page de la machine).

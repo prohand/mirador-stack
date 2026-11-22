@@ -43,6 +43,8 @@ var entreesMenu = []entreeMenu{
 	{Cle: "alertes", Href: "/alertes", Icone: "alertes", Libelle: "Alertes"},
 	{Cle: "logs", Href: "/logs", Icone: "logs", Libelle: "Logs"},
 	{Cle: "tableaux", Href: "/tableaux", Icone: "tableaux", Libelle: "Tableaux"},
+	// Santé de mirador (SPEC § 121) : en bas de Supervision.
+	{Cle: "sante", Href: "/sante", Icone: "jauge", Libelle: "Santé de mirador", Court: "Santé"},
 	{Cle: "regles", Href: "/regles", Icone: "regles", Libelle: "Règles", Groupe: 1},
 	{Cle: "reglages", Href: "/reglages", Icone: "reglages", Libelle: "Réglages", Groupe: 1, Fixe: true},
 	{Cle: "utilisateurs", Href: "/utilisateurs", Icone: "utilisateurs", Libelle: "Utilisateurs", Groupe: 1, Admin: true},
@@ -197,6 +199,8 @@ func (p *Page) lienDe(e entreeMenu) lienMenu {
 		l.Compteur, l.AideCompteur = p.NbTaches, "Tâches suivies en échec ou en retard"
 	case "alertes":
 		l.Compteur = p.NbAlertes
+	case "sante":
+		l.Compteur, l.ClasseCompteur, l.AideCompteur = p.NbSante, "attention", "Services de mirador à regarder"
 	}
 	return l
 }

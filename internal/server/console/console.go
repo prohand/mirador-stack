@@ -115,6 +115,7 @@ type Console struct {
 	conservationAppliquee Conservation // dernier réglage donné aux moteurs de stockage
 	interfaceCourante     atomic.Pointer[ReglagesInterface]
 	tableaux              atomic.Pointer[etatTableaux]      // tableaux en service (fournis + base)
+	sante                 cacheSante                        // pastille « Santé de mirador » (dernier calcul)
 	cacheMet              cacheMetriques                    // métriques reçues (assistant de requête)
 	cacheValider          cacheAValider                     // éléments « à valider » par machine (menu, liste)
 	verrousLevesLe        atomic.Int64                      // dernière levée des verrous vue (commande de secours)
@@ -251,6 +252,7 @@ func (c *Console) Tour(ctx context.Context) {
 		c.appliquerAuto(ctx, t)
 	}
 	c.lireNomsAnciens(ctx)
+	c.tourSante(ctx, t) // pastille « Santé de mirador » (toutes les 2 min)
 	c.majNuit(ctx, t)
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)

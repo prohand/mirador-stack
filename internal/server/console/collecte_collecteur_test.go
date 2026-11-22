@@ -105,3 +105,28 @@ func TestOngletCollecte(t *testing.T) {
 		t.Error("zone de texte encore présente")
 	}
 }
+
+// Retour du 22/11 : « on ne voit pas Telegraf ici ». Un équipement qui
+// envoie lui-même (son token) a sa colonne « Envoi direct » ; sans token
+// nulle part, pas de colonne.
+func TestCollecteEnvoiDirect(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	ctx := context.Background()
+	_, _ = b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le) VALUES ('collecteur-lan', 'approuvee', 'collecteur', 1), ('nas', 'approuvee', 'agent', 1), ('fw', 'approuvee', 'agent', 1)`)
+	idC, _ := flotte.IDMachine(ctx, b.c.db, "collecteur-lan")
+	for _, n := range []string{"nas", "fw"} {
+		id, _ := flotte.IDMachine(ctx, b.c.db, n)
+		_ = flotte.RattacherEquipement(ctx, b.c.db, idC, id, "admin", time.Now())
+	}
+	if _, corps, _ := b.get(c, "/machines/collecteur-lan"); strings.Contains(corps, ">Envoi direct</th>") {
+		t.Error("colonne « Envoi direct » sans aucun token")
+	}
+	if _, err := flotte.TokenManuel(ctx, b.c.db, "fw", "admin", b.h.maintenant()); err != nil {
+		t.Fatal(err)
+	}
+	_, corps, _ := b.get(c, "/machines/collecteur-lan")
+	if !strings.Contains(corps, ">Envoi direct</th>") || !strings.Contains(corps, "token prêt") {
+		t.Error("envoi direct de fw absent")
+	}
+}

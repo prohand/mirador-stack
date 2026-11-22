@@ -2488,3 +2488,33 @@ document.addEventListener("change", function (ev) {
     if (b) { choisir(b.getAttribute("data-affichage"), true); }
   });
 })();
+
+// Santé de mirador (SPEC § 121) : filtres des lignes (Tous, À regarder,
+// Root, Serveur, LAN) ; sur téléphone, une carte repliée s'ouvre au toucher.
+(function () {
+  "use strict";
+  document.querySelectorAll("[data-deplier-sante]").forEach(function (b) {
+    b.addEventListener("click", function () { b.closest("[data-carte-sante]").classList.add("ouverte"); });
+  });
+  var barre = document.querySelector("[data-filtres-sante]");
+  if (!barre) { return; }
+  barre.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-filtre]");
+    if (!b) { return; }
+    var f = b.getAttribute("data-filtre");
+    barre.querySelectorAll("button[data-filtre]").forEach(function (x) {
+      x.classList.toggle("actif", x === b);
+      x.setAttribute("aria-pressed", x === b ? "true" : "false");
+    });
+    document.querySelectorAll("[data-carte-sante]").forEach(function (k) {
+      var vus = 0;
+      k.querySelectorAll(".liste-sante .l").forEach(function (l) {
+        var g = " " + (l.getAttribute("data-groupes") || "") + " ";
+        if (f === "" || g.indexOf(" " + f + " ") >= 0) { l.removeAttribute("data-onglet-cache"); vus++; }
+        else { l.setAttribute("data-onglet-cache", ""); }
+      });
+      if (vus) { k.removeAttribute("data-vide"); } else { k.setAttribute("data-vide", ""); }
+      k.classList.toggle("filtree", f !== "");
+    });
+  });
+})();
