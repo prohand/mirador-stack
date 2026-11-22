@@ -46,7 +46,7 @@ func TestPageSante(t *testing.T) {
 	_ = app.Commit()
 	b.c.lecteur = alertes.NouveauLecteur(db, nil)
 
-	code, corps, _ := b.get(c, "/sante")
+	code, corps, _ := b.get(c, "/sante-mirador")
 	if code != 200 {
 		t.Fatalf("code %d", code)
 	}
@@ -76,7 +76,7 @@ func TestPageSante(t *testing.T) {
 	if b.c.nbSante() == 0 {
 		t.Error("pastille du menu à zéro malgré des services à regarder")
 	}
-	if _, corps, _ := b.get(c, "/"); !strings.Contains(corps, `href="/sante"`) {
+	if _, corps, _ := b.get(c, "/"); !strings.Contains(corps, `href="/sante-mirador"`) {
 		t.Error("entrée « Santé de mirador » absente du menu")
 	}
 }
@@ -103,5 +103,15 @@ func TestTourSante(t *testing.T) {
 	// Sans sauvegarde : au moins un service à regarder.
 	if b.c.nbSante() == 0 {
 		t.Error("aucun problème compté")
+	}
+}
+
+// /sante est le contrôle de vie du conteneur (serveur, healthcheck Docker) :
+// aucune page de l'interface ne doit le prendre (la page s'ouvrait en JSON).
+func TestSanteNePrendPasLeControleDeVie(t *testing.T) {
+	for _, e := range entreesMenu {
+		if e.Href == "/sante" {
+			t.Errorf("entrée %q sur /sante", e.Cle)
+		}
 	}
 }

@@ -44,7 +44,7 @@ var entreesMenu = []entreeMenu{
 	{Cle: "logs", Href: "/logs", Icone: "logs", Libelle: "Logs"},
 	{Cle: "tableaux", Href: "/tableaux", Icone: "tableaux", Libelle: "Tableaux"},
 	// Santé de mirador (SPEC § 121) : en bas de Supervision.
-	{Cle: "sante", Href: "/sante", Icone: "jauge", Libelle: "Santé de mirador", Court: "Santé"},
+	{Cle: "sante", Href: "/sante-mirador", Icone: "jauge", Libelle: "Santé de mirador", Court: "Santé"},
 	{Cle: "regles", Href: "/regles", Icone: "regles", Libelle: "Règles", Groupe: 1},
 	{Cle: "reglages", Href: "/reglages", Icone: "reglages", Libelle: "Réglages", Groupe: 1, Fixe: true},
 	{Cle: "utilisateurs", Href: "/utilisateurs", Icone: "utilisateurs", Libelle: "Utilisateurs", Groupe: 1, Admin: true},

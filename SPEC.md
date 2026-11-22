@@ -8265,7 +8265,7 @@ mirador ». Maquette validée : menu **Supervision**, tout en bas, nom
 « ancienne pile », pas de bouton « copier le résumé » ; sur téléphone,
 cartes repliées quand tout va bien.
 
-- **Page `/sante`** (tout compte connecté, lecture seule) : bandeau (le
+- **Page `/sante-mirador`** (`/sante` reste le contrôle de vie du conteneur) (tout compte connecté, lecture seule) : bandeau (le
   plus grave, ou « tous les services vont bien »), quatre cases (Serveur,
   Collecteurs, Agents, Envois sans agent), filtres (Tous, À regarder, Root,
   Serveur, LAN), puis une carte par lieu :

@@ -2172,3 +2172,9 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .carte-sante.filtree:not(.ouverte) .liste-sante, .carte-sante.filtree:not(.ouverte) .liste-sante .l:not([data-onglet-cache]) { display: flex; }
   .carte-sante.filtree .deplier-sante { display: none; }
 }
+@media (max-width: 700px) {
+  .kpis-sante { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpis-sante .kpi { padding: 14px; }
+  .kpis-sante .kpi-valeur { font-size: 22px; margin-top: 8px; }
+  .kpis-sante .kpi-bas { font-size: 12px; }
+}

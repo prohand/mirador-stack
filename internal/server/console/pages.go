@@ -41,7 +41,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines", c.lecture(c.pageMachines))
 	m.HandleFunc("GET /conteneurs", c.lecture(c.pageConteneurs))
 	m.HandleFunc("GET /sondes", c.lecture(c.pageSondes))
-	m.HandleFunc("GET /sante", c.lecture(c.pageSante))               // Santé de mirador (SPEC § 121)
+	m.HandleFunc("GET /sante-mirador", c.lecture(c.pageSante))       // Santé de mirador (SPEC § 121)
 	m.HandleFunc("GET /taches", c.lecture(c.pageTaches))             // tâches planifiées (SPEC § 80)
 	m.HandleFunc("GET /taches/erreur", c.lecture(c.pageErreurTache)) // « Voir l'erreur » (SPEC § 93)
 	m.HandleFunc("POST /taches", c.admin(c.postTaches))
@@ -1618,7 +1618,7 @@ func (c *Console) donneesAller(q *req) {
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
 		{"Sondes", "Page", "/sondes"}, {"Tâches planifiées", "Page", "/taches"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
-		{"Coupures", "Page", "/coupures"}, {"Santé de mirador", "Page", "/sante"},
+		{"Coupures", "Page", "/coupures"}, {"Santé de mirador", "Page", "/sante-mirador"},
 	}
 	ctx := q.r.Context()
 	// Sondes, services, conteneurs (SPEC § 58) : leurs fiches.

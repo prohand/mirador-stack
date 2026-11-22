@@ -286,9 +286,9 @@ func (c *Console) lignesServeur(ctx context.Context, t time.Time, sondes []essai
 	l.Sous = "base de séries · " + strings.ToLower(premierTexte(disque.Texte, "place sur le disque"))
 	switch disque.Classe {
 	case "erreur":
-		l.Etat, l.Alerte = "erreur", disque.Texte
+		l.Etat, l.Alerte, l.Sous = "erreur", disque.Texte, "base de séries"
 	case "attention":
-		l.Etat, l.Alerte = "attention", disque.Texte
+		l.Etat, l.Alerte, l.Sous = "attention", disque.Texte, "base de séries"
 	}
 	l.Chiffres = append(l.Chiffres, chiffreSante{tailleLisible(e.Brut + e.Agrege), "taille"})
 	if e.Series > 0 {
@@ -573,7 +573,7 @@ func (c *Console) carteCollecteurSante(ctx context.Context, m flotte.InfoMachine
 	l = ligneSante{Etat: etatDeClasse(v.SyslogClasse), Icone: "cadenas", Nom: "Syslog TLS", Lien: page + "#syslog", LienTexte: "Voir",
 		Sous: strings.TrimPrefix(strings.TrimSpace(v.SyslogEtat+" · "+v.SyslogDetail), "· ")}
 	if l.Probleme() {
-		l.Alerte = v.SyslogEtat
+		l.Alerte, l.Sous = v.SyslogEtat, v.SyslogDetail
 	}
 	if l.Etat != "eteint" {
 		l.Chiffres = append(l.Chiffres, chiffreSante{strconv.Itoa(len(v.Emetteurs)), "émetteurs"}, chiffreSante{strconv.Itoa(v.Refus24h), "refus 24 h"})
@@ -829,8 +829,11 @@ func resumeCarte(k carteSante) string {
 	if k.NbProblemes > 0 {
 		p = append(p, accorderTexte(strconv.Itoa(k.NbProblemes)+" à regarder"))
 	}
-	if e > 0 {
-		p = append(p, accorderTexte(strconv.Itoa(e)+" pas utilisé(s)"))
+	switch {
+	case e == 1:
+		p = append(p, "1 pas utilisé")
+	case e > 1:
+		p = append(p, strconv.Itoa(e)+" pas utilisés")
 	}
 	if len(p) == 0 {
 		return "tout va bien"
