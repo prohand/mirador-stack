@@ -747,8 +747,19 @@ func (c *Console) pageMachine(q *req) {
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
-	if t, _ := c.tableauOuCatalogue("serveurs-linux"); t != nil && m.Type == "agent" {
-		v := url.Values{"instance": {m.Nom}, "periode": {q.r.URL.Query().Get("periode")}}
+	// Tableau de la page : celui de l'équipement s'il est relevé par un
+	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
+	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
+	// les courbes Linux, vides, alors que ses données arrivaient.
+	nomTableau, variable := "serveurs-linux", "instance"
+	if d.RelevePar != "" {
+		nomTableau, variable = c.tableauEquipement(ctx, m.Nom, q.t)
+	}
+	if t, _ := c.tableauOuCatalogue(nomTableau); t != nil && m.Type == "agent" {
+		v := url.Values{"periode": {q.r.URL.Query().Get("periode")}}
+		if variable != "" {
+			v.Set(variable, m.Nom)
+		}
 		vals, periode, duree, err := lireFiltres(t, v)
 		if err == nil {
 			d.Periode = periode
@@ -779,6 +790,21 @@ func (c *Console) pageMachine(q *req) {
 		}
 	}
 	c.rendre(q, "machine", m.Nom, "machines", d)
+}
+
+// tableauEquipement : tableau d'un équipement relevé par un collecteur,
+// choisi d'après ses mesures, et la variable qui le filtre sur lui (vide :
+// pas de filtre). Sans mesure reconnue : courbes Linux (agent).
+func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time) (string, string) {
+	for _, x := range []struct{ expr, tableau, variable string }{
+		{`count(systemStatus{job="snmp", instance=` + strconv.Quote(nom) + `})`, "synology", "nas"},
+		{`count(up{job="unifi", instance=` + strconv.Quote(nom) + `})`, "unifi", ""},
+	} {
+		if e, err := c.instant(ctx, x.expr, t); err == nil && len(e) > 0 {
+			return x.tableau, x.variable
+		}
+	}
+	return "serveurs-linux", "instance"
 }
 
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce
