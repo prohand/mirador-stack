@@ -34,7 +34,16 @@ func TestGrandeReponseEnFlux(t *testing.T) {
 	if err != nil || len(clients) != 4000 || clients[3999].Signal != -60 {
 		t.Fatalf("err=%v, %d clients", err, len(clients))
 	}
-	if alloue := m1.TotalAlloc - m0.TotalAlloc; alloue > uint64(len(corps)) {
+	// Limite : la moitié de la réponse (3 Mio mesurés pour 8,2 Mio : la
+	// liste des clients et sa croissance). Avec -race, les allocations sont
+	// gonflées (7,9 Mio mesurés le 22/11, au ras de l'ancienne limite : la
+	// CI de main a échoué ainsi) : limite triplée. L'ancienne lecture en
+	// entier (plus de 3 fois la taille) dépasse les deux.
+	limite := uint64(len(corps)) / 2
+	if avecCourse {
+		limite *= 3
+	}
+	if alloue := m1.TotalAlloc - m0.TotalAlloc; alloue > limite {
 		t.Errorf("réponse %.1f Mio : %.1f Mio alloués pour la décoder", float64(len(corps))/(1<<20), float64(alloue)/(1<<20))
 	}
 }
