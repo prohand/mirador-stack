@@ -87,4 +87,15 @@ func TestPageEquipementOPNsense(t *testing.T) {
 	if _, corps, _ := b.get(c, "/machines/fw"); !strings.Contains(corps, "Pare-feu (pf)") {
 		t.Error("page de fw : rangées du tableau OPNsense absentes")
 	}
+	// État du token visible (retour du 22/11 : « on ne voit pas s'il y en a
+	// un de configuré »).
+	if _, corps, _ := b.get(c, "/machines/fw"); !strings.Contains(corps, "Aucun token") || !strings.Contains(corps, "passent par le collecteur collecteur-lan") {
+		t.Error("page de fw sans token : état absent")
+	}
+	if _, err := flotte.TokenManuel(ctx, b.c.db, "fw", "admin", m); err != nil {
+		t.Fatal(err)
+	}
+	if _, corps, _ := b.get(c, "/machines/fw"); !strings.Contains(corps, "Token actif") || !strings.Contains(corps, "Aucun envoi reçu avec ce token") {
+		t.Error("page de fw avec token : état absent")
+	}
 }

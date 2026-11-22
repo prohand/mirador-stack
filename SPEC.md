@@ -8187,3 +8187,14 @@ l'échappement de `html/template`.
   était perdu au second chargement. Correction : pas de rechargement quand
   un message de retour est affiché (`data-message-unique`). Le bouton
   demande aussi le code 2FA dans la petite boîte (mode administration fermé).
+- **État du token visible** (« on ne voit pas s'il y en a un de configuré »,
+  OPNsense qui n'envoyait rien sans que la page le dise). Page machine, bloc
+  Token et Détails : « Token actif, créé le … », dernier envoi reçu avec ce
+  token, ou « Aucun token » (équipement : données par le collecteur). Le
+  dernier envoi **refusé** d'une machine dont le token est reconnu (adresse
+  non autorisée, token lié à une autre machine, lot invalide ou trop gros)
+  s'affiche en rouge en haut de la page, avec l'adresse d'origine, tant
+  qu'aucun envoi n'a réussi depuis. Coût : une entrée en mémoire par
+  machine (perdue au redémarrage), une requête SQL de plus sur la page
+  machine. Menace : le motif est un texte fixe (rien tiré de la requête),
+  l'adresse est déjà montrée (« Dernière adresse vue »).

@@ -520,6 +520,13 @@ func TestTokenLieAuxIP(t *testing.T) {
 	if b.g.Compteurs.Refus403.Load() != 2 {
 		t.Errorf("refus 403 : %d", b.g.Compteurs.Refus403.Load())
 	}
+	// Dernier refus gardé pour la page de la machine (retour du 22/11).
+	if r, ok := b.g.DernierRefus(1); !ok || r.Motif != "adresse non autorisée" || r.Adresse == "" {
+		t.Errorf("dernier refus : %+v %v", r, ok)
+	}
+	if _, ok := b.g.DernierRefus(2); ok {
+		t.Error("refus noté pour une autre machine")
+	}
 	// Liste illisible : tout est refusé (jamais tout accepté).
 	if _, err := b.db.Exec(`UPDATE machines SET ips_autorisees = 'n''importe quoi' WHERE id = 1`); err != nil {
 		t.Fatal(err)

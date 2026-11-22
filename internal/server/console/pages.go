@@ -697,6 +697,17 @@ type donneesMachine struct {
 	Syslog      vueSyslog   // bloc « Syslog TLS » d'un collecteur (SPEC § 23.14)
 	SNMP        vueSNMP     // bloc « SNMP et sondes » d'un collecteur (SPEC § 23.15)
 	Collecte    vueCollecte // onglet « Collecte » : tableau et cartes (SPEC § 119)
+	Token       vueToken    // bloc « Token » : actif ou non, dernier envoi, dernier refus
+}
+
+// vueToken : état du token d'une machine (retour du 22/11 : « on ne voit
+// pas s'il y en a un de configuré », et Telegraf d'OPNsense refusé sans que
+// la page le dise). Envoi et refus : depuis le démarrage du serveur.
+type vueToken struct {
+	Actifs       int
+	CreeLe       int64 // token actif le plus récent
+	DernierEnvoi int64 // dernières métriques reçues avec son propre token (0 : aucune)
+	Refus        *ingestion.Refus
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -770,6 +781,7 @@ func (c *Console) pageMachine(q *req) {
 	} else {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
+	d.Token = c.vueTokenDe(ctx, m)
 	// Tableau de la page : celui de l'équipement s'il est relevé par un
 	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
 	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
@@ -837,6 +849,21 @@ func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time
 		}
 	}
 	return "serveurs-linux", "instance", nom
+}
+
+// vueTokenDe : état du token d'une machine.
+func (c *Console) vueTokenDe(ctx context.Context, m flotte.InfoMachine) vueToken {
+	v := vueToken{Actifs: m.TokensActifs}
+	if m.TokensActifs > 0 {
+		v.CreeLe, _ = flotte.TokenCreeLe(ctx, c.db, m.ID)
+	}
+	if c.opt.Ingestion != nil {
+		v.DernierEnvoi, _ = c.opt.Ingestion.DerniereReception(m.ID)
+		if r, ok := c.opt.Ingestion.DernierRefus(m.ID); ok && r.T > v.DernierEnvoi {
+			v.Refus = &r // refus plus récent que le dernier envoi réussi
+		}
+	}
+	return v
 }
 
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce

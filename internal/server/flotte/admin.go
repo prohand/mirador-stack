@@ -147,6 +147,14 @@ func CreerJetonEtiquettes(ctx context.Context, db *sql.DB, duree time.Duration, 
 	return jeton, tx.Commit()
 }
 
+// TokenCreeLe : date du token actif le plus récent d'une machine (0 :
+// aucun token actif).
+func TokenCreeLe(ctx context.Context, db *sql.DB, machine int64) (int64, error) {
+	var t sql.NullInt64
+	err := db.QueryRowContext(ctx, `SELECT max(cree_le) FROM tokens WHERE machine_id = ? AND revoque_le = 0`, machine).Scan(&t)
+	return t.Int64, err
+}
+
 // ListerMachines : toutes les machines, par nom.
 func ListerMachines(ctx context.Context, db *sql.DB) ([]InfoMachine, error) {
 	rows, err := db.QueryContext(ctx, `SELECT m.id, m.nom, m.type, m.statut, m.site, m.env, m.groupe, m.version_agent, m.architecture,

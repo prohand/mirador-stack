@@ -140,6 +140,10 @@ type Ingestion struct {
 	lignesHote map[string]uint64
 	enCours    map[int64]int       // requêtes en cours par machine (2 au plus)
 	avertis    map[int64]time.Time // dernier avertissement de quota (journal)
+	// refus : dernier envoi refusé par machine (token reconnu mais adresse,
+	// empreinte ou lot refusés), montré sur la page de la machine. En
+	// mémoire seulement (perdu au redémarrage), une entrée par machine.
+	refus map[int64]Refus
 
 	equipements cacheEquipements // équipements rattachés à chaque collecteur
 }
@@ -164,6 +168,7 @@ func Nouvelle(opt Options) *Ingestion {
 		lignesHote: make(map[string]uint64),
 		enCours:    make(map[int64]int),
 		avertis:    make(map[int64]time.Time),
+		refus:      make(map[int64]Refus),
 	}
 }
 
@@ -186,6 +191,33 @@ func (g *Ingestion) DerniereReception(machine int64) (int64, bool) {
 	defer g.mu.Unlock()
 	t, ok := g.recues[machine]
 	return t, ok
+}
+
+// Refus : dernier envoi refusé d'une machine dont le token est reconnu.
+// Motif : texte FIXE (jamais tiré de la requête).
+type Refus struct {
+	T       int64  // secondes Unix
+	Motif   string // « adresse non autorisée », « lot invalide »…
+	Adresse string // adresse d'où venait l'envoi
+}
+
+// noterRefus garde le dernier refus d'une machine connue.
+func (g *Ingestion) noterRefus(m Machine, motif string, adresse string) {
+	if m.ID == 0 {
+		return
+	}
+	g.mu.Lock()
+	g.refus[m.ID] = Refus{T: g.opt.Maintenant().Unix(), Motif: motif, Adresse: adresse}
+	g.mu.Unlock()
+}
+
+// DernierRefus : dernier envoi refusé d'une machine depuis le démarrage du
+// serveur (false si aucun).
+func (g *Ingestion) DernierRefus(machine int64) (Refus, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	r, ok := g.refus[machine]
+	return r, ok
 }
 
 // DerniereDonneeNom : heure des dernières métriques reçues pour une machine
@@ -253,6 +285,11 @@ func (g *Ingestion) OublierMachines(ctx context.Context) {
 	for id := range g.avertis {
 		if !ids[id] {
 			delete(g.avertis, id)
+		}
+	}
+	for id := range g.refus {
+		if !ids[id] {
+			delete(g.refus, id)
 		}
 	}
 	for nom := range g.recuesNom {
@@ -404,6 +441,7 @@ func (g *Ingestion) Accueillir(w http.ResponseWriter, r *http.Request) (m Machin
 		g.echecsIP.Prendre(ip, 1, maintenant)
 		liberer()
 		g.opt.Journal.Warn("token utilisé par une autre machine que celle à laquelle il est lié", "machine", m.Nom, "ip", ip)
+		g.noterRefus(m, "token lié à une autre machine", adresse.String())
 		g.refuser(w, http.StatusForbidden, "token lié à une autre machine", 0)
 		return m, nil, false
 	case errors.Is(err, ErrIP):
@@ -412,6 +450,7 @@ func (g *Ingestion) Accueillir(w http.ResponseWriter, r *http.Request) (m Machin
 		g.echecsIP.Prendre(ip, 1, maintenant)
 		liberer()
 		g.opt.Journal.Warn("token utilisé depuis une adresse non autorisée", "machine", m.Nom, "ip", ip)
+		g.noterRefus(m, "adresse non autorisée", adresse.String())
 		g.refuser(w, http.StatusForbidden, "adresse non autorisée", 0)
 		return m, nil, false
 	case !present || errors.Is(err, ErrToken):
@@ -748,8 +787,10 @@ func (g *Ingestion) erreurDecodage(w http.ResponseWriter, m Machine, err error) 
 	var trop *http.MaxBytesError
 	switch {
 	case errors.Is(err, ErrTropGros), errors.As(err, &trop):
+		g.noterRefus(m, "envoi trop gros", "")
 		g.refuser(w, http.StatusRequestEntityTooLarge, "requête trop grosse", 0)
 	default:
+		g.noterRefus(m, "lot invalide (format)", "")
 		g.opt.Journal.Warn("lot invalide", "machine", m.Nom, "erreur", err)
 		g.refuser(w, http.StatusBadRequest, "lot invalide", 0)
 	}
