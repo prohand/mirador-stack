@@ -25,7 +25,7 @@
 <div class="edit-app">
 <div><label>Nom <input name="nom" value="{{.Nom}}" required maxlength="48" placeholder="Nextcloud"></label>
 <label>Chercher un élément <input type="search" data-chercher-app placeholder="machine, conteneur, projet, sonde…" autocomplete="off"></label>
-<div class="choix-app" data-choix-app>{{$sorte := ""}}{{range .Candidats}}{{if not .Choisi}}{{if ne $sorte .Sorte}}{{$sorte = .Sorte}}<h3>{{.TexteSorte}}</h3>{{end}}{{template "candidat-app" .}}{{end}}{{end}}</div></div>
+<div class="choix-app" data-choix-app><p class="vide" data-aucun-app hidden>Rien d'autre ne correspond.</p>{{$sorte := ""}}{{range .Candidats}}{{if not .Choisi}}{{if ne $sorte .Sorte}}{{$sorte = .Sorte}}<h3>{{.TexteSorte}}</h3>{{end}}{{template "candidat-app" .}}{{end}}{{end}}</div></div>
 <div><h3 class="titre-choisis">Éléments choisis</h3>
 <div class="choisis-app" data-choisis-app>{{range .Candidats}}{{if .Choisi}}{{template "candidat-app" .}}{{end}}{{end}}</div>
 <p class="aide"><small class="aide">« Clé » : l'application est <strong>en panne</strong> si cet élément a un problème ; sinon elle n'est que <strong>dégradée</strong>. La machine qui héberge un conteneur choisi est cochée d'office. 30 éléments au plus.</small></p>
@@ -33,4 +33,4 @@
 {{template "code2fa"}}<div class="ligne"><button data-code>{{if .Ancien}}Enregistrer{{else}}Créer l'application{{end}}</button>{{if .Ancien}}<button name="action" value="supprimer" class="danger" data-code data-confirmer="Supprimer l'application « {{.Ancien}} » ?">Supprimer</button>{{end}}<a class="bouton secondaire" href="/applications">Annuler</a></div></div>
 </div></form></details>{{end}}{{end}}
 {{end}}
-{{define "candidat-app"}}<div class="cand-app" data-cand-app data-sorte="{{.Sorte}}" data-hote="{{.Hote}}" data-texte="{{.Nom}} {{.Detail}}"><label class="inclure"><input type="checkbox" name="el" value="{{.Valeur}}"{{if .Choisi}} checked{{end}}> <span>{{.Nom}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label><label class="bascule-cle"><input type="checkbox" name="cle" value="{{.Valeur}}"{{if .Cle}} checked{{end}}> clé</label></div>{{end}}
+{{define "candidat-app"}}<div class="cand-app" data-cand-app data-sorte="{{.Sorte}}" data-hote="{{.Hote}}" data-texte="{{.Nom}} {{.Detail}}"><label class="case inclure"><input type="checkbox" name="el" value="{{.Valeur}}"{{if .Choisi}} checked{{end}}> <span>{{.Nom}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label><label class="case bascule-cle"><input type="checkbox" name="cle" value="{{.Valeur}}"{{if .Cle}} checked{{end}}> clé</label></div>{{end}}

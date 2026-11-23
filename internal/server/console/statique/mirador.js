@@ -2535,15 +2535,19 @@ document.addEventListener("change", function (ev) {
     var h = null, vu = false;
     Array.prototype.forEach.call(choix.children, function (x) {
       if (x.tagName === "H3") { if (h) { h.hidden = !vu; } h = x; vu = false; }
-      else if (!x.hidden) { vu = true; }
+      else if (x.hasAttribute("data-cand-app") && !x.hidden) { vu = true; }
     });
     if (h) { h.hidden = !vu; }
   }
   function filtrer() {
     var t = (cherche && cherche.value || "").toLowerCase().trim();
+    var vus = 0;
     choix.querySelectorAll("[data-cand-app]").forEach(function (l) {
       l.hidden = t !== "" && (l.getAttribute("data-texte") || "").toLowerCase().indexOf(t) < 0;
+      if (!l.hidden) { vus++; }
     });
+    var aucun = choix.querySelector("[data-aucun-app]");
+    if (aucun) { aucun.hidden = vus > 0; }
     titres();
   }
   function placer(l) {

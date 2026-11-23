@@ -2220,15 +2220,17 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .editeur-app > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; flex-wrap: wrap; }
 .editeur-app > summary h2 { margin: 0; font-size: 17px; }
 .edit-app { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); margin-top: 14px; }
-.edit-app label { display: block; margin-bottom: 10px; }
+.edit-app > div > label { margin-bottom: 10px; }
+.edit-app > div > label > input:not([type="checkbox"]) { width: 100%; }
 .choix-app, .choisis-app { border: 1px solid var(--bord); border-radius: 10px; padding: 4px 12px; max-height: 380px; overflow: auto; }
 .choisis-app:empty::before { content: "Aucun élément choisi : cocher à gauche."; display: block; padding: 10px 0; color: var(--pale); font-size: 13px; }
 .choix-app h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--pale); margin: 10px 0 4px; }
 .cand-app { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--bord); font-size: 13.5px; }
 .cand-app:last-child { border-bottom: 0; }
 .cand-app[hidden] { display: none; }
-.cand-app .inclure { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: flex-start; margin: 0; overflow-wrap: anywhere; }
+.cand-app .inclure { flex: 1; min-width: 0; align-items: flex-start; margin: 0; overflow-wrap: anywhere; font-size: 13.5px; }
+.cand-app .inclure input { margin-top: 2px; flex: none; }
 .cand-app .inclure small { display: block; color: var(--pale); font-size: 12px; }
-.cand-app .bascule-cle { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; color: var(--doux); border: 1px solid var(--bord); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
+.cand-app .bascule-cle { gap: 4px; margin: 0; font-size: 12px; color: var(--doux); border: 1px solid var(--bord); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
 .cand-app .bascule-cle:has(input:checked) { background: var(--erreur-fond); color: var(--erreur); border-color: transparent; font-weight: 600; }
 .titre-choisis { margin: 0 0 8px; font-size: 15px; }
