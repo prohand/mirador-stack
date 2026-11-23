@@ -17,6 +17,7 @@
   "shortcuts": [
     { "name": "Alertes", "url": "/alertes", "icons": [{ "src": "/statique/icones/icone-192.png", "sizes": "192x192", "type": "image/png" }] },
     { "name": "Machines", "url": "/machines", "icons": [{ "src": "/statique/icones/icone-192.png", "sizes": "192x192", "type": "image/png" }] },
-    { "name": "Logs", "url": "/logs", "icons": [{ "src": "/statique/icones/icone-192.png", "sizes": "192x192", "type": "image/png" }] }
+    { "name": "Logs", "url": "/logs", "icons": [{ "src": "/statique/icones/icone-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Santé de mirador", "short_name": "Santé", "url": "/sante-mirador", "icons": [{ "src": "/statique/icones/icone-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }
