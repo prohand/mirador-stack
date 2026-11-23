@@ -2234,3 +2234,54 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .cand-app .bascule-cle { gap: 4px; margin: 0; font-size: 12px; color: var(--doux); border: 1px solid var(--bord); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
 .cand-app .bascule-cle:has(input:checked) { background: var(--erreur-fond); color: var(--erreur); border-color: transparent; font-weight: 600; }
 .titre-choisis { margin: 0 0 8px; font-size: 15px; }
+
+/* --- Conteneurs (SPEC § 123) ---------------------------------------------------------- */
+.kpis-ct { gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); }
+.kpis-ct .kpi-valeur { margin-top: 8px; }
+.kpis-ct .kpi-bas { overflow-wrap: anywhere; }
+.barre-ct { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+.barre-ct input[type="search"] { flex: 1 1 240px; min-width: 0; width: auto; margin: 0; }
+.barre-ct .onglets { margin: 0; }
+.barre-ct .onglets b { font-weight: 600; margin-left: 2px; }
+.barre-ct .segment button { padding: 5px 12px; border-radius: 8px; border: 0; background: none; color: var(--doux); font: inherit; font-size: 13px; cursor: pointer; min-height: 0; box-shadow: none; }
+.barre-ct .segment button.actif { background: var(--carte); color: var(--texte); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.groupe-ct { padding: 16px 18px; }
+.tete-ct { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.tete-ct .puce { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.tete-ct .puce .icone { width: 16px; height: 16px; }
+.tete-ct h2 { margin: 0 4px 0 0; font-size: 17px; }
+.tete-ct h2 a { text-decoration: none; }
+.tete-ct h2 .doux { font-weight: 500; font-size: 14px; }
+.tete-ct > small { margin-left: auto; }
+.pastille.app { background: var(--info-fond); color: var(--accent); text-decoration: none; font-weight: 500; }
+.pastille.propose { background: transparent; border: 1px dashed var(--accent); color: var(--accent); text-decoration: none; }
+.tab-ct { width: 100%; }
+.tab-ct tr.pb > td:first-child { box-shadow: inset 3px 0 0 var(--erreur); }
+.tab-ct small.img { display: block; color: var(--pale); font-size: 12px; overflow-wrap: anywhere; }
+.tab-ct .neuf { color: var(--accent); }
+.tab-ct small.err { display: block; color: var(--erreur); font-size: 12px; overflow-wrap: anywhere; }
+.tab-ct td:first-child .pastille.app { margin-left: 4px; font-size: 11px; }
+.cpu-ct { display: flex; align-items: center; gap: 6px; }
+.cpu-ct .etincelle { width: 80px; flex: none; }
+.voir-ct { background: none; border: 0; box-shadow: none; color: var(--doux); font: inherit; font-size: 13px; padding: 8px 0 0; min-height: 0; cursor: pointer; }
+.voir-ct:hover { color: var(--accent); background: none; }
+@media (max-width: 640px) {
+  .tab-ct tr.pb > td:first-child { box-shadow: none; }
+  table.en-cartes.tab-ct > tbody > tr.pb { box-shadow: inset 3px 0 0 var(--erreur); }
+  .cpu-ct .etincelle { width: 64px; }
+}
+.puces-ct { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 14px; }
+.puces-ct .pastille { font-weight: 400; overflow-wrap: anywhere; }
+.pourquoi-ct { align-items: flex-start; }
+.logs-ct { background: var(--carte); border-radius: 8px; padding: 8px 10px; margin-top: 6px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
+.logs-ct > div { display: flex; gap: 10px; padding: 1px 0; }
+.logs-ct .t { color: var(--pale); flex: none; }
+.logs-ct b { flex: none; min-width: 52px; font-weight: 600; }
+.logs-ct span:last-child { overflow-wrap: anywhere; }
+.logs-ct .err { color: var(--erreur); }
+.logs-ct .warn { color: var(--attention); }
+.mem-ct { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+.mem-ct .jauge { width: 100%; max-width: 140px; }
+.mem-ct small { color: var(--doux); font-size: 12.5px; }
+.logs-ct .err b, .logs-ct .warn b { min-width: 0; }
+@media (min-width: 641px) { .tab-ct td:first-child { min-width: 220px; } }

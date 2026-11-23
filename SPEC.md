@@ -8345,3 +8345,63 @@ Coût : une requête de plus (conteneurs, `node_docker_container_running` sur
 1 h) et une lecture des alertes d'applications sur 30 jours à l'ouverture
 de la page ; rien en arrière-plan. Menaces : inchangées (administrateurs,
 code 2FA, audit ; la page de statut ne montre que les noms choisis).
+
+## 123. Conteneurs : nouvelle présentation (23/11) **[Fait, à valider]**
+
+Retour du 23/11 : « améliorer la vue conteneur », « les graphiques doivent
+être pareils que les machines ». Maquette validée (ajouts de l'agent : oui ;
+vue d'office : par projet).
+
+- **Agent** (collecteur Docker, aucune commande de plus vers Docker : tout
+  vient de la liste et de l'inspection déjà lues) :
+  - `node_docker_container_port{public,prive,proto}` : ports publiés, 20 au
+    plus par conteneur, doublons IPv4 / IPv6 fusionnés ;
+  - `node_docker_container_exit_code` : conteneurs arrêtés ;
+  - `node_docker_container_health_failing_streak` et
+    `node_docker_container_health_info{sortie,code}` (conteneur non sain
+    seulement) : première ligne de la dernière sortie du test de santé,
+    200 caractères, caractères de contrôle retirés, **secrets masqués** par
+    le même masquage que les logs (`password=***`).
+- **Page** : bandeau des conteneurs à regarder avec la raison en clair
+  (sortie du test de santé, code de sortie expliqué : 137 = tué, politique
+  de redémarrage), cinq cases (En marche x / y, Non sains, Arrêtés à tort,
+  Redémarrés 24 h, Mémoire pleine), recherche (nom, image, projet, machine),
+  filtres Tous / Problèmes / Arrêtés / Sans test de santé.
+  - **Par projet** (d'office) : un groupe par machine et projet Compose,
+    groupes à problème d'abord ; pastilles (non sains, arrêtés, « tout va
+    bien »), application liée ou « + créer l'application » (admin) ; un
+    groupe sain de plus de 3 conteneurs n'en montre que 2 (« voir »).
+  - **Liste** : un seul tableau avec la machine et le projet. Choix retenu
+    par le navigateur.
+  - Ligne : image, « image changée il y a 2 j (A → B) » (changements des
+    7 derniers jours), petite courbe du processeur sur 24 h et valeur,
+    mémoire / limite avec jauge, redémarrages 24 h, démarré, Logs.
+  - Processeur : **part d'un cœur** (comme `docker stats`), plus « part de la
+    machine » : même unité que la fiche et les graphiques.
+  - `?machine=` et `?etat=problemes|arretes` restent valables (liens des
+    pages machine et du menu).
+- **Fiche** : pastilles (image, projet, machine, politique, démarré, ports,
+  application, image changée) ; bandeau « pourquoi » (test de santé en
+  échec avec sa sortie, arrêté à tort avec le code de sortie, ou tué faute
+  de mémoire) avec les **3 dernières erreurs de ses logs** sur 6 h (niveau
+  lu, ou mot error / warn… dans le texte) ; quatre cases (santé ou état,
+  processeur avec le maximum sur 24 h, mémoire en % de la limite,
+  redémarrages 24 h et 7 j) ; **graphiques comme ceux d'une machine** :
+  tableau `conteneur` (Processeur, Mémoire et limite, Redémarrages par
+  heure, En marche et santé), même choix de période (1 h à 30 j), zoom,
+  PNG, CSV, comparaison avec la semaine dernière ; conteneurs du même
+  projet ; alertes, événements et étiquettes comme avant.
+
+Coût (mesuré, 200 conteneurs sur 10 machines, banc de test) : page en
+85 à 100 ms, 76 Mio alloués puis rendus (lecture de 24 h pour les petites
+courbes, gardée 2 min), 583 Kio de HTML (les deux vues ; les pages ne sont pas compressées
+par mirador, environ 5 fois moins pour 30 à 40 conteneurs). Fiche : 5 à 6 ms. 4 requêtes instantanées de plus (image, code de
+sortie, test de santé, ports ; cache de 20 s), une lecture des changements
+par machine. Agent : 3 séries de plus par conteneur au plus (souvent 0 ou 1),
+mesure `TestDocker` inchangée en temps.
+
+Menaces : la sortie du test de santé peut contenir un secret (URL avec mot
+de passe) : masquée par l'agent avant l'envoi, coupée à 200 caractères,
+affichée échappée. Les logs de la fiche passent par la recherche habituelle
+(2 recherches à la fois au plus, 3 s maximum). Rien d'écrit, aucune
+commande vers les agents.

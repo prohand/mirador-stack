@@ -1,32 +1,43 @@
-{{define "contenu"}}
-<h1>Conteneurs</h1>
-<p class="sous">Tous les conteneurs Docker du parc, problèmes en premier. Processeur : part de toute la machine. Mémoire : utilisée / limite du conteneur. « Logs » ouvre la page Logs filtrée sur le conteneur.</p>
-{{if .D.SansDonnees}}<section class="carte"><p class="vide">Aucun conteneur reçu : aucune machine n'envoie de données Docker (collecteur Docker de l'agent, accès au proxy de la socket).</p></section>
+{{define "contenu"}}{{$d := .D}}
+<div class="titre-page"><h1>Conteneurs</h1></div>
+<p class="sous">Tous les conteneurs Docker du parc, rangés par machine et par projet Compose. Problèmes en premier. Processeur : part d'un cœur (100 % = un cœur entier, comme « docker stats »), petite courbe sur 24 h.</p>
+{{if $d.SansDonnees}}<section class="carte"><p class="vide">Aucun conteneur reçu : aucune machine n'envoie de données Docker (collecteur Docker de l'agent, accès au proxy de la socket).</p></section>
 {{else}}
-<div class="resume-alertes">
- <a class="tuile" href="/conteneurs?etat=marche"><small>En marche</small><b>{{.D.EnMarche}}</b></a>
- <a class="tuile{{if .D.NonSains}} critique{{end}}" href="/conteneurs?etat=problemes"><small>Non sains</small><b>{{.D.NonSains}}</b></a>
- <a class="tuile{{if .D.Arretes}} avert{{end}}" href="/conteneurs?etat=problemes"><small>Arrêtés (redémarrage auto)</small><b>{{.D.Arretes}}</b></a>
- <span class="tuile"><small>Redémarrés sur 24 h</small><b>{{.D.Redemarres}}</b></span>
+{{if $d.Problemes}}<div class="bandeau-accueil erreur"><span class="puce rouge" aria-hidden="true"><svg class="icone"><use href="#i-attention"></use></svg></span><div class="d"><h2>{{len $d.Problemes}} {{accord (len $d.Problemes) "conteneur(s) à regarder"}}</h2>
+<p>{{range $i, $l := $d.Problemes}}{{if $i}} · {{end}}<a href="{{$l.Lien}}"><b>{{$l.Nom}}</b></a> ({{$l.Machine}}) : {{$l.Raison}}{{with $l.ProblemeDepuis}}, {{.}}{{end}}{{end}}</p></div></div>
+{{else}}<div class="bandeau-accueil ok"><span class="puce vert" aria-hidden="true"><svg class="icone"><use href="#i-ok"></use></svg></span><div class="d"><h2>Tous les conteneurs vont bien</h2><p>aucun non sain, aucun arrêté à tort</p></div></div>{{end}}
+<div class="kpis kpis-ct">{{range $d.Cases}}<a class="kpi{{if .Classe}} kpi-{{.Classe}}{{end}}" href="{{.Lien}}"><div class="kpi-tete">{{.Titre}}</div><div class="kpi-valeur">{{.Valeur}}{{if .Sur}}<span> / {{.Sur}}</span>{{end}}</div><div class="kpi-bas">{{.Texte}}</div></a>{{end}}</div>
+<div class="barre-ct" data-filtres-ct data-filtre-depart="{{$d.Filtre}}">
+<input type="search" data-chercher-ct placeholder="Chercher : nom, image, projet, machine…" aria-label="Chercher un conteneur" autocomplete="off">
+<p class="onglets">{{template "bouton-filtre-ct" (dict "F" "" "Actif" $d.Filtre "Texte" "Tous" "N" $d.NbTous)}}{{template "bouton-filtre-ct" (dict "F" "pb" "Actif" $d.Filtre "Texte" "Problèmes" "N" $d.NbProblemes)}}{{template "bouton-filtre-ct" (dict "F" "arrete" "Actif" $d.Filtre "Texte" "Arrêtés" "N" $d.NbArretes)}}{{template "bouton-filtre-ct" (dict "F" "sanstest" "Actif" $d.Filtre "Texte" "Sans test de santé" "N" $d.NbSansTest)}}</p>
+<span class="segment" data-vue-ct-choix hidden><button type="button" data-vue="projet" class="actif" aria-pressed="true">Par projet</button><button type="button" data-vue="liste" aria-pressed="false">Liste</button></span>
+{{if $d.Machine}}<span class="pastille">sur {{$d.Machine}} · <a href="/conteneurs">tout voir</a></span>{{end}}
 </div>
-<section class="carte">
-<div class="entete-carte"><div><h2>{{.D.Total}} {{accord .D.Total "conteneur(s)"}}{{if not .D.Machine}} sur {{.D.NbMachines}} {{accord .D.NbMachines "machine(s)"}}{{else}} sur {{.D.Machine}}{{end}}</h2></div>
-<form method="get" action="/conteneurs" class="ligne filtres-conteneurs">
-<label class="masque-visuel" for="filtre-machine">Machine</label><select id="filtre-machine" name="machine"><option value="">Toutes les machines</option>{{range .D.Machines}}<option value="{{.}}"{{if egal . $.D.Machine}} selected{{end}}>{{.}}</option>{{end}}</select>
-<label class="masque-visuel" for="filtre-etat">État</label><select id="filtre-etat" name="etat"><option value="">Tous les états</option><option value="problemes"{{if egal .D.Etat "problemes"}} selected{{end}}>Problèmes</option><option value="marche"{{if egal .D.Etat "marche"}} selected{{end}}>En marche</option><option value="arretes"{{if egal .D.Etat "arretes"}} selected{{end}}>Arrêtés</option></select>
-<button class="secondaire">Afficher</button>{{if or .D.Machine .D.Etat}} <a href="/conteneurs">Tout voir</a>{{end}}
-</form></div>
-{{if .D.Lignes}}<div class="defile"><table data-cartes><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur</th><th>Mémoire</th><th class="nombre">Redémarrages 24 h</th><th>Depuis</th><th></th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><a href="/conteneurs/{{.Machine}}/{{.Nom}}"><strong>{{.Nom}}</strong></a>{{if .Projet}}<br><small class="doux">{{.Projet}}</small>{{end}}</td>
-<td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
-<td>{{if .ClasseEtat}}<span class="pastille {{.ClasseEtat}}">{{.Etat}}</span>{{else}}<span class="pastille">{{.Etat}}</span>{{end}}{{if .OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
-<td>{{if .Sante}}<span class="pastille {{.ClasseSante}}">{{.Sante}}</span>{{else}}<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>{{end}}</td>
-<td data-valeur="{{.PctCPU}}"><div class="mesure"><span>{{.CPU}}</span>{{if ge .PctCPU 0}}<div class="jauge {{.ClasseCPU}}"><i class="largeur-{{.PctCPU}}"></i></div>{{end}}</div></td>
-<td data-valeur="{{.PctMemoire}}"><div class="mesure mesure-large"><span class="sans-coupure">{{.Memoire}}</span>{{if ge .PctMemoire 0}}<div class="jauge {{.ClasseMem}}"><i class="largeur-{{.PctMemoire}}"></i></div>{{end}}</div>{{if .Limite}}<small class="doux sans-coupure">limite {{.Limite}}</small>{{end}}</td>
-<td class="nombre">{{if .Redemarrages}}<strong>{{.Redemarrages}}</strong>{{else}}0{{end}}</td>
-<td data-valeur="{{.DepuisS}}">{{if .Depuis}}{{.Depuis}}{{else}}—{{end}}</td>
-<td><a class="pastille" href="{{.LienLogs}}">Logs</a></td></tr>{{end}}
+<div data-vue-ct="projet">{{range $d.Groupes}}{{$g := .}}<section class="carte groupe-ct" data-groupe-ct{{if .CacheFiltre $d.Filtre}} hidden{{end}}>
+<div class="tete-ct"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><h2><a href="/machines/{{.Machine}}">{{.Machine}}</a> {{if .Projet}}<span class="doux">· projet</span> {{.Projet}}{{else}}<span class="doux">· hors projet Compose</span>{{end}}</h2>
+{{if .NbNonSains}}<span class="pastille erreur">{{.NbNonSains}} non {{accord .NbNonSains "sain(s)"}}</span>{{end}}{{if .NbArretes}}<span class="pastille attention">{{.NbArretes}} {{accord .NbArretes "arrêté(s)"}}</span>{{end}}{{if not .AProbleme}}<span class="pastille ok">tout va bien</span>{{end}}
+{{with .Application}}<a class="pastille app" href="/applications/{{.}}">application {{.}}</a>{{end}}{{with .Proposer}}<a class="pastille propose" href="{{.}}">+ créer l'application</a>{{end}}
+<small class="doux">{{len .Lignes}} {{accord (len .Lignes) "conteneur(s)"}}</small></div>
+<div class="defile"><table class="tab-ct" data-cartes="serrees" data-sans-filtre data-sans-menu-tri><thead><tr><th>Conteneur</th><th>État</th><th>Santé</th><th>Processeur 24 h</th><th>Mémoire / limite</th><th class="nombre">Redém. 24 h</th><th>Démarré</th><th></th></tr></thead><tbody>
+{{range $i, $l := .Lignes}}{{template "ligne-ct" (dict "L" $l "F" $d.Filtre "Trop" (and (not $d.Filtre) (ge $i $g.Visibles)) "AvecMachine" false)}}{{end}}
 </tbody></table></div>
-<p class="sous legende-tableau">Santé : résultat du test intégré au conteneur (« healthcheck » de l'image ou du compose). « — » : pas de test défini, seul l'état (en marche ou arrêté) est suivi.</p>{{else}}<p class="vide">Aucun conteneur pour ce filtre.</p>{{end}}
-</section>{{end}}
+{{if and .NbCaches (not $d.Filtre)}}<button type="button" class="voir-ct" data-voir-ct>+ {{.NbCaches}} {{accord .NbCaches "autre(s) conteneur(s) sain(s)"}} · voir</button>{{end}}
+</section>{{end}}</div>
+<div data-vue-ct="liste" hidden><section class="carte"><div class="defile"><table class="tab-ct" data-cartes="serrees" data-sans-filtre><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur 24 h</th><th>Mémoire / limite</th><th class="nombre">Redém. 24 h</th><th>Démarré</th><th></th></tr></thead><tbody>
+{{range $d.Lignes}}{{template "ligne-ct" (dict "L" . "F" $d.Filtre "Trop" false "AvecMachine" true)}}{{end}}
+</tbody></table></div></section></div>
+<p class="vide" data-aucun-ct hidden>Aucun conteneur ne correspond.</p>
+<p class="sous legende-tableau">Santé : résultat du test intégré au conteneur (« healthcheck » de l'image ou du compose). « — » : pas de test défini, seul l'état (en marche ou arrêté) est suivi.</p>
 {{end}}
+{{end}}
+{{define "bouton-filtre-ct"}}<button type="button" data-filtre="{{.F}}"{{if eq .F .Actif}} class="actif" aria-pressed="true"{{else}} aria-pressed="false"{{end}}>{{.Texte}} <b>{{.N}}</b></button>{{end}}
+{{define "ligne-ct"}}{{$l := .L}}<tr data-ct data-filtres="{{$l.Filtres}}" data-texte="{{$l.Texte}}"{{if $l.Probleme}} class="pb"{{end}}{{if $l.CacheFiltre .F}} data-onglet-cache=""{{end}}{{if .Trop}} data-en-trop hidden{{end}}>
+<td><a href="{{$l.Lien}}"><strong>{{$l.Nom}}</strong></a>{{with $l.Application}} <a class="pastille app" href="/applications/{{.}}">{{.}}</a>{{end}}{{if $l.Image}}<small class="img">{{$l.Image}}{{with $l.ImageChangee}} · <span class="neuf">{{.}}</span>{{end}}</small>{{end}}{{with $l.LigneErreur}}<small class="err">{{.}}</small>{{end}}</td>
+{{if .AvecMachine}}<td class="sans-coupure"><a href="/machines/{{$l.Machine}}">{{$l.Machine}}</a>{{with $l.Projet}}<small class="doux sans-coupure"> · {{.}}</small>{{end}}</td>{{end}}
+<td>{{if $l.ClasseEtat}}<span class="pastille {{$l.ClasseEtat}}">{{$l.Etat}}</span>{{else}}<span class="pastille">{{$l.Etat}}</span>{{end}}{{if $l.OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
+<td>{{if $l.Sante}}<span class="pastille {{$l.ClasseSante}}">{{$l.Sante}}</span>{{else}}<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>{{end}}</td>
+<td data-valeur="{{$l.PctCPU}}"><div class="cpu-ct">{{if $l.Etincelle}}<svg class="etincelle" viewBox="0 0 90 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{$l.Etincelle}}"></polyline></svg>{{end}}<span class="sans-coupure">{{$l.CPU}}</span></div></td>
+<td data-valeur="{{$l.PctMemoire}}">{{if $l.EnMarche}}<div class="mem-ct">{{if ge $l.PctMemoire 0}}<div class="jauge {{$l.ClasseMem}}"><i class="largeur-{{$l.PctMemoire}}"></i></div>{{end}}<small class="sans-coupure">{{$l.TexteMemoire}}</small></div>{{else}}—{{end}}</td>
+<td class="nombre">{{if $l.Redemarrages}}<strong>{{$l.Redemarrages}}</strong>{{else}}0{{end}}</td>
+<td data-valeur="{{$l.DepuisS}}"><small class="sans-coupure">{{if $l.Depuis}}il y a {{$l.Depuis}}{{else if not $l.EnMarche}}arrêté{{with $l.ProblemeDepuis}} {{.}}{{end}}{{else}}—{{end}}</small></td>
+<td><a class="pastille" href="{{$l.LienLogs}}">Logs</a></td></tr>{{end}}

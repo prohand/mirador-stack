@@ -128,10 +128,14 @@ type Console struct {
 	muEtincelles     sync.Mutex
 	etincellesCache  map[string]string
 	etincellesExpire time.Time
-	cache            cacheRequetes
-	annot            cacheAnnotations // alertes et événements des courbes d'une machine (SPEC § 31)
-	prevDisques      cachePrevisions  // « plein dans X j » des disques (SPEC § 31)
-	chaleur          cacheChaleur     // carte de chaleur du parc sur 24 h (SPEC § 31)
+	// Petites courbes du processeur des conteneurs (24 h, SPEC § 123).
+	muEtincellesCt     sync.Mutex
+	etincellesCtCache  map[string]string
+	etincellesCtExpire time.Time
+	cache              cacheRequetes
+	annot              cacheAnnotations // alertes et événements des courbes d'une machine (SPEC § 31)
+	prevDisques        cachePrevisions  // « plein dans X j » des disques (SPEC § 31)
+	chaleur            cacheChaleur     // carte de chaleur du parc sur 24 h (SPEC § 31)
 }
 
 type compteCache struct {

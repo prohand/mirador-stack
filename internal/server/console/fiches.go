@@ -50,6 +50,8 @@ type donneesFiche struct {
 	App *ficheApp
 	// Dernières alertes de l'élément, avec le retour à la normale (§ 72).
 	Dernieres *blocDernieresAlertes
+	// Conteneur : pastilles, pourquoi, cases, graphiques (SPEC § 123).
+	Conteneur *ficheConteneur
 }
 
 func (c *Console) ficheElement(q *req, cle string) {
@@ -180,9 +182,12 @@ func (c *Console) ficheElement(q *req, cle string) {
 		if v, ok := instant(`max(round(increase(node_docker_container_restart_count` + sel + `[24h])))`); ok {
 			redem = strconv.FormatFloat(v, 'f', 0, 64)
 		}
-		d.Tuiles = []tuileFiche{{"État", e.Etat, e.Pastille()}, {"Processeur", cpu, ""}, {"Mémoire", mem, ""}, {"Redémarrages 24 h", redem, ""}}
-		d.TitreCourbe = "Processeur — 24 h (% d'un cœur)"
-		courbe(`max(100 * rate(node_docker_container_cpu_seconds_total`+sel+`[5m]))`, math.NaN())
+		d.Conteneur = c.lireFicheConteneur(ctx, e.Groupe, e.Nom, q.r.URL.Query().Get("periode"), q.t)
+		if d.Conteneur == nil {
+			d.Tuiles = []tuileFiche{{"État", e.Etat, e.Pastille()}, {"Processeur", cpu, ""}, {"Mémoire", mem, ""}, {"Redémarrages 24 h", redem, ""}}
+			d.TitreCourbe = "Processeur — 24 h (% d'un cœur)"
+			courbe(`max(100 * rate(node_docker_container_cpu_seconds_total`+sel+`[5m]))`, math.NaN())
+		}
 		qs := url.Values{"host": {e.Groupe}, "container": {e.Nom}}
 		d.Raccourcis = []raccourciFiche{{"Logs du conteneur", "/logs?" + qs.Encode()}, {"Machine " + e.Groupe, "/machines/" + url.PathEscape(e.Groupe)},
 			{"Page Conteneurs", "/conteneurs?machine=" + url.QueryEscape(e.Groupe)},

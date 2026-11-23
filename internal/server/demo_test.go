@@ -255,6 +255,27 @@ func TestDemoInterface(t *testing.T) {
 			mk("node_docker_container_healthy", func(int) float64 { return 0 }, "name", "appli", "project", "site")
 			mk("node_docker_container_healthy", un, "name", "postgres", "project", "site")
 			mk("node_docker_container_running", func(int) float64 { return 0 }, "name", "cache", "project", "site", "state", "exited", "restart_policy", "always")
+			// Refonte de la page Conteneurs (SPEC § 123) : image, sortie du test
+			// de santé, code de sortie, ports, second projet Compose.
+			for ct, img := range map[string]string{"traefik": "traefik:v3.1", "postgres": "postgres:16.4", "appli": "ghcr.io/exemple/appli:2.4.1", "cache": "redis:7.2-alpine"} {
+				mk("node_docker_container_info", un, "name", ct, "project", "site", "image", img)
+			}
+			mk("node_docker_container_health_info", un, "name", "appli", "project", "site", "sortie", "curl: (7) Failed to connect to localhost port 8080", "code", "7")
+			mk("node_docker_container_exit_code", func(int) float64 { return 137 }, "name", "cache", "project", "site")
+			mk("node_docker_container_port", un, "name", "traefik", "project", "site", "public", "443", "prive", "443", "proto", "tcp")
+			mk("node_docker_container_port", un, "name", "traefik", "project", "site", "public", "80", "prive", "80", "proto", "tcp")
+			for j, ct := range []string{"immich-server", "immich-postgres", "immich-redis", "immich-ml"} {
+				img := []string{"ghcr.io/immich-app/immich-server:v1.120", "tensorchord/pgvecto-rs:pg16", "redis:7.2-alpine", "ghcr.io/immich-app/immich-machine-learning:v1.120"}[j]
+				part := []float64{0.12, 0.04, 0.01, 0.02}[j]
+				mk("node_docker_container_running", un, "name", ct, "project", "immich", "state", "running", "restart_policy", "always")
+				mk("node_docker_container_healthy", un, "name", ct, "project", "immich")
+				mk("node_docker_container_info", un, "name", ct, "project", "immich", "image", img)
+				mk("node_docker_container_started_timestamp_seconds", func(int) float64 { return float64(now.Add(-time.Duration(j+1) * 31 * time.Hour).Unix()) }, "name", ct, "project", "immich")
+				mk("node_docker_container_memory_limit_bytes", func(int) float64 { return 3 << 30 }, "name", ct, "project", "immich")
+				mk("node_docker_container_cpu_seconds_total", func(k int) float64 { return float64(k)*30*part + 3*math.Sin(float64(k)/20) + 3 }, "name", ct, "project", "immich")
+				mk("node_docker_container_memory_bytes", func(int) float64 { return (part*4 + 0.2) * (1 << 30) }, "name", ct, "project", "immich")
+			}
+			mk("node_docker_container_restart_count", func(k int) float64 { return float64(k / 300) }, "name", "immich-server", "project", "immich")
 			mk("mirador_logs_docker_streams", func(int) float64 { return 3 })
 		}
 	}
@@ -509,6 +530,8 @@ func TestDemoInterface(t *testing.T) {
 	} {
 		_, _ = s.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('pve1', ?, ?, ?)`, now.Add(-c.il).Unix(), c.typ, c.texte)
 	}
+	_, _ = s.db.Exec(`INSERT INTO changements(machine, le, type, detail) VALUES ('vm-docker', ?, 'conteneur', 'traefik recréé : image traefik:v3.0 → traefik:v3.1')`,
+		now.Add(-50*time.Hour).Unix())
 	var lignes []stockage.Ligne
 	for k := 0; k < 60; k++ {
 		lignes = append(lignes, stockage.Ligne{T: now.Add(time.Duration(-k) * time.Minute).UnixMilli(), Msg: fmt.Sprintf("Accepted publickey for admin from 192.0.2.%d port 5%03d ssh2", k%7, k),
@@ -534,6 +557,11 @@ func TestDemoInterface(t *testing.T) {
 	}
 	lignes = append(lignes, stockage.Ligne{T: now.UnixMilli(), Msg: "nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address already in use)",
 		Champs: map[string]string{"host": "vps-web", "job": "journal", "unit": "nginx.service", "level": "err"}})
+	// Fiche du conteneur appli (SPEC § 123) : dernières erreurs dans ses logs.
+	for k, msg := range []string{"ERROR database connection refused (postgres:5432)", "ERROR database connection refused (postgres:5432)"} {
+		lignes = append(lignes, stockage.Ligne{T: now.Add(-time.Duration(4-k) * time.Minute).UnixMilli(), Msg: msg,
+			Champs: map[string]string{"host": "vm-docker", "job": "docker", "container": "appli"}})
+	}
 	_ = s.jx.Ecrire(ctx, lignes)
 	// Logs en direct (SPEC § 99) : une ligne toutes les 3 s, comme un agent.
 	go func() {
