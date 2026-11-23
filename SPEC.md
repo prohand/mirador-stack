@@ -8312,3 +8312,36 @@ du cache d'une heure de la page Mise à jour. Collecteur : une série de plus.
 Menaces : lecture seule, aucune commande ; mêmes droits que les autres pages
 de supervision (adresses autorisées et motifs de refus déjà visibles sur la
 page de la machine).
+
+## 122. Applications : nouvelle présentation (23/11) **[Fait, à valider]**
+
+Retour du 23/11 : « améliorer la partie Applications ». Maquette validée
+(« fais tout » ; propositions Docker Compose dès 1 conteneur ; machine
+hôte cochée d'office).
+
+- **Page** : bandeau par application en panne (depuis quand, élément clé en
+  cause), quatre cases (En panne, Dégradées, OK avec leurs noms,
+  disponibilité moyenne sur 30 j), cartes avec « depuis », cause, frise des
+  30 jours (un jour par barre : OK, dégradée, en panne ; survol : détail),
+  état et détail de chaque élément (site · type, cible de la sonde, machine
+  du conteneur), liens Incidents, Alertes, Modifier.
+- **Applications proposées d'après Docker Compose** : un projet
+  (`com.docker.compose.project`) sur une machine dont aucun conteneur n'est
+  encore dans une application, dès 1 conteneur ; un clic ouvre le
+  formulaire prérempli (conteneurs du projet, machine hôte, sonde liée à la
+  machine qui porte le nom du projet, clé).
+- **Éditeur sans syntaxe** : recherche, une case par élément (sondes,
+  conteneurs, machines), bascule « clé », colonne « Éléments choisis »,
+  machine hôte d'un conteneur cochée d'office (JavaScript ; sans lui la
+  liste reste entière et le formulaire marche), case « Montrer sur la page
+  de statut publique » (ajout, retrait, renommage, suppression suivis). Code
+  2FA comme avant ; l'ancien format texte reste accepté.
+- **Fiche** : bandeau « Pourquoi » (élément clé en cause, éléments qui
+  répondent), frise des 30 jours, éléments avec leur état ; lien Modifier.
+- Historique : alertes ApplicationEnPanne / ApplicationDegradee en base
+  (même calcul que la page de statut, désormais partagé).
+
+Coût : une requête de plus (conteneurs, `node_docker_container_running` sur
+1 h) et une lecture des alertes d'applications sur 30 jours à l'ouverture
+de la page ; rien en arrière-plan. Menaces : inchangées (administrateurs,
+code 2FA, audit ; la page de statut ne montre que les noms choisis).

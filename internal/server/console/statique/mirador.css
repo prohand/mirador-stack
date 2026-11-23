@@ -2178,3 +2178,57 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .kpis-sante .kpi-valeur { font-size: 22px; margin-top: 8px; }
   .kpis-sante .kpi-bas { font-size: 12px; }
 }
+
+/* Applications (SPEC § 122) : cartes, frise des 30 jours, éditeur. */
+.kpis-apps { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.kpis-apps .kpi-valeur { margin-top: 8px; }
+.apps-proposees { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--info-fond); border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; }
+.apps-proposees .d { flex: 1; min-width: 200px; }
+.apps-proposees small { display: block; color: var(--doux); }
+.apps-proposees .puces { display: flex; gap: 8px; flex-wrap: wrap; }
+.apps-proposees .pastille { background: var(--carte); color: var(--texte); font-weight: 500; text-decoration: none; }
+.apps-proposees .puce { width: 30px; height: 30px; border-radius: 8px; }
+.grille-apps { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); margin-bottom: 18px; }
+.carte.app { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.carte.app.panne { box-shadow: inset 3px 0 0 var(--erreur), 0 1px 2px rgba(17,24,39,.06); }
+.carte.app.degradee { box-shadow: inset 3px 0 0 var(--attention-trait), 0 1px 2px rgba(17,24,39,.06); }
+.app .tete { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.app .tete h2 { margin: 0; font-size: 17px; }
+.app .tete h2 a { text-decoration: none; }
+.app .tete small { margin-left: auto; }
+.app .cause { margin: 0; color: var(--erreur); font-size: 13.5px; font-weight: 500; overflow-wrap: anywhere; }
+.dispo-app { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--doux); }
+.dispo-app b { color: var(--texte); }
+.frise-app { display: flex; gap: 2px; flex: 1; height: 18px; }
+.frise-app i { flex: 1; border-radius: 2px; background: var(--ok); }
+.frise-app i.deg { background: var(--attention-trait); }
+.frise-app i.pan { background: var(--erreur); }
+.frise-app.grande { height: 28px; }
+.elements-app { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bord); border-radius: 10px; overflow: hidden; }
+.elements-app li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--bord); font-size: 13.5px; }
+.elements-app li:last-child { border-bottom: 0; }
+.elements-app li.erreur { box-shadow: inset 3px 0 0 var(--erreur); }
+.elements-app li.attention { box-shadow: inset 3px 0 0 var(--attention-trait); }
+.elements-app .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.elements-app .n small { display: block; color: var(--pale); font-size: 12px; }
+.elements-app .puce { width: 26px; height: 26px; border-radius: 8px; flex: none; }
+.elements-app .puce .icone { width: 15px; height: 15px; }
+.elements-app .cle { font-size: 11px; background: var(--survol); border-radius: 6px; padding: 1px 6px; margin-left: 6px; color: var(--doux); }
+.pied-app { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; border-top: 1px solid var(--bord); padding-top: 10px; margin-top: auto; }
+.pied-app a { text-decoration: none; }
+.pied-app a:last-child { margin-left: auto; }
+.editeur-app > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; flex-wrap: wrap; }
+.editeur-app > summary h2 { margin: 0; font-size: 17px; }
+.edit-app { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); margin-top: 14px; }
+.edit-app label { display: block; margin-bottom: 10px; }
+.choix-app, .choisis-app { border: 1px solid var(--bord); border-radius: 10px; padding: 4px 12px; max-height: 380px; overflow: auto; }
+.choisis-app:empty::before { content: "Aucun élément choisi : cocher à gauche."; display: block; padding: 10px 0; color: var(--pale); font-size: 13px; }
+.choix-app h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--pale); margin: 10px 0 4px; }
+.cand-app { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--bord); font-size: 13.5px; }
+.cand-app:last-child { border-bottom: 0; }
+.cand-app[hidden] { display: none; }
+.cand-app .inclure { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: flex-start; margin: 0; overflow-wrap: anywhere; }
+.cand-app .inclure small { display: block; color: var(--pale); font-size: 12px; }
+.cand-app .bascule-cle { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; color: var(--doux); border: 1px solid var(--bord); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
+.cand-app .bascule-cle:has(input:checked) { background: var(--erreur-fond); color: var(--erreur); border-color: transparent; font-weight: 600; }
+.titre-choisis { margin: 0 0 8px; font-size: 15px; }

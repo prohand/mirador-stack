@@ -1,29 +1,36 @@
-{{define "contenu"}}
-<h1>Applications</h1>
-{{template "filtre-sur" .D.FiltreSur}}
-<p class="sous">Une application (Domotique, Nextcloud, Sauvegardes…) regroupe ce qui la fait marcher : machines, conteneurs, sondes. À ne pas confondre avec les services systemd des machines. Son état : <strong>en panne</strong> si un élément « clé » a un problème, <strong>dégradée</strong> si un autre en a un. Alertes fournies : ApplicationEnPanne (2 min), ApplicationDegradee (10 min). Disponibilité sur 30 jours : d'après les pannes des éléments clés (machines et sondes).</p>
-{{if .D.Cartes}}<div class="resume-alertes">
- <span class="tuile{{if .D.NbPanne}} critique{{end}}"><small>En panne</small><b>{{.D.NbPanne}}</b></span>
- <span class="tuile{{if .D.NbDegrade}} avert{{end}}"><small>Dégradées</small><b>{{.D.NbDegrade}}</b></span>
- <span class="tuile"><small>OK</small><b>{{.D.NbOK}}</b></span>
-</div>
-<div class="grille-services">{{range .D.Cartes}}
-<section class="carte"><div class="entete-carte"><h2><a href="/applications/{{.Nom}}">{{.Nom}}</a></h2><span class="pastille {{.Classe}}">{{.Texte}}</span></div>
-<p class="doux service-dispo">30 j : {{.Dispo}}</p>
-<ul class="composants">{{range .Composants}}<li><span>{{if eq .Sorte "machine"}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{else if eq .Sorte "sonde"}}Sonde <a href="/sondes">{{.Nom}}</a>{{else}}Conteneur {{.Nom}}{{end}}{{if .Cle}}<span class="cle">clé</span>{{end}}</span><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Texte}}</span></li>{{end}}</ul>
-{{if $.Admin}}<details class="modifier-service"><summary class="bouton secondaire petit">Modifier ▾</summary>
-<form method="post" action="/applications" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="ancien" value="{{.Nom}}">
-<label>Nom <input name="nom" value="{{.Nom}}" required maxlength="48"></label>
-<label>Éléments (un par ligne) <textarea name="elements" rows="5" maxlength="4000">{{.Lignes}}</textarea></label>
-{{template "code2fa"}}<div class="ligne"><button name="action" value="enregistrer" data-code>Enregistrer</button><button name="action" value="supprimer" class="danger" data-code data-confirmer="Supprimer l'application « {{.Nom}} » ?">Supprimer</button></div>
-</form></details>{{end}}
+{{define "contenu"}}{{$d := .D}}
+<div class="titre-page"><h1>Applications</h1>{{if .Admin}}<div class="actions"><a class="bouton" href="/applications?nouvelle=1#editeur">+ Nouvelle application</a></div>{{end}}</div>
+{{template "filtre-sur" $d.FiltreSur}}
+<p class="sous">Ce qui fait marcher un service (machines, conteneurs, sondes) et son état d'un coup d'œil. <strong>En panne</strong> si un élément « clé » a un problème, <strong>dégradée</strong> si un autre en a un (alertes ApplicationEnPanne après 2 min, ApplicationDegradee après 10 min).</p>
+{{range $d.Cartes}}{{if eq .Etat 2}}<div class="bandeau-accueil erreur"><span class="puce rouge" aria-hidden="true"><svg class="icone"><use href="#i-attention"></use></svg></span><div class="d"><h2>{{.Nom}} est en panne {{.Depuis}}</h2><p>{{if .Cause}}{{.Cause}}{{else}}un élément clé a un problème{{end}}</p></div><a class="bouton secondaire" href="/applications/{{.Nom}}">Voir l'application</a></div>{{end}}{{end}}
+{{if $d.Cartes}}<div class="kpis kpis-apps">
+ <div class="kpi{{if $d.NbPanne}} kpi-erreur{{end}}"><div class="kpi-tete">En panne</div><div class="kpi-valeur">{{$d.NbPanne}}</div><div class="kpi-bas">{{if $d.NomsPanne}}{{$d.NomsPanne}}{{else}}aucune{{end}}</div></div>
+ <div class="kpi{{if $d.NbDegrade}} kpi-attention{{end}}"><div class="kpi-tete">Dégradées</div><div class="kpi-valeur">{{$d.NbDegrade}}</div><div class="kpi-bas">{{if $d.NomsDegrade}}{{$d.NomsDegrade}}{{else}}aucune{{end}}</div></div>
+ <div class="kpi"><div class="kpi-tete">OK</div><div class="kpi-valeur">{{$d.NbOK}}</div><div class="kpi-bas">{{if $d.NomsOK}}{{$d.NomsOK}}{{else}}aucune{{end}}</div></div>
+ <div class="kpi"><div class="kpi-tete">Disponibilité 30 j</div><div class="kpi-valeur">{{$d.DispoMoyenne}}</div><div class="kpi-bas">moyenne des applications</div></div>
+</div>{{end}}
+{{if and .Admin $d.Propositions}}<div class="apps-proposees"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-ampoule"></use></svg></span><div class="d"><b>{{len $d.Propositions}} {{accord (len $d.Propositions) "application(s) proposée(s)"}} d'après Docker Compose</b><small>conteneurs d'un même projet sur une machine ; un clic remplit le formulaire</small></div>
+<div class="puces">{{range $d.Propositions}}<a class="pastille" href="{{.Lien}}"><b>{{.Projet}}</b> · {{.Machine}} · {{len .Conteneurs}} {{accord (len .Conteneurs) "conteneur(s)"}}</a>{{end}}</div></div>{{end}}
+{{if $d.Cartes}}<div class="grille-apps">{{range $d.Cartes}}
+<section class="carte app{{if eq .Etat 2}} panne{{else if eq .Etat 1}} degradee{{end}}">
+<div class="tete"><h2><a href="/applications/{{.Nom}}">{{.Nom}}</a></h2><span class="pastille {{.Classe}}">{{.Texte}}</span><small class="doux">{{.Depuis}}</small></div>
+{{if .Cause}}<p class="cause">{{.Cause}}</p>{{end}}
+<div class="dispo-app"><span><b>{{.Dispo}}</b> sur 30 j</span><div class="frise-app" role="img" aria-label="30 derniers jours">{{range .Frise}}<i class="{{.Classe}}" title="{{.Titre}}"></i>{{end}}</div></div>
+<ul class="elements-app">{{range .Elements}}<li class="{{.Classe}}"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><span class="n">{{if .Lien}}<a href="{{.Lien}}">{{.Nom}}</a>{{else}}{{.Nom}}{{end}}{{if .Cle}}<span class="cle">clé</span>{{end}}{{with .Detail}}<small>{{.}}</small>{{end}}</span><span class="pastille{{if .Classe}} {{.Classe}}{{end}}">{{.Texte}}</span></li>{{end}}</ul>
+<div class="pied-app"><a href="/incidents?application={{.Nom}}">Incidents</a><a href="/alertes?application={{.Nom}}">Alertes</a>{{if .Statut}}<span class="doux">sur la page de statut</span>{{end}}{{if $.Admin}}<a href="/applications?modifier={{.Nom}}#editeur">Modifier</a>{{end}}</div>
 </section>{{end}}</div>
-{{else}}<section class="carte"><p class="vide">Aucune application pour l'instant.{{if .Admin}} Créer le premier ci-dessous.{{end}}</p></section>{{end}}
-{{if .Admin}}<section class="carte"><h2>Nouvelle application</h2>
-<form method="post" action="/applications" class="pile large">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="enregistrer">
-<label>Nom <input name="nom" required maxlength="48" placeholder="Domotique"></label>
-<label>Éléments (un par ligne) <textarea name="elements" rows="5" maxlength="4000" placeholder="clé sonde Home Assistant&#10;clé conteneur docker01/homeassistant&#10;conteneur docker01/mosquitto&#10;machine pi-zigbee"></textarea></label>
-<small class="aide">Une ligne par élément : <code>machine NOM</code>, <code>conteneur MACHINE/CONTENEUR</code> ou <code>sonde NOM</code> (nom de la page Sondes). <code>clé</code> devant : l'élément est indispensable (l'application est en panne s'il a un problème). 30 applications et 30 éléments par application au plus.</small>
-{{template "code2fa"}}<div class="ligne"><button data-code>Créer</button></div>
-</form></section>{{end}}
+{{else}}<section class="carte"><p class="vide">Aucune application pour l'instant.{{if .Admin}} <a href="/applications?nouvelle=1#editeur">En créer une</a>{{if $d.Propositions}}, ou partir d'une proposition ci-dessus{{end}}.{{end}}</p></section>{{end}}
+{{if .Admin}}{{with $d.Editeur}}<details class="carte editeur-app" id="editeur"{{if .Ouvert}} open{{end}}><summary><h2>{{if .Ancien}}Modifier « {{.Ancien}} »{{else}}Nouvelle application{{end}}</h2><small class="doux">on coche ; « clé » : indispensable</small></summary>
+<form method="post" action="/applications" data-editeur-app>{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="enregistrer"><input type="hidden" name="ancien" value="{{.Ancien}}"><input type="hidden" name="statut_present" value="1">
+<div class="edit-app">
+<div><label>Nom <input name="nom" value="{{.Nom}}" required maxlength="48" placeholder="Nextcloud"></label>
+<label>Chercher un élément <input type="search" data-chercher-app placeholder="machine, conteneur, projet, sonde…" autocomplete="off"></label>
+<div class="choix-app" data-choix-app>{{$sorte := ""}}{{range .Candidats}}{{if not .Choisi}}{{if ne $sorte .Sorte}}{{$sorte = .Sorte}}<h3>{{.TexteSorte}}</h3>{{end}}{{template "candidat-app" .}}{{end}}{{end}}</div></div>
+<div><h3 class="titre-choisis">Éléments choisis</h3>
+<div class="choisis-app" data-choisis-app>{{range .Candidats}}{{if .Choisi}}{{template "candidat-app" .}}{{end}}{{end}}</div>
+<p class="aide"><small class="aide">« Clé » : l'application est <strong>en panne</strong> si cet élément a un problème ; sinon elle n'est que <strong>dégradée</strong>. La machine qui héberge un conteneur choisi est cochée d'office. 30 éléments au plus.</small></p>
+<label class="case"><input type="checkbox" name="statut" value="1"{{if .Statut}} checked{{end}}> Montrer sur la page de statut publique{{if not .StatutActive}} <small class="doux">(page désactivée : Réglages › Page de statut)</small>{{end}}</label>
+{{template "code2fa"}}<div class="ligne"><button data-code>{{if .Ancien}}Enregistrer{{else}}Créer l'application{{end}}</button>{{if .Ancien}}<button name="action" value="supprimer" class="danger" data-code data-confirmer="Supprimer l'application « {{.Ancien}} » ?">Supprimer</button>{{end}}<a class="bouton secondaire" href="/applications">Annuler</a></div></div>
+</div></form></details>{{end}}{{end}}
 {{end}}
+{{define "candidat-app"}}<div class="cand-app" data-cand-app data-sorte="{{.Sorte}}" data-hote="{{.Hote}}" data-texte="{{.Nom}} {{.Detail}}"><label class="inclure"><input type="checkbox" name="el" value="{{.Valeur}}"{{if .Choisi}} checked{{end}}> <span>{{.Nom}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label><label class="bascule-cle"><input type="checkbox" name="cle" value="{{.Valeur}}"{{if .Cle}} checked{{end}}> clé</label></div>{{end}}

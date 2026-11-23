@@ -1755,8 +1755,10 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    0.6.13 en préparation : collecteur en direct, compagnon des processus
    (relancer une fois le script d'installation du collecteur), page
    Supervision › Santé de mirador, colonne « Envoi direct » de l'onglet
-   Collecte. Syslog du NAS : pas encore reçu (certificat à importer dans
-   DSM, voir la réponse du 22/11).
+   Collecte. Syslog du NAS reçu (22/11). 0.6.14 en préparation : page
+   Applications refaite (SPEC § 122), page machine sans agent sans « En ce
+   moment », Santé de mirador (« Serveur · mirador », agent et assistant
+   root sur une ligne).
 2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
    § 5) : repoussée tant que le parc compte peu de machines (choix du 22/11).
 3. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
