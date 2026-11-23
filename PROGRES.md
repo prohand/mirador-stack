@@ -1720,6 +1720,24 @@ par ligne, pas 7).
 - Coût : 3 requêtes instantanées en plus sur la vue d'ensemble (en cache) ; la page Machines réutilise les mesures de la vue d'ensemble.
 - Captures ordinateur et téléphone vérifiées (aucun débordement).
 
+## Mesures du collecteur contre Alloy + unpoller (obscollector, 23/11)
+
+Relevé du 23/11 vers 1 h 15, collecteur 0.6.13 démarré depuis 6 min
+(**provisoire** : à refaire après 24 h ; le CPU du démarrage pèse lourd).
+
+| Service | Mémoire (cgroup) | CPU moyen | Durée |
+|---|---|---|---|
+| mirador-collector 0.6.13 | 11,9 Mio | 0,17 % | 0,1 h |
+| mirador-collector-processus | 8,1 Mio | 0,18 % | 0,1 h |
+| **mirador (total)** | **20,0 Mio** | 0,35 % (démarrage) | |
+| Alloy | 176,7 Mio (RSS 154,6) | 0,83 % | 9 j 19 h |
+| unpoller | 24,0 Mio (RSS 21,6) | 0,07 % | 28 j 22 h |
+| **ancienne pile (total)** | **200,7 Mio** | 0,90 % | |
+
+Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 Mio avec le
+compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
+24 h (le compagnon scanne /proc chaque seconde seulement pendant le direct).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
