@@ -2149,7 +2149,7 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .liste-sante .e .pastille { margin-left: 4px; vertical-align: 1px; }
 .liste-sante .e small { display: block; color: var(--pale); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
 .liste-sante .e small strong { color: var(--texte); }
-.pastille.root { font-family: ui-monospace, monospace; font-size: 11.5px; background: var(--info-fond); color: var(--accent); }
+.pastille.root { background: var(--attention-fond); color: var(--attention); }
 .chiffres-sante { display: flex; gap: 18px; flex-wrap: wrap; }
 .chiffres-sante span { display: flex; flex-direction: column; align-items: flex-end; min-width: 64px; }
 .chiffres-sante b { font-size: 14.5px; white-space: nowrap; }
@@ -2285,3 +2285,40 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .mem-ct small { color: var(--doux); font-size: 12.5px; }
 .logs-ct .err b, .logs-ct .warn b { min-width: 0; }
 @media (min-width: 641px) { .tab-ct td:first-child { min-width: 220px; } }
+
+/* --- Agent et assistant root (SPEC § 124) --------------------------------------------- */
+.duo-mirador { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: stretch; margin: 6px 0 14px; }
+.duo-mirador .morceau { border: 1px solid var(--bord); border-radius: 12px; padding: 14px 16px; background: var(--carte); min-width: 0; }
+.duo-mirador .morceau.root { border-color: var(--attention-trait); background: var(--attention-fond); }
+.duo-mirador .h { display: flex; gap: 10px; align-items: flex-start; }
+.duo-mirador .h b { font-size: 15px; }
+.duo-mirador .h small { display: block; color: var(--doux); font-size: 12.5px; margin-top: 2px; }
+.duo-mirador .h .puce { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+.duo-mirador .h .puce .icone { width: 16px; height: 16px; }
+.duo-mirador .peut { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13.5px; display: flex; flex-direction: column; gap: 5px; }
+.duo-mirador .peut li { display: flex; gap: 8px; }
+.duo-mirador .peut li span { width: 16px; flex: none; font-weight: 700; }
+.duo-mirador .peut .oui span { color: var(--ok); }
+.duo-mirador .peut .non span { color: var(--erreur); }
+.duo-mirador dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 12px 0 0; font-size: 13.5px; }
+.duo-mirador dt { color: var(--doux); }
+.duo-mirador dd { margin: 0; overflow-wrap: anywhere; }
+.duo-mirador .absent { margin: 12px 0 0; color: var(--doux); font-size: 13.5px; }
+.lien-duo { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--pale); font-size: 11.5px; text-align: center; gap: 2px; padding: 0 6px; }
+.lien-duo i { font-style: normal; font-size: 22px; color: var(--doux); }
+.entete-mirador { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.entete-mirador h2 { margin: 0; flex: 1 1 auto; min-width: 180px; }
+.entete-mirador .puce { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.entete-mirador .puce .icone { width: 16px; height: 16px; }
+.entete-mirador form { margin: 0; }
+.aide-duo { font-size: 12.5px; color: var(--doux); margin: 0; }
+.par-machine { margin-top: 12px; }
+.par-machine summary { cursor: pointer; font-size: 13.5px; color: var(--doux); padding: 4px 0; }
+.tab-pm { width: 100%; font-size: 13.5px; }
+.tab-pm .releve-erreur { color: var(--erreur); }
+.tab-pm .releve-attention { color: var(--attention); }
+@media (max-width: 760px) {
+  .duo-mirador { grid-template-columns: 1fr; }
+  .lien-duo { flex-direction: row; padding: 6px 0; gap: 8px; }
+  .lien-duo i { transform: rotate(90deg); }
+}

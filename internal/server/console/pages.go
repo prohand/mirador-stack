@@ -671,6 +671,7 @@ type donneesMachine struct {
 	Gourmands   *vueGourmands         // conteneurs les plus gourmands (SPEC § 31)
 	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
 	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
+	Mirador     *blocMirador          // agent et assistant root (SPEC § 124)
 	Paquets     *vuePaquets           // bloc « Paquets à mettre à jour » (SPEC § 42.3)
 	Taches      *donneesTaches        // bloc « Tâches planifiées » (SPEC § 80)
 	Changements *vueChangements       // bloc « Changements » (SPEC § 47)
@@ -775,6 +776,8 @@ func (c *Console) pageMachine(q *req) {
 	}
 	if (m.Type == "agent" || m.Type == "collecteur") && m.Statut == "approuvee" {
 		d.Maj = c.majMachine(ctx, m, q.t)
+		// « mirador sur cette machine » (SPEC § 124) : les deux morceaux.
+		d.Mirador = c.blocMiradorMachine(ctx, m, d.Maj, q.t)
 	}
 	if m.Type == "collecteur" {
 		d.Collecteur = true
