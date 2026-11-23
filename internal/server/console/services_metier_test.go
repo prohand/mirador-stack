@@ -86,7 +86,7 @@ func TestApplicationsRefonte(t *testing.T) {
 	}
 	// Fiche : pourquoi, frise, éléments avec leur état, lien « Modifier ».
 	_, fiche, _ := b.get(cl, "/applications/Nextcloud")
-	for _, attendu := range []string{"Pourquoi : Sonde NC", `class="frise-app grande"`, `class="elements-app"`, "/applications?modifier=Nextcloud#editeur"} {
+	for _, attendu := range []string{"<h2>Sonde NC : ", `class="frise-app grande"`, `class="elements-app"`, "/applications?modifier=Nextcloud#editeur"} {
 		if !strings.Contains(fiche, attendu) {
 			t.Errorf("fiche : %q absent", attendu)
 		}
