@@ -738,13 +738,18 @@ func (c *Console) pageMachine(q *req) {
 	d.Alertes, d.Masquees = separerMasquees(d.Alertes)
 	d.NomsAnciens, _ = flotte.AnciensNoms(ctx, c.db, m.ID)
 	d.Dernieres = c.dernieresAlertes(ctx, alertes.Filtre{Machine: m.Nom}, "/alertes?machine="+url.QueryEscape(m.Nom), q.t)
-	if m.Type == "agent" && m.Statut == "approuvee" && c.opt.Direct != nil {
+	// Sans version : équipement sans agent (Telegraf, SNMP…) : ni direct ni
+	// « En ce moment » d'agent (retour du 23/11 : fw affichait « agent trop
+	// ancien pour le direct »).
+	sansAgent := m.Version == ""
+	if m.Type == "agent" && m.Statut == "approuvee" && c.opt.Direct != nil && !sansAgent {
 		d.Direct = "ancien"
 		if flotte.ACapacite(m.Capacites, protocole.CapaciteDirect) {
 			d.Direct = "ok"
 		}
 	}
 	if d.Agent = m.Type == "agent" && m.Statut == "approuvee"; d.Agent {
+		// Sans agent ni mesures node_* : pas de bloc (blocEnCeMoment rend nil).
 		d.Maintenant = blocEnCeMoment(m.Nom, d.Direct, c.enCeMoment(ctx, m, q.t))
 		d.Gourmands = c.gourmands(ctx, m, q.t)
 		var ech []alertes.Echantillon

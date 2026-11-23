@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 
 	"mirador-stack/internal/server/alertes"
+	"mirador-stack/internal/server/direct"
 	"mirador-stack/internal/server/flotte"
 )
 
@@ -160,6 +161,24 @@ func TestJaugesEquipements(t *testing.T) {
 			if !strings.Contains(x, a) {
 				t.Errorf("tuile %s : %s absent", nom, a)
 			}
+		}
+	}
+}
+
+// Retour du 23/11 : une machine sans agent (fw, Telegraf) affichait
+// « En ce moment · agent trop ancien pour le direct » et « Métriques toutes
+// les 30 s · changer ».
+func TestPageSansAgentSansDirect(t *testing.T) {
+	b := nouveauBanc(t)
+	b.c.opt.Direct = direct.Nouveau()
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le, capacites) VALUES ('fw', 'approuvee', 'agent', 1, ?, '')`, b.h.maintenant().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	_, corps, _ := b.get(c, "/machines/fw")
+	for _, interdit := range []string{"agent trop ancien pour le direct", "Métriques toutes les", ">En ce moment<"} {
+		if strings.Contains(corps, interdit) {
+			t.Errorf("machine sans agent : %q affiché", interdit)
 		}
 	}
 }

@@ -165,28 +165,7 @@ func (c *Console) donneesStatut(ctx context.Context, reg ReglagesStatut, t time.
 	j0 := t.In(loc).AddDate(0, 0, -(joursStatut - 1))
 	j0 = time.Date(j0.Year(), j0.Month(), j0.Day(), 0, 0, 0, 0, loc)
 	d.Debut = "il y a " + strconv.Itoa(joursStatut) + " jours"
-	parApp := map[string][]intervalleEtat{}
-	rows, err := c.db.QueryContext(ctx, `SELECT regle, etiquettes, debut, fin FROM alertes
-		WHERE regle IN ('ApplicationEnPanne', 'ApplicationDegradee') AND active_le > 0 AND debut < ? AND (fin = 0 OR fin > ?)`,
-		t.UnixMilli(), j0.UnixMilli())
-	if err == nil {
-		for rows.Next() {
-			var regle, etq string
-			var deb, fin int64
-			if rows.Scan(&regle, &etq, &deb, &fin) != nil {
-				continue
-			}
-			var e map[string]string
-			if json.Unmarshal([]byte(etq), &e) != nil {
-				continue
-			}
-			if fin == 0 {
-				fin = t.UnixMilli()
-			}
-			parApp[e["service"]] = append(parApp[e["service"]], intervalleEtat{deb / 1000, fin / 1000, regle == "ApplicationEnPanne"})
-		}
-		_ = rows.Close()
-	}
+	parApp := c.historiqueApplications(ctx, j0, t)
 	nbPanne, nbDegrade := 0, 0
 	var touchees []string
 	for _, n := range noms {

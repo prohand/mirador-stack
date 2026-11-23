@@ -13,6 +13,7 @@ import (
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/notif"
+	"mirador-stack/internal/server/servicesmetier"
 	essais "mirador-stack/internal/sondes"
 )
 
@@ -45,6 +46,8 @@ type donneesFiche struct {
 	EnEssai       bool
 	Depuis        []string // serveur + collecteurs
 	Toutes        []string // machines approuvées (« Machine liée »)
+	// Application : état détaillé (SPEC § 122).
+	App *ficheApp
 	// Dernières alertes de l'élément, avec le retour à la normale (§ 72).
 	Dernieres *blocDernieresAlertes
 }
@@ -186,6 +189,27 @@ func (c *Console) ficheElement(q *req, cle string) {
 			{"Alertes", "/alertes?" + url.Values{"machine": {e.Groupe}, "conteneur": {e.Nom}}.Encode()},
 			{"Événements", "/evenements?" + url.Values{"machine": {e.Groupe}, "element": {e.Nom}}.Encode()}}
 	}
+	// Application (SPEC § 122) : pourquoi, frise des 30 jours, éléments.
+	if nom, ok := strings.CutPrefix(cle, "v:"); ok {
+		if ss, err := servicesmetier.Lire(ctx, c.db); err == nil {
+			for _, s := range ss {
+				if s.Nom != nom {
+					continue
+				}
+				var enCours []alertes.Alerte
+				if c.opt.Alertes != nil {
+					enCours = c.opt.Alertes.EnCours()
+				}
+				etats := servicesmetier.Calculer(ctx, c.lecteurServices(), enCours, r.ReglesPanne, []servicesmetier.Service{s}, q.t)
+				if len(etats) == 1 {
+					d.App = &ficheApp{EtatService: etats[0], infoApp: c.infosApps(ctx, etats, q.t)[s.Nom]}
+					if q.admin() {
+						d.Raccourcis = append(d.Raccourcis, raccourciFiche{"Modifier", "/applications?modifier=" + url.QueryEscape(s.Nom) + "#editeur"})
+					}
+				}
+			}
+		}
+	}
 	// Dernières alertes de l'élément (§ 72).
 	switch {
 	case strings.HasPrefix(cle, "s:"):
@@ -226,4 +250,10 @@ func (c *Console) ficheSonde(q *req)   { c.ficheElement(q, "s:"+q.r.PathValue("n
 func (c *Console) ficheService(q *req) { c.ficheElement(q, "v:"+q.r.PathValue("nom")) }
 func (c *Console) ficheConteneur(q *req) {
 	c.ficheElement(q, "c:"+q.r.PathValue("machine")+"/"+q.r.PathValue("nom"))
+}
+
+// ficheApp : état d'une application sur sa fiche.
+type ficheApp struct {
+	servicesmetier.EtatService
+	infoApp
 }

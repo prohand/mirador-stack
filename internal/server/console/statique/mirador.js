@@ -2518,3 +2518,63 @@ document.addEventListener("change", function (ev) {
     });
   });
 })();
+
+// Applications (SPEC § 122) : éditeur sans syntaxe. Recherche dans les
+// éléments, un élément coché passe dans « Éléments choisis », la machine
+// qui héberge un conteneur choisi est cochée d'office, « clé » coche
+// l'élément. Sans JavaScript : tout reste dans la liste, le formulaire marche.
+(function () {
+  "use strict";
+  var form = document.querySelector("[data-editeur-app]");
+  if (!form) { return; }
+  var choix = form.querySelector("[data-choix-app]");
+  var choisis = form.querySelector("[data-choisis-app]");
+  var cherche = form.querySelector("[data-chercher-app]");
+  function titres() {
+    // Un titre de groupe n'est visible que si une ligne visible le suit.
+    var h = null, vu = false;
+    Array.prototype.forEach.call(choix.children, function (x) {
+      if (x.tagName === "H3") { if (h) { h.hidden = !vu; } h = x; vu = false; }
+      else if (x.hasAttribute("data-cand-app") && !x.hidden) { vu = true; }
+    });
+    if (h) { h.hidden = !vu; }
+  }
+  function filtrer() {
+    var t = (cherche && cherche.value || "").toLowerCase().trim();
+    var vus = 0;
+    choix.querySelectorAll("[data-cand-app]").forEach(function (l) {
+      l.hidden = t !== "" && (l.getAttribute("data-texte") || "").toLowerCase().indexOf(t) < 0;
+      if (!l.hidden) { vus++; }
+    });
+    var aucun = choix.querySelector("[data-aucun-app]");
+    if (aucun) { aucun.hidden = vus > 0; }
+    titres();
+  }
+  function placer(l) {
+    var el = l.querySelector('input[name="el"]');
+    if (el.checked && l.parentNode !== choisis) { choisis.appendChild(l); l.hidden = false; }
+    else if (!el.checked && l.parentNode === choisis) {
+      // Retour dans son groupe (après le titre de sa sorte).
+      var s = l.getAttribute("data-sorte"), apres = null;
+      choix.querySelectorAll("[data-cand-app]").forEach(function (x) { if (x.getAttribute("data-sorte") === s) { apres = x; } });
+      if (apres) { apres.after(l); } else { choix.appendChild(l); }
+      filtrer();
+    }
+  }
+  form.addEventListener("change", function (e) {
+    var l = e.target.closest("[data-cand-app]");
+    if (!l) { return; }
+    var el = l.querySelector('input[name="el"]'), cle = l.querySelector('input[name="cle"]');
+    if (e.target === cle && cle.checked) { el.checked = true; }
+    if (e.target === el && !el.checked) { cle.checked = false; }
+    placer(l);
+    // Conteneur choisi : sa machine aussi (choix du 23/11).
+    var hote = l.getAttribute("data-hote");
+    if (el.checked && l.getAttribute("data-sorte") === "conteneur" && hote) {
+      var m = form.querySelector('input[name="el"][value="machine|' + hote.replace(/["\\]/g, "") + '"]');
+      if (m && !m.checked) { m.checked = true; placer(m.closest("[data-cand-app]")); }
+    }
+  });
+  if (cherche) { cherche.addEventListener("input", filtrer); }
+  filtrer();
+})();

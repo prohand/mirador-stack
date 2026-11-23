@@ -1035,11 +1035,14 @@ func (c *Console) identite(ctx context.Context, m flotte.InfoMachine, ech []aler
 	if n, err := c.instant(ctx, fmt.Sprintf(`count(node_cpu_seconds_total{instance=%q,mode="idle"})`, m.Nom), t); err == nil && len(n) == 1 {
 		id.Coeurs = pluriel(int(n[0].Valeur), "cœur")
 	}
-	id.Intervalle = "30 s"
-	if cfg, err := flotte.ConfigEffective(ctx, c.db, m.ID); err == nil && cfg != nil && cfg.Intervalle != nil {
-		id.Intervalle = dureeLisible(time.Duration(*cfg.Intervalle))
+	// Rythme d'envoi : réglage de l'agent ; sans agent (équipement), rien.
+	if m.Version != "" {
+		id.Intervalle = "30 s"
+		if cfg, err := flotte.ConfigEffective(ctx, c.db, m.ID); err == nil && cfg != nil && cfg.Intervalle != nil {
+			id.Intervalle = dureeLisible(time.Duration(*cfg.Intervalle))
+		}
+		id.LienIntervalle = fmt.Sprintf("/reglages/agents?portee=machine:%d", m.ID)
 	}
-	id.LienIntervalle = fmt.Sprintf("/reglages/agents?portee=machine:%d", m.ID)
 	// Mises à jour de paquets : dernière valeur des 3 dernières heures (l'agent
 	// les compte toutes les quelques heures seulement).
 	id.Paquets = -1

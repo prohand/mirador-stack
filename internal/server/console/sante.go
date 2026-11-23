@@ -148,7 +148,7 @@ func (c *Console) calculerSante(ctx context.Context, t time.Time) donneesSante {
 	sondes, _ := flotte.LireSondes(ctx, c.db)
 	lues := c.sondesLues(ctx, t)
 
-	serveur := carteSante{Titre: "Serveur · VPS", Icone: "base", Sous: c.adresseInterface(ctx)}
+	serveur := carteSante{Titre: "Serveur · mirador", Icone: "base", Sous: c.adresseInterface(ctx)}
 	serveur.Lignes = c.lignesServeur(ctx, t, sondes, lues)
 	d.Cartes = append(d.Cartes, serveur)
 
@@ -188,7 +188,7 @@ func (c *Console) calculerSante(ctx context.Context, t time.Time) donneesSante {
 	}
 	// Serveur.
 	srv := d.Cartes[0]
-	caseServeur = caseSante{Titre: "Serveur (VPS)", Icone: "base", Ancre: "#carte-0",
+	caseServeur = caseSante{Titre: "Serveur mirador", Icone: "base", Ancre: "#carte-0",
 		Valeur: strconv.Itoa(len(srv.Lignes) - srv.NbProblemes - eteints(srv.Lignes)), Sur: strconv.Itoa(len(srv.Lignes) - eteints(srv.Lignes)),
 		Texte: resumeCarte(srv), Classe: classeCarte(srv)}
 	// Collecteurs.
@@ -532,7 +532,7 @@ func ligneSondes(sondes []essais.Sonde, lues map[string]map[string]alertes.Echan
 
 func (c *Console) carteCollecteurSante(ctx context.Context, m flotte.InfoMachine, sondes []essais.Sonde, lues map[string]map[string]alertes.Echantillon, t time.Time) carteSante {
 	k := carteSante{Titre: "Collecteur · " + m.Nom, Icone: "reseau"}
-	k.Sous = premierTexte(m.Site, "sans site") + " · aucun service root"
+	k.Sous = premierTexte(m.Site, "sans site") + " · aucun service root (seul le réglage du ping se fait en root, au démarrage)"
 	page := "/machines/" + url.PathEscape(m.Nom)
 	lan := func(l ligneSante) { l.Zone = "lan"; k.Lignes = append(k.Lignes, l) }
 	inst := `instance=` + strconv.Quote(m.Nom)
@@ -661,12 +661,12 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 	case len(muettes) > 0:
 		l.Etat, l.Alerte = "attention", accorderTexte(strconv.Itoa(len(muettes))+" muette(s) : ")+resumeNoms(muettes)
 	}
-	l.Chiffres = []chiffreSante{{strconv.Itoa(enLigne), "en ligne"}, {strconv.Itoa(len(avecAgent)), "agents"}, {strconv.Itoa(retard), "en retard"}}
-	k.Lignes = append(k.Lignes, l)
+	total := strconv.Itoa(len(avecAgent))
+	l.Chiffres = []chiffreSante{{strconv.Itoa(enLigne) + " / " + total, "en ligne"}, {strconv.Itoa(aJour) + " / " + total, "à jour"}}
 
-	// Assistant root des agents.
-	l = ligneSante{Etat: "eteint", Icone: "cle", Nom: "Assistant root des agents", Root: true, Zone: "lan", Lien: "/machines", LienTexte: "Machines",
-		Sous: "aucun agent n'en envoie"}
+	// Assistant root des agents (mirador-agent-root) : sur la même ligne que
+	// l'agent (retour du 23/11 : « il faudrait unifier »), c'est le même
+	// produit, installé avec lui.
 	ages := c.parEtiquette(ctx, `max by (instance) (mirador_agent_root_age_seconds)`, t, "instance")
 	if len(ages) > 0 {
 		erreurs := c.parEtiquette(ctx, `max by (instance) (mirador_agent_root_errors)`, t, "instance")
@@ -688,18 +688,25 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 		}
 		sort.Strings(anciens)
 		sort.Strings(fautifs)
-		l.Etat = "ok"
-		l.Sous = "mirador-agent-root · toutes les 15 min et à la demande · sans réseau · pare-feu, SMART, certificats réservés à root"
+		l.Root = true
+		l.Sous += " · avec son assistant root (mirador-agent-root : toutes les 15 min, sans réseau ; pare-feu, SMART, certificats)"
+		var pb string
 		switch {
 		case len(anciens) > 0:
-			l.Etat, l.Alerte = "attention", "relevé ancien : "+resumeNoms(anciens)
+			pb = "assistant root : relevé ancien sur " + resumeNoms(anciens)
 		case nbErr > 0:
-			l.Etat, l.Alerte = "attention", "erreurs : "+resumeNoms(fautifs)
+			pb = "assistant root : erreurs sur " + resumeNoms(fautifs)
 		case nbAJour < len(ages):
-			l.Etat, l.Alerte = "attention", accorderTexte(strconv.Itoa(len(ages)-nbAJour)+" assistant(s) à mettre à jour")
+			pb = accorderTexte("assistant root : " + strconv.Itoa(len(ages)-nbAJour) + " à mettre à jour")
 		}
-		l.Chiffres = []chiffreSante{{dureeLisible(time.Duration(vieux) * time.Second), "plus ancien relevé"},
-			{strconv.Itoa(nbErr), "en erreur"}, {strconv.Itoa(nbAJour) + " / " + strconv.Itoa(len(ages)), "à jour"}}
+		if pb != "" {
+			if l.Etat == "ok" {
+				l.Etat = "attention"
+			}
+			l.Alerte = strings.TrimPrefix(l.Alerte+" · "+pb, " · ")
+		}
+		l.Chiffres = append(l.Chiffres, chiffreSante{strconv.Itoa(nbAJour) + " / " + strconv.Itoa(len(ages)), "assistants root"},
+			chiffreSante{dureeLisible(time.Duration(vieux) * time.Second), "relevé root"})
 	}
 	k.Lignes = append(k.Lignes, l)
 

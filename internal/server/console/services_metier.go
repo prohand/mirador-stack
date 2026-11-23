@@ -18,14 +18,20 @@ import (
 
 type carteService struct {
 	servicesmetier.EtatService
-	Dispo  string // « 99,93 % » sur 30 jours (éléments clés)
-	Lignes string // formulaire « Modifier »
+	infoApp
+	Dispo string // « 99,93 % » sur 30 jours (éléments clés)
 }
 
 type donneesServices struct {
 	Cartes                   []carteService
 	NbPanne, NbDegrade, NbOK int
 	FiltreSur                filtreSur
+	// SPEC § 122 : disponibilité moyenne, noms par état (cases), propositions
+	// Docker Compose, éditeur.
+	DispoMoyenne                   string
+	NomsPanne, NomsDegrade, NomsOK string
+	Propositions                   []proposition
+	Editeur                        editeurApp
 }
 
 func (c *Console) pageServices(q *req) {
@@ -48,7 +54,12 @@ func (c *Console) pageServices(q *req) {
 		}
 		svcs = garde
 	}
+	toutes := svcs
+	if q.r.URL.Query().Get("nom") != "" {
+		toutes, _ = servicesmetier.Lire(ctx, c.db)
+	}
 	etats := servicesmetier.Calculer(ctx, c.lecteurServices(), enCours, r.ReglesPanne, svcs, q.t)
+	infos := c.infosApps(ctx, etats, q.t)
 	debut := q.t.Add(-30 * 24 * time.Hour)
 	pannes := c.pannes(ctx, r.ReglesPanne, debut, q.t)
 	maint := c.maintenancesMachines(ctx, debut, q.t)
@@ -56,6 +67,8 @@ func (c *Console) pageServices(q *req) {
 	if nom := q.r.URL.Query().Get("nom"); nom != "" {
 		d.FiltreSur = filtreSur{"l'application « " + nom + " »", "/applications"}
 	}
+	var somme float64
+	var panne, degrade, ok []string
 	for _, e := range etats {
 		var iv []intervalle
 		for _, x := range e.Service.Composants {
@@ -71,16 +84,29 @@ func (c *Console) pageServices(q *req) {
 		}
 		total := q.t.Unix() - debut.Unix()
 		dispo := 100 * (1 - float64(dureeDans(reunir(iv), debut.Unix(), q.t.Unix()))/float64(total))
-		d.Cartes = append(d.Cartes, carteService{EtatService: e, Dispo: pct(dispo) + " %", Lignes: servicesmetier.Lignes(e.Service)})
+		d.Cartes = append(d.Cartes, carteService{EtatService: e, infoApp: infos[e.Nom], Dispo: pct(dispo) + " %"})
+		somme += dispo
 		switch e.Etat {
 		case servicesmetier.Panne:
 			d.NbPanne++
+			panne = append(panne, e.Nom)
 		case servicesmetier.Degrade:
 			d.NbDegrade++
+			degrade = append(degrade, e.Nom)
 		default:
 			d.NbOK++
+			ok = append(ok, e.Nom)
 		}
 	}
+	if len(etats) > 0 {
+		d.DispoMoyenne = pct(somme/float64(len(etats))) + " %"
+	}
+	d.NomsPanne, d.NomsDegrade, d.NomsOK = resumeNoms(panne), resumeNoms(degrade), resumeNoms(ok)
+	cts := c.conteneursConnus(ctx, q.t)
+	if q.r.URL.Query().Get("nom") == "" {
+		d.Propositions = propositionsCompose(cts, toutes)
+	}
+	d.Editeur = c.editeurDe(ctx, q, toutes, cts)
 	// Problèmes en premier.
 	for i := 1; i < len(d.Cartes); i++ {
 		for j := i; j > 0 && d.Cartes[j].Etat > d.Cartes[j-1].Etat; j-- {
@@ -112,16 +138,22 @@ func (c *Console) postServices(q *req) {
 	liste = garde
 	switch f.texte("action") {
 	case "enregistrer":
-		cs, err := servicesmetier.LireLignes(q.r.PostFormValue("elements"))
+		cs, err := lireElementsFormulaire(q)
 		if err != nil {
 			c.retour(q, "/applications", err, "")
 			return
 		}
 		liste = append(liste, servicesmetier.Service{Nom: nom, Composants: cs})
 		err = servicesmetier.Enregistrer(ctx, c.db, liste, q.qui(), q.ip.String(), q.t)
+		if err == nil && f.texte("statut_present") != "" {
+			err = c.statutApplication(ctx, q, ancien, nom, f.texte("statut") != "", false)
+		}
 		c.retour(q, "/applications", err, "application « "+nom+" » enregistrée")
 	case "supprimer":
 		err = servicesmetier.Enregistrer(ctx, c.db, liste, q.qui(), q.ip.String(), q.t)
+		if err == nil {
+			err = c.statutApplication(ctx, q, ancien, ancien, false, true)
+		}
 		c.retour(q, "/applications", err, "application « "+ancien+" » supprimée")
 	default:
 		c.retour(q, "/applications", errors.New("action inconnue"), "")
