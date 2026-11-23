@@ -1734,8 +1734,25 @@ Relevé du 23/11 vers 1 h 15, collecteur 0.6.13 démarré depuis 6 min
 | unpoller | 24,0 Mio (RSS 21,6) | 0,07 % | 28 j 22 h |
 | **ancienne pile (total)** | **200,7 Mio** | 0,90 % | |
 
-Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 Mio avec le
-compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
+Deuxième relevé, 23/11 vers 12 h (collecteur 0.6.16 redémarré par sa mise
+à jour 15 min avant ; compagnon en marche depuis 11,9 h) :
+
+| Service | Mémoire (cgroup) | RSS | CPU moyen | Durée |
+|---|---|---|---|---|
+| mirador-collector 0.6.16 | 13,7 Mio | 20,8 Mio | 0,09 % | 0,2 h |
+| mirador-collector-processus | 11,3 Mio | 9,5 Mio | **0,02 %** | 11,9 h |
+| **mirador (total)** | **25,0 Mio** | | | |
+| Alloy | 159,2 Mio | 159,2 Mio | 0,83 % | 246,7 h |
+| unpoller | 25,6 Mio | 24,8 Mio | 0,07 % | 706,3 h |
+| **ancienne pile (total)** | **184,8 Mio** | | 0,90 % | |
+
+Machine : 961 Mio de mémoire, 402 Mio disponibles, 206 Mio de swap utilisés ;
+arrêter Alloy et unpoller rendrait environ 185 Mio.
+
+Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 à 25 Mio avec le
+compagnon). Compagnon : 0,02 % de CPU sur 12 h. Le CPU du collecteur sur 24 h
+reste à mesurer : chaque mise à jour automatique le redémarre et remet le
+compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
 24 h (le compagnon scanne /proc chaque seconde seulement pendant le direct).
 
 ## Conteneurs, nouvelle présentation (SPEC § 123, 23/11)
