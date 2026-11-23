@@ -43,6 +43,7 @@ type ligneSante struct {
 	Nom       string
 	Version   string
 	Root      bool
+	RootTexte string // texte de la pastille (« root » par défaut)
 	Sous      string // phrase d'explication
 	Alerte    string // ce qui ne va pas (mis en avant)
 	Chiffres  []chiffreSante
@@ -688,8 +689,11 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 		}
 		sort.Strings(anciens)
 		sort.Strings(fautifs)
-		l.Root = true
-		l.Sous += " · avec son assistant root (mirador-agent-root : toutes les 15 min, sans réseau ; pare-feu, SMART, certificats)"
+		// L'agent tourne SANS root ; seul son assistant (mirador-agent-root)
+		// est root (retour du 23/11 : « on a l'impression que l'agent est
+		// root complet »).
+		l.Root, l.RootTexte = true, "assistant root"
+		l.Sous += " · l'agent tourne sans root ; son assistant root (mirador-agent-root) relève pare-feu, SMART et certificats toutes les 15 min, sans réseau"
 		var pb string
 		switch {
 		case len(anciens) > 0:

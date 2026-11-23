@@ -58,58 +58,6 @@ func (b *banc) machinesApprouvees(t *testing.T, noms ...string) {
 	}
 }
 
-// Page Conteneurs (SPEC § 42.1) : problèmes en premier, filtres, compteur
-// du menu, lien vers les logs, « Depuis ».
-func TestPageConteneurs(t *testing.T) {
-	b := nouveauBanc(t)
-	m := b.h.maintenant()
-	c := func(inst, nom string, extra ...string) []string {
-		return append([]string{"instance", inst, "name", nom, "project", "site"}, extra...)
-	}
-	b.metriquesSimulees(t, []serieTest{
-		{append([]string{"__name__", "node_cpu_seconds_total", "cpu", "0", "mode", "idle"}, "instance", "web1"), func(k int) float64 { return float64(k) * 15 }},
-		{append([]string{"__name__", "node_cpu_seconds_total", "cpu", "1", "mode", "idle"}, "instance", "web1"), func(k int) float64 { return float64(k) * 15 }},
-		{append([]string{"__name__", "node_docker_container_running"}, c("web1", "postgres", "state", "running", "restart_policy", "always")...), constante(1)},
-		{append([]string{"__name__", "node_docker_container_running"}, c("web1", "appli", "state", "running", "restart_policy", "always")...), constante(1)},
-		{append([]string{"__name__", "node_docker_container_running"}, c("web1", "cache", "state", "exited", "restart_policy", "unless-stopped")...), constante(0)},
-		{append([]string{"__name__", "node_docker_container_running"}, c("nas", "sauvegarde", "state", "exited", "restart_policy", "no")...), constante(0)},
-		{append([]string{"__name__", "node_docker_container_healthy"}, c("web1", "appli")...), constante(0)},
-		{append([]string{"__name__", "node_docker_container_healthy"}, c("web1", "postgres")...), constante(1)},
-		// postgres : un cœur sur deux = 50 % de la machine.
-		{append([]string{"__name__", "node_docker_container_cpu_seconds_total"}, c("web1", "postgres")...), func(k int) float64 { return float64(k) * 30 }},
-		{append([]string{"__name__", "node_docker_container_memory_bytes"}, c("web1", "postgres")...), constante(1 << 30)},
-		{append([]string{"__name__", "node_docker_container_memory_limit_bytes"}, c("web1", "postgres")...), constante(4 << 30)},
-		{append([]string{"__name__", "node_docker_container_restart_count"}, c("web1", "appli")...), func(k int) float64 { return float64(k / 1000) }},
-		{append([]string{"__name__", "node_docker_container_started_timestamp_seconds"}, c("web1", "postgres")...), constante(float64(m.Add(-3 * 24 * time.Hour).Unix()))},
-	})
-	b.machinesApprouvees(t, "web1", "nas")
-	cl, _ := b.premierAdmin("admin", mdpAdmin)
-	_, corps, _ := b.get(cl, "/conteneurs")
-	for _, attendu := range []string{"<h1>Conteneurs</h1>", "4 conteneurs sur 2 machines", "Non sain", `href="/logs?container=postgres&amp;host=web1"`,
-		"50 %", "1,0 Go", "limite 4,0 Go", ">3 j</td>", `class="tuile critique"`, `<span class="pastille erreur">Arrêté</span>`,
-		`<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>`, "« — » : pas de test défini"} {
-		if !strings.Contains(corps, attendu) {
-			t.Errorf("page des conteneurs : %q absent", attendu)
-		}
-	}
-	// Problèmes en premier : appli (non sain), cache (arrêté) avant postgres.
-	if strings.Index(corps, "<strong>appli</strong>") > strings.Index(corps, "<strong>postgres</strong>") ||
-		strings.Index(corps, "<strong>cache</strong>") > strings.Index(corps, "<strong>postgres</strong>") {
-		t.Error("problèmes pas en premier")
-	}
-	// Compteur du menu : appli + cache.
-	if !strings.Contains(corps, `title="Conteneurs non sains ou arrêtés alors qu&#39;ils devraient redémarrer">2</span>`) {
-		t.Error("compteur du menu absent ou faux")
-	}
-	// Filtres : machine, problèmes.
-	if _, corps, _ = b.get(cl, "/conteneurs?machine=nas"); !strings.Contains(corps, "1 conteneur sur nas") || strings.Contains(corps, "<strong>postgres</strong>") {
-		t.Error("filtre par machine")
-	}
-	if _, corps, _ = b.get(cl, "/conteneurs?etat=problemes"); !strings.Contains(corps, "2 conteneurs") || strings.Contains(corps, "<strong>sauvegarde</strong>") {
-		t.Error("filtre « problèmes »")
-	}
-}
-
 // Blocs Services et Paquets de la page machine (SPEC § 42.2 et 42.3) :
 // après les alertes, avant « En ce moment » ; ouverts d'office s'il y a un
 // problème ; services de base cachés ; liens vers les logs.

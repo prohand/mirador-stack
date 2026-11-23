@@ -18,13 +18,15 @@ import (
 // ressortir dans les métriques.
 var reponsesDocker = map[string]string{
 	"/containers/json": `[
-	  {"Id":"aaaaaaaaaaaaaaaa","Names":["/web"],"State":"running","Labels":{"com.docker.compose.project":"site"}},
+	  {"Id":"aaaaaaaaaaaaaaaa","Names":["/web"],"State":"running","Labels":{"com.docker.compose.project":"site"},
+	   "Ports":[{"IP":"0.0.0.0","PrivatePort":8443,"PublicPort":443,"Type":"tcp"},{"IP":"::","PrivatePort":8443,"PublicPort":443,"Type":"tcp"},{"PrivatePort":9000,"Type":"tcp"}]},
 	  {"Id":"bbbbbbbbbbbbbbbb","Names":["/sauvegarde"],"State":"exited","Labels":{}},
 	  {"Id":"cccccccccccccccc","Names":["/base"],"State":"exited","Labels":{"com.docker.compose.project":"site"}}
 	]`,
 	"/containers/aaaaaaaaaaaaaaaa/json": `{"RestartCount":2,"HostConfig":{"RestartPolicy":{"Name":"unless-stopped"}},
 	  "Config":{"Env":["MOT_DE_PASSE=secret-ne-pas-envoyer"]},
-	  "State":{"OOMKilled":false,"StartedAt":"2026-11-10T08:15:30.123456789Z","Health":{"Status":"healthy"}}}`,
+	  "State":{"OOMKilled":false,"StartedAt":"2026-11-10T08:15:30.123456789Z","Health":{"Status":"unhealthy","FailingStreak":4,
+	    "Log":[{"ExitCode":0,"Output":"ok"},{"ExitCode":1,"Output":"\ncurl: (7) Failed to connect password=hunter2\nsecond"}]}}}`,
 	"/containers/bbbbbbbbbbbbbbbb/json": `{"RestartCount":0,"HostConfig":{"RestartPolicy":{"Name":""}},"State":{"OOMKilled":false,
 	  "StartedAt":"2026-11-20T03:00:00Z","FinishedAt":"2026-11-20T03:12:00Z","ExitCode":2}}`,
 	"/containers/cccccccccccccccc/json": `{"RestartCount":5,"HostConfig":{"RestartPolicy":{"Name":"always"}},"State":{"OOMKilled":true,"Health":{"Status":"starting"}}}`,
@@ -54,19 +56,28 @@ func TestDocker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	d.Masquer = func(s string) string { return strings.ReplaceAll(s, "hunter2", "***") }
 	p := collecter(t, d)
 	verifier(t, p, map[string]float64{
 		"node_docker_up": 1,
-		"node_docker_container_running|name=web|project=site|state=running|restart_policy=unless-stopped": 1,
-		"node_docker_container_running|name=sauvegarde|project=|state=exited|restart_policy=no":           0,
-		"node_docker_container_running|name=base|project=site|state=exited|restart_policy=always":         0,
-		"node_docker_container_restart_count|name=base|project=site":                                      5,
-		"node_docker_container_oom_killed|name=base|project=site":                                         1,
-		"node_docker_container_healthy|name=web|project=site":                                             1,
-		"node_docker_container_cpu_seconds_total|name=web|project=site":                                   12.5,
-		"node_docker_container_memory_bytes|name=web|project=site":                                        (100 - 20) << 20,
-		"node_docker_container_memory_limit_bytes|name=web|project=site":                                  512 << 20,
-		"node_docker_container_started_timestamp_seconds|name=web|project=site":                           1794298530,
+		// SPEC § 123 : port publié (doublon IPv6 réuni, port non publié
+		// ignoré), code de sortie des arrêtés, sortie du test de santé
+		// (première ligne non vide, masquée).
+		"node_docker_container_port|name=web|project=site|public=443|prive=8443|proto=tcp":                               1,
+		"node_docker_container_exit_code|name=sauvegarde|project=":                                                       2,
+		"node_docker_container_exit_code|name=base|project=site":                                                         0,
+		"node_docker_container_health_failing_streak|name=web|project=site":                                              4,
+		"node_docker_container_health_info|name=web|project=site|sortie=curl: (7) Failed to connect password=***|code=1": 1,
+		"node_docker_container_running|name=web|project=site|state=running|restart_policy=unless-stopped":                1,
+		"node_docker_container_running|name=sauvegarde|project=|state=exited|restart_policy=no":                          0,
+		"node_docker_container_running|name=base|project=site|state=exited|restart_policy=always":                        0,
+		"node_docker_container_restart_count|name=base|project=site":                                                     5,
+		"node_docker_container_oom_killed|name=base|project=site":                                                        1,
+		"node_docker_container_healthy|name=web|project=site":                                                            0,
+		"node_docker_container_cpu_seconds_total|name=web|project=site":                                                  12.5,
+		"node_docker_container_memory_bytes|name=web|project=site":                                                       (100 - 20) << 20,
+		"node_docker_container_memory_limit_bytes|name=web|project=site":                                                 512 << 20,
+		"node_docker_container_started_timestamp_seconds|name=web|project=site":                                          1794298530,
 		// Conteneur ponctuel arrêté (sauvegarde) : tâche planifiée (SPEC § 80).
 		"mirador_tache_code|source=docker|tache=sauvegarde":                  2,
 		"mirador_tache_fin_timestamp_seconds|source=docker|tache=sauvegarde": 1795144320,
@@ -83,7 +94,7 @@ func TestDocker(t *testing.T) {
 		}
 	}
 	for k := range p {
-		if strings.Contains(k, "secret") || strings.Contains(k, "MOT_DE_PASSE") {
+		if strings.Contains(k, "secret") || strings.Contains(k, "MOT_DE_PASSE") || strings.Contains(k, "hunter2") || strings.Contains(k, "port|name=web|project=site|public=0") {
 			t.Fatalf("une variable d'environnement a fuité : %s", k)
 		}
 		// « starting » n'est ni sain ni malade : pas de série.

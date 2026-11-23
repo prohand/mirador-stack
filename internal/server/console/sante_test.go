@@ -59,7 +59,7 @@ func TestPageSante(t *testing.T) {
 		// Pas de sauvegarde : en panne.
 		"aucune sauvegarde réussie",
 		// Services root repérés, assistant root lu dans les séries des agents.
-		`class="pastille root"`, "avec son assistant root", "assistants root", "1 / 1",
+		`class="pastille root"`, "son assistant root (mirador-agent-root)", ">assistant root</span>", "assistants root", "1 / 1",
 		// Envoi direct de fw (token propre, sans agent).
 		"Envoi direct · fw",
 		// Filtres et repli sur téléphone.

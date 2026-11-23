@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "nom": "conteneur",
+  "titre": "Conteneur Docker",
+  "description": "Processeur, mémoire, redémarrages et santé d'un conteneur (fiche d'un conteneur, SPEC § 123).",
+  "periode": "24h",
+  "icone": "conteneur",
+  "teinte": "bleu",
+  "variables": [
+    {"nom": "instance", "titre": "Machine", "requete": "label_values(node_docker_container_running, instance)"},
+    {"nom": "name", "titre": "Conteneur", "requete": "label_values(node_docker_container_running{instance=~\"$instance\"}, name)"}
+  ],
+  "rangees": [
+    {
+      "titre": "Ressources",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Processeur",
+          "description": "Part d'un cœur (100 % = un cœur entier)",
+          "unite": "percent",
+          "largeur": 6,
+          "requetes": [{"id": "A", "expr": "100 * rate(node_docker_container_cpu_seconds_total{instance=~\"$instance\", name=~\"$name\"}[$__rate_interval])", "legende": "{{name}}"}]
+        },
+        {
+          "type": "courbe",
+          "titre": "Mémoire",
+          "description": "Utilisée (sans le cache inactif, comme « docker stats ») et limite du conteneur",
+          "unite": "bytes",
+          "largeur": 6,
+          "requetes": [
+            {"id": "A", "expr": "node_docker_container_memory_bytes{instance=~\"$instance\", name=~\"$name\"}", "legende": "utilisée"},
+            {"id": "B", "expr": "node_docker_container_memory_limit_bytes{instance=~\"$instance\", name=~\"$name\"}", "legende": "limite"}
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Disponibilité",
+      "panneaux": [
+        {
+          "type": "courbe",
+          "titre": "Redémarrages",
+          "description": "Redémarrages automatiques par heure (plantage, mémoire épuisée)",
+          "unite": "short",
+          "largeur": 6,
+          "requetes": [{"id": "A", "expr": "increase(node_docker_container_restart_count{instance=~\"$instance\", name=~\"$name\"}[1h])", "legende": "redémarrages / h"}]
+        },
+        {
+          "type": "courbe",
+          "titre": "En marche et santé",
+          "description": "1 : en marche / sain ; 0 : arrêté / non sain",
+          "unite": "short",
+          "largeur": 6,
+          "requetes": [
+            {"id": "A", "expr": "max(node_docker_container_running{instance=~\"$instance\", name=~\"$name\"})", "legende": "en marche"},
+            {"id": "B", "expr": "max(node_docker_container_healthy{instance=~\"$instance\", name=~\"$name\"})", "legende": "sain"}
+          ]
+        }
+      ]
+    }
+  ]
+}

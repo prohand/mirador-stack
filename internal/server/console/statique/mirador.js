@@ -794,7 +794,7 @@ document.addEventListener("change", function (e) {
         });
       });
     }
-    if ((table.hasAttribute("data-cartes") || table.closest(".defile")) && table.tBodies[0].rows.length >= 3) { menuTri(table, cle, cols); }
+    if ((table.hasAttribute("data-cartes") || table.closest(".defile")) && table.tBodies[0].rows.length >= 3 && !table.hasAttribute("data-sans-menu-tri")) { menuTri(table, cle, cols); }
     if (lire(cle)) { trier(table, cle); }
   }
   function tout() {
@@ -2577,4 +2577,74 @@ document.addEventListener("change", function (ev) {
   });
   if (cherche) { cherche.addEventListener("input", filtrer); }
   filtrer();
+})();
+
+// Conteneurs (SPEC § 123) : recherche, filtres (Tous, Problèmes, Arrêtés,
+// Sans test de santé), vue « Par projet » ou « Liste » retenue dans le
+// navigateur, « voir » des conteneurs sains repliés d'un projet.
+(function () {
+  "use strict";
+  var barre = document.querySelector("[data-filtres-ct]");
+  if (!barre) { return; }
+  var champ = barre.querySelector("[data-chercher-ct]");
+  var filtre = barre.getAttribute("data-filtre-depart") || "";
+  function appliquer() {
+    var mots = (champ.value || "").toLowerCase().trim();
+    var actif = filtre !== "" || mots !== "";
+    var vus = 0;
+    document.querySelectorAll("tr[data-ct]").forEach(function (tr) {
+      var f = " " + (tr.getAttribute("data-filtres") || "") + " ";
+      var ok = (filtre === "" || f.indexOf(" " + filtre + " ") >= 0) &&
+        (mots === "" || (tr.getAttribute("data-texte") || "").indexOf(mots) >= 0);
+      if (ok) { tr.removeAttribute("data-onglet-cache"); } else { tr.setAttribute("data-onglet-cache", ""); }
+      if (tr.hasAttribute("data-en-trop")) {
+        var g = tr.closest("[data-groupe-ct]");
+        tr.hidden = !actif && !(g && g.classList.contains("deplie"));
+      }
+      if (ok && tr.closest("[data-vue-ct]") && !tr.closest("[data-vue-ct]").hidden) { vus++; }
+    });
+    document.querySelectorAll("[data-groupe-ct]").forEach(function (g) {
+      g.hidden = g.querySelectorAll("tr[data-ct]:not([data-onglet-cache])").length === 0;
+      var v = g.querySelector("[data-voir-ct]");
+      if (v) { v.hidden = actif || g.classList.contains("deplie"); }
+    });
+    var aucun = document.querySelector("[data-aucun-ct]");
+    if (aucun) { aucun.hidden = vus > 0; }
+  }
+  barre.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-filtre]");
+    if (!b) { return; }
+    filtre = b.getAttribute("data-filtre");
+    barre.querySelectorAll("button[data-filtre]").forEach(function (x) {
+      x.classList.toggle("actif", x === b);
+      x.setAttribute("aria-pressed", x === b ? "true" : "false");
+    });
+    appliquer();
+  });
+  champ.addEventListener("input", appliquer);
+  document.querySelectorAll("[data-voir-ct]").forEach(function (b) {
+    b.addEventListener("click", function () { b.closest("[data-groupe-ct]").classList.add("deplie"); appliquer(); });
+  });
+  // Vue Par projet / Liste (Par projet d'office).
+  var choix = barre.querySelector("[data-vue-ct-choix]");
+  var cle = "mirador.conteneurs.vue";
+  function vue(v, garder) {
+    if (v !== "liste") { v = "projet"; }
+    document.querySelectorAll("[data-vue-ct]").forEach(function (x) { x.hidden = x.getAttribute("data-vue-ct") !== v; });
+    choix.querySelectorAll("button[data-vue]").forEach(function (x) {
+      var on = x.getAttribute("data-vue") === v;
+      x.classList.toggle("actif", on);
+      x.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (garder) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+    appliquer();
+  }
+  var lu = null;
+  try { lu = window.localStorage.getItem(cle); } catch (e) { /* rien */ }
+  choix.hidden = false;
+  choix.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-vue]");
+    if (b) { vue(b.getAttribute("data-vue"), true); }
+  });
+  vue(lu, false);
 })();

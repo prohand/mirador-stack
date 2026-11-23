@@ -1738,6 +1738,25 @@ Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 Mio avec le
 compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
 24 h (le compagnon scanne /proc chaque seconde seulement pendant le direct).
 
+## Conteneurs, nouvelle présentation (SPEC § 123, 23/11)
+
+- Maquette validée (ajouts de l'agent : oui ; vue d'office : par projet), codée.
+- Agent : ports publiés, code de sortie, sortie du test de santé (masquée comme les logs).
+- Page : bandeau avec la raison, 5 cases, recherche et filtres, vue Par projet / Liste, petite courbe du processeur sur 24 h, image changée.
+- Fiche : pastilles, bandeau « pourquoi » avec les 3 dernières erreurs des logs, graphiques du tableau `conteneur` comme ceux d'une machine.
+- Tests : `TestPageConteneurs` (réécrit), `TestFicheConteneur`, `TestRaisonConteneur`, `TestDocker` complété ; suites `internal/...` vertes, go vet et gosec propres.
+- Mesures (banc, 200 conteneurs sur 10 machines) :
+
+| Mesure | Valeur | Objectif |
+|---|---|---|
+| Page Conteneurs | 85 à 100 ms | < 300 ms |
+| Mémoire allouée par affichage | 76 Mio, rendus aussitôt (courbes 24 h gardées 2 min) | pas de hausse durable |
+| HTML | 583 Kio (deux vues), non compressé | — |
+| Fiche d'un conteneur | 5 à 6 ms | < 300 ms |
+
+  Pour un parc réel de 30 à 40 conteneurs : environ 5 fois moins. Si la page pèse trop un jour : ne rendre la vue Liste qu'à la demande.
+- Captures ordinateur et téléphone vérifiées (aucun débordement).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
