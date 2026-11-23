@@ -19,6 +19,7 @@ import (
 	"mirador-stack/internal/agent/collect"
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/envoi"
+	"mirador-stack/internal/agent/logs"
 	mm "mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/agent/racine"
 	"mirador-stack/internal/agent/remotewrite"
@@ -154,6 +155,10 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 	}
 	if cfg.Docker != "" && cfg.DockerMetriques {
 		if d, err := collect.NewDocker(cfg.Docker); err == nil {
+			// Sortie du test de santé masquée comme les logs (SPEC § 123).
+			if m, err := logs.NewMasqueur(cfg.Masquage, cfg.MasquagePerso); err == nil {
+				d.Masquer = m.Masquer
+			}
 			liste = append(liste, d)
 		} else {
 			journal.Error("collecteur Docker désactivé", "erreur", err)

@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,9 @@ type Docker struct {
 	base   string // http://127.0.0.1:2375 ou http://unix (socket)
 	client *http.Client
 	delai  time.Duration
+	// Masquer : masquage des logs appliqué à la sortie du test de santé
+	// (nil : sortie telle quelle).
+	Masquer func(string) string
 }
 
 // NewDocker crée le collecteur. adresse : « http://127.0.0.1:2375 » ou
@@ -76,6 +80,13 @@ type conteneurListe struct {
 	State  string            `json:"State"`
 	Image  string            `json:"Image"`
 	Labels map[string]string `json:"Labels"`
+	// Ports publiés (SPEC § 123) : seuls ceux qui ont un port public.
+	Ports []struct {
+		IP          string `json:"IP"`
+		PrivatePort int    `json:"PrivatePort"`
+		PublicPort  int    `json:"PublicPort"`
+		Type        string `json:"Type"`
+	} `json:"Ports"`
 }
 
 type conteneurDetail struct {
@@ -91,7 +102,13 @@ type conteneurDetail struct {
 		FinishedAt string `json:"FinishedAt"` // RFC 3339 : dernière fin
 		ExitCode   int    `json:"ExitCode"`
 		Health     *struct {
-			Status string `json:"Status"`
+			Status        string `json:"Status"`
+			FailingStreak int    `json:"FailingStreak"`
+			// Derniers essais du test de santé (le dernier en fin de liste).
+			Log []struct {
+				ExitCode int    `json:"ExitCode"`
+				Output   string `json:"Output"`
+			} `json:"Log"`
 		} `json:"Health"`
 	} `json:"State"`
 }
@@ -157,8 +174,39 @@ func (d *Docker) Collecter(b *metrics.Batch) error {
 		b.Add("node_docker_container_oom_killed", bool01(det.State.OOMKilled), base[:]...)
 		if h := det.State.Health; h != nil && (h.Status == "healthy" || h.Status == "unhealthy") {
 			b.Add("node_docker_container_healthy", bool01(h.Status == "healthy"), base[:]...)
+			// Non sain : pourquoi (SPEC § 123). Sortie du dernier essai,
+			// première ligne, 200 caractères, masquée comme les logs ; envoyée
+			// seulement tant que le conteneur est non sain (une série).
+			if h.Status == "unhealthy" && len(h.Log) > 0 {
+				dernier := h.Log[len(h.Log)-1]
+				sortie := texteSante(dernier.Output)
+				if d.Masquer != nil {
+					sortie = d.Masquer(sortie)
+				}
+				b.Add("node_docker_container_health_failing_streak", float64(h.FailingStreak), base[:]...)
+				b.Add("node_docker_container_health_info", 1, base[0], base[1], metrics.L("sortie", sortie),
+					metrics.L("code", strconv.Itoa(dernier.ExitCode)))
+			}
+		}
+		// Ports publiés (SPEC § 123) : « 443 → 8443/tcp » sur la fiche. 20
+		// au plus par conteneur ; doublons IPv4/IPv6 réunis.
+		vusPorts := map[string]bool{}
+		for _, p := range c.Ports {
+			if p.PublicPort <= 0 || len(vusPorts) >= maxPortsConteneur {
+				continue
+			}
+			cle := strconv.Itoa(p.PublicPort) + "/" + strconv.Itoa(p.PrivatePort) + "/" + p.Type
+			if vusPorts[cle] {
+				continue
+			}
+			vusPorts[cle] = true
+			b.Add("node_docker_container_port", 1, base[0], base[1], metrics.L("public", strconv.Itoa(p.PublicPort)),
+				metrics.L("prive", strconv.Itoa(p.PrivatePort)), metrics.L("proto", p.Type))
 		}
 		if c.State != "running" {
+			// Code de sortie d'un conteneur arrêté (SPEC § 123) : « code 137 »
+			// (tué, souvent la mémoire), « code 1 » (erreur de l'application).
+			b.Add("node_docker_container_exit_code", float64(det.State.ExitCode), base[:]...)
 			// Conteneur ponctuel (sauvegarde, tâche) : il tourne puis
 			// s'arrête, sans redémarrage automatique. Sa dernière exécution
 			// est une tâche planifiée (SPEC § 80).
@@ -236,4 +284,27 @@ func garderPremiere(premiere, nouvelle error) error {
 		return premiere
 	}
 	return nouvelle
+}
+
+// maxPortsConteneur : ports publiés envoyés au plus par conteneur.
+const maxPortsConteneur = 20
+
+// texteSante : première ligne non vide de la sortie du test de santé,
+// sans caractères de contrôle, 200 caractères au plus (étiquette).
+func texteSante(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		l = strings.TrimSpace(strings.Map(func(r rune) rune {
+			if r < 0x20 || r == 0x7f {
+				return ' '
+			}
+			return r
+		}, l))
+		if l != "" {
+			if r := []rune(l); len(r) > 200 {
+				l = string(r[:200]) + "…"
+			}
+			return l
+		}
+	}
+	return "(sortie vide)"
 }
