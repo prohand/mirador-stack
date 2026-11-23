@@ -20,8 +20,10 @@ func TestFluxDirect(t *testing.T) {
 	b := nouveauBanc(t)
 	hub := direct.Nouveau()
 	b.c.opt.Direct = hub
-	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, capacites) VALUES
-		('web1', 'approuvee', 'agent', 1, 'surveillance,direct'), ('vieux', 'approuvee', 'agent', 1, 'surveillance')`); err != nil {
+	// Un agent envoie toujours sa version (battement) ; sans version, c'est un
+	// équipement sans agent : pas de direct (retour du 23/11).
+	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, capacites, version_agent) VALUES
+		('web1', 'approuvee', 'agent', 1, 'surveillance,direct', '0.6.13'), ('vieux', 'approuvee', 'agent', 1, 'surveillance', '0.3.0')`); err != nil {
 		t.Fatal(err)
 	}
 	var id int64
