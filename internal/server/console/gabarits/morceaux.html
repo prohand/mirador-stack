@@ -1,5 +1,6 @@
 {{define "tete-app"}}{{/* Application installée sur l'écran d'accueil (PWA, SPEC § 34.3) : manifeste et icônes. */}}<link rel="manifest" href="/statique/mirador.webmanifest">
-<link rel="apple-touch-icon" href="{{statique "icones/icone-apple-180.png"}}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{statique "icones/icone-apple-180.png"}}">
+<link rel="icon" type="image/png" sizes="192x192" href="{{statique "icones/icone-192.png"}}">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="mirador">{{end}}
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}

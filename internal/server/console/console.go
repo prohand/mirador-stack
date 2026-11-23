@@ -308,6 +308,15 @@ func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		servirStatique(w, r)
 		return
 	}
+	// Icônes demandées à la racine par les téléphones (raccourci de l'écran
+	// d'accueil, retour du 23/11 : « on ne voit pas l'icône ») : publiques,
+	// comme le reste de /statique/ (avant : redirigées vers la connexion).
+	if vers, ok := iconesRacine[r.URL.Path]; ok {
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = vers
+		servirStatique(w, r2)
+		return
+	}
 	if r.URL.Path == "/sw.js" { // service worker des notifications (SPEC § 35)
 		servirSW(w, r)
 		return
@@ -718,4 +727,12 @@ func (c *Console) postOuvrirModeAdmin(q *req) {
 func (c *Console) postQuitterModeAdmin(q *req) {
 	c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.AdminJusqua = time.Time{} })
 	c.retour(q, "/", nil, "mode administration fermé : le code 2FA est de nouveau demandé")
+}
+
+// iconesRacine : adresses d'icônes que les navigateurs et les téléphones
+// demandent d'eux-mêmes, sans lire la page.
+var iconesRacine = map[string]string{
+	"/favicon.ico":                      "/statique/icones/favicon.ico",
+	"/apple-touch-icon.png":             "/statique/icones/icone-apple-180.png",
+	"/apple-touch-icon-precomposed.png": "/statique/icones/icone-apple-180.png",
 }

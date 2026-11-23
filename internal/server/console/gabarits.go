@@ -64,6 +64,8 @@ func init() {
 			t = "font/woff2"
 		case ".webmanifest": // manifeste de l'application installée (PWA)
 			t = "application/manifest+json"
+		case ".ico":
+			t = "image/x-icon"
 		}
 		if t == "" {
 			t = "application/octet-stream"
