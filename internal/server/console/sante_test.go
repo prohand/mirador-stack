@@ -52,18 +52,18 @@ func TestPageSante(t *testing.T) {
 	}
 	for _, attendu := range []string{
 		"<h1>Santé de mirador</h1>",
-		"Serveur · VPS", "Collecteur · collecteur-lan", "Agents et envois des équipements",
+		"Serveur · mirador", "Collecteur · collecteur-lan", "Agents et envois des équipements",
 		"mirador-server", "mirador-maj-serveur", "Réception des données", "Notifications", "Sauvegarde du serveur",
 		// Compagnon absent : à regarder, avec la marche à suivre.
 		"Compagnon des processus", "relancer une fois le script d&#39;installation",
 		// Pas de sauvegarde : en panne.
 		"aucune sauvegarde réussie",
 		// Services root repérés, assistant root lu dans les séries des agents.
-		`class="pastille root"`, "Assistant root des agents", "1 / 1",
+		`class="pastille root"`, "avec son assistant root", "assistants root", "1 / 1",
 		// Envoi direct de fw (token propre, sans agent).
 		"Envoi direct · fw",
 		// Filtres et repli sur téléphone.
-		`data-filtre="root"`, `data-groupes="lan root"`, "data-deplier-sante",
+		`data-filtre="root"`, "data-deplier-sante",
 	} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page Santé : %q absent", attendu)

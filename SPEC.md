@@ -8271,7 +8271,7 @@ cartes repliées quand tout va bien.
   plus grave, ou « tous les services vont bien »), quatre cases (Serveur,
   Collecteurs, Agents, Envois sans agent), filtres (Tous, À regarder, Root,
   Serveur, LAN), puis une carte par lieu :
-  - **Serveur · VPS** : mirador-server (version, en marche depuis, mémoire,
+  - **Serveur · mirador** (« Serveur · VPS » avant le retour du 23/11) : mirador-server (version, en marche depuis, mémoire,
     données), mirador-maj-serveur (**root**, dernier contrôle, version
     disponible), réception des données (points/min, rejetés, tokens
     refusés), stockage des métriques (état du disque de la page
@@ -8284,9 +8284,10 @@ cartes repliées quand tout va bien.
     CPU de sa machine), compagnon des processus (série
     `mirador_collecteur_compagnon`, 0.6.13), syslog TLS, SNMP, UniFi (vue de
     l'onglet Collecte), sondes du LAN ;
-  - **Agents et envois** : agents (en ligne, à jour avec la version cible,
-    muets, en échec), **assistant root** des agents (plus ancien relevé,
-    erreurs, à jour : séries `mirador_agent_root_*`), et un « envoi direct »
+  - **Agents et envois** : une seule ligne pour l'agent et son **assistant
+    root** (retour du 23/11 : « unifier ») : en ligne, à jour avec la
+    version cible, assistants root à jour, plus ancien relevé root (séries
+    `mirador_agent_root_*`) ; puis un « envoi direct »
     par machine sans agent qui a son token (Telegraf : dernier envoi, dernier
     refus).
   Chaque ligne : état (En marche, À regarder, En panne, Pas utilisé), une
