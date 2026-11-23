@@ -5408,8 +5408,10 @@ Menaces :
   (refusées) ; le serveur refuse déjà de démarrer sans proxy ni TLS sur une
   écoute ouverte ; corriger et relancer, rien n'est perdu. Réseau dédié :
   plus aucun autre conteneur ne joint mirador sans passer par nginx.
-- Grafana : non gardé (API de lecture compatible Prometheus du brief non
-  faite, facultative) ; à demander avant la phase C.
+- Grafana : **non gardé (décision du 23/11)** ; l'API de lecture
+  compatible Prometheus du brief (facultative) n'est pas faite. Grafana
+  s'arrête avec l'ancienne stack en phase C ; ses tableaux sont remplacés
+  par ceux de mirador (import Grafana déjà fait, § 18).
 
 ## 41. Derniers logs joints aux messages d'alerte (idée de Beszel, demande du 17/11) **[Validé le 18/11]**
 

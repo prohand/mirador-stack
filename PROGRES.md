@@ -1760,12 +1760,13 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
    § 5) : repoussée tant que le parc compte peu de machines (choix du 22/11).
 3. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
-   validation de l'étape 6. Question à trancher avant la phase C : garder
-   Grafana ou non.
+   validation de l'étape 6. Grafana : **pas gardé** (décision du 23/11),
+   arrêté avec l'ancienne stack en phase C.
 4. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 5. À valider au fil de l'eau : SPEC § 39 à § 120 (« Fait, à valider »),
    en priorité § 39 (site injoignable), § 48 et § 108 (sondes), § 49
-   (disponibilité), § 51 (ruche), § 110 (mode administration).
+   (disponibilité), § 51 (ruche), § 110 (mode administration), § 121
+   (Santé de mirador).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.

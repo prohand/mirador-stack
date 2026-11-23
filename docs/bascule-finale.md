@@ -246,10 +246,10 @@ free -m && docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc
 Attendu (SPEC § 2.1) : environ **770 Mio** de RAM rendus par l'ancienne
 stack ; mirador sous 256 Mio.
 
-## Grafana (facultatif)
+## Grafana : pas gardé (décision du 23/11)
 
-Le brief prévoit, en option et désactivée par défaut, une API de lecture
-compatible Prometheus pour garder Grafana. Elle n'est **pas** faite : sans
-elle, Grafana s'arrête avec l'ancienne stack (phase C). Si tu veux la
-garder, dis-le avant la phase C : j'étudie et je mesure son coût en RAM
-avant de te la proposer.
+Grafana s'arrête avec l'ancienne stack en phase C. L'API de lecture
+compatible Prometheus du brief (facultative) n'est pas faite : rien à
+installer ni à mesurer. Les tableaux utiles ont leur équivalent dans
+mirador (Tableaux, import Grafana) ; la page Logs remplace le tableau
+« Logs ».
