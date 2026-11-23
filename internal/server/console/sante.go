@@ -59,6 +59,9 @@ type carteSante struct {
 	Titre, Sous, Icone string
 	Lignes             []ligneSante
 	NbProblemes, NbOK  int
+	// Agents (SPEC § 124) : les deux morceaux expliqués, puis machine par machine.
+	Duo        bool
+	ParMachine []ligneParMachine
 }
 
 // caseSante : une des quatre cases du haut.
@@ -162,7 +165,7 @@ func (c *Console) calculerSante(ctx context.Context, t time.Time) donneesSante {
 	for _, m := range collecteurs {
 		d.Cartes = append(d.Cartes, c.carteCollecteurSante(ctx, m, sondes, lues, t))
 	}
-	d.Cartes = append(d.Cartes, c.carteAgentsSante(ctx, machines, t))
+	d.Cartes = append(d.Cartes, c.cartesAgentsSante(ctx, machines, t)...)
 
 	// Totaux, bandeau et cases.
 	var caseServeur, caseCol, caseAgents, caseEnvois caseSante
@@ -614,8 +617,8 @@ func (c *Console) carteCollecteurSante(ctx context.Context, m flotte.InfoMachine
 
 // --- Agents et envois directs ------------------------------------------------------
 
-func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMachine, t time.Time) carteSante {
-	k := carteSante{Titre: "Agents et envois des équipements", Icone: "ecran"}
+func (c *Console) cartesAgentsSante(ctx context.Context, machines []flotte.InfoMachine, t time.Time) []carteSante {
+	k := carteSante{Titre: "Agents des machines", Icone: "ecran", Sous: "deux morceaux par machine : l'agent et son assistant root"}
 	cible, _ := flotte.CibleGlobale(ctx, c.db)
 
 	// Agents.
@@ -625,7 +628,7 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 			avecAgent = append(avecAgent, m)
 		}
 	}
-	l := ligneSante{Etat: "ok", Icone: "ecran", Nom: "mirador-agent", Lien: "/mises-a-jour", LienTexte: "Mises à jour", Zone: "lan"}
+	l := ligneSante{Etat: "ok", Icone: "machines", Nom: "Agents", Lien: "/mises-a-jour", LienTexte: "Mises à jour", Zone: "lan"}
 	enLigne, aJour, retard, echec := 0, 0, 0, 0
 	var muettes, enEchec []string
 	for _, m := range avecAgent {
@@ -665,55 +668,48 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 	total := strconv.Itoa(len(avecAgent))
 	l.Chiffres = []chiffreSante{{strconv.Itoa(enLigne) + " / " + total, "en ligne"}, {strconv.Itoa(aJour) + " / " + total, "à jour"}}
 
-	// Assistant root des agents (mirador-agent-root) : sur la même ligne que
-	// l'agent (retour du 23/11 : « il faudrait unifier »), c'est le même
-	// produit, installé avec lui.
-	ages := c.parEtiquette(ctx, `max by (instance) (mirador_agent_root_age_seconds)`, t, "instance")
-	if len(ages) > 0 {
-		erreurs := c.parEtiquette(ctx, `max by (instance) (mirador_agent_root_errors)`, t, "instance")
-		ajour := c.parEtiquette(ctx, `max by (instance) (mirador_agent_root_a_jour)`, t, "instance")
-		vieux, nbErr, nbAJour := 0.0, 0, 0
+	k.Lignes = append(k.Lignes, l)
+
+	// Assistants root (SPEC § 124, maquette validée le 23/11) : une ligne à
+	// part, sous celle des agents ; les deux morceaux sont expliqués en tête
+	// de carte et détaillés machine par machine.
+	rs := c.racines(ctx, t)
+	if len(rs) > 0 {
+		r := ligneSante{Etat: "ok", Icone: "bouclier", Nom: "Assistants root", Root: true, RootTexte: "root · sans réseau", Zone: "lan",
+			Lien: "#par-machine", LienTexte: "Par machine",
+			Sous: "relevé toutes les 15 min sur chaque machine · se mettent à jour avec l'agent (signature revérifiée par root)"}
 		var anciens, fautifs []string
-		for inst, a := range ages {
-			vieux = math.Max(vieux, a)
-			if a > 45*60 { // relevé toutes les 15 min : 3 tours manqués
+		nbAJour := 0
+		for inst, x := range rs {
+			if x.Ancien() {
 				anciens = append(anciens, inst)
 			}
-			if erreurs[inst] > 0 {
-				nbErr++
+			if x.Erreurs > 0 {
 				fautifs = append(fautifs, inst)
 			}
-			if ajour[inst] == 1 {
+			if !x.ConnuAJour || x.AJour {
 				nbAJour++
 			}
 		}
 		sort.Strings(anciens)
 		sort.Strings(fautifs)
-		// L'agent tourne SANS root ; seul son assistant (mirador-agent-root)
-		// est root (retour du 23/11 : « on a l'impression que l'agent est
-		// root complet »).
-		l.Root, l.RootTexte = true, "assistant root"
-		l.Sous += " · l'agent tourne sans root ; son assistant root (mirador-agent-root) relève pare-feu, SMART et certificats toutes les 15 min, sans réseau"
-		var pb string
 		switch {
 		case len(anciens) > 0:
-			pb = "assistant root : relevé ancien sur " + resumeNoms(anciens)
-		case nbErr > 0:
-			pb = "assistant root : erreurs sur " + resumeNoms(fautifs)
-		case nbAJour < len(ages):
-			pb = accorderTexte("assistant root : " + strconv.Itoa(len(ages)-nbAJour) + " à mettre à jour")
+			r.Etat, r.Alerte = "attention", "relevé ancien sur "+resumeNoms(anciens)
+		case len(fautifs) > 0:
+			r.Etat, r.Alerte = "attention", "erreurs sur "+resumeNoms(fautifs)
+		case nbAJour < len(rs):
+			r.Etat, r.Alerte = "attention", accorderTexte(strconv.Itoa(len(rs)-nbAJour)+" à mettre à jour")
 		}
-		if pb != "" {
-			if l.Etat == "ok" {
-				l.Etat = "attention"
-			}
-			l.Alerte = strings.TrimPrefix(l.Alerte+" · "+pb, " · ")
-		}
-		l.Chiffres = append(l.Chiffres, chiffreSante{strconv.Itoa(nbAJour) + " / " + strconv.Itoa(len(ages)), "assistants root"},
-			chiffreSante{dureeLisible(time.Duration(vieux) * time.Second), "relevé root"})
+		r.Chiffres = []chiffreSante{{strconv.Itoa(nbAJour) + " / " + strconv.Itoa(len(rs)), "à jour"},
+			{dureeLisible(plusVieux(rs)), "relevé le plus ancien"}}
+		k.Lignes = append(k.Lignes, r)
 	}
-	k.Lignes = append(k.Lignes, l)
+	k.Duo = true
+	k.ParMachine = lignesParMachine(avecAgent, rs, cible, t)
+	cartes := []carteSante{k}
 
+	e := carteSante{Titre: "Envois directs des équipements", Icone: "bouclier", Sous: "sans agent : Telegraf ou autre, avec un token propre"}
 	// Envois directs (Telegraf d'OPNsense…) : machine sans agent avec son token.
 	for _, m := range machines {
 		if m.Type != "agent" || m.Statut != "approuvee" || m.Version != "" || m.TokensActifs == 0 {
@@ -742,9 +738,12 @@ func (c *Console) carteAgentsSante(ctx context.Context, machines []flotte.InfoMa
 		case !refus && t.Sub(c.opt.Debut) > 10*time.Minute:
 			l.Etat, l.Alerte = "attention", "rien reçu avec ce token depuis le démarrage du serveur"
 		}
-		k.Lignes = append(k.Lignes, l)
+		e.Lignes = append(e.Lignes, l)
 	}
-	return k
+	if len(e.Lignes) > 0 {
+		cartes = append(cartes, e)
+	}
+	return cartes
 }
 
 // --- Petits outils ---------------------------------------------------------------

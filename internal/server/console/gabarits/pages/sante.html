@@ -9,12 +9,23 @@
 <p class="onglets" data-filtres-sante><button type="button" class="actif" aria-pressed="true" data-filtre="">Tous ({{$d.NbServices}})</button><button type="button" aria-pressed="false" data-filtre="probleme">À regarder ({{$d.NbProblemes}})</button><button type="button" aria-pressed="false" data-filtre="root">Root ({{$d.NbRoot}})</button><button type="button" aria-pressed="false" data-filtre="serveur">Serveur ({{$d.NbServeur}})</button><button type="button" aria-pressed="false" data-filtre="lan">LAN ({{$d.NbLAN}})</button></p>
 {{range $i, $k := $d.Cartes}}<section class="carte carte-sante{{if not $k.NbProblemes}} toute-ok{{end}}" id="carte-{{$i}}" data-carte-sante>
 <div class="entete-sante"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-{{$k.Icone}}"></use></svg></span><h2>{{$k.Titre}}</h2>{{with $k.Sous}}<small class="doux">{{.}}</small>{{end}}</div>
+{{if $k.Duo}}<div class="duo-mirador duo-sante">
+<div class="morceau"><div class="h"><span class="puce vert" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><div><b>mirador-agent</b> <span class="pastille ok">sans root</span><small>l'agent : tourne en permanence</small></div></div>
+<ul class="peut"><li class="oui"><span>✓</span>envoie les mesures et les logs au serveur (HTTPS)</li><li class="oui"><span>✓</span>se met à jour seul (version signée)</li><li class="non"><span>✕</span>aucun droit root, aucun port ouvert</li></ul></div>
+<div class="lien-duo" aria-hidden="true"><span>lit le résultat dans un fichier</span><i>←</i></div>
+<div class="morceau root"><div class="h"><span class="puce orange" aria-hidden="true"><svg class="icone"><use href="#i-bouclier"></use></svg></span><div><b>Assistant root</b> <span class="pastille attention">root · sans réseau</span><small>mirador-agent-root : quelques secondes toutes les 15 min</small></div></div>
+<ul class="peut"><li class="oui"><span>✓</span>lit ce qui demande root : pare-feu, SMART, certificats</li><li class="oui"><span>✓</span>commandes figées dans le code, puis s'arrête</li><li class="non"><span>✕</span>aucun réseau, ne lit pas la configuration du serveur</li></ul></div>
+</div>{{end}}
 <div class="liste-sante">{{range $k.Lignes}}<div class="l {{.Etat}}" data-groupes="{{.Groupes}}">
 <span class="puce {{if eq .Etat "ok"}}vert{{else if eq .Etat "erreur"}}rouge{{else if eq .Etat "attention"}}orange{{else}}gris{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span>
 <div class="e"><b>{{.Nom}}</b>{{with .Version}} <code>{{.}}</code>{{end}}{{if .Root}} <span class="pastille root" title="{{if .RootTexte}}Seul l'assistant tourne en root, sans réseau{{else}}Tourne en root, sans réseau{{end}}">{{if .RootTexte}}{{.RootTexte}}{{else}}root{{end}}</span>{{end}} <span class="pastille {{if eq .Etat "ok"}}ok{{else if eq .Etat "eteint"}}{{else}}{{.Etat}}{{end}}">{{.TexteEtat}}</span>
 <small>{{if .Alerte}}<strong>{{.Alerte}}</strong>{{if .Sous}} · {{end}}{{end}}{{.Sous}}</small></div>
 {{if .Chiffres}}<div class="chiffres-sante">{{range .Chiffres}}<span><b>{{.Valeur}}</b><small>{{.Legende}}</small></span>{{end}}</div>{{end}}
 {{if .Lien}}<a class="voir-sante" href="{{.Lien}}">{{.LienTexte}} ›</a>{{end}}</div>{{end}}</div>
+{{if $k.ParMachine}}<details class="par-machine" id="par-machine"><summary>Par machine ({{len $k.ParMachine}})</summary>
+<div class="defile"><table class="tab-pm" data-cartes="serrees" data-sans-filtre data-sans-menu-tri><thead><tr><th>Machine</th><th>Agent</th><th>Assistant root</th><th>Relevé root</th></tr></thead><tbody>
+{{range $k.ParMachine}}<tr><td><a href="/machines/{{.Machine}}#mirador">{{.Machine}}</a></td><td><span class="pastille{{with .ClasseAgent}} {{.}}{{end}}">{{.Agent}}</span></td><td>{{if .Racine}}<span class="pastille {{.ClasseRacine}}">{{.Racine}}</span>{{else}}<span class="doux">non installé</span>{{end}}</td><td{{with .ClasseReleve}} class="releve-{{.}}"{{end}}>{{.Releve}}</td></tr>{{end}}
+</tbody></table></div></details>{{end}}
 <button type="button" class="deplier-sante" data-deplier-sante>{{if $k.NbProblemes}}<span class="pastille ok">En marche</span> {{$k.NbOK}} {{accord $k.NbOK "autre(s) service(s)"}} · voir{{else}}<span class="pastille ok">Tout va bien</span> {{$k.NbOK}} services · voir{{end}} ›</button>
 </section>{{end}}
 {{end}}

@@ -42,6 +42,9 @@ func TestPageSante(t *testing.T) {
 		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_agent_root_age_seconds", "instance", "pc1"), ts.UnixMilli(), 300)
 		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_agent_root_errors", "instance", "pc1"), ts.UnixMilli(), 0)
 		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_agent_root_a_jour", "instance", "pc1"), ts.UnixMilli(), 1)
+		_, _ = app.Append(0, labels.FromStrings("__name__", "mirador_agent_root_info", "instance", "pc1", "version", "0.6.13"), ts.UnixMilli(), 1)
+		_, _ = app.Append(0, labels.FromStrings("__name__", "smartctl_device_smart_status", "instance", "pc1", "device", "sda"), ts.UnixMilli(), 1)
+		_, _ = app.Append(0, labels.FromStrings("__name__", "node_firewall_input_rules", "instance", "pc1"), ts.UnixMilli(), 12)
 	}
 	_ = app.Commit()
 	b.c.lecteur = alertes.NouveauLecteur(db, nil)
@@ -52,14 +55,17 @@ func TestPageSante(t *testing.T) {
 	}
 	for _, attendu := range []string{
 		"<h1>Santé de mirador</h1>",
-		"Serveur · mirador", "Collecteur · collecteur-lan", "Agents et envois des équipements",
+		"Serveur · mirador", "Collecteur · collecteur-lan", "Agents des machines", "Envois directs des équipements",
 		"mirador-server", "mirador-maj-serveur", "Réception des données", "Notifications", "Sauvegarde du serveur",
 		// Compagnon absent : à regarder, avec la marche à suivre.
 		"Compagnon des processus", "relancer une fois le script d&#39;installation",
 		// Pas de sauvegarde : en panne.
 		"aucune sauvegarde réussie",
-		// Services root repérés, assistant root lu dans les séries des agents.
-		`class="pastille root"`, "son assistant root (mirador-agent-root)", ">assistant root</span>", "assistants root", "1 / 1",
+		// Agent et assistant root expliqués côte à côte (SPEC § 124), lignes
+		// séparées, détail par machine.
+		`class="pastille root"`, "aucun droit root, aucun port ouvert", "aucun réseau, ne lit pas la configuration du serveur",
+		">root · sans réseau</span>", "<b>Assistants root</b>", "1 / 1", "relevé le plus ancien",
+		`id="par-machine"`, `href="/machines/pc1#mirador"`, "il y a 5 min · pare-feu, SMART", `<span class="pastille ok">0.6.13</span></td><td><span class="pastille ok">0.6.13</span>`,
 		// Envoi direct de fw (token propre, sans agent).
 		"Envoi direct · fw",
 		// Filtres et repli sur téléphone.

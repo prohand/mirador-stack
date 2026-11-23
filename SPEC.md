@@ -8405,3 +8405,37 @@ de passe) : masquée par l'agent avant l'envoi, coupée à 200 caractères,
 affichée échappée. Les logs de la fiche passent par la recherche habituelle
 (2 recherches à la fois au plus, 3 s maximum). Rien d'écrit, aucune
 commande vers les agents.
+
+## 124. Agent et assistant root : affichage plus clair (23/11) **[Fait, à valider]**
+
+Retour du 23/11 : simplifier agent et assistant root avec un chroot ?
+Réponse : non (un chroot n'est pas une barrière pour root, l'assistant
+doit voir les disques, le pare-feu et les certificats de la vraie machine,
+systemd l'isole déjà mieux) ; **on garde les deux morceaux** et on rend
+l'affichage plus clair. Maquette validée (bloc dans l'onglet Réglages).
+
+- **Santé de mirador**, carte « Agents des machines » :
+  - les deux morceaux côte à côte : mirador-agent (« sans root » : envoie,
+    se met à jour, aucun droit root ni port ouvert) et assistant root
+    (« root · sans réseau » : pare-feu, SMART, certificats, commandes
+    figées, aucun réseau) ;
+  - deux lignes d'état séparées : Agents (en ligne, à jour) et Assistants
+    root (à jour, relevé le plus ancien, problèmes : relevé ancien,
+    erreurs, à mettre à jour) ;
+  - tableau « Par machine » (repliable) : version de l'agent, de
+    l'assistant (ou « non installé »), âge du relevé et ce qu'il lit ;
+  - envois directs (Telegraf) dans leur propre carte.
+- **Page machine › Réglages**, bloc « mirador sur cette machine » :
+  - agent : version, utilisateur, réseau, dernier envoi, mise à jour ;
+  - assistant root : version, quand, dernier et prochain relevé, ce qu'il
+    lit (pare-feu, SMART et nombre de disques, nombre de certificats),
+    erreurs ; « pas d'assistant root » expliqué s'il manque ;
+  - bouton « Actualiser » déplacé dans ce bloc ;
+  - **collecteur** : mirador-collector et compagnon des processus (sans
+    root, sans réseau), avec la phrase « pas d'assistant root sur un
+    collecteur » (seul le réglage du ping se fait en root, au démarrage).
+- Pastille « root » partout en orange (au lieu de bleu).
+
+Coût : 7 requêtes instantanées pour l'état des assistants (cache de 20 s),
+sur la page Santé (calcul de fond toutes les 2 min) et sur la page d'une
+machine. Rien de plus côté agent. Menaces : inchangées (lecture seule).

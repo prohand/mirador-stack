@@ -378,3 +378,12 @@
 
 {{/* État du token d'une machine (page machine, retour du 22/11). */}}
 {{define "etat-token"}}{{with .D.Token}}{{if .Actifs}}<span class="pastille ok">Token actif</span> créé le {{dateS .CreeLe}}{{if gt .Actifs 1}} ({{.Actifs}} actifs){{end}}. {{if .DernierEnvoi}}Dernier envoi reçu avec ce token : {{depuisS .DernierEnvoi}}.{{else}}Aucun envoi reçu avec ce token depuis le démarrage du serveur.{{end}}{{else}}<span class="pastille">Aucun token</span> {{if $.D.RelevePar}}Les données passent par le collecteur {{$.D.RelevePar}} ; un token ne sert que si l'équipement envoie lui-même (Telegraf d'OPNsense).{{else}}La machine ne peut pas envoyer.{{end}}{{end}}{{end}}{{end}}
+
+{{/* mirador sur cette machine (SPEC § 124) : agent et assistant root, ou collecteur et compagnon. */}}
+{{define "bloc-mirador"}}{{$b := .B}}<section class="carte bloc-mirador" id="mirador">
+<div class="entete-mirador"><span class="puce bleu" aria-hidden="true"><svg class="icone"><use href="#i-ecran"></use></svg></span><h2>mirador sur cette machine</h2><small class="doux">deux morceaux, installés ensemble</small>
+{{if and .Admin $b.Actualiser}}<form method="post" class="actualiser" title="La machine relit sa configuration et relance l'assistant root (certificats, SMART, pare-feu) : environ 1 min">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="actualiser"><button class="secondaire petit">Actualiser</button></form>{{end}}</div>
+<div class="duo-mirador">{{template "morceau-mirador" $b.Premier}}<div class="lien-duo" aria-hidden="true"><span>{{$b.Fleche}}</span><i>←</i></div>{{template "morceau-mirador" $b.Second}}</div>
+<p class="aide-duo">{{$b.Pourquoi}}</p></section>{{end}}
+{{define "morceau-mirador"}}<div class="morceau{{if .Root}} root{{end}}"><div class="h"><span class="puce {{.Teinte}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><div><b>{{.Nom}}</b>{{with .Version}} <code>{{.}}</code>{{end}} <span class="pastille {{.Classe}}">{{.Pastille}}</span></div></div>
+{{if .Absent}}<p class="absent">{{.Absent}}</p>{{else}}<dl>{{range .Lignes}}<dt>{{.Titre}}</dt><dd>{{if .Classe}}<span class="pastille {{.Classe}}">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{range .Puces}} <span class="pastille {{.Classe}}">{{.Texte}}</span>{{end}}{{if .Lien}} <a href="{{.Lien}}">{{.LienTexte}}</a>{{end}}</dd>{{end}}</dl>{{end}}</div>{{end}}

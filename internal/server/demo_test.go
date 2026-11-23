@@ -241,6 +241,20 @@ func TestDemoInterface(t *testing.T) {
 			mk("mirador_agent_detecte", un, "genre", "service", "nom", "pve-cluster.service")
 			mk("mirador_agent_detecte", un, "genre", "service", "nom", "postfix.service")
 		}
+		// Assistant root (SPEC § 124) : pve1, vps-web, vm-docker.
+		if m == "pve1" || m == "vps-web" || m == "vm-docker" {
+			age := map[string]float64{"pve1": 240, "vps-web": 120, "vm-docker": 360}[m]
+			mk("mirador_agent_root_age_seconds", func(int) float64 { return age })
+			mk("mirador_agent_root_errors", func(int) float64 { return 0 })
+			mk("mirador_agent_root_a_jour", un)
+			mk("mirador_agent_root_info", un, "version", "0.6.15")
+			if m != "pve1" { // pve1 : déjà plus haut
+				mk("ssl_certs_found_total", func(int) float64 { return 3 })
+			}
+			if m != "vm-docker" {
+				mk("node_firewall_input_rules", func(int) float64 { return 14 })
+			}
+		}
 		if m == "vm-docker" {
 			mk("node_docker_up", un)
 			for j, ct := range []string{"traefik", "postgres", "appli"} {

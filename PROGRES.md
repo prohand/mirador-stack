@@ -1757,6 +1757,15 @@ compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
   Pour un parc réel de 30 à 40 conteneurs : environ 5 fois moins. Si la page pèse trop un jour : ne rendre la vue Liste qu'à la demande.
 - Captures ordinateur et téléphone vérifiées (aucun débordement).
 
+## Agent et assistant root, affichage plus clair (SPEC § 124, 23/11)
+
+- Chroot écarté (pas une barrière pour root, plus complexe) ; deux morceaux gardés.
+- Santé : les deux morceaux expliqués côte à côte, lignes Agents / Assistants root séparées, tableau par machine, carte Envois directs.
+- Page machine › Réglages : bloc « mirador sur cette machine » (agent + assistant root ; collecteur + compagnon).
+- Tests : `TestBlocMirador` (nouveau), `TestPageSante` mis à jour ; suites `internal/server/...` vertes.
+- Coût : 7 requêtes instantanées en cache (20 s) ; aucun changement de l'agent.
+- Captures ordinateur et téléphone vérifiées.
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
