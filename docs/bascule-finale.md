@@ -249,60 +249,65 @@ stack ; mirador sous 256 Mio.
 ## Grafana : suppression complète (demandée le 24/11)
 
 Grafana n'est pas gardé (décision du 23/11) et ne touche ni aux données ni
-aux alertes de mirador : il peut partir **tout de suite**, sans attendre les
+aux alertes de mirador : il part **tout de suite**, sans attendre les
 phases A à C (il n'est plus dans les listes de la phase C). C'est le plus
 gros conteneur de l'ancienne stack (≈ 291 Mio mesurés le 07/11).
 
 Tout se fait sur le VPS.
 
-### G1. Relevé (lecture seule, 📋 à me coller)
+Pas d'attente (choix du 24/11) : relevé, sauvegarde, suppression d'un coup.
+Avant : dans Grafana, **Alerting › Alert rules** : s'il reste des règles
+actives, elles ne partiront plus (mirador a les siennes).
+
+### G1. Relevé (lecture seule)
 
 ```bash
-docker ps -a --filter name=grafana --format '{{.Names}} {{.Image}} {{.Status}}'
-docker inspect obs-grafana -f '{{range .Mounts}}{{.Type}} {{.Name}} {{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
-docker inspect obs-grafana -f 'compose : {{index .Config.Labels "com.docker.compose.project.config_files"}} service {{index .Config.Labels "com.docker.compose.service"}}'
-grep -rn -i -E 'grafana|:3000' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null
+docker inspect obs-grafana -f 'image : {{.Config.Image}}
+compose : {{index .Config.Labels "com.docker.compose.project.config_files"}} (service {{index .Config.Labels "com.docker.compose.service"}})
+{{range .Mounts}}{{.Type}} : {{if .Name}}{{.Name}}{{else}}{{.Source}}{{end}} -> {{.Destination}}
+{{end}}'
+grep -rln -i grafana /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null
 ```
 
-Et dans Grafana, une dernière fois : **Alerting › Alert rules** et
-**Contact points**. S'il y a des règles actives, me les dire avant d'arrêter
-(elles ne seraient plus envoyées ; mirador a ses propres règles).
-
-### G2. Sauvegarde puis arrêt (réversible)
-
-La sauvegarde garde les tableaux, utilisateurs et sources (`grafana.db`),
-au cas où :
+### G2. Sauvegarde (tableaux, utilisateurs, sources : au cas où)
 
 ```bash
-docker run --rm --volumes-from obs-grafana -v /root:/sortie alpine:3.20 tar czf /sortie/grafana-sauvegarde.tgz /var/lib/grafana
+D=$(docker inspect obs-grafana -f '{{range .Mounts}}{{.Destination}} {{end}}')
+docker run --rm --volumes-from obs-grafana -v /root:/sortie alpine:3.20 tar czf /sortie/grafana-sauvegarde.tgz $D
 ls -lh /root/grafana-sauvegarde.tgz
 ```
 
+### G3. Suppression
+
 ```bash
-docker update --restart=no obs-grafana && docker stop obs-grafana
+IMG=$(docker inspect obs-grafana -f '{{.Config.Image}}')
+VOLS=$(docker inspect obs-grafana -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')
+docker rm -f obs-grafana
+docker volume rm $VOLS
+docker image rm $IMG
 ```
 
-Retour arrière : `docker update --restart=unless-stopped obs-grafana && docker start obs-grafana`.
+`docker volume rm` et `docker image rm` refusent d'eux-mêmes ce qu'un autre
+conteneur utilise encore. Les dossiers montés (`bind` dans le relevé) ne
+sont pas effacés : à supprimer à la main s'ils ne servent qu'à Grafana.
 
-### G3. Suppression (quelques jours plus tard, si rien ne manque)
+Puis :
 
-Avec les noms donnés par le relevé G1 (je te les confirme) :
-
-1. Retirer le service `grafana` du fichier compose de `/opt/obs` (sinon un
-   `docker compose up -d` le recrée), puis :
-
-   ```bash
-   docker rm obs-grafana
-   docker volume rm NOM_DU_VOLUME_GRAFANA
-   docker image rm IMAGE_GRAFANA
-   ```
-
-2. nginx : enlever le bloc de Grafana (après copie :
-   `sudo cp -a /etc/nginx /root/nginx-avant-grafana`), puis
-   `sudo nginx -t && sudo systemctl reload nginx`.
-3. Supprimer le certificat de son nom (`sudo certbot delete --cert-name NOM`
-   si certbot) et l'enregistrement DNS.
+1. **Fichier compose** (chemin donné par le relevé) : retirer le service
+   `grafana` et son volume dans la section `volumes:` du bas (sinon un
+   `docker compose up -d` le recrée). Vérifier :
+   `docker compose -f FICHIER config -q` (aucune sortie = bon).
+2. **nginx** : copie d'abord (`sudo cp -a /etc/nginx /root/nginx-avant-grafana`).
+   Fichier propre à Grafana : supprimer son lien dans `sites-enabled` ;
+   bloc dans un fichier commun : supprimer le bloc `server` de Grafana.
+   Puis `sudo nginx -t && sudo systemctl reload nginx`.
+3. **Certificat** du nom de Grafana (`sudo certbot delete --cert-name NOM`
+   si certbot) et **enregistrement DNS**.
 4. `/root/grafana-sauvegarde.tgz` : à effacer quand tu veux.
+
+Retour arrière (dans les jours qui suivent) : remettre le service dans le
+compose, `docker compose up -d grafana`, puis restaurer l'archive dans le
+nouveau volume.
 
 Les tableaux utiles ont leur équivalent dans mirador (Tableaux, import
 Grafana) ; la page Logs remplace le tableau « Logs ». L'API de lecture
