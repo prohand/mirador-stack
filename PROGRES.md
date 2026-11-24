@@ -1833,7 +1833,9 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    et DNS `obs`, `ingest` supprimés (24/11). Reste : mesure mémoire du
    lendemain, agents sur les 24 machines puis suppression d'Alloy.
    Semaphore (inventaire `mirador_agent`, `vps` = `sup`) : **dns1 installé
-   le 24/11** par le playbook ; reste approbation et les 23 autres. Demandé aussi :
+   le 24/11** par le playbook, puis les autres le même soir (inventaire de
+   27 machines ; ripeatlas en échec : VM supprimée par l'utilisateur).
+   Reste : approbation, puis suppression d'Alloy (essai `--check` sur dns1). Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
    approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
