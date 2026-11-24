@@ -1819,7 +1819,12 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    **24/11 : l'utilisateur veut supprimer toute l'ancienne stack** (VPS :
    VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager ; machines : Alloy) :
    phases A, C, D, E d'un coup après un relevé du VPS, en gardant
-   `docker-socket-proxy` et le réseau `obs` tant que mirador y est. Demandé aussi :
+   `docker-socket-proxy` et le réseau `obs` tant que mirador y est.
+   **Fait le 24/11 au soir** : Alertmanager, vmalert (×2), VictoriaMetrics,
+   VictoriaLogs supprimés (conteneurs, volumes `obs_am-data`, `obs_vm-data`,
+   `obs_vl-data`, images). Reste : fichiers de `/opt/obs` (config, règles,
+   secrets de l'ancienne stack), compose, nginx, réseau (phase D),
+   certificats, DNS ; machines : Alloy (playbook après les agents). Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
    approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
