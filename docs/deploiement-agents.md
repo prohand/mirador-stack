@@ -176,6 +176,9 @@ la machine est sautée, avec la raison) :
   lignes cron qui les appellent sont **commentées** (root et `/etc/cron.d`),
   les autres lignes ne bougent pas ; `/etc/obs-systemd-ignore` (son contenu
   est déjà dans la configuration de l'agent).
+- **gardés** : tout ce qui contient `obs-geo` (sur le VPS, `obs-geo-fr` et
+  `obs-geoip-update` tiennent à jour la liste d'adresses françaises de
+  nginx, dont mirador se sert).
 
 Avant : archive `/root/ancienne-stack.tgz` (configuration, scripts, unités,
 crontab de root d'avant). Relançable sans risque. Testé en local (faux
@@ -218,6 +221,9 @@ archive, garde, 2e passage vide.
       /etc/systemd/system/obs-* /etc/systemd/system/snmp_exporter.service
       /etc/systemd/system/smartctl_exporter.service
     archive: /root/ancienne-stack.tgz
+    # Gardés : sur le VPS, obs-geo-fr et obs-geoip-update tiennent à jour la
+    # liste d'adresses françaises de nginx, dont mirador se sert.
+    garder: 'obs-geo'
   tasks:
     # --- Garde : rien sur une machine que mirador ne surveille pas encore.
     - name: Agent mirador approuvé ?
@@ -245,20 +251,20 @@ archive, garde, 2e passage vide.
     - name: Unités présentes
       ansible.builtin.shell: >-
         systemctl list-unit-files --no-legend --plain {{ unites_anciennes }}
-        | awk '{print $1}' | grep -v '^obs-.*@\.' || true
+        | awk '{print $1}' | grep -v '^obs-.*@\.' | grep -v -E '{{ garder }}' || true
       register: unites
       changed_when: false
       check_mode: false
 
     - name: Fichiers présents
       ansible.builtin.shell: >-
-        ls -d {{ chemins_anciens }} 2>/dev/null; true
+        ls -d {{ chemins_anciens }} 2>/dev/null | grep -v -E '{{ garder }}'; true
       register: fichiers
       changed_when: false
       check_mode: false
 
     - name: Fichiers de /etc/cron.d qui appellent obs-*
-      ansible.builtin.shell: grep -lE '^[^#].*(^|[^[:alnum:]_])obs-' /etc/cron.d/* 2>/dev/null || true
+      ansible.builtin.shell: grep -lE '^[^#].*(^|[^[:alnum:]_])obs-' /etc/cron.d/* 2>/dev/null | grep -v -E '{{ garder }}' || true
       register: cron_d
       changed_when: false
       check_mode: false
@@ -272,7 +278,7 @@ archive, garde, 2e passage vide.
       check_mode: false
 
     - name: Lignes cron de root qui appellent obs-*
-      ansible.builtin.shell: crontab -l 2>/dev/null | grep -v '^#' | grep -E '(^|[^[:alnum:]_])obs-' || true
+      ansible.builtin.shell: crontab -l 2>/dev/null | grep -v '^#' | grep -E '(^|[^[:alnum:]_])obs-' | grep -v -E '{{ garder }}' || true
       register: cron_root
       changed_when: false
       check_mode: false
@@ -303,13 +309,13 @@ archive, garde, 2e passage vide.
     - name: Commenter les lignes cron de root qui appellent obs-*
       ansible.builtin.shell: >-
         t=$(mktemp) && crontab -l > "$t" &&
-        sed -E '/^[^#]/{/(^|[^[:alnum:]_])obs-/s/^/# (retiré pour mirador) /}' "$t" | crontab - ;
+        sed -E '/^[^#]/{/{{ garder }}/!{/(^|[^[:alnum:]_])obs-/s/^/# (retiré pour mirador) /}}' "$t" | crontab - ;
         r=$?; rm -f "$t"; exit $r
       when: cron_root.stdout_lines | length > 0
 
     - name: Commenter les lignes de /etc/cron.d qui appellent obs-*
       ansible.builtin.command: >-
-        sed -i -E '/^[^#]/{/(^|[^[:alnum:]_])obs-/s/^/# (retiré pour mirador) /}' {{ item }}
+        sed -i -E '/^[^#]/{/{{ garder }}/!{/(^|[^[:alnum:]_])obs-/s/^/# (retiré pour mirador) /}}' {{ item }}
       loop: "{{ cron_d.stdout_lines }}"
 
     - name: Désinstaller les paquets (configuration comprise)

@@ -281,8 +281,21 @@ sur le réseau `obs` et l'agent mirador du VPS se sert de
 3. mirador : Réglages › Notifications : vider l'adresse de vmalert ;
    Règles : désactiver les règles importées sans source (`ProxmoxMuet`,
    `SyslogMuet`…).
-4. Compose `/opt/obs`, nginx, réseau `obs` (phase D), certificats, DNS :
-   d'après le relevé (📋).
+4. Fait le 24/11. Relevé du VPS ensuite :
+   - `/opt/obs` ne contient plus que le compose (aucun service gardé :
+     `docker-socket-proxy` n'y est pas) → archive
+     `/root/obs-avant-suppression.tgz`, puis `/opt/obs` supprimé ;
+   - réseau `obs` : seul `mirador-server` y reste → l'isolement voulu par la
+     phase D est atteint ; la phase D (renommage, nouvelle plage) devient
+     facultative ;
+   - nginx : `obs.conf` (Grafana, obs.srv-home.fr), `ingest.conf`
+     (VictoriaMetrics et VictoriaLogs, ingest.srv-home.fr) et
+     `00-obs-map.conf` (tokens d'Alloy) partent ; **gardés** :
+     `01-obs-geo.conf` (restriction géographique de la console mirador),
+     `snippets/obs-allow.conf`, `02-mirador.conf` ;
+   - minuteries du VPS : `obs-docker` et `obs-textfile` (pour Alloy)
+     partent ; **gardées** : `obs-geo-fr`, `obs-geoip-update` ;
+   - certificats et DNS de obs.srv-home.fr et ingest.srv-home.fr.
 
 ## Grafana : suppression complète (demandée le 24/11)
 
