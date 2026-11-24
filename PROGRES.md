@@ -1804,7 +1804,8 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 0. **24/11 : avant l'étape 7, installer l'agent sur les machines qui ne
    l'ont pas** : l'ancienne stack voit 27 machines, mirador seulement
    proxmoxbackup et dhcpdns02 (+ collecteur-lan, fw). Procédure en série
-   depuis `ansible` : `docs/deploiement-agents.md`. Pas de nouvelle
+   par Semaphore (un modèle, jeton créé par machine, testé en local) :
+   `docs/deploiement-agents.md`. Pas de nouvelle
    comparaison vmalert de 7 jours (choix de l'utilisateur le 24/11).
    Collecteur : mesures 24 h faites et **objectifs tenus**. **Alloy et
    unpoller arrêtés et désactivés sur obscollector le 24/11** (aucune
