@@ -1811,8 +1811,11 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    unpoller arrêtés et désactivés sur obscollector le 24/11** (aucune
    connexion restante sur 6514 avant l'arrêt). À vérifier le lendemain :
    collecteur au vert dans mirador, `free -m`.
-   Demandé le 24/11 : **supprimer Grafana tout de suite** (relevé, sauvegarde,
-   arrêt, puis suppression : `docs/bascule-finale.md`, « Grafana ») et
+   **Grafana supprimé le 24/11 au soir** (conteneur, volume `obs_grafana-data`,
+   image 13.2.2 ; sauvegarde `/root/grafana-sauvegarde.tgz` 250 Mio sur le
+   VPS). Reste : service et volume dans `/opt/obs/docker-compose.yml`, dossiers
+   `/opt/obs/grafana`, secret `grafana_admin`, bloc nginx (`obs.conf`, et une
+   mention dans le vhost mirador à regarder), certificat, DNS. Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
    approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
