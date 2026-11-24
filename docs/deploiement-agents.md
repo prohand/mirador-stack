@@ -374,6 +374,68 @@ réactiver les unités.
         var: reste.stdout_lines
 ```
 
+## 6. Relais Docker à adresse fixe (après la mise à jour du serveur, SPEC § 126)
+
+Machines avec Docker : le relais `mirador-docker-proxy` passe sur son propre
+réseau (`mirador-docker`, pont `br-mirador`, relais en `172.31.254.2`).
+
+1. **Pare-feu** des machines dont la sortie est en DROP (sup, mail, proxy) :
+   une seule règle, la même partout (à mettre dans le rôle du pare-feu) :
+
+   ```bash
+   iptables -I OUTPUT 1 -o br-mirador -s 172.31.254.1 -d 172.31.254.2 -p tcp --dport 2375 -j ACCEPT
+   ```
+
+   L'ancienne règle vers `docker0` / `172.19.0.0/24` (port 2375) peut
+   ensuite être retirée.
+2. **Serveur à jour** (le script est embarqué dans le serveur).
+3. **Semaphore** : `relais-docker-mirador.yml`, d'abord limite `sup`, puis
+   sans limite. Il relance le script sur les seules machines avec Docker et
+   un agent enrôlé (pas de jeton ; nom, token, liste des services ignorés et
+   mises à jour automatiques gardés) et dit si le relais répond.
+
+```yaml
+# Relance le script d'installation sur les machines qui ont Docker et l'agent :
+# le relais Docker passe sur son réseau à adresse fixe (172.31.254.2).
+# Agent déjà enrôlé : pas de jeton ; nom, token et réglages gardés.
+- name: Relais Docker de mirador à adresse fixe
+  hosts: mirador_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Docker présent ?
+      ansible.builtin.stat:
+        path: /var/run/docker.sock
+      register: docker
+
+    - name: Agent mirador enrôlé ?
+      ansible.builtin.stat:
+        path: /var/lib/mirador-agent/token
+      register: token
+
+    - name: Fin pour cette machine (pas de Docker, ou pas d'agent)
+      ansible.builtin.meta: end_host
+      when: not docker.stat.exists or not token.stat.exists
+
+    - name: Script d'installation à jour (depuis mirador-server)
+      ansible.builtin.get_url:
+        url: "{{ serveur }}/api/agent/v1/install"
+        dest: /root/mirador-agent-install.sh
+        mode: "0700"
+        force: true
+
+    - name: Relancer le script (relais recréé sur son réseau)
+      ansible.builtin.command: >-
+        bash /root/mirador-agent-install.sh --mirador --auto-update
+        --serveur {{ serveur | quote }}
+      register: sortie
+      changed_when: "'Relais Docker en lecture seule' in sortie.stdout"
+
+    - name: Relais joignable ?
+      ansible.builtin.debug:
+        msg: "{{ 'relais OK' if 'ATTENTION : le relais Docker' not in sortie.stdout else 'relais BLOQUÉ par le pare-feu : ajouter iptables -I OUTPUT 1 -o br-mirador -s 172.31.254.1 -d 172.31.254.2 -p tcp --dport 2375 -j ACCEPT' }}"
+```
+
 ## Retour arrière (une machine)
 
 ```bash

@@ -1236,7 +1236,8 @@ version précédente. Le serveur voit l'échec dans le battement suivant.
   (`tecnativa/docker-socket-proxy:v0.5.0`, version figée), socket en lecture
   seule, `CONTAINERS=1`, `POST=0`, `INFO=0`, système de fichiers en lecture
   seule, 32 Mio max, écoute sur `127.0.0.1:12375` seulement. Un proxy existant
-  peut être réutilisé (`--docker-proxy`).
+  peut être réutilisé (`--docker-proxy`). Depuis le 24/11 (§ 126) : sur son
+  propre réseau Docker `mirador-docker`, adresse fixe `172.31.254.2`.
 - Binaires : dans la Release de chaque version (agent signé et son
   manifeste) ; la CI ne garde plus d'artefact depuis le 16/11 (le
   stockage Actions, 0,5 Go par mois partagé avec les paquets privés,
@@ -8464,3 +8465,38 @@ Coût : une lecture de fichier au démarrage ; moins de séries envoyées par
 les conteneurs ; une requête instantanée de plus sur la page d'une machine.
 Menaces : aucune nouvelle (lecture d'un fichier public, contenu filtré par
 une expression stricte avant d'être une étiquette).
+
+## 126. Relais Docker à adresse fixe (24/11) **[Fait, à valider]**
+
+Retour du 24/11 : sur sup, mail et proxy (pare-feu avec sortie en DROP),
+alerte « Docker : démon injoignable ». L'agent joint le relais par
+`127.0.0.1:12375` ; Docker relaie vers le conteneur par le pont par défaut,
+et cette sortie (`docker0`, `172.19.0.1` → `172.19.0.2:2375`) était jetée.
+L'adresse du conteneur sur le pont par défaut n'est pas fixe (attribuée au
+démarrage, `--ip` refusé sur ce pont) : il aurait fallu ouvrir toute la plage.
+
+- Le script d'installation crée un réseau Docker dédié **`mirador-docker`**
+  (pont nommé `br-mirador`, plage `172.31.254.0/29` par défaut, choix de
+  l'utilisateur adapté : `172.254.254.0/29` n'est pas une plage privée ;
+  conteneurs isolés entre eux) et y place le relais en **`172.31.254.2`**.
+  Une seule règle de pare-feu, la même sur toutes les machines :
+  `-o br-mirador -s 172.31.254.1 -d 172.31.254.2 -p tcp --dport 2375`.
+- L'agent ne change pas : toujours `http://127.0.0.1:12375` (il refuse toute
+  adresse non locale, le relais n'étant pas chiffré).
+- `--docker-reseau PLAGE` : autre plage, **privée** seulement (10/8,
+  172.16/12, 192.168/16), de /24 à /29, alignée ; sinon refus.
+- Relancer le script : relais déjà au bon endroit → gardé ; ancien relais
+  (pont par défaut) → recréé ; réseau existant avec une autre plage → arrêt
+  avec la commande à relancer.
+- Fin d'installation : test de `/_ping` par le chemin de l'agent ; s'il
+  échoue, le script affiche la règle de pare-feu à ajouter (sans s'arrêter).
+- Relancer le script ne perd plus la liste des services ignorés : sans
+  `/etc/obs-systemd-ignore` (supprimé avec l'ancienne stack), celle
+  d'`agent.conf` est gardée.
+- Le script est embarqué dans le serveur : la nouvelle version arrive avec
+  la mise à jour du serveur.
+
+Coût : aucun (un petit réseau Docker de plus). Menaces : le relais reste en
+lecture seule et joignable seulement par l'hôte ; la règle de sortie est
+limitée à une adresse et un port ; la plage est vérifiée privée (pas de
+masquage d'adresses publiques).
