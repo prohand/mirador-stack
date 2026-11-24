@@ -170,6 +170,19 @@ func (c *Console) blocMiradorMachine(ctx context.Context, m flotte.InfoMachine, 
 		Pourquoi: "Pourquoi deux morceaux : l'agent parle au serveur et se met à jour seul, il ne doit donc pas être root. " +
 			"Ce qui exige root (pare-feu, SMART, certificats protégés) est lu par l'assistant, qui n'a pas de réseau et ne lance que des commandes figées.",
 		Actualiser: true}
+	// Agent dans un conteneur (LXC, Docker…) : le matériel vu là est celui de
+	// l'hôte, l'agent ne le lit pas (SPEC § 125).
+	if ech, err := c.instant(ctx, `max by (genre) (mirador_agent_conteneur{instance="`+echapperPromQL(m.Nom)+`"})`, t); err == nil && len(ech) > 0 {
+		g := ech[0].Etiquettes.Get("genre")
+		if g == "lxc" || g == "docker" {
+			g = strings.ToUpper(g[:1]) + g[1:]
+			if g == "Lxc" {
+				g = "LXC"
+			}
+		}
+		b.Premier.Lignes = append(b.Premier.Lignes, defMorceau{Titre: "Conteneur",
+			Texte: g + " : capteurs, ventilateurs, ZFS et RAID de l'hôte ignorés (surveillés par l'agent de l'hôte)"})
+	}
 	r, ok := c.racines(ctx, t)[m.Nom]
 	if !ok {
 		b.Second.Absent = "pas d'assistant root : rien n'est lu en root sur cette machine (pas de SMART, de pare-feu ni de certificats protégés)"

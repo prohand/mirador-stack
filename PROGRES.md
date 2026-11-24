@@ -1797,6 +1797,18 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Coût : 7 requêtes instantanées en cache (20 s) ; aucun changement de l'agent.
 - Captures ordinateur et téléphone vérifiées.
 
+## Agent dans un conteneur LXC (SPEC § 125, 24/11)
+
+- Cause : dans un LXC, `/sys/class/hwmon` montre les capteurs de l'hôte ;
+  pbs et pdm envoyaient les températures du nœud (modèle « Machine
+  physique » détecté).
+- Correction : l'agent repère le conteneur (`/run/systemd/container`,
+  `/.dockerenv`) et ne lit plus capteurs, ventilateurs, ZFS ni RAID ; ligne
+  « Conteneur » sur la page machine. Tests : détection (5 cas), bloc de la
+  page machine ; tous les tests et gosec au vert.
+- Après la mise à jour : décocher « Machine physique » sur les conteneurs
+  où il reste coché (requête `count by (instance) (node_hwmon_temp_celsius)`).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).

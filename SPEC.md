@@ -8439,3 +8439,28 @@ l'affichage plus clair. Maquette validée (bloc dans l'onglet Réglages).
 Coût : 7 requêtes instantanées pour l'état des assistants (cache de 20 s),
 sur la page Santé (calcul de fond toutes les 2 min) et sur la page d'une
 machine. Rien de plus côté agent. Menaces : inchangées (lecture seule).
+
+## 125. Agent dans un conteneur : matériel de l'hôte ignoré (24/11) **[Fait, à valider]**
+
+Retour du 24/11 : pbs et pdm (conteneurs LXC) avaient le modèle « Machine
+physique » coché tout seul. Dans un conteneur, `/sys` et `/proc` montrent le
+matériel de l'**hôte** : capteurs de `/sys/class/hwmon`, ventilateurs, pools
+ZFS (`/proc/spl`), grappes RAID (`/sys/block/md*`). L'agent les envoyait
+comme les siens : fausse détection du modèle, températures de l'hôte en
+double, et alertes de chauffe répétées sur chaque conteneur.
+
+- **Détection** au démarrage (une seule fois) : `/run/systemd/container`
+  (écrit par systemd dans un conteneur LXC, nspawn, podman… ; lisible par
+  tous, contenu vérifié) ou `/.dockerenv` (Docker).
+- **Dans un conteneur** : ni collecteur « matériel » (ventilateurs, ZFS,
+  RAID, ni leurs séries `mirador_agent_detecte`), ni températures, même si un
+  modèle les demande. C'est l'agent de l'hôte qui les surveille. SMART était
+  déjà écarté par le script d'installation (`systemd-detect-virt`).
+- Nouvelle série `mirador_agent_conteneur{genre}` (1 par conteneur).
+- Page machine › Réglages › bloc « mirador sur cette machine » : ligne
+  « Conteneur : LXC : capteurs, ventilateurs, ZFS et RAID de l'hôte ignorés ».
+
+Coût : une lecture de fichier au démarrage ; moins de séries envoyées par
+les conteneurs ; une requête instantanée de plus sur la page d'une machine.
+Menaces : aucune nouvelle (lecture d'un fichier public, contenu filtré par
+une expression stricte avant d'être une étiquette).

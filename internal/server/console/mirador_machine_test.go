@@ -26,6 +26,7 @@ func TestBlocMirador(t *testing.T) {
 		{r("smartctl_device_smart_status", "device", "sdb"), constante(1)},
 		{r("ssl_certs_found_total"), constante(4)},
 		{[]string{"__name__", "mirador_collecteur_compagnon", "instance", "obs"}, constante(1)},
+		{[]string{"__name__", "mirador_agent_conteneur", "instance", "pc2", "genre", "lxc"}, constante(1)},
 	})
 	if _, err := b.c.db.Exec(`INSERT INTO machines(nom, statut, type, cree_le, vu_le, version_agent) VALUES
 		('web1', 'approuvee', 'agent', 1, ?, '0.6.15'), ('pc2', 'approuvee', 'agent', 1, ?, '0.6.15'),
@@ -51,8 +52,16 @@ func TestBlocMirador(t *testing.T) {
 			t.Errorf("bloc de web1 : %q absent", attendu)
 		}
 	}
-	if pc2 := bloc("pc2"); !strings.Contains(pc2, "pas d&#39;assistant root : rien n&#39;est lu en root sur cette machine") {
+	pc2 := bloc("pc2")
+	if !strings.Contains(pc2, "pas d&#39;assistant root : rien n&#39;est lu en root sur cette machine") {
 		t.Error("machine sans assistant root : explication absente")
+	}
+	// Agent dans un conteneur LXC : le matériel de l'hôte est ignoré (SPEC § 125).
+	if !strings.Contains(pc2, "LXC : capteurs, ventilateurs, ZFS et RAID de l&#39;hôte ignorés") {
+		t.Error("pc2 (LXC) : ligne « Conteneur » absente")
+	}
+	if strings.Contains(web1, "capteurs, ventilateurs, ZFS et RAID") {
+		t.Error("web1 (pas un conteneur) : ligne « Conteneur » affichée")
 	}
 	obs := bloc("obs")
 	for _, attendu := range []string{"<b>mirador-collector</b>", "écoute seulement sur le LAN", "<b>Compagnon des processus</b>",
