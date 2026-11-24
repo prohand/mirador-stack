@@ -1856,7 +1856,8 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    obscollector, à la main : Alloy, unpoller, snmpd/snmp, minuteries
    `obs-docker`, `obs-textfile`, ancien certbot (`obs-certbot`, certificat
    d'Alloy ; mirador a le sien) supprimés ; collecteur et compagnon actifs.
-   **L'ancienne stack n'existe plus.** Reste : mesures du lendemain (VPS,
+   **L'ancienne stack n'existe plus.** Adresse de vmalert vidée et règles
+   importées sans source désactivées (24/11). Reste : mesures du lendemain (VPS,
    obscollector), « Machine physique » à décocher sur les LXC après 0.6.17,
    archives à effacer plus tard. Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
