@@ -59,7 +59,7 @@ le VPS, ajouter `-t` à `ssh`.
 - hosts: mirador_agents
   become: true
   vars:
-    serveur: https://mirador-ingest.srv-home.fr
+    serveur: https://VOTRE-VHOST-INGESTION   # adresse d'ingestion de mirador
     nom: "{{ mirador_nom | default(inventory_hostname) }}"
   tasks:
     - name: Script d'installation (depuis mirador-server)
