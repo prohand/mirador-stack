@@ -1734,8 +1734,39 @@ Relevé du 23/11 vers 1 h 15, collecteur 0.6.13 démarré depuis 6 min
 | unpoller | 24,0 Mio (RSS 21,6) | 0,07 % | 28 j 22 h |
 | **ancienne pile (total)** | **200,7 Mio** | 0,90 % | |
 
-Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 Mio avec le
-compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
+Deuxième relevé, 23/11 vers 12 h (collecteur 0.6.16 redémarré par sa mise
+à jour 15 min avant ; compagnon en marche depuis 11,9 h) :
+
+| Service | Mémoire (cgroup) | RSS | CPU moyen | Durée |
+|---|---|---|---|---|
+| mirador-collector 0.6.16 | 13,7 Mio | 20,8 Mio | 0,09 % | 0,2 h |
+| mirador-collector-processus | 11,3 Mio | 9,5 Mio | **0,02 %** | 11,9 h |
+| **mirador (total)** | **25,0 Mio** | | | |
+| Alloy | 159,2 Mio | 159,2 Mio | 0,83 % | 246,7 h |
+| unpoller | 25,6 Mio | 24,8 Mio | 0,07 % | 706,3 h |
+| **ancienne pile (total)** | **184,8 Mio** | | 0,90 % | |
+
+Machine : 961 Mio de mémoire, 402 Mio disponibles, 206 Mio de swap utilisés ;
+arrêter Alloy et unpoller rendrait environ 185 Mio.
+
+Relevé de référence, 24/11 (collecteur 0.6.16 en marche depuis 28,4 h) :
+
+| Service | Mémoire (cgroup) | RSS | CPU moyen | Durée |
+|---|---|---|---|---|
+| mirador-collector 0.6.16 | 19,6 Mio | 18,4 Mio | **0,08 %** | 28,4 h |
+| mirador-collector-processus | 11,2 Mio | 9,2 Mio | **0,02 %** | 40,1 h |
+| **mirador (total)** | **30,8 Mio** | | **0,10 %** | |
+| Alloy | 142,8 Mio | 132,9 Mio | 0,83 % | 274,8 h |
+| unpoller | 28,4 Mio | 26,1 Mio | 0,07 % | 734,5 h |
+| **ancienne pile (total)** | **171,2 Mio** | | **0,90 %** | |
+
+**Objectifs tenus** (< 40 Mio, < 1 % d'un cœur) : 5,6 fois moins de mémoire
+et 9 fois moins de CPU que l'ancienne pile.
+
+Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 à 31 Mio avec le
+compagnon). Compagnon : 0,02 % de CPU sur 12 h. Le CPU du collecteur sur 24 h
+reste à mesurer : chaque mise à jour automatique le redémarre et remet le
+compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
 24 h (le compagnon scanne /proc chaque seconde seulement pendant le direct).
 
 ## Conteneurs, nouvelle présentation (SPEC § 123, 23/11)
@@ -1766,10 +1797,62 @@ compagnon). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
 - Coût : 7 requêtes instantanées en cache (20 s) ; aucun changement de l'agent.
 - Captures ordinateur et téléphone vérifiées.
 
+## Agent dans un conteneur LXC (SPEC § 125, 24/11)
+
+- Cause : dans un LXC, `/sys/class/hwmon` montre les capteurs de l'hôte ;
+  pbs et pdm envoyaient les températures du nœud (modèle « Machine
+  physique » détecté).
+- Correction : l'agent repère le conteneur (`/run/systemd/container`,
+  `/.dockerenv`) et ne lit plus capteurs, ventilateurs, ZFS ni RAID ; ligne
+  « Conteneur » sur la page machine. Tests : détection (5 cas), bloc de la
+  page machine ; tous les tests et gosec au vert.
+- Après la mise à jour : décocher « Machine physique » sur les conteneurs
+  où il reste coché (requête `count by (instance) (node_hwmon_temp_celsius)`).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 
+0. **24/11 : avant l'étape 7, installer l'agent sur les machines qui ne
+   l'ont pas** : l'ancienne stack voit 27 machines, mirador seulement
+   proxmoxbackup et dhcpdns02 (+ collecteur-lan, fw). Procédure en série
+   par Semaphore (un modèle, jeton créé par machine, testé en local) :
+   `docs/deploiement-agents.md`. Pas de nouvelle
+   comparaison vmalert de 7 jours (choix de l'utilisateur le 24/11).
+   Collecteur : mesures 24 h faites et **objectifs tenus**. **Alloy et
+   unpoller arrêtés et désactivés sur obscollector le 24/11** (aucune
+   connexion restante sur 6514 avant l'arrêt). À vérifier le lendemain :
+   collecteur au vert dans mirador, `free -m`.
+   **Grafana supprimé le 24/11 au soir** (conteneur, volume `obs_grafana-data`,
+   image 13.2.2 ; sauvegarde `/root/grafana-sauvegarde.tgz` 250 Mio sur le
+   VPS). Reste : service et volume dans `/opt/obs/docker-compose.yml`, dossiers
+   `/opt/obs/grafana`, secret `grafana_admin`, bloc nginx (`obs.conf`, et une
+   mention dans le vhost mirador : un commentaire seulement), certificat, DNS.
+   **24/11 : l'utilisateur veut supprimer toute l'ancienne stack** (VPS :
+   VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager ; machines : Alloy) :
+   phases A, C, D, E d'un coup après un relevé du VPS, en gardant
+   `docker-socket-proxy` et le réseau `obs` tant que mirador y est.
+   **Fait le 24/11 au soir** : Alertmanager, vmalert (×2), VictoriaMetrics,
+   VictoriaLogs supprimés (conteneurs, volumes `obs_am-data`, `obs_vm-data`,
+   `obs_vl-data`, images). Reste : fichiers de `/opt/obs` (config, règles,
+   secrets de l'ancienne stack), compose, nginx, réseau (phase D),
+   certificats, DNS ; machines : Alloy (playbook après les agents).
+   Puis (24/11) : `/opt/obs` supprimé, minuteries `obs-docker` et
+   `obs-textfile` arrêtées, nginx `obs.conf`, `ingest.conf`, `00-obs-map.conf`
+   retirés (mirador répond 200) ; gardés : `01-obs-geo.conf`, `obs-allow.conf`,
+   minuteries `obs-geo-fr` et `obs-geoip-update`. Phase D sautée (seul
+   mirador reste sur le réseau `obs`). Certificat d'ingest.srv-home.fr
+   et DNS `obs`, `ingest` supprimés (24/11). Reste : mesure mémoire du
+   lendemain, agents sur les 24 machines puis suppression d'Alloy.
+   Semaphore (inventaire `mirador_agent`, `vps` = `sup`) : **dns1 installé
+   le 24/11** par le playbook, puis les autres le même soir (inventaire de
+   27 machines ; ripeatlas en échec : VM supprimée par l'utilisateur).
+   Toutes approuvées le 24/11. pbs et pdm notées « physique » : type repris
+   d'Alloy (`OBS_ENV` de `/etc/default/alloy`), à corriger dans mirador
+   (page machine › Réglages › Type). Reste : suppression d'Alloy (essai
+   `--check` sur dns1). Demandé aussi :
+   **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
+   approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
    (`docs/bascule-collecteur.md`). Fait le 22/11 sur obscollector
    (collecteur 0.6.9, serveur 0.6.10) : SNMP v3 du NAS, contrôleur UniFi
@@ -1777,9 +1860,8 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    certificats, syslog TLS sur 192.168.35.10:6515. Le 22/11 au soir : `fw`
    envoie aussi ses métriques par Telegraf (token propre, IP publique
    ajoutée aux adresses autorisées). Collecteur 0.6.12 : + 101 séries pour
-   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Reste : **mesures 24 h**
-   (collecteur contre Alloy + unpoller), puis arrêt d'Alloy et d'unpoller
-   **sur validation**.
+   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Mesures 24 h faites
+   (objectifs tenus), Alloy et unpoller arrêtés le 24/11.
    0.6.13 en préparation : collecteur en direct, compagnon des processus
    (relancer une fois le script d'installation du collecteur), page
    Supervision › Santé de mirador, colonne « Envoi direct » de l'onglet

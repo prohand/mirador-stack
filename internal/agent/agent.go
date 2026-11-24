@@ -117,14 +117,20 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		collect.NewUname(),
 		// Adresses et ports ouverts : sondes proposées dans l'interface (SPEC § 60).
 		collect.NewEcoutes(cfg.RacineProc),
-		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
-		// sinon seulement signalés à l'interface (SPEC.md § 19).
-		collect.NewMateriel(cfg.RacineSys, cfg.RacineProc, cfg.Ventilateurs, cfg.ZFS, cfg.Mdraid),
 		// Processus les plus gourmands, chaque minute : « cause probable » des alertes (SPEC § 98).
 		collect.NewProcessus(cfg.RacineProc),
 	}
-	if cfg.Temperatures {
-		liste = append(liste, collect.NewTemperatures(cfg.RacineSys))
+	// Matériel (capteurs, ventilateurs, ZFS, RAID logiciel) : pas dans un
+	// conteneur, où /sys et /proc montrent celui de l'hôte (SPEC § 125).
+	if collect.Conteneur() == "" {
+		// Ventilateurs, ZFS, RAID logiciel : envoyés s'ils sont activés,
+		// sinon seulement signalés à l'interface (SPEC.md § 19).
+		liste = append(liste, collect.NewMateriel(cfg.RacineSys, cfg.RacineProc, cfg.Ventilateurs, cfg.ZFS, cfg.Mdraid))
+		if cfg.Temperatures {
+			liste = append(liste, collect.NewTemperatures(cfg.RacineSys))
+		}
+	} else if journal != nil {
+		journal.Info("agent dans un conteneur : capteurs, ventilateurs, ZFS et RAID de l'hôte ignorés", "conteneur", collect.Conteneur())
 	}
 	// Résultats de l'assistant root (pare-feu, SMART, certificats) : rien
 	// n'est envoyé tant que l'assistant n'a pas écrit son fichier.
@@ -343,6 +349,10 @@ func (i *interne) rss() float64 {
 func (a *Agent) ajouterInternes() {
 	b := a.lot
 	b.Add("mirador_agent_info", 1, mm.L("version", version.Version))
+	// Conteneur (LXC, Docker…) : matériel de l'hôte ignoré (SPEC § 125).
+	if g := collect.Conteneur(); g != "" {
+		b.Add("mirador_agent_conteneur", 1, mm.L("genre", g))
+	}
 	b.Add("mirador_agent_resident_memory_bytes", a.interne.rss())
 	// Envoi allégé et tampon disque (SPEC § 100).
 	if a.allegeur != nil {

@@ -114,7 +114,7 @@ minuteries ou lignes cron remises).
    dans la liste : l'agent mirador du VPS s'en sert.
 
    ```bash
-   docker update --restart=no obs-vmalert obs-vmalert-logs obs-grafana obs-victoriametrics obs-victorialogs && docker stop obs-vmalert obs-vmalert-logs obs-grafana obs-victoriametrics obs-victorialogs
+   docker update --restart=no obs-vmalert obs-vmalert-logs obs-victoriametrics obs-victorialogs && docker stop obs-vmalert obs-vmalert-logs obs-victoriametrics obs-victorialogs
    ```
 
 3. nginx : garder une copie, puis repérer les blocs de l'ancienne stack
@@ -135,7 +135,7 @@ minuteries ou lignes cron remises).
 **Retour arrière** :
 
 ```bash
-docker update --restart=unless-stopped obs-vmalert obs-vmalert-logs obs-grafana obs-victoriametrics obs-victorialogs && docker start obs-victoriametrics obs-victorialogs obs-vmalert obs-vmalert-logs obs-grafana
+docker update --restart=unless-stopped obs-vmalert obs-vmalert-logs obs-victoriametrics obs-victorialogs && docker start obs-victoriametrics obs-victorialogs obs-vmalert obs-vmalert-logs
 ```
 
 ```bash
@@ -246,10 +246,120 @@ free -m && docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc
 Attendu (SPEC § 2.1) : environ **770 Mio** de RAM rendus par l'ancienne
 stack ; mirador sous 256 Mio.
 
-## Grafana : pas gardé (décision du 23/11)
+## Suppression express (choix du 24/11)
 
-Grafana s'arrête avec l'ancienne stack en phase C. L'API de lecture
-compatible Prometheus du brief (facultative) n'est pas faite : rien à
-installer ni à mesurer. Les tableaux utiles ont leur équivalent dans
-mirador (Tableaux, import Grafana) ; la page Logs remplace le tableau
-« Logs ».
+L'utilisateur supprime toute l'ancienne stack sans attendre les agents des
+machines (il accepte qu'elles ne soient pas surveillées quelques heures).
+Remplace les phases A et C ; D et E suivent sans délai.
+
+**Ne pas faire `docker compose down` dans `/opt/obs`** : mirador est encore
+sur le réseau `obs` et l'agent mirador du VPS se sert de
+`docker-socket-proxy`.
+
+1. Vérifier dans mirador : Réglages › Notifications : heartbeat « OK »,
+   bouton Tester (Telegram reçu) ; Réglages › Sauvegardes : sauvegarde du
+   jour réussie.
+2. Supprimer les conteneurs (d'abord tous, puis volumes et images, car
+   vmalert et vmalert-logs partagent leur image) ; pas d'archive de
+   l'historique (mirador a le sien depuis son installation) :
+
+   ```bash
+   L="obs-alertmanager obs-vmalert obs-vmalert-logs obs-victoriametrics obs-victorialogs"
+   VOLS=""; IMGS=""; BINDS=""
+   for c in $L; do
+     docker inspect "$c" >/dev/null 2>&1 || { echo "$c : absent"; continue; }
+     IMGS="$IMGS $(docker inspect "$c" -f '{{.Config.Image}}')"
+     VOLS="$VOLS $(docker inspect "$c" -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')"
+     BINDS="$BINDS $(docker inspect "$c" -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}} {{end}}{{end}}')"
+     docker rm -f "$c"
+   done
+   [ -n "${VOLS// /}" ] && docker volume rm $VOLS
+   docker image rm $(echo $IMGS | tr ' ' '\n' | sort -u)
+   echo "Dossiers montés (gardés, à voir) : $BINDS"
+   ```
+
+3. mirador : Réglages › Notifications : vider l'adresse de vmalert ;
+   Règles : désactiver les règles importées sans source (`ProxmoxMuet`,
+   `SyslogMuet`…).
+4. Fait le 24/11. Relevé du VPS ensuite :
+   - `/opt/obs` ne contient plus que le compose (aucun service gardé :
+     `docker-socket-proxy` n'y est pas) → archive
+     `/root/obs-avant-suppression.tgz`, puis `/opt/obs` supprimé ;
+   - réseau `obs` : seul `mirador-server` y reste → l'isolement voulu par la
+     phase D est atteint ; la phase D (renommage, nouvelle plage) devient
+     facultative ;
+   - nginx : `obs.conf` (Grafana, obs.srv-home.fr), `ingest.conf`
+     (VictoriaMetrics et VictoriaLogs, ingest.srv-home.fr) et
+     `00-obs-map.conf` (tokens d'Alloy) partent ; **gardés** :
+     `01-obs-geo.conf` (restriction géographique de la console mirador),
+     `snippets/obs-allow.conf`, `02-mirador.conf` ;
+   - minuteries du VPS : `obs-docker` et `obs-textfile` (pour Alloy)
+     partent ; **gardées** : `obs-geo-fr`, `obs-geoip-update` ;
+   - certificats et DNS de obs.srv-home.fr et ingest.srv-home.fr.
+
+## Grafana : suppression complète (demandée le 24/11)
+
+Grafana n'est pas gardé (décision du 23/11) et ne touche ni aux données ni
+aux alertes de mirador : il part **tout de suite**, sans attendre les
+phases A à C (il n'est plus dans les listes de la phase C). C'est le plus
+gros conteneur de l'ancienne stack (≈ 291 Mio mesurés le 07/11).
+
+Tout se fait sur le VPS.
+
+Pas d'attente (choix du 24/11) : relevé, sauvegarde, suppression d'un coup.
+Avant : dans Grafana, **Alerting › Alert rules** : s'il reste des règles
+actives, elles ne partiront plus (mirador a les siennes).
+
+### G1. Relevé (lecture seule)
+
+```bash
+docker inspect obs-grafana -f 'image : {{.Config.Image}}
+compose : {{index .Config.Labels "com.docker.compose.project.config_files"}} (service {{index .Config.Labels "com.docker.compose.service"}})
+{{range .Mounts}}{{.Type}} : {{if .Name}}{{.Name}}{{else}}{{.Source}}{{end}} -> {{.Destination}}
+{{end}}'
+grep -rln -i grafana /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null
+```
+
+### G2. Sauvegarde (tableaux, utilisateurs, sources : au cas où)
+
+```bash
+D=$(docker inspect obs-grafana -f '{{range .Mounts}}{{.Destination}} {{end}}')
+docker run --rm --volumes-from obs-grafana -v /root:/sortie alpine:3.20 tar czf /sortie/grafana-sauvegarde.tgz $D
+ls -lh /root/grafana-sauvegarde.tgz
+```
+
+### G3. Suppression
+
+```bash
+IMG=$(docker inspect obs-grafana -f '{{.Config.Image}}')
+VOLS=$(docker inspect obs-grafana -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')
+docker rm -f obs-grafana
+docker volume rm $VOLS
+docker image rm $IMG
+```
+
+`docker volume rm` et `docker image rm` refusent d'eux-mêmes ce qu'un autre
+conteneur utilise encore. Les dossiers montés (`bind` dans le relevé) ne
+sont pas effacés : à supprimer à la main s'ils ne servent qu'à Grafana.
+
+Puis :
+
+1. **Fichier compose** (chemin donné par le relevé) : retirer le service
+   `grafana` et son volume dans la section `volumes:` du bas (sinon un
+   `docker compose up -d` le recrée). Vérifier :
+   `docker compose -f FICHIER config -q` (aucune sortie = bon).
+2. **nginx** : copie d'abord (`sudo cp -a /etc/nginx /root/nginx-avant-grafana`).
+   Fichier propre à Grafana : supprimer son lien dans `sites-enabled` ;
+   bloc dans un fichier commun : supprimer le bloc `server` de Grafana.
+   Puis `sudo nginx -t && sudo systemctl reload nginx`.
+3. **Certificat** du nom de Grafana (`sudo certbot delete --cert-name NOM`
+   si certbot) et **enregistrement DNS**.
+4. `/root/grafana-sauvegarde.tgz` : à effacer quand tu veux.
+
+Retour arrière (dans les jours qui suivent) : remettre le service dans le
+compose, `docker compose up -d grafana`, puis restaurer l'archive dans le
+nouveau volume.
+
+Les tableaux utiles ont leur équivalent dans mirador (Tableaux, import
+Grafana) ; la page Logs remplace le tableau « Logs ». L'API de lecture
+compatible Prometheus du brief (facultative) n'est pas faite.
