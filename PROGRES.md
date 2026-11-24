@@ -1815,7 +1815,11 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    image 13.2.2 ; sauvegarde `/root/grafana-sauvegarde.tgz` 250 Mio sur le
    VPS). Reste : service et volume dans `/opt/obs/docker-compose.yml`, dossiers
    `/opt/obs/grafana`, secret `grafana_admin`, bloc nginx (`obs.conf`, et une
-   mention dans le vhost mirador à regarder), certificat, DNS. Demandé aussi :
+   mention dans le vhost mirador : un commentaire seulement), certificat, DNS.
+   **24/11 : l'utilisateur veut supprimer toute l'ancienne stack** (VPS :
+   VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager ; machines : Alloy) :
+   phases A, C, D, E d'un coup après un relevé du VPS, en gardant
+   `docker-socket-proxy` et le réseau `obs` tant que mirador y est. Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
    approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
