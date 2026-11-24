@@ -1829,8 +1829,9 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    `obs-textfile` arrêtées, nginx `obs.conf`, `ingest.conf`, `00-obs-map.conf`
    retirés (mirador répond 200) ; gardés : `01-obs-geo.conf`, `obs-allow.conf`,
    minuteries `obs-geo-fr` et `obs-geoip-update`. Phase D sautée (seul
-   mirador reste sur le réseau `obs`). Reste : certificat d'ingest.srv-home.fr,
-   DNS `obs` et `ingest`, mesure mémoire du lendemain. Demandé aussi :
+   mirador reste sur le réseau `obs`). Certificat d'ingest.srv-home.fr
+   et DNS `obs`, `ingest` supprimés (24/11). Reste : mesure mémoire du
+   lendemain, agents sur les 22 machines puis suppression d'Alloy. Demandé aussi :
    **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
    approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
