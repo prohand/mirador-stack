@@ -115,8 +115,8 @@ rm -rf ~/mirador-jetons
 Jetons non utilisés : ils expirent seuls après 24 h.
 
 📋 À me coller : la liste de la page Machines (noms, en ligne ou non).
-Ensuite : 7 jours de comparaison vmalert, puis phase A de
-`docs/bascule-finale.md`.
+Ensuite : phase A de `docs/bascule-finale.md` (pas de nouvelle
+comparaison vmalert, choix du 24/11).
 
 ## Retour arrière (une machine)
 

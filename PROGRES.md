@@ -1804,9 +1804,12 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 0. **24/11 : avant l'étape 7, installer l'agent sur les machines qui ne
    l'ont pas** : l'ancienne stack voit 27 machines, mirador seulement
    proxmoxbackup et dhcpdns02 (+ collecteur-lan, fw). Procédure en série
-   depuis `ansible` : `docs/deploiement-agents.md`. Puis 7 jours de
-   comparaison vmalert avant la phase A. Collecteur : mesures 24 h faites et
-   **objectifs tenus** (arrêt d'Alloy et d'unpoller sur obscollector proposé).
+   depuis `ansible` : `docs/deploiement-agents.md`. Pas de nouvelle
+   comparaison vmalert de 7 jours (choix de l'utilisateur le 24/11).
+   Collecteur : mesures 24 h faites et **objectifs tenus**. **Alloy et
+   unpoller arrêtés et désactivés sur obscollector le 24/11** (aucune
+   connexion restante sur 6514 avant l'arrêt). À vérifier le lendemain :
+   collecteur au vert dans mirador, `free -m`.
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
    (`docs/bascule-collecteur.md`). Fait le 22/11 sur obscollector
    (collecteur 0.6.9, serveur 0.6.10) : SNMP v3 du NAS, contrôleur UniFi
@@ -1814,9 +1817,8 @@ Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
    certificats, syslog TLS sur 192.168.35.10:6515. Le 22/11 au soir : `fw`
    envoie aussi ses métriques par Telegraf (token propre, IP publique
    ajoutée aux adresses autorisées). Collecteur 0.6.12 : + 101 séries pour
-   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Reste : **mesures 24 h**
-   (collecteur contre Alloy + unpoller), puis arrêt d'Alloy et d'unpoller
-   **sur validation**.
+   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Mesures 24 h faites
+   (objectifs tenus), Alloy et unpoller arrêtés le 24/11.
    0.6.13 en préparation : collecteur en direct, compagnon des processus
    (relancer une fois le script d'installation du collecteur), page
    Supervision › Santé de mirador, colonne « Envoi direct » de l'onglet
