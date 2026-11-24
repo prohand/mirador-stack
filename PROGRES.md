@@ -1749,7 +1749,21 @@ Deuxième relevé, 23/11 vers 12 h (collecteur 0.6.16 redémarré par sa mise
 Machine : 961 Mio de mémoire, 402 Mio disponibles, 206 Mio de swap utilisés ;
 arrêter Alloy et unpoller rendrait environ 185 Mio.
 
-Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 à 25 Mio avec le
+Relevé de référence, 24/11 (collecteur 0.6.16 en marche depuis 28,4 h) :
+
+| Service | Mémoire (cgroup) | RSS | CPU moyen | Durée |
+|---|---|---|---|---|
+| mirador-collector 0.6.16 | 19,6 Mio | 18,4 Mio | **0,08 %** | 28,4 h |
+| mirador-collector-processus | 11,2 Mio | 9,2 Mio | **0,02 %** | 40,1 h |
+| **mirador (total)** | **30,8 Mio** | | **0,10 %** | |
+| Alloy | 142,8 Mio | 132,9 Mio | 0,83 % | 274,8 h |
+| unpoller | 28,4 Mio | 26,1 Mio | 0,07 % | 734,5 h |
+| **ancienne pile (total)** | **171,2 Mio** | | **0,90 %** | |
+
+**Objectifs tenus** (< 40 Mio, < 1 % d'un cœur) : 5,6 fois moins de mémoire
+et 9 fois moins de CPU que l'ancienne pile.
+
+Objectif du collecteur : < 40 Mio (SPEC § 23.3) : tenu (20 à 31 Mio avec le
 compagnon). Compagnon : 0,02 % de CPU sur 12 h. Le CPU du collecteur sur 24 h
 reste à mesurer : chaque mise à jour automatique le redémarre et remet le
 compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). Mémoire : 10 fois moins que l'ancienne pile. CPU : à juger sur
@@ -1787,6 +1801,12 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
 
+0. **24/11 : avant l'étape 7, installer l'agent sur les machines qui ne
+   l'ont pas** : l'ancienne stack voit 27 machines, mirador seulement
+   proxmoxbackup et dhcpdns02 (+ collecteur-lan, fw). Procédure en série
+   depuis `ansible` : `docs/deploiement-agents.md`. Puis 7 jours de
+   comparaison vmalert avant la phase A. Collecteur : mesures 24 h faites et
+   **objectifs tenus** (arrêt d'Alloy et d'unpoller sur obscollector proposé).
 1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
    (`docs/bascule-collecteur.md`). Fait le 22/11 sur obscollector
    (collecteur 0.6.9, serveur 0.6.10) : SNMP v3 du NAS, contrôleur UniFi
