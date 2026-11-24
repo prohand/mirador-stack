@@ -72,7 +72,12 @@ Ce que fait le script :
   l'assistant dans `/usr/local/lib/mirador-agent/` ;
 - écrit `/etc/mirador-agent/agent.conf` et `/etc/mirador-agent/token` (0640) ;
 - si Docker est présent : lance le conteneur `mirador-docker-proxy`
-  (`tecnativa/docker-socket-proxy:v0.5.0`, lecture seule, `127.0.0.1:12375`) ;
+  (`tecnativa/docker-socket-proxy:v0.5.0`, lecture seule, `127.0.0.1:12375`),
+  sur son propre réseau Docker `mirador-docker` (`172.31.254.0/29`, pont
+  `br-mirador`, relais en `172.31.254.2` ; autre plage privée :
+  `--docker-reseau`). **Pare-feu qui filtre la sortie** (OUTPUT en DROP) :
+  autoriser `iptables -I OUTPUT 1 -o br-mirador -s 172.31.254.1 -d 172.31.254.2 -p tcp --dport 2375 -j ACCEPT`
+  (le script le signale s'il ne joint pas le relais) ;
 - installe et démarre `mirador-agent.service` et `mirador-agent-root.timer`.
 
 ## 3. Autoriser l'agent dans nginx (VPS)

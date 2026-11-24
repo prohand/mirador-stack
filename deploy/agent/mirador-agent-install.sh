@@ -10,7 +10,9 @@
 #   - configuration et token dans /etc/mirador-agent ;
 #   - unités systemd durcies : agent, assistant root (timer 15 min),
 #     retour arrière ;
-#   - si Docker est présent : proxy de socket en lecture seule (conteneur).
+#   - si Docker est présent : relais de socket en lecture seule (conteneur),
+#     sur son propre réseau Docker à adresse fixe (une seule règle de
+#     pare-feu, la même sur toutes les machines).
 #
 # Deux modes :
 #   - étape 2 (défaut) : envoi vers VictoriaMetrics / VictoriaLogs derrière nginx,
@@ -44,6 +46,8 @@
 #   --docker MODE        auto | oui | non   (défaut auto : oui si Docker est présent)
 #   --docker-proxy URL   utiliser un proxy de socket existant (http://127.0.0.1:PORT)
 #                        au lieu d'en créer un
+#   --docker-reseau PLAGE  plage PRIVÉE du réseau du relais Docker (/24 à /29 ;
+#                        défaut 172.31.254.0/29 : passerelle .1, relais .2)
 #   --pare-feu MODE      auto | oui | non   (défaut auto : oui si --env vps ou INPUT restrictif)
 #   --smart MODE         auto | oui | non   (défaut auto : oui sur machine physique)
 #   --sans-logs          ne pas envoyer les logs (métriques seulement)
@@ -84,6 +88,14 @@ TMPFILES=/etc/tmpfiles.d/mirador-agent.conf
 PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
 PROXY_NOM=mirador-docker-proxy
 PROXY_PORT=12375
+# Réseau dédié au relais, adresse fixe (retour du 24/11 : avec une sortie
+# filtrée, l'adresse variable du pont par défaut obligeait à ouvrir toute sa
+# plage). L'agent passe toujours par 127.0.0.1:$PROXY_PORT (il refuse toute
+# autre adresse : le relais n'est pas chiffré) ; Docker relaie vers l'adresse
+# fixe : c'est cette sortie-là que le pare-feu doit laisser passer.
+PROXY_RESEAU=mirador-docker
+PROXY_PONT=br-mirador
+PROXY_PLAGE=172.31.254.0/29
 
 BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""; CLE_PUBLIQUE=""; MAJ_RACINE=""
 DOCKER_MODE=auto; DOCKER_PROXY=""; PAREFEU_MODE=auto; SMART_MODE=auto
@@ -106,6 +118,7 @@ while [ $# -gt 0 ]; do
     --jeton)           JETON="${2:-}"; MIRADOR=oui; shift 2 ;;
     --docker)          DOCKER_MODE="${2:-}"; shift 2 ;;
     --docker-proxy)    DOCKER_PROXY="${2:-}"; shift 2 ;;
+    --docker-reseau)   PROXY_PLAGE="${2:-}"; shift 2 ;;
     --pare-feu)        PAREFEU_MODE="${2:-}"; shift 2 ;;
     --smart)           SMART_MODE="${2:-}"; shift 2 ;;
     --sans-logs)       LOGS=non; shift ;;
@@ -126,6 +139,26 @@ if [ -z "$JETON" ] && [ -n "${MIRADOR_JETON:-}" ]; then
 fi
 unset MIRADOR_JETON
 
+# Plage du relais Docker : privée (RFC 1918), de /24 à /29, alignée ;
+# passerelle = 1re adresse (l'hôte), relais = 2e.
+plage_relais() {
+  local p=$1 a b c d l taille
+  [[ "$p" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/(2[4-9])$ ]] \
+    || die "--docker-reseau : plage invalide « $p » (ex. 172.31.254.0/29, de /24 à /29)"
+  a=${BASH_REMATCH[1]}; b=${BASH_REMATCH[2]}; c=${BASH_REMATCH[3]}; d=${BASH_REMATCH[4]}; l=${BASH_REMATCH[5]}
+  { [ "$a" -le 255 ] && [ "$b" -le 255 ] && [ "$c" -le 255 ] && [ "$d" -le 255 ]; } \
+    || die "--docker-reseau : plage invalide « $p »"
+  if ! { [ "$a" -eq 10 ] || { [ "$a" -eq 172 ] && [ "$b" -ge 16 ] && [ "$b" -le 31 ]; } \
+         || { [ "$a" -eq 192 ] && [ "$b" -eq 168 ]; }; }; then
+    die "--docker-reseau : « $p » n'est pas une plage privée (10.x, 172.16 à 172.31, 192.168.x)"
+  fi
+  taille=$(( 1 << (32 - l) ))
+  [ $(( d % taille )) -eq 0 ] || die "--docker-reseau : « $p » ne commence pas au début d'un bloc /$l"
+  PROXY_PASSERELLE="$a.$b.$c.$(( d + 1 ))"
+  PROXY_IP="$a.$b.$c.$(( d + 2 ))"
+}
+plage_relais "$PROXY_PLAGE"
+
 [ "$(id -u)" -eq 0 ] || die "à lancer en root (sudo)"
 
 # ---------------------------------------------------------------- désinstallation
@@ -137,6 +170,9 @@ if [ "$MODE" = desinstaller ]; then
   systemctl daemon-reload
   if command -v docker >/dev/null 2>&1 && docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     docker rm -f "$PROXY_NOM" >/dev/null
+  fi
+  if command -v docker >/dev/null 2>&1 && docker network inspect "$PROXY_RESEAU" >/dev/null 2>&1; then
+    docker network rm "$PROXY_RESEAU" >/dev/null || true
   fi
   rm -f "$TMPFILES"
   rm -rf /run/mirador-agent
@@ -244,6 +280,9 @@ afficher_detection() {
   [ -n "$NOM_ALLOY" ] && echo "  Nom chez Alloy  : $NOM_ALLOY"
   echo "  Étiquettes      : site=${SITE:-?}  env=${ENV_:-?}"
   echo "  Docker          : $A_DOCKER présent -> métriques et logs Docker : $USE_DOCKER"
+  if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
+    echo "  Relais Docker   : 127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375 (réseau $PROXY_RESEAU $PROXY_PLAGE, pont $PROXY_PONT)"
+  fi
   echo "  Pare-feu        : INPUT restrictif : $INPUT_RESTRICTIF -> contrôle : $USE_PAREFEU"
   echo "  Machine physique: $PHYSIQUE -> SMART : $USE_SMART"
   echo "  Métriques       : $METRIQUES"
@@ -351,9 +390,14 @@ EOF
 }
 
 # ignorer_systemd reprend la liste locale d'obs-systemd.sh (une unité par ligne).
+# Sans ce fichier (ancienne stack supprimée), la liste déjà écrite dans
+# agent.conf est gardée : relancer le script ne la perd pas (retour du 24/11).
 ignorer_systemd() {
-  [ -r /etc/obs-systemd-ignore ] || return 0
-  sed 's/#.*//' /etc/obs-systemd-ignore | tr -s ' \t' '\n' | grep -E '\.service$' | paste -sd, - || true
+  if [ -r /etc/obs-systemd-ignore ]; then
+    sed 's/#.*//' /etc/obs-systemd-ignore | tr -s ' \t' '\n' | grep -E '\.service$' | paste -sd, - || true
+  elif [ -r "$ETC/agent.conf" ]; then
+    sed -n 's/^MIRADOR_SYSTEMD_IGNORER=//p' "$ETC/agent.conf" | head -1 | grep -E '^[A-Za-z0-9@_.:,-]*$' || true
+  fi
 }
 
 unite_agent() {
@@ -724,18 +768,59 @@ runuser -u "$UTILISATEUR" -- "$BIN_DIR/current" -verifier -config "$ETC/agent.co
   || die "configuration refusée (voir le message ci-dessus)"
 
 # ---------------------------------------------------------------- proxy Docker
+# relais_joignable : le relais répond-il à /_ping, par le chemin de l'agent
+# (127.0.0.1:PORT, puis Docker vers l'adresse fixe) ? 5 essais, sans curl.
+relais_joignable() {
+  local i
+  for i in 1 2 3 4 5; do
+    if timeout 3 bash -c "exec 3<>/dev/tcp/127.0.0.1/$PROXY_PORT && printf 'GET /_ping HTTP/1.0\r\n\r\n' >&3 && head -c 12 <&3" 2>/dev/null \
+         | grep -q ' 200'; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
 if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
-  if docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
-    info "Proxy Docker $PROXY_NOM déjà en place"
+  # Réseau dédié : adresse fixe, pont nommé, conteneurs isolés entre eux.
+  if docker network inspect "$PROXY_RESEAU" >/dev/null 2>&1; then
+    plage_actuelle=$(docker network inspect "$PROXY_RESEAU" -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+    [ "$plage_actuelle" = "$PROXY_PLAGE" ] \
+      || die "le réseau Docker $PROXY_RESEAU existe déjà avec la plage $plage_actuelle (attendue $PROXY_PLAGE) : relancer avec --docker-reseau $plage_actuelle"
   else
-    info "Proxy Docker en lecture seule ($PROXY_IMAGE, 127.0.0.1:$PROXY_PORT)"
+    info "Réseau Docker $PROXY_RESEAU ($PROXY_PLAGE, pont $PROXY_PONT)"
+    docker network create --driver bridge --subnet "$PROXY_PLAGE" --gateway "$PROXY_PASSERELLE" \
+      -o com.docker.network.bridge.name="$PROXY_PONT" \
+      -o com.docker.network.bridge.enable_icc=false \
+      --label mirador=relais-docker "$PROXY_RESEAU" >/dev/null \
+      || die "création du réseau $PROXY_RESEAU impossible (plage déjà prise ? --docker-reseau AUTRE_PLAGE)"
+  fi
+  # Relais déjà en place, au bon endroit ? Sinon (ancienne installation sur le
+  # pont par défaut, adresse changée, conteneur arrêté) : recréé.
+  place=""
+  if docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
+    place=$(docker inspect "$PROXY_NOM" -f '{{range $n, $r := .NetworkSettings.Networks}}{{$n}}={{$r.IPAddress}} {{end}}')
+  fi
+  if [ "$place" = "$PROXY_RESEAU=$PROXY_IP " ]; then
+    info "Relais Docker $PROXY_NOM déjà en place ($PROXY_IP)"
+  else
+    [ -z "$place" ] || docker rm -f "$PROXY_NOM" >/dev/null
+    info "Relais Docker en lecture seule ($PROXY_IMAGE, 127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)"
     docker run -d --name "$PROXY_NOM" --restart unless-stopped \
+      --network "$PROXY_RESEAU" --ip "$PROXY_IP" \
+      -p "127.0.0.1:$PROXY_PORT:2375" \
       --read-only --tmpfs /run --tmpfs /tmp \
       --security-opt no-new-privileges:true --memory 32m \
-      -p "127.0.0.1:$PROXY_PORT:2375" \
       -v /var/run/docker.sock:/var/run/docker.sock:ro \
       -e CONTAINERS=1 -e POST=0 -e INFO=0 -e PING=1 -e VERSION=1 \
       "$PROXY_IMAGE" >/dev/null
+  fi
+  if ! relais_joignable; then
+    echo "   ATTENTION : le relais Docker ne répond pas (127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)."
+    echo "   Cause habituelle : un pare-feu qui bloque la SORTIE (OUTPUT en DROP)."
+    echo "   Règle à ajouter (puis à rendre permanente) :"
+    echo "     iptables -I OUTPUT 1 -o $PROXY_PONT -s $PROXY_PASSERELLE -d $PROXY_IP -p tcp --dport 2375 -j ACCEPT"
+    echo "   (sans elle : pas de métriques ni de logs Docker, alerte « Docker : démon injoignable »)"
   fi
 fi
 
