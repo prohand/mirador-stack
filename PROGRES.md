@@ -1809,6 +1809,19 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Après la mise à jour : décocher « Machine physique » sur les conteneurs
   où il reste coché (requête `count by (instance) (node_hwmon_temp_celsius)`).
 
+## Relais Docker à adresse fixe (SPEC § 126, 24/11)
+
+- Cause : sup, mail, proxy ont la sortie en DROP ; Docker relaie
+  `127.0.0.1:12375` vers le relais par `docker0` (`172.19.0.1` →
+  `172.19.0.2:2375`), jeté (journal `DROP_OUT_v4`). Adresse non fixe sur ce pont.
+- Correction (script d'installation, arrive avec le serveur) : réseau
+  `mirador-docker`, pont `br-mirador`, `172.31.254.0/29`, relais en
+  `172.31.254.2` ; une seule règle de sortie partout ; test du relais en fin
+  d'installation ; liste des services ignorés gardée en relançant le script.
+  Testé : calcul et refus des plages (9 cas), test du relais (joignable /
+  absent), placement du relais avec un faux docker (neuf, ancien, déjà bon,
+  autre plage), playbook Semaphore en local.
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
