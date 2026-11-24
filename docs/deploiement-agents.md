@@ -146,6 +146,49 @@ jeton non utilisé expire seul après 1 h.
 Ensuite : phase A de `docs/bascule-finale.md` (pas de nouvelle
 comparaison vmalert, choix du 24/11).
 
+## 5. Supprimer Alloy et l'ancienne collecte (2e passage, après approbation)
+
+Pas dans le même passage que l'installation :
+
+- le script d'installation **lit `/etc/default/alloy`** (site, type) et
+  `/etc/obs-systemd-ignore` : Alloy doit encore être là à l'installation ;
+- une machine n'envoie rien tant qu'elle n'est pas approuvée : supprimer
+  Alloy avant, c'est un trou dans la supervision ;
+- 24 machines muettes d'un coup = autant d'alertes « muet » de l'ancien
+  Alertmanager : faire d'abord la **phase A** de `docs/bascule-finale.md`.
+
+Ordre : installer → approuver → vérifier dans mirador (machines vertes,
+graphiques remplis) → phase A → relevé ci-dessous → suppression.
+
+Relevé en lecture seule (`inventaire-ancienne-stack.yml`), à me coller
+(noms de services et de fichiers seulement, aucun secret) ; j'écris la
+suppression exacte à partir de ce relevé (Alloy, SNMP, `smartctl_exporter`,
+scripts `obs-*`, minuteries, cron), avec une garde : rien n'est supprimé sur
+une machine dont l'agent mirador n'est pas approuvé et actif.
+
+```yaml
+# Lecture seule : ce qui reste de l'ancienne stack sur chaque machine.
+- name: Ancienne stack, ce qui reste
+  hosts: mirador_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Services, minuteries, cron, paquets, scripts
+      ansible.builtin.shell: |
+        systemctl list-unit-files --no-pager --no-legend | grep -i -E 'alloy|exporter|obs-|snmp' | awk '{print "unité : "$1" ("$2")"}'
+        grep -l -E 'obs-|alloy' /etc/crontab /etc/cron.d/* /var/spool/cron/crontabs/* 2>/dev/null | sed 's/^/cron : /'
+        dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /alloy|snmp|exporter/ {print "paquet : "$2}'
+        ls -d /usr/local/bin/obs-* /usr/local/sbin/obs-* /etc/obs-* /etc/alloy /etc/default/alloy /etc/snmp 2>/dev/null | sed 's/^/fichier : /'
+        test -s /var/lib/mirador-agent/token && echo "mirador : agent approuvé" || echo "mirador : agent PAS encore approuvé"
+        systemctl is-active mirador-agent | sed 's/^/mirador-agent : /'
+        true
+      register: reste
+      changed_when: false
+    - name: Résultat
+      ansible.builtin.debug:
+        var: reste.stdout_lines
+```
+
 ## Retour arrière (une machine)
 
 ```bash
