@@ -246,6 +246,44 @@ free -m && docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc
 Attendu (SPEC § 2.1) : environ **770 Mio** de RAM rendus par l'ancienne
 stack ; mirador sous 256 Mio.
 
+## Suppression express (choix du 24/11)
+
+L'utilisateur supprime toute l'ancienne stack sans attendre les agents des
+machines (il accepte qu'elles ne soient pas surveillées quelques heures).
+Remplace les phases A et C ; D et E suivent sans délai.
+
+**Ne pas faire `docker compose down` dans `/opt/obs`** : mirador est encore
+sur le réseau `obs` et l'agent mirador du VPS se sert de
+`docker-socket-proxy`.
+
+1. Vérifier dans mirador : Réglages › Notifications : heartbeat « OK »,
+   bouton Tester (Telegram reçu) ; Réglages › Sauvegardes : sauvegarde du
+   jour réussie.
+2. Supprimer les conteneurs (d'abord tous, puis volumes et images, car
+   vmalert et vmalert-logs partagent leur image) ; pas d'archive de
+   l'historique (mirador a le sien depuis son installation) :
+
+   ```bash
+   L="obs-alertmanager obs-vmalert obs-vmalert-logs obs-victoriametrics obs-victorialogs"
+   VOLS=""; IMGS=""; BINDS=""
+   for c in $L; do
+     docker inspect "$c" >/dev/null 2>&1 || { echo "$c : absent"; continue; }
+     IMGS="$IMGS $(docker inspect "$c" -f '{{.Config.Image}}')"
+     VOLS="$VOLS $(docker inspect "$c" -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}')"
+     BINDS="$BINDS $(docker inspect "$c" -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}} {{end}}{{end}}')"
+     docker rm -f "$c"
+   done
+   [ -n "${VOLS// /}" ] && docker volume rm $VOLS
+   docker image rm $(echo $IMGS | tr ' ' '\n' | sort -u)
+   echo "Dossiers montés (gardés, à voir) : $BINDS"
+   ```
+
+3. mirador : Réglages › Notifications : vider l'adresse de vmalert ;
+   Règles : désactiver les règles importées sans source (`ProxmoxMuet`,
+   `SyslogMuet`…).
+4. Compose `/opt/obs`, nginx, réseau `obs` (phase D), certificats, DNS :
+   d'après le relevé (📋).
+
 ## Grafana : suppression complète (demandée le 24/11)
 
 Grafana n'est pas gardé (décision du 23/11) et ne touche ni aux données ni
