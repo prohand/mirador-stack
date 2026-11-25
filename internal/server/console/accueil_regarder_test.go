@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"mirador-stack/internal/server/notif"
 )
@@ -89,7 +90,38 @@ func TestBandeauAvertissements(t *testing.T) {
 	d.Prises = []resumeAlerte{{Regle: "Muet", Gravite: "critical", Machine: "pve1", Etat: "active"}}
 	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
 	if r.Bandeau.Classe != "attention" || r.Bandeau.Titre != "1 machine à regarder" ||
-		r.Bandeau.Texte != "pve1 : 1 alerte prise en charge" || r.Bandeau.Lien != "/machines/pve1" {
+		r.Bandeau.Texte != "pve1 : 1 alerte prise en charge" || r.Bandeau.Lien != "/machines/pve1#activite" {
 		t.Errorf("machine à regarder : %+v", r.Bandeau)
+	}
+	// Retour du 26/11 : disque bientôt plein ; le bandeau dit pourquoi et
+	// « Voir » mène aux graphiques Disques de la machine.
+	d.Prises = nil
+	d.Parc = []ligneParc{{Nom: "sup", ClasseEtat: "ok", PleinDans: "plein dans 13 j"}, {Nom: "web1", ClasseEtat: "ok"}}
+	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Texte != "sup : disque plein dans 13 j" || r.Bandeau.Lien != "/machines/sup#disques" || r.Bandeau.Action != "Voir sup" {
+		t.Errorf("disque : %+v", r.Bandeau)
+	}
+	var disque *aRegarder
+	for i := range r.Regarder {
+		if r.Regarder[i].Court == "disque" {
+			disque = &r.Regarder[i]
+		}
+	}
+	if disque == nil || disque.Lien != "/machines/sup#disques" {
+		t.Errorf("« À regarder » disque : %+v", disque)
+	}
+}
+
+// Retour du 26/11 : certificat lu par un agent : « Voir » mène au tableau
+// des certificats de sa machine, pas à la page Sondes.
+func TestCaseCertificatLien(t *testing.T) {
+	b := nouveauBanc(t)
+	fin := float64(b.h.maintenant().Add(16 * 24 * time.Hour).Unix())
+	b.metriquesSimulees(t, []serieTest{
+		{[]string{"__name__", "ssl_cert_not_after_timestamp_seconds", "instance", "jellyfin", "path", "/etc/letsencrypt/live/x/cert.pem"}, constante(fin)},
+	})
+	c := b.c.caseCertificat(context.Background(), b.h.maintenant())
+	if !c.Connu || c.Machine != "jellyfin" || c.Lien != "/tableaux/certificats-tls?instance=jellyfin" || c.Classe != "attention" {
+		t.Errorf("certificat : %+v", c)
 	}
 }

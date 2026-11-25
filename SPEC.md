@@ -8640,3 +8640,25 @@ restée muette ; Go la réutilise tant que TCP ne l'a pas déclarée morte
 Ménage : playbook `effacer-echecs-ancienne-stack.yml`
 (docs/deploiement-agents.md § 5.4) pour les services supprimés restés
 « en échec » (`systemctl reset-failed`).
+
+## 130. « À regarder » : raison et bons liens (26/11) **[Fait, à valider]**
+
+Retours du 26/11 : le bandeau « 1 machine à regarder » ne disait pas
+pourquoi ; « Voir » du disque bientôt plein menait à toutes les machines,
+celui du certificat à la page Sondes (certificat lu par l'agent de
+jellyfin) ; la case « À regarder 1 » de la page Machines donnait
+« Problèmes (0) ».
+
+- Bandeau : « sup : disque plein dans 13 j » (ou alerte en cours, prise en
+  charge, mise à jour en échec, muette) ; une machine : le bouton mène à
+  l'endroit qui le montre (graphiques Disques `#disques`, onglet Activité,
+  bloc de mise à jour `#maj`).
+- « À regarder » › disque : une machine → ses graphiques Disques ;
+  plusieurs → filtre « Problèmes ».
+- Certificat lu par un agent : tableau « Certificats TLS » filtré sur sa
+  machine (`min by (instance, path)`) ; certificat d'une sonde : page
+  Sondes. Même lien sur la case Certificats.
+- Filtre « Problèmes » de la page Machines : compte aussi les points
+  orange (alerte, disque bientôt plein, paquets de sécurité), comme la
+  case « À regarder ».
+- Coût : aucun (mêmes requêtes, une étiquette de plus dans un `min by`).

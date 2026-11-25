@@ -48,10 +48,12 @@ type casesSondes struct {
 }
 
 type caseCertificat struct {
-	Jours  int
-	Nom    string
-	Classe string // ok, attention, erreur
-	Connu  bool
+	Jours   int
+	Nom     string
+	Machine string // certificat lu par l'agent d'une machine ("" : sonde)
+	Lien    string // page où le voir (retour du 26/11 : « Voir » menait à /sondes)
+	Classe  string // ok, attention, erreur
+	Connu   bool
 }
 
 // siteApercu : pastilles d'un site (« Le parc d'un coup d'œil »).
@@ -82,7 +84,7 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 	r.Cert = c.caseCertificat(ctx, t)
 
 	// Machines muettes, mises à jour en échec, disques, paquets, redémarrages.
-	var muettes, disques, securite, redemarrer []string
+	var muettes, disques, disquesDe, securite, redemarrer []string
 	nbSecu := 0
 	for _, l := range d.Parc {
 		if l.Muette {
@@ -90,6 +92,7 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		}
 		if l.PleinDans != "" {
 			disques = append(disques, l.Nom+" : "+l.PleinDans)
+			disquesDe = append(disquesDe, l.Nom)
 		}
 		if l.PaquetsSecurite > 0 {
 			nbSecu += l.PaquetsSecurite
@@ -132,12 +135,18 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		if len(disques) > 1 {
 			titre = strconv.Itoa(len(disques)) + " disques bientôt pleins"
 		}
+		// Une machine : ses graphiques Disques ; plusieurs : machines à
+		// regarder (retour du 26/11 : « Voir » menait à toutes les machines).
+		lien := "/machines?filtre=problemes"
+		if len(disquesDe) == 1 {
+			lien = "/machines/" + url.PathEscape(disquesDe[0]) + "#disques"
+		}
 		add(aRegarder{Classe: "attention", Icone: "disque", Puce: "orange", Court: "disque", Titre: titre,
-			Texte: resumeNoms(disques), Lien: "/machines", Action: "Voir"})
+			Texte: resumeNoms(disques), Lien: lien, Action: "Voir"})
 	}
 	if r.Cert.Connu && r.Cert.Classe != "ok" {
 		add(aRegarder{Classe: r.Cert.Classe, Icone: "cadenas", Puce: "orange", Court: "certificat", Titre: "Certificat bientôt expiré : " + r.Cert.Nom,
-			Texte: fmt.Sprintf("expire dans %d j", r.Cert.Jours), Lien: "/sondes", Action: "Voir"})
+			Texte: fmt.Sprintf("expire dans %d j", r.Cert.Jours) + texteSi(r.Cert.Machine != "", " · "+r.Cert.Machine), Lien: r.Cert.Lien, Action: "Voir"})
 	}
 	if nbSecu > 0 {
 		add(aRegarder{Classe: "attention", Icone: "securite", Puce: "orange", Court: "paquets de sécurité", Titre: accorderTexte(strconv.Itoa(nbSecu) + " paquet(s) de sécurité à installer"),
@@ -183,14 +192,17 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		r.Bandeau = bandeauAccueil{Classe: "attention", Titre: accorderTexte(strconv.Itoa(d.Avertissements) + " avertissement(s) en cours"),
 			Texte: resumeAvertissements(d.Alertes) + modeOmbre(d.Mode), Lien: "/alertes", Action: "Voir les alertes"}
 	case len(aRegarderMachines(d, majEchec)) > 0:
-		ms := aRegarderMachines(d, majEchec)
-		b := bandeauAccueil{Classe: "attention", Titre: accorderTexte(strconv.Itoa(len(ms)) + " machine(s) à regarder"),
-			Texte: resumeNoms(ms) + " · pastille orange ou rouge dans « Le parc d'un coup d'œil »", Lien: "/machines?filtre=problemes", Action: "Voir les machines"}
-		if len(ms) == 1 {
-			b.Lien, b.Action = "/machines/"+url.PathEscape(ms[0]), "Voir "+ms[0]
-			if n := nbPrises(d, ms[0]); n > 0 {
-				b.Texte = ms[0] + " : " + accorderTexte(strconv.Itoa(n)+" alerte(s) prise(s) en charge")
-			}
+		// Retour du 26/11 : le bandeau dit pourquoi (« sup : disque plein
+		// dans 13 j ») et mène à l'endroit qui le montre.
+		rs := raisonsMachines(d, majEchec)
+		textes := make([]string, len(rs))
+		for i, x := range rs {
+			textes[i] = x.Nom + " : " + x.Raison
+		}
+		b := bandeauAccueil{Classe: "attention", Titre: accorderTexte(strconv.Itoa(len(rs)) + " machine(s) à regarder"),
+			Texte: resumeNoms(textes), Lien: "/machines?filtre=problemes", Action: "Voir les machines"}
+		if len(rs) == 1 {
+			b.Lien, b.Action = rs[0].Lien, "Voir "+rs[0].Nom
 		}
 		r.Bandeau = b
 	default:
@@ -298,6 +310,39 @@ func aRegarderMachines(d *donneesAccueil, majEchec map[string]string) []string {
 	return out
 }
 
+// raisonMachine : pourquoi une machine est à regarder, et où le voir.
+type raisonMachine struct{ Nom, Raison, Lien string }
+
+// raisonsMachines : machines de aRegarderMachines avec la raison la plus
+// grave de chacune (muette, mise à jour en échec, alerte, disque).
+func raisonsMachines(d *donneesAccueil, majEchec map[string]string) []raisonMachine {
+	parNom := map[string]ligneParc{}
+	for _, l := range d.Parc {
+		parNom[l.Nom] = l
+	}
+	var out []raisonMachine
+	for _, nom := range aRegarderMachines(d, majEchec) {
+		l, page := parNom[nom], "/machines/"+url.PathEscape(nom)
+		x := raisonMachine{Nom: nom, Lien: page}
+		switch {
+		case l.Muette:
+			x.Raison = "plus de données depuis plus de 5 min"
+		case majEchec[nom] != "":
+			x.Raison, x.Lien = "mise à jour de l'agent en échec", page+"#maj"
+		case l.ClasseEtat == "erreur" || l.ClasseEtat == "attention":
+			x.Raison, x.Lien = accorderTexte(strconv.Itoa(max(l.Alertes, 1))+" alerte(s) en cours"), page+"#activite"
+			if n := nbPrises(d, nom); n > 0 {
+				x.Raison = accorderTexte(strconv.Itoa(n) + " alerte(s) prise(s) en charge")
+			}
+		default:
+			x.Raison, x.Lien = "disque "+l.PleinDans, page+"#disques"
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
+
 // nbPrises : alertes prises en charge (acquittées) d'une machine.
 func nbPrises(d *donneesAccueil, machine string) int {
 	n := 0
@@ -364,7 +409,7 @@ func (c *Console) caseCertificat(ctx context.Context, t time.Time) caseCertifica
 	min := math.Inf(1)
 	for _, x := range []struct{ expr, etiq string }{
 		{`min by (sonde) (last_over_time(mirador_sonde_certificat_fin_timestamp_seconds[1h]))`, "sonde"},
-		{`min by (path) (last_over_time(ssl_cert_not_after_timestamp_seconds[1h]))`, "path"},
+		{`min by (instance, path) (last_over_time(ssl_cert_not_after_timestamp_seconds[1h]))`, "path"},
 	} {
 		ech, err := c.instant(ctx, x.expr, t)
 		if err != nil {
@@ -373,11 +418,21 @@ func (c *Console) caseCertificat(ctx context.Context, t time.Time) caseCertifica
 		for _, e := range ech {
 			if e.Valeur < min {
 				min, out.Nom, out.Connu = e.Valeur, e.Etiquettes.Get(x.etiq), true
+				out.Machine = ""
+				if x.etiq == "path" {
+					out.Machine = e.Etiquettes.Get("instance")
+				}
 			}
 		}
 	}
 	if !out.Connu {
 		return out
+	}
+	// Certificat d'un fichier lu par un agent : tableau « Certificats TLS »
+	// filtré sur sa machine ; certificat d'une sonde : page Sondes.
+	out.Lien = "/sondes"
+	if out.Machine != "" {
+		out.Lien = "/tableaux/certificats-tls?instance=" + url.QueryEscape(out.Machine)
 	}
 	out.Jours = int(math.Floor(time.Unix(int64(min), 0).Sub(t).Hours() / 24))
 	switch {

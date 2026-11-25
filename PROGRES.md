@@ -1897,6 +1897,16 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Playbook passé sur le parc le 25/11 (alloy.service effacé).
 - 0.6.22 publiée, installée sur le parc et validée le 25/11.
 
+## « À regarder » : raison et bons liens (SPEC § 130, 26/11)
+
+- Bandeau avec la raison, liens « Voir » vers le disque, le certificat de
+  la machine, l'onglet Activité ; filtre « Problèmes » aligné sur la case
+  « À regarder ».
+- Tests : `TestBandeauAvertissements` (disque), `TestCaseCertificatLien`,
+  `TestProblemeAvecPointOrange`.
+- Mesures : rien de mesurable (mêmes requêtes).
+- À livrer en 0.6.23 (serveur).
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22). L'ancien
