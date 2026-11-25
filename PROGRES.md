@@ -1895,7 +1895,7 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Playbook `effacer-echecs-ancienne-stack.yml` (alloy.service en échec sur
   le parc), essayé ici avec un faux systemctl (avec et sans échec).
 - Playbook passé sur le parc le 25/11 (alloy.service effacé).
-- 0.6.22 publiée le 25/11 (agent) : à installer sur le parc, d'abord ansible.
+- 0.6.22 publiée, installée sur le parc et validée le 25/11.
 
 ## Prochaine étape
 
