@@ -12,6 +12,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -724,6 +725,59 @@ type vueToken struct {
 	CreeLe       int64 // token actif le plus récent
 	DernierEnvoi int64 // dernières métriques reçues avec son propre token (0 : aucune)
 	Refus        *ingestion.Refus
+	// Refus d'adresse (retour du 26/11, dns2 refusé une minute en IPv4 puis
+	// revenu en IPv6) : gardé 24 h même si les envois suivants passent, tant
+	// que l'adresse n'est pas autorisée ; bouton « Autoriser cette adresse ».
+	RefusPasse    bool // des envois ont réussi depuis
+	AjoutPossible bool
+}
+
+// adresseRefuseeDe : l'adresse envoyée par le formulaire doit être celle
+// du dernier refus « adresse non autorisée » de la machine, pas encore
+// autorisée (on n'ajoute pas n'importe quoi par ce bouton).
+func (c *Console) adresseRefuseeDe(q *req, nom, adresse string) (string, error) {
+	m, trouvee := c.machine(q)
+	if !trouvee || c.opt.Ingestion == nil {
+		return "", errors.New("machine inconnue")
+	}
+	r, ok := c.opt.Ingestion.DernierRefus(m.ID)
+	if !ok || r.Motif != motifAdresseRefusee || r.Adresse != adresse {
+		return "", errors.New("aucun refus récent pour cette adresse")
+	}
+	a, err := netip.ParseAddr(adresse)
+	if err != nil {
+		return "", errors.New("adresse invalide")
+	}
+	if strings.TrimSpace(m.IPsAutorisees) == "" || adresseAutorisee(adresse, m.IPsAutorisees) {
+		return "", errors.New("cette adresse est déjà autorisée")
+	}
+	return a.Unmap().String(), nil
+}
+
+// dureeRefusAdresse : un refus d'adresse reste affiché ce temps-là.
+const dureeRefusAdresse = 24 * time.Hour
+
+const motifAdresseRefusee = "adresse non autorisée"
+
+// adresseAutorisee : l'adresse est-elle dans la liste (vide = toutes) ?
+func adresseAutorisee(adresse, liste string) bool {
+	if strings.TrimSpace(liste) == "" {
+		return true
+	}
+	a, err := netip.ParseAddr(adresse)
+	if err != nil {
+		return false
+	}
+	prefixes, err := ingestion.LireIPs(liste)
+	if err != nil {
+		return false
+	}
+	for _, p := range prefixes {
+		if p.Contains(a.Unmap()) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
@@ -894,8 +948,15 @@ func (c *Console) vueTokenDe(ctx context.Context, m flotte.InfoMachine) vueToken
 	}
 	if c.opt.Ingestion != nil {
 		v.DernierEnvoi, _ = c.opt.Ingestion.DerniereReception(m.ID)
-		if r, ok := c.opt.Ingestion.DernierRefus(m.ID); ok && r.T > v.DernierEnvoi {
-			v.Refus = &r // refus plus récent que le dernier envoi réussi
+		if r, ok := c.opt.Ingestion.DernierRefus(m.ID); ok {
+			adresse := r.Motif == motifAdresseRefusee && !adresseAutorisee(r.Adresse, m.IPsAutorisees)
+			switch {
+			case r.T > v.DernierEnvoi:
+				v.Refus = &r // refus plus récent que le dernier envoi réussi
+			case adresse && c.maintenant().Sub(time.Unix(r.T, 0)) < dureeRefusAdresse:
+				v.Refus, v.RefusPasse = &r, true
+			}
+			v.AjoutPossible = v.Refus != nil && adresse
 		}
 	}
 	return v
@@ -945,7 +1006,7 @@ func (c *Console) postMachine(q *req) {
 	// « surveillance » change la configuration de l'agent : même règle que la
 	// page « Configuration des agents » (revue de sécurité du 11/11).
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
-		"surveillance": true, "empreinte": true,
+		"surveillance": true, "empreinte": true, "ips_ajouter": true,
 		// Modèles : changent la configuration de l'agent et les alertes.
 		"modeles": true,
 		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
@@ -1053,6 +1114,15 @@ func (c *Console) postMachine(q *req) {
 	case "ips":
 		err = flotte.DefinirIPs(ctx, c.db, nom, f("ips"), q.qui(), q.t)
 		ok = "adresses autorisées enregistrées"
+	case "ips_ajouter":
+		// « Autoriser cette adresse » (retour du 26/11) : seulement l'adresse
+		// du dernier refus de cette machine, ajoutée à la liste existante.
+		var adresse string
+		if adresse, err = c.adresseRefuseeDe(q, nom, f("adresse")); err == nil {
+			m, _ := c.machine(q)
+			err = flotte.DefinirIPs(ctx, c.db, nom, m.IPsAutorisees+", "+adresse, q.qui(), q.t)
+			ok = adresse + " autorisée pour le token de " + nom
+		}
 	case "revoquer":
 		err = flotte.Revoquer(ctx, c.db, nom, q.qui(), q.t)
 		ok = "tokens révoqués : la machine ne peut plus envoyer"

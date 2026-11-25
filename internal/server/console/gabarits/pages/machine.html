@@ -300,7 +300,8 @@ bash mirador-agent-install.sh --serveur {{if .D.Ingestion}}{{.D.Ingestion}}{{els
 </form>
 </section>{{end}}
 {{if .D.Agent}}</details>{{end}}
-{{with .D.Token.Refus}}<p class="message erreur" id="token-refus">Envoi refusé {{depuisS .T}} : <strong>{{.Motif}}</strong>{{if .Adresse}} (depuis <code>{{.Adresse}}</code>){{end}}.{{if egal .Motif "adresse non autorisée"}} Ajouter cette adresse dans Modifier la machine › Adresses autorisées pour le token (ou vider la liste).{{end}}</p>{{end}}
+{{with .D.Token.Refus}}<div class="message erreur" id="token-refus"><p>Envoi refusé {{depuisS .T}} : <strong>{{.Motif}}</strong>{{if .Adresse}} (depuis <code>{{.Adresse}}</code>){{end}}.{{if $.D.Token.RefusPasse}} Les envois suivants sont passés : la machine change sans doute d'adresse (IPv4 et IPv6, par exemple).{{end}}{{if egal .Motif "adresse non autorisée"}} Ajouter cette adresse aux adresses autorisées pour le token (ou vider la liste).{{end}}</p>
+{{if and $.Admin $.D.Token.AjoutPossible}}<form method="post" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="ips_ajouter"><input type="hidden" name="adresse" value="{{.Adresse}}">{{template "code2fa"}}<button>Autoriser cette adresse</button></form>{{end}}</div>{{end}}
 <details class="carte"><summary><strong>Détails de la machine</strong></summary>
 <table>
 <tr><th>Source</th><td>{{if egal $m.Type "collecteur"}}Collecteur{{else}}Agent{{end}}</td></tr>

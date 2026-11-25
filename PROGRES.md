@@ -1913,7 +1913,10 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   jeton limité à son adresse IPv6 ; une minute en IPv4 (185.x) refusée par
   mirador (« adresse non autorisée », pas nginx). Les deux adresses ajoutées
   par l'utilisateur. À vérifier sur les autres VPS en double pile (mail,
-  proxy, dns1, sup).
+  proxy, dns1, sup) : fait, tout est OK.
+- Bouton « Autoriser cette adresse » sur la page machine (SPEC § 131),
+  `TestAutoriserAdresseRefusee`, `TestAdresseAutorisee` ; à livrer avec la
+  prochaine version (après la mesure de 24 h).
 - sup (26/11) : journal local 2,9 Go → 461 Mo (limite 500 Mo) ; le bruit
   venait des paquets bloqués journalisés par le pare-feu (voisinage IPv6
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook

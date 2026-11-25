@@ -8665,3 +8665,22 @@ jellyfin) ; la case « À regarder 1 » de la page Machines donnait
 - Correctif (26/11, après 0.6.23) : le lien du disque visait `#disques`
   alors que la rangée s'appelle `r-disques` (comme dans le sommaire) ; la
   page rouvrait le dernier onglet (Activité). Lien construit avec `ancre`.
+
+## 131. « Autoriser cette adresse » après un refus d'adresse (26/11) **[Fait, à valider]**
+
+Retour du 26/11 : dns2 (VPS en double pile) refusé une minute en IPv4
+(« adresse non autorisée ») : son jeton n'acceptait que son IPv6. Le refus
+n'était visible que dans les logs du serveur, et disparaissait de la page
+dès l'envoi réussi suivant (repassé en IPv6).
+
+- Page machine : un refus « adresse non autorisée » reste affiché **24 h**,
+  même si des envois ont réussi depuis (« la machine change sans doute
+  d'adresse, IPv4 et IPv6 »), tant que l'adresse n'est pas autorisée.
+- Bouton **« Autoriser cette adresse »** (admin, code 2FA comme la liste
+  des adresses) : ajoute l'adresse du dernier refus à la liste existante
+  (audit `ips_autorisees`).
+- Menaces : seule l'adresse du dernier refus de cette machine est acceptée
+  (une autre est refusée) ; jamais si la liste est vide (toutes déjà
+  admises) ; 2FA et CSRF. Le refus est gardé en mémoire (perdu au
+  redémarrage du serveur).
+- Coût : aucun (refus déjà gardé en mémoire, une lecture de plus).
