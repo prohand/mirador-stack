@@ -9,8 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/netip"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -38,6 +41,7 @@ func (c *Console) routesReglages() {
 	m.HandleFunc("GET /reglages/serveur", c.lecture(c.pageMajServeur))
 	m.HandleFunc("POST /reglages/serveur", c.admin(c.postMajServeur))
 	m.HandleFunc("GET /reglages/sauvegardes", c.lecture(c.pageSauvegardes))
+	m.HandleFunc("GET /reglages/sauvegardes/telecharger/{nom}", c.admin(c.telechargerSauvegarde))
 	m.HandleFunc("POST /reglages/sauvegardes", c.admin(c.postSauvegardes))
 	m.HandleFunc("GET /reglages/certificats", c.lecture(c.pageCertificats))
 	m.HandleFunc("POST /reglages/certificats", c.admin(c.postCertificats))
@@ -530,6 +534,9 @@ type donneesSauvegardes struct {
 	Heures              []string
 	HorsVPS, SFTP, S3   bool
 	TailleArchives      int64
+	// ATelecharger : fichier d'une exécution → nom de l'archive encore sur
+	// le VPS (lien « Télécharger », retour du 25/11).
+	ATelecharger map[string]string
 }
 
 // heureLocale : « HH:MM » UTC → heure du fuseau (aujourd'hui).
@@ -600,10 +607,46 @@ func (c *Console) pageSauvegardes(q *req) {
 		d.Heures = append(d.Heures, d.HeureLocale)
 		sort.Strings(d.Heures)
 	}
+	presentes := map[string]bool{}
 	for _, a := range d.Archives {
 		d.TailleArchives += a.Taille
+		presentes[a.Nom] = true
+	}
+	d.ATelecharger = map[string]string{}
+	for _, e := range d.Historique {
+		if n := filepath.Base(e.Fichier); e.Fichier != "" && presentes[n] {
+			d.ATelecharger[e.Fichier] = n
+		}
 	}
 	c.rendre(q, "sauvegardes", "Sauvegardes", "reglages", d)
+}
+
+// telechargerSauvegarde : archive locale envoyée au navigateur (copie hors
+// du VPS à la main, retour du 25/11). Elle est chiffrée avec la clé des
+// secrets (illisible sans elle) ; réservé aux admins, noté dans l'audit.
+func (c *Console) telechargerSauvegarde(q *req) {
+	nom := q.r.PathValue("nom")
+	if !sauvegarde.NomValide(nom) {
+		http.NotFound(q.w, q.r)
+		return
+	}
+	f, err := os.Open(filepath.Join(sauvegarde.DossierArchives(c.opt.Donnees), nom)) // #nosec G304 -- nom vérifié (motif strict, sans dossier)
+	if err != nil {
+		http.NotFound(q.w, q.r)
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		http.NotFound(q.w, q.r)
+		return
+	}
+	_ = Auditer(q.r.Context(), c.db, q.qui(), "sauvegarde_telechargee", nom, "", sauvegarde.FormatTaille(info.Size()), q.ip.String(), q.t)
+	q.w.Header().Set("Content-Type", "application/octet-stream")
+	q.w.Header().Set("Content-Disposition", `attachment; filename="`+nom+`"`)
+	q.w.Header().Set("Cache-Control", "no-store")
+	q.w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(q.w, q.r, nom, info.ModTime(), f)
 }
 
 func (c *Console) postSauvegardes(q *req) {

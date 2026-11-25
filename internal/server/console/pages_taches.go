@@ -243,6 +243,9 @@ type donneesTaches struct {
 	// SansSauvegarde : VM et conteneurs qu'aucun travail de sauvegarde
 	// Proxmox ne couvre (SPEC § 95, lu par l'assistant root).
 	SansSauvegarde []vmSansSauvegarde
+	// Exclus : invités que l'utilisateur a retirés de la surveillance
+	// (« Ne pas surveiller », retour du 25/11).
+	Exclus []alertes.InviteExclu
 }
 
 type vmSansSauvegarde struct{ Machine, ID, Type, Nom string }
@@ -389,9 +392,21 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 			return l[i].Nom < l[j].Nom
 		})
 	}
+	exclus := map[string]bool{}
+	if l, err := alertes.LireInvitesExclus(ctx, c.db); err == nil {
+		for _, x := range l {
+			if machine == "" || x.Machine == machine {
+				d.Exclus = append(d.Exclus, x)
+			}
+			exclus[x.Machine+"/"+x.ID] = true
+		}
+	}
 	if ech, err := c.instant(ctx, `mirador_pve_invite_sans_sauvegarde == 1`, q.t); err == nil {
 		for _, e := range ech {
 			v := vmSansSauvegarde{Machine: e.Etiquettes.Get("instance"), ID: e.Etiquettes.Get("id"), Type: e.Etiquettes.Get("type"), Nom: e.Etiquettes.Get("nom")}
+			if exclus[v.Machine+"/"+v.ID] {
+				continue
+			}
 			if machine == "" || v.Machine == machine {
 				d.SansSauvegarde = append(d.SansSauvegarde, v)
 			}
@@ -555,8 +570,23 @@ func (c *Console) postTaches(q *req) {
 			msg = "tâche retirée"
 			_ = Auditer(ctx, c.db, q.qui(), "tache_retiree", f.Get("nom"), "", "", q.ip.String(), q.t)
 		}
+	case "exclure_vm":
+		// « Ne pas surveiller » (retour du 25/11) : cet invité de ce nœud
+		// sort de la règle VMSansSauvegarde (audit dans ExclureInvite).
+		e := alertes.InviteExclu{Machine: f.Get("machine"), ID: f.Get("vm"), Nom: f.Get("nom"), Motif: f.Get("motif"), Qui: q.qui()}
+		if err = alertes.ExclureInvite(ctx, c.db, e, q.t); err == nil {
+			msg = "VM " + e.ID + " de " + e.Machine + " plus surveillée : l'alerte se fermera seule d'ici quelques minutes"
+		}
+	case "reintegrer_vm":
+		if err = alertes.ReintegrerInvite(ctx, c.db, f.Get("machine"), f.Get("vm"), q.qui(), q.t); err == nil {
+			msg = "VM " + f.Get("vm") + " de " + f.Get("machine") + " de nouveau surveillée"
+		}
 	default:
 		err = errors.New("action inconnue")
+	}
+	if r := f.Get("retour"); retourVerifierSur(r) && (f.Get("action") == "exclure_vm" || f.Get("action") == "reintegrer_vm") {
+		c.retour(q, r, err, msg)
+		return
 	}
 	if err != nil && f.Get("action") == "creer" {
 		c.retour(q, "/taches?ajout=1#nouvelle", err, msg) // formulaire rouvert pour corriger

@@ -126,6 +126,12 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	} else if n > 0 {
 		journal.Info("règles d'alerte renommées (SPEC § 65)", "nombre", n)
 	}
+	// Règle VMSansSauvegarde : invités exclus écartés (retour du 25/11).
+	if ok, err := alertes.MettreAJourVMSansSauvegarde(ctx, s.db, time.Now()); err != nil {
+		s.journal.Warn("règle VMSansSauvegarde non mise à jour", "erreur", err)
+	} else if ok {
+		s.journal.Info("règle VMSansSauvegarde : invités exclus écartés")
+	}
 	if n, err := alertes.PoserDefauts(ctx, s.db, time.Now()); err != nil {
 		return echec(fmt.Errorf("règles par défaut : %w", err))
 	} else if n > 0 {

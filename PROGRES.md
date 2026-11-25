@@ -1865,8 +1865,22 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Gain sur le VPS : environ **580 Mio** (770 de l'ancienne stack contre 187
   pour mirador). Restent sur le VPS, hors mirador : uptime-kuma (279 + 181
   Mio), arcane (139 + 30 Mio).
-- À surveiller : le relais Docker de mirador utilise 29,8 Mio pour une
-  limite de 32 Mio (le même relais d'arcane, sans limite, en prend autant).
+- Relais Docker de mirador : 29,8 Mio utilisés pour une limite de 32 Mio
+  (jamais tué faute de mémoire). Limite passée à **64 Mio** (0.6.20,
+  publiée et appliquée le 25/11 par le playbook ; vérifié sur gladys-dev :
+  67108864 octets).
+
+## Sauvegarde téléchargeable, VM exclue (SPEC § 128, 25/11)
+
+- Réglages › Sauvegardes : bouton « Télécharger » (archive chiffrée, admin, audit).
+- « VM sans sauvegarde planifiée » : bouton « Ne pas surveiller » (page de
+  l'alerte et Tâches planifiées), retour en arrière possible.
+- Mesures : rien de mesurable (une série par VM exclue, une lecture de
+  réglage par minute ; le téléchargement lit le fichier en flux).
+- Tests : `TestTelechargerSauvegarde`, `TestInvitesExclus`,
+  `TestMettreAJourVMSansSauvegarde`, `TestVMExclueSansAlerte` (vraie règle
+  PromQL), `TestExclureVM` (interface).
+- À livrer en 0.6.21 (serveur seul, agents inchangés).
 
 ## Prochaine étape
 

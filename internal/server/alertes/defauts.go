@@ -207,11 +207,11 @@ func ReglesMirador() []Regle {
 		// planifié ne couvre (SPEC § 95, lu par l'assistant root ; seulement
 		// sur un nœud qui a au moins un travail de sauvegarde).
 		m(Regle{Nom: "VMSansSauvegarde", Groupe: "taches",
-			Expr:        `mirador_pve_invite_sans_sauvegarde == 1`,
+			Expr:        ExprVMSansSauvegarde, // sauf les invités exclus dans l'interface (retour du 25/11)
 			Pour:        Duree(2 * time.Hour),
 			Gravite:     Avertissement,
 			Resume:      "{{ $labels.id }} {{ $labels.nom }} n'est dans aucune sauvegarde planifiée ({{ $labels.instance }})",
-			Description: "Aucun travail de Datacenter › Sauvegarde ne couvre cette VM ou ce conteneur (ni « tout », ni sa liste, ni son pool). L'ajouter à un travail, ou désactiver cette règle s'il est sauvegardé autrement."}),
+			Description: "Aucun travail de Datacenter › Sauvegarde ne couvre cette VM ou ce conteneur (ni « tout », ni sa liste, ni son pool). L'ajouter à un travail ; s'il n'a pas à l'être (le PBS lui-même…), « Ne pas surveiller » dans Tâches planifiées."}),
 		m(Regle{Nom: "SauvegardeTropAncienne", Groupe: "mirador",
 			Expr:    `time() - mirador_sauvegarde_derniere_reussie_timestamp_seconds > 26 * 3600`,
 			Pour:    Duree(10 * time.Minute),

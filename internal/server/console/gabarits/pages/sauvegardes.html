@@ -9,7 +9,7 @@
 <div class="notif-tuile"><small>Contenu</small><b>Configuration et base</b><small>métriques : {{if $r.Metriques}}oui{{else}}non{{end}} · logs : {{if $r.Logs}}oui{{else}}non{{end}}</small></div>
 <div class="notif-tuile"><small>Hors du VPS</small>{{if $d.HorsVPS}}<b>{{if $d.SFTP}}SFTP{{end}}{{if and $d.SFTP $d.S3}} + {{end}}{{if $d.S3}}S3{{end}}</b><small>copie à chaque sauvegarde</small>{{else}}<b class="attention-texte">aucune copie</b><small>configurer SFTP ou S3 ci-dessous</small>{{end}}</div>
 </div>
-{{if .Admin}}<form method="post" class="ligne sauv-maintenant">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant"><button class="petit">Sauvegarder maintenant</button>
+{{if .Admin}}<form method="post" class="ligne sauv-maintenant">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="maintenant"><button class="petit">Sauvegarder maintenant</button>{{with $d.Archives}}{{with index . 0}} <a class="bouton secondaire petit" href="/reglages/sauvegardes/telecharger/{{.Nom}}" download title="Archive chiffrée : il faut la clé des secrets pour la restaurer">Télécharger la dernière ({{taille .Taille}})</a>{{end}}{{end}}
 <label class="case"><input type="checkbox" name="metriques" value="1"> + métriques</label><label class="case"><input type="checkbox" name="logs" value="1"> + logs</label><small class="doux">faite par le serveur dans la minute</small></form>{{end}}
 </section>
 
@@ -44,8 +44,8 @@
 {{if .Admin}}<section class="carte">{{template "code2fa"}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir les valeurs par défaut (destinations retirées) ?">Valeurs par défaut</button></div></section>{{end}}
 </form>
 
-<section class="carte"><h2>Historique</h2>{{if $d.Historique}}<div class="defile"><table data-cartes><thead><tr><th>Quand</th><th>Origine</th><th>État</th><th class="nombre">Taille</th><th>Destinations</th><th>Erreur</th></tr></thead><tbody>
-{{range $d.Historique}}<tr><td class="sans-coupure">{{dateS .DemandeeLe}}</td><td>{{motTechnique .Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{motTechnique .Statut}}</span></td><td class="nombre">{{if .Taille}}{{taille .Taille}}{{end}}</td><td>{{.Destinations}}</td><td>{{if .Erreur}}<span class="erreur-texte">{{.Erreur}}</span>{{end}}</td></tr>{{end}}
+<section class="carte"><h2>Historique</h2>{{if $d.Historique}}<div class="defile"><table data-cartes><thead><tr><th>Quand</th><th>Origine</th><th>État</th><th class="nombre">Taille</th><th>Destinations</th><th>Erreur</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
+{{range $d.Historique}}<tr><td class="sans-coupure">{{dateS .DemandeeLe}}</td><td>{{motTechnique .Origine}}</td><td><span class="pastille {{if egal .Statut "ok"}}ok{{else if egal .Statut "echec"}}erreur{{end}}">{{motTechnique .Statut}}</span></td><td class="nombre">{{if .Taille}}{{taille .Taille}}{{end}}</td><td>{{.Destinations}}</td><td>{{if .Erreur}}<span class="erreur-texte">{{.Erreur}}</span>{{end}}</td>{{if $.Admin}}<td>{{with index $d.ATelecharger .Fichier}}<a class="pastille" href="/reglages/sauvegardes/telecharger/{{.}}" download title="Archive chiffrée : il faut la clé des secrets pour la restaurer">Télécharger</a>{{end}}</td>{{end}}</tr>{{end}}
 </tbody></table></div>{{else}}{{template "vide" "Aucune sauvegarde."}}{{end}}
 <p class="aide"><small class="aide">Restaurer une sauvegarde : <em>docs/sauvegarde-restauration.md</em>.</small></p></section>
 {{end}}
