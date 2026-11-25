@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +17,7 @@ import (
 	"runtime"
 	"time"
 
+	"mirador-stack/internal/agent/envoi"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/version"
 )
@@ -46,14 +46,8 @@ type Enrolement struct {
 func NouveauClient() *http.Client {
 	return &http.Client{
 		Timeout: 5 * time.Minute, // un binaire de mise à jour peut être long à venir
-		Transport: &http.Transport{
-			TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-			MaxIdleConns:        2,
-			IdleConnTimeout:     90 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			ForceAttemptHTTP2:   true,
-			Proxy:               http.ProxyFromEnvironment,
-		},
+		// Connexions HTTP/2 vérifiées (ping) : voir envoi.TransportServeur.
+		Transport: envoi.TransportServeur(),
 	}
 }
 

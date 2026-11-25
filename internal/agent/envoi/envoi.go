@@ -5,7 +5,6 @@ package envoi
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -81,17 +80,7 @@ func NewExpediteur(file *File, opt Options) *Expediteur {
 		opt.Journal = slog.Default()
 	}
 	if opt.Client == nil {
-		opt.Client = &http.Client{
-			Timeout: opt.Delai,
-			Transport: &http.Transport{
-				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
-				MaxIdleConns:        2,
-				IdleConnTimeout:     90 * time.Second,
-				TLSHandshakeTimeout: 10 * time.Second,
-				ForceAttemptHTTP2:   true,
-				Proxy:               http.ProxyFromEnvironment,
-			},
-		}
+		opt.Client = &http.Client{Timeout: opt.Delai, Transport: TransportServeur()}
 	}
 	return &Expediteur{opt: opt, file: file}
 }
@@ -105,6 +94,7 @@ func (e *Expediteur) Tourner(ctx context.Context) {
 	// reprise : un envoi a échoué et la file n'a pas encore été vidée
 	// depuis ; seulement là, les lots sont espacés (rattrapage).
 	reprise := false
+	var renouv Renouveleur
 	for {
 		lot := e.file.Premier()
 		if lot == nil {
@@ -116,6 +106,9 @@ func (e *Expediteur) Tourner(ctx context.Context) {
 			}
 		}
 		err := e.envoyer(ctx, lot)
+		if renouv.Noter(e.opt.Client, err) {
+			e.opt.Journal.Info("serveur sans réponse : connexion renouvelée", "url", e.opt.URL)
+		}
 		switch {
 		case err == nil:
 			e.Envoyes.Add(1)
