@@ -1821,6 +1821,9 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   Testé : calcul et refus des plages (9 cas), test du relais (joignable /
   absent), placement du relais avec un faux docker (neuf, ancien, déjà bon,
   autre plage), playbook Semaphore en local.
+- **Appliqué le 24/11 au soir** (0.6.18) : serveur à jour, règle `br-mirador`
+  sur sup, mail, proxy, playbook `relais-docker-mirador.yml` passé ; alertes
+  « Docker : démon injoignable » levées.
 
 ## Prochaine étape
 
