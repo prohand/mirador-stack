@@ -88,6 +88,9 @@ TMPFILES=/etc/tmpfiles.d/mirador-agent.conf
 PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
 PROXY_NOM=mirador-docker-proxy
 PROXY_PORT=12375
+# Mémoire du relais : 64 Mio (retour du 25/11 : 29,8 Mio utilisés pour une
+# limite de 32 Mio ; le même relais sans limite en prend autant).
+PROXY_MEMOIRE=64m
 # Réseau dédié au relais, adresse fixe (retour du 24/11 : avec une sortie
 # filtrée, l'adresse variable du pont par défaut obligeait à ouvrir toute sa
 # plage). L'agent passe toujours par 127.0.0.1:$PROXY_PORT (il refuse toute
@@ -803,6 +806,9 @@ if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
   fi
   if [ "$place" = "$PROXY_RESEAU=$PROXY_IP " ]; then
     info "Relais Docker $PROXY_NOM déjà en place ($PROXY_IP)"
+    # Limite de mémoire remise à jour (ancienne installation : 32 Mio).
+    docker update --memory "$PROXY_MEMOIRE" --memory-swap "$PROXY_MEMOIRE" "$PROXY_NOM" >/dev/null \
+      || echo "   (limite de mémoire du relais non changée : docker update a échoué)"
   else
     [ -z "$place" ] || docker rm -f "$PROXY_NOM" >/dev/null
     info "Relais Docker en lecture seule ($PROXY_IMAGE, 127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)"
@@ -810,7 +816,7 @@ if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
       --network "$PROXY_RESEAU" --ip "$PROXY_IP" \
       -p "127.0.0.1:$PROXY_PORT:2375" \
       --read-only --tmpfs /run --tmpfs /tmp \
-      --security-opt no-new-privileges:true --memory 32m \
+      --security-opt no-new-privileges:true --memory "$PROXY_MEMOIRE" --memory-swap "$PROXY_MEMOIRE" \
       -v /var/run/docker.sock:/var/run/docker.sock:ro \
       -e CONTAINERS=1 -e POST=0 -e INFO=0 -e PING=1 -e VERSION=1 \
       "$PROXY_IMAGE" >/dev/null

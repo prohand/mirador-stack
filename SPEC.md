@@ -1235,7 +1235,8 @@ version précédente. Le serveur voit l'échec dans le battement suivant.
 - Proxy Docker : conteneur `mirador-docker-proxy`
   (`tecnativa/docker-socket-proxy:v0.5.0`, version figée), socket en lecture
   seule, `CONTAINERS=1`, `POST=0`, `INFO=0`, système de fichiers en lecture
-  seule, 32 Mio max, écoute sur `127.0.0.1:12375` seulement. Un proxy existant
+  seule, 64 Mio max (32 jusqu'au 25/11 : 29,8 utilisés, trop juste),
+  écoute sur `127.0.0.1:12375` seulement. Un proxy existant
   peut être réutilisé (`--docker-proxy`). Depuis le 24/11 (§ 126) : sur son
   propre réseau Docker `mirador-docker`, adresse fixe `172.31.254.2`.
 - Binaires : dans la Release de chaque version (agent signé et son
