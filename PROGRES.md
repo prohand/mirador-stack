@@ -1827,6 +1827,9 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 
 ## Vérifier maintenant, délais, bandeau, paquets (SPEC § 127, 25/11)
 
+- **0.6.19 publiée et installée le 25/11** (serveur, puis agents) : essais
+  validés par l'utilisateur (« c'est ok »).
+
 - Maquettes validées le 25/11 (alerte, bloc Services, bandeau, bloc Paquets).
 - Retour à la normale d'un service : signalé par l'agent (D-Bus) comme la
   panne, alerte fermée en quelques secondes au lieu de 2 min au plus ;
