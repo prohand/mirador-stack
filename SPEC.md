@@ -8609,3 +8609,34 @@ Backup Server lui-même) déclenche « VM sans sauvegarde planifiée » à tort.
   bornés à une ligne ; admin + CSRF ; page de retour limitée à `/alertes/…`
   et `/machines/…`. Une exclusion masque une vraie VM oubliée : elle reste
   visible (liste, auteur, motif, audit).
+
+## 129. Agent : connexion bloquée vers le serveur renouvelée, arrêt du direct journalisé (25/11) **[Fait, à valider]**
+
+Retour du 25/11 : après la mise à jour du serveur (coupure de 10 s),
+ansible n'arrivait plus à envoyer pendant plusieurs minutes (« context
+deadline exceeded » toutes les 30 s), alors qu'un `curl` depuis ansible
+répondait en 0,07 s et que les autres agents envoyaient. Le direct, qui
+passe par le même chemin, s'arrêtait sans rien écrire : la page restait sur
+« connexion à l'agent… ». Revenu tout seul.
+
+Cause retenue : connexion HTTP/2 vers le VPS ouverte pendant la coupure et
+restée muette ; Go la réutilise tant que TCP ne l'a pas déclarée morte
+(plusieurs minutes), chaque requête attend son délai puis abandonne.
+
+- **Ping HTTP/2** (`envoi.TransportServeur`, utilisé par les envois et par
+  le lien de configuration, direct et mises à jour) : rien reçu pendant
+  20 s → ping ; pas de réponse en 10 s → connexion fermée ; écriture
+  bloquée 15 s → fermée.
+- **Renouvellement** : après 2 délais dépassés d'affilée (envois,
+  direct), les connexions au repos sont fermées ; l'envoi suivant en ouvre
+  une neuve. Journal : « serveur sans réponse : connexion renouvelée ».
+- **Direct** : l'arrêt après 3 échecs est écrit au journal avec la raison
+  (HTTP 502, délai dépassé…).
+- Coût : un ping de quelques dizaines d'octets par connexion silencieuse
+  toutes les 20 s (la connexion d'attente de configuration surtout) ; rien
+  en mémoire.
+- Menaces : aucune nouvelle ; pas de nouveau port, mêmes vérifications TLS.
+
+Ménage : playbook `effacer-echecs-ancienne-stack.yml`
+(docs/deploiement-agents.md § 5.4) pour les services supprimés restés
+« en échec » (`systemctl reset-failed`).

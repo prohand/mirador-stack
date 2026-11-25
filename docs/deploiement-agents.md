@@ -374,6 +374,48 @@ réactiver les unités.
         var: reste.stdout_lines
 ```
 
+### 5.4 Effacer les « en échec » laissés par la suppression (`effacer-echecs-ancienne-stack.yml`)
+
+Un service supprimé alors qu'il était en échec (Alloy le plus souvent) reste
+noté « failed » par systemd ; l'agent le voit et le signale (retour du
+25/11 : `alloy.service` sur une quinzaine de machines). Ce playbook fait un
+`systemctl reset-failed` des seuls services de l'ancienne stack en échec :
+rien n'est relancé, arrêté ni supprimé. Sans risque ; essai possible en
+mode `--check` (il liste sans rien effacer).
+
+```yaml
+# Efface la trace « en échec » laissée par les services de l'ancienne stack
+# supprimés (alloy, snmpd, obs-*…) : systemctl reset-failed. Rien n'est
+# relancé, arrêté ni supprimé ; l'agent mirador cesse de les voir en échec.
+- name: Effacer les échecs des services de l'ancienne stack
+  hosts: mirador_agents
+  become: true
+  gather_facts: false
+  vars:
+    motifs:
+      - alloy.service
+      - snmpd.service
+      - snmp_exporter.service
+      - smartctl_exporter.service
+      - obs-*
+  tasks:
+    - name: Services de l'ancienne stack en échec
+      ansible.builtin.command:
+        argv: "{{ ['systemctl', 'list-units', '--state=failed', '--plain', '--no-legend', '--no-pager'] + motifs }}"
+      register: echecs
+      changed_when: false
+      check_mode: false
+
+    - name: Effacer leur échec
+      ansible.builtin.command:
+        argv: "{{ ['systemctl', 'reset-failed'] + (echecs.stdout_lines | map('split') | map('first') | list) }}"
+      when: echecs.stdout_lines | length > 0
+
+    - name: Résultat
+      ansible.builtin.debug:
+        msg: "{{ 'effacé : ' + (echecs.stdout_lines | map('split') | map('first') | join(', ')) if echecs.stdout_lines | length > 0 else 'rien en échec' }}"
+```
+
 ## 6. Relais Docker à adresse fixe (après la mise à jour du serveur, SPEC § 126)
 
 Machines avec Docker : le relais `mirador-docker-proxy` passe sur son propre

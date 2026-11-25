@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -102,5 +103,22 @@ func TestResteEssai(t *testing.T) {
 	}
 	if resteEssai(time.Time{}, 10*time.Minute, debut) != 10*time.Minute {
 		t.Error("essai sans date : délai complet attendu")
+	}
+}
+
+// Retour du 25/11 : l'arrêt du direct après 3 échecs est écrit au journal,
+// avec la raison.
+func TestBoucleDirectArretJournal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	var journal strings.Builder
+	l := &Lien{Cfg: config.Agent{Serveur: srv.URL}, Token: "t", Client: srv.Client(), Journal: slog.New(slog.NewTextHandler(&journal, nil)),
+		releveDirect: func(time.Time) protocole.Direct { return protocole.Direct{} }}
+	l.enDirect.Store(true)
+	l.boucleDirect(context.Background())
+	if s := journal.String(); !strings.Contains(s, "direct arrêté après 3 échecs") || !strings.Contains(s, "HTTP 502") {
+		t.Errorf("journal : %s", s)
 	}
 }

@@ -1883,6 +1883,19 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Livré en 0.6.21 (serveur seul) ; validé le 25/11 : alerte de la VM 200 pbs
   fermée après « Ne pas surveiller », téléchargement d'une sauvegarde fait.
 
+## Connexion bloquée renouvelée, direct journalisé (SPEC § 129, 25/11)
+
+- Agent : ping HTTP/2 (20 s / 10 s), connexions fermées après 2 délais
+  dépassés d'affilée, arrêt du direct écrit au journal.
+- Tests : `TestRenouveleur`, `TestExpediteurRenouvelleConnexion` (serveur
+  qui ne répond plus puis revient), `TestTransportServeurPing`,
+  `TestBoucleDirectArretJournal`.
+- Mesures : rien de mesurable (un ping par connexion silencieuse toutes
+  les 20 s).
+- Playbook `effacer-echecs-ancienne-stack.yml` (alloy.service en échec sur
+  le parc), essayé ici avec un faux systemctl (avec et sans échec).
+- À livrer en 0.6.22 (agent).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).

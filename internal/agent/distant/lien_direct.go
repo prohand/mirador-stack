@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/agent/direct"
+	"mirador-stack/internal/agent/envoi"
 	"mirador-stack/internal/protocole"
 )
 
@@ -38,6 +39,7 @@ func (l *Lien) boucleDirect(ctx context.Context) {
 	t := time.NewTicker(rythmeDirect)
 	defer t.Stop()
 	echecs := 0
+	var renouv envoi.Renouveleur
 	l.Journal.Debug("direct : début")
 	for time.Since(debut) < maxDirect {
 		select {
@@ -53,8 +55,20 @@ func (l *Lien) boucleDirect(ctx context.Context) {
 		resp, _, err := l.requete(ctxReq, http.MethodPost, protocole.CheminDirect, corps,
 			map[string]string{"Content-Type": "application/json"}, 1<<10)
 		annuler()
+		if renouv.Noter(l.Client, err) {
+			l.Journal.Info("direct : serveur sans réponse, connexion renouvelée")
+		}
 		if err != nil || resp.StatusCode/100 != 2 {
 			if echecs++; echecs >= 3 {
+				// Retour du 25/11 : l'arrêt passait inaperçu (page bloquée
+				// sur « connexion à l'agent… »).
+				raison := "délai dépassé"
+				if err == nil {
+					raison = "HTTP " + strconv.Itoa(resp.StatusCode)
+				} else if !envoi.DelaiDepasse(err) {
+					raison = err.Error()
+				}
+				l.Journal.Warn("direct arrêté après 3 échecs d'affilée", "raison", raison)
 				return
 			}
 			continue
