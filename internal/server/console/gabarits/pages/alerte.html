@@ -2,11 +2,15 @@
 {{$a := .D.A}}
 <h1>{{template "gravite" $a.Gravite}} {{nomAlerte $a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
 {{template "onglets-alertes" ""}}
-{{if or .D.Cause .D.VuToutDeSuite}}<div class="grille">
+{{if or .D.Cause .D.VuToutDeSuite (and .Admin .D.Verif)}}<div class="grille">
 {{if .D.Cause}}<section class="carte cause-probable"><h2>Cause probable</h2><p class="sous">Processus qui prenaient le plus de {{.D.CauseQuoi}} vers {{heureCourte .D.CauseLe}} (relevé de l'agent, chaque minute) :</p>
 <ol>{{range .D.Cause}}<li><b>{{.Nom}}</b>{{with .Groupe}} <small class="doux">{{.}}</small>{{end}} — {{.Valeur}}</li>{{end}}</ol></section>{{end}}
 {{if .D.VuToutDeSuite}}<section class="carte"><h2>Vu tout de suite</h2><p class="sous">Signalé par l'agent dès que c'est arrivé (sans attendre le relevé suivant).</p>
 {{range .D.VuToutDeSuite}}<div class="evt-rapide"><time>{{heureSecondes .Le}}</time><span>{{textePanne .}}</span></div>{{end}}</section>{{end}}
+{{if and .Admin .D.Verif}}<section class="carte verifier-alerte"><h2>Vérifier maintenant</h2>
+{{with .D.Resultat}}{{template "resultat-verif" .}}{{end}}
+{{if .D.EnCours}}<p class="sous">Réparé sur la machine ? L'agent de {{.D.Verif.Machine}} relit tout de suite ses services, puis l'assistant root son pare-feu, SMART et certificats. Rien n'est lancé sur la machine. L'alerte se ferme toute seule si c'est réparé.</p>
+<p>{{template "bouton-verifier" (dict "V" .D.Verif "Retour" (printf "/alertes/%d" .D.A.ID) "Texte" "Vérifier maintenant" "CSRF" .CSRF)}} <small class="aide">Une fois par minute au plus.</small></p>{{end}}</section>{{end}}
 </div>{{end}}
 <div class="grille">
 <section class="carte"><h2>État</h2><table>

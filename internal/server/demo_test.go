@@ -119,6 +119,8 @@ func TestDemoInterface(t *testing.T) {
 			mk("node_systemd_unit_enabled_active", un, "name", svc)
 		}
 		mk("apt_upgrades_pending", func(int) float64 { return float64(3 * i) })
+		calcule := float64(time.Now().Add(-9 * time.Hour).Unix())
+		mk("apt_upgrades_calcule_le", func(int) float64 { return calcule })
 		// Services, paquets, cœurs (SPEC § 42) : blocs repliables et panneau de détail.
 		for _, svc := range []string{"ssh.service", "cron.service", "docker.service", "sauvegarde.service", "systemd-journald.service"} {
 			mk("node_systemd_unit_state", func(int) float64 { return 0 }, "name", svc, "state", "failed")
@@ -296,7 +298,7 @@ func TestDemoInterface(t *testing.T) {
 	// Mise à jour en échec (SPEC § 44) : bloc « Réessayer la mise à jour » sur pve1.
 	_, _ = s.db.Exec(`UPDATE machines SET version_cible = '0.5.1', maj_echec = '0.5.1 : pas de battement en 10 min, retour à 0.5.0' WHERE nom = 'pve1'`)
 	// Agents récents (capacité « surveillance ») ; pve1 valide ses services un par un.
-	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements'`)
+	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements,verifier'`)
 	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par)
 		SELECT 'config_agent:machine:' || id, '{"systemd_ignorer":["fwupd-refresh.service"],"systemd_surveiller":["cron.service","nginx.service","ssh.service"],"systemd_validation":true,"ignorer_interfaces":["ens19"],"certificats_ajout":["/etc/nginx/ssl/*.crt"]}', ?, 'demo'
 		FROM machines WHERE nom = 'pve1'`, now.Unix())
@@ -320,7 +322,7 @@ func TestDemoInterface(t *testing.T) {
 	_, _ = s.db.Exec(`UPDATE taches SET libelle = 'Sauvegardes des VM (nuit)' WHERE cle = 'pve1|pve|vzdump'`)
 	// Direct (SPEC § 97) : pve1 sait faire le direct ; tant qu'une page la
 	// regarde, la démo envoie un relevé par seconde, comme le ferait l'agent.
-	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements,proxmox,checks,reessai,direct' WHERE nom = 'pve1'`)
+	_, _ = s.db.Exec(`UPDATE machines SET capacites = 'surveillance,elements,proxmox,checks,reessai,direct,verifier' WHERE nom = 'pve1'`)
 	var idPve1 int64
 	_ = s.db.QueryRow(`SELECT id FROM machines WHERE nom = 'pve1'`).Scan(&idPve1)
 	go func() {

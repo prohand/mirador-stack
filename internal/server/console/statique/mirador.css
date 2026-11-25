@@ -676,8 +676,9 @@ tr.nouvelle .titre::after, tr.nouvelle:not(.ligne-alerte) td:nth-child(2)::after
 #graphiques .panneau-vide { display: none; }
 #graphiques .sans-donnees { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--pale); }
 @media (max-width: 899px) { #graphiques .panneaux { grid-template-columns: 1fr; } }
-.section-surveillance > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.section-surveillance > summary h2 { margin: 0; }
+.section-surveillance > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; flex-wrap: wrap; }
+/* Retour du 25/11 : sur téléphone, le titre était écrasé par les pastilles (« Se / rvi / ce / s »). */
+.section-surveillance > summary h2 { margin: 0; flex: none; }
 .section-surveillance > .carte { box-shadow: none; border: 0; padding: 0; margin: 14px 0 0; }
 /* Légende des courbes : pastilles cliquables (masquer / afficher une courbe). */
 .uplot .u-legend { text-align: left; margin-top: 4px; font-size: 12.5px; }
@@ -2322,3 +2323,9 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .lien-duo { flex-direction: row; padding: 6px 0; gap: 8px; }
   .lien-duo i { transform: rotate(90deg); }
 }
+
+/* « Vérifier maintenant » (SPEC § 127) : résultat compact sous l'en-tête d'un bloc ou dans une carte. */
+.bandeau-accueil.info { background: var(--info-fond); }
+.bandeau-accueil.resultat-verif { padding: 10px 14px; margin: 8px 0 10px; gap: 12px; }
+.bandeau-accueil.resultat-verif h2 { font-size: 15px; }
+.bandeau-accueil.resultat-verif .puce { width: 36px; height: 36px; border-radius: 10px; }

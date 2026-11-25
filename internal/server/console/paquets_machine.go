@@ -28,7 +28,14 @@ type vuePaquets struct {
 	Nombre      int  // apt_upgrades_pending
 	NbSecurite  int  // apt_upgrades_security_pending
 	Redemarrage bool // node_reboot_required
-	SansListe   bool // agent ancien : nombre sans liste
+	SansListe   bool // pas de liste reçue (voir Echec, AgentRecent)
+	// Retour du 25/11 (SPEC § 127) : le message « agent trop ancien » était
+	// faux. Echec : motif du dernier calcul raté (envoyé par l'agent) ;
+	// AgentRecent : l'agent envoie l'heure de ses calculs (sait faire la
+	// liste) ; Calcule : âge du dernier calcul réussi (« 9 h »).
+	Echec       string
+	AgentRecent bool
+	Calcule     string
 	Tronquee    bool // plus de paquets que de lignes reçues
 	Ouvrir      bool // ouvert d'office (alerte de mises à jour de sécurité en cours)
 }
@@ -73,6 +80,15 @@ func (c *Console) paquetsMachine(ctx context.Context, m flotte.InfoMachine, t ti
 		return v.Lignes[a].Nom < v.Lignes[b].Nom
 	})
 	v.SansListe = len(v.Lignes) == 0
+	if ech, err := c.instant(ctx, `last_over_time(mirador_agent_mises_a_jour_echec`+i+`[10m])`, t); err == nil && len(ech) > 0 {
+		v.Echec = ech[0].Etiquettes.Get("raison")
+	}
+	if le, ok := une(`last_over_time(apt_upgrades_calcule_le` + i + `[3h])`); ok && le > 0 {
+		v.AgentRecent = true
+		if d := t.Sub(time.Unix(int64(le), 0)); d >= time.Minute {
+			v.Calcule = dureeLisible(d.Round(time.Minute))
+		}
+	}
 	v.Tronquee = len(v.Lignes) >= maxPaquetsAgent && v.Nombre > len(v.Lignes)
 	return v
 }

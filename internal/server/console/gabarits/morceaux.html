@@ -374,6 +374,12 @@
 <p class="doux note-direct">Un clic sur une case ouvre son détail. En direct : une valeur par seconde tant que la page est ouverte et visible, gardée en mémoire 5 min, jamais stockée ; les courbes enregistrées restent plus bas.</p>{{end}}
 </section>{{end}}
 {{/* Bouton « Vérifier maintenant » d'une sonde (SPEC § 108). Collecteur qui ne sait pas le faire : la raison écrite en clair (retour du 21/11 : un bouton grisé n'expliquait rien sur téléphone), lien vers ses mises à jour. */}}
+{{/* « Vérifier maintenant » d'une machine (SPEC § 127) : bouton, ou raison s'il n'est pas possible. */}}
+{{define "bouton-verifier"}}{{if .V.Possible}}<form method="post" action="/machines/{{.V.Machine}}" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="verifier"><input type="hidden" name="retour" value="{{.Retour}}"><button class="secondaire petit" title="L'agent relit tout de suite ses services, puis l'assistant root son pare-feu, SMART et certificats. Rien n'est lancé sur la machine.">↻ {{.Texte}}</button></form>{{else}}<span class="pastille" title="{{.V.Pourquoi}}">↻ {{.V.Pourquoi}}</span>{{end}}{{end}}
+
+{{/* Résultat de « Vérifier maintenant » : bandeau compact (se recharge seul pendant l'attente). */}}
+{{define "resultat-verif"}}<div class="bandeau-accueil {{.Classe}} resultat-verif"{{if .Recharger}} data-recharger="5"{{end}} role="status"><span class="puce {{if eq .Classe "ok"}}vert{{else if eq .Classe "info"}}bleu{{else}}orange{{end}}" aria-hidden="true"><svg class="icone"><use href="#i-{{if eq .Classe "ok"}}ok{{else if eq .Classe "info"}}horloge{{else}}attention{{end}}"></use></svg></span><div class="d"><h2>{{.Titre}}</h2><p>{{.Texte}}</p></div></div>{{end}}
+
 {{define "verifier-sonde"}}{{if .Ok}}<form method="post" action="/sondes/{{.Nom}}/essai" class="enligne verifier-sonde">{{template "csrf" .CSRF}}<input type="hidden" name="retour" value="{{.Retour}}"><button class="secondaire petit" title="Faire l'essai tout de suite, sans attendre le rythme">↻ Vérifier maintenant</button></form>{{else}}<a class="pastille attention verifier-impossible" href="/mises-a-jour#machines" title="{{.Pourquoi}}">↻ {{.Pourquoi}}</a>{{end}}{{end}}
 
 {{/* État du token d'une machine (page machine, retour du 22/11). */}}

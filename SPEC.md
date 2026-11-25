@@ -8500,3 +8500,61 @@ Coût : aucun (un petit réseau Docker de plus). Menaces : le relais reste en
 lecture seule et joignable seulement par l'hôte ; la règle de sortie est
 limitée à une adresse et un port ; la plage est vérifiée privée (pas de
 masquage d'adresses publiques).
+
+## 127. Vérifier maintenant, délais réduits, bandeau « Tout va bien », paquets (25/11, maquettes validées) **[Fait, à valider]**
+
+Retours du 25/11 : forcer la vérification d'un service en échec ; le retour
+à la normale d'un service prenait jusqu'à 2 min ; « Tout va bien » sur la
+vue d'ensemble malgré des avertissements ; « la liste arrive avec la mise à
+jour de l'agent » affiché à tort ; titre « Services » coupé sur téléphone.
+
+**Délais**
+- Agent (`veille`) : un service qui **sort de l'échec** (actif, ou arrêté
+  proprement) est signalé comme la panne (événement `service-retour`, D-Bus,
+  lecture seule ; unités déjà en échec au démarrage lues par
+  `ListUnitsFiltered`). L'agent fait un relevé tout de suite et le serveur
+  réévalue les alertes 2 s après : l'alerte se ferme en quelques secondes.
+  Le journal des événements le montre (« nginx.service de nouveau actif »).
+- Règles de modèle : champ `intervalle` (10 s à 1 h, défaut 1 min) ;
+  `LinuxServiceEnEchec` évaluée toutes les **15 s** (agent ancien).
+
+**« Vérifier maintenant »** (page d'une alerte d'une machine à agent ;
+ligne en échec du bloc Services)
+- Le serveur réveille l'agent par la demande de configuration gardée
+  ouverte (en-têtes `X-Mirador-Verifie` / `X-Mirador-Verifier`, capacité
+  `verifier` ; un ancien agent n'est jamais réveillé pour rien, le bouton
+  est remplacé par « agent à mettre à jour »). L'agent fait un **relevé
+  complet** (collecteurs lents compris) et relance l'assistant root (une
+  fois par minute au plus). Aucune commande de plus que d'habitude : la
+  règle « jamais d'exécution à distance » est respectée.
+- Serveur : une demande par minute et par machine ; alertes réévaluées 6 s
+  puis 25 s après. La page montre l'attente (rechargement toutes les 5 s),
+  puis le résultat d'après la dernière réception de métriques (« Réparé :
+  alerte fermée », « nginx.service toujours en échec », ou « pas de réponse
+  de l'agent »). Admin seulement, sans code 2FA (rien n'est modifié).
+- Pas de bouton sur un service OK : une panne est déjà signalée tout de suite.
+
+**Paquets**
+- Agent : nouveau calcul 2 min après de **nouvelles listes d'apt** (date de
+  `/var/lib/apt/lists` et de `pkgcache.bin`, relue à chaque passage, un
+  `stat`), 15 min après un **échec** (au lieu de 6 h) ; envoie
+  `apt_upgrades_calcule_le` et `mirador_agent_mises_a_jour_echec{raison}`
+  (motif borné à 100 caractères sûrs).
+- Page machine : pastille « relevé il y a … » ; liste absente : motif de
+  l'échec, « calcul en cours », ou « agent qui n'envoie que le nombre ».
+
+**Vue d'ensemble** : « Tout va bien » seulement sans avertissement actif ni
+pastille orange ou rouge. Ordre : machine muette → alerte critique → erreur
+de « À regarder » → **avertissements** (« 2 avertissements en cours » et
+lesquels) → **machine orange ou rouge** (« 1 machine à regarder », avec les
+alertes prises en charge) → « Tout va bien », où points sans urgence et
+simples infos sont comptés à part.
+
+**Téléphone** : le titre d'un bloc repliable ne se laisse plus écraser par
+ses pastilles (elles passent à la ligne).
+
+Coût : agent, un `stat` de plus par minute et un signal D-Bus de plus par
+retour de service ; serveur, une règle évaluée 4 fois plus souvent, 2
+requêtes instantanées de plus sur la page d'une machine. Menaces : le bouton
+ne fait que réveiller l'agent (pas de paramètre transmis) ; page de retour
+limitée à `/alertes/…` et `/machines/…` ; motif d'échec filtré.
