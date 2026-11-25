@@ -260,3 +260,16 @@ func TestCasePaquets(t *testing.T) {
 		t.Error("filtre « paquets »")
 	}
 }
+
+// Retour du 26/11 : « À regarder 1 » (sup, disque bientôt plein) mais
+// « Problèmes (0) » : le filtre compte aussi les points orange.
+func TestProblemeAvecPointOrange(t *testing.T) {
+	v := vueMachine{InfoMachine: flotte.InfoMachine{Nom: "sup", VuLe: 1}}
+	if v.Probleme() {
+		t.Fatal("machine sans souci comptée")
+	}
+	v.PointAttention = pointMachine(v, &ligneParc{PleinDans: "plein dans 13 j"}) != "ok"
+	if !v.Probleme() || !(filtresPage{Filtre: "problemes"}).garde(v) {
+		t.Error("disque bientôt plein absent du filtre « Problèmes »")
+	}
+}

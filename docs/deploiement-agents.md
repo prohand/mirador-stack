@@ -416,6 +416,73 @@ mode `--check` (il liste sans rien effacer).
         msg: "{{ 'effacé : ' + (echecs.stdout_lines | map('split') | map('first') | join(', ')) if echecs.stdout_lines | length > 0 else 'rien en échec' }}"
 ```
 
+### 5.5 Limiter le journal local (`limiter-journal.yml`)
+
+Retour du 26/11 : 2,9 Go de journal système sur sup (paquets bloqués par
+le pare-feu, journalisés), alors que les logs partent déjà dans mirador
+(30 jours gardés). Ce playbook limite le journal de chaque machine à
+500 Mo (fichier `/etc/systemd/journald.conf.d/50-taille.conf`, sans
+toucher `journald.conf`), relance journald et réduit le journal tout de
+suite ; il affiche la place avant et après. Essai possible en `--check`.
+Retour en arrière : supprimer le fichier, relancer `systemd-journald`.
+
+```yaml
+# Limite le journal local (journald) à 500 Mo sur chaque machine : les logs
+# partent déjà dans mirador (30 jours gardés), la copie locale n'a pas
+# besoin de plusieurs Go (retour du 26/11 : 2,9 Go sur sup). Réglage dans
+# un fichier à part (journald.conf n'est pas touché) ; retirer le fichier
+# et relancer systemd-journald pour revenir en arrière.
+- name: Limiter le journal local à 500 Mo
+  hosts: mirador_agents
+  become: true
+  gather_facts: false
+  vars:
+    taille: 500M
+    dossier: /etc/systemd/journald.conf.d
+  tasks:
+    - name: Place prise avant
+      ansible.builtin.command: journalctl --disk-usage
+      register: avant
+      changed_when: false
+      check_mode: false
+
+    - name: Dossier des réglages de journald
+      ansible.builtin.file:
+        path: "{{ dossier }}"
+        state: directory
+        mode: "0755"
+
+    - name: Limite de taille du journal
+      ansible.builtin.copy:
+        dest: "{{ dossier }}/50-taille.conf"
+        content: |
+          # Posé par Semaphore (limiter-journal.yml) : les logs sont dans mirador.
+          [Journal]
+          SystemMaxUse={{ taille }}
+        mode: "0644"
+      register: reglage
+
+    - name: Relancer journald (nouvelle limite)
+      ansible.builtin.command: systemctl restart systemd-journald
+      when: reglage.changed
+
+    # Toujours (sans effet si déjà sous la limite) : un passage interrompu
+    # est rattrapé au suivant.
+    - name: Réduire le journal tout de suite
+      ansible.builtin.command: journalctl --vacuum-size={{ taille }}
+      changed_when: false
+
+    - name: Place prise après
+      ansible.builtin.command: journalctl --disk-usage
+      register: apres
+      changed_when: false
+      check_mode: false
+
+    - name: Résultat
+      ansible.builtin.debug:
+        msg: "avant : {{ avant.stdout | regex_search('take up (\\S+)', '\\1') | first | default('?') }} · après : {{ apres.stdout | regex_search('take up (\\S+)', '\\1') | first | default('?') }}"
+```
+
 ## 6. Relais Docker à adresse fixe (après la mise à jour du serveur, SPEC § 126)
 
 Machines avec Docker : le relais `mirador-docker-proxy` passe sur son propre

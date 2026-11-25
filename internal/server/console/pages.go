@@ -378,6 +378,10 @@ type vueMachine struct {
 	NomBanal, AdresseInconnue bool
 	// Paquets à mettre à jour (filtre « paquets » de la page Machines).
 	Paquets int
+	// Point orange ou rouge (alerte, disque bientôt plein, paquets de
+	// sécurité…) : compté par le filtre « Problèmes » (retour du 26/11 :
+	// « À regarder 1 » mais « Problèmes (0) »).
+	PointAttention bool
 }
 
 // donneesMachines : page Machines (liste) ; l'ajout est sur sa propre page
@@ -478,9 +482,11 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		}
 	}
 	for i := range approuvees {
-		if m := mesures[approuvees[i].Nom]; m != nil {
+		m := mesures[approuvees[i].Nom]
+		if m != nil {
 			approuvees[i].Paquets = m.Paquets
 		}
+		approuvees[i].PointAttention = pointMachine(approuvees[i], m) != "ok"
 	}
 	d.Approuvees, d.Sites = len(approuvees), len(sites)
 	d.Compteurs = d.Filtres.compter(approuvees)

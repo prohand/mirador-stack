@@ -85,7 +85,7 @@ type groupeMachines struct {
 }
 
 // Probleme : machine muette ou dont la mise à jour a échoué.
-func (v vueMachine) Probleme() bool { return v.Muette || v.MajEchec != "" }
+func (v vueMachine) Probleme() bool { return v.Muette || v.MajEchec != "" || v.PointAttention }
 
 // Collecteur : machine de type collecteur du LAN.
 func (v vueMachine) Collecteur() bool { return v.Type == "collecteur" }
