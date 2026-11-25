@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,7 +35,11 @@ func TestDelaiDepasse(t *testing.T) {
 	if !DelaiDepasse(context.DeadlineExceeded) || !DelaiDepasse(fmt.Errorf("Post : %w", context.DeadlineExceeded)) {
 		t.Error("délai dépassé non reconnu")
 	}
-	if DelaiDepasse(nil) || DelaiDepasse(errors.New("HTTP 502")) {
+	// Délai de lecture du réseau (net.Error.Timeout), comme sur ansible.
+	if !DelaiDepasse(&net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}) {
+		t.Error("délai réseau non reconnu")
+	}
+	if DelaiDepasse(nil) || DelaiDepasse(errors.New("HTTP 502")) || DelaiDepasse(&net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}) {
 		t.Error("refus pris pour un délai dépassé")
 	}
 }
