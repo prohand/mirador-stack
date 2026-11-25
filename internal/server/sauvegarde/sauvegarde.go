@@ -253,6 +253,10 @@ func Restaurer(r io.Reader, cle []byte, dossier string, maxTotal int64) (*Manife
 	return man, nil
 }
 
+// NomValide : nom d'archive fait par mirador (« mirador-AAAAMMJJ-HHMMSS[-n].sauvegarde »),
+// sans dossier : seul nom accepté pour un téléchargement.
+func NomValide(nom string) bool { return reNom.MatchString(nom) }
+
 // Archive : une sauvegarde présente dans le dossier local.
 type Archive struct {
 	Nom    string
