@@ -1880,7 +1880,8 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Tests : `TestTelechargerSauvegarde`, `TestInvitesExclus`,
   `TestMettreAJourVMSansSauvegarde`, `TestVMExclueSansAlerte` (vraie règle
   PromQL), `TestExclureVM` (interface).
-- À livrer en 0.6.21 (serveur seul, agents inchangés).
+- Livré en 0.6.21 (serveur seul) ; validé le 25/11 : alerte de la VM 200 pbs
+  fermée après « Ne pas surveiller », téléchargement d'une sauvegarde fait.
 
 ## Prochaine étape
 
