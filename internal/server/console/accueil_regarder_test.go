@@ -125,3 +125,30 @@ func TestCaseCertificatLien(t *testing.T) {
 		t.Errorf("certificat : %+v", c)
 	}
 }
+
+// Retour du 26/11 : raison et lien de chaque machine à regarder, de la
+// plus grave à la moins grave.
+func TestRaisonsMachines(t *testing.T) {
+	d := &donneesAccueil{Parc: []ligneParc{
+		{Nom: "a", Muette: true},
+		{Nom: "b", ClasseEtat: "ok"},
+		{Nom: "c", ClasseEtat: "attention", Alertes: 2, PleinDans: "plein dans 3 j"},
+		{Nom: "d", ClasseEtat: "ok", PleinDans: "plein dans 13 j"},
+		{Nom: "e", ClasseEtat: "ok"},
+	}}
+	rs := raisonsMachines(d, map[string]string{"b": "version refusée", "e": ""})
+	attendu := []raisonMachine{
+		{"a", "plus de données depuis plus de 5 min", "/machines/a"},
+		{"b", "mise à jour de l'agent en échec", "/machines/b#maj"},
+		{"c", "2 alertes en cours", "/machines/c#activite"},
+		{"d", "disque plein dans 13 j", "/machines/d#disques"},
+	}
+	if len(rs) != len(attendu) {
+		t.Fatalf("%d machines : %+v", len(rs), rs)
+	}
+	for i := range attendu {
+		if rs[i] != attendu[i] {
+			t.Errorf("%d : %+v, attendu %+v", i, rs[i], attendu[i])
+		}
+	}
+}
