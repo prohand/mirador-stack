@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/metrics"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -47,6 +48,9 @@ type Agent struct {
 	reveil chan struct{}
 	// allegeur : envoi allégé (SPEC § 100) ; nil = désactivé.
 	allegeur *mm.Allegeur
+	// complet : le prochain réveil fait un relevé complet (« Vérifier
+	// maintenant », SPEC § 127), collecteurs lents compris.
+	complet atomic.Bool
 }
 
 // Nouveau prépare l'agent (rien ne tourne encore).
@@ -205,7 +209,12 @@ func (a *Agent) Tourner(ctx context.Context) {
 		case <-a.reveil:
 			// Panne vue (SPEC § 98) : relevé rapide tout de suite (les
 			// collecteurs lents gardent leur rythme), en plus du rythme habituel.
-			a.cycleUrgent(time.Now())
+			// « Vérifier maintenant » (SPEC § 127) : relevé complet.
+			if a.complet.Swap(false) {
+				a.Cycle(time.Now(), true)
+			} else {
+				a.cycleUrgent(time.Now())
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -245,6 +254,13 @@ func (a *Agent) Reveiller() {
 	case a.reveil <- struct{}{}:
 	default:
 	}
+}
+
+// VerifierMaintenant : relevé complet tout de suite (« Vérifier maintenant »
+// dans l'interface, SPEC § 127) : rien n'est lancé de plus que d'habitude.
+func (a *Agent) VerifierMaintenant() {
+	a.complet.Store(true)
+	a.Reveiller()
 }
 
 // Cycle fait une collecte complète et met le lot dans la file d'envoi.

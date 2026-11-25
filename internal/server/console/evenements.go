@@ -155,7 +155,11 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 	// Pannes vues tout de suite par l'agent (SPEC § 98).
 	if ps, err := flotte.ListerPannes(ctx, c.db, f.Machine, f.Debut, f.Fin, f.Max); err == nil {
 		for _, p := range ps {
-			ajouter(evenement{Le: p.Le, Type: evPanne, Gravite: "critical", Texte: textePanne(p), Objet: p.Machine,
+			gravite := "critical"
+			if p.Type == protocole.EvenementServiceRetour {
+				gravite = "" // retour à la normale (SPEC § 127) : pas une panne
+			}
+			ajouter(evenement{Le: p.Le, Type: evPanne, Gravite: gravite, Texte: textePanne(p), Objet: p.Machine,
 				Lien: "/machines/" + url.PathEscape(p.Machine), Machine: p.Machine})
 		}
 	}
@@ -366,6 +370,8 @@ func textePanne(p flotte.Panne) string {
 	switch p.Type {
 	case protocole.EvenementService:
 		return p.Objet + " est passé en échec (vu par l'agent en direct)"
+	case protocole.EvenementServiceRetour:
+		return p.Objet + " " + p.Texte + " (vu par l'agent en direct)"
 	case protocole.EvenementOOM:
 		return "Processus tué faute de mémoire : " + p.Texte
 	}

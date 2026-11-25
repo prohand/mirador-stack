@@ -5,6 +5,8 @@
 // Sans attendre le relevé suivant (30 s) :
 //   - un service systemd qui passe en échec : signal D-Bus de systemd
 //     (PropertiesChanged, ActiveState = failed), en lecture seule ;
+//   - le même service qui sort de l'échec (actif, ou arrêté proprement) : le
+//     retour est vu aussi vite que la panne (SPEC § 127) ;
 //   - un processus tué faute de mémoire : compteur oom_kill de /proc/vmstat,
 //     relu toutes les 2 s (une lecture de fichier, ~20 µs).
 //
@@ -39,8 +41,9 @@ type Veilleur struct {
 	Signaler func(protocole.EvenementAgent)
 	Journal  *slog.Logger
 
-	mu   sync.Mutex
-	vues map[string]time.Time // unité → dernier signalement (pas deux fois par minute)
+	mu    sync.Mutex
+	vues  map[string]time.Time // unité → dernier signalement (pas deux fois par minute)
+	echec map[string]bool      // unités vues en échec (leur retour est signalé)
 }
 
 const (
@@ -131,9 +134,16 @@ func nomUnite(p dbus.ObjectPath) string {
 	return b.String()
 }
 
-// aSignaler : unité .service suivie, pas déjà signalée dans la minute.
-func (v *Veilleur) aSignaler(unite string, t time.Time) bool {
-	if !strings.HasSuffix(unite, ".service") || (v.Garder != nil && !v.Garder(unite)) {
+// suivie : unité .service que le collecteur systemd surveille.
+func (v *Veilleur) suivie(unite string) bool {
+	return strings.HasSuffix(unite, ".service") && (v.Garder == nil || v.Garder(unite))
+}
+
+// aSignaler : unité suivie, pas déjà signalée dans la minute (cle : l'unité
+// pour une panne, « retour: » + l'unité pour un retour : un service réparé
+// juste après sa panne est quand même signalé).
+func (v *Veilleur) aSignaler(cle, unite string, t time.Time) bool {
+	if !v.suivie(unite) {
 		return false
 	}
 	v.mu.Lock()
@@ -141,14 +151,32 @@ func (v *Veilleur) aSignaler(unite string, t time.Time) bool {
 	if v.vues == nil {
 		v.vues = map[string]time.Time{}
 	}
-	if d, ok := v.vues[unite]; ok && t.Sub(d) < memeUnite {
+	if d, ok := v.vues[cle]; ok && t.Sub(d) < memeUnite {
 		return false
 	}
 	if len(v.vues) > 1000 { // borne mémoire
 		v.vues = map[string]time.Time{}
 	}
-	v.vues[unite] = t
+	v.vues[cle] = t
 	return true
+}
+
+// noterEchec : retient (ou oublie) une unité en échec ; renvoie vrai si
+// l'unité était en échec avant (son retour est à signaler).
+func (v *Veilleur) noterEchec(unite string, enEchec bool) (avant bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.echec == nil {
+		v.echec = map[string]bool{}
+	}
+	avant = v.echec[unite]
+	switch {
+	case enEchec && len(v.echec) < 1000: // borne mémoire
+		v.echec[unite] = true
+	case !enEchec:
+		delete(v.echec, unite)
+	}
+	return avant
 }
 
 // traiter : un signal PropertiesChanged d'une unité.
@@ -165,14 +193,53 @@ func (v *Veilleur) traiter(s *dbus.Signal) {
 	if !ok {
 		return
 	}
-	if e, _ := etat.Value().(string); e != "failed" {
-		return
-	}
 	unite := nomUnite(s.Path)
-	if unite == "" || !v.aSignaler(unite, time.Now()) {
+	if unite == "" || !v.suivie(unite) {
 		return
 	}
-	v.Signaler(protocole.EvenementAgent{Type: protocole.EvenementService, Objet: unite, Texte: "passé en échec", Le: time.Now().UnixMilli()})
+	maintenant := time.Now()
+	switch e, _ := etat.Value().(string); e {
+	case "failed":
+		v.noterEchec(unite, true)
+		if v.aSignaler(unite, unite, maintenant) {
+			v.Signaler(protocole.EvenementAgent{Type: protocole.EvenementService, Objet: unite, Texte: "passé en échec", Le: maintenant.UnixMilli()})
+		}
+	case "active", "inactive":
+		// Sorti de l'échec : relancé (actif) ou remis à zéro / arrêté
+		// proprement (inactif). Les états de passage (activating…) attendent.
+		if v.noterEchec(unite, false) && v.aSignaler("retour:"+unite, unite, maintenant) {
+			texte := "de nouveau actif"
+			if e == "inactive" {
+				texte = "sorti de l'échec (arrêté)"
+			}
+			v.Signaler(protocole.EvenementAgent{Type: protocole.EvenementServiceRetour, Objet: unite, Texte: texte, Le: maintenant.UnixMilli()})
+		}
+	}
+}
+
+// uniteEchouee : une ligne de ListUnitsFiltered (nom, description, états…).
+type uniteEchouee struct {
+	Nom, Description, Chargement, Actif, Sous, Suit string
+	Chemin                                          dbus.ObjectPath
+	Tache                                           uint32
+	TypeTache                                       string
+	CheminTache                                     dbus.ObjectPath
+}
+
+// lireEchecs : unités déjà en échec au démarrage de l'écoute (lecture seule) :
+// leur retour sera signalé aussi.
+func (v *Veilleur) lireEchecs(ctx context.Context, c *dbus.Conn) {
+	var unites []uniteEchouee
+	if err := c.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1").CallWithContext(ctx,
+		"org.freedesktop.systemd1.Manager.ListUnitsFiltered", 0, []string{"failed"}).Store(&unites); err != nil {
+		v.Journal.Debug("liste des unités en échec illisible", "erreur", err)
+		return
+	}
+	for _, u := range unites {
+		if v.suivie(u.Nom) {
+			v.noterEchec(u.Nom, true)
+		}
+	}
 }
 
 // ecouterSystemd : abonnement aux changements d'état des unités (lecture
@@ -207,6 +274,7 @@ func (v *Veilleur) uneEcoute(ctx context.Context) error {
 	}
 	ch := make(chan *dbus.Signal, 64)
 	c.Signal(ch)
+	v.lireEchecs(ctx, c)
 	for {
 		select {
 		case <-ctx.Done():

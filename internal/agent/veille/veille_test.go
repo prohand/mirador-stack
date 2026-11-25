@@ -52,6 +52,42 @@ func TestTraiter(t *testing.T) {
 	}
 }
 
+// Retour à la normale (SPEC § 127) : signalé une fois, seulement pour une
+// unité vue en échec (un « active » ordinaire ne dit rien), même juste après
+// sa panne ; les états de passage (activating) attendent.
+func TestRetour(t *testing.T) {
+	var recus []protocole.EvenementAgent
+	v := &Veilleur{Signaler: func(e protocole.EvenementAgent) { recus = append(recus, e) }}
+	sig := func(unite, etat string) *dbus.Signal {
+		return &dbus.Signal{Path: dbus.ObjectPath("/org/freedesktop/systemd1/unit/" + unite), Name: "org.freedesktop.DBus.Properties.PropertiesChanged",
+			Body: []any{"org.freedesktop.systemd1.Unit", map[string]dbus.Variant{"ActiveState": dbus.MakeVariant(etat)}, []string{}}}
+	}
+	v.traiter(sig("cron_2eservice", "active")) // jamais en échec : rien
+	v.traiter(sig("nginx_2eservice", "failed"))
+	v.traiter(sig("nginx_2eservice", "activating"))
+	v.traiter(sig("nginx_2eservice", "active"))
+	v.traiter(sig("nginx_2eservice", "active")) // déjà signalé
+	v.noterEchec("redis.service", true)         // en échec avant l'écoute (lireEchecs)
+	v.traiter(sig("redis_2eservice", "inactive"))
+	types := []string{}
+	for _, e := range recus {
+		types = append(types, e.Type+" "+e.Objet+" "+e.Texte)
+		if err := e.Valider(); err != nil {
+			t.Errorf("%+v refusé par le serveur : %v", e, err)
+		}
+	}
+	att := []string{"service nginx.service passé en échec", "service-retour nginx.service de nouveau actif",
+		"service-retour redis.service sorti de l'échec (arrêté)"}
+	if len(types) != len(att) {
+		t.Fatalf("signalés : %q", types)
+	}
+	for i := range att {
+		if types[i] != att[i] {
+			t.Errorf("%d : %q, attendu %q", i, types[i], att[i])
+		}
+	}
+}
+
 // oom_kill qui augmente : signalé dans les 2 relectures.
 func TestOOM(t *testing.T) {
 	ancien := rythmeOOM

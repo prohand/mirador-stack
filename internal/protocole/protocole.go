@@ -116,8 +116,23 @@ const (
 	EnteteSonder = "X-Mirador-Sonder"
 )
 
+// CapaciteVerifier : l'agent sait « Vérifier maintenant » (SPEC § 127) :
+// un relevé complet tout de suite (services compris) et un passage de
+// l'assistant root, via EnteteVerifie / EnteteVerifier. Un agent plus ancien
+// n'envoie pas EnteteVerifie : le bouton est grisé pour sa machine. Rien
+// n'est lancé sur la machine : l'agent relit seulement, comme d'habitude.
+const CapaciteVerifier = "verifier"
+
+// EnteteVerifie (requête) : numéro de la dernière demande « Vérifier
+// maintenant » déjà faite par l'agent (0 au démarrage). EnteteVerifier
+// (réponse) : numéro de la demande la plus récente.
+const (
+	EnteteVerifie  = "X-Mirador-Verifie"
+	EnteteVerifier = "X-Mirador-Verifier"
+)
+
 // Capacites : ce que cet agent annonce (en-tête X-Mirador-Capacites).
-const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai + "," + CapaciteDirect
+const Capacites = CapaciteSurveillance + "," + CapaciteElements + "," + CapaciteProxmox + "," + CapaciteChecks + "," + CapaciteReessai + "," + CapaciteDirect + "," + CapaciteVerifier
 
 // DemandeEnrolement : envoyée avec un jeton d'enrôlement à usage unique,
 // généré dans l'interface (SPEC.md, « Enrôlement des machines »).

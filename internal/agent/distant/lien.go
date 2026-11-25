@@ -57,6 +57,10 @@ type Lien struct {
 	// dans l'interface (« Vérifier maintenant »). nil : l'agent ne les
 	// demande pas (le serveur n'en envoie alors aucun).
 	Sonder func(noms []string)
+	// Verifier (mirador-agent, SPEC § 127) : « Vérifier maintenant » demandé
+	// dans l'interface : relevé complet tout de suite (l'assistant root est
+	// relancé en plus). nil : l'agent ne le demande pas.
+	Verifier func()
 	// CSRSyslog : demande de certificat du syslog (mirador-collector), jointe
 	// à chaque battement ('' : rien).
 	CSRSyslog string
@@ -287,7 +291,7 @@ func (l *Lien) surveillerEssai(ctx context.Context) {
 
 func (l *Lien) boucleConfig(ctx context.Context) {
 	r := &Recuperateur{URL: l.url(protocole.CheminConfig), Token: l.Token, Client: l.Client, Empreinte: l.Empreinte,
-		Attendre: l.attenteConfig, DirectActif: l.enDirect.Load, AvecSonde: l.Sonder != nil}
+		Attendre: l.attenteConfig, DirectActif: l.enDirect.Load, AvecSonde: l.Sonder != nil, AvecVerif: l.Verifier != nil}
 	if !attendre(ctx, l.etale()) {
 		return
 	}
@@ -325,6 +329,16 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 					l.Sonder(r.SonderNoms)
 				}
 				r.Sonde = r.Sonder
+			}
+			// « Vérifier maintenant » (pas à la toute première réponse : une
+			// ancienne demande n'est pas refaite au démarrage de l'agent).
+			if l.Verifier != nil && r.Verifier > r.Verifie {
+				if !premiere {
+					l.Journal.Info("vérification demandée dans l'interface : relevé complet et assistant root")
+					l.Verifier()
+					l.actualiserRacine()
+				}
+				r.Verifie = r.Verifier
 			}
 			if r.Actualiser > r.Actualise {
 				if !premiere {

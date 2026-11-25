@@ -69,6 +69,39 @@ func actualisationDe(machine int64) int64 {
 	return actualisations.m[machine]
 }
 
+// verifications : machine → numéro (horodatage en nanosecondes) de la
+// dernière demande « Vérifier maintenant » (SPEC § 127). En mémoire, comme
+// les actualisations.
+var verifications = struct {
+	mu sync.Mutex
+	m  map[int64]int64
+}{m: map[int64]int64{}}
+
+// DemanderVerification : bouton « Vérifier maintenant ». L'agent (s'il sait
+// le faire, CapaciteVerifier) fait un relevé complet et relance l'assistant
+// root, dans la seconde s'il est en attente. Rien n'est lancé sur la machine.
+func DemanderVerification(machine int64, maintenant time.Time) {
+	verifications.mu.Lock()
+	verifications.m[machine] = maintenant.UnixNano()
+	verifications.mu.Unlock()
+	SignalerConfig()
+}
+
+// VerificationDe : heure de la dernière demande « Vérifier maintenant » de
+// la machine (zéro si aucune depuis le démarrage du serveur).
+func VerificationDe(machine int64) time.Time {
+	if n := verificationDe(machine); n > 0 {
+		return time.Unix(0, n)
+	}
+	return time.Time{}
+}
+
+func verificationDe(machine int64) int64 {
+	verifications.mu.Lock()
+	defer verifications.mu.Unlock()
+	return verifications.m[machine]
+}
+
 // lireAttente : durée demandée par l'agent (0 = réponse immédiate).
 func lireAttente(v string) time.Duration {
 	s, err := strconv.Atoi(v)

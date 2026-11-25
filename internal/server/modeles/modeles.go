@@ -82,10 +82,14 @@ type Parametre struct {
 
 // RegleModele : règle d'alerte du modèle.
 type RegleModele struct {
-	Nom         string `json:"nom"`
-	Remplace    string `json:"remplace,omitempty"` // règle (importée ou fournie) qu'elle remplace
-	Expr        string `json:"expr"`
-	Pour        string `json:"pour,omitempty"`
+	Nom      string `json:"nom"`
+	Remplace string `json:"remplace,omitempty"` // règle (importée ou fournie) qu'elle remplace
+	Expr     string `json:"expr"`
+	Pour     string `json:"pour,omitempty"`
+	// Intervalle : rythme d'évaluation (défaut 1 min ; de 10 s à 1 h).
+	// « Service en échec » : 15 s, pour qu'un service réparé sorte vite
+	// de l'alerte (SPEC § 127).
+	Intervalle  string `json:"intervalle,omitempty"`
 	Gravite     string `json:"gravite"`
 	Resume      string `json:"resume,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -163,6 +167,12 @@ func (m *Modele) Valider() error {
 		if err := verifierRefs(r.Expr, vus); err != nil {
 			return fmt.Errorf("règle %s : %w", r.Nom, err)
 		}
+		if r.Intervalle != "" {
+			d, err := alertes.LireDuree(r.Intervalle)
+			if err != nil || time.Duration(d) < 10*time.Second || time.Duration(d) > time.Hour {
+				return fmt.Errorf("règle %s : intervalle %q invalide (10s à 1h)", r.Nom, r.Intervalle)
+			}
+		}
 		ar := m.RegleAlerte(r)
 		if _, err := ar.Valider(); err != nil {
 			return fmt.Errorf("règle %s : %w", r.Nom, err)
@@ -213,7 +223,13 @@ func (m *Modele) RegleAlerte(r RegleModele) alertes.Regle {
 	if r.Pour != "" {
 		pour, _ = alertes.LireDuree(r.Pour)
 	}
-	return alertes.Regle{Nom: r.Nom, Groupe: "modele_" + strings.ReplaceAll(m.Nom, "-", "_"), Intervalle: alertes.Duree(time.Minute),
+	intervalle := alertes.Duree(time.Minute)
+	if r.Intervalle != "" {
+		if d, err := alertes.LireDuree(r.Intervalle); err == nil && time.Duration(d) >= 10*time.Second && time.Duration(d) <= time.Hour {
+			intervalle = d
+		}
+	}
+	return alertes.Regle{Nom: r.Nom, Groupe: "modele_" + strings.ReplaceAll(m.Nom, "-", "_"), Intervalle: intervalle,
 		Expr: m.ExprRegle(r), Pour: pour, Gravite: r.Gravite, Resume: r.Resume, Description: r.Description, Etiquettes: r.Etiquettes,
 		Active: true, Origine: "modele:" + m.Nom,
 		Note: "Modèle « " + m.Titre + " » : seuils réglables par groupe et par machine (page de la machine)"}

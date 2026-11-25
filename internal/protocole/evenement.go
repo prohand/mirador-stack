@@ -15,8 +15,9 @@ import (
 
 // Types d'événement.
 const (
-	EvenementService = "service" // unité systemd passée en échec
-	EvenementOOM     = "oom"     // processus tué faute de mémoire
+	EvenementService       = "service"        // unité systemd passée en échec
+	EvenementServiceRetour = "service-retour" // unité sortie de l'échec (SPEC § 127)
+	EvenementOOM           = "oom"            // processus tué faute de mémoire
 )
 
 // EvenementAgent : une panne vue par l'agent.
@@ -32,7 +33,7 @@ var reUnite = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]{1,128}$`)
 // Valider : type connu, textes bornés.
 func (e *EvenementAgent) Valider() error {
 	switch e.Type {
-	case EvenementService:
+	case EvenementService, EvenementServiceRetour:
 		if !reUnite.MatchString(e.Objet) {
 			return errors.New("unité invalide")
 		}
