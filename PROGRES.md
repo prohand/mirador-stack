@@ -1907,8 +1907,8 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Mesures : rien de mesurable (mêmes requêtes).
 - 0.6.23 installée le 25/11 au soir : bandeau, certificat, page machine OK ;
   « Voir » du disque ouvrait l'onglet Activité (ancre `r-disques`),
-  corrigé (vu dans le navigateur sur le serveur de démonstration), à livrer
-  en 0.6.24.
+  corrigé (vu dans le navigateur sur le serveur de démonstration).
+- 0.6.24 installée et validée le 25/11 au soir (« Voir » du disque OK).
 - sup (26/11) : journal local 2,9 Go → 461 Mo (limite 500 Mo) ; le bruit
   venait des paquets bloqués journalisés par le pare-feu (voisinage IPv6
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook
@@ -1937,7 +1937,7 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 - Alertes Telegram en mode actif depuis le 13/11 ; signal de vie OK.
 
 **Reste**
-1. Mesure du serveur sur 24 h : lancée le 25/11 à 22:20 sur le VPS (unité
+1. Mesure du serveur sur 24 h : relancée le 25/11 vers 23 h, après la 0.6.24 (unité
    `mirador-mesure-24h`, `docs/installation-serveur.md` § 5) ; résumé le
    26/11 au soir, à reporter ici.
 2. Clore les étapes 6 et 7 (validation de l'utilisateur).
