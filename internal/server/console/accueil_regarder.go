@@ -139,7 +139,7 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		// regarder (retour du 26/11 : « Voir » menait à toutes les machines).
 		lien := "/machines?filtre=problemes"
 		if len(disquesDe) == 1 {
-			lien = "/machines/" + url.PathEscape(disquesDe[0]) + "#disques"
+			lien = "/machines/" + url.PathEscape(disquesDe[0]) + "#" + ancre("Disques")
 		}
 		add(aRegarder{Classe: "attention", Icone: "disque", Puce: "orange", Court: "disque", Titre: titre,
 			Texte: resumeNoms(disques), Lien: lien, Action: "Voir"})
@@ -310,7 +310,9 @@ func aRegarderMachines(d *donneesAccueil, majEchec map[string]string) []string {
 	return out
 }
 
-// raisonMachine : pourquoi une machine est à regarder, et où le voir.
+// raisonMachine : pourquoi une machine est à regarder, et où le voir. Le
+// disque mène à la rangée « Disques » des graphiques (ancre « r-disques »,
+// la même que le sommaire de la page machine).
 type raisonMachine struct{ Nom, Raison, Lien string }
 
 // raisonsMachines : machines de aRegarderMachines avec la raison la plus
@@ -335,7 +337,7 @@ func raisonsMachines(d *donneesAccueil, majEchec map[string]string) []raisonMach
 				x.Raison = accorderTexte(strconv.Itoa(n) + " alerte(s) prise(s) en charge")
 			}
 		default:
-			x.Raison, x.Lien = "disque "+l.PleinDans, page+"#disques"
+			x.Raison, x.Lien = "disque "+l.PleinDans, page+"#"+ancre("Disques")
 		}
 		out = append(out, x)
 	}

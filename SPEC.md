@@ -8651,7 +8651,7 @@ jellyfin) ; la case « À regarder 1 » de la page Machines donnait
 
 - Bandeau : « sup : disque plein dans 13 j » (ou alerte en cours, prise en
   charge, mise à jour en échec, muette) ; une machine : le bouton mène à
-  l'endroit qui le montre (graphiques Disques `#disques`, onglet Activité,
+  l'endroit qui le montre (graphiques Disques `#r-disques`, onglet Activité,
   bloc de mise à jour `#maj`).
 - « À regarder » › disque : une machine → ses graphiques Disques ;
   plusieurs → filtre « Problèmes ».
@@ -8662,3 +8662,6 @@ jellyfin) ; la case « À regarder 1 » de la page Machines donnait
   orange (alerte, disque bientôt plein, paquets de sécurité), comme la
   case « À regarder ».
 - Coût : aucun (mêmes requêtes, une étiquette de plus dans un `min by`).
+- Correctif (26/11, après 0.6.23) : le lien du disque visait `#disques`
+  alors que la rangée s'appelle `r-disques` (comme dans le sommaire) ; la
+  page rouvrait le dernier onglet (Activité). Lien construit avec `ancre`.
