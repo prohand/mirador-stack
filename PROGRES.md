@@ -1911,6 +1911,8 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook
   `limiter-journal.yml` (docs/deploiement-agents.md § 5.5) pour le parc,
   essayé ici avec de faux journalctl / systemctl (2 passages et --check).
+- Playbook passé sur le parc le 26/11 (26 machines, aucun échec) : environ
+  70 Go de journaux locaux avant, 12 Go après, **≈ 58 Go libérés**.
 
 ## Prochaine étape
 
