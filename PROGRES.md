@@ -1827,6 +1827,9 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 
 ## Vérifier maintenant, délais, bandeau, paquets (SPEC § 127, 25/11)
 
+- **0.6.19 publiée et installée le 25/11** (serveur, puis agents) : essais
+  validés par l'utilisateur (« c'est ok »).
+
 - Maquettes validées le 25/11 (alerte, bloc Services, bandeau, bloc Paquets).
 - Retour à la normale d'un service : signalé par l'agent (D-Bus) comme la
   panne, alerte fermée en quelques secondes au lieu de 2 min au plus ;
@@ -1851,6 +1854,19 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   machine (bouton, une par minute, attente, agent ancien), résultats,
   bandeau (avertissements, machine à regarder, infos) ; `go test ./...`,
   `go vet`, gosec au vert. Captures sur la démo conformes aux maquettes.
+
+## Bilan mémoire après la suppression de l'ancienne stack (25/11)
+
+| Machine | Avant | Après |
+|---|---|---|
+| VPS (sup, 3,8 Go) | ancienne stack ≈ 770 Mio (07/11 : Grafana 291, VictoriaMetrics 248, VictoriaLogs 187, Alertmanager 24, vmalert 19) | **mirador-server 187 Mio** (limite 300, objectif < 256 tenu) + relais Docker 30 Mio ; 2 512 Mio disponibles |
+| obscollector (961 Mio) | 402 Mio disponibles, 206 Mio de swap (Alloy 143 + unpoller 28) | **459 Mio disponibles, 157 Mio de swap** (collecteur 20 + compagnon 11) |
+
+- Gain sur le VPS : environ **580 Mio** (770 de l'ancienne stack contre 187
+  pour mirador). Restent sur le VPS, hors mirador : uptime-kuma (279 + 181
+  Mio), arcane (139 + 30 Mio).
+- À surveiller : le relais Docker de mirador utilise 29,8 Mio pour une
+  limite de 32 Mio (le même relais d'arcane, sans limite, en prend autant).
 
 ## Prochaine étape
 
