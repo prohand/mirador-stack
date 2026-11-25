@@ -1870,6 +1870,18 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   publiée et appliquée le 25/11 par le playbook ; vérifié sur gladys-dev :
   67108864 octets).
 
+## Sauvegarde téléchargeable, VM exclue (SPEC § 128, 25/11)
+
+- Réglages › Sauvegardes : bouton « Télécharger » (archive chiffrée, admin, audit).
+- « VM sans sauvegarde planifiée » : bouton « Ne pas surveiller » (page de
+  l'alerte et Tâches planifiées), retour en arrière possible.
+- Mesures : rien de mesurable (une série par VM exclue, une lecture de
+  réglage par minute ; le téléchargement lit le fichier en flux).
+- Tests : `TestTelechargerSauvegarde`, `TestInvitesExclus`,
+  `TestMettreAJourVMSansSauvegarde`, `TestVMExclueSansAlerte` (vraie règle
+  PromQL), `TestExclureVM` (interface).
+- À livrer en 0.6.21 (serveur seul, agents inchangés).
+
 ## Prochaine étape
 
 Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).

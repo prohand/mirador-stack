@@ -123,6 +123,9 @@ type donneesAlerte struct {
 	// en cours ou fermée depuis moins de 10 min (résultat d'une vérification).
 	Verif    *vueVerif
 	Resultat *resultatVerification
+	// ExclureVM : alerte « VM sans sauvegarde planifiée » : bouton « Ne pas
+	// surveiller » (retour du 25/11).
+	ExclureVM *vmSansSauvegarde
 }
 
 type processusCause struct{ Nom, Groupe, Valeur string }
@@ -183,6 +186,10 @@ func (c *Console) pageAlerte(q *req) {
 		d.Resultat = resultatAlerte(d.Verif, d.EnCours, a.Resume)
 	}
 	a.Etiquettes.Range(func(l labels.Label) { d.Etiquettes = append(d.Etiquettes, etiquette{l.Name, l.Value}) })
+	if a.Regle == "VMSansSauvegarde" && a.Etiquettes.Get("instance") != "" && a.Etiquettes.Get("id") != "" {
+		d.ExclureVM = &vmSansSauvegarde{Machine: a.Etiquettes.Get("instance"), ID: a.Etiquettes.Get("id"),
+			Type: a.Etiquettes.Get("type"), Nom: a.Etiquettes.Get("nom")}
+	}
 	if c.opt.Aiguilleur != nil && d.EnCours {
 		for _, e := range c.opt.Alertes.EnCours() {
 			if e.ID == a.ID {

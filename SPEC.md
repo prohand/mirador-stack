@@ -8572,3 +8572,40 @@ retour de service ; serveur, une règle évaluée 4 fois plus souvent, 2
 requêtes instantanées de plus sur la page d'une machine. Menaces : le bouton
 ne fait que réveiller l'agent (pas de paramètre transmis) ; page de retour
 limitée à `/alertes/…` et `/machines/…` ; motif d'échec filtré.
+
+## 128. Sauvegarde téléchargeable, VM exclue de « sans sauvegarde planifiée » (25/11) **[Fait, à valider]**
+
+Retours du 25/11 : garder une copie des sauvegardes hors du VPS sans
+nouveau service (SFTP vers le NAS écarté) ; la VM 200 `pbs` (le Proxmox
+Backup Server lui-même) déclenche « VM sans sauvegarde planifiée » à tort.
+
+**Télécharger une sauvegarde**
+- Réglages › Sauvegardes : lien « Télécharger » par archive, et
+  « Télécharger la dernière (taille) » à côté de « Sauvegarder maintenant ».
+- Route `GET /reglages/sauvegardes/telecharger/{nom}`, admin seulement ;
+  le nom doit suivre le motif des archives (`mirador-AAAAMMJJ-HHMMSS.sauvegarde`),
+  pas de chemin ; fichier lu dans le dossier des archives ; audit
+  `sauvegarde_telechargee`.
+- L'archive reste chiffrée (AES-256-GCM, clé `secrets/mirador_cle`) : la
+  copie seule ne sert à rien sans la clé, à garder **ailleurs**.
+- Coût : aucun hors du clic (lecture du fichier en flux, pas en mémoire).
+
+**Ne pas surveiller une VM** (règle `VMSansSauvegarde`)
+- Bouton « Ne pas surveiller » (motif facultatif) sur la page de l'alerte
+  et sur chaque VM de la carte « sans sauvegarde planifiée » (Tâches
+  planifiées). Liste « N VM exclue(s) · voir » avec « Surveiller à nouveau ».
+- Stockage : réglage `taches.invites_exclus` (JSON, 500 au plus) ; audit
+  `invite_exclu` / `invite_reintegre`. Rien ne change côté agent.
+- Le serveur écrit chaque minute une série `mirador_pve_invite_exclue{instance, id}`
+  par VM exclue ; la règle devient
+  `mirador_pve_invite_sans_sauvegarde == 1 unless on (instance, id) mirador_pve_invite_exclue`.
+  L'alerte se ferme seule à l'évaluation suivante (quelques minutes).
+- Au démarrage, la règle posée avec l'ancienne expression reçoit la
+  nouvelle ; une expression modifiée à la main est **laissée** (la remettre
+  par défaut pour profiter des exclusions).
+- Coût : une série par VM exclue (quelques octets), une lecture du réglage
+  par minute.
+- Menaces : machine et numéro contrôlés (`^[0-9]{1,9}$`), motif et nom
+  bornés à une ligne ; admin + CSRF ; page de retour limitée à `/alertes/…`
+  et `/machines/…`. Une exclusion masque une vraie VM oubliée : elle reste
+  visible (liste, auteur, motif, audit).
