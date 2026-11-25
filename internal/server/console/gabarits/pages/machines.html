@@ -7,7 +7,7 @@
 <a class="case-etat" href="/machines"><small>En ligne</small><b>{{.EnLigne}} <i>/ {{.Approuvees}}</i></b><span class="barre-etat"><i class="ok largeur-{{.PctEnLigne}}"></i><i class="erreur largeur-{{.PctMuettes}}"></i></span><span class="s">{{if .Muettes}}{{.Muettes}} {{accord .Muettes "muette(s)"}}{{else}}toutes répondent{{end}}{{if .EnAttente}} · {{.EnAttente}} en attente{{end}}</span></a>
 <a class="case-etat{{if .Muettes}} erreur{{end}}" href="/machines?filtre=problemes"><small>Muettes</small><b>{{.Muettes}}</b><span class="s">{{if .Muettes}}{{.NomsMuettes}}{{else}}aucune{{end}}</span></a>
 <a class="case-etat{{if .ARegarder}} attention{{end}}" href="/machines?filtre=problemes"><small>À regarder</small><b>{{.ARegarder}}</b><span class="s">{{if .ARegarder}}{{.DetailRegarder}}{{else}}rien à signaler{{end}}</span></a>
-<a class="case-etat{{if .Securite}} attention{{end}}" href="/"><small>Paquets à mettre à jour</small><b>{{.Paquets}}</b><span class="s">{{if .Securite}}{{.DetailPaquets}}{{else if .Paquets}}aucun de sécurité{{else}}tout est à jour{{end}}</span></a>
+<a class="case-etat{{if .Securite}} attention{{end}}" href="/machines?filtre=paquets"><small>Machines à mettre à jour</small><b>{{.MachinesPaquets}}</b><span class="s">{{if .Paquets}}{{.DetailPaquets}}{{else}}tout est à jour{{end}}</span></a>
 </div>{{end}}{{end}}
 
 {{if .D.EnAttente}}<details class="bandeau-attente" id="attente"{{if .D.ToutesAttente}} open{{end}}>
@@ -39,7 +39,7 @@
 <a href="{{$f.Lien "filtre" ""}}"{{if eq $f.Filtre ""}} class="actif" aria-current="page"{{end}}>Toutes ({{.D.Compteurs.Toutes}})</a>
 <a href="{{$f.Lien "filtre" "problemes"}}"{{if eq $f.Filtre "problemes"}} class="actif" aria-current="page"{{end}} title="Machines muettes ou dont la mise à jour a échoué">Problèmes ({{.D.Compteurs.Problemes}})</a>
 <a href="{{$f.Lien "filtre" "agents"}}"{{if eq $f.Filtre "agents"}} class="actif" aria-current="page"{{end}}>Agents ({{.D.Compteurs.Agents}})</a>
-<a href="{{$f.Lien "filtre" "collecteurs"}}"{{if eq $f.Filtre "collecteurs"}} class="actif" aria-current="page"{{end}}>Collecteurs et équipements ({{.D.Compteurs.Collecteurs}})</a></span>
+<a href="{{$f.Lien "filtre" "collecteurs"}}"{{if eq $f.Filtre "collecteurs"}} class="actif" aria-current="page"{{end}}>Collecteurs et équipements ({{.D.Compteurs.Collecteurs}})</a>{{if eq $f.Filtre "paquets"}}<a href="{{$f.Lien "filtre" "paquets"}}" class="actif" aria-current="page">À mettre à jour</a>{{end}}</span>
 <span class="segment" aria-label="Regroupement">
 <a href="{{$f.Lien "vue" "site"}}"{{if eq $f.Vue "site"}} class="actif" aria-current="page"{{end}}>Par site</a>
 <a href="{{$f.Lien "vue" "groupe"}}"{{if eq $f.Vue "groupe"}} class="actif" aria-current="page"{{end}}>Par groupe</a>

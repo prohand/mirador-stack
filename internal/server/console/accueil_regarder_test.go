@@ -58,9 +58,38 @@ func TestBandeauToutVaBien(t *testing.T) {
 	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "rien à regarder pour l'instant" {
 		t.Errorf("bandeau : %+v", r.Bandeau)
 	}
+	// Infos et points sans urgence comptés à part (SPEC § 127).
 	d.Nouveautes = 2
 	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
-	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "1 point à regarder plus bas, sans urgence" {
-		t.Errorf("bandeau avec un point : %+v", r.Bandeau)
+	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "1 info (éléments à valider)" {
+		t.Errorf("bandeau avec une info : %+v", r.Bandeau)
+	}
+	d.Parc = []ligneParc{{Nom: "web1", PaquetsSecurite: 3}}
+	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Classe != "ok" || r.Bandeau.Texte != "1 point sans urgence plus bas (paquets de sécurité) · 1 info (éléments à valider)" {
+		t.Errorf("bandeau avec un point et une info : %+v", r.Bandeau)
+	}
+}
+
+// Retour du 25/11 (SPEC § 127) : plus de « Tout va bien » avec des
+// avertissements en cours ou une pastille orange ou rouge.
+func TestBandeauAvertissements(t *testing.T) {
+	b := nouveauBanc(t)
+	d := &donneesAccueil{Machines: 2, SauvegardeOK: true, Canaux: []notif.EtatCanal{{}}, Avertissements: 2,
+		Alertes: []resumeAlerte{{Regle: "LinuxServiceEnEchec", Gravite: "warning", Machine: "vps-web", Etat: "active"},
+			{Regle: "DisqueBientotPlein", Gravite: "warning", Machine: "nas", Etat: "active"}}}
+	r := b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Classe != "attention" || r.Bandeau.Titre != "2 avertissements en cours" ||
+		!strings.Contains(r.Bandeau.Texte, "(vps-web)") || !strings.Contains(r.Bandeau.Texte, "(nas)") || r.Bandeau.Lien != "/alertes" {
+		t.Errorf("avertissements : %+v", r.Bandeau)
+	}
+	// Machine rouge (alerte critique prise en charge) : « 1 machine à regarder ».
+	d.Avertissements, d.Alertes = 0, nil
+	d.Parc = []ligneParc{{Nom: "pve1", ClasseEtat: "erreur"}, {Nom: "web1"}}
+	d.Prises = []resumeAlerte{{Regle: "Muet", Gravite: "critical", Machine: "pve1", Etat: "active"}}
+	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
+	if r.Bandeau.Classe != "attention" || r.Bandeau.Titre != "1 machine à regarder" ||
+		r.Bandeau.Texte != "pve1 : 1 alerte prise en charge" || r.Bandeau.Lien != "/machines/pve1" {
+		t.Errorf("machine à regarder : %+v", r.Bandeau)
 	}
 }

@@ -24,6 +24,10 @@ type casesMachines struct {
 	DetailRegarder                          string
 	Paquets, Securite                       int
 	DetailPaquets                           string
+	// MachinesPaquets : machines qui ont des paquets à mettre à jour (le
+	// grand chiffre de la case ; retour du 25/11 : le total des paquets de
+	// toutes les machines se lisait mal).
+	MachinesPaquets int
 }
 
 // tuileMachine : une machine (ou un collecteur avec ses équipements).
@@ -128,6 +132,7 @@ func calculerCases(ms []vueMachine, mesures map[string]*ligneParc, enAttente int
 			regarder = append(regarder, v.Nom+" : "+accorderTexte(strconv.Itoa(m.Alertes)+" alerte(s)"))
 		}
 		if m != nil && m.Paquets > 0 {
+			c.MachinesPaquets++
 			c.Paquets += m.Paquets
 			c.Securite += m.PaquetsSecurite
 			if m.PaquetsSecurite > 0 {
@@ -138,8 +143,11 @@ func calculerCases(ms []vueMachine, mesures map[string]*ligneParc, enAttente int
 	c.ARegarder = len(regarder)
 	c.NomsMuettes = resumeNoms(muettes)
 	c.DetailRegarder = resumeNoms(regarder)
-	if c.Securite > 0 {
-		c.DetailPaquets = accorderTexte("dont "+strconv.Itoa(c.Securite)+" de sécurité") + " (" + resumeNoms(paquets) + ")"
+	switch {
+	case c.Securite > 0:
+		c.DetailPaquets = accorderTexte(strconv.Itoa(c.Paquets)+" paquet(s) en tout, dont "+strconv.Itoa(c.Securite)+" de sécurité") + " (" + resumeNoms(paquets) + ")"
+	case c.Paquets > 0:
+		c.DetailPaquets = accorderTexte(strconv.Itoa(c.Paquets) + " paquet(s) en tout, aucun de sécurité")
 	}
 	if c.Approuvees > 0 {
 		c.PctEnLigne = c.EnLigne * 100 / c.Approuvees

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,26 +18,40 @@ import (
 )
 
 // MisesAJour produit :
-//   - apt_upgrades_pending : paquets à mettre à jour ;
+//   - apt_upgrades_pending : paquets installés qui ont une nouvelle version
+//     (comme « apt list --upgradable » : retour du 25/11, les nouveaux
+//     paquets tirés par la mise à jour étaient comptés aussi) ;
 //   - apt_upgrades_security_pending : dont mises à jour de sécurité ;
+//   - apt_upgrades_new_pending : nouveaux paquets que la mise à jour
+//     installerait (noyau, dépendance), comptés à part ;
 //   - node_reboot_required : 1 si /run/reboot-required existe ;
 //   - apt_upgrade_package{package, from, to, security} : un paquet à mettre
 //     à jour (valeur 1), 200 au plus (SPEC § 42.3 : liste montrée sur la
 //     page de la machine) ;
 //   - apt_package_installed{package, from, to} : paquets installés depuis
-//     48 h, d'après /var/log/dpkg.log (valeur : heure, dpkg.go, SPEC § 47).
+//     48 h, d'après /var/log/dpkg.log (valeur : heure, dpkg.go, SPEC § 47) ;
+//   - apt_upgrades_calcule_le : heure (Unix) du dernier calcul réussi ;
+//   - mirador_agent_mises_a_jour_echec{raison} : le dernier calcul a échoué
+//     (la page de la machine le dit au lieu d'attendre en silence, SPEC § 127).
 //
 // Méthode (SPEC.md § 6.2) : « apt-get --simulate dist-upgrade », chemin et
 // arguments figés dans le code, sans droits root (la simulation n'en demande
-// pas), toutes les 6 heures seulement, dans une goroutine à part pour ne pas
-// retarder la collecte. Les listes de paquets ne sont PAS rafraîchies par
-// l'agent : c'est le rôle du timer apt-daily de Debian/Ubuntu.
+// pas), dans une goroutine à part pour ne pas retarder la collecte. Les
+// listes de paquets ne sont PAS rafraîchies par l'agent : c'est le rôle du
+// timer apt-daily de Debian/Ubuntu (ou d'un « apt update »). Le calcul est
+// refait (SPEC § 127) :
+//   - 2 min après qu'apt a de nouvelles listes (après un apt update : date
+//     du dossier des listes et du cache d'apt, relue à chaque passage) ;
+//   - 2 min après une installation (dpkg.log) ;
+//   - 15 min après un échec ;
+//   - sinon toutes les 6 heures.
 //
 // La dernière valeur est renvoyée à chaque passage (60 s) pour que la série
 // ne disparaisse pas entre deux mesures.
 type MisesAJour struct {
 	commande           string // /usr/bin/apt-get (figé, modifiable seulement par les tests)
 	fichierRedemarrage string
+	listesApt          []string // dates surveillées (dossier des listes, cache)
 	periode            time.Duration
 	delai              time.Duration
 	lancer             func(ctx context.Context) ([]byte, error)
@@ -48,8 +63,11 @@ type MisesAJour struct {
 	ok       bool // au moins une mesure réussie
 	total    int
 	securite int
+	nouveaux int
 	paquets  []paquetAJour
 	erreur   error
+	calcule  time.Time // dernier calcul réussi
+	listes   time.Time // date des listes d'apt vue au passage précédent
 
 	dpkg journalDpkg // paquets installés (SPEC § 47)
 }
@@ -72,6 +90,7 @@ func NewMisesAJour() *MisesAJour {
 	m := &MisesAJour{
 		commande:           cheminAptGet,
 		fichierRedemarrage: "/run/reboot-required",
+		listesApt:          []string{"/var/lib/apt/lists", "/var/cache/apt/pkgcache.bin"},
 		periode:            6 * time.Hour,
 		delai:              2 * time.Minute,
 		maintenant:         time.Now,
@@ -99,6 +118,13 @@ func (m *MisesAJour) Collecter(b *metrics.Batch) error {
 	if m.dpkg.lire(m.maintenant()) && !m.enCours {
 		m.derniere = m.maintenant().Add(-m.periode + 2*time.Minute)
 	}
+	// Nouvelles listes d'apt (apt update) : nouveau calcul 2 min plus tard.
+	if d := m.dateListes(); !d.IsZero() {
+		if !m.listes.IsZero() && d.After(m.listes) && !m.enCours {
+			m.derniere = m.maintenant().Add(-m.periode + 2*time.Minute)
+		}
+		m.listes = d
+	}
 	for _, p := range m.dpkg.liste {
 		b.Add("apt_package_installed", float64(p.le.Unix()), metrics.L("package", p.nom),
 			metrics.L("from", p.avant), metrics.L("to", p.apres))
@@ -108,9 +134,14 @@ func (m *MisesAJour) Collecter(b *metrics.Batch) error {
 		m.derniere = m.maintenant()
 		go m.mesurer()
 	}
+	if m.erreur != nil {
+		b.Add("mirador_agent_mises_a_jour_echec", 1, metrics.L("raison", raisonEchec(m.erreur)))
+	}
 	if m.ok {
+		b.Add("apt_upgrades_calcule_le", float64(m.calcule.Unix()))
 		b.Add("apt_upgrades_pending", float64(m.total))
 		b.Add("apt_upgrades_security_pending", float64(m.securite))
+		b.Add("apt_upgrades_new_pending", float64(m.nouveaux))
 		for _, p := range m.paquets {
 			b.Add("apt_upgrade_package", 1, metrics.L("package", p.nom), metrics.L("from", p.avant),
 				metrics.L("to", p.apres), metrics.L("security", bool01s(p.securite)))
@@ -125,17 +156,63 @@ func (m *MisesAJour) mesurer() {
 	defer annuler()
 	sortie, err := m.lancer(ctx)
 	var paquets []paquetAJour
-	total, securite := 0, 0
+	total, securite, nouveaux := 0, 0, 0
 	if err == nil {
-		paquets, total, securite = lireMisesAJour(sortie)
+		paquets, total, securite, nouveaux = lireMisesAJour(sortie)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.enCours = false
 	m.erreur = err
 	if err == nil {
-		m.ok, m.total, m.securite, m.paquets = true, total, securite, paquets
+		m.ok, m.total, m.securite, m.nouveaux, m.paquets = true, total, securite, nouveaux, paquets
+		m.calcule = m.maintenant()
+	} else {
+		// Échec : nouvel essai dans 15 min au lieu de 6 h.
+		m.derniere = m.maintenant().Add(-m.periode + reessaiEchec)
 	}
+}
+
+// reessaiEchec : délai avant un nouveau calcul après un échec.
+const reessaiEchec = 15 * time.Minute
+
+// dateListes : la plus récente des dates surveillées (zéro si aucune).
+func (m *MisesAJour) dateListes() time.Time {
+	var d time.Time
+	for _, c := range m.listesApt {
+		if fi, err := os.Stat(c); err == nil && fi.ModTime().After(d) {
+			d = fi.ModTime()
+		}
+	}
+	return d
+}
+
+// raisonEchec : motif court et sûr pour une étiquette (100 caractères,
+// lettres, chiffres et ponctuation simple).
+func raisonEchec(err error) string {
+	var e *exec.ExitError
+	texte := err.Error()
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		texte = "apt-get : pas de réponse en 2 min"
+	case errors.As(err, &e) && e.ExitCode() == -1:
+		texte = "apt-get arrêté (" + e.String() + ")"
+	case errors.As(err, &e):
+		texte = "apt-get : code de sortie " + strconv.Itoa(e.ExitCode())
+	}
+	var b strings.Builder
+	for _, c := range texte {
+		if b.Len() >= 100 {
+			break
+		}
+		if c == '\n' || c == '\r' || c == '\t' {
+			c = ' '
+		}
+		if c >= ' ' && c != '"' && c != '\\' {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }
 
 // tailleMaxSortie : au-delà, la sortie d'apt-get est tronquée (protection mémoire).
@@ -162,16 +239,20 @@ func (m *MisesAJour) lancerAptGet(ctx context.Context) ([]byte, error) {
 
 // compterMisesAJour : nombre de mises à jour, dont de sécurité.
 func compterMisesAJour(sortie []byte) (total, securite int) {
-	_, total, securite = lireMisesAJour(sortie)
+	_, total, securite, _ = lireMisesAJour(sortie)
 	return total, securite
 }
 
 // lireMisesAJour lit les lignes « Inst paquet [ancienne] (nouvelle origine [arch]) ».
-// Une mise à jour est « de sécurité » si son origine contient « -security »
-// (Debian : bookworm-security, Ubuntu : noble-security). Un nouveau paquet
-// (sans [ancienne]) a une version installée vide. Les champs sont bornés
-// (nom 128, version 64 caractères) : ce sont des étiquettes de séries.
-func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) {
+// Une mise à jour (ligne avec [ancienne]) compte dans total ; un nouveau
+// paquet (sans [ancienne] : noyau, dépendance) compte dans nouveaux, comme
+// « apt list --upgradable » qui ne le montre pas (retour du 25/11 : 76 au
+// lieu de 68 sur proxmoxbackup). Une mise à jour est « de sécurité » si son
+// origine contient « -security » (Debian : bookworm-security, Ubuntu :
+// noble-security). Les deux sortes vont dans la liste (version installée
+// vide pour un nouveau paquet). Les champs sont bornés (nom 128, version 64
+// caractères) : ce sont des étiquettes de séries.
+func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite, nouveaux int) {
 	sc := bufio.NewScanner(bytes.NewReader(sortie))
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for sc.Scan() {
@@ -180,20 +261,22 @@ func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) 
 		if !ok {
 			continue
 		}
-		total++
-		p := paquetAJour{}
-		if i := bytes.IndexByte(ligne, '('); i >= 0 && bytes.Contains(ligne[i:], []byte("-security")) {
-			securite++
-			p.securite = true
+		nom, apres, _ := bytes.Cut(reste, []byte(" "))
+		p := paquetAJour{nom: borne(string(nom), 128)}
+		v, mise := bytes.CutPrefix(apres, []byte("["))
+		if mise {
+			total++
+			avant, suite, _ := bytes.Cut(v, []byte("] "))
+			p.avant, apres = borne(string(avant), 64), suite
+			if i := bytes.IndexByte(ligne, '('); i >= 0 && bytes.Contains(ligne[i:], []byte("-security")) {
+				securite++
+				p.securite = true
+			}
+		} else {
+			nouveaux++
 		}
 		if len(paquets) >= maxPaquetsListes {
 			continue
-		}
-		nom, apres, _ := bytes.Cut(reste, []byte(" "))
-		p.nom = borne(string(nom), 128)
-		if v, ok := bytes.CutPrefix(apres, []byte("[")); ok {
-			avant, suite, _ := bytes.Cut(v, []byte("] "))
-			p.avant, apres = borne(string(avant), 64), suite
 		}
 		if v, ok := bytes.CutPrefix(apres, []byte("(")); ok {
 			version, _, _ := bytes.Cut(v, []byte(" "))
@@ -203,7 +286,7 @@ func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) 
 			paquets = append(paquets, p)
 		}
 	}
-	return paquets, total, securite
+	return paquets, total, securite, nouveaux
 }
 
 // borne : au plus n octets, sans couper un caractère.

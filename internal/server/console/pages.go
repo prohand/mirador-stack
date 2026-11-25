@@ -376,6 +376,8 @@ type vueMachine struct {
 	// Machine en attente (SPEC § 36) : nom d'hôte trop commun, et demande
 	// venue d'un réseau où aucune machine approuvée n'a été vue.
 	NomBanal, AdresseInconnue bool
+	// Paquets à mettre à jour (filtre « paquets » de la page Machines).
+	Paquets int
 }
 
 // donneesMachines : page Machines (liste) ; l'ajout est sur sa propre page
@@ -466,11 +468,8 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		d.AttenteCachees = len(d.EnAttente) - attenteVisibles
 		d.EnAttente = d.EnAttente[:attenteVisibles]
 	}
-	d.Approuvees, d.Sites = len(approuvees), len(sites)
-	d.Compteurs = d.Filtres.compter(approuvees)
-	d.Groupes = regrouperMachines(approuvees, d.Filtres)
-	d.Listes = c.lireListes(ctx)
-	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble.
+	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble (lues
+	// avant les filtres : le filtre « paquets » s'en sert).
 	mesures := map[string]*ligneParc{}
 	if c.lecteur != nil {
 		actives, _ := separerAttente(c.alertesEnCours(""))
@@ -478,6 +477,15 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 			mesures[l.Nom] = &l
 		}
 	}
+	for i := range approuvees {
+		if m := mesures[approuvees[i].Nom]; m != nil {
+			approuvees[i].Paquets = m.Paquets
+		}
+	}
+	d.Approuvees, d.Sites = len(approuvees), len(sites)
+	d.Compteurs = d.Filtres.compter(approuvees)
+	d.Groupes = regrouperMachines(approuvees, d.Filtres)
+	d.Listes = c.lireListes(ctx)
 	for i := range d.Groupes {
 		d.Groupes[i].Tuiles = tuilesDe(d.Groupes[i].Machines, mesures)
 	}
@@ -909,6 +917,15 @@ func (c *Console) candidatsEquipement(ctx context.Context, collecteur int64) []s
 	return out
 }
 
+// retourVerifierSur : page où revenir après « Vérifier maintenant » (une
+// alerte ou une machine de cette console seulement).
+func retourVerifierSur(r string) bool {
+	if !strings.HasPrefix(r, "/alertes/") && !strings.HasPrefix(r, "/machines/") {
+		return false
+	}
+	return !strings.ContainsAny(r, "\\\r\n") && !strings.Contains(r, "//") && len(r) < 300
+}
+
 // postMachine : toutes les actions sur une machine.
 func (c *Console) postMachine(q *req) {
 	ctx := q.r.Context()
@@ -951,6 +968,28 @@ func (c *Console) postMachine(q *req) {
 		return
 	}
 	switch action {
+	case "verifier":
+		// « Vérifier maintenant » (SPEC § 127) : rien de modifié, rien de
+		// lancé sur la machine (l'agent relit, comme d'habitude), pas de
+		// code 2FA. Une fois par minute au plus et par machine.
+		if r := f("retour"); retourVerifierSur(r) {
+			vers = r
+		}
+		var id int64
+		if id, err = flotte.IDMachine(ctx, c.db, nom); err == nil {
+			if d := q.t.Sub(flotte.VerificationDe(id)); d < time.Minute {
+				err = errors.New("vérification déjà demandée il y a " + dureeLisible(d.Round(time.Second)) + " : une par minute au plus")
+			} else {
+				flotte.DemanderVerification(id, q.t)
+				// Alertes réévaluées quand le relevé (puis l'assistant root) est arrivé.
+				if c.opt.Alertes != nil {
+					for _, apres := range []time.Duration{6 * time.Second, 25 * time.Second} {
+						time.AfterFunc(apres, c.opt.Alertes.Reveiller)
+					}
+				}
+				ok = "vérification demandée : résultat dans quelques secondes"
+			}
+		}
 	case "actualiser":
 		// Relecture de la configuration et relance de l'assistant root
 		// (SPEC § 22) : rien de modifié, pas de code 2FA.

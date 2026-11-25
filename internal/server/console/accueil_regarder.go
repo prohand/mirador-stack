@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"mirador-stack/internal/server/alertes"
 	"net/url"
 	"sort"
 	"strconv"
@@ -30,6 +31,7 @@ type aRegarder struct {
 	Icone, Puce  string // icône et couleur de sa puce
 	Titre, Texte string
 	Lien, Action string
+	Court        string // mot court pour le bandeau (« disque », « paquets de sécurité »…)
 }
 
 // bandeauAccueil : le plus grave en haut de la page (ou « tout va bien »).
@@ -122,7 +124,7 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 			Texte: r.Sondes.Echecs, Lien: "/sondes", Action: "Voir"})
 	}
 	if n := c.nbTachesEnProbleme(ctx, t); n > 0 {
-		add(aRegarder{Classe: "attention", Icone: "calendrier", Puce: "orange", Titre: accorderTexte(strconv.Itoa(n) + " tâche(s) planifiée(s) en échec ou en retard"),
+		add(aRegarder{Classe: "attention", Icone: "calendrier", Puce: "orange", Court: "tâches", Titre: accorderTexte(strconv.Itoa(n) + " tâche(s) planifiée(s) en échec ou en retard"),
 			Texte: "sauvegardes, timers, tâches suivies", Lien: "/taches?filtre=probleme", Action: "Détail"})
 	}
 	if len(disques) > 0 {
@@ -130,31 +132,31 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		if len(disques) > 1 {
 			titre = strconv.Itoa(len(disques)) + " disques bientôt pleins"
 		}
-		add(aRegarder{Classe: "attention", Icone: "disque", Puce: "orange", Titre: titre,
+		add(aRegarder{Classe: "attention", Icone: "disque", Puce: "orange", Court: "disque", Titre: titre,
 			Texte: resumeNoms(disques), Lien: "/machines", Action: "Voir"})
 	}
 	if r.Cert.Connu && r.Cert.Classe != "ok" {
-		add(aRegarder{Classe: r.Cert.Classe, Icone: "cadenas", Puce: "orange", Titre: "Certificat bientôt expiré : " + r.Cert.Nom,
+		add(aRegarder{Classe: r.Cert.Classe, Icone: "cadenas", Puce: "orange", Court: "certificat", Titre: "Certificat bientôt expiré : " + r.Cert.Nom,
 			Texte: fmt.Sprintf("expire dans %d j", r.Cert.Jours), Lien: "/sondes", Action: "Voir"})
 	}
 	if nbSecu > 0 {
-		add(aRegarder{Classe: "attention", Icone: "securite", Puce: "orange", Titre: accorderTexte(strconv.Itoa(nbSecu) + " paquet(s) de sécurité à installer"),
+		add(aRegarder{Classe: "attention", Icone: "securite", Puce: "orange", Court: "paquets de sécurité", Titre: accorderTexte(strconv.Itoa(nbSecu) + " paquet(s) de sécurité à installer"),
 			Texte: resumeNoms(securite), Lien: "/machines", Action: "Voir"})
 	}
 	if len(redemarrer) > 0 {
-		add(aRegarder{Classe: "attention", Icone: "eclair", Puce: "orange", Titre: accorderTexte(strconv.Itoa(len(redemarrer)) + " machine(s) à redémarrer"),
+		add(aRegarder{Classe: "attention", Icone: "eclair", Puce: "orange", Court: "redémarrage", Titre: accorderTexte(strconv.Itoa(len(redemarrer)) + " machine(s) à redémarrer"),
 			Texte: resumeNoms(redemarrer) + " · après une mise à jour", Lien: "/machines", Action: "Voir"})
 	}
 	if d.Nouveautes > 0 {
-		add(aRegarder{Classe: "info", Icone: "loupe", Puce: "bleu", Titre: accorderTexte(strconv.Itoa(d.Nouveautes) + " élément(s) détecté(s) à valider"),
+		add(aRegarder{Classe: "info", Icone: "loupe", Puce: "bleu", Court: "éléments à valider", Titre: accorderTexte(strconv.Itoa(d.Nouveautes) + " élément(s) détecté(s) à valider"),
 			Texte: "services, conteneurs, tâches trouvés par les agents", Lien: "/machines", Action: "Voir"})
 	}
 	if d.EnAttente > 0 {
-		add(aRegarder{Classe: "info", Icone: "machines", Puce: "bleu", Titre: accorderTexte(strconv.Itoa(d.EnAttente) + " machine(s) en attente d'approbation"),
+		add(aRegarder{Classe: "info", Icone: "machines", Puce: "bleu", Court: "machine en attente", Titre: accorderTexte(strconv.Itoa(d.EnAttente) + " machine(s) en attente d'approbation"),
 			Texte: "elles n'envoient rien tant qu'elles ne sont pas approuvées", Lien: "/machines#attente", Action: "Examiner"})
 	}
 	if len(d.Canaux) == 0 {
-		add(aRegarder{Classe: "info", Icone: "courrier", Puce: "bleu", Titre: "Aucun canal de notification",
+		add(aRegarder{Classe: "info", Icone: "courrier", Puce: "bleu", Court: "aucun canal", Titre: "Aucun canal de notification",
 			Texte: "les alertes ne partent nulle part", Lien: "/reglages/notifications", Action: "Configurer"})
 	}
 
@@ -175,12 +177,44 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 	case len(r.Regarder) > 0 && r.Regarder[0].Classe == "erreur":
 		x := r.Regarder[0]
 		r.Bandeau = bandeauAccueil{Classe: "attention", Titre: x.Titre, Texte: x.Texte, Lien: x.Lien, Action: x.Action}
+	// Retour du 25/11 (SPEC § 127) : « Tout va bien » s'affichait avec des
+	// avertissements en cours ou des pastilles orange ou rouges.
+	case d.Avertissements > 0:
+		r.Bandeau = bandeauAccueil{Classe: "attention", Titre: accorderTexte(strconv.Itoa(d.Avertissements) + " avertissement(s) en cours"),
+			Texte: resumeAvertissements(d.Alertes) + modeOmbre(d.Mode), Lien: "/alertes", Action: "Voir les alertes"}
+	case len(aRegarderMachines(d, majEchec)) > 0:
+		ms := aRegarderMachines(d, majEchec)
+		b := bandeauAccueil{Classe: "attention", Titre: accorderTexte(strconv.Itoa(len(ms)) + " machine(s) à regarder"),
+			Texte: resumeNoms(ms) + " · pastille orange ou rouge dans « Le parc d'un coup d'œil »", Lien: "/machines?filtre=problemes", Action: "Voir les machines"}
+		if len(ms) == 1 {
+			b.Lien, b.Action = "/machines/"+url.PathEscape(ms[0]), "Voir "+ms[0]
+			if n := nbPrises(d, ms[0]); n > 0 {
+				b.Texte = ms[0] + " : " + accorderTexte(strconv.Itoa(n)+" alerte(s) prise(s) en charge")
+			}
+		}
+		r.Bandeau = b
 	default:
 		// Texte : ce que les cases du dessous ne disent pas (retour du
-		// 22/11 : « 5 sur 5 répondent » répétait la case Machines).
+		// 22/11 : « 5 sur 5 répondent » répétait la case Machines) ; les
+		// points sans urgence et les simples infos sont comptés à part.
+		var points, infos []string
+		for _, x := range r.Regarder {
+			if x.Classe == "info" {
+				infos = append(infos, x.Court)
+			} else {
+				points = append(points, x.Court)
+			}
+		}
+		var morceaux []string
+		if n := len(points); n > 0 {
+			morceaux = append(morceaux, accorderTexte(strconv.Itoa(n)+" point(s) sans urgence")+" plus bas ("+strings.Join(points, ", ")+")")
+		}
+		if n := len(infos); n > 0 {
+			morceaux = append(morceaux, accorderTexte(strconv.Itoa(n)+" info(s)")+" ("+strings.Join(infos, ", ")+")")
+		}
 		texte := "rien à regarder pour l'instant"
-		if n := len(r.Regarder); n > 0 {
-			texte = accorderTexte(strconv.Itoa(n) + " point(s) à regarder plus bas, sans urgence")
+		if len(morceaux) > 0 {
+			texte = strings.Join(morceaux, " · ")
 		}
 		r.Bandeau = bandeauAccueil{Classe: "ok", Titre: "Tout va bien", Texte: texte}
 	}
@@ -225,6 +259,54 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 		r.ChaleurCPU = &h
 	}
 	return r
+}
+
+// resumeAvertissements : « Service en échec (vps-web) · Disque bientôt
+// plein (nas) » pour les avertissements actifs (3 au plus, puis « et N autres »).
+func resumeAvertissements(as []resumeAlerte) string {
+	var morceaux []string
+	n := 0
+	for _, a := range as {
+		if a.Etat != "active" || a.Sourdine != "" || a.Gravite != alertes.Avertissement {
+			continue
+		}
+		n++
+		if len(morceaux) < 3 {
+			t := libelleRegle(a.Regle)
+			if a.Machine != "" {
+				t += " (" + a.Machine + ")"
+			}
+			morceaux = append(morceaux, t)
+		}
+	}
+	if n > len(morceaux) {
+		morceaux = append(morceaux, "et "+strconv.Itoa(n-len(morceaux))+" autre(s)")
+	}
+	return strings.Join(morceaux, " · ")
+}
+
+// aRegarderMachines : machines dont la pastille de l'aperçu est orange ou
+// rouge (même règle que l'aperçu plus bas), par nom.
+func aRegarderMachines(d *donneesAccueil, majEchec map[string]string) []string {
+	var out []string
+	for _, l := range d.Parc {
+		if l.Muette || l.ClasseEtat == "erreur" || l.ClasseEtat == "attention" || l.PleinDans != "" || majEchec[l.Nom] != "" {
+			out = append(out, l.Nom)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// nbPrises : alertes prises en charge (acquittées) d'une machine.
+func nbPrises(d *donneesAccueil, machine string) int {
+	n := 0
+	for _, a := range d.Prises {
+		if a.Machine == machine {
+			n++
+		}
+	}
+	return n
 }
 
 // modeOmbre : précision ajoutée au bandeau quand rien n'est envoyé.

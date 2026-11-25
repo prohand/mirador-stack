@@ -1821,6 +1821,36 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   Testé : calcul et refus des plages (9 cas), test du relais (joignable /
   absent), placement du relais avec un faux docker (neuf, ancien, déjà bon,
   autre plage), playbook Semaphore en local.
+- **Appliqué le 24/11 au soir** (0.6.18) : serveur à jour, règle `br-mirador`
+  sur sup, mail, proxy, playbook `relais-docker-mirador.yml` passé ; alertes
+  « Docker : démon injoignable » levées.
+
+## Vérifier maintenant, délais, bandeau, paquets (SPEC § 127, 25/11)
+
+- Maquettes validées le 25/11 (alerte, bloc Services, bandeau, bloc Paquets).
+- Retour à la normale d'un service : signalé par l'agent (D-Bus) comme la
+  panne, alerte fermée en quelques secondes au lieu de 2 min au plus ;
+  règle « service en échec » évaluée toutes les 15 s (agents anciens).
+- « Vérifier maintenant » : page d'une alerte et lignes en échec du bloc
+  Services ; relevé complet + assistant root, une fois par minute ; attente
+  puis résultat affichés. Agent 0.6.19 requis (sinon « agent à mettre à jour »).
+- Paquets : nouveau calcul après un apt update, 15 min après un échec,
+  motif et âge du calcul affichés (le message « agent trop ancien » était
+  faux ; proxmoxbackup : simulation correcte dans les limites du service,
+  62 Mo au plus, pas de séries refusées : liste revenue seule).
+- Nombre de paquets faux (573 sur la page Machines) : l'agent comptait
+  aussi les nouveaux paquets de `dist-upgrade` (76 au lieu de 68 sur
+  proxmoxbackup, vérifié avec `apt list --upgradable`). Corrigé : seules
+  les mises à jour comptent, nouveaux paquets à part ; case « Machines à
+  mettre à jour » (nombre de machines, total dessous, filtre).
+- Bandeau : « Tout va bien » seulement sans avertissement ni pastille
+  orange ou rouge ; points sans urgence et infos comptés à part.
+- Téléphone : titre « Services » plus coupé (64 px de large, une ligne).
+- Tests : veille (retour, déjà en échec), canal agent ↔ serveur (deux
+  côtés), calcul des paquets (échec, réessai 15 min, listes apt), page
+  machine (bouton, une par minute, attente, agent ancien), résultats,
+  bandeau (avertissements, machine à regarder, infos) ; `go test ./...`,
+  `go vet`, gosec au vert. Captures sur la démo conformes aux maquettes.
 
 ## Prochaine étape
 

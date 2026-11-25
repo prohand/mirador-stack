@@ -856,3 +856,37 @@ func TestOublierMachinesFlotte(t *testing.T) {
 		t.Errorf("essais restants : %v", demandesEssai.m)
 	}
 }
+
+// « Vérifier maintenant » d'une machine (SPEC § 127) : l'agent qui envoie
+// X-Mirador-Verifie est réveillé aussitôt avec le numéro ; déjà fait, il
+// attend de nouveau ; un agent qui ne l'envoie pas n'est jamais réveillé.
+func TestConfigVerifier(t *testing.T) {
+	b := nouveauBanc(t)
+	token, _ := TokenManuel(ctx, b.db, "verif", "admin", t0)
+	id, _ := IDMachine(ctx, b.db, "verif")
+	w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "")
+	etag := w.Header().Get("ETag")
+	attendre := func(entetes ...string) (*httptest.ResponseRecorder, time.Duration) {
+		debut := time.Now()
+		e := append([]string{"If-None-Match", etag, protocole.EnteteAttendre, "2",
+			protocole.EnteteActualise, strconv.FormatInt(time.Now().UnixNano(), 10)}, entetes...)
+		w := b.requete(http.MethodGet, protocole.CheminConfig, token, nil, "", e...)
+		return w, time.Since(debut)
+	}
+	go func() { time.Sleep(200 * time.Millisecond); DemanderVerification(id, time.Now()) }()
+	w1, d := attendre(protocole.EnteteVerifie, "0")
+	n, _ := strconv.ParseInt(w1.Header().Get(protocole.EnteteVerifier), 10, 64)
+	if w1.Code != http.StatusNotModified || d > 1500*time.Millisecond || n == 0 {
+		t.Fatalf("vérifier : %d après %v, numéro %d", w1.Code, d, n)
+	}
+	if VerificationDe(id).UnixNano() != n {
+		t.Errorf("heure de la demande : %v", VerificationDe(id))
+	}
+	if w2, d := attendre(protocole.EnteteVerifie, strconv.FormatInt(n, 10)); w2.Code != http.StatusNotModified || d < 1900*time.Millisecond {
+		t.Fatalf("déjà vérifié : %d après %v", w2.Code, d)
+	}
+	DemanderVerification(id, time.Now())
+	if w3, d := attendre(); w3.Header().Get(protocole.EnteteVerifier) != "" || d < 1900*time.Millisecond {
+		t.Fatalf("ancien agent réveillé : %q après %v", w3.Header().Get(protocole.EnteteVerifier), d)
+	}
+}

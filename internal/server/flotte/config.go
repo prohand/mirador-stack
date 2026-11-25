@@ -239,6 +239,13 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	// rendue pendant l'attente (elle ne sert qu'aux envois de données).
 	actu := actualisationDe(m.ID)
 	vu, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteActualise), 10, 64)
+	// « Vérifier maintenant » (SPEC § 127) : seulement pour un agent qui
+	// envoie EnteteVerifie (il sait le faire) ; un ancien agent n'est jamais
+	// réveillé pour rien.
+	_, avecVerif := r.Header[http.CanonicalHeaderKey(protocole.EnteteVerifie)]
+	verif := verificationDe(m.ID)
+	vuVerif, _ := strconv.ParseInt(r.Header.Get(protocole.EnteteVerifie), 10, 64)
+	verifEnAttente := avecVerif && verif > vuVerif
 	// Essais de sondes demandés (SPEC § 108) : seulement pour un collecteur
 	// qui envoie EnteteSonde (il sait les faire).
 	_, avecSonde := r.Header[http.CanonicalHeaderKey(protocole.EnteteSonde)]
@@ -251,7 +258,7 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	}
 	dernierEssai, nomsEssai := essaisEnAttente()
 	if attente := lireAttente(r.Header.Get(protocole.EnteteAttendre)); attente > 0 &&
-		r.Header.Get("If-None-Match") == etag && actu <= vu && !directEnAttente && len(nomsEssai) == 0 {
+		r.Header.Get("If-None-Match") == etag && actu <= vu && !directEnAttente && len(nomsEssai) == 0 && !verifEnAttente {
 		liberer()
 		libere = true
 		minuterie := time.NewTimer(attente)
@@ -270,6 +277,7 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		}
 		actu = actualisationDe(m.ID)
 		dernierEssai, nomsEssai = essaisEnAttente()
+		verif = verificationDe(m.ID)
 	}
 	if v := protocole.FormerSonder(dernierEssai, nomsEssai); v != "" {
 		w.Header().Set(protocole.EnteteSonder, v)
@@ -282,6 +290,9 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 	}
 	if actu > 0 {
 		w.Header().Set(protocole.EnteteActualiser, strconv.FormatInt(actu, 10))
+	}
+	if avecVerif && verif > 0 {
+		w.Header().Set(protocole.EnteteVerifier, strconv.FormatInt(verif, 10))
 	}
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "no-store")

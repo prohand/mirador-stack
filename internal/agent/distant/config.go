@@ -203,7 +203,12 @@ type Recuperateur struct {
 	Sonde      int64
 	Sonder     int64
 	SonderNoms []string
-	etag       string
+	// « Vérifier maintenant » (SPEC § 127) : AvecVerif envoie Verifie
+	// (dernière demande faite) ; réponse : Verifier (la plus récente).
+	AvecVerif bool
+	Verifie   int64
+	Verifier  int64
+	etag      string
 }
 
 // ErrInchange : le serveur a répondu 304 (rien n'a changé, rien transféré).
@@ -231,6 +236,9 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	if r.AvecSonde {
 		req.Header.Set(protocole.EnteteSonde, strconv.FormatInt(r.Sonde, 10))
 	}
+	if r.AvecVerif {
+		req.Header.Set(protocole.EnteteVerifie, strconv.FormatInt(r.Verifie, 10))
+	}
 	if r.Attendre > 0 {
 		req.Header.Set(protocole.EnteteAttendre, strconv.Itoa(int(r.Attendre.Seconds())))
 		req.Header.Set(protocole.EnteteActualise, strconv.FormatInt(r.Actualise, 10))
@@ -244,6 +252,7 @@ func (r *Recuperateur) Recuperer(ctx context.Context) (*ConfigDistante, error) {
 	r.Actualiser, _ = strconv.ParseInt(resp.Header.Get(protocole.EnteteActualiser), 10, 64)
 	r.Direct, _ = strconv.Atoi(resp.Header.Get(protocole.EnteteDirect))
 	r.Sonder, r.SonderNoms = protocole.LireSonder(resp.Header.Get(protocole.EnteteSonder))
+	r.Verifier, _ = strconv.ParseInt(resp.Header.Get(protocole.EnteteVerifier), 10, 64)
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		return nil, ErrInchange

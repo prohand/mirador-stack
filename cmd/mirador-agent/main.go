@@ -172,10 +172,11 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 				journal.Info("redémarrage demandé", "raison", raison)
 				surPlace.Store(raison == distant.RaisonConfiguration)
 				arreterCollecte() // arrêt propre ; systemd relance l'agent
-			}}
+			},
+			Verifier: a.VerifierMaintenant}
 		go lien.Tourner(ctxCollecte)
 		veilleur.Signaler = func(e protocole.EvenementAgent) {
-			journal.Info("panne vue", "type", e.Type, "objet", e.Objet)
+			journal.Info("vu en direct", "type", e.Type, "objet", e.Objet)
 			a.Reveiller()
 			lien.Signaler(ctxCollecte, e)
 		}

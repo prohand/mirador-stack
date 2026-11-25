@@ -119,6 +119,10 @@ type donneesAlerte struct {
 	CauseLe   time.Time
 	// VuToutDeSuite : pannes vues par l'agent autour du début (SPEC § 98).
 	VuToutDeSuite []flotte.Panne
+	// « Vérifier maintenant » (SPEC § 127) : alerte d'une machine à agent,
+	// en cours ou fermée depuis moins de 10 min (résultat d'une vérification).
+	Verif    *vueVerif
+	Resultat *resultatVerification
 }
 
 type processusCause struct{ Nom, Groupe, Valeur string }
@@ -164,6 +168,19 @@ func (c *Console) pageAlerte(q *req) {
 	}
 	if d.Machine != "" && !a.Debut.IsZero() {
 		d.VuToutDeSuite, _ = flotte.ListerPannes(q.r.Context(), c.db, d.Machine, a.Debut.Add(-10*time.Minute), a.Debut.Add(10*time.Minute), 5)
+	}
+	if d.Machine != "" {
+		if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+			for _, m := range ms {
+				if m.Nom == d.Machine {
+					d.Verif = c.verifMachine(m, q.t)
+				}
+			}
+		}
+		if d.Verif != nil && !d.EnCours && d.Verif.Etat == "" {
+			d.Verif = nil // alerte terminée, sans vérification récente : rien à proposer
+		}
+		d.Resultat = resultatAlerte(d.Verif, d.EnCours, a.Resume)
 	}
 	a.Etiquettes.Range(func(l labels.Label) { d.Etiquettes = append(d.Etiquettes, etiquette{l.Name, l.Value}) })
 	if c.opt.Aiguilleur != nil && d.EnCours {

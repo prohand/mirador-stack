@@ -104,6 +104,7 @@
    "nom": "LinuxServiceEnEchec",
    "remplace": "ServiceSystemdEnEchec",
    "pour": "5m",
+   "intervalle": "15s",
    "gravite": "critical",
    "expr": "node_systemd_unit_state{state=\"failed\", name!=\"fwupd-refresh.service\"} == 1",
    "resume": "Service {{ $labels.name }} en échec sur {{ $labels.instance }}"

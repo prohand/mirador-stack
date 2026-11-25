@@ -59,6 +59,10 @@ type vueServices struct {
 	NbEchec, NbActifs, NbArretes, NbDemande int
 	NbDemarrage, NbSurveilles, NbCaches     int
 	NbARegarder                             int // en échec + arrêtés (onglet « À regarder »)
+	// « Vérifier maintenant » (SPEC § 127) : bouton des lignes en échec et
+	// résultat de la dernière vérification.
+	Verif    *vueVerif
+	Resultat *resultatVerification
 }
 
 func (c *Console) servicesMachine(ctx context.Context, m flotte.InfoMachine, surv vueSurveillance, t time.Time) *vueServices {
@@ -130,6 +134,15 @@ func (c *Console) servicesMachine(ctx context.Context, m flotte.InfoMachine, sur
 		v.Lignes = append(v.Lignes, l)
 	}
 	v.NbARegarder = v.NbEchec + v.NbArretes
+	v.Verif = c.verifMachine(m, t)
+	var enEchec []string
+	for _, l := range v.Lignes {
+		if l.Classe == "erreur" {
+			enEchec = append(enEchec, l.Nom)
+		}
+	}
+	sort.Strings(enEchec)
+	v.Resultat = resultatServices(v.Verif, enEchec)
 	// Problèmes en premier, puis services du boot, puis par nom.
 	rang := func(l ligneService) int {
 		switch l.Classe {
