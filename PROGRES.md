@@ -1921,8 +1921,11 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
    `mirador-mesure-24h`, `docs/installation-serveur.md` § 5) ; résumé le
    26/11 au soir, à reporter ici.
 2. Clore les étapes 6 et 7 (validation de l'utilisateur).
-3. Valider les sections de SPEC « Fait, à valider » (liste en 3 groupes
-   proposée le 25/11).
+3. SPEC : 74 sections validées le 25/11 ; 8 « en service, pas encore
+   essayé » (§ 39 site injoignable, § 49 disponibilité, § 52 motifs de
+   logs, § 54 incidents, § 81 maintenance récurrente et webhook, § 82
+   modèles des messages, § 84 page de statut publique, § 122 applications
+   d'après Docker Compose), à essayer au fil de l'eau.
 4. Plus tard : effacer les archives `/root/ancienne-stack.tgz` (machines)
    et `/root/grafana-sauvegarde.tgz` (VPS).
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).

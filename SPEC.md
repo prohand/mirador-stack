@@ -5280,7 +5280,7 @@ bas, dans la même pull request que § 36 et § 37.
 - « Fermer toutes les autres » : réservé aux admins, comme « Fermer », et
   ne ferme jamais la session qui le demande.
 
-## 39. Site injoignable et page des coupures (demande du 16/11) **[Fait, à valider]**
+## 39. Site injoignable et page des coupures (demande du 16/11) **[Fait, en service, pas encore essayé]**
 
 Contexte : le 16/11 à 10:31, le site de l'utilisateur a perdu internet.
 Toutes ses machines se sont tues ; mirador (sur le VPS) envoyait une alerte
@@ -5676,7 +5676,7 @@ Menaces :
   et retarder sa propre alerte : elle le peut déjà en envoyant
   `node_uname_info`. Pas de risque nouveau.
 
-## 46. Si les données disparaissent (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 46. Si les données disparaissent (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 Idée reprise de New Relic (« loss of signal ») : idée seulement, service
 fermé, aucun code. Maquette validée le 18/11.
@@ -5745,7 +5745,7 @@ fermé, aucun code. Maquette validée le 18/11.
 - Une alerte gardée ouverte ne renvoie pas de message (pas de répétition
   hors rappels réglés).
 
-## 47. Suivi des changements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 47. Suivi des changements (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 Idée reprise de New Relic (« change tracking ») : idée seulement, aucun
 code. Maquette validée le 18/11.
@@ -5804,7 +5804,7 @@ code. Maquette validée le 18/11.
 - Une machine ne peut écrire que sous son propre nom (nom imposé à
   l'ingestion).
 
-## 48. Sondes de services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 48. Sondes de services (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 Idée reprise de New Relic (« synthetics ») : idée seulement, aucun code.
 Maquette validée le 18/11.
@@ -5872,7 +5872,7 @@ Maquette validée le 18/11.
 - Textes venus des essais (raison de l'échec) : bornés à 160 caractères,
   échappés à l'affichage.
 
-## 49. Disponibilité (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 49. Disponibilité (idée de New Relic, demande du 18/11) **[Fait, en service, pas encore essayé]**
 
 Idée reprise de New Relic (« service levels ») : idée seulement, aucun
 code. Maquette validée le 18/11.
@@ -5909,7 +5909,7 @@ code. Maquette validée le 18/11.
 - Lecture seule pour tous les rôles ; objectifs réservés aux
   administrateurs (code 2FA), valeur bornée, audit.
 
-## 50. Services (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 50. Services (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 Idée reprise de New Relic (« workloads ») : idée seulement, aucun code.
 Maquette validée le 18/11.
@@ -5959,7 +5959,7 @@ Maquette validée le 18/11.
   validés (sortes connues, noms bornés), audit.
 - Noms d'éléments affichés échappés (gabarits HTML).
 
-## 51. Vue « ruche » (idée de New Relic, choix du 18/11 : onglet B) **[Fait, à valider]**
+## 51. Vue « ruche » (idée de New Relic, choix du 18/11 : onglet B) **[Fait, validé le 25/11]**
 
 Idée reprise de New Relic (« Navigator ») : idée seulement, aucun code.
 Emplacement choisi le 18/11 parmi 3 maquettes : **onglet de la vue
@@ -5980,7 +5980,7 @@ d'ensemble** (B).
   maintenances en cours.
 - Menaces : lecture seule ; noms affichés échappés.
 
-## 52. Motifs de logs (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 52. Motifs de logs (idée de New Relic, demande du 18/11) **[Fait, en service, pas encore essayé]**
 
 Idée reprise de New Relic (« log patterns ») : idée seulement, aucun
 code. Mesurée avant de décider (PROGRES, 18/11), validée ensuite :
@@ -6034,7 +6034,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - Une règle « nouveau motif d'erreur » reste possible plus tard (non
   faite).
 
-## 53. Journal d'événements (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 53. Journal d'événements (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 - Un seul point d'entrée dans le code (`journalEvenements`) qui lit les
   historiques existants, sans rien garder de plus : alertes (début et
@@ -6047,7 +6047,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   changements, maintenances).
 - Coût : 6 requêtes SQL bornées à l'ouverture.
 
-## 54. Incidents (idée de New Relic « issues », demande du 18/11) **[Fait, à valider]**
+## 54. Incidents (idée de New Relic « issues », demande du 18/11) **[Fait, en service, pas encore essayé]**
 
 - Calculés à partir de l'historique des alertes (30 jours, critiques et
   avertissements) : une alerte rejoint un incident si elle commence au plus
@@ -6066,7 +6066,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - Menaces : notes réservées aux administrateurs, 1 000 caractères,
   affichées échappées.
 
-## 55. Registre des éléments (idée de New Relic « entities », demande du 18/11) **[Fait, à valider]**
+## 55. Registre des éléments (idée de New Relic « entities », demande du 18/11) **[Fait, validé le 25/11]**
 
 - Une seule construction dans le code (`elementsDuParc`) : machines,
   collecteurs, équipements, conteneurs, sondes, services, avec état
@@ -6079,7 +6079,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - Coût : les requêtes de la vue d'ensemble, de la page Conteneurs et de la
   page Sondes, à l'ouverture.
 
-## 56. Fiches identiques (idée de New Relic « entity overview », demande du 18/11) **[Fait, à valider]**
+## 56. Fiches identiques (idée de New Relic « entity overview », demande du 18/11) **[Fait, validé le 25/11]**
 
 - Même fiche pour une sonde (`/sondes/NOM`), un service (`/services/NOM`)
   et un conteneur (`/conteneurs/MACHINE/NOM`) : en-tête (sorte, nom,
@@ -6090,7 +6090,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
 - Les noms des pages Sondes, Services, Conteneurs et Éléments mènent aux
   fiches.
 
-## 59. Étiquettes libres (idée de New Relic « tags », demande du 18/11) **[Fait, à valider]**
+## 59. Étiquettes libres (idée de New Relic « tags », demande du 18/11) **[Fait, validé le 25/11]**
 
 - `clé=valeur` sur n'importe quel élément (16 au plus ; clé : minuscules,
   chiffres, `_` ; valeur : 64 caractères), en plus de site, type, groupe.
@@ -6103,7 +6103,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   notification (les étiquettes ne sont pas sur les alertes) : à faire si
   besoin.
 
-## 57. Période commune (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 57. Période commune (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 - La période choisie sur une fiche machine, un tableau ou la page Logs
   est retenue par le navigateur et reprise par les autres pages
@@ -6114,7 +6114,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   choix de la période, retenue par le navigateur.
 - Rien côté serveur (stockage local du navigateur).
 
-## 58. Ctrl+K enrichi (idée de New Relic, demande du 18/11) **[Fait, à valider]**
+## 58. Ctrl+K enrichi (idée de New Relic, demande du 18/11) **[Fait, validé le 25/11]**
 
 - Recherche aussi dans les sondes, services et conteneurs (leurs fiches,
   § 56) et dans les nouvelles pages (Sondes, Services, Éléments,
@@ -6125,7 +6125,7 @@ amélioration de l'onglet existant « Messages regroupés » (§ 33).
   le formulaire de maintenance prérempli.
 - Tout est inséré comme texte ; seuls les liens internes sont suivis.
 
-## 60. Sondes depuis la page machine : ping et propositions (demande du 19/11) **[Fait, à valider]**
+## 60. Sondes depuis la page machine : ping et propositions (demande du 19/11) **[Fait, validé le 25/11]**
 
 **Demande** : activer le ping d'une machine depuis un collecteur du même
 site ; si la machine n'a pas de site, choisir le site ; proposer ou
@@ -6198,7 +6198,7 @@ ou mode administrateur) :
 - Aucune commande à distance : le collecteur reçoit seulement la liste des
   sondes, comme au § 48.
 
-## 61. « Mise à jour échouée » sur une simple vérification ratée (19/11) **[Fait, à valider]**
+## 61. « Mise à jour échouée » sur une simple vérification ratée (19/11) **[Fait, validé le 25/11]**
 
 **Vu le 19/11** : alerte « La mise à jour de l'agent a échoué sur
 proxmoxbackup (version version assignée : HTTP 502) », agent pourtant en
@@ -6227,7 +6227,7 @@ téléchargé ni installé.
 **Menaces** : aucune nouvelle. Une panne longue du serveur reste visible
 (AgentMuet côté serveur ; message au bout de 6 h côté agent).
 
-## 62. Adresses à pinguer données par l'agent, plusieurs pings, battement écrit tout de suite (19/11) **[Fait, à valider]**
+## 62. Adresses à pinguer données par l'agent, plusieurs pings, battement écrit tout de suite (19/11) **[Fait, validé le 25/11]**
 
 **Retours du 19/11** :
 1. « Adresse à pinguer » vide : il fallait la taper.
@@ -6275,7 +6275,7 @@ l'agent garde ses restrictions). Les adresses tapées à la main sont
 vérifiées (adresse IP ou nom d'hôte simple) et revérifiées à
 l'enregistrement.
 
-## 63. Bloc « Changements » compact (retour du 19/11) **[Fait, à valider]**
+## 63. Bloc « Changements » compact (retour du 19/11) **[Fait, validé le 25/11]**
 
 « Changements prend trop de place » (20 lignes sur 7 jours, long texte) :
 - une ligne d'explication, le détail dans l'aide (`aide.md#changements`) ;
@@ -6287,7 +6287,7 @@ l'enregistrement.
   filtre sur ce petit tableau.
 Rien de plus côté serveur (même lecture, regroupement en mémoire).
 
-## 64. Modifier et renommer une sonde (retour du 19/11) **[Fait, à valider]**
+## 64. Modifier et renommer une sonde (retour du 19/11) **[Fait, validé le 25/11]**
 
 « Je ne peux pas modifier l'URL pour le HTTPS ; il faudrait pouvoir
 renommer la sonde » : jusqu'ici une sonde s'ajoutait et se retirait
@@ -6312,7 +6312,7 @@ seulement (le texte d'aide renvoyait à tort vers la page Sondes).
   pas d'ici. Le ping et les sondes proposées ont chacun leurs champs (un
   enregistrement ne touche pas l'autre partie).
 
-## 65. « Services » renommés « Applications » (19/11) **[Fait, à valider]**
+## 65. « Services » renommés « Applications » (19/11) **[Fait, validé le 25/11]**
 
 « Services » faisait penser aux services systemd vérifiés sur les machines.
 Choix de l'utilisateur : **Applications**, règles renommées aussi.
@@ -6331,7 +6331,7 @@ Choix de l'utilisateur : **Applications**, règles renommées aussi.
   `service` des alertes, paquet `servicesmetier`, clé `v:` des étiquettes.
 - État « Dégradée » (féminin).
 
-## 66. Page d'une machine en onglets (retour du 19/11 : « tout est mélangé ») **[Fait, à valider]**
+## 66. Page d'une machine en onglets (retour du 19/11 : « tout est mélangé ») **[Fait, validé le 25/11]**
 
 Choix de l'utilisateur : onglets. En haut, toujours visibles : nom, bandeau,
 alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
@@ -6355,7 +6355,7 @@ alertes (en cours, prises en charge, en attente), mise à jour à faire. Puis :
 - Rien de plus côté serveur (mêmes données, rangées autrement) ; les
   courbes d'un onglet caché ne sont lues qu'à son ouverture.
 
-## 67. Ping refusé sur le collecteur, code HTTP affiché (19/11) **[Fait, à valider]**
+## 67. Ping refusé sur le collecteur, code HTTP affiché (19/11) **[Fait, validé le 25/11]**
 
 **Vu le 19/11** : « dhcp-dns02 ping · Échec : ping impossible sans droits
 (réglage net.ipv4.ping_group_range) : socket: permission denied ».
@@ -6382,7 +6382,7 @@ d'une sonde HTTP(S) affiche le code reçu : « OK · 200 · 5 ms » (série
 `mirador_sonde_code_http`, déjà envoyée ; une requête de plus à
 l'ouverture de la page Sondes ou machine).
 
-## 68. Liens des fiches filtrés sur l'élément (retour du 19/11) **[Fait, à valider]**
+## 68. Liens des fiches filtrés sur l'élément (retour du 19/11) **[Fait, validé le 25/11]**
 
 « Les onglets des éléments et des sondes pointent sur des pages directes et
 non filtrées. » Les liens en haut d'une fiche mènent maintenant aux pages
@@ -6402,7 +6402,7 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
   l'élément ; Sondes accepte aussi `?machine=` (sondes d'une machine).
 - Coût : aucun (mêmes lectures, une condition de plus).
 
-## 69. Ajouter une sonde depuis la page Sondes ; majuscules (retours du 19/11) **[Fait, à valider]**
+## 69. Ajouter une sonde depuis la page Sondes ; majuscules (retours du 19/11) **[Fait, validé le 25/11]**
 
 - « En bas de la page des sondes, ce n'est pas pratique » : bouton (même style et même place que « + Ajouter une machine », à droite du titre)
   **+ Ajouter une sonde** en haut de la page, qui ouvre un panneau à deux
@@ -6419,7 +6419,7 @@ filtrées sur l'élément, avec un bandeau « Filtré sur … · tout voir » :
   pages Éléments, Disponibilité et les fiches (affichage seulement : la
   valeur des filtres ne change pas).
 
-## 70. Page Sondes en couleurs (retour du 19/11) **[Fait, à valider]**
+## 70. Page Sondes en couleurs (retour du 19/11) **[Fait, validé le 25/11]**
 
 Maquette montrée, puis tuiles « comme la page Alertes » (demande de
 l'utilisateur) :
@@ -6435,7 +6435,7 @@ l'utilisateur) :
   ligne (« OK · 200 · 5 ms »).
 - Couleurs tirées des variables du thème : lisibles en clair et en sombre.
 
-## 71. Colonnes Site et Type dans le tableau du parc (19/11) **[Fait, à valider]**
+## 71. Colonnes Site et Type dans le tableau du parc (19/11) **[Fait, validé le 25/11]**
 
 - Vue d'ensemble › Machines : colonnes **Site** et **Type**, triables
   (A → Z, puis Z → A), dans le choix « Colonnes » (retenu par le navigateur).
@@ -6445,7 +6445,7 @@ l'utilisateur) :
 - Les deux montrées (écran large) : plus de petite ligne « site · type »
   sous le nom. Sur téléphone : colonnes cachées, petite ligne gardée.
 
-## 72. Dernières alertes de chaque élément ; colonne « Mises à jour » masquable (19/11) **[Fait, à valider]**
+## 72. Dernières alertes de chaque élément ; colonne « Mises à jour » masquable (19/11) **[Fait, validé le 25/11]**
 
 - Demande : « sur chaque machine, sonde, etc., afficher les dernières
   alertes remontées avec le retour à la normale ». Bloc **Dernières
@@ -6475,7 +6475,7 @@ l'utilisateur) :
   règles « carte allégée » du téléphone cachaient la ligne de réglages et
   la courbe sur ordinateur. Elles ne valent plus que sous 640 px.
 
-## 73. Noms d'alertes lisibles ; CI plus rapide (19/11) **[Fait, à valider]**
+## 73. Noms d'alertes lisibles ; CI plus rapide (19/11) **[Fait, validé le 25/11]**
 
 - Retour : « le nom des alertes est perturbant » (`SondeEnEchec`,
   `MiseAJourAgentEchouee`…). La console affiche maintenant un **libellé
@@ -6508,7 +6508,7 @@ l'utilisateur) :
   ~4 min (durée des tests). Prix : une tâche de plus, soit ~1 min de
   forfait en plus par passage. Même couverture (mêmes cibles, même durée).
 
-## 74. Audit d'affichage de toute l'interface (19/11) **[Fait, à valider]**
+## 74. Audit d'affichage de toute l'interface (19/11) **[Fait, validé le 25/11]**
 
 - Demande : « corrige tous les bugs d'affichage, navigateur normal ou PWA ».
   Méthode : 60 pages × 5 affichages (ordinateur clair et sombre, tablette
@@ -6554,7 +6554,7 @@ l'utilisateur) :
 - Coût : CSS et un peu de JavaScript au chargement (étiquetage des
   tableaux, rangement de la frise : quelques ms) ; rien côté serveur.
 
-## 75. Six améliorations d'affichage (19/11, demandées : « Tout ») **[Fait, à valider]**
+## 75. Six améliorations d'affichage (19/11, demandées : « Tout ») **[Fait, validé le 25/11]**
 
 1. **Courbe sans données** : cadre réduit en pointillés avec « Aucune donnée
    sur la période », au lieu d'un grand rectangle blanc.
@@ -6580,7 +6580,7 @@ l'utilisateur) :
 - Coût : CSS et quelques lignes de JavaScript au chargement ; côté
   serveur, une requête « id, nom des machines » par page Audit ou Agents.
 
-## 76. Courbe d'une alerte et températures sur la page machine (retour du 19/11) **[Fait, à valider]**
+## 76. Courbe d'une alerte et températures sur la page machine (retour du 19/11) **[Fait, validé le 25/11]**
 
 - Page d'une alerte : la « valeur suivie sur 24 h » était un simple trait
   sans axe ni valeur, et le seuil manquait pour les règles des modèles.
@@ -6600,7 +6600,7 @@ l'utilisateur) :
 - Coût : une requête de plus à l'ouverture de la page d'une alerte (288
   points) ; trois courbes de plus sur la page machine.
 
-## 77. Logs plus lisibles (retour du 20/11, maquette validée) **[Fait, à valider]**
+## 77. Logs plus lisibles (retour du 20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - **Niveau visible d'un coup d'œil** : trait rouge (erreur) ou orange
   (avertissement) à gauche de la ligne, pastille « Erreur » / « Avert. »
@@ -6627,7 +6627,7 @@ l'utilisateur) :
   par page) et une passe pour le repli : moins d'une milliseconde ; rien de
   stocké.
 
-## 78. Appareils de confiance : connexion persistante en PWA (20/11) **[Fait, à valider]**
+## 78. Appareils de confiance : connexion persistante en PWA (20/11) **[Fait, validé le 25/11]**
 
 - Demande : « en PWA sur mobile, ce n'est pas pratique de se connecter tout
   le temps ». Causes trouvées : cookie sans date (iOS l'efface quand il
@@ -6663,7 +6663,7 @@ l'utilisateur) :
   requête : la session revient en mémoire), une écriture toutes les
   10 min d'usage ; quelques octets par appareil.
 
-## 79. Menu réorganisable, ordinateur et téléphone (20/11, maquette validée) **[Fait, à valider]**
+## 79. Menu réorganisable, ordinateur et téléphone (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - Demande : « pouvoir réorganiser le menu en mode navigateur et en mode
   PWA ». Choix : ordre et entrées masquées, 4 raccourcis de la barre du bas
@@ -6693,7 +6693,7 @@ l'utilisateur) :
 - Coût : rien en plus par page (le compte est déjà lu) ; 120 règles CSS
   d'ordre (2 Ko).
 
-## 80. Tâches planifiées (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+## 80. Tâches planifiées (20/11, idée reprise de Checkmate, maquette validée) **[Fait, validé le 25/11]**
 
 - Demande : suivre les sauvegardes, crons et timers : « la tâche a-t-elle
   tourné à temps, et a-t-elle réussi ? ». Choix de l'utilisateur : l'agent
@@ -6754,7 +6754,7 @@ l'utilisateur) :
   - serveur : une lecture SQL et quelques séries par tâche suivie, chaque
     minute ; une ligne par tâche suivie (migration 0032).
 
-## 81. Petits ajouts repris de Checkmate (20/11, maquette validée) **[Fait, à valider]**
+## 81. Petits ajouts repris de Checkmate (20/11, maquette validée) **[Fait, en service, pas encore essayé]**
 
 Idées seulement (Checkmate est sous AGPL-3.0 : aucun code repris).
 
@@ -6811,7 +6811,7 @@ Idées seulement (Checkmate est sous AGPL-3.0 : aucun code repris).
 ### 81.4 Tâches planifiées hors de Sondes (retour du 20/11)
 - Voir § 80 : entrée de menu à part, bloc sur la page de la machine.
 
-## 82. Modèles des messages (20/11, idée reprise de nyx-stack, maquette validée) **[Fait, à valider]**
+## 82. Modèles des messages (20/11, idée reprise de nyx-stack, maquette validée) **[Fait, en service, pas encore essayé]**
 
 Idée seulement (nyx-stack : lecture seule, aucun code repris).
 
@@ -6847,7 +6847,7 @@ Idée seulement (nyx-stack : lecture seule, aucun code repris).
   | Modification discrète des messages | administrateurs seulement ; changement inscrit au journal d'audit (réglages des notifications) |
   | Fonctions dangereuses dans le modèle | aucune fonction ajoutée ; seules celles de base de Go (comparaison, `len`, `printf`) ; données en lecture seule |
 
-## 83. Vue d'ensemble réorganisable (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+## 83. Vue d'ensemble réorganisable (20/11, idée reprise de Checkmate, maquette validée) **[Fait, validé le 25/11]**
 
 - Bouton « Modifier la vue » (onglet Résumé de la vue d'ensemble) : chaque
   tuile du haut (Machines, Alertes, Notifications, Stockage) et chaque
@@ -6871,7 +6871,7 @@ Idée seulement (nyx-stack : lecture seule, aucun code repris).
 - Coût : une lecture JSON du compte déjà chargé par page ; 40 règles CSS
   d'ordre (3 Ko).
 
-## 84. Page de statut publique (20/11, idée reprise de Checkmate, maquette validée) **[Fait, à valider]**
+## 84. Page de statut publique (20/11, idée reprise de Checkmate, maquette validée) **[Fait, en service, pas encore essayé]**
 
 Revient sur le § 12.2 (écartée) : acceptée le 20/11, avec les protections
 ci-dessous.
@@ -6903,7 +6903,7 @@ ci-dessous.
 - Coût : rien tant que personne ne l'ouvre ; une lecture SQL des alertes
   d'applications sur 90 jours et une requête de métriques par affichage.
 
-## 85. Téléphone et application installée : « Verre noir » (20/11, maquette validée) **[Fait, à valider]**
+## 85. Téléphone et application installée : « Verre noir » (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - Retour : « le menu noir et la barre noire en haut font vieux en PWA ».
   Trois maquettes (clair, verre, teinté), puis choix de l'utilisateur :
@@ -6919,7 +6919,7 @@ ci-dessous.
 - Coût : CSS seulement (le flou est fait par le navigateur, sur la barre
   du bas seulement).
 
-## 86. Téléphone : barre du haut « à la iOS » (20/11, maquette validée) **[Fait, à valider]**
+## 86. Téléphone : barre du haut « à la iOS » (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - Retour : le haut noir faisait encore « vieux » ; style iOS demandé
   (maquette « iOS fidèle » validée). Remplace l'en-tête noir du § 85 sur
@@ -6936,7 +6936,7 @@ ci-dessous.
   de la couleur de la page, sans titre centré.
 - Ordinateur inchangé (menu noir).
 
-## 87. Sondes : machine liée visible et modifiable (20/11, retour) **[Fait, à valider]**
+## 87. Sondes : machine liée visible et modifiable (20/11, retour) **[Fait, validé le 25/11]**
 
 - Retour : « dans le détail de la sonde on ne voit pas à quelle machine
   c'est rattaché ; dans la vue des sondes ce n'est pas bien visible ».
@@ -6952,7 +6952,7 @@ ci-dessous.
 - Ajout (même jour) : « Essai fait depuis » (serveur mirador ou
   collecteur) à côté de la machine liée, en haut de la fiche.
 
-## 88. Tâches planifiées : description en clair, visibles sur la machine (20/11, retour) **[Fait, à valider]**
+## 88. Tâches planifiées : description en clair, visibles sur la machine (20/11, retour) **[Fait, validé le 25/11]**
 
 - Retour : « à quoi correspond cette tâche (vzdump) et que surveille-t-elle ? »
   et « les tâches planifiées n'apparaissent pas dans les machines ».
@@ -6966,7 +6966,7 @@ ci-dessous.
   si une tâche suivie est en échec ou en retard. Le lien machine de la
   page Tâches mène au bloc de la machine.
 
-## 89. Sondes : colonne « Cible » allégée ; tâches : nom affiché et détail des sauvegardes Proxmox (20/11, maquette validée) **[Fait, à valider]**
+## 89. Sondes : colonne « Cible » allégée ; tâches : nom affiché et détail des sauvegardes Proxmox (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - Sondes : adresse sans « https:// » (cadenas), puis pastilles : seulement
   ce qui diffère des réglages par défaut (« chaque minute », « lente
@@ -7021,7 +7021,7 @@ ci-dessous.
   largeur), ligne d'annotation de hauteur fixe, gardée même vide (0 px
   mesuré).
 
-## 92. Tâches planifiées : prochaine exécution (20/11, retour) **[Fait, à valider]**
+## 92. Tâches planifiées : prochaine exécution (20/11, retour) **[Fait, validé le 25/11]**
 
 - Colonne « Prochaine » (tâches suivies et détectées, page de la machine,
   résumé de la Vue d'ensemble de la machine) : « dans 9 h » et la date.
@@ -7031,7 +7031,7 @@ ci-dessous.
   (conteneur ponctuel sans fréquence, tâche jamais vue).
 - Coût : aucun (déjà lu).
 
-## 93. Tâches planifiées : « Voir l'erreur » (20/11, maquette validée) **[Fait, à valider]**
+## 93. Tâches planifiées : « Voir l'erreur » (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 - Bouton « ⚠ Voir l'erreur » sur chaque tâche en échec (suivie ou
   détectée, page Tâches et page de la machine) ; panneau latéral (même
@@ -7049,7 +7049,7 @@ ci-dessous.
 - Menaces : lecture seulement, compte connecté (rôle lecture suffit, comme
   la page Logs) ; aucun programme lancé sur les machines.
 
-## 94. Éléments sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+## 94. Éléments sur téléphone : corrections d'affichage (20/11) **[Fait, validé le 25/11]**
 - Onglets de sortes : pastilles sur plusieurs lignes (avant : barre coupée au
   bord de l'écran, sans signe qu'elle défilait).
 - Colonne Liens : un lien par ligne, aligné à gauche (avant : morceaux
@@ -7060,7 +7060,7 @@ ci-dessous.
 - Coût : CSS seulement (~1 Ko), aucun calcul en plus.
 - Menaces : aucune nouvelle (affichage seul).
 
-## 95. Tâches planifiées : historique, anomalies, VM oubliées, PBS, vue d'ensemble (20/11, « fais tout ») **[Fait, à valider]**
+## 95. Tâches planifiées : historique, anomalies, VM oubliées, PBS, vue d'ensemble (20/11, « fais tout ») **[Fait, validé le 25/11]**
 
 Sept idées proposées le 20/11, toutes demandées.
 
@@ -7153,7 +7153,7 @@ Sept idées proposées le 20/11, toutes demandées.
   pas la base sans limite au-delà de ce que le quota de séries permet déjà.
 - Rien de nouveau n'est exposé sans connexion.
 
-## 96. Alertes sur téléphone : corrections d'affichage (20/11) **[Fait, à valider]**
+## 96. Alertes sur téléphone : corrections d'affichage (20/11) **[Fait, validé le 25/11]**
 - Onglets nombreux (Alertes, Silences et maintenances, Envois…) : d'abord
   mis en pastilles sur plusieurs lignes, puis (retour du 20/11 : « ça mange
   l'affichage pour rien ») une seule ligne qui défile de côté, avec un fondu
@@ -7177,7 +7177,7 @@ Sept idées proposées le 20/11, toutes demandées.
   (« Avertissement est affiché 2 fois »).
 - Coût : CSS et gabarits seulement. Menaces : aucune nouvelle.
 
-## 97. « En direct » sur la page d'une machine, top des processus (20/11, maquette validée) **[Fait, à valider]**
+## 97. « En direct » sur la page d'une machine, top des processus (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 Partie 1 des améliorations des agents et du temps réel (demande du 20/11 :
 « tout », « 1 s », durée conseillée retenue).
@@ -7241,7 +7241,7 @@ côté serveur ; relevé par l'agent dans /proc plutôt que de lancer `top`
 - Aucune commande, aucun port ouvert ; 50 pages en direct au plus ; une
   page qui ne lit plus est coupée (délai d'écriture de 10 s).
 
-## 98. Pannes vues tout de suite, cause probable (20/11, maquette validée) **[Fait, à valider]**
+## 98. Pannes vues tout de suite, cause probable (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 Partie 2 des améliorations des agents et du temps réel.
 
@@ -7293,7 +7293,7 @@ Partie 2 des améliorations des agents et du temps réel.
   les unités n'est appelée.
 - Noms de processus affichés échappés (html/template).
 
-## 99. Logs en direct poussés par le serveur (20/11, maquette validée) **[Fait, à valider]**
+## 99. Logs en direct poussés par le serveur (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 Partie 3 des améliorations des agents et du temps réel.
 
@@ -7326,7 +7326,7 @@ Partie 3 des améliorations des agents et du temps réel.
   filtre automatiques (il a les siens).
 
 
-## 100. Tampon disque et envoi allégé (20/11, maquette validée) **[Fait, à valider]**
+## 100. Tampon disque et envoi allégé (20/11, maquette validée) **[Fait, validé le 25/11]**
 
 Partie 4 des améliorations des agents et du temps réel.
 
@@ -7376,7 +7376,7 @@ Partie 4 des améliorations des agents et du temps réel.
 - Envoi allégé : aucun changement de sécurité.
 
 
-## 101. CI revue et workflow de release (20/11) **[Fait, à valider]**
+## 101. CI revue et workflow de release (20/11) **[Fait, validé le 25/11]**
 
 Demande du 20/11 : « revoir la CI », « majuscules au début des mots »,
 « faire une CI de release ».
@@ -7510,7 +7510,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 | Service du VPS lui-même | root mais confiné par systemd (ProtectSystem=strict, écriture seulement dans le dossier du compose et le sien, NoNewPrivileges) ; commandes `docker` aux arguments fixés ; pas de port |
 | Script d'installation | binaire vérifié par `SHA256SUMS` de la même Release (HTTPS) ; ne modifie pas le compose (il dit quoi changer) |
 
-## 103. Conservation des données : page revue (21/11, maquette validée) **[Fait, à valider]**
+## 103. Conservation des données : page revue (21/11, maquette validée) **[Fait, validé le 25/11]**
 - Place sur le disque : une barre (métriques brutes, agrégats, logs, base,
   autres fichiers, libre) ; « au plus X » avec les réglages (plafonds
   compris) ; pastille « Assez / Peu de place » (moins de 2 Go ou de 5 % du
@@ -7532,7 +7532,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   l'affichage de la page ; rien en tâche de fond. Menaces : inchangées (mêmes
   bornes, même délai, même audit).
 
-## 104. Jeton de formulaire stable sur téléphone (21/11) **[Fait, à valider]**
+## 104. Jeton de formulaire stable sur téléphone (21/11) **[Fait, validé le 25/11]**
 - Constat : sur téléphone (appareil de confiance), « jeton de formulaire
   invalide » en validant le code 2FA. La PWA passe en arrière-plan le temps
   de lire le code ; le serveur retire la session de sa mémoire ; au retour,
@@ -7551,7 +7551,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   redirection ne quitte jamais le site. Coût : un SHA-256 à la création ou
   la reprise d'une session.
 
-## 105. Réglages revus : Notifications, Sauvegardes, Certificats, Interface, Page de statut (21/11, maquettes validées) **[Fait, à valider]**
+## 105. Réglages revus : Notifications, Sauvegardes, Certificats, Interface, Page de statut (21/11, maquettes validées) **[Fait, validé le 25/11]**
 - **Notifications** : résumé en haut (mode, canal principal et s'il est
   actif, dernier envoi), canaux en liste, durées en clair (« 5 min »,
   « jamais ») au lieu de secondes.
@@ -7583,7 +7583,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   Général) ; un fuseau inconnu est refusé avant toute écriture (lien
   compris).
 
-## 106. Mise à jour du serveur : plus de page « serveur inaccessible » (21/11) **[Fait, à valider]**
+## 106. Mise à jour du serveur : plus de page « serveur inaccessible » (21/11) **[Fait, validé le 25/11]**
 - Constat : pendant la mise à jour, la page Réglages › Mise à jour du
   serveur se rechargeait toutes les 5 s ; un rechargement tombé pendant le
   redémarrage du conteneur laissait le navigateur sur sa page d'erreur, sans
@@ -7600,7 +7600,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   origine seulement, avec les cookies de la session ; le HTML reçu vient du
   serveur lui-même (même gabarit qu'un rechargement normal).
 
-## 107. Sites, types et groupes : renommer, fusionner, ranger (21/11, maquette v2 validée) **[Fait, à valider]**
+## 107. Sites, types et groupes : renommer, fusionner, ranger (21/11, maquette v2 validée) **[Fait, validé le 25/11]**
 - Un onglet par liste (Sites, Types de machine, Groupes de configuration),
   avec le nombre de valeurs. Par valeur : ses machines (4 en pastilles, puis
   « +N » vers la liste des machines filtrée), « Aussi utilisé par »
@@ -7629,7 +7629,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   (lettres, chiffres, . _ -) ; requêtes SQL écrites en entier (aucun nom de
   colonne assemblé) ; audit de chaque action.
 
-## 108. Sondes : bouton « Vérifier maintenant » (21/11) **[Fait, à valider]**
+## 108. Sondes : bouton « Vérifier maintenant » (21/11) **[Fait, validé le 25/11]**
 - Bouton sur chaque ligne de la page Sondes et en haut de la fiche d'une
   sonde (administrateurs). L'essai part tout de suite, puis la sonde
   reprend son rythme. La page se met à jour seule pendant 30 s (zone
@@ -7657,7 +7657,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
 - Coût : nul hors usage (une petite table en mémoire, vide le plus souvent) ;
   un essai de plus par clic.
 
-## 109. Mises à jour des agents : page revue (21/11, maquette validée) **[Fait, à valider]**
+## 109. Mises à jour des agents : page revue (21/11, maquette validée) **[Fait, validé le 25/11]**
 - **Tuiles** : version du parc, dernière publiée sur GitHub (importée ou
   « à importer »), machines à jour (barre verte / orange / rouge), fenêtre
   horaire.
@@ -7682,7 +7682,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   en mémoire de quelques dizaines de lignes). Menaces : inchangées (mêmes
   actions, code 2FA, signature vérifiée).
 
-## 110. Mode administration : rouvrir facilement (21/11) **[Fait, à valider]**
+## 110. Mode administration : rouvrir facilement (21/11) **[Fait, validé le 25/11]**
 - Constat : sur un appareil enregistré, une fois le mode administration
   expiré, il ne se rouvrait que depuis « Mon compte ». Et sur une page
   restée ouverte (PWA), le navigateur le croyait encore ouvert : il ne
@@ -7701,7 +7701,7 @@ socket Docker reviendrait à lui donner root sur le VPS : refusé. À la place :
   Ouvrir le mode exige toujours un code 2FA neuf (anti-rejeu, limite
   d'essais). Coût : nul.
 
-## 111. Relecture de l'agent et du collecteur (21/11) **[Fait, à valider]**
+## 111. Relecture de l'agent et du collecteur (21/11) **[Fait, validé le 25/11]**
 Quatre relectures (collecte, envoi et configuration, mise à jour et
 assistant root, collecteur). Chaque défaut a été vérifié (test qui échoue
 avant la correction quand c'était possible) avant d'être corrigé.
@@ -7777,7 +7777,7 @@ Coût : un `statfs` par montage passe par une goroutine (une vingtaine par
 cycle de 10 s) ; une copie par lot mis en file (quelques Kio) ; rien
 d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
 
-## 112. Suites de la relecture (21/11, décisions de l'utilisateur) **[Fait, à valider]**
+## 112. Suites de la relecture (21/11, décisions de l'utilisateur) **[Fait, validé le 25/11]**
 - **Retour arrière limité dans le temps** : un manifeste « retour autorisé »
   porte une date de fin (7 jours après la signature), signée avec lui
   (`retour_jusqua`). L'agent refuse un retour sans date ou expiré. Les
@@ -7796,7 +7796,7 @@ d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
 - Coût : nul (une ligne de plus dans le message signé des manifestes
   « retour »).
 
-## 113. Relecture de l'interface (21/11) **[Fait, à valider]**
+## 113. Relecture de l'interface (21/11) **[Fait, validé le 25/11]**
 Quatre relectures en parallèle (sécurité, machines, alertes/logs/réglages,
 navigateur ordinateur et iPhone). Chaque point a été vérifié (test ou
 navigateur) avant d'être corrigé ; un test Go par correction côté serveur.
@@ -7870,7 +7870,7 @@ navigateur) avant d'être corrigé ; un test Go par correction côté serveur.
 Coût : une à quatre lectures de logs de plus pour « voir autour » (petites
 fenêtres) ; rien d'autre de mesurable. Menaces : réduites (voir « Sécurité »).
 
-## 114. Mise à jour du serveur : étiquettes et ménage des images (21/11) **[Fait, à valider]**
+## 114. Mise à jour du serveur : étiquettes et ménage des images (21/11) **[Fait, validé le 25/11]**
 Retour de l'utilisateur : Arcane annonçait « mirador-server:latest 0.6.0 →
 0.6.6 » alors que le serveur tournait en 0.6.6.
 - Cause : `mirador-maj-serveur` télécharge l'image par son empreinte signée
@@ -7900,7 +7900,7 @@ Retour de l'utilisateur : Arcane annonçait « mirador-server:latest 0.6.0 →
   mise à jour faite avec ce binaire ; on peut aussi la retirer à la main :
   `docker image rm ghcr.io/prohand/mirador-server:latest`.
 
-## 115. Performances du serveur : mémoire des gabarits et des expressions (21/11) **[Fait, à valider]**
+## 115. Performances du serveur : mémoire des gabarits et des expressions (21/11) **[Fait, validé le 25/11]**
 Mesure (test de charge, 50 agents, 2 h 30 d'historique) : CPU 3,7 à 10 %
 d'un cœur (1,0 % le 10/11). Profil CPU : 83 % dans le ramasse-miettes,
 car le tas vivant (~170 Mo) collait à `GOMEMLIMIT=200MiB`. Profil mémoire :
@@ -7922,7 +7922,7 @@ RSS reste ~190 Mo sous charge : Go garde la place permise par GOMEMLIMIT et
 nettoie moins souvent (c'est le but). Au repos (1 machine, mesure longue
 § 116) : 76 Mo de RSS, 46 Mo de mémoire propre.
 
-## 116. Fuites mémoire et CPU : agent et serveur (21/11) **[Fait, à valider]**
+## 116. Fuites mémoire et CPU : agent et serveur (21/11) **[Fait, validé le 25/11]**
 Deux relectures (agent + collecteur, serveur) ; chaque point prouvé par un
 test (qui échoue sans la correction) avant d'être corrigé.
 
@@ -7985,7 +7985,7 @@ Coût des corrections : nul ou négatif (moins de mémoire, moins d'appels).
 Menaces : un serveur ou un mandataire bogué ne peut plus faire tourner
 l'agent en boucle ; un journal abîmé non plus.
 
-## 117. Collecteur : relecture du code et épreuve réelle (21/11) **[Fait, à valider]**
+## 117. Collecteur : relecture du code et épreuve réelle (21/11) **[Fait, validé le 25/11]**
 Deux recherches : relecture du code (bugs, fuites) et épreuve du vrai
 binaire 38 min (+ 9 min de profils) dans un réseau isolé : faux SNMP v3,
 faux UniFi (normal, 401, 500, lent), sondes, syslog TLS 200 messages/s sur
@@ -8040,7 +8040,7 @@ UniFi ; mémoire de pointe bornée. Menaces : inchangées (rien de nouveau
 n'écoute ; la relance sur place exécute le même programme, mêmes
 arguments).
 
-## 118. Bascule du collecteur : retours du 22/11 **[Fait, à valider]**
+## 118. Bascule du collecteur : retours du 22/11 **[Fait, validé le 25/11]**
 - Page d'un équipement relevé par un collecteur : courbes de son tableau
   (Synology filtré sur lui, UniFi) au lieu des courbes Linux vides de
   l'agent. Choix par ses mesures (`systemStatus{job="snmp"}`,
@@ -8064,7 +8064,7 @@ Coût : une série par interface du collecteur (quelques-unes) toutes les
 5 min. Menaces : inchangées (l'écoute reste limitée aux adresses privées,
 vérifiée par le serveur et par le collecteur).
 
-## 119. Page du collecteur : nouvelle présentation (22/11) **[Fait, à valider]**
+## 119. Page du collecteur : nouvelle présentation (22/11) **[Fait, validé le 25/11]**
 
 Maquette validée le 22/11 (« Propose autre chose au niveau design »).
 
@@ -8100,7 +8100,7 @@ Rien de gardé en mémoire en plus ; rien de changé sur le collecteur.
 les actions refusent un équipement non rattaché ou une adresse publique ; le
 retrait ne touche que la ligne visée.
 
-## 120. Page Machines et vue d'ensemble : nouvelle présentation (22/11) **[Fait, à valider]**
+## 120. Page Machines et vue d'ensemble : nouvelle présentation (22/11) **[Fait, validé le 25/11]**
 
 Maquettes validées le 22/11 (sans la case « Tâches de la nuit », jugée inutile).
 
@@ -8261,7 +8261,7 @@ l'échappement de `html/template`.
   `/proc/meminfo` restent lisibles avec `ProtectProc=invisible`, montages
   lus dans `/proc/self/mountinfo`).
 
-## 121. Santé de mirador (22/11) **[Fait, à valider]**
+## 121. Santé de mirador (22/11) **[Fait, validé le 25/11]**
 
 Retour du 22/11 : « une page qui récapitule tous les services liés à
 mirador ». Maquette validée : menu **Supervision**, tout en bas, nom
@@ -8315,7 +8315,7 @@ Menaces : lecture seule, aucune commande ; mêmes droits que les autres pages
 de supervision (adresses autorisées et motifs de refus déjà visibles sur la
 page de la machine).
 
-## 122. Applications : nouvelle présentation (23/11) **[Fait, à valider]**
+## 122. Applications : nouvelle présentation (23/11) **[Fait, en service, pas encore essayé]**
 
 Retour du 23/11 : « améliorer la partie Applications ». Maquette validée
 (« fais tout » ; propositions Docker Compose dès 1 conteneur ; machine
@@ -8348,7 +8348,7 @@ Coût : une requête de plus (conteneurs, `node_docker_container_running` sur
 de la page ; rien en arrière-plan. Menaces : inchangées (administrateurs,
 code 2FA, audit ; la page de statut ne montre que les noms choisis).
 
-## 123. Conteneurs : nouvelle présentation (23/11) **[Fait, à valider]**
+## 123. Conteneurs : nouvelle présentation (23/11) **[Fait, validé le 25/11]**
 
 Retour du 23/11 : « améliorer la vue conteneur », « les graphiques doivent
 être pareils que les machines ». Maquette validée (ajouts de l'agent : oui ;
@@ -8408,7 +8408,7 @@ affichée échappée. Les logs de la fiche passent par la recherche habituelle
 (2 recherches à la fois au plus, 3 s maximum). Rien d'écrit, aucune
 commande vers les agents.
 
-## 124. Agent et assistant root : affichage plus clair (23/11) **[Fait, à valider]**
+## 124. Agent et assistant root : affichage plus clair (23/11) **[Fait, validé le 25/11]**
 
 Retour du 23/11 : simplifier agent et assistant root avec un chroot ?
 Réponse : non (un chroot n'est pas une barrière pour root, l'assistant
@@ -8442,7 +8442,7 @@ Coût : 7 requêtes instantanées pour l'état des assistants (cache de 20 s),
 sur la page Santé (calcul de fond toutes les 2 min) et sur la page d'une
 machine. Rien de plus côté agent. Menaces : inchangées (lecture seule).
 
-## 125. Agent dans un conteneur : matériel de l'hôte ignoré (24/11) **[Fait, à valider]**
+## 125. Agent dans un conteneur : matériel de l'hôte ignoré (24/11) **[Fait, validé le 25/11]**
 
 Retour du 24/11 : pbs et pdm (conteneurs LXC) avaient le modèle « Machine
 physique » coché tout seul. Dans un conteneur, `/sys` et `/proc` montrent le
@@ -8467,7 +8467,7 @@ les conteneurs ; une requête instantanée de plus sur la page d'une machine.
 Menaces : aucune nouvelle (lecture d'un fichier public, contenu filtré par
 une expression stricte avant d'être une étiquette).
 
-## 126. Relais Docker à adresse fixe (24/11) **[Fait, à valider]**
+## 126. Relais Docker à adresse fixe (24/11) **[Fait, validé le 25/11]**
 
 Retour du 24/11 : sur sup, mail et proxy (pare-feu avec sortie en DROP),
 alerte « Docker : démon injoignable ». L'agent joint le relais par
@@ -8502,7 +8502,7 @@ lecture seule et joignable seulement par l'hôte ; la règle de sortie est
 limitée à une adresse et un port ; la plage est vérifiée privée (pas de
 masquage d'adresses publiques).
 
-## 127. Vérifier maintenant, délais réduits, bandeau « Tout va bien », paquets (25/11, maquettes validées) **[Fait, à valider]**
+## 127. Vérifier maintenant, délais réduits, bandeau « Tout va bien », paquets (25/11, maquettes validées) **[Fait, validé le 25/11]**
 
 Retours du 25/11 : forcer la vérification d'un service en échec ; le retour
 à la normale d'un service prenait jusqu'à 2 min ; « Tout va bien » sur la
@@ -8573,7 +8573,7 @@ requêtes instantanées de plus sur la page d'une machine. Menaces : le bouton
 ne fait que réveiller l'agent (pas de paramètre transmis) ; page de retour
 limitée à `/alertes/…` et `/machines/…` ; motif d'échec filtré.
 
-## 128. Sauvegarde téléchargeable, VM exclue de « sans sauvegarde planifiée » (25/11) **[Fait, à valider]**
+## 128. Sauvegarde téléchargeable, VM exclue de « sans sauvegarde planifiée » (25/11) **[Fait, validé le 25/11]**
 
 Retours du 25/11 : garder une copie des sauvegardes hors du VPS sans
 nouveau service (SFTP vers le NAS écarté) ; la VM 200 `pbs` (le Proxmox
@@ -8610,7 +8610,7 @@ Backup Server lui-même) déclenche « VM sans sauvegarde planifiée » à tort.
   et `/machines/…`. Une exclusion masque une vraie VM oubliée : elle reste
   visible (liste, auteur, motif, audit).
 
-## 129. Agent : connexion bloquée vers le serveur renouvelée, arrêt du direct journalisé (25/11) **[Fait, à valider]**
+## 129. Agent : connexion bloquée vers le serveur renouvelée, arrêt du direct journalisé (25/11) **[Fait, validé le 25/11]**
 
 Retour du 25/11 : après la mise à jour du serveur (coupure de 10 s),
 ansible n'arrivait plus à envoyer pendant plusieurs minutes (« context
