@@ -1899,83 +1899,33 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 
 ## Prochaine étape
 
-Mise à jour le 22/11 au soir (0.6.10 publiée le 22/11).
+Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22). L'ancien
+texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 
-0. **24/11 : avant l'étape 7, installer l'agent sur les machines qui ne
-   l'ont pas** : l'ancienne stack voit 27 machines, mirador seulement
-   proxmoxbackup et dhcpdns02 (+ collecteur-lan, fw). Procédure en série
-   par Semaphore (un modèle, jeton créé par machine, testé en local) :
-   `docs/deploiement-agents.md`. Pas de nouvelle
-   comparaison vmalert de 7 jours (choix de l'utilisateur le 24/11).
-   Collecteur : mesures 24 h faites et **objectifs tenus**. **Alloy et
-   unpoller arrêtés et désactivés sur obscollector le 24/11** (aucune
-   connexion restante sur 6514 avant l'arrêt). À vérifier le lendemain :
-   collecteur au vert dans mirador, `free -m`.
-   **Grafana supprimé le 24/11 au soir** (conteneur, volume `obs_grafana-data`,
-   image 13.2.2 ; sauvegarde `/root/grafana-sauvegarde.tgz` 250 Mio sur le
-   VPS). Reste : service et volume dans `/opt/obs/docker-compose.yml`, dossiers
-   `/opt/obs/grafana`, secret `grafana_admin`, bloc nginx (`obs.conf`, et une
-   mention dans le vhost mirador : un commentaire seulement), certificat, DNS.
-   **24/11 : l'utilisateur veut supprimer toute l'ancienne stack** (VPS :
-   VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager ; machines : Alloy) :
-   phases A, C, D, E d'un coup après un relevé du VPS, en gardant
-   `docker-socket-proxy` et le réseau `obs` tant que mirador y est.
-   **Fait le 24/11 au soir** : Alertmanager, vmalert (×2), VictoriaMetrics,
-   VictoriaLogs supprimés (conteneurs, volumes `obs_am-data`, `obs_vm-data`,
-   `obs_vl-data`, images). Reste : fichiers de `/opt/obs` (config, règles,
-   secrets de l'ancienne stack), compose, nginx, réseau (phase D),
-   certificats, DNS ; machines : Alloy (playbook après les agents).
-   Puis (24/11) : `/opt/obs` supprimé, minuteries `obs-docker` et
-   `obs-textfile` arrêtées, nginx `obs.conf`, `ingest.conf`, `00-obs-map.conf`
-   retirés (mirador répond 200) ; gardés : `01-obs-geo.conf`, `obs-allow.conf`,
-   minuteries `obs-geo-fr` et `obs-geoip-update`. Phase D sautée (seul
-   mirador reste sur le réseau `obs`). Certificat d'ingest.srv-home.fr
-   et DNS `obs`, `ingest` supprimés (24/11). Reste : mesure mémoire du
-   lendemain, agents sur les 24 machines puis suppression d'Alloy.
-   Semaphore (inventaire `mirador_agent`, `vps` = `sup`) : **dns1 installé
-   le 24/11** par le playbook, puis les autres le même soir (inventaire de
-   27 machines ; ripeatlas en échec : VM supprimée par l'utilisateur).
-   Toutes approuvées le 24/11. pbs et pdm notées « physique » : type repris
-   d'Alloy (`OBS_ENV` de `/etc/default/alloy`), à corriger dans mirador
-   (page machine › Réglages › Type). Reste : suppression d'Alloy (essai
-   `--check` sur dns1). **Fait le 24/11 au soir** : essai puis suppression
-   sur tout le parc (Alloy, snmpd, scripts et minuteries `obs-*`, dépôt
-   Grafana ; archive `/root/ancienne-stack.tgz` sur chaque machine).
-   obscollector, à la main : Alloy, unpoller, snmpd/snmp, minuteries
-   `obs-docker`, `obs-textfile`, ancien certbot (`obs-certbot`, certificat
-   d'Alloy ; mirador a le sien) supprimés ; collecteur et compagnon actifs.
-   **L'ancienne stack n'existe plus.** Adresse de vmalert vidée et règles
-   importées sans source désactivées (24/11). Reste : mesures du lendemain (VPS,
-   obscollector), « Machine physique » à décocher sur les LXC après 0.6.17,
-   archives à effacer plus tard. Demandé aussi :
-   **supprimer Alloy et SNMP sur les machines** en 2e passage Semaphore, après
-   approbation des agents et la phase A (`docs/deploiement-agents.md` § 5).
-1. **En cours : étape 6, partie 7, bascule du collecteur sur le LAN**
-   (`docs/bascule-collecteur.md`). Fait le 22/11 sur obscollector
-   (collecteur 0.6.9, serveur 0.6.10) : SNMP v3 du NAS, contrôleur UniFi
-   (émetteur du certificat vérifié), `fw` rattaché, 2 sondes de
-   certificats, syslog TLS sur 192.168.35.10:6515. Le 22/11 au soir : `fw`
-   envoie aussi ses métriques par Telegraf (token propre, IP publique
-   ajoutée aux adresses autorisées). Collecteur 0.6.12 : + 101 séries pour
-   sa machine (CPU, charge, mémoire, disques, réseau), < 1 ms par cycle. Mesures 24 h faites
-   (objectifs tenus), Alloy et unpoller arrêtés le 24/11.
-   0.6.13 en préparation : collecteur en direct, compagnon des processus
-   (relancer une fois le script d'installation du collecteur), page
-   Supervision › Santé de mirador, colonne « Envoi direct » de l'onglet
-   Collecte. Syslog du NAS reçu (22/11). 0.6.14 en préparation : page
-   Applications refaite (SPEC § 122), page machine sans agent sans « En ce
-   moment », Santé de mirador (« Serveur · mirador », agent et assistant
-   root sur une ligne).
-2. Mesure du serveur sur 24 h sur le VPS (`docs/installation-serveur.md`
-   § 5) : repoussée tant que le parc compte peu de machines (choix du 22/11).
-3. Étape 7 : bascule finale en 5 phases (`docs/bascule-finale.md`), après
-   validation de l'étape 6. Grafana : **pas gardé** (décision du 23/11),
-   arrêté avec l'ancienne stack en phase C.
-4. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
-5. À valider au fil de l'eau : SPEC § 39 à § 120 (« Fait, à valider »),
-   en priorité § 39 (site injoignable), § 48 et § 108 (sondes), § 49
-   (disponibilité), § 51 (ruche), § 110 (mode administration), § 121
-   (Santé de mirador).
+**Fait (étapes 6 et 7, à clore après la mesure de 24 h)**
+- Collecteur sur le LAN (obscollector) : SNMP du NAS, UniFi, `fw`, syslog
+  TLS, sondes de certificats ; mesures 24 h, objectifs tenus (24/11).
+- Agents sur tout le parc par Semaphore (27 machines, approuvées le 24/11),
+  en 0.6.22 depuis le 25/11.
+- Ancienne stack supprimée (24/11) : Grafana, VictoriaMetrics,
+  VictoriaLogs, vmalert, Alertmanager (VPS) ; Alloy, snmpd, scripts et
+  minuteries `obs-*` (machines, obscollector) ; nginx, certificats, DNS.
+  Échecs systemd restants effacés par Semaphore (25/11). Gain sur le VPS :
+  environ 580 Mio.
+- Gardé exprès : `01-obs-geo.conf`, `obs-allow.conf`, minuteries
+  `obs-geo-fr` et `obs-geoip-update`.
+- Alertes Telegram en mode actif depuis le 13/11 ; signal de vie OK.
+
+**Reste**
+1. Mesure du serveur sur 24 h : lancée le 25/11 à 22:20 sur le VPS (unité
+   `mirador-mesure-24h`, `docs/installation-serveur.md` § 5) ; résumé le
+   26/11 au soir, à reporter ici.
+2. Clore les étapes 6 et 7 (validation de l'utilisateur).
+3. Valider les sections de SPEC « Fait, à valider » (liste en 3 groupes
+   proposée le 25/11).
+4. Plus tard : effacer les archives `/root/ancienne-stack.tgz` (machines)
+   et `/root/grafana-sauvegarde.tgz` (VPS).
+5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
 mode **actif** (Telegram) depuis le 13/11.
