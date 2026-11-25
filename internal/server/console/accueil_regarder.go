@@ -342,7 +342,6 @@ func raisonsMachines(d *donneesAccueil, majEchec map[string]string) []raisonMach
 	return out
 }
 
-
 // nbPrises : alertes prises en charge (acquittées) d'une machine.
 func nbPrises(d *donneesAccueil, machine string) int {
 	n := 0
