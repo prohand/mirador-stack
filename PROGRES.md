@@ -1909,6 +1909,11 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   « Voir » du disque ouvrait l'onglet Activité (ancre `r-disques`),
   corrigé (vu dans le navigateur sur le serveur de démonstration).
 - 0.6.24 installée et validée le 25/11 au soir (« Voir » du disque OK).
+- dns2 (26/11, minuit) : mise à jour d'agent en échec « HTTP 403 ». Cause :
+  jeton limité à son adresse IPv6 ; une minute en IPv4 (185.x) refusée par
+  mirador (« adresse non autorisée », pas nginx). Les deux adresses ajoutées
+  par l'utilisateur. À vérifier sur les autres VPS en double pile (mail,
+  proxy, dns1, sup).
 - sup (26/11) : journal local 2,9 Go → 461 Mo (limite 500 Mo) ; le bruit
   venait des paquets bloqués journalisés par le pare-feu (voisinage IPv6
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook
