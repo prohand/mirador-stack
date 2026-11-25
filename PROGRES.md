@@ -1905,7 +1905,10 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Tests : `TestBandeauAvertissements` (disque), `TestCaseCertificatLien`,
   `TestProblemeAvecPointOrange`.
 - Mesures : rien de mesurable (mêmes requêtes).
-- À livrer en 0.6.23 (serveur).
+- 0.6.23 installée le 25/11 au soir : bandeau, certificat, page machine OK ;
+  « Voir » du disque ouvrait l'onglet Activité (ancre `r-disques`),
+  corrigé (vu dans le navigateur sur le serveur de démonstration), à livrer
+  en 0.6.24.
 - sup (26/11) : journal local 2,9 Go → 461 Mo (limite 500 Mo) ; le bruit
   venait des paquets bloqués journalisés par le pare-feu (voisinage IPv6
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook

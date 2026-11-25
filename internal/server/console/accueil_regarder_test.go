@@ -98,7 +98,7 @@ func TestBandeauAvertissements(t *testing.T) {
 	d.Prises = nil
 	d.Parc = []ligneParc{{Nom: "sup", ClasseEtat: "ok", PleinDans: "plein dans 13 j"}, {Nom: "web1", ClasseEtat: "ok"}}
 	r = b.c.regarderAccueil(context.Background(), d, nil, b.h.maintenant())
-	if r.Bandeau.Texte != "sup : disque plein dans 13 j" || r.Bandeau.Lien != "/machines/sup#disques" || r.Bandeau.Action != "Voir sup" {
+	if r.Bandeau.Texte != "sup : disque plein dans 13 j" || r.Bandeau.Lien != "/machines/sup#r-disques" || r.Bandeau.Action != "Voir sup" {
 		t.Errorf("disque : %+v", r.Bandeau)
 	}
 	var disque *aRegarder
@@ -107,7 +107,7 @@ func TestBandeauAvertissements(t *testing.T) {
 			disque = &r.Regarder[i]
 		}
 	}
-	if disque == nil || disque.Lien != "/machines/sup#disques" {
+	if disque == nil || disque.Lien != "/machines/sup#r-disques" {
 		t.Errorf("« À regarder » disque : %+v", disque)
 	}
 }
@@ -141,7 +141,7 @@ func TestRaisonsMachines(t *testing.T) {
 		{"a", "plus de données depuis plus de 5 min", "/machines/a"},
 		{"b", "mise à jour de l'agent en échec", "/machines/b#maj"},
 		{"c", "2 alertes en cours", "/machines/c#activite"},
-		{"d", "disque plein dans 13 j", "/machines/d#disques"},
+		{"d", "disque plein dans 13 j", "/machines/d#r-disques"},
 	}
 	if len(rs) != len(attendu) {
 		t.Fatalf("%d machines : %+v", len(rs), rs)
