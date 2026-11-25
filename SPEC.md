@@ -8543,6 +8543,19 @@ ligne en échec du bloc Services)
 - Page machine : pastille « relevé il y a … » ; liste absente : motif de
   l'échec, « calcul en cours », ou « agent qui n'envoie que le nombre ».
 
+**Nombre de paquets** (retour du 25/11 : « 573, ce chiffre est faux »)
+- L'agent comptait toutes les lignes `Inst` de la simulation `dist-upgrade`,
+  y compris les **nouveaux paquets** que la mise à jour installerait (noyau,
+  dépendance) : 76 au lieu de 68 sur proxmoxbackup (`apt list --upgradable`).
+  Désormais `apt_upgrades_pending` (et la sécurité) ne compte que les
+  paquets installés qui ont une nouvelle version ; les nouveaux vont dans
+  `apt_upgrades_new_pending` et sont annoncés à part dans le bloc de la
+  machine (« + 8 nouveaux paquets… installés par `apt full-upgrade` »).
+- Page Machines : la case devient **« Machines à mettre à jour »** (nombre
+  de machines en grand, « N paquets en tout, dont X de sécurité (…) »
+  dessous) ; elle mène au filtre `?filtre=paquets` (et non plus à la vue
+  d'ensemble).
+
 **Vue d'ensemble** : « Tout va bien » seulement sans avertissement actif ni
 pastille orange ou rouge. Ordre : machine muette → alerte critique → erreur
 de « À regarder » → **avertissements** (« 2 avertissements en cours » et

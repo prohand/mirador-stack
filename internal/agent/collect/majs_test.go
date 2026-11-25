@@ -207,9 +207,12 @@ func attendreCond(t *testing.T, cond func() bool) {
 // Liste des paquets (SPEC § 42.3) : nom, versions, sécurité ; nouveau
 // paquet sans version installée ; plafond de 200 (le total reste juste).
 func TestLireMisesAJour(t *testing.T) {
-	ps, total, sec := lireMisesAJour([]byte(sortieApt + "Inst neuf (1.0-1 Debian:12/stable [amd64])\n"))
-	if total != 5 || sec != 3 || len(ps) != 5 {
-		t.Fatalf("total %d, sécurité %d, liste %d", total, sec, len(ps))
+	// Nouveau paquet : dans la liste, mais compté à part (comme « apt list
+	// --upgradable », retour du 25/11), même venant de -security.
+	ps, total, sec, neufs := lireMisesAJour([]byte(sortieApt + "Inst neuf (1.0-1 Debian:12/stable [amd64])\n" +
+		"Inst linux-image-6.1.0-40-amd64 (6.1.153-1 Debian-Security:12/stable-security [amd64])\n"))
+	if total != 4 || sec != 3 || neufs != 2 || len(ps) != 6 {
+		t.Fatalf("total %d, sécurité %d, nouveaux %d, liste %d", total, sec, neufs, len(ps))
 	}
 	if p := ps[0]; p.nom != "libssl3" || p.avant != "3.0.15-1~deb12u1" || p.apres != "3.0.17-1~deb12u2" || !p.securite {
 		t.Errorf("libssl3 : %+v", p)
@@ -224,7 +227,7 @@ func TestLireMisesAJour(t *testing.T) {
 	for i := 0; i < 250; i++ {
 		fmt.Fprintf(&beaucoup, "Inst p%d [1] (2 Debian:12/stable [amd64])\n", i)
 	}
-	if ps, total, _ := lireMisesAJour(beaucoup.Bytes()); total != 250 || len(ps) != maxPaquetsListes {
+	if ps, total, _, _ := lireMisesAJour(beaucoup.Bytes()); total != 250 || len(ps) != maxPaquetsListes {
 		t.Errorf("plafond : total %d, liste %d", total, len(ps))
 	}
 }

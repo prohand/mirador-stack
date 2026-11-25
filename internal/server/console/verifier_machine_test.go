@@ -111,3 +111,25 @@ func TestPaquetsSansListe(t *testing.T) {
 		t.Error("agent ancien : message absent")
 	}
 }
+
+// Nouveaux paquets (retour du 25/11) : hors du tableau et du compte,
+// annoncés à part (comme « apt list --upgradable »).
+func TestPaquetsNouveaux(t *testing.T) {
+	b := nouveauBanc(t)
+	pq := func(nom, avant, apres string) []string {
+		return []string{"__name__", "apt_upgrade_package", "instance", "web1", "package", nom, "from", avant, "to", apres, "security", "0"}
+	}
+	b.metriquesSimulees(t, []serieTest{
+		{[]string{"__name__", "apt_upgrades_pending", "instance", "web1"}, constante(1)},
+		{pq("curl", "7.88.1-10+deb12u8", "7.88.1-10+deb12u12"), constante(1)},
+		{pq("proxmox-kernel-6.8.12-9-pve", "", "6.8.12-9"), constante(1)},
+	})
+	b.machinesApprouvees(t, "web1")
+	cl, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(cl, "/machines/web1")
+	p := blocDetails(corps, `id="paquets"`)
+	if !strings.Contains(p, "<strong>curl</strong>") || !strings.Contains(p, "+ 1 nouveau paquet que la mise à jour installerait aussi") ||
+		!strings.Contains(p, "<strong>proxmox-kernel-6.8.12-9-pve</strong> 6.8.12-9") || strings.Contains(p, "<tr><td><strong>proxmox-kernel") {
+		t.Error("nouveau paquet pas annoncé à part")
+	}
+}

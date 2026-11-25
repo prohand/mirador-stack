@@ -16,8 +16,9 @@ import (
 
 // Vues et filtres admis (toute autre valeur revient au choix par défaut).
 var (
-	vuesMachines    = []string{"site", "groupe", "liste"}
-	filtresMachines = []string{"", "problemes", "agents", "collecteurs"}
+	vuesMachines = []string{"site", "groupe", "liste"}
+	// « paquets » : machines à mettre à jour (case du haut, pas de bouton).
+	filtresMachines = []string{"", "problemes", "agents", "collecteurs", "paquets"}
 )
 
 // attenteVisibles : machines en attente montrées d'office ; au-delà, un
@@ -101,6 +102,8 @@ func (f filtresPage) garde(v vueMachine) bool {
 		return !v.Collecteur() && v.ReleveePar == ""
 	case "collecteurs":
 		return v.Collecteur() || v.ReleveePar != ""
+	case "paquets":
+		return v.Paquets > 0
 	}
 	return true
 }

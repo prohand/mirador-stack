@@ -244,3 +244,19 @@ func TestRechercheExacteSite(t *testing.T) {
 		t.Error("groupe:")
 	}
 }
+
+// Case « Machines à mettre à jour » (retour du 25/11) : nombre de machines
+// en grand, total des paquets dessous, filtre « paquets » derrière le lien.
+func TestCasePaquets(t *testing.T) {
+	ms := []vueMachine{{InfoMachine: flotte.InfoMachine{Nom: "a", VuLe: 1}}, {InfoMachine: flotte.InfoMachine{Nom: "b", VuLe: 1}},
+		{InfoMachine: flotte.InfoMachine{Nom: "c", VuLe: 1}}}
+	mesures := map[string]*ligneParc{"a": {Paquets: 68, PaquetsSecurite: 2}, "b": {Paquets: 5}}
+	c := calculerCases(ms, mesures, 0)
+	if c.MachinesPaquets != 2 || c.Paquets != 73 || c.DetailPaquets != "73 paquets en tout, dont 2 de sécurité (a)" {
+		t.Errorf("case : %d machines, %d paquets, %q", c.MachinesPaquets, c.Paquets, c.DetailPaquets)
+	}
+	f := lireFiltresMachines("", "paquets", "")
+	if f.Filtre != "paquets" || !f.garde(vueMachine{Paquets: 3}) || f.garde(vueMachine{}) {
+		t.Error("filtre « paquets »")
+	}
+}

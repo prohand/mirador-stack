@@ -18,8 +18,12 @@ import (
 )
 
 // MisesAJour produit :
-//   - apt_upgrades_pending : paquets à mettre à jour ;
+//   - apt_upgrades_pending : paquets installés qui ont une nouvelle version
+//     (comme « apt list --upgradable » : retour du 25/11, les nouveaux
+//     paquets tirés par la mise à jour étaient comptés aussi) ;
 //   - apt_upgrades_security_pending : dont mises à jour de sécurité ;
+//   - apt_upgrades_new_pending : nouveaux paquets que la mise à jour
+//     installerait (noyau, dépendance), comptés à part ;
 //   - node_reboot_required : 1 si /run/reboot-required existe ;
 //   - apt_upgrade_package{package, from, to, security} : un paquet à mettre
 //     à jour (valeur 1), 200 au plus (SPEC § 42.3 : liste montrée sur la
@@ -59,6 +63,7 @@ type MisesAJour struct {
 	ok       bool // au moins une mesure réussie
 	total    int
 	securite int
+	nouveaux int
 	paquets  []paquetAJour
 	erreur   error
 	calcule  time.Time // dernier calcul réussi
@@ -136,6 +141,7 @@ func (m *MisesAJour) Collecter(b *metrics.Batch) error {
 		b.Add("apt_upgrades_calcule_le", float64(m.calcule.Unix()))
 		b.Add("apt_upgrades_pending", float64(m.total))
 		b.Add("apt_upgrades_security_pending", float64(m.securite))
+		b.Add("apt_upgrades_new_pending", float64(m.nouveaux))
 		for _, p := range m.paquets {
 			b.Add("apt_upgrade_package", 1, metrics.L("package", p.nom), metrics.L("from", p.avant),
 				metrics.L("to", p.apres), metrics.L("security", bool01s(p.securite)))
@@ -150,16 +156,16 @@ func (m *MisesAJour) mesurer() {
 	defer annuler()
 	sortie, err := m.lancer(ctx)
 	var paquets []paquetAJour
-	total, securite := 0, 0
+	total, securite, nouveaux := 0, 0, 0
 	if err == nil {
-		paquets, total, securite = lireMisesAJour(sortie)
+		paquets, total, securite, nouveaux = lireMisesAJour(sortie)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.enCours = false
 	m.erreur = err
 	if err == nil {
-		m.ok, m.total, m.securite, m.paquets = true, total, securite, paquets
+		m.ok, m.total, m.securite, m.nouveaux, m.paquets = true, total, securite, nouveaux, paquets
 		m.calcule = m.maintenant()
 	} else {
 		// Échec : nouvel essai dans 15 min au lieu de 6 h.
@@ -233,16 +239,20 @@ func (m *MisesAJour) lancerAptGet(ctx context.Context) ([]byte, error) {
 
 // compterMisesAJour : nombre de mises à jour, dont de sécurité.
 func compterMisesAJour(sortie []byte) (total, securite int) {
-	_, total, securite = lireMisesAJour(sortie)
+	_, total, securite, _ = lireMisesAJour(sortie)
 	return total, securite
 }
 
 // lireMisesAJour lit les lignes « Inst paquet [ancienne] (nouvelle origine [arch]) ».
-// Une mise à jour est « de sécurité » si son origine contient « -security »
-// (Debian : bookworm-security, Ubuntu : noble-security). Un nouveau paquet
-// (sans [ancienne]) a une version installée vide. Les champs sont bornés
-// (nom 128, version 64 caractères) : ce sont des étiquettes de séries.
-func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) {
+// Une mise à jour (ligne avec [ancienne]) compte dans total ; un nouveau
+// paquet (sans [ancienne] : noyau, dépendance) compte dans nouveaux, comme
+// « apt list --upgradable » qui ne le montre pas (retour du 25/11 : 76 au
+// lieu de 68 sur proxmoxbackup). Une mise à jour est « de sécurité » si son
+// origine contient « -security » (Debian : bookworm-security, Ubuntu :
+// noble-security). Les deux sortes vont dans la liste (version installée
+// vide pour un nouveau paquet). Les champs sont bornés (nom 128, version 64
+// caractères) : ce sont des étiquettes de séries.
+func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite, nouveaux int) {
 	sc := bufio.NewScanner(bytes.NewReader(sortie))
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for sc.Scan() {
@@ -251,20 +261,22 @@ func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) 
 		if !ok {
 			continue
 		}
-		total++
-		p := paquetAJour{}
-		if i := bytes.IndexByte(ligne, '('); i >= 0 && bytes.Contains(ligne[i:], []byte("-security")) {
-			securite++
-			p.securite = true
+		nom, apres, _ := bytes.Cut(reste, []byte(" "))
+		p := paquetAJour{nom: borne(string(nom), 128)}
+		v, mise := bytes.CutPrefix(apres, []byte("["))
+		if mise {
+			total++
+			avant, suite, _ := bytes.Cut(v, []byte("] "))
+			p.avant, apres = borne(string(avant), 64), suite
+			if i := bytes.IndexByte(ligne, '('); i >= 0 && bytes.Contains(ligne[i:], []byte("-security")) {
+				securite++
+				p.securite = true
+			}
+		} else {
+			nouveaux++
 		}
 		if len(paquets) >= maxPaquetsListes {
 			continue
-		}
-		nom, apres, _ := bytes.Cut(reste, []byte(" "))
-		p.nom = borne(string(nom), 128)
-		if v, ok := bytes.CutPrefix(apres, []byte("[")); ok {
-			avant, suite, _ := bytes.Cut(v, []byte("] "))
-			p.avant, apres = borne(string(avant), 64), suite
 		}
 		if v, ok := bytes.CutPrefix(apres, []byte("(")); ok {
 			version, _, _ := bytes.Cut(v, []byte(" "))
@@ -274,7 +286,7 @@ func lireMisesAJour(sortie []byte) (paquets []paquetAJour, total, securite int) 
 			paquets = append(paquets, p)
 		}
 	}
-	return paquets, total, securite
+	return paquets, total, securite, nouveaux
 }
 
 // borne : au plus n octets, sans couper un caractère.

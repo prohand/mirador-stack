@@ -24,7 +24,10 @@ type lignePaquet struct {
 }
 
 type vuePaquets struct {
-	Lignes      []lignePaquet
+	Lignes []lignePaquet
+	// Nouveaux : paquets que la mise à jour installerait (pas encore
+	// installés : noyau, dépendance), montrés à part (retour du 25/11).
+	Nouveaux    []lignePaquet
 	Nombre      int  // apt_upgrades_pending
 	NbSecurite  int  // apt_upgrades_security_pending
 	Redemarrage bool // node_reboot_required
@@ -79,7 +82,17 @@ func (c *Console) paquetsMachine(ctx context.Context, m flotte.InfoMachine, t ti
 		}
 		return v.Lignes[a].Nom < v.Lignes[b].Nom
 	})
-	v.SansListe = len(v.Lignes) == 0
+	recus := len(v.Lignes)
+	garder := v.Lignes[:0]
+	for _, l := range v.Lignes {
+		if l.Avant == "" {
+			v.Nouveaux = append(v.Nouveaux, l)
+		} else {
+			garder = append(garder, l)
+		}
+	}
+	v.Lignes = garder
+	v.SansListe = recus == 0
 	if ech, err := c.instant(ctx, `last_over_time(mirador_agent_mises_a_jour_echec`+i+`[10m])`, t); err == nil && len(ech) > 0 {
 		v.Echec = ech[0].Etiquettes.Get("raison")
 	}
@@ -89,6 +102,6 @@ func (c *Console) paquetsMachine(ctx context.Context, m flotte.InfoMachine, t ti
 			v.Calcule = dureeLisible(d.Round(time.Minute))
 		}
 	}
-	v.Tronquee = len(v.Lignes) >= maxPaquetsAgent && v.Nombre > len(v.Lignes)
+	v.Tronquee = recus >= maxPaquetsAgent && v.Nombre > len(v.Lignes)
 	return v
 }

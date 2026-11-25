@@ -376,6 +376,8 @@ type vueMachine struct {
 	// Machine en attente (SPEC § 36) : nom d'hôte trop commun, et demande
 	// venue d'un réseau où aucune machine approuvée n'a été vue.
 	NomBanal, AdresseInconnue bool
+	// Paquets à mettre à jour (filtre « paquets » de la page Machines).
+	Paquets int
 }
 
 // donneesMachines : page Machines (liste) ; l'ajout est sur sa propre page
@@ -466,11 +468,8 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		d.AttenteCachees = len(d.EnAttente) - attenteVisibles
 		d.EnAttente = d.EnAttente[:attenteVisibles]
 	}
-	d.Approuvees, d.Sites = len(approuvees), len(sites)
-	d.Compteurs = d.Filtres.compter(approuvees)
-	d.Groupes = regrouperMachines(approuvees, d.Filtres)
-	d.Listes = c.lireListes(ctx)
-	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble.
+	// Tuiles et cases (SPEC § 120) : mesures de la vue d'ensemble (lues
+	// avant les filtres : le filtre « paquets » s'en sert).
 	mesures := map[string]*ligneParc{}
 	if c.lecteur != nil {
 		actives, _ := separerAttente(c.alertesEnCours(""))
@@ -478,6 +477,15 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 			mesures[l.Nom] = &l
 		}
 	}
+	for i := range approuvees {
+		if m := mesures[approuvees[i].Nom]; m != nil {
+			approuvees[i].Paquets = m.Paquets
+		}
+	}
+	d.Approuvees, d.Sites = len(approuvees), len(sites)
+	d.Compteurs = d.Filtres.compter(approuvees)
+	d.Groupes = regrouperMachines(approuvees, d.Filtres)
+	d.Listes = c.lireListes(ctx)
 	for i := range d.Groupes {
 		d.Groupes[i].Tuiles = tuilesDe(d.Groupes[i].Machines, mesures)
 	}

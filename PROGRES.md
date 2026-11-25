@@ -1838,6 +1838,11 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   motif et âge du calcul affichés (le message « agent trop ancien » était
   faux ; proxmoxbackup : simulation correcte dans les limites du service,
   62 Mo au plus, pas de séries refusées : liste revenue seule).
+- Nombre de paquets faux (573 sur la page Machines) : l'agent comptait
+  aussi les nouveaux paquets de `dist-upgrade` (76 au lieu de 68 sur
+  proxmoxbackup, vérifié avec `apt list --upgradable`). Corrigé : seules
+  les mises à jour comptent, nouveaux paquets à part ; case « Machines à
+  mettre à jour » (nombre de machines, total dessous, filtre).
 - Bandeau : « Tout va bien » seulement sans avertissement ni pastille
   orange ou rouge ; points sans urgence et infos comptés à part.
 - Téléphone : titre « Services » plus coupé (64 px de large, une ligne).
