@@ -1865,8 +1865,10 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Gain sur le VPS : environ **580 Mio** (770 de l'ancienne stack contre 187
   pour mirador). Restent sur le VPS, hors mirador : uptime-kuma (279 + 181
   Mio), arcane (139 + 30 Mio).
-- À surveiller : le relais Docker de mirador utilise 29,8 Mio pour une
-  limite de 32 Mio (le même relais d'arcane, sans limite, en prend autant).
+- Relais Docker de mirador : 29,8 Mio utilisés pour une limite de 32 Mio
+  (jamais tué faute de mémoire). Limite passée à **64 Mio** (0.6.20,
+  publiée et appliquée le 25/11 par le playbook ; vérifié sur gladys-dev :
+  67108864 octets).
 
 ## Prochaine étape
 
