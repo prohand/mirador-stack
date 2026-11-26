@@ -2495,3 +2495,4 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .page-flux .flux-tete-carte .aide { margin-left: 0; } .page-flux .flux-case b { font-size: 20px; }
   .page-flux .flux-glisser { display: block; }
 }
+.page-flux .flux-sources { margin-bottom: 16px; } .page-flux .flux-sources p { margin: 6px 0; }

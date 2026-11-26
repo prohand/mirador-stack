@@ -282,6 +282,11 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		!strings.Contains(corps, "vm-test") {
 		t.Errorf("flux bloqués : %s", corps[strings.Index(corps, "<main>"):])
 	}
+	// Carte « Flux bloqués » dans la liste des tableaux (retour du 26/11 :
+	// plus aucun lien depuis la nouvelle liste).
+	if _, corps, _ = n.faire(http.MethodGet, "/tableaux", nil); !strings.Contains(corps, `href="/flux-bloques"`) || !strings.Contains(corps, "Bloqués sur 24 h") {
+		t.Error("carte « Flux bloqués » absente de la liste des tableaux")
+	}
 	if code, _, _ = n.faire(http.MethodGet, "/logs?host=%22%3E%3Cscript%3E", nil); code != 200 {
 		t.Errorf("filtre invalide : %d", code)
 	}

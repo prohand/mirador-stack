@@ -48,6 +48,9 @@
 <section class="carte flux-top"><h2>Bloqué par</h2>{{range $d.PareFeux}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}<b>{{.Nom}}</b>{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
 <section class="carte flux-top"><h2>Adresses les plus insistantes</h2>{{range $d.IPs}}<div class="rang"><span class="nom">{{drapeau .Code}} <a href="{{.Lien}}" title="Chercher cette adresse dans les logs"><code>{{.Nom}}</code></a>{{if ge .PareFeux 2}} <span class="flux-pf">{{.PareFeux}} pare-feu</span>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">{{if $d.B.SansAdresses}}Adresses non suivies par port : enlever le filtre pour les voir.{{else}}Aucune.{{end}}</p>{{end}}</section>
 </div>
+{{with $d.Sources}}<section class="carte flux-sources"><h2>Sources OPNsense (par le collecteur)</h2>
+{{range .}}<p><span class="pastille {{.Classe}}">{{.Collecteur}}</span> {{.Texte}}</p>{{end}}
+<p class="aide"><small>Les iptables des machines n'ont rien à régler : il suffit que la règle de blocage journalise (cible LOG).</small></p></section>{{end}}
 <p class="aide"><small>OPNsense : seuls les blocages entrants venus d'Internet sont comptés, par le collecteur, sans garder les lignes. Conservation : 30 jours (adresses : 7 jours). {{if $d.GeoIP}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).{{end}}</small></p>
 </div>
 {{end}}

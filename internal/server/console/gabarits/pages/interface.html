@@ -18,7 +18,7 @@
 {{if .Admin}}<div class="ligne"><button>Enregistrer</button><button name="action" value="defaut" class="secondaire" data-confirmer="Rétablir l'affichage par défaut ?">Valeurs par défaut</button></div>{{end}}</form></section>
 
 <section class="carte" id="geoip"><div class="entete-carte"><h2>Pays des adresses (GéoIP)</h2>{{if not $d.GeoIP}}<span class="pastille">désactivée</span>{{else if $d.GeoErreur}}<span class="pastille erreur">erreur</span>{{else if $d.GeoFichier.IsZero}}<span class="pastille attention">pas encore téléchargée</span>{{else}}<span class="pastille ok">à jour</span>{{end}}</div>
-<p class="sous">Donne le pays d'une adresse IP : flux bloqués du pare-feu (Logs › Flux bloqués), connexions à l'interface. Tout se fait sur le serveur : <strong>aucune adresse n'est envoyée dehors</strong>. Base gratuite « DB-IP country lite », une nouvelle version chaque mois.</p>
+<p class="sous">Donne le pays d'une adresse IP : flux bloqués du pare-feu (Tableaux › Flux bloqués), connexions à l'interface. Tout se fait sur le serveur : <strong>aucune adresse n'est envoyée dehors</strong>. Base gratuite « DB-IP country lite », une nouvelle version chaque mois.</p>
 <div class="notif-tuiles">
 <div class="notif-tuile"><small>Version</small>{{if $d.GeoFichier.IsZero}}<b>—</b>{{else}}<b>{{moisAnnee $d.GeoFichier}}</b><small>DB-IP country lite</small>{{end}}</div>
 <div class="notif-tuile"><small>Téléchargée</small>{{if $d.GeoFichier.IsZero}}<b>jamais</b>{{else}}<b>{{date $d.GeoFichier}}</b>{{end}}<small>{{if $d.GeoDemande}}téléchargement demandé : dans la minute{{else if not $d.GeoEssai.IsZero}}dernier essai {{date $d.GeoEssai}}{{else}}vérifiée toutes les 6 h{{end}}</small></div>

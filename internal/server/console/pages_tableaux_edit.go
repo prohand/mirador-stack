@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"mirador-stack/internal/server/fluxbloques"
 )
 
 // Éditeur de tableaux (SPEC § 18.14), admins seulement : créer, dupliquer,
@@ -48,7 +50,14 @@ type donneesTableaux struct {
 	// SansDonnees : proposés dont rien n'arrive chez cet utilisateur
 	// (repliés sous la liste).
 	SansDonnees []ligneTableau
-	// Raccourcis vers les pages Logs et Flux bloqués : installés / proposés.
+	// Flux : carte « Flux bloqués » (SPEC § 135) ; nil sans magasin.
+	Flux *resumeFluxCarte
+}
+
+// resumeFluxCarte : chiffres clés de la carte « Flux bloqués » (24 h).
+type resumeFluxCarte struct {
+	Total, Pays int
+	Port        string
 }
 
 func (c *Console) pageTableaux(q *req) {
@@ -70,6 +79,15 @@ func (c *Console) pageTableaux(q *req) {
 			d.Catalogue = append(d.Catalogue, l)
 		} else {
 			d.SansDonnees = append(d.SansDonnees, l)
+		}
+	}
+	if c.opt.Flux != nil {
+		// 24 h : sommes SQLite gardées 1 min par le magasin.
+		if b, err := c.opt.Flux.Bilan(q.r.Context(), q.t.Add(-24*time.Hour), q.t, fluxbloques.Filtre{}, 24); err == nil {
+			d.Flux = &resumeFluxCarte{Total: b.Total, Pays: b.NbPays}
+			if len(b.Ports) > 0 && b.Ports[0].Nom != fluxbloques.Autres {
+				d.Flux.Port = b.Ports[0].Nom
+			}
 		}
 	}
 	c.rendre(q, "tableaux", "Tableaux", "tableaux", d)
