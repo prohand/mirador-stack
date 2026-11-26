@@ -253,7 +253,11 @@ func (c *Console) lignesServeur(ctx context.Context, t time.Time, sondes []essai
 	if !c.opt.Debut.IsZero() {
 		l.Sous += " · en marche depuis " + dureeLisible(t.Sub(c.opt.Debut))
 	}
-	if v, ok := c.une(ctx, `mirador_processus_rss_octets{job="mirador"}`, t); ok {
+	// Mémoire propre du programme (retour du 26/11 : la RSS compte aussi le
+	// cache des fichiers de la base de mesures, que le noyau reprend).
+	if v, ok := c.une(ctx, `mirador_processus_anon_octets{job="mirador"}`, t); ok && v > 0 {
+		l.Chiffres = append(l.Chiffres, chiffreSante{tailleLisible(int64(v)), "mémoire propre"})
+	} else if v, ok := c.une(ctx, `mirador_processus_rss_octets{job="mirador"}`, t); ok {
 		l.Chiffres = append(l.Chiffres, chiffreSante{tailleLisible(int64(v)), "mémoire"})
 	}
 	e := c.etatStockage(t)
@@ -261,6 +265,10 @@ func (c *Console) lignesServeur(ctx context.Context, t time.Time, sondes []essai
 		l.Chiffres = append(l.Chiffres, chiffreSante{tailleLisible(total), "données"})
 	}
 	srv(l)
+
+	if l, ok := c.ligneCalcul(ctx, t); ok {
+		srv(l)
+	}
 
 	// mirador-maj-serveur (root, sur le VPS).
 	srv(c.ligneMajServeur(ctx, t))
@@ -849,4 +857,49 @@ func resumeCarte(k carteSante) string {
 		return "tout va bien"
 	}
 	return strings.Join(p, " · ")
+}
+
+// objectifCPU : objectif du serveur (PROGRES, étape 3) : moins de 5 % d'un cœur.
+const objectifCPU = 5.0
+
+// nomsParties : libellés des parties comptées (charge).
+var nomsParties = map[string]string{"mesures": "réception des mesures", "logs": "réception des logs",
+	"alertes": "règles d'alerte", "interface": "interface", "fond": "tâches de fond"}
+
+// ligneCalcul : temps de calcul du serveur sur 15 min, total et par partie
+// (retour du 26/11 : 4,9 % pour un objectif de 5 %, sans savoir qui
+// consomme). Les parties comptent le temps passé (proche du CPU) ; le
+// ramasse-miettes est à part.
+func (c *Console) ligneCalcul(ctx context.Context, t time.Time) (ligneSante, bool) {
+	total, ok := c.une(ctx, `100 * rate(mirador_serveur_cpu_secondes_total{job="mirador"}[15m])`, t)
+	if !ok {
+		return ligneSante{}, false
+	}
+	pct := func(v float64) string { return strings.Replace(strconv.FormatFloat(v, 'f', 1, 64), ".", ",", 1) + " %" }
+	l := ligneSante{Etat: "ok", Icone: "cpu", Nom: "Temps de calcul",
+		Sous: "part d'un cœur sur 15 min, et ce qui la prend (objectif : moins de 5 %)"}
+	l.Chiffres = append(l.Chiffres, chiffreSante{pct(total), "au total"})
+	if total >= objectifCPU {
+		l.Etat, l.Alerte = "attention", "au-dessus de l'objectif de 5 % d'un cœur"
+	}
+	type part struct {
+		nom string
+		v   float64
+	}
+	var parts []part
+	if ech, err := c.instant(ctx, `100 * rate(mirador_serveur_temps_secondes_total{job="mirador"}[15m])`, t); err == nil {
+		for _, e := range ech {
+			if n := nomsParties[e.Etiquettes.Get("partie")]; n != "" {
+				parts = append(parts, part{n, e.Valeur})
+			}
+		}
+	}
+	if v, ok := c.une(ctx, `100 * rate(mirador_serveur_cpu_gc_secondes_total{job="mirador"}[15m])`, t); ok {
+		parts = append(parts, part{"ramasse-miettes", v})
+	}
+	sort.Slice(parts, func(i, j int) bool { return parts[i].v > parts[j].v })
+	for _, p := range parts {
+		l.Chiffres = append(l.Chiffres, chiffreSante{pct(p.v), p.nom})
+	}
+	return l, true
 }

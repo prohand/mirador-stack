@@ -20,7 +20,7 @@
 <a class="carte-tableau-lien" href="/tableaux/{{.T.Nom}}">
 <div class="ct-tete"><span class="puce {{if .T.Teinte}}{{.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{if .T.Icone}}{{.T.Icone}}{{else}}tableaux{{end}}"></use></svg></span>
 <div><b>{{.T.Titre}}</b><small>{{with .R.Couvre}}{{.}} · {{end}}{{.Nb}} {{accord .Nb "panneau(x)"}}</small></div></div>
-<div class="ct-apercu">{{if .R.Apercu}}<svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{.R.Apercu}}"/></svg>{{else}}<small>pas de courbe sur 24 h</small>{{end}}</div>
+{{with .R.Chiffres}}<div class="ct-chiffres">{{range .}}<div class="{{.Couleur}}"><b>{{.Texte}}</b><small>{{.Titre}}</small></div>{{end}}</div>{{end}}
 </a>
 <div class="ct-pied">{{if .R.Etat}}<span class="pastille {{.R.ClasseEtat}}">{{.R.Etat}}</span>{{end}}<span class="doux">{{if egal .Origine "modifie"}}fourni, modifié{{else if egal .Origine "perso"}}créé ici{{else}}fourni avec mirador{{end}}</span>
 <button type="button" class="etoile-tableau" data-etoile title="Favori : en tête de la liste (sur ce navigateur)" aria-pressed="false" aria-label="Favori">★</button>

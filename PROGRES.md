@@ -1954,6 +1954,12 @@ redémarrage, aucun OOM).
 
 Les deux objectifs sont tenus mais sans marge, alors que le parc a été
 multiplié par 13 depuis la mesure du 14/11 (1,27 % CPU, 113 Mio).
+**Mémoire, relevé du 26/11 au soir** : 159 Mio de mémoire propre (`anon`) ;
+le reste est du cache de fichiers (50 Mio comptés par `docker stats`, 54 Mio
+non comptés) que le noyau reprend. Objectif jugé sur la mémoire propre :
+**marge ~95 Mio**, rien à changer. **CPU** : compteurs par partie ajoutés
+(SPEC § 134) ; à relire dans Santé de mirador après la mise à jour.
+
 Pistes si ça dépasse :
 - RAM : `docker stats` compte le cache des fichiers de la base de mesures
   que le noyau reprend en cas de besoin ; mesurer la part réelle

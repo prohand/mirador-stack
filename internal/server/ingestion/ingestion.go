@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mirador-stack/internal/server/charge"
 	"net/http"
 	"net/netip"
 	"strconv"
@@ -333,6 +334,7 @@ func (g *Ingestion) Routes(m *http.ServeMux) {
 // influx : POST …/api/v2/write (line protocol, gzip accepté). Même accueil
 // que les agents (token « Token … » ou « Bearer … », adresses, limites).
 func (g *Ingestion) influx(w http.ResponseWriter, r *http.Request) {
+	defer charge.Noter(charge.Mesures, time.Now())
 	m, liberer, ok := g.Accueillir(w, r)
 	if !ok {
 		return
@@ -544,6 +546,7 @@ func (g *Ingestion) horloge(r *http.Request, m Machine, maintenant time.Time) (D
 }
 
 func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
+	defer charge.Noter(charge.Mesures, time.Now())
 	m, liberer, ok := g.Accueillir(w, r)
 	if !ok {
 		return
@@ -672,6 +675,7 @@ func sansSeriesVides(series []stockage.Serie) []stockage.Serie {
 }
 
 func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
+	defer charge.Noter(charge.Logs, time.Now())
 	m, liberer, ok := g.Accueillir(w, r)
 	if !ok {
 		return

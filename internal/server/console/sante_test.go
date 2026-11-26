@@ -121,3 +121,32 @@ func TestSanteNePrendPasLeControleDeVie(t *testing.T) {
 		}
 	}
 }
+
+// Temps de calcul du serveur (retour du 26/11) : total, parties triées,
+// ramasse-miettes ; au-dessus de 5 % d'un cœur, la ligne passe en attention.
+func TestSanteTempsDeCalcul(t *testing.T) {
+	b := nouveauBanc(t)
+	cpt := func(nom string, parSeconde float64, etq ...string) serieTest {
+		e := append([]string{"__name__", nom, "instance", "mirador-server", "job", "mirador"}, etq...)
+		return serieTest{e, func(k int) float64 { return float64(k) * 30 * parSeconde }}
+	}
+	b.metriquesSimulees(t, []serieTest{
+		cpt("mirador_serveur_cpu_secondes_total", 0.06),
+		cpt("mirador_serveur_cpu_gc_secondes_total", 0.01),
+		cpt("mirador_serveur_temps_secondes_total", 0.03, "partie", "mesures"),
+		cpt("mirador_serveur_temps_secondes_total", 0.005, "partie", "interface"),
+	})
+	l, ok := b.c.ligneCalcul(t.Context(), b.h.maintenant())
+	if !ok || l.Etat != "attention" || len(l.Chiffres) != 4 {
+		t.Fatalf("ligne : %+v", l)
+	}
+	if c := l.Chiffres[0]; c.Valeur != "6,0 %" || c.Legende != "au total" {
+		t.Errorf("total : %+v", c)
+	}
+	if c := l.Chiffres[1]; c.Valeur != "3,0 %" || c.Legende != "réception des mesures" {
+		t.Errorf("première partie : %+v", c)
+	}
+	if c := l.Chiffres[3]; c.Legende != "interface" {
+		t.Errorf("ordre : %+v", l.Chiffres)
+	}
+}

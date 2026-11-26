@@ -12,10 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mirador-stack/internal/server/charge"
 	"mirador-stack/internal/server/direct"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mirador-stack/internal/majserveur"
@@ -316,6 +318,11 @@ func (s *Serveur) routesInterface() http.Handler {
 	normal := limiterCorps(m, 1<<20)
 	publication := limiterCorps(m, console.TailleMaxPublication+(1<<20))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Temps de calcul de l'interface (charge, retour du 26/11) : pas les
+		// flux en direct (EventSource), qui attendent sans calculer.
+		if !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+			defer charge.Noter(charge.Interface, time.Now())
+		}
 		// Seule la publication d'une version de l'agent dépasse 1 Mio.
 		if r.URL.Path == "/mises-a-jour/publier" {
 			publication.ServeHTTP(w, r)

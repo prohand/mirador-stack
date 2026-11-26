@@ -8714,8 +8714,10 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 
 **Liste des tableaux**
 - Une carte par tableau installé : icône, ce qu'il couvre (le filtre qui a
-  le plus de valeurs : « Machine : 26 »), nombre de panneaux, petite courbe
-  sur 24 h (moyenne des courbes de son premier graphique), état (« N points
+  le plus de valeurs : « Machine : 26 »), nombre de panneaux, ses **trois
+  premiers chiffres** (rouge ou orange s'ils sont à regarder ; choix du
+  26/11 après la 0.6.25 : la petite courbe, étirée sur sa hauteur,
+  grossissait le moindre écart et ne disait rien pour les certificats), état (« N points
   à regarder » si des chiffres sont en attention ou en erreur, « tout va
   bien » sinon), origine (fourni, modifié, créé ici).
 - Étoile « favori » : en tête de la liste, retenue par le navigateur
@@ -8727,7 +8729,7 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 - Proposés par mirador : seulement ceux dont des données arrivent ; les
   autres repliés sous « Sans données chez vous ».
 - Coût : résumé calculé au plus une fois par 5 min et par tableau (une
-  requête par filtre, les chiffres, une courbe de 48 points).
+  requête par filtre et les chiffres ; plus de courbe à calculer).
 
 **Page d'un tableau**
 - Barre de filtres compacte, collante en haut sur ordinateur : filtres en
@@ -8749,3 +8751,26 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 - Coût : rien de plus côté serveur (moyenne calculée dans le navigateur).
 - Menaces : aucune nouvelle (mêmes requêtes, mêmes droits ; favoris dans le
   navigateur seulement).
+
+## 134. Temps de calcul du serveur par partie, mémoire propre (26/11) **[Fait, à valider]**
+
+Mesure du 26/11 sur le parc complet : 4,9 % d'un cœur (objectif < 5 %) et
+252 Mio au plus (objectif < 256 Mio), sans savoir qui consomme.
+
+**Mémoire** : relevé du 26/11 (`/proc/PID/status`, `memory.stat`) : 159 Mio
+de mémoire propre (`anon`), le reste est le cache des fichiers de la base de
+mesures, que le noyau reprend avant la limite du conteneur. `docker stats`
+compte le cache actif (212 = 159 + 50 + 2 Mio) : l'objectif se juge sur la
+mémoire propre (marge ~95 Mio). Nouvelle série `mirador_processus_anon_octets`,
+affichée « mémoire propre » dans Santé de mirador.
+
+**Temps de calcul** (paquet `charge`) : compteurs du temps passé par partie
+(réception des mesures, des logs, interface hors flux en direct, tâches de
+fond : agrégation et métriques internes ; les règles d'alerte reprennent la
+durée déjà mesurée), temps CPU réel du processus (`getrusage`) et du
+ramasse-miettes (`runtime/metrics`). Séries `mirador_serveur_cpu_secondes_total`,
+`mirador_serveur_cpu_gc_secondes_total`, `mirador_serveur_temps_secondes_total{partie}`.
+Santé de mirador : ligne « Temps de calcul » (15 min), total puis parties
+triées ; en attention au-delà de 5 % d'un cœur.
+- Pas d'outil de profilage exposé (aucune nouvelle surface d'attaque).
+- Coût : deux lectures d'horloge par requête, 8 séries de plus par minute.

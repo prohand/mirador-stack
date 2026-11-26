@@ -66,4 +66,13 @@ func TestServicesAttendusSeulementSiLaMachineRepond(t *testing.T) {
 	if n := compter(`mirador_machine_modele{instance="muette", modele="docker"}`); n != 1 {
 		t.Fatalf("machine muette : modèle non écrit (%d)", n)
 	}
+	// Temps de calcul et mémoire propre (retour du 26/11) : écrits à chaque tour.
+	for expr, attendu := range map[string]int{
+		`mirador_serveur_cpu_secondes_total`: 1, `mirador_serveur_cpu_gc_secondes_total`: 1,
+		`mirador_serveur_temps_secondes_total`: 5, `mirador_processus_anon_octets > 0`: 1,
+	} {
+		if n := compter(expr); n != attendu {
+			t.Errorf("%s : %d série(s), %d attendue(s)", expr, n, attendu)
+		}
+	}
 }
