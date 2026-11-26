@@ -12,8 +12,8 @@
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **Validée le 12/11/2026** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 5 quater. Élément par élément, signal « à valider », Réglages rangés | **Validée le 12/11/2026** (SPEC § 21, retours corrigés : § 22) | `claude/affectionate-albattani-izl0lb` |
-| 6. Équipements sans agent + `mirador-collector` | **en cours** : parties 1 à 6 faites, partie 7 (bascule sur le LAN) à faire avec toi | `claude/intelligent-cori-yh3n7c` |
-| 7. Bascule | non commencée | — |
+| 6. Équipements sans agent + `mirador-collector` | **Validée le 26/11/2026** : collecteur sur le LAN, agents sur tout le parc, mesures tenues | `claude/intelligent-cori-yh3n7c` |
+| 7. Bascule | **Validée le 26/11/2026** : ancienne stack (Grafana, VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager, Alloy) supprimée, mirador seul en service | `claude/intelligent-cori-yh3n7c` |
 
 ## Étape 1 — fait
 
@@ -1987,7 +1987,7 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 **Reste**
 1. Mesure du serveur : faite le 26/11 (16 h 35, voir plus haut), objectifs
    tenus de justesse.
-2. Clore les étapes 6 et 7 (validation de l'utilisateur).
+2. Étapes 6 et 7 : **validées le 26/11** (tableau « Où on en est »).
 3. SPEC : 74 sections validées le 25/11 ; 8 « en service, pas encore
    essayé » (§ 39 site injoignable, § 49 disponibilité, § 52 motifs de
    logs, § 54 incidents, § 81 maintenance récurrente et webhook, § 82

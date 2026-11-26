@@ -57,3 +57,28 @@ func TestPageTableauPresentation(t *testing.T) {
 		}
 	}
 }
+
+// Sommaire et liens de période (maquette du 26/11) : compte des chiffres à
+// regarder par rangée ; périodes qui gardent les filtres choisis.
+func TestSommaireEtPeriodes(t *testing.T) {
+	r := vueRangee{Panneaux: []vuePanneau{
+		{Chiffres: []vueValeur{{Couleur: "ok"}, {Couleur: "erreur"}}},
+		{Chiffres: []vueValeur{{Couleur: "attention"}, {Couleur: ""}}},
+	}}
+	if n := r.NbProblemes(); n != 2 {
+		t.Errorf("problèmes : %d, 2 attendus", n)
+	}
+	tb := &Tableau{Nom: "serveurs-linux", Variables: []Variable{{Nom: "site"}, {Nom: "instance"}}}
+	liens := liensPeriodes(tb.Nom, tb, map[string]string{"site": "", "instance": "web 1"}, "24h")
+	if len(liens) != len(periodesProposees) {
+		t.Fatalf("%d liens", len(liens))
+	}
+	for _, l := range liens {
+		if strings.Contains(l.URL, "site=") || !strings.Contains(l.URL, "instance=web+1") {
+			t.Errorf("lien %q : filtre vide gardé ou filtre choisi perdu", l.URL)
+		}
+		if l.Actif != (l.Texte == "24 h") {
+			t.Errorf("période active : %+v", l)
+		}
+	}
+}
