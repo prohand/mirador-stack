@@ -408,20 +408,28 @@ func (m *Moteur) prochaineEcheance() time.Time {
 // EvaluerDues évalue les règles arrivées à échéance à l'instant t, écrit les
 // changements en une transaction et les transmet au récepteur.
 func (m *Moteur) EvaluerDues(ctx context.Context, t time.Time) {
+	// Échéance, intervalle et nom lus sous le verrou : Recharger peut les
+	// changer pendant l'évaluation (accès concurrent vu par -race le 26/11).
+	type due struct {
+		r          *etatRegle
+		nom        string
+		prochain   time.Time
+		intervalle time.Duration
+	}
 	m.mu.Lock()
-	var dues []*etatRegle
+	var dues []due
 	for _, r := range m.regles {
 		if !r.prochain.After(t) {
-			dues = append(dues, r)
+			dues = append(dues, due{r, r.def.Nom, r.prochain, time.Duration(r.def.Intervalle)})
 		}
 	}
 	m.mu.Unlock()
-	sort.Slice(dues, func(i, j int) bool { return dues[i].def.Nom < dues[j].def.Nom })
+	sort.Slice(dues, func(i, j int) bool { return dues[i].nom < dues[j].nom })
 	var evs []Evenement
 	toutesOK := true
-	for _, r := range dues {
-		ts := r.prochain
-		if ts.Before(t.Add(-time.Duration(r.def.Intervalle))) {
+	for _, d := range dues {
+		r, ts := d.r, d.prochain
+		if ts.Before(t.Add(-d.intervalle)) {
 			ts = t // retard (serveur suspendu) : on évalue maintenant, sans rattrapage
 		}
 		e, ok := m.evaluer(ctx, r, ts)
@@ -443,15 +451,19 @@ func (m *Moteur) EvaluerDues(ctx context.Context, t time.Time) {
 // EvaluerTout évalue toutes les règles à l'instant t (tests, commande « essai »).
 func (m *Moteur) EvaluerTout(ctx context.Context, t time.Time) []Evenement {
 	m.mu.Lock()
-	var toutes []*etatRegle
+	type une struct {
+		r   *etatRegle
+		nom string
+	}
+	var toutes []une
 	for _, r := range m.regles {
-		toutes = append(toutes, r)
+		toutes = append(toutes, une{r, r.def.Nom})
 	}
 	m.mu.Unlock()
-	sort.Slice(toutes, func(i, j int) bool { return toutes[i].def.Nom < toutes[j].def.Nom })
+	sort.Slice(toutes, func(i, j int) bool { return toutes[i].nom < toutes[j].nom })
 	var evs []Evenement
-	for _, r := range toutes {
-		e, _ := m.evaluer(ctx, r, t)
+	for _, x := range toutes {
+		e, _ := m.evaluer(ctx, x.r, t)
 		evs = append(evs, e...)
 	}
 	m.ecrire(ctx)
@@ -497,12 +509,17 @@ func (m *Moteur) requete(ctx context.Context, expr string, ts time.Time) ([]resu
 // false si le stockage a échoué.
 func (m *Moteur) evaluer(ctx context.Context, r *etatRegle, ts time.Time) ([]Evenement, bool) {
 	t0 := time.Now()
-	res, err := m.requete(ctx, m.exprEvaluee(&r.def), ts)
+	// Définition copiée sous le verrou : la requête tourne sans lui, et
+	// Recharger peut remplacer r.def et r.expr pendant ce temps.
+	m.mu.Lock()
+	def, expr := r.def, r.expr
+	m.mu.Unlock()
+	res, err := m.requete(ctx, m.exprEvaluee(&def), ts)
 	// « Ouvrir » (SPEC § 46) : machines qui avaient des données pour cette
 	// règle peu avant. Requête faite seulement pour ces règles (rares).
 	var recentes []string
-	if err == nil && r.def.Absence == AbsenceOuvrir && m.opt.DerniereDonnee != nil {
-		recentes = m.machinesRecentes(ctx, r, ts)
+	if err == nil && def.Absence == AbsenceOuvrir && m.opt.DerniereDonnee != nil {
+		recentes = m.machinesRecentes(ctx, &def, expr, ts)
 	}
 	duree := time.Since(t0)
 
@@ -633,15 +650,15 @@ func (r *etatRegle) instanceEnAlerte(instance string) bool {
 // règle pendant le délai d'absence + 30 min avant ts. Une alerte « données
 // absentes » n'est ouverte que pour elles : une machine qui n'a jamais eu
 // ces métriques n'est pas concernée.
-func (m *Moteur) machinesRecentes(ctx context.Context, r *etatRegle, ts time.Time) []string {
-	noms := metriquesLues(r.expr)
+func (m *Moteur) machinesRecentes(ctx context.Context, def *Regle, e parser.Expr, ts time.Time) []string {
+	noms := metriquesLues(e)
 	if len(noms) == 0 {
 		return nil
 	}
 	for i, n := range noms {
 		noms[i] = regexp.QuoteMeta(n)
 	}
-	fenetre := model.Duration(r.def.apresAbsence() + 30*time.Minute)
+	fenetre := model.Duration(def.apresAbsence() + 30*time.Minute)
 	expr := fmt.Sprintf(`group by (instance) (present_over_time({__name__=~%q}[%s]))`, strings.Join(noms, "|"), fenetre)
 	res, err := m.requete(ctx, expr, ts)
 	if err != nil {
