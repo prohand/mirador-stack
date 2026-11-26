@@ -134,7 +134,7 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 			t.Error("page Olvid : code SAS, échappement ou QR code")
 		}
 		if nom == "flux" && (!strings.Contains(corps, "🇫🇷") || !strings.Contains(corps, "45.143.203.10") || !strings.Contains(corps, `data-code="CN"`) ||
-			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier")) {
+			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier") || !strings.Contains(corps, "Sources OPNsense")) {
 			t.Errorf("page flux (monde) incomplète :\n%s", corps)
 		}
 		if nom == "flux-reseau" && (!strings.Contains(corps, `class="ruban g0"`) || !strings.Contains(corps, `href="/flux-bloques?pf=fw&amp;vue=reseau"`) ||
@@ -202,9 +202,10 @@ func donneesFluxExemple(vue string) donneesFlux {
 	v := url.Values{"vue": {vue}}
 	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
 		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
-		Fil:    []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
-		Sankey: construireSankey(b, v),
-		Note:   "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
+		Fil:     []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
+		Sankey:  construireSankey(b, v),
+		Sources: []sourceFlux{{Collecteur: "collecteur-lan", Texte: "aucune ligne filterlog reçue depuis 1 h", Classe: "attention"}},
+		Note:    "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
 	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
 	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) { r.Lien = "/logs" })
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)

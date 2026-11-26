@@ -15,7 +15,16 @@
 </div>{{end}}</div>
 
 <h2 class="section-tableaux">Vos tableaux <small>{{len $d.Lignes}}</small></h2>
-{{if $d.Lignes}}<div class="cartes-tableaux" data-favoris-tableaux>
+{{if or $d.Lignes $d.Flux}}<div class="cartes-tableaux" data-favoris-tableaux>
+{{with $d.Flux}}<article class="carte-tableau" data-tableau="flux-bloques">
+<a class="carte-tableau-lien" href="/flux-bloques">
+<div class="ct-tete"><span class="puce rouge"><svg class="icone"><use href="#i-globe"></use></svg></span>
+<div><b>Flux bloqués</b><small>carte en direct · pare-feu</small></div></div>
+<div class="ct-chiffres"><div><b>{{nombre .Total}}</b><small>Bloqués sur 24 h</small></div><div><b>{{.Pays}}</b><small>Pays</small></div><div><b>{{if .Port}}{{.Port}}{{else}}—{{end}}</b><small>Port le plus visé</small></div></div>
+</a>
+<div class="ct-pied">{{if .Total}}<span class="pastille ok">en direct</span>{{else}}<span class="pastille">rien reçu</span>{{end}}<span class="doux">fourni avec mirador</span>
+<button type="button" class="etoile-tableau" data-etoile title="Favori : en tête de la liste (sur ce navigateur)" aria-pressed="false" aria-label="Favori">★</button></div>
+</article>{{end}}
 {{range $d.Lignes}}<article class="carte-tableau" data-tableau="{{.T.Nom}}">
 <a class="carte-tableau-lien" href="/tableaux/{{.T.Nom}}">
 <div class="ct-tete"><span class="puce {{if .T.Teinte}}{{.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{if .T.Icone}}{{.T.Icone}}{{else}}tableaux{{end}}"></use></svg></span>

@@ -3,6 +3,7 @@
 package console
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -109,6 +110,7 @@ type donneesFlux struct {
 	NomPeriode                 string
 	Centres                    string // JSON : centre de chaque pays (points du direct)
 	LienDirect                 string
+	Sources                    []sourceFlux // état de la collecte OPNsense par collecteur
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
@@ -269,7 +271,48 @@ func (c *Console) pageFlux(q *req) {
 		}
 	}
 	d.Sankey = construireSankey(b, v)
+	d.Sources = c.sourcesFlux(q.r.Context(), q.t)
 	c.rendre(q, "flux", "Flux bloqués", "tableaux", d)
+}
+
+// sourceFlux : où en est le comptage filterlog d'un collecteur (retour du
+// 26/11 : « fw n'apparaît pas » ; la page dit où ça coince).
+type sourceFlux struct {
+	Collecteur, Texte, Classe string
+}
+
+// sourcesFlux : un état par collecteur qui a une écoute syslog.
+func (c *Console) sourcesFlux(ctx context.Context, t time.Time) []sourceFlux {
+	ecoute := c.parEtiquette(ctx, `max by (instance) (mirador_collecteur_syslog_ecoute)`, t, "instance")
+	if len(ecoute) == 0 {
+		return nil
+	}
+	compteur := c.parEtiquette(ctx, `max by (instance) (mirador_collecteur_flux_bloques_total)`, t, "instance")
+	blocages := c.parEtiquette(ctx, `sum by (instance) (increase(mirador_collecteur_flux_bloques_total[1h]))`, t, "instance")
+	filterlog := c.parEtiquette(ctx, `sum by (instance) (increase(mirador_collecteur_syslog_refus_total{motif="filterlog"}[1h]))`, t, "instance")
+	var out []sourceFlux
+	for inst, e := range ecoute {
+		s := sourceFlux{Collecteur: inst}
+		_, aJour := compteur[inst]
+		switch {
+		case e < 1:
+			s.Texte, s.Classe = "écoute syslog fermée : rien ne peut arriver d'OPNsense (page du collecteur)", "erreur"
+		case !aJour:
+			s.Texte, s.Classe = "collecteur à mettre à jour (0.6.27 ou plus) : il ne compte pas encore les blocages d'OPNsense", "attention"
+		case blocages[inst] >= 1:
+			s.Texte, s.Classe = fmt.Sprintf("%s blocages entrants comptés sur la dernière heure", nombreLisible(int(blocages[inst]))), "ok"
+		case filterlog[inst] >= 1:
+			s.Texte, s.Classe = fmt.Sprintf("%s lignes filterlog reçues sur 1 h, mais aucun blocage entrant venu d'Internet : "+
+				"cocher la journalisation des règles de blocage du WAN (ou des paquets bloqués par la règle par défaut)", nombreLisible(int(filterlog[inst]))), "attention"
+		default:
+			s.Texte, s.Classe = "aucune ligne filterlog reçue depuis 1 h : dans OPNsense, Système › Paramètres › Journalisation › Distant, "+
+				"destination du collecteur : ajouter l'application filterlog (« filter ») et le niveau « info » (les blocages sont au niveau info), "+
+				"puis Apply (si « Garder filterlog » est coché, les lignes vont dans les logs : vérifier là)", "attention"
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Collecteur < out[j].Collecteur })
+	return out
 }
 
 func nomPaysOuCode(code string) string {

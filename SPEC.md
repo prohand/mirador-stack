@@ -8863,3 +8863,15 @@ affichage (24 h au plus, 10 000 lignes).
   requêtes SQL paramétrées.
 - Aucun port ouvert en plus, aucune commande, aucune adresse envoyée dehors
   (GéoIP locale).
+
+**Retour du 26/11 (0.6.27 installée)** : la page n'avait aucun lien depuis
+la liste des Tableaux (raccourci perdu avec la liste en cartes, § 133), et
+« fw n'apparaît pas ». Ajouts :
+- carte « Flux bloqués » en tête de Tableaux (bloqués sur 24 h, pays, port
+  le plus visé ; calcul gardé 1 min) et entrée dans la recherche (Ctrl+K) ;
+- encadré « Sources OPNsense » sur la page : pour chaque collecteur, écoute
+  fermée, collecteur à mettre à jour, aucune ligne filterlog reçue
+  (catégorie « Firewall » à ajouter dans OPNsense), lignes reçues mais aucun
+  blocage entrant (journalisation des règles WAN), ou nombre de blocages
+  comptés sur 1 h.
+

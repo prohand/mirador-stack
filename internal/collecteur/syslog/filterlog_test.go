@@ -110,3 +110,27 @@ func BenchmarkFilterlog(b *testing.B) {
 		}
 	}
 }
+
+// Trame réelle d'OPNsense (relevé du 27/11, adresses de destination
+// remplacées) : RFC 5424 avec données structurées, interface de VLAN ;
+// seule la source publique sur le WAN est comptée.
+func TestFilterlogTrameOPNsense(t *testing.T) {
+	trames := []string{
+		`<134>1 2026-11-27T00:05:24+01:00 fw.exemple filterlog 35108 - [meta sequenceId="1388"] 27,,,02f4bab031b57d1e30553ce08e0ec131,vlan0.55,match,block,in,4,0x0,,64,12130,0,DF,17,udp,48,192.168.55.1,198.51.100.129,39684,19302,28`,
+		`<134>1 2026-11-27T00:05:25+01:00 fw.exemple filterlog 35108 - [meta sequenceId="1389"] 27,,,02f4bab031b57d1e30553ce08e0ec131,ix1,match,block,in,4,0x0,,246,33774,0,none,6,tcp,44,194.180.48.39,198.51.100.251,58868,5911,0,S,1187347970,,1024,,mss`,
+		`<134>1 2026-11-27T00:05:25+01:00 fw.exemple filterlog 35108 - [meta sequenceId="1390"] 27,,,02f4bab031b57d1e30553ce08e0ec131,vlan0.35,match,block,in,4,0x0,,64,1132,0,DF,17,udp,32,192.168.35.4,255.255.255.255,34434,10001,12`,
+	}
+	var comptes []protocole.FluxBloque
+	for _, tr := range trames {
+		m, ok := Analyser([]byte(tr))
+		if !ok || m.App != "filterlog" || m.Niveau != "info" {
+			t.Fatalf("trame : %+v %v", m, ok)
+		}
+		if f, ok := LireFilterlog(m.Texte); ok {
+			comptes = append(comptes, f)
+		}
+	}
+	if len(comptes) != 1 || comptes[0].IP.String() != "194.180.48.39" || comptes[0].Port != 5911 || comptes[0].Interface != "ix1" || comptes[0].Regle != "règle 27" {
+		t.Errorf("comptés : %+v", comptes)
+	}
+}

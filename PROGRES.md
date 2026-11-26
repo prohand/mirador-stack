@@ -1997,6 +1997,16 @@ Captures sur la démonstration (ordinateur, téléphone) conformes à la maquett
 (docs/administration-serveur.md, « Flux bloqués »), mettre à jour le
 serveur et le collecteur, puis regarder la page.
 
+**0.6.27 installée (26/11 au soir)** : serveur et collecteur. `fw`
+n'apparaissait pas : la destination syslog d'OPNsense n'envoyait que
+l'application « firewall » au niveau « notice » et plus ; les blocages
+(`filterlog`, niveau info) ne partaient pas. Corrigé le 27/11 (application
+filterlog + niveau info) : compteur `mirador_collecteur_flux_bloques_total`
+qui monte. Diagnostic par `voir-metriques` (compteurs du collecteur) et une
+vraie trame (test ajouté). 0.6.28 : carte « Flux bloqués » dans Tableaux
+(le lien avait disparu avec la liste en cartes), encadré « Sources
+OPNsense » qui dit où ça coince.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

@@ -1738,7 +1738,7 @@ func (c *Console) donneesAller(q *req) {
 	out := []destination{
 		{"Vue d'ensemble", "Page", "/"}, {"Machines", "Page", "/machines"}, {"Conteneurs", "Page", "/conteneurs"},
 		{"Alertes", "Page", "/alertes"},
-		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"},
+		{"Silences et maintenances", "Page", "/sourdine"}, {"Envois", "Page", "/envois"}, {"Logs", "Page", "/logs"}, {"Flux bloqués", "Page", "/flux-bloques"},
 		{"Tableaux", "Page", "/tableaux"}, {"Règles", "Page", "/regles"}, {"Mon compte", "Page", "/compte"},
 		{"Sondes", "Page", "/sondes"}, {"Tâches planifiées", "Page", "/taches"}, {"Applications", "Page", "/applications"}, {"Éléments", "Page", "/elements"},
 		{"Incidents", "Page", "/incidents"}, {"Événements", "Page", "/evenements"}, {"Disponibilité", "Page", "/disponibilite"},
