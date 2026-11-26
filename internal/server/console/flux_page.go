@@ -306,7 +306,8 @@ func (c *Console) sourcesFlux(ctx context.Context, t time.Time) []sourceFlux {
 				"cocher la journalisation des règles de blocage du WAN (ou des paquets bloqués par la règle par défaut)", nombreLisible(int(filterlog[inst]))), "attention"
 		default:
 			s.Texte, s.Classe = "aucune ligne filterlog reçue depuis 1 h : dans OPNsense, Système › Paramètres › Journalisation › Distant, "+
-				"ajouter la catégorie « Firewall » à la destination du collecteur (si « Garder filterlog » est coché, les lignes vont dans les logs : vérifier là)", "attention"
+				"destination du collecteur : ajouter l'application filterlog (« filter ») et le niveau « info » (les blocages sont au niveau info), "+
+				"puis Apply (si « Garder filterlog » est coché, les lignes vont dans les logs : vérifier là)", "attention"
 		}
 		out = append(out, s)
 	}

@@ -157,9 +157,15 @@ Deux sources, rien à installer de plus :
 
 À vérifier dans OPNsense (une fois) :
 
-1. Système › Paramètres › Journalisation › **Distant** : la destination
-   syslog vers le collecteur a la catégorie **Firewall** (sinon aucune ligne
-   `filterlog` n'arrive).
+1. Système › Paramètres › Journalisation › **Distant**, destination syslog
+   vers le collecteur :
+   - **Applications** : l'entrée de `filterlog` (« filter ») ; « firewall »
+     seul n'envoie que le journal du service (alias, rechargements) ;
+   - **Levels** : avec **info** (les blocages sont au niveau info ; à partir
+     de « notice », rien n'arrive) ;
+   - Save, puis **Apply**.
+   Relevé du 27/11 : sans ces deux réglages, aucune ligne `filterlog`
+   n'arrivait (compteur `refus` « filterlog » à 0).
 2. Pare-feu › Règles › WAN : la règle de blocage (ou le blocage par défaut :
    Pare-feu › Paramètres › Journalisation, « Journaliser les paquets bloqués
    par la règle par défaut ») a la **journalisation cochée**.
