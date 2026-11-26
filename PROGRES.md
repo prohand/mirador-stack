@@ -1925,6 +1925,17 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Playbook passé sur le parc le 26/11 (26 machines, aucun échec) : environ
   70 Go de journaux locaux avant, 12 Go après, **≈ 58 Go libérés**.
 
+## Courbes longues jusqu'à maintenant, prévision disque (SPEC § 132, 26/11)
+
+- 7 j / 30 j : agrégats + base brute pour les dernières 24 h (avant : courbes
+  arrêtées 24 h plus tôt, vu sur le tableau OPNsense).
+- « Plein dans N j » : perte de place sur 7 j et sur le dernier jour.
+- Tests : `TestLectureLongueJusquaMaintenant` (échoue sans la correction :
+  dernier point il y a 24 h 55), `TestPrevisionDisqueLibereHier`.
+- Maquettes des Tableaux envoyées le 26/11 (liste en cartes, filtres
+  compacts, graphiques 2 par ligne), en attente de validation.
+- À livrer dans la prochaine version (après la mesure de 24 h).
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22). L'ancien

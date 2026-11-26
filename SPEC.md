@@ -8684,3 +8684,25 @@ dès l'envoi réussi suivant (repassé en IPv6).
   admises) ; 2FA et CSRF. Le refus est gardé en mémoire (perdu au
   redémarrage du serveur).
 - Coût : aucun (refus déjà gardé en mémoire, une lecture de plus).
+
+## 132. Courbes sur 7 et 30 jours jusqu'à maintenant ; prévision « disque plein » plus prudente (26/11) **[Fait, à valider]**
+
+Retours du 26/11 :
+- tableau OPNsense en « 7 j » : « dernière donnée il y a 24 h », alors que
+  fw envoyait toutes les 30 s (page de fw correcte, en 6 h) ;
+- sup « disque plein dans 15 j » le lendemain de 2,4 Go libérés.
+
+**Courbes longues** : au-delà de la rétention brute (7 j), la lecture passe
+par la base agrégée (un point par 5 min), qui ne couvre que les fenêtres
+finies depuis plus de 24 h (retard accepté pour les points d'un agent).
+Toutes les courbes en 7 j ou 30 j s'arrêtaient donc 24 h avant maintenant,
+quelle que soit la machine. Correction : la lecture fusionne les agrégats
+jusqu'à leur fin et la base brute ensuite (`storage.NewMergeQuerier`, sans
+recouvrement). Coût : une seconde lecture sur au plus 24 h de données
+brutes, pour les seules périodes longues.
+
+**Prévision « plein dans N j »** : la pente sur 7 jours seule réagissait à
+une hausse ponctuelle (journal, images Docker) et restait vraie plusieurs
+jours après un ménage. Le disque doit maintenant perdre de la place sur 7
+jours **et** sur le dernier jour ; on retient la plus lente des deux pentes.
+Coût : une requête instantanée de plus, mise en cache 10 min comme l'autre.

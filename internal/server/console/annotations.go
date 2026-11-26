@@ -149,6 +149,11 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 const (
 	exprLibreDisque = `node_filesystem_avail_bytes{%s}`
 	exprPenteDisque = `-deriv(node_filesystem_avail_bytes{%s}[167h]) > 0` // octets perdus par seconde
+	// Pente du dernier jour (retour du 26/11) : sup « plein dans 15 j » le
+	// lendemain de 2,4 Go libérés (journal réduit), à cause d'une hausse
+	// ponctuelle dans la semaine. Le disque doit perdre de la place sur 7 j
+	// ET sur le dernier jour ; on retient la pente la plus lente.
+	exprPenteDisqueJour = `-deriv(node_filesystem_avail_bytes{%s}[24h]) > 0`
 )
 
 // filtreDisques : systèmes de fichiers réels (comme les barres d'occupation).
@@ -183,6 +188,14 @@ func (c *Console) previsionsDisques(ctx context.Context, filtre string, t time.T
 	if err != nil {
 		return out
 	}
+	jour, err := c.instant(ctx, fmt.Sprintf(exprPenteDisqueJour, filtre), t)
+	if err != nil {
+		return out
+	}
+	penteJour := map[string]float64{}
+	for _, e := range jour {
+		penteJour[cle(e)] = e.Valeur
+	}
 	libres, err := c.instant(ctx, fmt.Sprintf(exprLibreDisque, filtre), t)
 	if err != nil {
 		return out
@@ -192,8 +205,9 @@ func (c *Console) previsionsDisques(ctx context.Context, filtre string, t time.T
 		libre[cle(e)] = e.Valeur
 	}
 	for _, e := range pentes {
-		if l, ok := libre[cle(e)]; ok && e.Valeur > 0 {
-			out[cle(e)] = l / e.Valeur / 86400
+		pj, perdJour := penteJour[cle(e)]
+		if l, ok := libre[cle(e)]; ok && e.Valeur > 0 && perdJour && pj > 0 {
+			out[cle(e)] = l / min(e.Valeur, pj) / 86400
 		}
 	}
 	c.prevDisques.mu.Lock()

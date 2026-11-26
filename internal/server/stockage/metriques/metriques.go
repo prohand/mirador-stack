@@ -230,14 +230,37 @@ func (m *Moteur) Ecrire(ctx context.Context, series []stockage.Serie) error {
 
 // Interroger ouvre une lecture sur la bonne base pour [debut, fin] (ms) :
 // brute si la période tient dans sa rétention, agrégée sinon. À fermer.
+//
+// Les agrégats n'existent que pour les fenêtres finies depuis plus de Retard
+// (24 h : points en retard d'un agent). Retour du 26/11 : en « 7 j » ou
+// « 30 j », toutes les courbes s'arrêtaient 24 h avant maintenant (« dernière
+// donnée il y a 24 h »). La fin de la période est donc lue dans la base
+// brute, à partir de là où les agrégats s'arrêtent.
 func (m *Moteur) Interroger(debut, fin int64) (q storage.Querier, agrege bool, err error) {
 	limite := m.opt.Maintenant().Add(-m.Reglages().RetentionBrut).UnixMilli()
 	if debut >= limite {
 		q, err = m.brut.Querier(debut, fin)
 		return q, false, err
 	}
-	q, err = m.agrege.Querier(debut, fin)
-	return q, true, err
+	jusqua := m.lireProgression() // fin des fenêtres agrégées (exclue)
+	if jusqua <= debut || jusqua > fin {
+		// Rien d'agrégé encore sur la période, ou période déjà toute agrégée.
+		if jusqua > fin {
+			q, err = m.agrege.Querier(debut, fin)
+			return q, true, err
+		}
+		jusqua = debut
+	}
+	qa, err := m.agrege.Querier(debut, jusqua-1)
+	if err != nil {
+		return nil, true, err
+	}
+	qb, err := m.brut.Querier(max(jusqua, limite), fin)
+	if err != nil {
+		_ = qa.Close()
+		return nil, true, err
+	}
+	return storage.NewMergeQuerier([]storage.Querier{qa, qb}, nil, storage.ChainedSeriesMerge), true, nil
 }
 
 // Requetes : base brute, pour le moteur d'alertes (lecture seule, PromQL).
