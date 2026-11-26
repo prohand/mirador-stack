@@ -78,3 +78,24 @@ func TestReglagePareFeu(t *testing.T) {
 		t.Error("page des sortants incomplète")
 	}
 }
+
+// Commandes proposées : l'outil détecté d'abord, limite de débit partout,
+// sortants seulement s'ils sont lus.
+func TestCommandesPareFeu(t *testing.T) {
+	cs := commandesPareFeu("nftables", "", "ajouter", false)
+	if cs[0].Outil != "nftables" || !cs[0].Detecte || !strings.Contains(cs[0].Texte, "limit rate 10/second") || strings.Contains(cs[0].Texte, "output") {
+		t.Errorf("nftables : %+v", cs[0])
+	}
+	cs = commandesPareFeu("iptables", "ufw", "limite", true)
+	if cs[0].Outil != "ufw" || cs[0].Texte != "ufw logging low" {
+		t.Errorf("ufw : %+v", cs[0])
+	}
+	for _, c := range cs {
+		if c.Outil == "iptables" && (!strings.Contains(c.Texte, "iptables -R INPUT") || !strings.Contains(c.Texte, "DROP_OUT")) {
+			t.Errorf("iptables (limite, sortants) : %q", c.Texte)
+		}
+	}
+	if cs := commandesPareFeu("iptables", "", "ajouter", false); cs[0].Outil != "iptables" || !strings.Contains(cs[0].Texte, "iptables -A INPUT -m limit") {
+		t.Errorf("iptables : %+v", cs[0])
+	}
+}
