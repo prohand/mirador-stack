@@ -1937,6 +1937,34 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   démonstration (ordinateur et téléphone).
 - À livrer dans la prochaine version (après la mesure de 24 h).
 
+## Mesure du serveur sur le parc complet (VPS, 26/11)
+
+Serveur 0.6.24, 26 agents + collecteur + fw (Telegraf), relevé `docker stats`
+chaque minute du 26/11 00:06 au 26/11 16:41 (978 points, **16 h 35** au lieu
+de 24 h : nuit complète comprise, arrêtée pour installer la 0.6.25 ; aucun
+redémarrage, aucun OOM).
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| RAM (`docker stats`, cache de fichiers actif compris) | **213 Mio en moyenne, 252 Mio au plus** (145 Mio au départ) | < 256 Mio ✅ **de justesse** (limite du conteneur 300 Mio) |
+| CPU | **4,86 % d'un cœur en moyenne**, 9,9 % au plus | < 5 % ✅ **de justesse** |
+| Écritures disque | 679 Mo en 16 h 35 (~41 Mo/h, sauvegarde de la nuit comprise) | ✅ |
+| Volume des données | 774 Mo (métriques, logs, archives de sauvegarde, versions) | plafonds : métriques 5 Go + 1 Go, logs 4 Go |
+| VPS | 2,3 Go disponibles sur 3,8 Go | ✅ |
+
+Les deux objectifs sont tenus mais sans marge, alors que le parc a été
+multiplié par 13 depuis la mesure du 14/11 (1,27 % CPU, 113 Mio).
+Pistes si ça dépasse :
+- RAM : `docker stats` compte le cache des fichiers de la base de mesures
+  que le noyau reprend en cas de besoin ; mesurer la part réelle
+  (`memory.stat` : anon contre file). Si c'est le tas Go : `GOMEMLIMIT` à
+  180 Mio (le ramasse-miettes rend la mémoire plus tôt), moins de requêtes
+  en même temps pour les pages lourdes.
+- CPU : profil de 30 s pour savoir qui consomme (logs, règles, ingestion) ;
+  ensuite, au choix : règles du modèle Linux évaluées toutes les minutes au
+  lieu de 15 s, journaux des agents filtrés à la source (niveau info et
+  plus), regroupement des envois de logs.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22). L'ancien
@@ -1957,9 +1985,8 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 - Alertes Telegram en mode actif depuis le 13/11 ; signal de vie OK.
 
 **Reste**
-1. Mesure du serveur sur 24 h : relancée le 25/11 vers 23 h, après la 0.6.24 (unité
-   `mirador-mesure-24h`, `docs/installation-serveur.md` § 5) ; résumé le
-   26/11 au soir, à reporter ici.
+1. Mesure du serveur : faite le 26/11 (16 h 35, voir plus haut), objectifs
+   tenus de justesse.
 2. Clore les étapes 6 et 7 (validation de l'utilisateur).
 3. SPEC : 74 sections validées le 25/11 ; 8 « en service, pas encore
    essayé » (§ 39 site injoignable, § 49 disponibilité, § 52 motifs de
