@@ -2424,3 +2424,5 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .sans-donnees-tableaux > summary { cursor: pointer; color: var(--doux); margin-bottom: 12px; }
 @media (max-width: 899px) { .cartes-tableaux, .cartes-proposees { grid-template-columns: 1fr; } .menu-action-boite { right: auto; left: 0; } }
 @media (max-width: 899px) { .corps-tableau table[data-sans-cartes] td, .corps-tableau table[data-sans-cartes] th { white-space: nowrap; } }
+.uplot .u-legend tr.legende-plus { background: none; cursor: default; }
+.uplot .u-legend tr.legende-plus button.lien { font-size: 12.5px; }

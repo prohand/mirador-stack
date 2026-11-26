@@ -8738,7 +8738,10 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 - Chiffres en cases compactes sur une ligne (explication en infobulle),
   trait rouge ou orange pour un chiffre à regarder.
 - Graphiques deux par ligne (une colonne sur téléphone), moyenne de la
-  période en tête, légende plus discrète ; graphiques sans données
+  période en tête, légende plus discrète et toujours présente : au-delà de
+  5 courbes, les 5 à la valeur la plus haute puis « + N autres » qui déplie
+  le reste (choix du 26/11 ; avant, plus de légende du tout au-delà de 12
+  courbes, soit le CPU d'un parc de 26 machines) ; graphiques sans données
   regroupés en une ligne avec « Afficher » (aussi sur la page machine).
 - Pourcentages d'un tableau (CPU, mémoire, disque) : petite barre colorée.
   Sur téléphone, ces tableaux restent en lignes compactes (défilement de
