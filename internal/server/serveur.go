@@ -71,8 +71,8 @@ type Serveur struct {
 	geo       *geoip.Base       // pays des adresses (flux bloqués), base DB-IP mensuelle
 	vus       vusParNom         // dernières données par machine (SPEC § 46)
 	motifs    *motifs.Registre  // motifs des logs (SPEC § 52)
-	flux      *fluxbloques.Magasin
-	dbFlux    *sql.DB // flux.db (SPEC § 135)
+	flux      *fluxbloques.Flux
+	dbFlux    [2]*sql.DB // flux.db (entrants, SPEC § 135) et flux-sortants.db (§ 136)
 }
 
 // Chemins dans le dossier des données.
@@ -186,14 +186,18 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	// Flux bloqués par les pare-feu (SPEC § 135) : base à part (flux.db),
 	// hors sauvegardes (compteurs seulement, refaits au fil de l'eau).
 	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
-	if s.dbFlux, err = base.Ouvrir(s.chemin("flux.db")); err != nil {
-		return echec(fmt.Errorf("base des flux bloqués : %w", err))
+	var magasins [2]*fluxbloques.Magasin
+	for i, nom := range []string{"flux.db", "flux-sortants.db"} {
+		if s.dbFlux[i], err = base.Ouvrir(s.chemin(nom)); err != nil {
+			return echec(fmt.Errorf("base des flux bloqués (%s) : %w", nom, err))
+		}
+		ouverts = append(ouverts, s.dbFlux[i].Close)
+		if magasins[i], err = fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux[i], Pays: s.geo.Pays,
+			Journal: journal.With("composant", "flux", "base", nom)}); err != nil {
+			return echec(fmt.Errorf("flux bloqués : %w", err))
+		}
 	}
-	ouverts = append(ouverts, s.dbFlux.Close)
-	if s.flux, err = fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux, Pays: s.geo.Pays,
-		Journal: journal.With("composant", "flux")}); err != nil {
-		return echec(fmt.Errorf("flux bloqués : %w", err))
-	}
+	s.flux = fluxbloques.NouveauFlux(magasins[0], magasins[1])
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal,
 		ApresLignes: func(ls []stockage.Ligne) {
 			for _, l := range ls {
@@ -302,8 +306,10 @@ func (s *Serveur) Arreter() {
 	if err := s.db.Close(); err != nil {
 		s.journal.Error("fermeture de la base", "erreur", err)
 	}
-	if err := s.dbFlux.Close(); err != nil {
-		s.journal.Error("fermeture de la base des flux bloqués", "erreur", err)
+	for _, db := range s.dbFlux {
+		if err := db.Close(); err != nil {
+			s.journal.Error("fermeture d'une base des flux bloqués", "erreur", err)
+		}
 	}
 }
 

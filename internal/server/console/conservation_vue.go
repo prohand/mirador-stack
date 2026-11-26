@@ -175,7 +175,7 @@ func (c *Console) cartesConservation(e EtatStockage, cons Conservation, t time.T
 // tailleBase : base SQLite du serveur (avec son journal WAL).
 func tailleBase(dossier string) int64 {
 	var n int64
-	for _, f := range []string{"mirador.db", "mirador.db-wal", "flux.db", "flux.db-wal"} { // flux.db : SPEC § 135
+	for _, f := range []string{"mirador.db", "mirador.db-wal", "flux.db", "flux.db-wal", "flux-sortants.db", "flux-sortants.db-wal"} { // flux.db : SPEC § 135
 		if info, err := os.Stat(filepath.Join(dossier, f)); err == nil {
 			n += info.Size()
 		}

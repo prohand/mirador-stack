@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,32 +165,79 @@ func TestMagasinBorneEtPic(t *testing.T) {
 	}
 }
 
-// Branchement sur l'ingestion : comptages du collecteur retirés des logs,
-// lignes iptables gardées ; un agent ne peut pas annoncer N blocages.
-func TestMagasinLignes(t *testing.T) {
+// Branchement sur l'ingestion et réglage par machine (SPEC § 136).
+func TestFluxLignesEtReglages(t *testing.T) {
 	h := &horloge{time.Date(2026, 11, 26, 19, 20, 0, 0, time.UTC)}
-	m, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
-	comptage := stockage.Ligne{T: h.t.UnixMilli(), Msg: "règle 81 IN=igb0 OUT= SRC=45.0.0.1 PROTO=TCP DPT=23 N=40",
-		Champs: map[string]string{"host": "fw", "ident": protocole.IdentFlux}}
-	iptables := stockage.Ligne{T: h.t.UnixMilli(), Msg: "DROP_IN: IN=eth0 OUT= SRC=45.0.0.2 PROTO=TCP DPT=22",
-		Champs: map[string]string{"host": "vps"}}
-	ordinaire := stockage.Ligne{T: h.t.UnixMilli(), Msg: "bonjour", Champs: map[string]string{"host": "vps"}}
-	garde := m.Lignes(true, []stockage.Ligne{comptage, iptables, ordinaire})
-	if len(garde) != 2 || garde[0].Msg != iptables.Msg || garde[1].Msg != "bonjour" {
+	nouveau := func() *Flux {
+		e, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
+		so, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
+		return NouveauFlux(e, so)
+	}
+	ligne := func(hote, msg, ident string) stockage.Ligne {
+		c := map[string]string{"host": hote}
+		if ident != "" {
+			c["ident"] = ident
+		}
+		return stockage.Ligne{T: h.t.UnixMilli(), Msg: msg, Champs: c}
+	}
+	comptage := ligne("fw", "règle 81 IN=igb0 OUT= SRC=45.0.0.1 PROTO=TCP DPT=23 N=40", protocole.IdentFlux)
+	sortantFw := ligne("fw", "règle 9 IN= OUT=igb0 SRC=192.168.1.9 DST=93.184.216.34 PROTO=TCP DPT=25 N=3 SENS=sortant", protocole.IdentFlux)
+	entrant := ligne("vps", "DROP_IN: IN=eth0 OUT= SRC=45.0.0.2 PROTO=TCP DPT=22", "")
+	sortant := ligne("vps", "DROP_OUT: IN= OUT=eth0 SRC=10.0.0.5 DST=8.8.4.4 PROTO=UDP DPT=53", "")
+	lan := ligne("vps", "DROP_IN: IN=eth0 OUT= SRC=192.168.1.4 PROTO=TCP DPT=22", "")
+	ordinaire := ligne("vps", "bonjour", "")
+
+	// Défaut : entrants comptés, sortants ignorés, lignes du pare-feu pas gardées.
+	x := nouveau()
+	garde := x.Lignes(true, []stockage.Ligne{comptage, sortantFw, entrant, sortant, lan, ordinaire})
+	if len(garde) != 1 || garde[0].Msg != "bonjour" {
 		t.Fatalf("gardées : %+v", garde)
 	}
-	if m.Recus() != 41 {
-		t.Errorf("comptés : %d", m.Recus())
+	if x.Entrants.Recus() != 41 || x.Sortants.Recus() != 0 {
+		t.Errorf("comptés : %d entrants, %d sortants", x.Entrants.Recus(), x.Sortants.Recus())
 	}
-	// La même ligne de comptage envoyée par un agent : gardée, comptée 1.
-	if garde := m.Lignes(false, []stockage.Ligne{comptage}); len(garde) != 1 || m.Recus() != 42 {
-		t.Errorf("agent : %d gardées, %d comptés", len(garde), m.Recus())
+	// Une ligne de comptage venue d'un agent : log ordinaire, comptée 1.
+	if garde := x.Lignes(false, []stockage.Ligne{ligne("vps", comptage.Msg, protocole.IdentFlux)}); len(garde) != 0 || x.Entrants.Recus() != 42 {
+		t.Errorf("agent : %d gardées, %d comptés", len(garde), x.Entrants.Recus())
+	}
+
+	// Sortants cochés, lignes gardées sur vps ; fw en lecture désactivée.
+	x = nouveau()
+	x.DefinirReglages(map[string]Reglage{
+		"vps": {Lecture: LectureAuto, Entrants: true, Sortants: true, GarderLignes: true},
+		"fw":  {Lecture: LectureNon, Entrants: true},
+	})
+	garde = x.Lignes(true, []stockage.Ligne{comptage, sortantFw, entrant, sortant, ordinaire})
+	if len(garde) != 3 || x.Entrants.Recus() != 1 || x.Sortants.Recus() != 1 {
+		t.Fatalf("gardées %d, entrants %d, sortants %d", len(garde), x.Entrants.Recus(), x.Sortants.Recus())
+	}
+	b, _ := x.Sortants.Bilan(context.Background(), h.t.Add(-time.Hour), h.t.Add(time.Minute), Filtre{}, 60)
+	if len(b.Sources) != 1 || b.Sources[0].Nom != "10.0.0.5" || b.IPs[0].Nom != "8.8.4.4" {
+		t.Errorf("sortants : sources %+v, adresses %+v", b.Sources, b.IPs)
+	}
+
+	// Seulement certains préfixes : les autres lignes du noyau restent des logs ordinaires.
+	x = nouveau()
+	x.DefinirReglages(map[string]Reglage{"vps": {Lecture: LecturePrefixes, Prefixes: []string{"DROP_OUT:"}, Entrants: true, Sortants: true}})
+	garde = x.Lignes(false, []stockage.Ligne{entrant, sortant})
+	if len(garde) != 1 || garde[0].Msg != entrant.Msg || x.Entrants.Recus() != 0 || x.Sortants.Recus() != 1 {
+		t.Errorf("préfixes : gardées %+v, %d / %d", garde, x.Entrants.Recus(), x.Sortants.Recus())
+	}
+	// Réglage bancal : normalisé.
+	r := Reglage{Lecture: "n'importe", Prefixes: []string{" ", strings.Repeat("x", 50), "UFW BLOCK"}}.Normaliser()
+	if r.Lecture != LectureAuto || len(r.Prefixes) != 1 {
+		t.Errorf("normalisé : %+v", r)
+	}
+	if r = (Reglage{Lecture: LecturePrefixes}).Normaliser(); r.Lecture != LectureAuto {
+		t.Errorf("préfixes vides : %+v", r)
 	}
 }
 
 // Coût côté serveur (SPEC § 135) : une ligne iptables reçue.
 func BenchmarkLignes(b *testing.B) {
-	m, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	e, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	so, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	m := NouveauFlux(e, so)
 	l := []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: "[12345.6] DROP_IN: IN=eth0 OUT= MAC=00 SRC=45.143.203.10 DST=1.2.3.4 LEN=40 PROTO=TCP SPT=4444 DPT=22",
 		Champs: map[string]string{"host": "vps"}}}
 	ordinaire := []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: "Started Session 12 of User root.", Champs: map[string]string{"host": "vps"}}}

@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/fluxbloques"
 )
 
@@ -111,12 +112,18 @@ type donneesFlux struct {
 	Centres                    string // JSON : centre de chaque pays (points du direct)
 	LienDirect                 string
 	Sources                    []sourceFlux // état de la collecte OPNsense par collecteur
+	Sens                       string       // entrant ou sortant (SPEC § 136)
+	Sensz                      []lienFlux
+	Sortant                    bool
+	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
+	Table                      []ligneSource
+	TableLues, TableSans       int
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
 func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 	w := url.Values{}
-	for _, k := range []string{"periode", "vue", "pays", "pf", "port"} {
+	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port"} {
 		if x := v.Get(k); x != "" && !(sansFiltre && (k == "pays" || k == "pf" || k == "port")) {
 			w.Set(k, x)
 		}
@@ -143,10 +150,15 @@ func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 
 func (c *Console) pageFlux(q *req) {
 	v := q.r.URL.Query()
-	d := donneesFlux{Periode: v.Get("periode"), Vue: v.Get("vue")}
+	d := donneesFlux{Periode: v.Get("periode"), Vue: v.Get("vue"), Sens: protocole.Entrant}
 	if d.Vue != "reseau" {
 		d.Vue = "monde"
 	}
+	if v.Get("sens") == protocole.Sortant {
+		d.Sens, d.Sortant = protocole.Sortant, true
+	}
+	d.Sensz = []lienFlux{{"Entrants", lienFluxAvec(v, "sens", "", true), !d.Sortant},
+		{"Sortants", lienFluxAvec(v, "sens", protocole.Sortant, true), d.Sortant}}
 	p := periodesFlux[0]
 	for _, x := range periodesFlux {
 		if x.Cle == d.Periode {
@@ -187,12 +199,13 @@ func (c *Console) pageFlux(q *req) {
 	if p.Duree <= time.Hour {
 		debut = fin.Truncate(time.Minute).Add(-59 * time.Minute)
 	}
-	b, err := c.opt.Flux.Bilan(q.r.Context(), debut, fin, f, p.Barres)
+	mag := c.opt.Flux.Sens(d.Sens)
+	b, err := mag.Bilan(q.r.Context(), debut, fin, f, p.Barres)
 	if err != nil {
 		c.flash(q, "", "lecture des flux bloqués : "+err.Error())
 	}
 	d.B = b
-	minutes, _ := c.opt.Flux.ParMinute(30)
+	minutes, _ := mag.ParMinute(30)
 	if len(minutes) > 0 {
 		d.ParMinute = minutes[len(minutes)-1]
 		d.Spark = sparkFlux(minutes)
@@ -237,7 +250,7 @@ func (c *Console) pageFlux(q *req) {
 	}
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	// Fil des derniers blocages (le direct ajoute les suivants).
-	ev, _ := c.opt.Flux.Depuis(0, 12)
+	ev, _ := mag.Depuis(0, 12)
 	for i := len(ev) - 1; i >= 0; i-- {
 		d.Fil = append(d.Fil, ligneFilDe(ev[i]))
 	}
@@ -271,7 +284,22 @@ func (c *Console) pageFlux(q *req) {
 		}
 	}
 	d.Sankey = construireSankey(b, v)
-	d.Sources = c.sourcesFlux(q.r.Context(), q.t)
+	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
+	d.Sources = nil
+	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
+		if x.Classe != "ok" { // l'encadré ne reste que pour signaler un réglage à faire
+			d.Sources = append(d.Sources, x)
+		}
+	}
+	d.Table = c.tableauSources(q.r.Context(), q.t)
+	for _, l := range d.Table {
+		if l.Bloques > 0 {
+			d.TableLues++
+		}
+		if l.Classe == "erreur" {
+			d.TableSans++
+		}
+	}
 	c.rendre(q, "flux", "Flux bloqués", "tableaux", d)
 }
 
@@ -464,12 +492,16 @@ func (c *Console) fluxBloquesDirect(q *req) {
 		return
 	}
 	defer nbFluxDirect.Add(-1)
+	mag := c.opt.Flux.Entrants
+	if q.r.URL.Query().Get("sens") == protocole.Sortant {
+		mag = c.opt.Flux.Sortants
+	}
 	depuis, _ := strconv.ParseInt(q.r.URL.Query().Get("depuis"), 10, 64)
 	if id, err := strconv.ParseInt(q.r.Header.Get("Last-Event-ID"), 10, 64); err == nil && id > depuis {
 		depuis = id
 	}
 	if depuis <= 0 {
-		depuis = c.opt.Flux.DernierID()
+		depuis = mag.DernierID()
 	}
 	h := q.w.Header()
 	h.Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -492,7 +524,7 @@ func (c *Console) fluxBloquesDirect(q *req) {
 	minute := time.NewTicker(10 * time.Second)
 	defer minute.Stop()
 	for {
-		ev, signal := c.opt.Flux.Depuis(depuis, 50)
+		ev, signal := mag.Depuis(depuis, 50)
 		if len(ev) > 0 {
 			depuis = ev[len(ev)-1].ID
 			out := make([]evenementDirect, 0, len(ev))
@@ -513,7 +545,7 @@ func (c *Console) fluxBloquesDirect(q *req) {
 			ecrire("event: fin\ndata: {}\n\n")
 			return
 		case <-minute.C:
-			mins, _ := c.opt.Flux.ParMinute(30)
+			mins, _ := mag.ParMinute(30)
 			b, _ := json.Marshal(map[string]any{"minute": mins[len(mins)-1], "spark": sparkFlux(mins)})
 			if !ecrire("event: minute\ndata: " + string(b) + "\n\n") {
 				return

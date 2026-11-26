@@ -12,9 +12,9 @@ import (
 	"mirador-stack/internal/protocole"
 )
 
-// Blocages entrants d'OPNsense (SPEC § 135) : chaque ligne filterlog est
-// lue, seules les lignes « block » entrantes venues d'une adresse publique
-// sont comptées, par 10 s. Aucune ligne n'est gardée : le collecteur envoie
+// Blocages d'OPNsense (SPEC § 135, § 136) : chaque ligne filterlog est lue,
+// seules les lignes « block » entrantes venues d'une adresse publique ou
+// sortantes vers une adresse publique sont comptées, par 10 s. Aucune ligne n'est gardée : le collecteur envoie
 // des comptages (protocole.LigneFlux), quelques dizaines de lignes par lot.
 //
 // Format filterlog (CSV, documentation OPNsense) :
@@ -28,11 +28,16 @@ import (
 //	       13 n° de protocole, 14 longueur, 15 source, 16 destination,
 //	       17 port source, 18 port destination…
 
-// LireFilterlog : un blocage entrant venu d'Internet, sinon false.
+// LireFilterlog : un blocage d'un flux entrant venu d'Internet ou d'un flux
+// sortant vers Internet, sinon false.
+//   - sens « out » (paquet qui sort par une interface) : sortant si la
+//     destination est publique ;
+//   - sens « in » : entrant si la source est publique, sinon sortant si la
+//     destination l'est (machine du LAN bloquée en allant vers Internet).
 func LireFilterlog(texte string) (protocole.FluxBloque, bool) {
 	var f protocole.FluxBloque
 	c := strings.Split(strings.TrimSpace(texte), ",")
-	if len(c) < 17 || c[6] != "block" || c[7] != "in" {
+	if len(c) < 17 || c[6] != "block" || (c[7] != "in" && c[7] != "out") {
 		return f, false
 	}
 	var iProto, iSrc int
@@ -47,11 +52,21 @@ func LireFilterlog(texte string) (protocole.FluxBloque, bool) {
 	if len(c) <= iSrc+1 {
 		return f, false
 	}
-	ip, err := netip.ParseAddr(c[iSrc])
-	if err != nil || !protocole.AdressePublique(ip) {
+	src, err1 := netip.ParseAddr(c[iSrc])
+	dst, err2 := netip.ParseAddr(c[iSrc+1])
+	if err1 != nil || err2 != nil {
 		return f, false
 	}
-	f.IP, f.N = ip.Unmap(), 1
+	src, dst = src.Unmap(), dst.Unmap()
+	switch {
+	case c[7] == "in" && protocole.AdressePublique(src):
+		f.Sens, f.IP = protocole.Entrant, src
+	case protocole.AdressePublique(dst):
+		f.Sens, f.IP, f.Source = protocole.Sortant, dst, src
+	default:
+		return f, false
+	}
+	f.N = 1
 	f.Interface = nomCourt(c[4], 32)
 	f.Proto = strings.ToLower(nomCourt(c[iProto], 12))
 	if (f.Proto == "tcp" || f.Proto == "udp") && len(c) > iSrc+3 {

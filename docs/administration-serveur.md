@@ -173,6 +173,14 @@ Deux sources, rien à installer de plus :
    l'équipement du pare-feu. Sur la page du collecteur, la série
    `mirador_collecteur_flux_bloques_total` augmente.
 
+Réglage de chaque machine (SPEC.md § 136) : page de la machine › Réglages ›
+**Pare-feu** : lecture automatique ou seulement certains préfixes (ou pas de
+lecture), entrants et sortants, lignes gardées ou non dans Logs (non par
+défaut). Le bloc montre ce que l'assistant root a trouvé (iptables, nftables,
+ufw, firewalld ; règles de journalisation et leur limite de débit) et, s'il
+manque une règle, la commande à copier. mirador ne modifie jamais le
+pare-feu. Vue d'ensemble : tableau « Sources » en bas de la page Flux bloqués.
+
 Pays : base GéoIP (Réglages › Interface). « Pays de vos pare-feu » (même
 endroit, FR par défaut) place le point d'arrivée des traits sur la carte.
 Conservation : 30 jours (adresses : 7 jours), dans `flux.db` à côté de la

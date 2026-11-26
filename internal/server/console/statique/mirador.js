@@ -2718,7 +2718,10 @@ document.addEventListener("change", function (ev) {
     if (!carte || !traits || !ev.pays || !centres[ev.pays]) return;
     var p = centres[ev.pays], x = p[0], y = p[1];
     var mx = (x + maison[0]) / 2, my = Math.min(y, maison[1]) - Math.abs(x - maison[0]) * 0.22 - 10;
-    var d = 'M' + x + ' ' + y + ' Q' + mx + ' ' + my + ' ' + maison[0] + ' ' + maison[1];
+    // Entrant : du pays vers vos pare-feu ; sortant : de vos pare-feu vers le pays.
+    var d = page.getAttribute('data-flux-sens') === 'sortant'
+      ? 'M' + maison[0] + ' ' + maison[1] + ' Q' + mx + ' ' + my + ' ' + x + ' ' + y
+      : 'M' + x + ' ' + y + ' Q' + mx + ' ' + my + ' ' + maison[0] + ' ' + maison[1];
     var deja = actifs[ev.pays];
     if (deja) { clearTimeout(deja.minuteur); deja.g.classList.remove('eteint'); }
     else {

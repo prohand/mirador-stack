@@ -16,7 +16,8 @@ import (
 // programmes : les seuls programmes que l'assistant peut lancer. Les chemins
 // et les arguments sont figés ici ; aucun ne vient de la configuration.
 type programmes interface {
-	// iptablesInput : « iptables -S INPUT ».
+	// iptablesInput : « iptables -S » (toutes les chaînes de la table
+	// filter : politique d'INPUT et règles de journalisation).
 	iptablesInput() ([]byte, error)
 	// nftRuleset : « nft list ruleset ».
 	nftRuleset() ([]byte, error)
@@ -42,7 +43,7 @@ type programmesSysteme struct {
 func programmesReels() programmes { return programmesSysteme{delai: time.Minute} }
 
 func (p programmesSysteme) iptablesInput() ([]byte, error) {
-	return p.lancer(cheminIptables, "-S", "INPUT")
+	return p.lancer(cheminIptables, "-S")
 }
 
 func (p programmesSysteme) nftRuleset() ([]byte, error) {

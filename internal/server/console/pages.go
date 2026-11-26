@@ -688,6 +688,7 @@ type donneesMachine struct {
 	Services    *vueServices          // bloc « Services » (SPEC § 42.2)
 	Maj         vueMaj                // bloc « Mise à jour » (SPEC § 44)
 	Mirador     *blocMirador          // agent et assistant root (SPEC § 124)
+	PareFeu     *vuePareFeu           // bloc « Pare-feu » (SPEC § 136)
 	Paquets     *vuePaquets           // bloc « Paquets à mettre à jour » (SPEC § 42.3)
 	Taches      *donneesTaches        // bloc « Tâches planifiées » (SPEC § 80)
 	Changements *vueChangements       // bloc « Changements » (SPEC § 47)
@@ -860,6 +861,7 @@ func (c *Console) pageMachine(q *req) {
 		_, d.RelevePar, _ = flotte.CollecteurDe(ctx, c.db, m.ID)
 	}
 	d.Token = c.vueTokenDe(ctx, m)
+	d.PareFeu = c.pareFeuDe(ctx, m, d.RelevePar, q.t)
 	// Tableau de la page : celui de l'équipement s'il est relevé par un
 	// collecteur (NAS Synology en SNMP, contrôleur UniFi), sinon les courbes
 	// Linux de l'agent. Retour du 22/11 : la page d'un équipement montrait
@@ -1008,6 +1010,8 @@ func (c *Console) postMachine(q *req) {
 	// page « Configuration des agents » (revue de sécurité du 11/11).
 	sensible := map[string]bool{"token": true, "revoquer": true, "supprimer": true, "refuser": true, "ips": true, "cible": true,
 		"surveillance": true, "empreinte": true, "ips_ajouter": true,
+		// Pare-feu (SPEC § 136) : couper la lecture masquerait des attaques.
+		"parefeu": true,
 		// Modèles : changent la configuration de l'agent et les alertes.
 		"modeles": true,
 		// Équipements d'un collecteur : changent ce qu'il a le droit d'envoyer.
@@ -1112,6 +1116,9 @@ func (c *Console) postMachine(q *req) {
 			vers = "/machines/" + url.PathEscape(nouveau)
 			ok = "machine renommée : les nouvelles données arrivent sous ce nom (l'historique garde l'ancien)"
 		}
+	case "parefeu":
+		ok, err = c.postPareFeu(q, nom)
+		vers += "#parefeu"
 	case "ips":
 		err = flotte.DefinirIPs(ctx, c.db, nom, f("ips"), q.qui(), q.t)
 		ok = "adresses autorisées enregistrées"

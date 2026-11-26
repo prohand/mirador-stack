@@ -83,7 +83,7 @@ func (c *Console) pageTableaux(q *req) {
 	}
 	if c.opt.Flux != nil {
 		// 24 h : sommes SQLite gardées 1 min par le magasin.
-		if b, err := c.opt.Flux.Bilan(q.r.Context(), q.t.Add(-24*time.Hour), q.t, fluxbloques.Filtre{}, 24); err == nil {
+		if b, err := c.opt.Flux.Entrants.Bilan(q.r.Context(), q.t.Add(-24*time.Hour), q.t, fluxbloques.Filtre{}, 24); err == nil {
 			d.Flux = &resumeFluxCarte{Total: b.Total, Pays: b.NbPays}
 			if len(b.Ports) > 0 && b.Ports[0].Nom != fluxbloques.Autres {
 				d.Flux.Port = b.Ports[0].Nom

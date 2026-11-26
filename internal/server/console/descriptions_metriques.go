@@ -72,6 +72,10 @@ var descriptionsMetriques = map[string]string{
 	"node_docker_container_oom_killed":                "conteneur tué faute de mémoire (1 = oui)",
 	"node_docker_container_started_timestamp_seconds": "heure de démarrage d'un conteneur",
 	"node_firewall_input_policy_drop":                 "pare-feu : INPUT en DROP (1 = oui)",
+	"node_firewall_log_rules":                         "pare-feu : règles qui journalisent les paquets",
+	"node_firewall_log_rules_unlimited":               "pare-feu : règles de journalisation sans limite de débit",
+	"node_firewall_log_prefix":                        "pare-feu : préfixe de journalisation trouvé",
+	"node_firewall_manager":                           "pare-feu : posé par ufw ou firewalld",
 	"node_firewall_input_rules":                       "pare-feu : nombre de règles INPUT",
 	// Logs vus par l'agent
 	"mirador_logs_ssh_auth_failures_total":     "échecs de connexion SSH",

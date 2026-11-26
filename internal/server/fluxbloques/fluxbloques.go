@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"mirador-stack/internal/protocole"
-	"mirador-stack/internal/server/stockage"
 )
 
 // Limites.
@@ -60,7 +59,7 @@ type Evenement struct {
 	ID                              int64  `json:"id"`
 	T                               int64  `json:"t"` // millisecondes
 	PareFeu, Interface, Regle, Pays string `json:"-"`
-	IP, Port                        string `json:"-"`
+	IP, Port, Source                string `json:"-"`
 	N                               int    `json:"n"`
 }
 
@@ -76,17 +75,18 @@ type Options struct {
 type Magasin struct {
 	opt Options
 
-	mu      sync.Mutex
-	minutes [60]*seau
-	heure   *seau
-	finies  []*seau     // heures terminées pas encore écrites
-	recents []Evenement // anneau, du plus ancien au plus récent
-	dernier int64       // dernier ID donné
-	signal  chan struct{}
-	pays    map[netip.Addr]string
-	ecritLe time.Time // dernière écriture de l'heure en cours
-	recus   uint64    // blocages comptés depuis le démarrage
-	cache   cacheBilans
+	mu       sync.Mutex
+	minutes  [60]*seau
+	heure    *seau
+	finies   []*seau     // heures terminées pas encore écrites
+	recents  []Evenement // anneau, du plus ancien au plus récent
+	dernier  int64       // dernier ID donné
+	signal   chan struct{}
+	pays     map[netip.Addr]string
+	ecritLe  time.Time            // dernière écriture de l'heure en cours
+	recus    uint64               // blocages comptés depuis le démarrage
+	derniers map[string]time.Time // dernier blocage par pare-feu (2 000 au plus)
+	cache    cacheBilans
 }
 
 // Nouveau prépare le magasin (table créée au besoin).
@@ -132,6 +132,7 @@ const (
 	gIP       = "i" // a = adresse, b = pare-feu
 	gPaysPort = "x" // a = pays, b = port
 	gTronque  = "z" // a = « ip » : adresses perdues (limite)
+	gSource   = "s" // a = adresse locale (sortants), b = pare-feu
 )
 
 type paire struct{ a, b string }
@@ -140,13 +141,14 @@ type seau struct {
 	debut                   int64 // secondes
 	total                   map[string]int
 	pays, ports, ips, xport map[paire]int
+	sources                 map[paire]int // sortants : adresse locale × pare-feu
 	ipsPerdues              int
 	maxIP, maxAutres        int
 }
 
 func nouveauSeau(debut int64, maxIP, maxAutres int) *seau {
 	return &seau{debut: debut, total: map[string]int{}, pays: map[paire]int{}, ports: map[paire]int{},
-		ips: map[paire]int{}, xport: map[paire]int{}, maxIP: maxIP, maxAutres: maxAutres}
+		ips: map[paire]int{}, xport: map[paire]int{}, sources: map[paire]int{}, maxIP: maxIP, maxAutres: maxAutres}
 }
 
 // ajouterBorne : compte k, ou « autres » (même premier élément) au-delà de max.
@@ -161,7 +163,10 @@ func ajouterBorne(m map[paire]int, k paire, n, max int, autresA bool) {
 	m[k] += n
 }
 
-func (s *seau) ajouter(pf, pays, port, ip string, n int) {
+func (s *seau) ajouter(pf, pays, port, ip, source string, n int) {
+	if source != "" {
+		ajouterBorne(s.sources, paire{source, pf}, n, s.maxAutres, true)
+	}
 	if len(s.total) < s.maxAutres || s.total[pf] > 0 {
 		s.total[pf] += n
 	} else {
@@ -193,6 +198,8 @@ func (s *seau) reprendre(l ligneBase) {
 		s.xport[paire{l.a, l.b}] += l.n
 	case gTronque:
 		s.ipsPerdues += l.n
+	case gSource:
+		s.sources[paire{l.a, l.b}] += l.n
 	}
 }
 
@@ -201,7 +208,7 @@ func (s *seau) copie() *seau {
 	for k, v := range s.total {
 		c.total[k] = v
 	}
-	for _, p := range [][2]map[paire]int{{s.pays, c.pays}, {s.ports, c.ports}, {s.ips, c.ips}, {s.xport, c.xport}} {
+	for _, p := range [][2]map[paire]int{{s.pays, c.pays}, {s.ports, c.ports}, {s.ips, c.ips}, {s.xport, c.xport}, {s.sources, c.sources}} {
 		for k, v := range p[0] {
 			p[1][k] = v
 		}
@@ -231,7 +238,10 @@ func (m *Magasin) Recevoir(pf string, f protocole.FluxBloque, t time.Time) {
 	if port == "" {
 		port = "?"
 	}
-	ip := f.IP.String()
+	ip, source := f.IP.String(), ""
+	if f.Source.IsValid() {
+		source = f.Source.String()
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	pays := m.paysDe(f.IP)
@@ -241,17 +251,23 @@ func (m *Magasin) Recevoir(pf string, f protocole.FluxBloque, t time.Time) {
 	if m.minutes[i] == nil || m.minutes[i].debut != min {
 		m.minutes[i] = nouveauSeau(min, maxIPMinute, maxAutresMinute)
 	}
-	m.minutes[i].ajouter(pf, pays, port, ip, f.N)
+	m.minutes[i].ajouter(pf, pays, port, ip, source, f.N)
 	h := maintenant.Unix() / 3600 * 3600
 	if m.heure == nil || m.heure.debut != h {
 		// L'heure précédente, s'il y en a une, est écrite par la boucle
 		// (tourner) : elle a pu manquer la bascule de quelques secondes.
 		m.basculer(h)
 	}
-	m.heure.ajouter(pf, pays, port, ip, f.N)
+	m.heure.ajouter(pf, pays, port, ip, source, f.N)
+	if m.derniers == nil {
+		m.derniers = map[string]time.Time{}
+	}
+	if _, ok := m.derniers[pf]; ok || len(m.derniers) < 2000 {
+		m.derniers[pf] = t
+	}
 	m.dernier++
 	e := Evenement{ID: m.dernier, T: t.UnixMilli(), PareFeu: pf, Interface: f.Interface, Regle: f.Regle,
-		Pays: pays, IP: ip, Port: port, N: f.N}
+		Pays: pays, IP: ip, Port: port, Source: source, N: f.N}
 	if len(m.recents) >= maxRecents {
 		copy(m.recents, m.recents[1:])
 		m.recents = m.recents[:maxRecents-1]
@@ -285,23 +301,12 @@ func (m *Magasin) basculer(h int64) {
 	m.heure = nouveauSeau(h, maxIPHeure, maxAutresHeure)
 }
 
-// Lignes : branchement sur l'ingestion des logs. Les lignes iptables
-// (entrées publiques) sont comptées et gardées ; les comptages d'un
-// collecteur (ident IdentFlux) sont comptés et retirés. Une ligne de
-// comptage envoyée par un agent est gardée comme un log ordinaire et
-// comptée pour 1 (seul un collecteur peut annoncer N blocages).
-func (m *Magasin) Lignes(collecteur bool, lignes []stockage.Ligne) []stockage.Ligne {
-	garder := lignes[:0]
-	for _, l := range lignes {
-		comptage := collecteur && l.Champs["ident"] == protocole.IdentFlux
-		if f, ok := protocole.LireFluxBloque(l.Msg, comptage); ok {
-			m.Recevoir(l.Champs["host"], f, time.UnixMilli(l.T))
-		}
-		if !comptage {
-			garder = append(garder, l)
-		}
-	}
-	return garder
+// DernierDe : heure du dernier blocage vu par ce pare-feu depuis le
+// démarrage (zéro : aucun).
+func (m *Magasin) DernierDe(pf string) time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.derniers[pf]
 }
 
 // Recus : blocages comptés depuis le démarrage.
@@ -473,7 +478,8 @@ func (m *Magasin) ecrireHeure(ctx context.Context, s *seau) error {
 		genre string
 		m     map[paire]int
 	}{{gPays, s.pays}, {gPort, garderPlusGros(s.ports, garderPortsHeure, true)},
-		{gPaysPort, garderPlusGros(s.xport, garderPaysPortsHeure, true)}, {gIP, ips}} {
+		{gPaysPort, garderPlusGros(s.xport, garderPaysPortsHeure, true)}, {gIP, ips},
+		{gSource, garderPlusGros(s.sources, garderPortsHeure, false)}} {
 		for k, n := range g.m {
 			if err := ins(g.genre, k.a, k.b, n); err != nil {
 				return err
@@ -495,7 +501,7 @@ func (m *Magasin) Nettoyer(ctx context.Context) {
 	}
 	now := m.opt.Maintenant()
 	_, err1 := m.opt.DB.ExecContext(ctx, `DELETE FROM heures WHERE heure < ?`, now.Add(-dureePays).Unix())
-	_, err2 := m.opt.DB.ExecContext(ctx, `DELETE FROM heures WHERE genre IN ('i', 'z') AND heure < ?`, now.Add(-dureeIP).Unix())
+	_, err2 := m.opt.DB.ExecContext(ctx, `DELETE FROM heures WHERE genre IN ('i', 'z', 's') AND heure < ?`, now.Add(-dureeIP).Unix())
 	if err := errors.Join(err1, err2); err != nil {
 		m.opt.Journal.Warn("flux bloqués : nettoyage impossible", "erreur", err)
 	}

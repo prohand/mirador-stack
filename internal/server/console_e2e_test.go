@@ -19,6 +19,7 @@ import (
 
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/console"
+	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/secrets"
 	"mirador-stack/internal/server/stockage"
 )
@@ -255,10 +256,19 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	}
 	// Ligne iptables passée par le branchement de l'ingestion (SPEC § 135) :
 	// comptée et gardée dans les logs.
-	garde := s.flux.Lignes(false, []stockage.Ligne{ligne("[12345.6] INPUT-DROP: IN=eth0 OUT= MAC=00 SRC=45.143.203.10 DST=192.0.2.1 PROTO=TCP SPT=4444 DPT=22",
-		map[string]string{"job": "journal"})})
+	lignePF := func() []stockage.Ligne {
+		return []stockage.Ligne{ligne("[12345.6] INPUT-DROP: IN=eth0 OUT= MAC=00 SRC=45.143.203.10 DST=192.0.2.1 PROTO=TCP SPT=4444 DPT=22",
+			map[string]string{"job": "journal"})}
+	}
+	// Défaut (SPEC § 136) : comptée, pas gardée dans les logs.
+	if garde := s.flux.Lignes(false, lignePF()); len(garde) != 0 {
+		t.Fatal("ligne iptables gardée dans les logs par défaut")
+	}
+	// « Garder les lignes » coché pour vm-test : comptée et gardée.
+	s.flux.DefinirReglages(map[string]fluxbloques.Reglage{"vm-test": {Lecture: fluxbloques.LectureAuto, Entrants: true, GarderLignes: true}})
+	garde := s.flux.Lignes(false, lignePF())
 	if len(garde) != 1 {
-		t.Fatal("ligne iptables retirée des logs")
+		t.Fatal("ligne iptables retirée des logs malgré « garder les lignes »")
 	}
 	if err := s.jx.Ecrire(ctx, garde); err != nil {
 		t.Fatal(err)

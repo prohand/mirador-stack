@@ -692,7 +692,7 @@ func fluxDemo(t *testing.T, s *Serveur) {
 	r := rand.New(rand.NewPCG(7, 26))
 	h := now.Add(-25 * time.Hour).Truncate(time.Hour)
 	horloge := h
-	histo, err := fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux, Pays: s.geo.Pays, Maintenant: func() time.Time { return horloge }})
+	histo, err := fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux[0], Pays: s.geo.Pays, Maintenant: func() time.Time { return horloge }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -720,7 +720,57 @@ func fluxDemo(t *testing.T, s *Serveur) {
 			if k == 18 {
 				f.IP, f.Port = netip.MustParseAddr("89.248.165.73"), 5432
 			}
-			s.flux.Recevoir(pf, f, now.Add(-time.Duration(k)*time.Minute))
+			s.flux.Entrants.Recevoir(pf, f, now.Add(-time.Duration(k)*time.Minute))
+		}
+	}
+	// Réglage « Pare-feu » (SPEC § 136) : sortants lus sur fw et vps-web,
+	// lignes gardées sur vps-web, lecture coupée sur nas-backup.
+	_, _ = s.db.Exec(`INSERT INTO reglages(cle, valeur, modifie_le, modifie_par) VALUES ('parefeu', ?, ?, 'demo')`,
+		`{"fw":{"lecture":"auto","entrants":true,"sortants":true},"vps-web":{"lecture":"auto","entrants":true,"sortants":true,"garder_lignes":true},`+
+			`"nas-backup":{"lecture":"non","entrants":true}}`, now.Unix())
+	s.flux.DefinirReglages(map[string]fluxbloques.Reglage{"fw": {Lecture: "auto", Entrants: true, Sortants: true},
+		"vps-web": {Lecture: "auto", Entrants: true, Sortants: true, GarderLignes: true}, "nas-backup": {Lecture: "non", Entrants: true}})
+	// Pare-feu relevé par l'assistant root : journalisation présente, sans
+	// limite, absente, ufw.
+	var pf []stockage.Serie
+	serie := func(nom string, v float64, etq ...string) {
+		sr := stockage.Serie{Labels: []stockage.Label{{Nom: "__name__", Valeur: nom}}}
+		for j := 0; j+1 < len(etq); j += 2 {
+			sr.Remplacer(etq[j], etq[j+1])
+		}
+		for k := 0; k < 10; k++ {
+			sr.Points = append(sr.Points, stockage.Point{T: now.Add(-time.Duration(k) * time.Minute).UnixMilli(), V: v})
+		}
+		pf = append(pf, sr)
+	}
+	for _, x := range []struct {
+		m, outil         string
+		log, sans        float64
+		prefixe, gestion string
+	}{{"srv-test", "iptables", 2, 0, "DROP_IN:", ""}, {"vps-web", "iptables", 1, 1, "[UFW BLOCK]", "ufw"},
+		{"pve1", "nftables", 0, 0, "", ""}, {"vm-docker", "iptables", 1, 1, "DROP_IN:", ""}} {
+		serie("node_firewall_input_rules", 12, "instance", x.m, "tool", x.outil, "policy", "DROP")
+		serie("node_firewall_input_policy_drop", 1, "instance", x.m, "tool", x.outil, "policy", "DROP")
+		serie("node_firewall_log_rules", x.log, "instance", x.m, "tool", x.outil)
+		serie("node_firewall_log_rules_unlimited", x.sans, "instance", x.m, "tool", x.outil)
+		if x.prefixe != "" {
+			serie("node_firewall_log_prefix", 1, "instance", x.m, "prefix", x.prefixe)
+		}
+		if x.gestion != "" {
+			serie("node_firewall_manager", 1, "instance", x.m, "name", x.gestion)
+		}
+	}
+	_ = s.met.Ecrire(ctx, pf)
+	// Sortants de la dernière heure (fw : machines du LAN ; vps-web).
+	for k := 59; k >= 1; k-- {
+		for range 2 + r.IntN(4) {
+			pf, f := tirageFlux(r)
+			if pf != "fw" && pf != "vps-web" {
+				pf = "fw"
+			}
+			f.Sens, f.Source = protocole.Sortant, netip.MustParseAddr(fmt.Sprintf("192.168.35.%d", 2+r.IntN(6)))
+			f.Port = []int{25, 53, 6667, 4444, 3389, 443}[r.IntN(6)]
+			s.flux.Sortants.Recevoir(pf, f, now.Add(-time.Duration(k)*time.Minute))
 		}
 	}
 	// Direct : comptages du collecteur (fw) toutes les 10 s, lignes iptables au fil de l'eau.

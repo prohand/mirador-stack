@@ -28,8 +28,10 @@ func TestLireFilterlog(t *testing.T) {
 		{"ICMP sans port", "9,,,abc,igb0,match,block,in,4,0x0,,50,1,0,none,1,icmp,84,89.248.165.73,192.168.1.1,request,1,2",
 			true, "89.248.165.73", "icmp", 0, "igb0"},
 		{"laissé passer", "5,,,x,igb1,match,pass,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
-		{"sortant", "5,,,x,igb1,match,block,out,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
-		{"source du LAN", "5,,,x,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,192.168.10.4,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
+		{"sortant vers le LAN", "5,,,x,igb1,match,block,out,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
+		{"sortant vers Internet", "5,,,x,igb1,match,block,out,4,0x0,,64,0,0,DF,6,tcp,60,192.168.1.7,93.184.216.34,46406,25,0,S,1,,2,,", true, "93.184.216.34", "tcp", 25, "igb1"},
+		{"LAN bloqué vers Internet", "5,,,x,vlan0.35,match,block,in,4,0x0,,64,0,0,DF,17,udp,60,192.168.35.4,8.8.8.8,46406,53,12", true, "8.8.8.8", "udp", 53, "vlan0.35"},
+		{"LAN vers LAN", "5,,,x,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,192.168.10.4,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
 		{"trop court", "5,,,x,igb1,match,block,in,4", false, "", "", 0, ""},
 		{"interface bizarre", "5,,,x,ig b1;rm,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", true, "45.143.203.10", "tcp", 23, ""},
 	}
@@ -130,7 +132,7 @@ func TestFilterlogTrameOPNsense(t *testing.T) {
 			comptes = append(comptes, f)
 		}
 	}
-	if len(comptes) != 1 || comptes[0].IP.String() != "194.180.48.39" || comptes[0].Port != 5911 || comptes[0].Interface != "ix1" || comptes[0].Regle != "règle 27" {
+	if len(comptes) != 1 || comptes[0].Sens != protocole.Entrant || comptes[0].IP.String() != "194.180.48.39" || comptes[0].Port != 5911 || comptes[0].Interface != "ix1" || comptes[0].Regle != "règle 27" {
 		t.Errorf("comptés : %+v", comptes)
 	}
 }

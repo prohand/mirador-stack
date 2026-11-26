@@ -2496,3 +2496,30 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .page-flux .flux-glisser { display: block; }
 }
 .page-flux .flux-sources { margin-bottom: 16px; } .page-flux .flux-sources p { margin: 6px 0; }
+
+/* --- Bloc « Pare-feu » de la page machine (SPEC § 136) --- */
+.bloc-parefeu .pf-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.bloc-parefeu .pf-tete h2 { margin: 0; } .bloc-parefeu .pf-droite { margin-left: auto; font-size: 13px; }
+.bloc-parefeu .pf-etat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.bloc-parefeu .pf-etat > div { background: var(--entete-table); border: 1px solid var(--bord-doux); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.bloc-parefeu .pf-etat small { display: block; color: var(--pale); font-size: 12px; margin-bottom: 2px; }
+.bloc-parefeu .pf-etat b { font-size: 14px; overflow-wrap: anywhere; } .bloc-parefeu .pf-etat em { display: block; font-style: normal; color: var(--doux); font-size: 12.5px; margin-top: 2px; }
+.bloc-parefeu .pf-conseil { border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; font-size: 13.5px; }
+.bloc-parefeu .pf-conseil.attention { background: var(--attention-fond); } .bloc-parefeu .pf-conseil.erreur { background: var(--erreur-fond); }
+.bloc-parefeu .pf-conseil pre { background: var(--carte); border: 1px solid var(--bord-doux); border-radius: 8px; padding: 8px 10px; margin: 6px 0 4px; font-size: 12.5px; overflow-x: auto; white-space: pre; }
+.bloc-parefeu .pf-outil { margin: 10px 0 0; font-size: 13px; } .bloc-parefeu .pf-autres { margin-top: 10px; } .bloc-parefeu .pf-autres summary { cursor: pointer; font-size: 13px; }
+.bloc-parefeu .pf-choix { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.bloc-parefeu .pf-choix label { display: flex; flex-direction: row; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--bord-doux); border-radius: 10px; font-size: 14px; }
+.bloc-parefeu .pf-choix label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.bloc-parefeu .pf-choix label > input { width: auto; flex: none; margin: 3px 0 0; } .bloc-parefeu .pf-choix label > span { flex: 1; min-width: 0; }
+.bloc-parefeu .pf-choix small, .bloc-parefeu .pf-case small { display: block; color: var(--pale); font-size: 12.5px; margin-top: 2px; }
+.bloc-parefeu .pf-choix input[name="prefixes"] { margin-top: 6px; max-width: 320px; }
+.bloc-parefeu .pf-case { display: flex; flex-direction: row; gap: 10px; align-items: flex-start; font-size: 14px; margin-bottom: 10px; }
+.bloc-parefeu .pf-case > input { width: auto; flex: none; margin: 3px 0 0; }
+.bloc-parefeu .pf-sens { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 14px; } .bloc-parefeu .pf-sens > span { color: var(--pale); }
+.bloc-parefeu .pf-boutons { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+@media (max-width: 900px) { .bloc-parefeu .pf-etat { grid-template-columns: 1fr; } .bloc-parefeu .pf-droite { margin-left: 0; } }
+.page-flux .flux-tete nav + nav { margin-left: 0; }
+.page-flux .flux-table { margin-bottom: 16px; } .page-flux .flux-locales { margin-bottom: 16px; }
+.page-flux .flux-sources-table { width: 100%; font-size: 13.5px; } .page-flux .flux-sources-table td small { display: block; color: var(--pale); font-size: 12px; }
+.page-flux .flux-sources-table td.nombre, .page-flux .flux-sources-table th.nombre { text-align: right; font-variant-numeric: tabular-nums; }
