@@ -8706,3 +8706,43 @@ une hausse ponctuelle (journal, images Docker) et restait vraie plusieurs
 jours après un ménage. Le disque doit maintenant perdre de la place sur 7
 jours **et** sur le dernier jour ; on retient la plus lente des deux pentes.
 Coût : une requête instantanée de plus, mise en cache 10 min comme l'autre.
+
+## 133. Tableaux : nouvelle présentation (26/11, maquettes validées) **[Fait, à valider]**
+
+Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
+(liste, tableau sur ordinateur et téléphone), validées le jour même.
+
+**Liste des tableaux**
+- Une carte par tableau installé : icône, ce qu'il couvre (le filtre qui a
+  le plus de valeurs : « Machine : 26 »), nombre de panneaux, petite courbe
+  sur 24 h (moyenne des courbes de son premier graphique), état (« N points
+  à regarder » si des chiffres sont en attention ou en erreur, « tout va
+  bien » sinon), origine (fourni, modifié, créé ici).
+- Étoile « favori » : en tête de la liste, retenue par le navigateur
+  (`localStorage`, rien sur le serveur).
+- Menu « ⋯ » (admin) : Modifier, Dupliquer, Exporter, Rétablir l'original,
+  Supprimer (remplace le tableau « Gérer les tableaux »).
+- « Importer » et « + Nouveau tableau » en boutons en haut (formulaires en
+  menu déroulant).
+- Proposés par mirador : seulement ceux dont des données arrivent ; les
+  autres repliés sous « Sans données chez vous ».
+- Coût : résumé calculé au plus une fois par 5 min et par tableau (une
+  requête par filtre, les chiffres, une courbe de 48 points).
+
+**Page d'un tableau**
+- Barre de filtres compacte, collante en haut sur ordinateur : filtres en
+  pastilles (envoi dès le choix), périodes en liens 1 h · 6 h · 24 h · 7 j
+  · 30 j (filtres gardés), « Comparer avec la semaine dernière ».
+- Sommaire des rangées ; une rangée qui a des chiffres en attention ou en
+  erreur est en orange avec leur nombre.
+- Chiffres en cases compactes sur une ligne (explication en infobulle),
+  trait rouge ou orange pour un chiffre à regarder.
+- Graphiques deux par ligne (une colonne sur téléphone), moyenne de la
+  période en tête, légende plus discrète ; graphiques sans données
+  regroupés en une ligne avec « Afficher » (aussi sur la page machine).
+- Pourcentages d'un tableau (CPU, mémoire, disque) : petite barre colorée.
+  Sur téléphone, ces tableaux restent en lignes compactes (défilement de
+  côté) au lieu d'une carte par ligne.
+- Coût : rien de plus côté serveur (moyenne calculée dans le navigateur).
+- Menaces : aucune nouvelle (mêmes requêtes, mêmes droits ; favoris dans le
+  navigateur seulement).

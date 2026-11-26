@@ -39,11 +39,15 @@ type ligneTableau struct {
 	T       *Tableau
 	Origine string
 	Nb      int // panneaux
+	R       resumeTableau
 }
 
 type donneesTableaux struct {
 	Lignes    []ligneTableau
 	Catalogue []ligneTableau // tableaux fournis proposés, pas encore installés
+	// SansDonnees : proposés dont rien n'arrive chez cet utilisateur
+	// (repliés sous la liste).
+	SansDonnees []ligneTableau
 	// Raccourcis vers les pages Logs et Flux bloqués : installés / proposés.
 }
 
@@ -54,14 +58,19 @@ func (c *Console) pageTableaux(q *req) {
 		for _, r := range t.Rangees {
 			n += len(r.Panneaux)
 		}
-		d.Lignes = append(d.Lignes, ligneTableau{T: t, Origine: c.origineTableau(t.Nom), Nb: n})
+		d.Lignes = append(d.Lignes, ligneTableau{T: t, Origine: c.origineTableau(t.Nom), Nb: n, R: c.resumeDe(q.r.Context(), t, q.t)})
 	}
 	for _, t := range c.etatTab().catalogue {
 		n := 0
 		for _, r := range t.Rangees {
 			n += len(r.Panneaux)
 		}
-		d.Catalogue = append(d.Catalogue, ligneTableau{T: t, Origine: OrigineFourni, Nb: n})
+		l := ligneTableau{T: t, Origine: OrigineFourni, Nb: n, R: c.resumeDe(q.r.Context(), t, q.t)}
+		if l.R.AvecDonnees {
+			d.Catalogue = append(d.Catalogue, l)
+		} else {
+			d.SansDonnees = append(d.SansDonnees, l)
+		}
 	}
 	c.rendre(q, "tableaux", "Tableaux", "tableaux", d)
 }

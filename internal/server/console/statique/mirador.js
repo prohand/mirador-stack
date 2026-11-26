@@ -1369,6 +1369,9 @@ document.addEventListener("change", function (e) {
   function etiqueter() {
     document.querySelectorAll(AUTO).forEach(function (t) {
       var tete = t.tHead && t.tHead.rows[0];
+      // Tableaux d'un tableau de bord (maquette du 26/11) : gardés en lignes
+      // compactes, défilement de côté (une carte par machine : page sans fin).
+      if (t.closest(".corps-tableau")) { t.setAttribute("data-sans-cartes", ""); return; }
       if (tete && tete.cells.length >= 3) { t.setAttribute("data-cartes", ""); }
     });
     document.querySelectorAll("table[data-cartes]").forEach(function (t) {
@@ -2647,4 +2650,33 @@ document.addEventListener("change", function (ev) {
     if (b) { vue(b.getAttribute("data-vue"), true); }
   });
   vue(lu, false);
+})();
+
+// Tableaux favoris (maquette du 26/11) : étoile sur chaque carte, retenue par
+// ce navigateur ; les favoris passent en tête de la liste.
+(function () {
+  var liste = document.querySelector("[data-favoris-tableaux]");
+  if (!liste) { return; }
+  var cle = "mirador-tableaux-favoris";
+  function lire() { try { var v = JSON.parse(window.localStorage.getItem(cle) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function ranger() {
+    var fav = lire();
+    var cartes = Array.prototype.slice.call(liste.querySelectorAll("[data-tableau]"));
+    cartes.forEach(function (c) {
+      var oui = fav.indexOf(c.getAttribute("data-tableau")) >= 0;
+      var b = c.querySelector("[data-etoile]");
+      if (b) { b.setAttribute("aria-pressed", oui ? "true" : "false"); }
+    });
+    cartes.filter(function (c) { return fav.indexOf(c.getAttribute("data-tableau")) >= 0; }).reverse()
+      .forEach(function (c) { liste.insertBefore(c, liste.firstChild); });
+  }
+  liste.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("[data-etoile]") : null;
+    if (!b) { return; }
+    var nom = b.closest("[data-tableau]").getAttribute("data-tableau"), fav = lire(), i = fav.indexOf(nom);
+    if (i >= 0) { fav.splice(i, 1); } else { fav.push(nom); }
+    try { window.localStorage.setItem(cle, JSON.stringify(fav.slice(-50))); } catch (e) { /* stockage refusé */ }
+    ranger();
+  });
+  ranger();
 })();

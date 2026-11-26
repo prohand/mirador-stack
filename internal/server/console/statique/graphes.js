@@ -68,8 +68,23 @@
       var vides = Array.prototype.filter.call(pan.children, function (c) { return c.classList.contains("panneau-vide"); });
       var ligne = pan.querySelector(".sans-donnees");
       if (!vides.length) { if (ligne) { ligne.remove(); } return; }
-      if (!ligne) { ligne = document.createElement("p"); ligne.className = "sans-donnees"; pan.appendChild(ligne); }
-      ligne.textContent = "Pas de données sur la période : " + vides.map(function (c) {
+      if (!ligne) {
+        ligne = document.createElement("p"); ligne.className = "sans-donnees";
+        ligne.appendChild(document.createElement("span"));
+        // « Afficher » (maquette du 26/11) : montre les graphiques vides.
+        var bouton = document.createElement("button");
+        bouton.type = "button"; bouton.className = "lien";
+        bouton.addEventListener("click", function () {
+          var zone = pan.closest("[data-regrouper-vides]");
+          var montre = zone.classList.toggle("montrer-vides");
+          zone.querySelectorAll(".sans-donnees button").forEach(function (b) { b.textContent = montre ? "Masquer" : "Afficher"; });
+          window.dispatchEvent(new Event("resize"));
+        });
+        bouton.textContent = pan.closest("[data-regrouper-vides]").classList.contains("montrer-vides") ? "Masquer" : "Afficher";
+        ligne.appendChild(bouton);
+        pan.appendChild(ligne);
+      }
+      ligne.firstChild.textContent = "Pas de données sur la période : " + vides.map(function (c) {
         var h = c.querySelector("h2, h3");
         return h ? h.textContent.trim() : "";
       }).filter(Boolean).join(", ") + ".";
@@ -472,6 +487,7 @@
           el.parentNode.insertBefore(el.survol, el.nextSibling);
         }
         majIndice(el, seuil !== null, !!avecAn);
+        valeurMoyenne(el, d);
         filtrer(el, d.series.length);
         outils(el, d);
         // Zoom donné par l'adresse (lien partagé) : appliqué au premier dessin.
@@ -488,6 +504,22 @@
       })
       .catch(function () { el.textContent = "données indisponibles"; })
       .finally(function () { el.enCours = false; });
+  }
+
+  // Valeur moyenne de la période en tête du graphique (page d'un tableau,
+  // maquette du 26/11) : moyenne de tous les points de toutes les courbes.
+  function valeurMoyenne(el, d) {
+    if (!el.closest("[data-valeur-moyenne]")) { return; }
+    var carte = el.closest(".carte"), titre = carte && carte.querySelector(":scope > h2, :scope > .kpi-tete");
+    if (!titre) { return; }
+    var somme = 0, nb = 0;
+    d.series.forEach(function (s) { s.v.forEach(function (v) { if (v !== null && isFinite(v)) { somme += v; nb++; } }); });
+    var span = titre.querySelector(".valeur-moyenne");
+    if (!nb) { if (span) { span.remove(); } return; }
+    if (!span) { span = document.createElement("span"); span.className = "valeur-moyenne"; titre.appendChild(span); }
+    span.textContent = formater(somme / nb, d.unite);
+    var p = document.createElement("small"); p.textContent = "moyenne";
+    span.appendChild(p);
   }
 
   // Filtre des séries : à partir de 6 courbes (conteneurs, machines…), un

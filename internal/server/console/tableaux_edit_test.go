@@ -135,7 +135,7 @@ func TestEditeurTableaux(t *testing.T) {
 	if b.c.tableau(f) != nil {
 		t.Fatal("tableau fourni installé d'office")
 	}
-	if _, corps, _ := b.get(c, "/tableaux"); !strings.Contains(corps, "Tableaux proposés par mirador") || !strings.Contains(corps, titre) {
+	if _, corps, _ := b.get(c, "/tableaux"); !strings.Contains(corps, "Proposés par mirador") || !strings.Contains(corps, titre) {
 		t.Fatal("catalogue absent")
 	}
 	if code, corps, _ := b.get(c, "/tableaux/"+f); code != http.StatusOK || !strings.Contains(corps, "Installer ce tableau") {

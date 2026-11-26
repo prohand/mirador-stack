@@ -135,6 +135,7 @@ type Console struct {
 	cache              cacheRequetes
 	annot              cacheAnnotations // alertes et événements des courbes d'une machine (SPEC § 31)
 	prevDisques        cachePrevisions  // « plein dans X j » des disques (SPEC § 31)
+	resumesTab         cacheResumes     // cartes de la liste des tableaux (maquette du 26/11)
 	chaleur            cacheChaleur     // carte de chaleur du parc sur 24 h (SPEC § 31)
 }
 

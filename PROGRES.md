@@ -1932,8 +1932,9 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - « Plein dans N j » : perte de place sur 7 j et sur le dernier jour.
 - Tests : `TestLectureLongueJusquaMaintenant` (échoue sans la correction :
   dernier point il y a 24 h 55), `TestPrevisionDisqueLibereHier`.
-- Maquettes des Tableaux envoyées le 26/11 (liste en cartes, filtres
-  compacts, graphiques 2 par ligne), en attente de validation.
+- Tableaux : maquettes validées le 26/11, codées (SPEC § 133) ;
+  `TestResumeTableau`, `TestPageTableauPresentation`, captures sur la
+  démonstration (ordinateur et téléphone).
 - À livrer dans la prochaine version (après la mesure de 24 h).
 
 ## Prochaine étape

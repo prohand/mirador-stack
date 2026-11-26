@@ -86,6 +86,10 @@ func requeteAnnulee(ctx context.Context, err error) bool {
 type vueValeur struct {
 	Texte, Couleur, Legende, Lien string
 	Brut                          float64
+	// Barre : pourcentage d'une colonne de tableau (0 à 100), dessiné en
+	// petite barre à côté du texte (maquette du 26/11).
+	Barre bool
+	Pct   float64
 }
 
 type vueBarre struct {
@@ -115,6 +119,42 @@ type vueRangee struct {
 	Panneaux []vuePanneau
 }
 
+// NbProblemes : chiffres de la rangée en attention ou en erreur (sommaire
+// du tableau, maquette du 26/11 : « Disques · 1 »).
+func (r vueRangee) NbProblemes() int {
+	n := 0
+	for _, p := range r.Panneaux {
+		for _, v := range p.Chiffres {
+			if v.Couleur == "erreur" || v.Couleur == "attention" {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// lienPeriode : une période du sélecteur, avec les filtres en cours.
+type lienPeriode struct {
+	Texte, URL string
+	Actif      bool
+}
+
+// liensPeriodes : un lien par période proposée, filtres gardés.
+func liensPeriodes(nom string, t *Tableau, vals map[string]string, active string) []lienPeriode {
+	var out []lienPeriode
+	for _, p := range periodesProposees {
+		q := url.Values{}
+		for _, v := range t.Variables {
+			if x := vals[v.Nom]; x != "" {
+				q.Set(v.Nom, x)
+			}
+		}
+		q.Set("periode", p)
+		out = append(out, lienPeriode{Texte: periodeFr(p), URL: "/tableaux/" + url.PathEscape(nom) + "?" + q.Encode(), Actif: p == active})
+	}
+	return out
+}
+
 type vueVariable struct {
 	Nom, Titre, Valeur string
 	Choix              []string
@@ -130,6 +170,7 @@ type donneesTableau struct {
 	Tableaux    []*Tableau
 	LienMachine bool
 	Installe    bool // false : aperçu d'un tableau du catalogue
+	Liens       []lienPeriode
 }
 
 var periodesProposees = []string{"1h", "6h", "24h", "7d", "30d"}
@@ -370,7 +411,14 @@ func (c *Console) remplirTableau(ctx context.Context, vp *vuePanneau, vals map[s
 				if cs == nil && len(p.Colonnes) == 0 {
 					cs = p.Correspondances
 				}
-				rang = append(rang, valeurVue(v, u, dec, s, cs))
+				vv := valeurVue(v, u, dec, s, cs)
+				switch u {
+				case "percent":
+					vv.Barre, vv.Pct = true, math.Max(0, math.Min(100, v))
+				case "percentunit":
+					vv.Barre, vv.Pct = true, math.Max(0, math.Min(100, v*100))
+				}
+				rang = append(rang, vv)
 				continue
 			}
 			vv := vueValeur{Texte: li.etq[co.Champ]}
@@ -418,7 +466,8 @@ func (c *Console) pageTableau(q *req) {
 	}
 	ctx := q.r.Context()
 	dt := donneesTableau{T: t, Installe: installe, Periode: periode, Periodes: periodesProposees, Tableaux: c.listeTableaux(),
-		Variables: c.variables(ctx, t, vals, q.t), Rangees: c.evaluerTableau(ctx, t, vals, periode, d, q.t, nil)}
+		Variables: c.variables(ctx, t, vals, q.t), Rangees: c.evaluerTableau(ctx, t, vals, periode, d, q.t, nil),
+		Liens: liensPeriodes(t.Nom, t, vals, periode)}
 	c.rendre(q, "tableau", t.Titre, "tableaux", dt)
 }
 

@@ -1,12 +1,20 @@
-{{define "contenu"}}
-<div class="titre-page"><div>{{if .D.T.Icone}}<div class="titre-icone grand"><span class="puce {{if .D.T.Teinte}}{{.D.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.D.T.Icone}}"></use></svg></span><h1>{{.D.T.Titre}}</h1></div>{{else}}<h1>{{.D.T.Titre}}</h1>{{end}}{{if .D.T.Description}}<p>{{.D.T.Description}}</p>{{end}}</div>
-{{if .Admin}}<div class="actions">{{if .D.Installe}}<a class="bouton secondaire" href="/tableaux/{{.D.T.Nom}}/modifier">Modifier ce tableau</a>{{else}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{.D.T.Nom}}"><button name="action" value="installer">Installer ce tableau</button></form>{{end}}</div>{{end}}</div>
-{{if not .D.Installe}}<p class="message ok">Aperçu d'un tableau proposé par mirador : il n'est pas encore dans vos tableaux.</p>{{end}}
-<form method="get" class="ligne filtres">
-  {{range .D.Variables}}<label>{{.Titre}} <select name="{{.Nom}}"><option value="">(tous)</option>{{$v := .Valeur}}{{range .Choix}}<option {{if egal . $v}}selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
-  <label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-  <button>Afficher</button>
+{{define "contenu"}}{{$d := .D}}
+{{/* Page d'un tableau, nouvelle présentation (maquette validée le 26/11) :
+     barre de filtres collante, sommaire des rangées, cases compactes,
+     graphiques deux par ligne, graphiques sans données regroupés. */}}
+<div class="page-tableau">
+<div class="titre-page tete-tableau"><div>{{if $d.T.Icone}}<div class="titre-icone grand"><span class="puce {{if $d.T.Teinte}}{{$d.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{$d.T.Icone}}"></use></svg></span><h1>{{$d.T.Titre}}</h1></div>{{else}}<h1>{{$d.T.Titre}}</h1>{{end}}{{if $d.T.Description}}<p>{{$d.T.Description}}</p>{{end}}</div>
+<div class="actions">{{if .Admin}}{{if $d.Installe}}<a class="bouton secondaire petit" href="/tableaux/{{$d.T.Nom}}/modifier">Modifier</a>{{else}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{$d.T.Nom}}"><button name="action" value="installer" class="petit">Installer ce tableau</button></form>{{end}}{{end}}
+{{if $d.Installe}}<a class="bouton secondaire petit" href="/tableaux/{{$d.T.Nom}}/export.json" title="Exporter ce tableau (JSON, réimportable)">Exporter</a>{{end}}</div></div>
+{{if not $d.Installe}}<p class="message ok">Aperçu d'un tableau proposé par mirador : il n'est pas encore dans vos tableaux.</p>{{end}}
+<form method="get" class="barre-filtres">
+  {{range $d.Variables}}<label class="choix">{{.Titre}} <select name="{{.Nom}}" data-envoi-auto><option value="">tous</option>{{$v := .Valeur}}{{range .Choix}}<option {{if egal . $v}}selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
+  <input type="hidden" name="periode" value="{{$d.Periode}}">
+  <nav aria-label="Période"><span class="segment periode">{{range $d.Liens}}<a href="{{.URL}}"{{if .Actif}} class="actif" aria-current="true"{{end}}>{{.Texte}}</a>{{end}}</span></nav>
+  <noscript><button class="petit">Afficher</button></noscript>
 </form>
-{{template "rangees" .D.Rangees}}
-{{if .D.T.Ignores}}<details class="carte"><summary>Panneaux Grafana non repris ({{len .D.T.Ignores}})</summary><ul>{{range .D.T.Ignores}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+{{if gt (len $d.Rangees) 1}}<nav class="sommaire-tableau" aria-label="Rangées du tableau">{{range $d.Rangees}}<a href="#{{ancre .Titre}}"{{if .NbProblemes}} class="pb" title="{{.NbProblemes}} {{accord .NbProblemes "chiffre(s)"}} en attention ou en erreur"{{end}}>{{if .Titre}}{{.Titre}}{{else}}Général{{end}}{{with .NbProblemes}} · {{.}}{{end}}</a>{{end}}</nav>{{end}}
+<div class="corps-tableau" data-regrouper-vides data-valeur-moyenne>{{template "rangees" $d.Rangees}}</div>
+{{if $d.T.Ignores}}<details class="carte"><summary>Panneaux Grafana non repris ({{len $d.T.Ignores}})</summary><ul>{{range $d.T.Ignores}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+</div>
 {{end}}

@@ -201,16 +201,14 @@ func fonctions() template.FuncMap {
 		"sansIlYA": func(s string) string { return strings.TrimPrefix(s, "il y a ") },
 		"depuisMs": depuis,
 		// joindre : « a, b, c » (liste de noms).
-		"joindre": func(l []string) string { return strings.Join(l, ", ") },
-		"duree":   func(d time.Duration) string { return dureeLisible(d) },
-		"dureeC":  dureeCourte,
-		"enUnite": enUnite,
-		"ancre":   ancre,
-		"periodeFr": func(p string) string { // « 7d » → « 7 j », « 6h » → « 6 h »
-			return strings.NewReplacer("d", " j", "h", " h", "w", " sem.").Replace(p)
-		},
-		"docs":   func(chemin string) string { return AdresseDocs + chemin },
-		"taille": tailleLisible,
+		"joindre":   func(l []string) string { return strings.Join(l, ", ") },
+		"duree":     func(d time.Duration) string { return dureeLisible(d) },
+		"dureeC":    dureeCourte,
+		"enUnite":   enUnite,
+		"ancre":     ancre,
+		"periodeFr": periodeFr,
+		"docs":      func(chemin string) string { return AdresseDocs + chemin },
+		"taille":    tailleLisible,
 		// Sauvegardes Proxmox (SPEC § 89) : taille en octets (float), durée.
 		"tailleOctets": func(v float64) string { return tailleLisible(int64(v)) },
 		"dureeVM": func(d time.Duration) string {
@@ -422,6 +420,11 @@ func dureeCourte(v any) string {
 }
 
 // ancre : identifiant HTML tiré d'un titre (« Réseau » → « reseau »).
+// periodeFr : « 7d » → « 7 j », « 6h » → « 6 h ».
+func periodeFr(p string) string {
+	return strings.NewReplacer("d", " j", "h", " h", "w", " sem.").Replace(p)
+}
+
 func ancre(titre string) string {
 	r := strings.NewReplacer("à", "a", "â", "a", "ä", "a", "é", "e", "è", "e", "ê", "e", "ë", "e", "î", "i", "ï", "i",
 		"ô", "o", "ö", "o", "ù", "u", "û", "u", "ü", "u", "ç", "c", "œ", "oe")
