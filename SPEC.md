@@ -8665,3 +8665,87 @@ jellyfin) ; la case « À regarder 1 » de la page Machines donnait
 - Correctif (26/11, après 0.6.23) : le lien du disque visait `#disques`
   alors que la rangée s'appelle `r-disques` (comme dans le sommaire) ; la
   page rouvrait le dernier onglet (Activité). Lien construit avec `ancre`.
+
+## 131. « Autoriser cette adresse » après un refus d'adresse (26/11) **[Fait, à valider]**
+
+Retour du 26/11 : dns2 (VPS en double pile) refusé une minute en IPv4
+(« adresse non autorisée ») : son jeton n'acceptait que son IPv6. Le refus
+n'était visible que dans les logs du serveur, et disparaissait de la page
+dès l'envoi réussi suivant (repassé en IPv6).
+
+- Page machine : un refus « adresse non autorisée » reste affiché **24 h**,
+  même si des envois ont réussi depuis (« la machine change sans doute
+  d'adresse, IPv4 et IPv6 »), tant que l'adresse n'est pas autorisée.
+- Bouton **« Autoriser cette adresse »** (admin, code 2FA comme la liste
+  des adresses) : ajoute l'adresse du dernier refus à la liste existante
+  (audit `ips_autorisees`).
+- Menaces : seule l'adresse du dernier refus de cette machine est acceptée
+  (une autre est refusée) ; jamais si la liste est vide (toutes déjà
+  admises) ; 2FA et CSRF. Le refus est gardé en mémoire (perdu au
+  redémarrage du serveur).
+- Coût : aucun (refus déjà gardé en mémoire, une lecture de plus).
+
+## 132. Courbes sur 7 et 30 jours jusqu'à maintenant ; prévision « disque plein » plus prudente (26/11) **[Fait, à valider]**
+
+Retours du 26/11 :
+- tableau OPNsense en « 7 j » : « dernière donnée il y a 24 h », alors que
+  fw envoyait toutes les 30 s (page de fw correcte, en 6 h) ;
+- sup « disque plein dans 15 j » le lendemain de 2,4 Go libérés.
+
+**Courbes longues** : au-delà de la rétention brute (7 j), la lecture passe
+par la base agrégée (un point par 5 min), qui ne couvre que les fenêtres
+finies depuis plus de 24 h (retard accepté pour les points d'un agent).
+Toutes les courbes en 7 j ou 30 j s'arrêtaient donc 24 h avant maintenant,
+quelle que soit la machine. Correction : la lecture fusionne les agrégats
+jusqu'à leur fin et la base brute ensuite (`storage.NewMergeQuerier`, sans
+recouvrement). Coût : une seconde lecture sur au plus 24 h de données
+brutes, pour les seules périodes longues.
+
+**Prévision « plein dans N j »** : la pente sur 7 jours seule réagissait à
+une hausse ponctuelle (journal, images Docker) et restait vraie plusieurs
+jours après un ménage. Le disque doit maintenant perdre de la place sur 7
+jours **et** sur le dernier jour ; on retient la plus lente des deux pentes.
+Coût : une requête instantanée de plus, mise en cache 10 min comme l'autre.
+
+## 133. Tableaux : nouvelle présentation (26/11, maquettes validées) **[Fait, à valider]**
+
+Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
+(liste, tableau sur ordinateur et téléphone), validées le jour même.
+
+**Liste des tableaux**
+- Une carte par tableau installé : icône, ce qu'il couvre (le filtre qui a
+  le plus de valeurs : « Machine : 26 »), nombre de panneaux, petite courbe
+  sur 24 h (moyenne des courbes de son premier graphique), état (« N points
+  à regarder » si des chiffres sont en attention ou en erreur, « tout va
+  bien » sinon), origine (fourni, modifié, créé ici).
+- Étoile « favori » : en tête de la liste, retenue par le navigateur
+  (`localStorage`, rien sur le serveur).
+- Menu « ⋯ » (admin) : Modifier, Dupliquer, Exporter, Rétablir l'original,
+  Supprimer (remplace le tableau « Gérer les tableaux »).
+- « Importer » et « + Nouveau tableau » en boutons en haut (formulaires en
+  menu déroulant).
+- Proposés par mirador : seulement ceux dont des données arrivent ; les
+  autres repliés sous « Sans données chez vous ».
+- Coût : résumé calculé au plus une fois par 5 min et par tableau (une
+  requête par filtre, les chiffres, une courbe de 48 points).
+
+**Page d'un tableau**
+- Barre de filtres compacte, collante en haut sur ordinateur : filtres en
+  pastilles (envoi dès le choix), périodes en liens 1 h · 6 h · 24 h · 7 j
+  · 30 j (filtres gardés), « Comparer avec la semaine dernière ».
+- Sommaire des rangées ; une rangée qui a des chiffres en attention ou en
+  erreur est en orange avec leur nombre.
+- Chiffres en cases compactes sur une ligne (explication en infobulle),
+  trait rouge ou orange pour un chiffre à regarder.
+- Graphiques deux par ligne (une colonne sur téléphone), moyenne de la
+  période en tête, légende plus discrète et toujours présente : au-delà de
+  5 courbes, les 5 à la valeur la plus haute puis « + N autres » qui déplie
+  le reste (choix du 26/11 ; avant, plus de légende du tout au-delà de 12
+  courbes, soit le CPU d'un parc de 26 machines) ; graphiques sans données
+  regroupés en une ligne avec « Afficher » (aussi sur la page machine).
+- Pourcentages d'un tableau (CPU, mémoire, disque) : petite barre colorée.
+  Sur téléphone, ces tableaux restent en lignes compactes (défilement de
+  côté) au lieu d'une carte par ligne.
+- Coût : rien de plus côté serveur (moyenne calculée dans le navigateur).
+- Menaces : aucune nouvelle (mêmes requêtes, mêmes droits ; favoris dans le
+  navigateur seulement).

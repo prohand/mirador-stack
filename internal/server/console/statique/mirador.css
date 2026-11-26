@@ -2329,3 +2329,100 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .bandeau-accueil.resultat-verif { padding: 10px 14px; margin: 8px 0 10px; gap: 12px; }
 .bandeau-accueil.resultat-verif h2 { font-size: 15px; }
 .bandeau-accueil.resultat-verif .puce { width: 36px; height: 36px; border-radius: 10px; }
+
+/* --- Page d'un tableau, nouvelle présentation (maquette validée le 26/11) ----------- */
+.page-tableau .tete-tableau { margin-bottom: 4px; }
+.page-tableau .tete-tableau .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.barre-filtres { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 0; margin: 0 0 4px; border-bottom: 1px solid var(--bord-doux); }
+@media (min-width: 900px) {
+  .barre-filtres { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--fond) 92%, transparent); backdrop-filter: blur(6px); }
+}
+.barre-filtres nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.barre-filtres .choix { display: inline-flex; flex-direction: row; white-space: nowrap; align-items: center; gap: 4px; border: 1px solid var(--bord-champ); background: var(--champ); border-radius: 999px; padding: 0 4px 0 12px; font-size: 13px; color: var(--doux); }
+.barre-filtres .choix select { border: 0; background: transparent; font-weight: 600; color: var(--texte); padding: 5px 6px; min-height: 0; box-shadow: none; max-width: 14rem; }
+.barre-filtres .comparer-tout { font-size: 13px; color: var(--doux); display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; }
+.sommaire-tableau { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+.sommaire-tableau a { font-size: 12.5px; padding: 4px 11px; border-radius: 999px; background: var(--carte); border: 1px solid var(--bord); color: var(--doux); text-decoration: none; }
+.sommaire-tableau a:hover { border-color: var(--accent); color: var(--texte); }
+.sommaire-tableau a.pb { border-color: var(--attention-trait); color: var(--attention); }
+/* Graphiques deux par ligne ; tableaux sur toute la largeur. */
+.corps-tableau .panneaux:not(.douze) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.corps-tableau .panneaux:not(.douze) > .panneau-courbe, .corps-tableau .panneaux:not(.douze) > .panneau-barres { grid-column: auto; }
+/* Cases chiffrées compactes, une ligne ; l'explication passe en infobulle. */
+.corps-tableau .panneaux:not(.douze):has(> .panneau-chiffre) { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.corps-tableau .panneaux:has(> .panneau-chiffre) > .panneau-courbe, .corps-tableau .panneaux:has(> .panneau-chiffre) > .panneau-barres { grid-column: 1 / -1; }
+.corps-tableau .panneau-chiffre { padding: 12px 14px; position: relative; overflow: hidden; }
+.corps-tableau .panneau-chiffre > p { display: none; }
+.corps-tableau .panneau-chiffre .kpi-tete { gap: 7px; }
+.corps-tableau .panneau-chiffre .kpi-tete .puce { width: 24px; height: 24px; border-radius: 7px; }
+.corps-tableau .panneau-chiffre .kpi-tete .icone { width: 14px; height: 14px; }
+.corps-tableau .panneau-chiffre h2, .corps-tableau .panneau-chiffre.avec-icone > .kpi-tete h2 { font-size: 12.5px; line-height: 1.3; }
+.corps-tableau .panneau-chiffre.avec-icone .chiffre b, .corps-tableau .panneau-chiffre .chiffre b { font-size: 26px; }
+.corps-tableau .panneau-chiffre:has(.chiffre.erreur) { border-color: color-mix(in srgb, var(--erreur) 35%, var(--bord)); }
+.corps-tableau .panneau-chiffre:has(.chiffre.erreur)::before, .corps-tableau .panneau-chiffre:has(.chiffre.attention)::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--attention-trait); }
+.corps-tableau .panneau-chiffre:has(.chiffre.erreur)::before { background: var(--erreur); }
+/* Valeur moyenne en tête d'un graphique (graphes.js). */
+.valeur-moyenne { margin-left: auto; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.valeur-moyenne small { color: var(--pale); font-weight: 500; font-size: 12px; margin-left: 3px; }
+.corps-tableau .panneau-courbe > h2, .corps-tableau .panneau-courbe > .kpi-tete { display: flex; align-items: baseline; gap: 8px; }
+/* Légende plus discrète : point de couleur, nom, valeur. */
+.corps-tableau .uplot .u-legend tr.u-series { background: none; padding: 0 2px; margin: 1px 10px 1px 0; }
+.corps-tableau .uplot .u-legend .u-marker { border-radius: 50%; width: 9px; height: 9px; }
+.corps-tableau .uplot .u-legend .u-value { min-width: 0; font-weight: 600; color: var(--texte); }
+/* Graphiques sans données : une ligne, « Afficher » les montre. */
+.corps-tableau .panneau-vide { display: none; }
+.corps-tableau.montrer-vides .panneau-vide, #graphiques.montrer-vides .panneau-vide { display: block; }
+.sans-donnees button.lien { margin-left: 8px; }
+/* Pourcentages d'un tableau : petite barre devant le texte. */
+.mini-barre { display: inline-flex; align-items: center; gap: 8px; min-width: 110px; font-variant-numeric: tabular-nums; }
+.mini-barre i { flex: 1; height: 6px; min-width: 50px; background: var(--bord-doux); border-radius: 999px; overflow: hidden; display: block; }
+.mini-barre u { display: block; height: 6px; border-radius: 999px; background: var(--accent); text-decoration: none; }
+.mini-barre.attention u { background: var(--attention-trait); } .mini-barre.erreur u { background: var(--erreur); }
+@media (max-width: 899px) {
+  .corps-tableau .panneaux:not(.douze) { grid-template-columns: 1fr; }
+  .corps-tableau .panneaux:not(.douze):has(> .panneau-chiffre) { grid-template-columns: 1fr 1fr; }
+  .mini-barre { min-width: 80px; } .mini-barre i { min-width: 36px; }
+}
+
+/* --- Liste des tableaux en cartes (maquette validée le 26/11) ---------------------- */
+.section-tableaux { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--pale); font-weight: 600; margin: 26px 0 12px; }
+.section-tableaux small { text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 6px; }
+.cartes-tableaux { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.carte-tableau { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; display: flex; flex-direction: column; }
+.carte-tableau:hover { border-color: var(--accent); }
+.carte-tableau-lien { display: flex; flex-direction: column; gap: 12px; padding: 18px 18px 10px; text-decoration: none; color: var(--texte); }
+.ct-tete { display: flex; align-items: center; gap: 12px; }
+.ct-tete .puce { width: 38px; height: 38px; border-radius: 10px; flex: none; }
+.ct-tete b { font-size: 15px; display: block; }
+.ct-tete small { color: var(--pale); font-size: 12.5px; }
+.ct-apercu { height: 54px; border-radius: 10px; background: var(--entete-table); border: 1px solid var(--bord-doux); padding: 6px 8px; display: flex; align-items: center; justify-content: center; }
+.ct-apercu svg { width: 100%; height: 100%; }
+.ct-apercu polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.ct-apercu small { color: var(--pale); }
+.ct-pied { display: flex; align-items: center; gap: 8px; padding: 0 18px 14px; font-size: 12.5px; }
+.ct-pied .doux { color: var(--pale); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etoile-tableau { background: none; border: 0; box-shadow: none; min-height: 0; padding: 2px 6px; font-size: 17px; line-height: 1; color: var(--bord-champ); cursor: pointer; }
+.etoile-tableau[aria-pressed="true"] { color: var(--attention-trait); }
+.menu-action { position: relative; display: inline-block; }
+.menu-action > summary { list-style: none; cursor: pointer; }
+.menu-action > summary::-webkit-details-marker { display: none; }
+.menu-action-boite { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 14px; min-width: 260px; box-shadow: 0 8px 24px rgba(17, 24, 39, .12); }
+.menu-carte > summary { padding: 2px 8px; border-radius: 8px; color: var(--doux); font-size: 16px; }
+.menu-carte > summary:hover { background: var(--survol); }
+.liste-actions { min-width: 190px; padding: 6px; display: flex; flex-direction: column; }
+.liste-actions a, .liste-actions button.lien { display: block; text-align: left; padding: 7px 10px; border-radius: 8px; text-decoration: none; color: var(--texte); font-size: 13.5px; width: 100%; font-weight: 400; }
+.liste-actions a:hover, .liste-actions button.lien:hover { background: var(--survol); }
+.liste-actions a.danger { color: var(--erreur); }
+.liste-actions form { margin: 0; }
+.cartes-proposees { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.carte-proposee { background: var(--carte); border: 1px dashed var(--bord-champ); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.carte-proposee p { margin: 0; color: var(--doux); font-size: 13px; line-height: 1.45; }
+.carte-proposee .doux { color: var(--pale); font-size: 12px; }
+.donnees-ok { color: var(--ok); font-size: 12px; font-weight: 600; }
+.ct-boutons { display: flex; gap: 6px; margin-top: auto; }
+.sans-donnees-tableaux { margin-top: 16px; }
+.sans-donnees-tableaux > summary { cursor: pointer; color: var(--doux); margin-bottom: 12px; }
+@media (max-width: 899px) { .cartes-tableaux, .cartes-proposees { grid-template-columns: 1fr; } .menu-action-boite { right: auto; left: 0; } }
+@media (max-width: 899px) { .corps-tableau table[data-sans-cartes] td, .corps-tableau table[data-sans-cartes] th { white-space: nowrap; } }
+.uplot .u-legend tr.legende-plus { background: none; cursor: default; }
+.uplot .u-legend tr.legende-plus button.lien { font-size: 12.5px; }

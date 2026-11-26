@@ -68,8 +68,23 @@
       var vides = Array.prototype.filter.call(pan.children, function (c) { return c.classList.contains("panneau-vide"); });
       var ligne = pan.querySelector(".sans-donnees");
       if (!vides.length) { if (ligne) { ligne.remove(); } return; }
-      if (!ligne) { ligne = document.createElement("p"); ligne.className = "sans-donnees"; pan.appendChild(ligne); }
-      ligne.textContent = "Pas de données sur la période : " + vides.map(function (c) {
+      if (!ligne) {
+        ligne = document.createElement("p"); ligne.className = "sans-donnees";
+        ligne.appendChild(document.createElement("span"));
+        // « Afficher » (maquette du 26/11) : montre les graphiques vides.
+        var bouton = document.createElement("button");
+        bouton.type = "button"; bouton.className = "lien";
+        bouton.addEventListener("click", function () {
+          var zone = pan.closest("[data-regrouper-vides]");
+          var montre = zone.classList.toggle("montrer-vides");
+          zone.querySelectorAll(".sans-donnees button").forEach(function (b) { b.textContent = montre ? "Masquer" : "Afficher"; });
+          window.dispatchEvent(new Event("resize"));
+        });
+        bouton.textContent = pan.closest("[data-regrouper-vides]").classList.contains("montrer-vides") ? "Masquer" : "Afficher";
+        ligne.appendChild(bouton);
+        pan.appendChild(ligne);
+      }
+      ligne.firstChild.textContent = "Pas de données sur la période : " + vides.map(function (c) {
         var h = c.querySelector("h2, h3");
         return h ? h.textContent.trim() : "";
       }).filter(Boolean).join(", ") + ".";
@@ -408,7 +423,9 @@
         var hauteur = el.closest(".plein-ecran") ? Math.max(window.innerHeight - 260, 260) : el.closest("[data-regrouper-vides]") ? 200 : 220;
         var opts = {
           width: Math.max(el.clientWidth, 200), height: hauteur, series: series,
-          legend: { show: d.series.length <= 12, live: true },
+          // Page d'un tableau : légende toujours là, courte (5 premières +
+          // « N autres », maquette du 26/11) ; ailleurs, 12 courbes au plus.
+          legend: { show: d.series.length <= 12 || !!el.closest("[data-valeur-moyenne]"), live: true },
           bands: bandes,
           cursor: { points: { show: false }, sync: { key: "mirador" }, drag: { x: true, y: false } },
           scales: { x: { time: true }, y: { range: function (u, mn, mx) {
@@ -461,6 +478,7 @@
         el.textContent = "";
         el.u = new uPlot(opts, donnees, el);
         if (dernier >= 0) { el.u.setLegend({ idx: dernier }, false); }
+        legendeCourte(el, d, dernier);
         if (!el.ecouteZoom) {
           el.ecouteZoom = true;
           el.addEventListener("dblclick", function () { dezoomerTout(); });
@@ -472,6 +490,7 @@
           el.parentNode.insertBefore(el.survol, el.nextSibling);
         }
         majIndice(el, seuil !== null, !!avecAn);
+        valeurMoyenne(el, d);
         filtrer(el, d.series.length);
         outils(el, d);
         // Zoom donné par l'adresse (lien partagé) : appliqué au premier dessin.
@@ -488,6 +507,54 @@
       })
       .catch(function () { el.textContent = "données indisponibles"; })
       .finally(function () { el.enCours = false; });
+  }
+
+  // Légende courte (page d'un tableau, maquette du 26/11) : au-delà de 5
+  // courbes, les 5 à la valeur la plus haute (dernier point), puis
+  // « + N autres » qui déplie le reste. Le choix reste ouvert entre deux
+  // rechargements de la courbe.
+  var LEGENDE_COURTE = 5;
+  function legendeCourte(el, d, dernier) {
+    if (!el.closest("[data-valeur-moyenne]") || !el.u || d.series.length <= LEGENDE_COURTE + 1) { return; }
+    var corps = el.querySelector(".u-legend tbody") || el.querySelector(".u-legend");
+    if (!corps) { return; }
+    var lignes = Array.prototype.slice.call(corps.querySelectorAll("tr.u-series"));
+    // lignes[0] : l'heure ; lignes[1..] : les courbes, dans l'ordre de d.series.
+    var courbes = d.series.map(function (s, i) {
+      var v = dernier >= 0 ? s.v[dernier] : null;
+      return { tr: lignes[i + 1], v: v === null || v === undefined ? -Infinity : v };
+    }).filter(function (c) { return c.tr; });
+    courbes.sort(function (a, b) { return b.v - a.v; });
+    courbes.forEach(function (c) { corps.appendChild(c.tr); });
+    var cachees = courbes.slice(LEGENDE_COURTE);
+    var plus = document.createElement("tr");
+    plus.className = "u-series legende-plus";
+    var td = document.createElement("td");
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "lien";
+    td.appendChild(b); plus.appendChild(td); corps.appendChild(plus);
+    function appliquer() {
+      cachees.forEach(function (c) { c.tr.hidden = !el.legendeOuverte; });
+      b.textContent = el.legendeOuverte ? "réduire" : "+ " + cachees.length + " autres";
+    }
+    b.addEventListener("click", function (ev) { ev.stopPropagation(); el.legendeOuverte = !el.legendeOuverte; appliquer(); });
+    appliquer();
+  }
+
+  // Valeur moyenne de la période en tête du graphique (page d'un tableau,
+  // maquette du 26/11) : moyenne de tous les points de toutes les courbes.
+  function valeurMoyenne(el, d) {
+    if (!el.closest("[data-valeur-moyenne]")) { return; }
+    var carte = el.closest(".carte"), titre = carte && carte.querySelector(":scope > h2, :scope > .kpi-tete");
+    if (!titre) { return; }
+    var somme = 0, nb = 0;
+    d.series.forEach(function (s) { s.v.forEach(function (v) { if (v !== null && isFinite(v)) { somme += v; nb++; } }); });
+    var span = titre.querySelector(".valeur-moyenne");
+    if (!nb) { if (span) { span.remove(); } return; }
+    if (!span) { span = document.createElement("span"); span.className = "valeur-moyenne"; titre.appendChild(span); }
+    span.textContent = formater(somme / nb, d.unite);
+    var p = document.createElement("small"); p.textContent = "moyenne";
+    span.appendChild(p);
   }
 
   // Filtre des séries : à partir de 6 courbes (conteneurs, machines…), un

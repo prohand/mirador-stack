@@ -12,8 +12,8 @@
 | 5 bis. Idées de Beszel : surveillance par machine, vue d'ensemble | **Validée le 12/11/2026** (SPEC § 19) | `claude/laughing-sagan-7w7xrm` |
 | 5 ter. Codes de secours de la 2FA et passkeys | **Validée le 12/11/2026** (SPEC § 20) | `claude/laughing-sagan-7w7xrm` |
 | 5 quater. Élément par élément, signal « à valider », Réglages rangés | **Validée le 12/11/2026** (SPEC § 21, retours corrigés : § 22) | `claude/affectionate-albattani-izl0lb` |
-| 6. Équipements sans agent + `mirador-collector` | **en cours** : parties 1 à 6 faites, partie 7 (bascule sur le LAN) à faire avec toi | `claude/intelligent-cori-yh3n7c` |
-| 7. Bascule | non commencée | — |
+| 6. Équipements sans agent + `mirador-collector` | **Validée le 26/11/2026** : collecteur sur le LAN, agents sur tout le parc, mesures tenues | `claude/intelligent-cori-yh3n7c` |
+| 7. Bascule | **Validée le 26/11/2026** : ancienne stack (Grafana, VictoriaMetrics, VictoriaLogs, vmalert, Alertmanager, Alloy) supprimée, mirador seul en service | `claude/intelligent-cori-yh3n7c` |
 
 ## Étape 1 — fait
 
@@ -1907,8 +1907,16 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
 - Mesures : rien de mesurable (mêmes requêtes).
 - 0.6.23 installée le 25/11 au soir : bandeau, certificat, page machine OK ;
   « Voir » du disque ouvrait l'onglet Activité (ancre `r-disques`),
-  corrigé (vu dans le navigateur sur le serveur de démonstration), à livrer
-  en 0.6.24.
+  corrigé (vu dans le navigateur sur le serveur de démonstration).
+- 0.6.24 installée et validée le 25/11 au soir (« Voir » du disque OK).
+- dns2 (26/11, minuit) : mise à jour d'agent en échec « HTTP 403 ». Cause :
+  jeton limité à son adresse IPv6 ; une minute en IPv4 (185.x) refusée par
+  mirador (« adresse non autorisée », pas nginx). Les deux adresses ajoutées
+  par l'utilisateur. À vérifier sur les autres VPS en double pile (mail,
+  proxy, dns1, sup) : fait, tout est OK.
+- Bouton « Autoriser cette adresse » sur la page machine (SPEC § 131),
+  `TestAutoriserAdresseRefusee`, `TestAdresseAutorisee` ; à livrer avec la
+  prochaine version (après la mesure de 24 h).
 - sup (26/11) : journal local 2,9 Go → 461 Mo (limite 500 Mo) ; le bruit
   venait des paquets bloqués journalisés par le pare-feu (voisinage IPv6
   bloqué, règles ICMPv6 ajoutées par l'utilisateur). Playbook
@@ -1916,6 +1924,46 @@ compteur à zéro (relevé à refaire 24 h après la dernière mise à jour). M�
   essayé ici avec de faux journalctl / systemctl (2 passages et --check).
 - Playbook passé sur le parc le 26/11 (26 machines, aucun échec) : environ
   70 Go de journaux locaux avant, 12 Go après, **≈ 58 Go libérés**.
+
+## Courbes longues jusqu'à maintenant, prévision disque (SPEC § 132, 26/11)
+
+- 7 j / 30 j : agrégats + base brute pour les dernières 24 h (avant : courbes
+  arrêtées 24 h plus tôt, vu sur le tableau OPNsense).
+- « Plein dans N j » : perte de place sur 7 j et sur le dernier jour.
+- Tests : `TestLectureLongueJusquaMaintenant` (échoue sans la correction :
+  dernier point il y a 24 h 55), `TestPrevisionDisqueLibereHier`.
+- Tableaux : maquettes validées le 26/11, codées (SPEC § 133) ;
+  `TestResumeTableau`, `TestPageTableauPresentation`, captures sur la
+  démonstration (ordinateur et téléphone).
+- À livrer dans la prochaine version (après la mesure de 24 h).
+
+## Mesure du serveur sur le parc complet (VPS, 26/11)
+
+Serveur 0.6.24, 26 agents + collecteur + fw (Telegraf), relevé `docker stats`
+chaque minute du 26/11 00:06 au 26/11 16:41 (978 points, **16 h 35** au lieu
+de 24 h : nuit complète comprise, arrêtée pour installer la 0.6.25 ; aucun
+redémarrage, aucun OOM).
+
+| Mesure | Résultat | Objectif |
+|---|---|---|
+| RAM (`docker stats`, cache de fichiers actif compris) | **213 Mio en moyenne, 252 Mio au plus** (145 Mio au départ) | < 256 Mio ✅ **de justesse** (limite du conteneur 300 Mio) |
+| CPU | **4,86 % d'un cœur en moyenne**, 9,9 % au plus | < 5 % ✅ **de justesse** |
+| Écritures disque | 679 Mo en 16 h 35 (~41 Mo/h, sauvegarde de la nuit comprise) | ✅ |
+| Volume des données | 774 Mo (métriques, logs, archives de sauvegarde, versions) | plafonds : métriques 5 Go + 1 Go, logs 4 Go |
+| VPS | 2,3 Go disponibles sur 3,8 Go | ✅ |
+
+Les deux objectifs sont tenus mais sans marge, alors que le parc a été
+multiplié par 13 depuis la mesure du 14/11 (1,27 % CPU, 113 Mio).
+Pistes si ça dépasse :
+- RAM : `docker stats` compte le cache des fichiers de la base de mesures
+  que le noyau reprend en cas de besoin ; mesurer la part réelle
+  (`memory.stat` : anon contre file). Si c'est le tas Go : `GOMEMLIMIT` à
+  180 Mio (le ramasse-miettes rend la mémoire plus tôt), moins de requêtes
+  en même temps pour les pages lourdes.
+- CPU : profil de 30 s pour savoir qui consomme (logs, règles, ingestion) ;
+  ensuite, au choix : règles du modèle Linux évaluées toutes les minutes au
+  lieu de 15 s, journaux des agents filtrés à la source (niveau info et
+  plus), regroupement des envois de logs.
 
 ## Prochaine étape
 
@@ -1937,10 +1985,9 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 - Alertes Telegram en mode actif depuis le 13/11 ; signal de vie OK.
 
 **Reste**
-1. Mesure du serveur sur 24 h : lancée le 25/11 à 22:20 sur le VPS (unité
-   `mirador-mesure-24h`, `docs/installation-serveur.md` § 5) ; résumé le
-   26/11 au soir, à reporter ici.
-2. Clore les étapes 6 et 7 (validation de l'utilisateur).
+1. Mesure du serveur : faite le 26/11 (16 h 35, voir plus haut), objectifs
+   tenus de justesse.
+2. Étapes 6 et 7 : **validées le 26/11** (tableau « Où on en est »).
 3. SPEC : 74 sections validées le 25/11 ; 8 « en service, pas encore
    essayé » (§ 39 site injoignable, § 49 disponibilité, § 52 motifs de
    logs, § 54 incidents, § 81 maintenance récurrente et webhook, § 82

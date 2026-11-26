@@ -1,40 +1,49 @@
-{{define "contenu"}}
-<h1>Tableaux</h1>
-{{if not .D.Lignes}}<p class="vide">Aucun tableau installé.{{if .Admin}} Installer un tableau proposé (plus bas) ou en créer un.{{end}}</p>{{end}}
-<div class="grille">
-{{range .D.Lignes}}<a class="carte lien-carte" href="/tableaux/{{.T.Nom}}">{{template "titre-icone" (titreIcone .T.Titre .T.Icone .T.Teinte)}}<small>{{len .T.Rangees}} {{accord (len .T.Rangees) "rangée(s)"}}, {{.Nb}} {{accord .Nb "panneau(x)"}}{{if egal .Origine "modifie"}} · modifié{{else if egal .Origine "perso"}} · créé ici{{end}}</small></a>{{end}}
-</div>
-{{if .Admin}}
-{{if .D.Lignes}}<section class="carte"><h2>Gérer les tableaux</h2>
-<div class="defile"><table data-cartes><thead><tr><th>Tableau</th><th>Origine</th><th>Panneaux</th><th></th></tr></thead><tbody>
-{{range .D.Lignes}}<tr><td><a href="/tableaux/{{.T.Nom}}">{{.T.Titre}}</a></td>
-<td>{{if egal .Origine "fourni"}}Fourni avec mirador{{else if egal .Origine "modifie"}}<span class="pastille attention">Fourni, modifié</span>{{else}}Créé ici{{end}}</td>
-<td class="nombre">{{.Nb}}</td>
-<td><div class="ligne">
-<a class="bouton secondaire" href="/tableaux/{{.T.Nom}}/modifier">Modifier</a>
-<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="dupliquer" class="secondaire">Dupliquer</button></form>
-<a class="bouton secondaire" href="/tableaux/{{.T.Nom}}/export.json">Exporter</a>
-{{if egal .Origine "modifie"}}<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="retablir" class="secondaire" data-confirmer="Remettre « {{.T.Titre}} » tel que fourni ? Vos modifications seront perdues.">Rétablir l'original</button></form>{{end}}
-<a class="bouton danger" href="/tableaux/{{.T.Nom}}/supprimer">Supprimer</a>
-</div></td></tr>{{end}}
-</tbody></table></div></section>{{end}}
-<div class="grille">
-<section class="carte"><h2>Nouveau tableau</h2>
-<form method="post" action="/tableaux" class="pile">{{template "csrf" .CSRF}}
-<label>Titre <input name="titre" required maxlength="80" placeholder="Ex. Serveurs web"></label>
-<div><button name="action" value="creer">Créer</button></div></form></section>
-<section class="carte"><h2>Importer</h2>
+{{define "contenu"}}{{$d := .D}}
+{{/* Liste des tableaux en cartes (maquette validée le 26/11). */}}
+<div class="page-tableaux">
+<div class="titre-page"><div><h1>Tableaux</h1><p>Vos graphiques rangés par sujet. Chaque tableau se filtre par site, machine… et par période.</p></div>
+{{if .Admin}}<div class="actions">
+<details class="menu-action"><summary class="bouton secondaire">Importer</summary><div class="menu-action-boite">
 <form method="post" action="/tableaux" enctype="multipart/form-data" class="pile">{{template "csrf" .CSRF}}
 <label>Fichier JSON <input type="file" name="fichier" accept=".json,application/json" required></label>
 <small class="aide">Export Grafana ou mirador ; toujours ajouté comme nouveau tableau.</small>
-<div><button>Importer</button></div></form></section>
+<div><button>Importer</button></div></form></div></details>
+<details class="menu-action"><summary class="bouton">+ Nouveau tableau</summary><div class="menu-action-boite">
+<form method="post" action="/tableaux" class="pile">{{template "csrf" .CSRF}}
+<label>Titre <input name="titre" required maxlength="80" placeholder="Ex. Serveurs web"></label>
+<div><button name="action" value="creer">Créer</button></div></form></div></details>
+</div>{{end}}</div>
+
+<h2 class="section-tableaux">Vos tableaux <small>{{len $d.Lignes}}</small></h2>
+{{if $d.Lignes}}<div class="cartes-tableaux" data-favoris-tableaux>
+{{range $d.Lignes}}<article class="carte-tableau" data-tableau="{{.T.Nom}}">
+<a class="carte-tableau-lien" href="/tableaux/{{.T.Nom}}">
+<div class="ct-tete"><span class="puce {{if .T.Teinte}}{{.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{if .T.Icone}}{{.T.Icone}}{{else}}tableaux{{end}}"></use></svg></span>
+<div><b>{{.T.Titre}}</b><small>{{with .R.Couvre}}{{.}} · {{end}}{{.Nb}} {{accord .Nb "panneau(x)"}}</small></div></div>
+<div class="ct-apercu">{{if .R.Apercu}}<svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{.R.Apercu}}"/></svg>{{else}}<small>pas de courbe sur 24 h</small>{{end}}</div>
+</a>
+<div class="ct-pied">{{if .R.Etat}}<span class="pastille {{.R.ClasseEtat}}">{{.R.Etat}}</span>{{end}}<span class="doux">{{if egal .Origine "modifie"}}fourni, modifié{{else if egal .Origine "perso"}}créé ici{{else}}fourni avec mirador{{end}}</span>
+<button type="button" class="etoile-tableau" data-etoile title="Favori : en tête de la liste (sur ce navigateur)" aria-pressed="false" aria-label="Favori">★</button>
+{{if $.Admin}}<details class="menu-action menu-carte"><summary aria-label="Actions sur {{.T.Titre}}">⋯</summary><div class="menu-action-boite liste-actions">
+<a href="/tableaux/{{.T.Nom}}/modifier">Modifier</a>
+<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="dupliquer" class="lien">Dupliquer</button></form>
+<a href="/tableaux/{{.T.Nom}}/export.json">Exporter (JSON)</a>
+{{if egal .Origine "modifie"}}<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="retablir" class="lien" data-confirmer="Remettre « {{.T.Titre}} » tel que fourni ? Vos modifications seront perdues.">Rétablir l'original</button></form>{{end}}
+<a href="/tableaux/{{.T.Nom}}/supprimer" class="danger">Supprimer</a>
+</div></details>{{end}}</div>
+</article>{{end}}
+</div>{{else}}<p class="vide">Aucun tableau installé.{{if .Admin}} Installer un tableau proposé ci-dessous, ou en créer un.{{end}}</p>{{end}}
+
+{{if or $d.Catalogue $d.SansDonnees}}<h2 class="section-tableaux">Proposés par mirador <small>d'après les données reçues</small></h2>
+{{if $d.Catalogue}}<div class="cartes-proposees">{{range $d.Catalogue}}{{template "carte-proposee" (dict "L" . "Admin" $.Admin "CSRF" $.CSRF)}}{{end}}</div>
+{{else}}<p class="vide">Rien de neuf : les tableaux proposés qui correspondent à vos données sont déjà installés.</p>{{end}}
+{{with $d.SansDonnees}}<details class="sans-donnees-tableaux"><summary>Sans données chez vous ({{len .}})</summary>
+<div class="cartes-proposees">{{range .}}{{template "carte-proposee" (dict "L" . "Admin" $.Admin "CSRF" $.CSRF)}}{{end}}</div></details>{{end}}{{end}}
 </div>
-{{if .D.Catalogue}}<section class="carte"><h2>Tableaux proposés par mirador</h2>
-<p class="aide"><small class="aide">« Aperçu » avec vos données ; « Installer » pour les ajouter.</small></p>
-<div class="defile"><table data-cartes><thead><tr><th>Tableau</th><th>Panneaux</th><th></th></tr></thead><tbody>
-{{range .D.Catalogue}}<tr><td>{{.T.Titre}}{{if .T.Description}}<br><small>{{.T.Description}}</small>{{end}}</td><td class="nombre">{{.Nb}}</td>
-<td><div class="ligne"><a class="bouton secondaire" href="/tableaux/{{.T.Nom}}">Aperçu</a>
-<form method="post" action="/tableaux">{{template "csrf" $.CSRF}}<input type="hidden" name="nom" value="{{.T.Nom}}"><button name="action" value="installer">Installer</button></form></div></td></tr>{{end}}
-</tbody></table></div></section>{{end}}
 {{end}}
-{{end}}
+{{define "carte-proposee"}}{{$l := .L}}<div class="carte-proposee">
+<div class="ct-tete"><span class="puce {{if $l.T.Teinte}}{{$l.T.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{if $l.T.Icone}}{{$l.T.Icone}}{{else}}tableaux{{end}}"></use></svg></span><b>{{$l.T.Titre}}</b></div>
+{{if $l.T.Description}}<p>{{$l.T.Description}}</p>{{end}}
+{{if $l.R.AvecDonnees}}<span class="donnees-ok">● {{if $l.R.Couvre}}{{$l.R.Couvre}} avec des données{{else}}données reçues{{end}}</span>{{else}}<span class="doux">aucune donnée reçue pour l'instant</span>{{end}}
+<div class="ct-boutons"><a class="bouton secondaire petit" href="/tableaux/{{$l.T.Nom}}">Aperçu</a>{{if .Admin}}<form method="post" action="/tableaux" class="enligne">{{template "csrf" .CSRF}}<input type="hidden" name="nom" value="{{$l.T.Nom}}"><button name="action" value="installer" class="petit">Installer</button></form>{{end}}</div>
+</div>{{end}}

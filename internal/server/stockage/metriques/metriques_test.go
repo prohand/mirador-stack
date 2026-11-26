@@ -259,3 +259,49 @@ func TestEstCompteur(t *testing.T) {
 		}
 	}
 }
+
+// Retour du 26/11 : une lecture sur 7 jours passe par les agrégats, qui ne
+// couvrent que jusqu'à « maintenant − 24 h » ; la fin vient de la base brute.
+func TestLectureLongueJusquaMaintenant(t *testing.T) {
+	h := nouvelleHorloge(t0)
+	m := ouvrir(t, t.TempDir(), h)
+	defer m.Fermer()
+	// 9 jours d'une jauge, un point toutes les 10 min, écrits au fil de l'eau
+	// (l'agrégation suit l'horloge).
+	for i := 0; i < 9*24*6; i++ {
+		d := time.Duration(i) * 10 * time.Minute
+		h.regler(t0.Add(d))
+		if err := m.Ecrire(ctx, []stockage.Serie{serie("cpu_usage_user", "fw", pt(d, 5))}); err != nil {
+			t.Fatal(err)
+		}
+		if i%6 == 0 {
+			if err := m.Agreger(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	fin := h.maintenant()
+	q, agrege, err := m.Interroger(fin.Add(-7*24*time.Hour-time.Minute).UnixMilli(), fin.UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	ss, err := lireTout(ctx, q, toutLir, nom("cpu_usage_user"))
+	if err != nil || len(ss) != 1 || !agrege {
+		t.Fatalf("%+v %v agrégé=%v", ss, err, agrege)
+	}
+	pts := ss[0].Points
+	dernier := time.UnixMilli(pts[len(pts)-1].T)
+	if fin.Sub(dernier) > 15*time.Minute {
+		t.Errorf("dernier point il y a %s (attendu : moins de 15 min)", fin.Sub(dernier))
+	}
+	for i := 1; i < len(pts); i++ {
+		if pts[i].T <= pts[i-1].T {
+			t.Fatalf("points en désordre ou en double à %d", i)
+		}
+	}
+	// Une partie agrégée (un point par 5 min au plus) et une partie brute.
+	if len(pts) < 900 || len(pts) > 7*24*12+24*6+10 {
+		t.Errorf("%d points", len(pts))
+	}
+}

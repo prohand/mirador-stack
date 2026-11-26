@@ -229,3 +229,28 @@ func TestPrevisionDeuxBases(t *testing.T) {
 		t.Errorf("plein dans %v j, 17 attendus (%v)", j, p)
 	}
 }
+
+// Retour du 26/11 (sup) : place perdue dans la semaine, mais libérée le
+// dernier jour : pas de prévision.
+func TestPrevisionDisqueLibereHier(t *testing.T) {
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	m := time.Now()
+	app := db.Appender(context.Background())
+	for ts := m.Add(-7 * 24 * time.Hour); !ts.After(m); ts = ts.Add(5 * time.Minute) {
+		age := m.Sub(ts).Hours()
+		libre := 30e9 - 2e9*(7*24-age)/24 // 2 Go perdus par jour…
+		if age < 20 {
+			libre = 20e9 + 2.4e9 + 0.1e9*(20-age)/24 // … puis 2,4 Go libérés, et ça remonte
+		}
+		_, _ = app.Append(0, labels.FromStrings("__name__", "node_filesystem_avail_bytes", "instance", "sup", "mountpoint", "/", "fstype", "ext4"), ts.UnixMilli(), libre)
+	}
+	_ = app.Commit()
+	c := &Console{lecteur: alertes.NouveauLecteur(db, nil), cache: cacheRequetes{tout: map[string]entreeRequete{}}}
+	if p := c.previsionsDisques(context.Background(), `instance="sup"`, m); len(p) != 0 {
+		t.Errorf("prévision malgré la place libérée : %v", p)
+	}
+}

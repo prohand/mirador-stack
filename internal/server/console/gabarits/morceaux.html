@@ -26,7 +26,7 @@
 {{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance">{{.AValider}} à valider</a>{{end}}</div>
 </div>{{end}}
 {{define "vide"}}<p class="vide">{{.}}</p>{{end}}
-{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}{{if and (egal .P.Type "barres") (not .Barres) (not .Erreur)}} panneau-vide{{end}}">
+{{define "panneau"}}<section class="carte panneau-{{.P.Type}}{{if .P.Largeur}} l{{.P.Largeur}}{{end}}{{if .P.Icone}} avec-icone{{end}}{{if and (egal .P.Type "barres") (not .Barres) (not .Erreur)}} panneau-vide{{end}}"{{if and (egal .P.Type "chiffre") .P.Description}} title="{{.P.Description}}"{{end}}>
 {{if .P.Icone}}<div class="kpi-tete"><span class="puce {{if .P.Teinte}}{{.P.Teinte}}{{else}}bleu{{end}}"><svg class="icone"><use href="#i-{{.P.Icone}}"></use></svg></span><h2>{{.P.Titre}}</h2></div>{{else}}<h2>{{.P.Titre}}</h2>{{end}}
 {{if .P.Description}}<p><small>{{.P.Description}}</small></p>{{end}}
 {{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>
@@ -34,7 +34,7 @@
 {{else if egal .P.Type "chiffre"}}{{if .Chiffres}}<div class="chiffres-panneau">{{range .Chiffres}}<div class="chiffre {{.Couleur}}"><b>{{.Texte}}</b>{{if .Legende}}<span>{{.Legende}}</span>{{end}}</div>{{end}}</div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{else if egal .P.Type "barres"}}{{if .Barres}}<table class="barres">{{range .Barres}}<tr><td>{{.Nom}}</td><td class="nombre {{.Couleur}}">{{.Texte}}</td><td><meter min="0" max="{{.Max}}" value="{{.Valeur}}"></meter>{{if .Prevision}}<span class="plein-dans{{if .Urgent}} plein-urgent{{end}}" title="D'après la pente des 7 derniers jours">{{.Prevision}}</span>{{end}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{else if egal .P.Type "tableau"}}{{if .Lignes}}<div class="defile"><table><thead><tr>{{range .Entetes}}<th>{{.}}</th>{{end}}</tr></thead>
-<tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
+<tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else if .Barre}}<span class="mini-barre {{.Couleur}}"><i><u class="largeur-{{printf "%.0f" .Pct}}"></u></i>{{.Texte}}</span>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{end}}
 </section>{{end}}
 {{define "rangees"}}{{range .}}<details class="rangee" id="{{ancre .Titre}}" {{if not .Enroulee}}open{{end}}><summary><h2 class="titre-rangee">{{if .Titre}}{{.Titre}}{{else}}Général{{end}}</h2></summary>
