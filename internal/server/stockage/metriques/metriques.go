@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"mirador-stack/internal/server/charge"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -392,9 +393,11 @@ func (m *Moteur) boucleAgregation() {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
+		debut := time.Now()
 		if err := m.Agreger(context.Background()); err != nil {
 			m.opt.Journal.Error("agrégation", "erreur", err)
 		}
+		charge.Noter(charge.Fond, debut)
 		select {
 		case <-m.arret:
 			return

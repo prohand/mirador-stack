@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mirador-stack/internal/server/charge"
 	"os"
 	"strconv"
 	"strings"
@@ -68,6 +69,7 @@ func (i *interne) boucle(ctx context.Context) {
 
 // tour écrit les métriques internes de l'instant t.
 func (i *interne) tour(ctx context.Context, t time.Time) {
+	defer charge.Noter(charge.Fond, time.Now())
 	s := i.s
 	ms := t.UnixMilli()
 	var series []stockage.Serie
@@ -287,7 +289,20 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 	}
 
 	// Processus et moteur d'alertes.
-	ajout("mirador_processus_rss_octets", float64(rss()))
+	rssTotal, anon := memoireProcessus()
+	ajout("mirador_processus_rss_octets", float64(rssTotal))
+	// Mémoire propre du programme (retour du 26/11 : la RSS compte aussi le
+	// cache des fichiers de la base de mesures, que le noyau reprend).
+	ajout("mirador_processus_anon_octets", float64(anon))
+	// Temps de calcul (charge) : CPU réel, ramasse-miettes, temps par partie.
+	ajout("mirador_serveur_cpu_secondes_total", charge.CPUProcessus().Seconds())
+	ajout("mirador_serveur_cpu_gc_secondes_total", charge.CPUGC().Seconds())
+	for p, nom := range charge.Noms {
+		ajout("mirador_serveur_temps_secondes_total", charge.Cumul(charge.Partie(p)).Seconds(), "partie", nom)
+	}
+	if s.alertes != nil {
+		ajout("mirador_serveur_temps_secondes_total", s.alertes.DureeCumulee().Seconds(), "partie", "alertes")
+	}
 	ajout("mirador_points_recus_total", float64(s.met.Points.Load()))
 	ajout("mirador_points_rejetes_total", float64(s.met.Rejetes.Load()))
 	if s.alertes != nil {
@@ -368,17 +383,29 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 
 // rss : mémoire résidente du processus (octets), lue dans /proc/self/status.
 func rss() int64 {
+	r, _ := memoireProcessus()
+	return r
+}
+
+// memoireProcessus : RSS totale et part anonyme (mémoire propre, sans le
+// cache des fichiers projetés), en octets.
+func memoireProcessus() (total, anon int64) {
 	b, err := os.ReadFile("/proc/self/status")
 	if err != nil {
-		return 0
+		return 0, 0
+	}
+	lire := func(v string) int64 {
+		n, _ := strconv.ParseInt(strings.TrimSuffix(strings.TrimSpace(v), " kB"), 10, 64)
+		return n * 1024
 	}
 	for _, l := range strings.Split(string(b), "\n") {
 		if v, ok := strings.CutPrefix(l, "VmRSS:"); ok {
-			n, _ := strconv.ParseInt(strings.TrimSuffix(strings.TrimSpace(v), " kB"), 10, 64)
-			return n * 1024
+			total = lire(v)
+		} else if v, ok := strings.CutPrefix(l, "RssAnon:"); ok {
+			anon = lire(v)
 		}
 	}
-	return 0
+	return total, anon
 }
 
 // comparerVmalert : mode ombre, écarts avec vmalert (SPEC § 17.8).
