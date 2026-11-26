@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package syslog
+
+import (
+	"net/netip"
+	"strings"
+	"testing"
+	"time"
+
+	"mirador-stack/internal/protocole"
+)
+
+func TestLireFilterlog(t *testing.T) {
+	cas := []struct {
+		nom, ligne string
+		ok         bool
+		ip, proto  string
+		port       int
+		itf        string
+	}{
+		{"IPv4 TCP bloqué entrant", "5,,,1000000103,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,203.0.113.9,192.168.1.1,46406,22,0,S,1563219582,,29200,,mss;sackOK;TS;nop;wscale",
+			false, "", "", 0, ""}, // 203.0.113.0/24 : documentation, pas publique
+		{"IPv4 TCP public", "5,,,1000000103,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1563219582,,29200,,",
+			true, "45.143.203.10", "tcp", 23, "igb1"},
+		{"IPv6 UDP public", "7,,,02f4bab031b57d1e30553ce08e0ec131,igb0,match,block,in,6,0x00,0x00000,255,udp,17,72,2a01:e0a::1,2a01:e0a::5,546,547,72",
+			true, "2a01:e0a::1", "udp", 547, "igb0"},
+		{"ICMP sans port", "9,,,abc,igb0,match,block,in,4,0x0,,50,1,0,none,1,icmp,84,89.248.165.73,192.168.1.1,request,1,2",
+			true, "89.248.165.73", "icmp", 0, "igb0"},
+		{"laissé passer", "5,,,x,igb1,match,pass,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
+		{"sortant", "5,,,x,igb1,match,block,out,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
+		{"source du LAN", "5,,,x,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,192.168.10.4,192.168.1.1,46406,23,0,S,1,,2,,", false, "", "", 0, ""},
+		{"trop court", "5,,,x,igb1,match,block,in,4", false, "", "", 0, ""},
+		{"interface bizarre", "5,,,x,ig b1;rm,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,", true, "45.143.203.10", "tcp", 23, ""},
+	}
+	for _, c := range cas {
+		f, ok := LireFilterlog(c.ligne)
+		if ok != c.ok {
+			t.Errorf("%s : ok=%v", c.nom, ok)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if f.IP.String() != c.ip || f.Proto != c.proto || f.Port != c.port || f.Interface != c.itf || f.N != 1 {
+			t.Errorf("%s : %+v", c.nom, f)
+		}
+	}
+}
+
+func TestCompteurFluxEtRelecture(t *testing.T) {
+	var c CompteurFlux
+	f, _ := LireFilterlog("81,,,x,igb0,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1,,2,,")
+	for range 3 {
+		c.Ajouter("fw", f)
+	}
+	f2 := f
+	f2.Port = 22
+	c.Ajouter("fw", f2)
+	lignes := c.Vider(time.Unix(100, 0))
+	if len(lignes) != 2 {
+		t.Fatalf("lignes : %+v", lignes)
+	}
+	vus := map[int]int{}
+	for _, l := range lignes {
+		if l.Hote != "fw" {
+			t.Errorf("hôte : %q", l.Hote)
+		}
+		g, ok := protocole.LireFluxBloque(l.Texte, true)
+		if !ok || g.IP != netip.MustParseAddr("45.143.203.10") || g.Regle != "règle 81" || g.Interface != "igb0" || g.Proto != "tcp" {
+			t.Errorf("relecture de %q : %+v %v", l.Texte, g, ok)
+		}
+		vus[g.Port] = g.N
+	}
+	if vus[23] != 3 || vus[22] != 1 {
+		t.Errorf("comptes : %v", vus)
+	}
+	if len(c.Vider(time.Now())) != 0 {
+		t.Error("fenêtre pas remise à zéro")
+	}
+	// Mémoire bornée : au-delà de MaxClesFlux clés, compté à part.
+	for i := range MaxClesFlux + 10 {
+		g := f
+		g.Port = i%65535 + 1
+		g.IP = netip.AddrFrom4([4]byte{45, byte(i >> 16), byte(i >> 8), byte(i)})
+		c.Ajouter("fw", g)
+	}
+	if total, perdus := c.Totaux(); perdus != 10 || total != uint64(4+MaxClesFlux+10) {
+		t.Errorf("totaux : %d %d", total, perdus)
+	}
+	if n := len(c.Vider(time.Now())); n != MaxClesFlux {
+		t.Errorf("clés : %d", n)
+	}
+	if !strings.Contains(protocole.LigneFlux(f), "N=1") {
+		t.Error("N absent")
+	}
+}
+
+// Coût d'une ligne filterlog (SPEC § 135) : lecture et comptage.
+func BenchmarkFilterlog(b *testing.B) {
+	var c CompteurFlux
+	lignes := []string{
+		"5,,,1000000103,igb1,match,block,in,4,0x0,,64,0,0,DF,6,tcp,60,45.143.203.10,192.168.1.1,46406,23,0,S,1563219582,,29200,,",
+		"5,,,1000000103,igb1,match,pass,out,4,0x0,,64,0,0,DF,6,tcp,60,192.168.1.10,1.1.1.1,46406,443,0,S,1563219582,,29200,,",
+	}
+	b.ReportAllocs()
+	for i := range b.N {
+		if f, ok := LireFilterlog(lignes[i%2]); ok {
+			c.Ajouter("fw", f)
+		}
+	}
+}

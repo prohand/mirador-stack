@@ -14,6 +14,7 @@ import (
 	"mirador-stack/internal/agent/logs"
 	"mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/collecteur/syslog"
+	"mirador-stack/internal/protocole"
 )
 
 // Syslog TLS du collecteur (partie 4, SPEC § 23.14) : écoute (adresse
@@ -26,6 +27,9 @@ const (
 	tailleLotSyslog  = 512 << 10
 	tailleFileSyslog = 4 << 20
 	tailleCanal      = 1000 // 8 Mio au pire (messages de 8 Kio), quelques centaines de Ko en vrai
+	// fenetreFlux : comptages des blocages entrants envoyés toutes les 10 s
+	// (« en direct » sur la page Flux bloqués, SPEC § 135).
+	fenetreFlux = 10 * time.Second
 )
 
 // Syslog : état du syslog dans le collecteur.
@@ -36,6 +40,7 @@ type Syslog struct {
 	certs   syslog.Certificats
 	serveur *syslog.Serveur // nil : pas de certificat encore
 	canal   chan syslog.Ligne
+	flux    syslog.CompteurFlux
 	reessai time.Duration // attente avant de rouvrir une écoute en échec (0 : reessaiEcoute)
 	masque  *logs.Masqueur
 	lot     *logs.Lot
@@ -72,7 +77,7 @@ func NouveauSyslog(cfg config.Agent, token string, journal *slog.Logger) (*Syslo
 		return nil, err
 	}
 	s.serveur, err = syslog.Nouveau(syslog.Options{Ecoute: sc.Ecoute, Emetteurs: sc.Emetteurs, GarderFilterlog: sc.GarderFilterlog,
-		Debit: sc.Debit, Rafale: sc.Rafale, Certificat: s.certs.Obtenir, Journal: journal, Sortie: s.sortie})
+		Debit: sc.Debit, Rafale: sc.Rafale, Certificat: s.certs.Obtenir, Journal: journal, Sortie: s.sortie, Flux: &s.flux})
 	if err != nil {
 		return nil, err
 	}
@@ -147,8 +152,12 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 	}()
 	t := time.NewTicker(attenteLotSyslog)
 	defer t.Stop()
+	tf := time.NewTicker(fenetreFlux)
+	defer tf.Stop()
 	for {
 		select {
+		case <-tf.C:
+			s.envoyerFlux()
 		case l := <-s.canal:
 			s.lot.Ajouter(l.Heure, s.masque.Masquer(l.Texte), logs.Champs{{"host", l.Hote}, {"ident", l.App}, {"level", l.Niveau}})
 			if s.lot.Plein() {
@@ -168,8 +177,21 @@ func (s *Syslog) Tourner(ctx, ctxEnvoi context.Context) {
 				}
 				break
 			}
+			s.envoyerFlux()
 			s.vider()
 			return
+		}
+	}
+}
+
+// envoyerFlux : comptages des blocages entrants de la fenêtre écoulée, mis
+// dans le lot (lignes écrites par le collecteur lui-même : pas de masquage,
+// le serveur les compte sans les ranger dans les logs).
+func (s *Syslog) envoyerFlux() {
+	for _, l := range s.flux.Vider(time.Now()) {
+		s.lot.Ajouter(l.Heure, l.Texte, logs.Champs{{"host", l.Hote}, {"ident", protocole.IdentFlux}, {"level", "info"}})
+		if s.lot.Plein() {
+			s.vider()
 		}
 	}
 }
@@ -219,6 +241,9 @@ func (s *Syslog) Collecter(b *metrics.Batch) error {
 	for eq, n := range e.Lignes {
 		b.Add("mirador_collecteur_syslog_lignes_total", float64(n), metrics.L("equipement", eq))
 	}
+	total, perdus := s.flux.Totaux()
+	b.Add("mirador_collecteur_flux_bloques_total", float64(total))
+	b.Add("mirador_collecteur_flux_bloques_perdus_total", float64(perdus))
 	for _, motif := range syslog.Motifs {
 		b.Add("mirador_collecteur_syslog_refus_total", float64(e.Refus[motif]), metrics.L("motif", motif))
 	}

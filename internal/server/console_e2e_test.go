@@ -250,8 +250,17 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 		ligne("connexion refusée <script>alert(1)</script>", map[string]string{"job": "journal", "unit": "ssh.service", "level": "err"}),
 		ligne("même ligne", map[string]string{"job": "journal", "unit": "cron.service"}),
 		ligne("même ligne", map[string]string{"job": "journal", "unit": "cron.service"}),
-		ligne("[12345.6] INPUT-DROP: IN=eth0 OUT= MAC=00 SRC=203.0.113.9 DST=192.0.2.1 PROTO=TCP SPT=4444 DPT=22", map[string]string{"job": "journal"}),
 	}); err != nil {
+		t.Fatal(err)
+	}
+	// Ligne iptables passée par le branchement de l'ingestion (SPEC § 135) :
+	// comptée et gardée dans les logs.
+	garde := s.flux.Lignes(false, []stockage.Ligne{ligne("[12345.6] INPUT-DROP: IN=eth0 OUT= MAC=00 SRC=45.143.203.10 DST=192.0.2.1 PROTO=TCP SPT=4444 DPT=22",
+		map[string]string{"job": "journal"})})
+	if len(garde) != 1 {
+		t.Fatal("ligne iptables retirée des logs")
+	}
+	if err := s.jx.Ecrire(ctx, garde); err != nil {
 		t.Fatal(err)
 	}
 	code, corps, _ = n.faire(http.MethodGet, "/logs?host=vm-test&periode=1h", nil)
@@ -269,7 +278,8 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 	if _, corps, _ = n.faire(http.MethodGet, "/logs?mots=refus%C3%A9e&periode=1h", nil); !strings.Contains(corps, "connexion refus") {
 		t.Error("recherche par mot")
 	}
-	if _, corps, _ = n.faire(http.MethodGet, "/flux-bloques?periode=1h", nil); !strings.Contains(corps, "203.0.113.9") || !strings.Contains(corps, "INPUT-DROP:") {
+	if _, corps, _ = n.faire(http.MethodGet, "/flux-bloques?periode=1h", nil); !strings.Contains(corps, "45.143.203.10") || !strings.Contains(corps, "tcp/22") ||
+		!strings.Contains(corps, "vm-test") {
 		t.Errorf("flux bloqués : %s", corps[strings.Index(corps, "<main>"):])
 	}
 	if code, _, _ = n.faire(http.MethodGet, "/logs?host=%22%3E%3Cscript%3E", nil); code != 200 {

@@ -138,6 +138,40 @@ Pendant la période en parallèle, une seule sortie InfluxDB v2 est possible
 dans l'interface d'OPNsense : basculer vers mirador coupe l'envoi vers
 VictoriaMetrics (règle `OpnsenseMuet` de l'ancienne pile).
 
+## Flux bloqués : carte en direct (SPEC.md § 135)
+
+Page Tableaux › *Flux bloqués* : flux entrants venus d'Internet et bloqués
+par les pare-feu, en direct, sur une carte du monde et sur « Mon réseau »
+(pays → pare-feu → ports), sur 1 h à 30 jours.
+
+Deux sources, rien à installer de plus :
+
+- **iptables des machines** : lignes du noyau (`IN=… OUT= SRC=… DPT=…`)
+  déjà lues par l'agent dans le journal. Il suffit que la règle de blocage
+  journalise (cible `LOG` avec un préfixe, ex. `DROP_IN: `). Gardées aussi
+  dans les logs.
+- **OPNsense** : le collecteur lit les lignes `filterlog` reçues en syslog,
+  garde seulement les blocages entrants venus d'une adresse publique et
+  envoie des comptages toutes les 10 s. Les lignes elles-mêmes ne sont pas
+  gardées (sauf « Garder filterlog » coché dans le réglage syslog).
+
+À vérifier dans OPNsense (une fois) :
+
+1. Système › Paramètres › Journalisation › **Distant** : la destination
+   syslog vers le collecteur a la catégorie **Firewall** (sinon aucune ligne
+   `filterlog` n'arrive).
+2. Pare-feu › Règles › WAN : la règle de blocage (ou le blocage par défaut :
+   Pare-feu › Paramètres › Journalisation, « Journaliser les paquets bloqués
+   par la règle par défaut ») a la **journalisation cochée**.
+3. Après 1 minute : page Flux bloqués, « Bloqué par » doit montrer
+   l'équipement du pare-feu. Sur la page du collecteur, la série
+   `mirador_collecteur_flux_bloques_total` augmente.
+
+Pays : base GéoIP (Réglages › Interface). « Pays de vos pare-feu » (même
+endroit, FR par défaut) place le point d'arrivée des traits sur la carte.
+Conservation : 30 jours (adresses : 7 jours), dans `flux.db` à côté de la
+base principale (pas dans les sauvegardes : ce ne sont que des compteurs).
+
 ## Modèles de surveillance
 
 Un modèle (Linux, Machine physique, Docker, Proxmox VE, Certificats, ZFS,

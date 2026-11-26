@@ -64,6 +64,11 @@ type Options struct {
 	// ApresLignes : lignes de logs écrites (registre des motifs, SPEC § 52) ;
 	// nil : rien. Appelé dans la requête : doit rester rapide.
 	ApresLignes func([]stockage.Ligne)
+
+	// Flux : flux bloqués (SPEC § 135) lus dans les lignes reçues, avant
+	// écriture ; renvoie les lignes à ranger (les comptages du collecteur
+	// ne sont pas rangés). nil : rien.
+	Flux func(collecteur bool, lignes []stockage.Ligne) []stockage.Ligne
 }
 
 func (o *Options) completer() {
@@ -734,6 +739,9 @@ func (g *Ingestion) logs(w http.ResponseWriter, r *http.Request) {
 			l.T = maintenant.UnixMilli() // un log reste utile : heure de réception
 		}
 		etiqueterLigne(m, eqs, l.Champs)
+	}
+	if g.opt.Flux != nil {
+		lignes = g.opt.Flux(m.Type == "collecteur", lignes)
 	}
 	if len(lignes) > 0 {
 		if err := g.opt.Logs.Ecrire(r.Context(), lignes); err != nil {

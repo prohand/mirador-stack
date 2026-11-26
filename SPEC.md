@@ -8774,3 +8774,92 @@ Santé de mirador : ligne « Temps de calcul » (15 min), total puis parties
 triées ; en attention au-delà de 5 % d'un cœur.
 - Pas d'outil de profilage exposé (aucune nouvelle surface d'attaque).
 - Coût : deux lectures d'horloge par requête, 8 séries de plus par minute.
+
+## 135. Flux bloqués : carte en direct, monde et « Mon réseau » (26/11, maquette validée) **[Fait, à valider]**
+
+Demande du 26/11 : « une carte en temps réel des flux bloqués par les pare-feu ».
+Choix : les deux vues (monde et réseau), tous les pare-feu (OPNsense et
+iptables des machines), flux **entrants** seulement. Remplace l'ancienne page
+« Flux entrants bloqués » (§ 6.6, § 18.20), qui relisait les logs à chaque
+affichage (24 h au plus, 10 000 lignes).
+
+**Sources**
+- iptables : lignes du noyau `IN=x OUT= SRC=… DPT=…` reçues par l'ingestion
+  des logs (envoyées par l'agent comme avant), comptées au passage et gardées
+  dans les logs.
+- OPNsense : le collecteur lit `filterlog` (CSV) avant la limite de débit du
+  syslog, garde `block` + `in` + source publique, compte par 10 s
+  (pare-feu, interface, adresse, protocole, port, règle) et envoie des lignes
+  de comptage au format du noyau avec `N=` (ident `mirador-flux`), dans le
+  même lot que le syslog. Le serveur les compte sans les ranger dans les logs.
+  Avant : `filterlog` était jeté (plusieurs Go par jour).
+- « Entrant depuis Internet » = source publique : ni privée, ni locale, ni
+  100.64/10, ni plages de documentation ou réservées.
+
+**Rangement** (paquet `fluxbloques`)
+- Mémoire : 60 seaux d'une minute (vues Direct et 1 h, fil des 200 derniers
+  blocages, « / min ») et le seau de l'heure en cours. Clés bornées par seau
+  (minute : 300 adresses, 200 par autre compteur ; heure : 10 000 et 2 000) ;
+  au-delà « autres », et « + de N adresses » à l'écran.
+- `flux.db` (SQLite à part, hors sauvegardes) : résumé par heure — totaux
+  par pare-feu, pays × pare-feu, pare-feu × port (150 premiers), pays × port
+  (150 premiers), adresses (1 000 premières). Heure en cours réécrite toutes
+  les 5 min et à l'arrêt ; reprise au redémarrage. Conservation 30 jours,
+  adresses 7 jours.
+- 7 j et 30 j : sommes faites par SQLite (pas de rechargement en mémoire),
+  résultat gardé 1 min.
+
+**Page** (Tableaux › Flux bloqués, maquette du 26/11)
+- Périodes Direct (1 h + fil en direct), 1 h, 24 h, 7 j, 30 j ; 5 cases
+  (par minute avec petite courbe, total et écart avec la période d'avant —
+  seulement si la base couvre toute la période d'avant —, adresses, pays,
+  port le plus visé).
+- Onglet **Monde** : pays colorés (échelle logarithmique), en direct un
+  point et un trait vers « vos pare-feu » (pays réglable, Réglages ›
+  Interface, FR par défaut) pendant 10 s ; frise par minute ou par heure avec
+  le pic expliqué (adresse et port dominants) ; fil des derniers blocages,
+  bouton pause.
+- Onglet **Mon réseau** : trois colonnes (pays → pare-feu → ports), 4 à 5
+  plus gros + « autres », épaisseur = nombre ; un clic filtre la page sur
+  le pays, le pare-feu ou le port ; en direct un point parcourt les liens.
+  Avec un filtre pays ou port, le lien pare-feu ↔ port (ou pays) est estimé
+  au prorata (dit à l'écran).
+- Classements : pays, ports (avec nom du service), pare-feu, adresses les
+  plus insistantes (pastille « N pare-feu » ; une phrase quand une adresse
+  essaie plusieurs machines). Adresse → recherche dans les logs.
+- Direct : `GET /flux-bloques/direct` (text/event-stream), au plus un envoi
+  par seconde, 8 pages en même temps, 30 min puis arrêt ; texte posé avec
+  `textContent`, CSP inchangée (pas de style en ligne : barres en classes
+  `largeur-N` et SVG).
+
+**Coût mesuré** (machine de développement)
+- Collecteur : 0,6 µs et 1 allocation par ligne filterlog ; mémoire bornée
+  à 5 000 clés par fenêtre de 10 s (au-delà, comptés « perdus », série
+  `mirador_collecteur_flux_bloques_perdus_total`).
+- Serveur : 8,8 µs par ligne iptables (expressions régulières), 34 ns pour
+  une ligne ordinaire (aucune expression lancée sans « SRC= ») ; ex. 100
+  blocages/min ≈ 0,002 % d'un cœur.
+- Mémoire : pire cas mesuré 5,7 Mio (balayage de 300 000 blocages tous
+  différents en une heure) ; GéoIP 6,3 Mio, gardée tant que des flux
+  arrivent (avant : chargée seulement en ouvrant la page).
+- Disque : simulation de 30 jours à 4 000 blocages/heure (8 pare-feu, un
+  quart de balayages de ports) : `flux.db` 30 Mo, écriture de l'heure 6 ms.
+- Page : 24 h 62 ms, 7 j 0,46 s, 30 j 0,77 s, 1 à 36 Mio alloués le temps du
+  calcul (première version : 240 à 520 Mio, réécrite avant livraison).
+
+**Menaces**
+- Un agent peut fabriquer des lignes iptables (comme avant) : il fausse les
+  comptes, borné par le quota de lignes par minute. Une ligne de comptage
+  (`N=`) n'est crue que d'un collecteur ; venue d'un agent, elle compte 1 et
+  reste dans les logs.
+- Un collecteur compromis peut annoncer jusqu'à 1 000 000 par ligne : seuls
+  les chiffres de la page sont faussés (mémoire et disque bornés).
+- Balayage massif (adresses et ports tous différents) : clés bornées
+  partout, écriture par heure bornée (≈ 2 500 lignes au plus).
+- Contenu affiché : noms d'interface et de règle bornés et nettoyés
+  (caractères de contrôle retirés), tout échappé par html/template ;
+  le direct passe par `textContent`.
+- Filtres de la page : expressions strictes (pays, port, nom de pare-feu),
+  requêtes SQL paramétrées.
+- Aucun port ouvert en plus, aucune commande, aucune adresse envoyée dehors
+  (GéoIP locale).

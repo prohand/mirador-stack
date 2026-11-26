@@ -1976,6 +1976,27 @@ Pistes si ça dépasse :
   lieu de 15 s, journaux des agents filtrés à la source (niveau info et
   plus), regroupement des envois de logs.
 
+## Flux bloqués : carte en direct (26/11, SPEC § 135)
+
+Maquette validée le 26/11 (monde + « Mon réseau », tous les pare-feu, flux
+entrants). Codé : comptage filterlog dans le collecteur, magasin
+`fluxbloques` (mémoire + `flux.db`), page avec direct, réglage « Pays de vos
+pare-feu ». Tests unitaires et de bout en bout, `-race`, gosec : OK.
+Captures sur la démonstration (ordinateur, téléphone) conformes à la maquette.
+
+| Mesure | Résultat |
+|---|---|
+| Collecteur, une ligne filterlog | 0,6 µs, 1 allocation |
+| Serveur, une ligne iptables | 8,8 µs (ligne ordinaire : 34 ns) |
+| Mémoire, pire cas (300 000 blocages tous différents en 1 h) | 5,7 Mio (+ GéoIP 6,3 Mio gardée en mémoire) |
+| Disque, 30 jours à 4 000 blocages/heure | `flux.db` 30 Mo |
+| Page 24 h / 7 j / 30 j | 62 ms / 0,46 s / 0,77 s, ≤ 36 Mio passagers |
+
+À faire chez l'utilisateur : vérifier qu'OPNsense envoie la catégorie
+« Firewall » en syslog et journalise les blocages WAN
+(docs/administration-serveur.md, « Flux bloqués »), mettre à jour le
+serveur et le collecteur, puis regarder la page.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

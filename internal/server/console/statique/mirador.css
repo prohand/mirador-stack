@@ -2428,3 +2428,70 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 @media (max-width: 899px) { .corps-tableau table[data-sans-cartes] td, .corps-tableau table[data-sans-cartes] th { white-space: nowrap; } }
 .uplot .u-legend tr.legende-plus { background: none; cursor: default; }
 .uplot .u-legend tr.legende-plus button.lien { font-size: 12.5px; }
+
+/* --- Flux bloqués (SPEC § 135, maquette validée le 26/11) --- */
+.page-flux .flux-tete { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.page-flux .flux-tete h1 { margin: 0; }
+.page-flux .flux-tete nav { margin-left: auto; }
+.page-flux .flux-direct { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ok); background: var(--ok-fond); padding: 4px 11px; border-radius: 999px; }
+.page-flux .flux-direct i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+.page-flux .flux-direct.coupe { color: var(--pale); background: var(--survol); } .page-flux .flux-direct.coupe i { background: var(--pale); box-shadow: none; }
+.page-flux .flux-cases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 14px 0 16px; }
+.page-flux .flux-case { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; position: relative; overflow: hidden; }
+.page-flux .flux-case b { font-size: 24px; font-variant-numeric: tabular-nums; } .page-flux .flux-case b small { font-size: 13px; color: var(--pale); font-weight: 500; }
+.page-flux .flux-case > span { color: var(--pale); font-size: 13px; }
+.page-flux .flux-case em { font-style: normal; font-weight: 600; margin-left: 4px; } .page-flux .flux-case em.moins { color: var(--ok); } .page-flux .flux-case em.plus { color: var(--erreur); }
+.page-flux .flux-spark { position: absolute; right: 12px; top: 16px; width: 70px; height: 22px; }
+.page-flux .flux-spark polyline { fill: none; stroke: #E5602B; stroke-width: 2; stroke-linejoin: round; }
+.page-flux .flux-onglets { margin: 4px 0 14px; } .page-flux .flux-onglets .segment a { font-size: 14px; padding: 7px 16px; }
+.page-flux .flux-duo { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.page-flux .carte { margin: 0; }
+.page-flux .flux-tete-carte { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.page-flux .flux-tete-carte h2, .page-flux .flux-tete-carte h3 { margin: 0; } .page-flux .flux-tete-carte h3 { font-size: 14px; }
+.page-flux .flux-tete-carte .aide, .page-flux .flux-tete-carte button { margin-left: auto; color: var(--pale); font-size: 12.5px; }
+.page-flux .flux-monde { width: 100%; height: auto; display: block; }
+.page-flux .flux-monde path { stroke: var(--carte); stroke-width: .5; }
+.page-flux .flux-monde .trait { fill: none; stroke: #E5602B; stroke-width: 1.6; stroke-dasharray: 4 4; }
+.page-flux .flux-monde .source { fill: #B42318; } .page-flux .flux-monde .halo { fill: #E5602B; opacity: .35; }
+.page-flux .flux-monde .voyageur { fill: #E5602B; }
+.page-flux .flux-monde .eteint { opacity: 0; transition: opacity 1.5s; }
+.page-flux .flux-maison { fill: var(--accent); } .page-flux .flux-maison-halo { fill: var(--accent); opacity: .25; }
+.page-flux .flux-etiq { font-size: 13px; font-weight: 600; fill: var(--accent); }
+.page-flux .legende-carte .flux-sep { width: 10px; background: none; }
+.page-flux .legende-carte .flux-pt { width: 9px; height: 9px; border-radius: 50%; background: #B42318; box-shadow: 0 0 0 3px rgba(229, 96, 43, .3); }
+.page-flux .flux-bloc-frise { margin-top: 14px; border-top: 1px solid var(--bord-doux); padding-top: 12px; }
+.page-flux .flux-frise { width: 100%; height: 70px; display: block; } .page-flux .flux-frise rect { fill: #FBC08F; } .page-flux .flux-frise rect.pic { fill: #B42318; }
+.page-flux .flux-axe { display: flex; justify-content: space-between; color: var(--pale); font-size: 11.5px; }
+.page-flux .flux-fil ul { list-style: none; margin: 0 0 12px; padding: 0; max-height: 640px; overflow: hidden; }
+.page-flux .flux-fil li { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "h src" ". dst"; column-gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--bord-doux); font-size: 13px; }
+.page-flux .flux-fil li .h { grid-area: h; color: var(--pale); font-size: 12px; } .page-flux .flux-fil li .src { grid-area: src; }
+.page-flux .flux-fil li .dst { grid-area: dst; color: var(--doux); } .page-flux .flux-fil li .dst::before { content: "→ "; color: var(--pale); }
+.page-flux .flux-fil li.neuf { background: linear-gradient(90deg, color-mix(in srgb, #E5602B 14%, transparent), transparent); border-radius: 8px; padding-left: 8px; margin-left: -8px; }
+.page-flux .flux-fil code, .page-flux .flux-top code { font-size: 12.5px; }
+.page-flux .flux-tops { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.page-flux .flux-top .rang { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "nom n" "b b"; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--bord-doux); font-size: 13.5px; }
+.page-flux .flux-top .rang:last-child { border-bottom: 0; } .page-flux .flux-top .rang .nom { grid-area: nom; min-width: 0; overflow-wrap: anywhere; }
+.page-flux .flux-top .rang .nombre { grid-area: n; font-variant-numeric: tabular-nums; font-weight: 600; }
+.page-flux .flux-top .rang .mini-barre { grid-area: b; display: block; min-width: 0; } .page-flux .flux-top .rang .mini-barre i { min-width: 0; }
+.page-flux .flux-top .rang .mini-barre u { background: #F79552; } .page-flux .flux-top .rang small { color: var(--pale); }
+.page-flux .flux-pf { display: inline-block; font-size: 11px; font-weight: 600; color: #A14A06; background: #FFF4E5; border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+.page-flux .flux-defile { overflow-x: auto; }
+.page-flux .flux-sankey { width: 100%; min-width: 760px; height: auto; display: block; }
+.page-flux .flux-sankey .ruban { opacity: .28; } .page-flux .flux-sankey a:hover rect { opacity: .8; }
+.page-flux .flux-sankey .g0 { fill: #B42318; } .page-flux .flux-sankey .g1 { fill: #E5602B; } .page-flux .flux-sankey .g2 { fill: #F79552; } .page-flux .flux-sankey .g3 { fill: #D98B2B; } .page-flux .flux-sankey .g4 { fill: #98A2B3; }
+.page-flux .flux-sankey .m0 { fill: #3456C8; } .page-flux .flux-sankey .m1 { fill: #6D3FD1; } .page-flux .flux-sankey .m2 { fill: #0E9384; } .page-flux .flux-sankey .m3 { fill: #2E90FA; } .page-flux .flux-sankey .m4 { fill: #98A2B3; }
+.page-flux .flux-sankey .n-pays { fill: #B42318; } .page-flux .flux-sankey .n-pf { fill: var(--accent); } .page-flux .flux-sankey .n-port { fill: #475467; }
+.page-flux .flux-sankey text { paint-order: stroke; stroke: var(--carte); stroke-width: 4px; stroke-linejoin: round; }
+.page-flux .flux-sankey .lib { font-size: 13px; font-weight: 600; fill: var(--texte); dominant-baseline: middle; }
+.page-flux .flux-sankey .val { font-size: 11.5px; fill: var(--pale); dominant-baseline: middle; }
+.page-flux .flux-sankey .droite-a { text-anchor: end; } .page-flux .flux-sankey .col { font-size: 11px; letter-spacing: .08em; font-weight: 700; fill: var(--pale); }
+.page-flux .flux-sankey .voyageur { fill: #fff; stroke: #E5602B; stroke-width: 2; }
+.page-flux .flux-glisser { display: none; color: var(--pale); font-size: 12.5px; margin: 0 0 6px; }
+.page-flux .flux-note { margin: 10px 0 0; font-size: 13px; color: var(--doux); background: var(--attention-fond); border-radius: 10px; padding: 9px 12px; }
+@media (max-width: 900px) {
+  .page-flux .flux-cases { grid-template-columns: repeat(2, minmax(0, 1fr)); } .page-flux .flux-cases .flux-case:first-child { grid-column: 1 / -1; }
+  .page-flux .flux-duo, .page-flux .flux-tops { grid-template-columns: 1fr; }
+  .page-flux .flux-tete nav { margin-left: 0; width: 100%; overflow-x: auto; }
+  .page-flux .flux-tete-carte .aide { margin-left: 0; } .page-flux .flux-case b { font-size: 20px; }
+  .page-flux .flux-glisser { display: block; }
+}

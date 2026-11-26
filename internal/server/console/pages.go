@@ -81,6 +81,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /donnees/aller", c.lecture(c.donneesAller))
 	c.routesAlertes()
 	c.routesLogs()
+	c.routesFlux()
 	c.routesModeles()
 	c.routesModelesPerso()
 	c.routesTheme()

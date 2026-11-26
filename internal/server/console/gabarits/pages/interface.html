@@ -23,13 +23,14 @@
 <div class="notif-tuile"><small>Version</small>{{if $d.GeoFichier.IsZero}}<b>—</b>{{else}}<b>{{moisAnnee $d.GeoFichier}}</b><small>DB-IP country lite</small>{{end}}</div>
 <div class="notif-tuile"><small>Téléchargée</small>{{if $d.GeoFichier.IsZero}}<b>jamais</b>{{else}}<b>{{date $d.GeoFichier}}</b>{{end}}<small>{{if $d.GeoDemande}}téléchargement demandé : dans la minute{{else if not $d.GeoEssai.IsZero}}dernier essai {{date $d.GeoEssai}}{{else}}vérifiée toutes les 6 h{{end}}</small></div>
 <div class="notif-tuile"><small>Sur le disque</small><b>{{if $d.GeoTaille}}{{taille $d.GeoTaille}}{{else}}—{{end}}</b><small>compressée, dossier des données</small></div>
-<div class="notif-tuile"><small>En mémoire</small><b>{{if $d.GeoEnMemoire}}oui{{else}}non{{end}}</b><small>~8 Mo pendant l'usage, libérée après 10 min</small></div>
+<div class="notif-tuile"><small>En mémoire</small><b>{{if $d.GeoEnMemoire}}oui{{else}}non{{end}}</b><small>~6 Mo pendant l'usage (gardée tant que des flux bloqués arrivent), libérée après 10 min</small></div>
 </div>
 {{if $d.GeoErreur}}<p class="message erreur">Dernière erreur : {{$d.GeoErreur}} (nouvel essai dans 30 min)</p>{{end}}
 <form method="get" action="/reglages/interface#geoip" class="ligne geoip-test"><label>Tester une adresse <input name="ip" value="{{$d.GeoTestIP}}" placeholder="ex. 185.199.108.153" size="22" maxlength="45" inputmode="decimal"></label><button class="secondaire petit">Tester</button>
 {{if $d.GeoTestIP}}<span>→ {{if $d.GeoTestPays}}<strong>{{drapeau $d.GeoTestPays}} {{nomPays $d.GeoTestPays}} ({{$d.GeoTestPays}})</strong>{{else}}<span class="doux">{{$d.GeoTestErreur}}</span>{{end}}</span>{{end}}</form>
 {{if .Admin}}<form method="post" class="ligne geoip-auto">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="geoip_auto">
-<label class="case"><input type="checkbox" name="geoip" value="1" {{if $d.GeoIP}}checked{{end}}> Télécharger et mettre à jour chaque mois</label><button class="secondaire petit">Enregistrer</button>
+<label class="case"><input type="checkbox" name="geoip" value="1" {{if $d.GeoIP}}checked{{end}}> Télécharger et mettre à jour chaque mois</label>
+<label>Pays de vos pare-feu <input name="pays_carte" value="{{$d.PaysCarte}}" size="3" maxlength="2" placeholder="FR" autocapitalize="characters" title="Code à 2 lettres : arrivée des traits sur la carte des flux bloqués"></label><button class="secondaire petit">Enregistrer</button>
 {{if $d.GeoIP}}<button name="action" value="geoip" class="secondaire petit">Télécharger maintenant</button>{{end}}</form>{{end}}
 <p class="aide"><small class="aide">Source : download.db-ip.com (adresse figée dans le code) · IP Geolocation by <a href="https://db-ip.com" rel="noopener noreferrer">DB-IP</a> (CC BY 4.0). Décocher efface la base du disque tout de suite.</small></p></section>
 
