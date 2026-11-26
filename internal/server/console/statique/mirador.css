@@ -2395,10 +2395,12 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .ct-tete .puce { width: 38px; height: 38px; border-radius: 10px; flex: none; }
 .ct-tete b { font-size: 15px; display: block; }
 .ct-tete small { color: var(--pale); font-size: 12.5px; }
-.ct-apercu { height: 54px; border-radius: 10px; background: var(--entete-table); border: 1px solid var(--bord-doux); padding: 6px 8px; display: flex; align-items: center; justify-content: center; }
-.ct-apercu svg { width: 100%; height: 100%; }
-.ct-apercu polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.ct-apercu small { color: var(--pale); }
+/* Trois chiffres clés du tableau (choix du 26/11, à la place d'une courbe). */
+.ct-chiffres { display: flex; gap: 10px; border-radius: 10px; background: var(--entete-table); border: 1px solid var(--bord-doux); padding: 8px 12px; }
+.ct-chiffres > div { flex: 1; min-width: 0; }
+.ct-chiffres b { display: block; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.ct-chiffres small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--pale); font-size: 11.5px; line-height: 1.3; }
+.ct-chiffres .erreur b { color: var(--erreur); } .ct-chiffres .attention b { color: var(--attention); }
 .ct-pied { display: flex; align-items: center; gap: 8px; padding: 0 18px 14px; font-size: 12.5px; }
 .ct-pied .doux { color: var(--pale); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .etoile-tableau { background: none; border: 0; box-shadow: none; min-height: 0; padding: 2px 6px; font-size: 17px; line-height: 1; color: var(--bord-champ); cursor: pointer; }

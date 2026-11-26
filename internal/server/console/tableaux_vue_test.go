@@ -20,18 +20,18 @@ func parcLinux(b *banc, t *testing.T) {
 }
 
 // Liste en cartes (maquette du 26/11) : ce que couvre le tableau (le filtre
-// qui a le plus de valeurs), petite courbe sur 24 h, proposés triés selon
-// les données reçues.
+// qui a le plus de valeurs), ses trois premiers chiffres, proposés triés
+// selon les données reçues.
 func TestResumeTableau(t *testing.T) {
 	b := nouveauBanc(t)
 	parcLinux(b, t)
 	tb := tableauxDepart["serveurs-linux"]
 	r := b.c.calculerResume(context.Background(), tb, b.h.maintenant())
-	if r.Couvre != "Machine : 2" || r.Apercu == "" || !r.AvecDonnees {
+	if r.Couvre != "Machine : 2" || !r.AvecDonnees || len(r.Chiffres) != chiffresCarte {
 		t.Fatalf("résumé : %+v", r)
 	}
-	if p := strings.Fields(r.Apercu); len(p) < 40 {
-		t.Errorf("petite courbe : %d points", len(p))
+	if c := r.Chiffres[0]; c.Titre != "Machines" || c.Texte != "2" {
+		t.Errorf("premier chiffre : %+v", c)
 	}
 	cl, _ := b.premierAdmin("admin", mdpAdmin)
 	_, corps, _ := b.get(cl, "/tableaux")

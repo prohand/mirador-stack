@@ -8714,8 +8714,10 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 
 **Liste des tableaux**
 - Une carte par tableau installé : icône, ce qu'il couvre (le filtre qui a
-  le plus de valeurs : « Machine : 26 »), nombre de panneaux, petite courbe
-  sur 24 h (moyenne des courbes de son premier graphique), état (« N points
+  le plus de valeurs : « Machine : 26 »), nombre de panneaux, ses **trois
+  premiers chiffres** (rouge ou orange s'ils sont à regarder ; choix du
+  26/11 après la 0.6.25 : la petite courbe, étirée sur sa hauteur,
+  grossissait le moindre écart et ne disait rien pour les certificats), état (« N points
   à regarder » si des chiffres sont en attention ou en erreur, « tout va
   bien » sinon), origine (fourni, modifié, créé ici).
 - Étoile « favori » : en tête de la liste, retenue par le navigateur
@@ -8727,7 +8729,7 @@ Demande du 26/11 : « des Tableaux plus classe ». Maquettes envoyées le 26/11
 - Proposés par mirador : seulement ceux dont des données arrivent ; les
   autres repliés sous « Sans données chez vous ».
 - Coût : résumé calculé au plus une fois par 5 min et par tableau (une
-  requête par filtre, les chiffres, une courbe de 48 points).
+  requête par filtre et les chiffres ; plus de courbe à calculer).
 
 **Page d'un tableau**
 - Barre de filtres compacte, collante en haut sur ordinateur : filtres en
