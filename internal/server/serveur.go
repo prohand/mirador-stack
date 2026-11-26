@@ -28,6 +28,7 @@ import (
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/console"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/geoip"
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/modeles"
@@ -70,6 +71,8 @@ type Serveur struct {
 	geo       *geoip.Base       // pays des adresses (flux bloqués), base DB-IP mensuelle
 	vus       vusParNom         // dernières données par machine (SPEC § 46)
 	motifs    *motifs.Registre  // motifs des logs (SPEC § 52)
+	flux      *fluxbloques.Magasin
+	dbFlux    *sql.DB // flux.db (SPEC § 135)
 }
 
 // Chemins dans le dossier des données.
@@ -180,12 +183,24 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	if s.motifs, err = motifs.OuvrirRegistre(ctx, s.db, journal.With("composant", "motifs"), time.Now()); err != nil {
 		return echec(fmt.Errorf("registre des motifs : %w", err))
 	}
+	// Flux bloqués par les pare-feu (SPEC § 135) : base à part (flux.db),
+	// hors sauvegardes (compteurs seulement, refaits au fil de l'eau).
+	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
+	if s.dbFlux, err = base.Ouvrir(s.chemin("flux.db")); err != nil {
+		return echec(fmt.Errorf("base des flux bloqués : %w", err))
+	}
+	ouverts = append(ouverts, s.dbFlux.Close)
+	if s.flux, err = fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux, Pays: s.geo.Pays,
+		Journal: journal.With("composant", "flux")}); err != nil {
+		return echec(fmt.Errorf("flux bloqués : %w", err))
+	}
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal,
 		ApresLignes: func(ls []stockage.Ligne) {
 			for _, l := range ls {
 				s.motifs.Ajouter(l.Msg, l.T/1000)
 			}
-		}})
+		},
+		Flux: s.flux.Lignes})
 	hubDirect := direct.Nouveau() // direct des pages des machines (SPEC § 97)
 	s.direct = hubDirect
 	s.flotte = flotte.Nouvelle(flotte.Options{DB: s.db, Ingestion: s.ing, DossierVersions: s.chemin("versions"), Journal: journal, Cle: cle,
@@ -193,11 +208,10 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}
-	s.geo = &geoip.Base{Dossier: s.chemin("geoip"), Journal: journal.With("composant", "geoip")}
 	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
 		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs, Direct: hubDirect,
-		MajDemande: cfg.MajDemande, MajEtat: cfg.MajEtat}); err != nil {
+		MajDemande: cfg.MajDemande, MajEtat: cfg.MajEtat, Flux: s.flux}); err != nil {
 		return echec(fmt.Errorf("interface web : %w", err))
 	}
 	// Certificats du syslog des collecteurs (SPEC § 23.14) : démarche ACME
@@ -221,7 +235,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 			(&sondeur{s: s}).boucle, s.motifs.Boucle,
 			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
 				Journal: journal.With("composant", "changements")}).Boucle,
-			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner}
+			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner, s.flux.Boucle}
 		fini := make(chan struct{}, len(taches))
 		for _, f := range taches {
 			go func() { f(fond); fini <- struct{}{} }()
@@ -287,6 +301,9 @@ func (s *Serveur) Arreter() {
 	}
 	if err := s.db.Close(); err != nil {
 		s.journal.Error("fermeture de la base", "erreur", err)
+	}
+	if err := s.dbFlux.Close(); err != nil {
+		s.journal.Error("fermeture de la base des flux bloqués", "erreur", err)
 	}
 }
 

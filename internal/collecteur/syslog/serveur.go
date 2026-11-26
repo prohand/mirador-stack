@@ -35,7 +35,10 @@ type Options struct {
 	// connexions : appelé à chaque poignée de main).
 	Certificat func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 	// Sortie reçoit chaque ligne ; false = file pleine (ligne perdue, comptée).
-	Sortie     func(Ligne) bool
+	Sortie func(Ligne) bool
+	// Flux : comptage des blocages entrants lus dans filterlog (SPEC § 135) ;
+	// nil : pas de comptage.
+	Flux       *CompteurFlux
 	Journal    *slog.Logger
 	Maintenant func() time.Time
 }
@@ -264,17 +267,27 @@ func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string) {
 // recevoir : un message lu (débit, filterlog, format, heure).
 func (s *Serveur) recevoir(machine string, trame []byte) {
 	maintenant := s.opt.Maintenant()
-	if !s.seau(machine).prendre(maintenant) {
-		s.refus[RefusDebit].Add(1)
-		return
-	}
 	m, ok := Analyser(trame)
 	if !ok {
 		s.refus[RefusFormat].Add(1)
 		return
 	}
-	if m.App == "filterlog" && !s.opt.GarderFilterlog {
-		s.refus[RefusFilterlog].Add(1)
+	// filterlog : blocages entrants comptés avant la limite de débit (un
+	// pare-feu bavard ne doit ni fausser le comptage ni manger le débit de
+	// ses autres journaux), puis ligne jetée sauf « Garder filterlog ».
+	if m.App == "filterlog" {
+		if s.opt.Flux != nil {
+			if f, ok := LireFilterlog(m.Texte); ok {
+				s.opt.Flux.Ajouter(machine, f)
+			}
+		}
+		if !s.opt.GarderFilterlog {
+			s.refus[RefusFilterlog].Add(1)
+			return
+		}
+	}
+	if !s.seau(machine).prendre(maintenant) {
+		s.refus[RefusDebit].Add(1)
 		return
 	}
 	heure := m.Heure

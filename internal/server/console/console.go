@@ -35,6 +35,7 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/geoip"
 	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/motifs"
@@ -61,8 +62,9 @@ type Options struct {
 	Ingestion  *ingestion.Ingestion
 	// Direct : relevés « en direct » des machines (SPEC § 97) ; nil : pas de direct.
 	Direct *direct.Hub
-	Motifs *motifs.Registre // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
-	GeoIP  *geoip.Base      // pays des adresses (peut être nil)
+	Motifs *motifs.Registre     // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
+	Flux   *fluxbloques.Magasin // flux bloqués par les pare-feu (SPEC § 135) ; nil : page vide
+	GeoIP  *geoip.Base          // pays des adresses (peut être nil)
 	// Niveau : niveau du journal du serveur (mode debug temporaire) ; peut être nil.
 	Niveau *slog.LevelVar
 	// Maintenant : horloge (remplaçable dans les tests).

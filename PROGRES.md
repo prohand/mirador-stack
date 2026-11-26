@@ -1958,7 +1958,12 @@ multiplié par 13 depuis la mesure du 14/11 (1,27 % CPU, 113 Mio).
 le reste est du cache de fichiers (50 Mio comptés par `docker stats`, 54 Mio
 non comptés) que le noyau reprend. Objectif jugé sur la mémoire propre :
 **marge ~95 Mio**, rien à changer. **CPU** : compteurs par partie ajoutés
-(SPEC § 134) ; à relire dans Santé de mirador après la mise à jour.
+(SPEC § 134). **Relevé du 26/11 à 19 h 37** (0.6.26, en marche depuis
+1 h 43, 15 dernières minutes) : **3,8 % d'un cœur** au total ; règles
+d'alerte 0,8 %, ramasse-miettes 0,8 %, réception des logs 0,5 %, réception
+des mesures 0,3 %, tâches de fond 0,2 %, interface 0,0 % ; reste ≈ 1,2 %
+non attribué (base des mesures, TLS, direct). Rien ne domine : **rien à
+changer** (choix de l'utilisateur, 26/11). Mémoire propre 169,8 Mio.
 
 Pistes si ça dépasse :
 - RAM : `docker stats` compte le cache des fichiers de la base de mesures
@@ -1971,9 +1976,33 @@ Pistes si ça dépasse :
   lieu de 15 s, journaux des agents filtrés à la source (niveau info et
   plus), regroupement des envois de logs.
 
+## Flux bloqués : carte en direct (26/11, SPEC § 135)
+
+Maquette validée le 26/11 (monde + « Mon réseau », tous les pare-feu, flux
+entrants). Codé : comptage filterlog dans le collecteur, magasin
+`fluxbloques` (mémoire + `flux.db`), page avec direct, réglage « Pays de vos
+pare-feu ». Tests unitaires et de bout en bout, `-race`, gosec : OK.
+Captures sur la démonstration (ordinateur, téléphone) conformes à la maquette.
+
+| Mesure | Résultat |
+|---|---|
+| Collecteur, une ligne filterlog | 0,6 µs, 1 allocation |
+| Serveur, une ligne iptables | 8,8 µs (ligne ordinaire : 34 ns) |
+| Mémoire, pire cas (300 000 blocages tous différents en 1 h) | 5,7 Mio (+ GéoIP 6,3 Mio gardée en mémoire) |
+| Disque, 30 jours à 4 000 blocages/heure | `flux.db` 30 Mo |
+| Page 24 h / 7 j / 30 j | 62 ms / 0,46 s / 0,77 s, ≤ 36 Mio passagers |
+
+À faire chez l'utilisateur : vérifier qu'OPNsense envoie la catégorie
+« Firewall » en syslog et journalise les blocages WAN
+(docs/administration-serveur.md, « Flux bloqués »), mettre à jour le
+serveur et le collecteur, puis regarder la page.
+
 ## Prochaine étape
 
-Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22). L'ancien
+Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en
+0.6.26 depuis le 26/11 (0.6.25 et 0.6.26 installées et validées : courbes
+7 j jusqu'à maintenant, cartes des tableaux en chiffres clés, temps de
+calcul par partie). L'ancien
 texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
 
 **Fait (étapes 6 et 7, à clore après la mesure de 24 h)**
@@ -1999,8 +2028,8 @@ texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
    logs, § 54 incidents, § 81 maintenance récurrente et webhook, § 82
    modèles des messages, § 84 page de statut publique, § 122 applications
    d'après Docker Compose), à essayer au fil de l'eau.
-4. Plus tard : effacer les archives `/root/ancienne-stack.tgz` (machines)
-   et `/root/grafana-sauvegarde.tgz` (VPS).
+4. Archives `/root/ancienne-stack.tgz` (machines) et
+   `/root/grafana-sauvegarde.tgz` (VPS) : **effacées le 26/11**.
 5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
 
 Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;

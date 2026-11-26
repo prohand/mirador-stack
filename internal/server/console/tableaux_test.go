@@ -8,12 +8,14 @@ import (
 	"errors"
 	"mirador-stack/internal/server/auth"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/notif"
 )
 
@@ -118,12 +120,12 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 			Invitations: []notif.InvitationOlvid{{ID: 1, Nom: "Alice <b>", Etat: "attend", Accepter: true}, {ID: 2, Nom: "Bob", SAS: "1234", SaisirSAS: true}},
 			Contacts:    []notif.ContactOlvid{{ID: 5, Nom: "Moi", TeteATete: true}},
 			Discussions: []notif.DiscussionOlvid{{ID: 7, Titre: "Moi"}, {ID: 9, Titre: "Groupe"}}},
-		"flux": donneesFlux{Total: 3, IPs: 2, GeoIP: true, Pays: 1, ParPays: []compte{{"FR", 3}}, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
-			Derniers: []flux{{T: 1, Machine: "vm", IP: "192.0.2.1", Pays: "FR", Port: "22", Proto: "TCP"}}},
+		"flux":        donneesFluxExemple("monde"),
+		"flux-reseau": donneesFluxExemple("reseau"),
 	}
 	for nom, d := range cas {
 		w := httptest.NewRecorder()
-		g.executer(w, 200, nom, Page{Admin: true, CSRF: "x", D: d})
+		g.executer(w, 200, strings.TrimSuffix(nom, "-reseau"), Page{Admin: true, CSRF: "x", D: d})
 		corps := w.Body.String()
 		if w.Code != 200 || strings.Contains(corps, "erreur d'affichage") || strings.Contains(corps, "ZgotmplZ") {
 			t.Errorf("%s : %d\n%s", nom, w.Code, corps)
@@ -131,8 +133,13 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 		if nom == "olvid" && (!strings.Contains(corps, "1234") || strings.Contains(corps, "Alice <b>") || !strings.Contains(corps, "data:image/png")) {
 			t.Error("page Olvid : code SAS, échappement ou QR code")
 		}
-		if nom == "flux" && !strings.Contains(corps, "🇫🇷") {
-			t.Error("drapeau absent")
+		if nom == "flux" && (!strings.Contains(corps, "🇫🇷") || !strings.Contains(corps, "45.143.203.10") || !strings.Contains(corps, `data-code="CN"`) ||
+			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier")) {
+			t.Errorf("page flux (monde) incomplète :\n%s", corps)
+		}
+		if nom == "flux-reseau" && (!strings.Contains(corps, `class="ruban g0"`) || !strings.Contains(corps, `href="/flux-bloques?pf=fw&amp;vue=reseau"`) ||
+			!strings.Contains(corps, "a été bloquée par 2 pare-feu")) {
+			t.Errorf("page flux (réseau) incomplète :\n%s", corps)
 		}
 	}
 }
@@ -180,4 +187,26 @@ func TestRelectureTableaux(t *testing.T) {
 	if tg.Periode != "31d" {
 		t.Errorf("période : %q", tg.Periode)
 	}
+}
+
+// donneesFluxExemple : page Flux bloqués remplie (sans magasin).
+func donneesFluxExemple(vue string) donneesFlux {
+	b := fluxbloques.Bilan{Total: 38214, Avant: 41537, AvantConnu: true, NbIP: 2, NbPays: 2, Pic: -1,
+		Pays:        []fluxbloques.Compte{{Nom: "CN", N: 30000}, {Nom: "FR", N: 8214}},
+		Ports:       []fluxbloques.Compte{{Nom: "tcp/22", N: 30000}, {Nom: "tcp/443", N: 8214}},
+		PareFeux:    []fluxbloques.Compte{{Nom: "fw", N: 38000}, {Nom: "vps", N: 214}},
+		IPs:         []fluxbloques.Compte{{Nom: "45.143.203.10", N: 300, PareFeux: 2}},
+		PaysPareFeu: map[fluxbloques.Paire]int{{A: "CN", B: "fw"}: 30000, {A: "FR", B: "fw"}: 8000, {A: "FR", B: "vps"}: 214},
+		PareFeuPort: map[fluxbloques.Paire]int{{A: "fw", B: "tcp/22"}: 30000, {A: "fw", B: "tcp/443"}: 8000, {A: "vps", B: "tcp/443"}: 214},
+		Barres:      []fluxbloques.Barre{{N: 10}, {N: 400}, {N: 12}, {N: 9}}, LargeurBarre: time.Hour}
+	v := url.Values{"vue": {vue}}
+	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
+		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
+		Fil:    []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
+		Sankey: construireSankey(b, v),
+		Note:   "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
+	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
+	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) { r.Lien = "/logs" })
+	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
+	return d
 }

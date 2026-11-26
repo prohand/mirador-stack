@@ -133,8 +133,9 @@ func TestServeurSyslog(t *testing.T) {
 	if len(recues) == 0 || recues[0].Hote != "nas" || recues[0].App != "prog" || recues[0].Texte != "bonjour" {
 		t.Fatalf("lignes reçues : %+v", recues)
 	}
-	// rafale 5 : bonjour + filterlog (jeté) + format (refusé) + 2 lignes ; le reste : débit.
-	if e.Refus[RefusFilterlog] != 1 || e.Refus[RefusFormat] != 1 || e.Refus[RefusDebit] != 8 || len(recues) != 3 || e.Lignes["nas"] != 3 {
+	// rafale 5 : bonjour + 4 lignes ; le reste : débit. filterlog (jeté) et
+	// le format refusé ne prennent pas de débit (SPEC § 135).
+	if e.Refus[RefusFilterlog] != 1 || e.Refus[RefusFormat] != 1 || e.Refus[RefusDebit] != 6 || len(recues) != 5 || e.Lignes["nas"] != 5 {
 		t.Errorf("compteurs : %+v, %d reçues", e, len(recues))
 	}
 	// Connexions ouvertes puis fermées : aucune goroutine ne reste

@@ -3,24 +3,30 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
+	"math/rand/v2"
 	"mirador-stack/internal/majserveur"
 	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/auth"
 	"mirador-stack/internal/server/certsyslog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/flotte"
+	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
 	"mirador-stack/internal/server/secrets"
@@ -60,11 +66,13 @@ func TestDemoInterface(t *testing.T) {
 			Service: "mirador-server", Image: "ghcr.io/prohand/mirador-server", Depot: "prohand/mirador-stack", Cles: []string{"3f9a1c0be47d2e58"},
 			Delai: "3 min", Installee: "0.6.0", Problemes: []string{}, Le: time.Now().Add(-26 * time.Hour).Unix()}, 0o644)
 	}
+	geoDemo(t, filepath.Join(cfg.Donnees, "geoip"))
 	s, err := Demarrer(context.Background(), cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Arreter()
+	fluxDemo(t, s)
 	ctx, now := context.Background(), time.Now()
 	machines := []string{"srv-test", "pve1", "vps-web", "nas-backup", "vm-docker"}
 	var series []stockage.Serie
@@ -613,4 +621,122 @@ func TestDemoInterface(t *testing.T) {
 	}
 	t.Logf("interface sur http://%s (admin / une longue phrase de passe)", adr)
 	time.Sleep(d)
+}
+
+// Flux bloqués de la démo (SPEC § 135) : petite base GéoIP factice,
+// 24 h d'historique (écrites par un magasin à l'horloge simulée) et des
+// blocages en direct (comptages d'OPNsense et lignes iptables).
+var plagesDemo = []struct{ debut, fin, pays string }{
+	{"14.0.0.0", "14.255.255.255", "VN"}, {"45.0.0.0", "45.127.255.255", "CN"}, {"45.128.0.0", "45.255.255.255", "RU"},
+	{"61.0.0.0", "61.255.255.255", "KR"}, {"89.0.0.0", "89.255.255.255", "NL"}, {"103.0.0.0", "103.255.255.255", "IN"},
+	{"159.0.0.0", "159.255.255.255", "SG"}, {"167.0.0.0", "167.255.255.255", "US"}, {"177.0.0.0", "177.255.255.255", "BR"},
+	{"185.0.0.0", "185.255.255.255", "DE"},
+}
+
+func geoDemo(t *testing.T, dossier string) {
+	_ = os.MkdirAll(dossier, 0o750)
+	var b bytes.Buffer
+	zw := gzip.NewWriter(&b)
+	// La base exige au moins 1 000 plages : chaque /8 est découpé en /16.
+	for _, p := range plagesDemo {
+		a, z := netip.MustParseAddr(p.debut).As4(), netip.MustParseAddr(p.fin).As4()
+		for b := int(a[1]); b <= int(z[1]); b++ {
+			fmt.Fprintf(zw, "%d.%d.0.0,%d.%d.255.255,%s\n", a[0], b, a[0], b, p.pays)
+		}
+	}
+	_ = zw.Close()
+	if err := os.WriteFile(filepath.Join(dossier, "dbip-country-lite.csv.gz"), b.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// tirageFlux : un blocage plausible (pays, port et pare-feu pondérés).
+func tirageFlux(r *rand.Rand) (string, protocole.FluxBloque) {
+	poids := []struct {
+		n      int
+		prefix string
+	}{{30, "45.1"}, {20, "167.94"}, {12, "45.143"}, {10, "89.248"}, {7, "177.71"}, {6, "103.145"}, {5, "14.162"}, {4, "159.89"}, {3, "61.177"}, {3, "185.220"}}
+	x := r.IntN(100)
+	pre := poids[0].prefix
+	for _, p := range poids {
+		if x < p.n {
+			pre = p.prefix
+			break
+		}
+		x -= p.n
+	}
+	ip := netip.MustParseAddr(fmt.Sprintf("%s.%d.%d", pre, r.IntN(4), r.IntN(30)+1))
+	ports := []int{22, 22, 22, 23, 3389, 445, 443, 5432, 8080, 6379, 5060, 21, 1433}
+	f := protocole.FluxBloque{IP: ip, Proto: "tcp", Port: ports[r.IntN(len(ports))], N: 1 + r.IntN(3)}
+	if f.Port == 5060 {
+		f.Proto = "udp"
+	}
+	switch y := r.IntN(10); {
+	case y < 6:
+		f.Interface, f.Regle = "igb0", "règle 81"
+		return "fw", f
+	case y < 8:
+		f.Interface, f.Regle = "eth0", "DROP_IN:"
+		return "vps-web", f
+	case y < 9:
+		f.Interface, f.Regle = "ens18", "DROP_IN:"
+		return "srv-test", f
+	default:
+		f.Interface, f.Regle = "vmbr0", "DROP_IN:"
+		return "pve1", f
+	}
+}
+
+func fluxDemo(t *testing.T, s *Serveur) {
+	ctx, now := context.Background(), time.Now()
+	r := rand.New(rand.NewPCG(7, 26))
+	h := now.Add(-25 * time.Hour).Truncate(time.Hour)
+	horloge := h
+	histo, err := fluxbloques.Nouveau(ctx, fluxbloques.Options{DB: s.dbFlux, Pays: s.geo.Pays, Maintenant: func() time.Time { return horloge }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ; h.Before(now.Truncate(time.Hour)); h = h.Add(time.Hour) {
+		horloge = h.Add(30 * time.Minute)
+		n := 900 + r.IntN(400)
+		if h.Hour() == 3 { // un balayage massif dans la nuit
+			n *= 4
+		}
+		for range n {
+			pf, f := tirageFlux(r)
+			histo.Recevoir(pf, f, horloge)
+		}
+		horloge = h.Add(time.Hour + time.Minute)
+		histo.Ecrire(ctx, false)
+	}
+	// Dernière heure : seaux d'une minute du vrai magasin (avec un pic).
+	for k := 59; k >= 1; k-- {
+		n := 15 + r.IntN(12)
+		if k == 18 {
+			n = 70
+		}
+		for range n {
+			pf, f := tirageFlux(r)
+			if k == 18 {
+				f.IP, f.Port = netip.MustParseAddr("89.248.165.73"), 5432
+			}
+			s.flux.Recevoir(pf, f, now.Add(-time.Duration(k)*time.Minute))
+		}
+	}
+	// Direct : comptages du collecteur (fw) toutes les 10 s, lignes iptables au fil de l'eau.
+	go func() {
+		for k := 0; ; k++ {
+			time.Sleep(time.Duration(300+r.IntN(900)) * time.Millisecond)
+			pf, f := tirageFlux(r)
+			if pf == "fw" {
+				s.flux.Lignes(true, []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: protocole.LigneFlux(f),
+					Champs: map[string]string{"host": "fw", "ident": protocole.IdentFlux}}})
+				continue
+			}
+			f.N = 1
+			s.flux.Lignes(false, []stockage.Ligne{{T: time.Now().UnixMilli(),
+				Msg:    fmt.Sprintf("[%d.1] %s IN=%s OUT= MAC=00 SRC=%s DST=192.0.2.1 PROTO=%s SPT=4444 DPT=%d", 1000+k, f.Regle, f.Interface, f.IP, strings.ToUpper(f.Proto), f.Port),
+				Champs: map[string]string{"host": pf}}})
+		}
+	}()
 }

@@ -292,6 +292,9 @@ func fonctions() template.FuncMap {
 		"pagesLieesReglages": func() []sectionReglages { return pagesLieesReglages },
 		// accord : « alerte(s) » → « alerte » ou « alertes » selon le nombre.
 		"accord": accorder,
+		// nombre : entier avec espace fine entre les milliers (38 214).
+		"nombre": nombreLisible,
+		"maxf":   func(a, b float64) float64 { return max(a, b) },
 		// sorte : « sonde http » → « Sonde HTTP », « conteneur » → « Conteneur »
 		// (affichage seulement ; la valeur sert aux filtres).
 		"sorte": sorteLisible,
@@ -800,4 +803,17 @@ func coupeURL(u string) template.HTML {
 		}
 	}
 	return template.HTML(b.String()) // #nosec G203 -- chaque caractère est échappé, seul <wbr> est ajouté
+}
+
+// nombreLisible : 38214 → « 38 214 » (espace fine insécable).
+func nombreLisible(n int) string {
+	s := strconv.Itoa(n)
+	signe := ""
+	if n < 0 {
+		signe, s = "-", s[1:]
+	}
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "\u202f" + s[i:]
+	}
+	return signe + s
 }

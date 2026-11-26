@@ -2680,3 +2680,121 @@ document.addEventListener("change", function (ev) {
   });
   ranger();
 })();
+
+// Flux bloqués en direct (SPEC § 135) : le serveur pousse les blocages
+// (text/event-stream) ; fil des derniers blocages, point et trait sur la
+// carte, point qui parcourt « Mon réseau ». Texte posé avec textContent.
+(function () {
+  var page = document.querySelector('[data-flux-direct]');
+  if (!page || !window.EventSource) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  var fil = page.querySelector('[data-flux-fil]');
+  var carte = page.querySelector('[data-flux-carte]');
+  var traits = page.querySelector('[data-flux-traits]');
+  var sankey = page.querySelector('[data-flux-sankey]');
+  var points = page.querySelector('[data-flux-points]');
+  var etat = page.querySelector('[data-flux-etat]');
+  var pauseBtn = page.querySelector('[data-flux-pause]');
+  var enPause = false;
+  var centres = {};
+  try { centres = JSON.parse(carte ? carte.getAttribute('data-centres') : '{}') || {}; } catch (e) { centres = {}; }
+  var maison = (carte ? carte.getAttribute('data-maison') : '0,0').split(',').map(Number);
+  var actifs = {}; // pays → éléments dessinés (un seul jeu par pays)
+  var MAX_FIL = 12, VIE = 10000;
+
+  function el(nom, attrs, parent) {
+    var e = document.createElementNS(NS, nom);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function voyage(parent, chemin, duree, debut) {
+    var c = el('circle', { r: 3.5, 'class': 'voyageur' }, parent);
+    var a = el('animateMotion', { dur: duree, begin: debut || 'indefinite', fill: 'freeze', path: chemin }, c);
+    try { a.beginElement(); } catch (e) { /* ancien navigateur : point immobile */ }
+    setTimeout(function () { c.remove(); }, 2600);
+  }
+  function surCarte(ev) {
+    if (!carte || !traits || !ev.pays || !centres[ev.pays]) return;
+    var p = centres[ev.pays], x = p[0], y = p[1];
+    var mx = (x + maison[0]) / 2, my = Math.min(y, maison[1]) - Math.abs(x - maison[0]) * 0.22 - 10;
+    var d = 'M' + x + ' ' + y + ' Q' + mx + ' ' + my + ' ' + maison[0] + ' ' + maison[1];
+    var deja = actifs[ev.pays];
+    if (deja) { clearTimeout(deja.minuteur); deja.g.classList.remove('eteint'); }
+    else {
+      var g = el('g', {}, traits);
+      el('path', { d: d, 'class': 'trait' }, g);
+      el('circle', { cx: x, cy: y, r: 12, 'class': 'halo' }, g);
+      el('circle', { cx: x, cy: y, r: 4.5, 'class': 'source' }, g);
+      deja = actifs[ev.pays] = { g: g };
+    }
+    voyage(deja.g, d, '1.2s');
+    deja.minuteur = setTimeout(function () {
+      deja.g.classList.add('eteint');
+      setTimeout(function () { if (actifs[ev.pays] === deja) { deja.g.remove(); delete actifs[ev.pays]; } }, 1600);
+    }, VIE);
+  }
+  function ruban(a, b) {
+    var cands = [[a, b], ['autres', b], [a, 'autres'], ['autres', 'autres']];
+    for (var i = 0; i < cands.length; i++) {
+      var r = sankey.querySelector('path.ruban[data-a="' + CSS.escape(cands[i][0]) + '"][data-b="' + CSS.escape(cands[i][1]) + '"]');
+      if (r) return r;
+    }
+    return null;
+  }
+  function surReseau(ev) {
+    if (!sankey || !points) return;
+    var r1 = ruban(ev.pays, ev.pf), r2 = ruban(ev.pf, ev.port);
+    if (r1) voyage(points, r1.getAttribute('data-centre'), '1s');
+    if (r2) setTimeout(function () { voyage(points, r2.getAttribute('data-centre'), '1s'); }, 1000);
+  }
+  function ligne(ev) {
+    var li = document.createElement('li');
+    li.className = 'neuf';
+    var h = document.createElement('span'); h.className = 'h mono'; h.textContent = ev.heure; li.appendChild(h);
+    var s = document.createElement('span'); s.className = 'src';
+    s.appendChild(document.createTextNode((ev.drapeau || '') + ' '));
+    var code = document.createElement('code'); code.textContent = ev.ip; s.appendChild(code);
+    if (ev.n > 1) { var n = document.createElement('small'); n.textContent = ' ×' + ev.n; s.appendChild(n); }
+    li.appendChild(s);
+    var d = document.createElement('span'); d.className = 'dst';
+    var b = document.createElement('b'); b.textContent = ev.pf; d.appendChild(b);
+    var sm = document.createElement('small'); sm.textContent = ' ' + ev.port + (ev.service ? ' · ' + ev.service : ''); d.appendChild(sm);
+    li.appendChild(d);
+    setTimeout(function () { li.classList.remove('neuf'); }, 5000);
+    return li;
+  }
+  if (pauseBtn) pauseBtn.addEventListener('click', function () {
+    enPause = !enPause;
+    pauseBtn.textContent = enPause ? 'Reprendre' : 'Mettre en pause';
+  });
+  var source = new EventSource(page.getAttribute('data-flux-direct'));
+  source.addEventListener('open', function () { if (etat) etat.classList.remove('coupe'); });
+  source.addEventListener('error', function () { if (etat) etat.classList.add('coupe'); });
+  source.addEventListener('fin', function () {
+    source.close();
+    if (etat) { etat.classList.add('coupe'); etat.lastChild.textContent = 'Direct arrêté (30 min) : recharger la page'; }
+  });
+  source.addEventListener('minute', function (e) {
+    try {
+      var m = JSON.parse(e.data);
+      var n = page.querySelector('[data-flux-minute]'); if (n) n.textContent = m.minute;
+      var sp = page.querySelector('[data-flux-spark]'); if (sp && m.spark) sp.setAttribute('points', m.spark);
+    } catch (err) { /* données illisibles : ignorées */ }
+  });
+  source.addEventListener('flux', function (e) {
+    var evs;
+    try { evs = JSON.parse(e.data); } catch (err) { return; }
+    if (!Array.isArray(evs)) return;
+    evs.slice(-30).forEach(function (ev) {
+      if (!enPause && fil) {
+        var vide = page.querySelector('[data-flux-fil-vide]'); if (vide) vide.remove();
+        fil.insertBefore(ligne(ev), fil.firstChild);
+        while (fil.children.length > MAX_FIL) fil.lastChild.remove();
+      }
+      surCarte(ev);
+      surReseau(ev);
+    });
+  });
+  window.addEventListener('pagehide', function () { source.close(); });
+})();

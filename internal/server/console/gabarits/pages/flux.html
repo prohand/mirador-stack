@@ -1,21 +1,53 @@
-{{define "contenu"}}
-<h1>Flux entrants bloqués</h1>
-<form method="get" class="ligne filtres"><label>Période <select name="periode">{{$p := .D.Periode}}{{range .D.Periodes}}<option {{if egal . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label><button>Afficher</button></form>
-<div class="chiffres"><div class="chiffre"><b>{{.D.Total}}</b><span>Flux bloqués</span></div><div class="chiffre"><b>{{.D.IPs}}</b><span>Adresses sources</span></div>{{if .D.GeoIP}}<div class="chiffre"><b>{{.D.Pays}}</b><span>Pays</span></div>{{end}}</div>
-{{if .D.Carte}}<section class="carte"><h2>Carte des pays d'origine</h2>{{if .D.CarteVide}}<p class="vide">Aucun pays : {{.D.CarteVide}}.</p>{{end}}
-<svg class="carte-monde" viewBox="0 0 1000 500" role="img" aria-label="Carte du monde des flux bloqués par pays">{{range .D.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}"><title>{{.Nom}} ({{.Code}}) : {{if .N}}{{.N}} flux {{accord .N "bloqué(s)"}}{{else}}aucun flux{{end}}</title></path>{{end}}</svg>
-<p class="legende-carte"><span class="niveau-0"></span>Aucun <span class="niveau-1"></span>Peu <span class="niveau-3"></span> <span class="niveau-5"></span>Beaucoup <small class="aide">(échelle logarithmique)</small></p>
-</section>{{end}}
-{{if .D.Tronque}}<p class="message erreur">Résultat partiel (10 000 lignes lues au plus) : choisir une période plus courte.</p>{{end}}
-<div class="grille">
-<section class="carte"><h2>Adresses sources</h2>{{if .D.ParIP}}<table>{{range .D.ParIP}}<tr><td><code>{{.Nom}}</code></td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-{{if .D.ParPays}}<section class="carte"><h2>Pays</h2><table>{{range .D.ParPays}}<tr><td>{{drapeau .Nom}} {{nomPays .Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table></section>{{end}}
-<section class="carte"><h2>Ports visés</h2>{{if .D.ParPort}}<table>{{range .D.ParPort}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-<section class="carte"><h2>Par règle</h2>{{if .D.ParRegle}}<table>{{range .D.ParRegle}}<tr><td>{{.Nom}}</td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-<section class="carte"><h2>Par machine</h2>{{if .D.ParMachine}}<table>{{range .D.ParMachine}}<tr><td><a href="/machines/{{.Nom}}">{{.Nom}}</a></td><td class="nombre">{{.N}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+{{define "contenu"}}{{$d := .D}}
+<div class="page-flux" {{if $d.Direct}}data-flux-direct="/flux-bloques/direct"{{end}}>
+<div class="flux-tete"><h1>Flux bloqués</h1>{{if $d.Direct}}<span class="flux-direct" data-flux-etat><i></i>En direct</span>{{end}}
+<nav aria-label="Période"><span class="segment periode">{{range $d.Periodes}}<a href="{{.Lien}}" {{if .Actif}}class="actif" aria-current="page"{{end}}>{{.Nom}}</a>{{end}}</span></nav></div>
+<p class="sous">Flux entrants depuis Internet bloqués par vos pare-feu : OPNsense (par le collecteur) et iptables de vos machines.{{if $d.FiltreTexte}} <span class="pastille">Filtre : {{$d.FiltreTexte}}</span> <a href="{{$d.SansFiltre}}">tout afficher</a>{{end}}</p>
+<div class="flux-cases">
+<div class="flux-case"><b><span data-flux-minute>{{$d.ParMinute}}</span><small> / min</small></b><span>dernière minute</span>{{if $d.Spark}}<svg viewBox="0 0 100 24" class="flux-spark" aria-hidden="true"><polyline points="{{$d.Spark}}" data-flux-spark/></svg>{{end}}</div>
+<div class="flux-case"><b>{{nombre $d.B.Total}}</b><span>sur {{$d.NomPeriode}}{{if $d.Comparaison}} <em class="{{$d.ComparaisonClasse}}">{{$d.Comparaison}}</em>{{end}}</span></div>
+<div class="flux-case"><b>{{if $d.B.IPPlus}}+ de {{end}}{{nombre $d.B.NbIP}}</b><span>{{if $d.B.SansAdresses}}adresses (non suivies par port){{else}}adresses sources{{end}}</span></div>
+<div class="flux-case"><b>{{$d.B.NbPays}}</b><span>pays</span></div>
+<div class="flux-case"><b>{{if $d.PortPrincipal}}{{$d.PortPrincipal}}{{else}}—{{end}}</b><span>port le plus visé{{if $d.ServicePrincipal}} ({{$d.ServicePrincipal}}){{end}}</span></div>
 </div>
-<section class="carte"><h2>Derniers flux</h2>{{if .D.Derniers}}<div class="defile"><table><thead><tr><th>Heure</th><th>Machine</th><th>Règle</th><th>Interface</th><th>Source</th><th>Pays</th><th>Port</th></tr></thead><tbody>
-{{range .D.Derniers}}<tr><td class="mono">{{dateMs .T}}</td><td>{{.Machine}}</td><td>{{.Regle}}</td><td>{{.Interface}}</td><td><code>{{.IP}}</code></td><td>{{drapeau .Pays}} {{.Pays}}</td><td>{{.Proto}}/{{.Port}}</td></tr>{{end}}
-</tbody></table></div>{{else}}{{template "vide" "Aucun flux bloqué sur la période."}}{{end}}</section>
-<p><small>{{if not .D.GeoIP}}Pays : base GéoIP pas encore téléchargée (Réglages › Interface). {{end}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).</small></p>
+<div class="flux-onglets"><span class="segment">{{range $d.Vues}}<a href="{{.Lien}}" {{if .Actif}}class="actif" aria-current="page"{{end}}>{{.Nom}}</a>{{end}}</span></div>
+{{if eq $d.Vue "monde"}}
+<div class="flux-duo">
+<section class="carte flux-mappe"><div class="flux-tete-carte"><h2>D'où viennent les flux bloqués</h2><span class="aide">couleur : nombre sur {{$d.NomPeriode}}{{if $d.Direct}} · points : dernières 10 s{{end}}</span></div>
+{{if $d.CarteVide}}<p class="vide">{{$d.CarteVide}}.</p>{{end}}
+<svg class="flux-monde" viewBox="0 20 1000 420" role="img" aria-label="Carte du monde des flux bloqués par pays" data-flux-carte data-centres="{{$d.Centres}}" data-maison="{{index $d.Maison 0}},{{index $d.Maison 1}}">
+{{range $d.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}" data-code="{{.Code}}"><title>{{.Nom}} : {{if .N}}{{nombre .N}} {{accord .N "bloqué(s)"}}{{else}}aucun{{end}}</title></path>{{end}}
+<g data-flux-traits></g><circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="14" class="flux-maison-halo"/><circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="6" class="flux-maison"/><text x="{{index $d.Maison 0}}" y="{{index $d.Maison 1}}" dx="-30" dy="30" class="flux-etiq">vos pare-feu</text></svg>
+<p class="legende-carte"><span class="niveau-0"></span>Aucun <span class="niveau-1"></span>Peu <span class="niveau-3"></span> <span class="niveau-5"></span>Beaucoup{{if $d.Direct}} <span class="flux-sep"></span><span class="flux-pt"></span>bloqué à l'instant{{end}} <small class="aide">(échelle logarithmique)</small></p>
+{{if $d.Barres}}<div class="flux-bloc-frise"><div class="flux-tete-carte"><h3>{{if eq $d.B.LargeurBarre.Minutes 1.0}}Par minute, dernière heure{{else}}Sur {{$d.NomPeriode}}{{end}}</h3>{{if $d.PicTexte}}<span class="aide">{{$d.PicTexte}}</span>{{end}}</div>
+<svg class="flux-frise" viewBox="0 0 600 70" preserveAspectRatio="none" role="img" aria-label="Flux bloqués dans le temps">{{range $d.Barres}}<rect x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .H}}" rx="1.5"{{if .Pic}} class="pic"{{end}}><title>{{.Titre}}</title></rect>{{end}}</svg>
+<div class="flux-axe"><span>{{index $d.Axe 0}}</span><span>{{index $d.Axe 1}}</span><span>{{index $d.Axe 2}}</span></div></div>{{end}}
+</section>
+<section class="carte flux-fil"><div class="flux-tete-carte"><h2>Derniers blocages</h2>{{if $d.Direct}}<button type="button" class="secondaire petit" data-flux-pause>Mettre en pause</button>{{end}}</div>
+<ul data-flux-fil>{{range $d.Fil}}<li><span class="h mono">{{.Heure}}</span><span class="src">{{drapeau .Pays}} <code>{{.IP}}</code>{{if gt .N 1}} <small>×{{.N}}</small>{{end}}</span><span class="dst"><b>{{.PareFeu}}</b> <small>{{.Port}}{{if .Service}} · {{.Service}}{{end}}</small></span></li>{{end}}</ul>
+{{if not $d.Fil}}<p class="vide" data-flux-fil-vide>Aucun blocage reçu depuis le démarrage du serveur.</p>{{end}}
+{{if not $d.Direct}}<p class="aide"><small><a href="{{$d.LienDirect}}">Passer en direct</a> pour voir les blocages arriver.</small></p>{{end}}</section>
+</div>
+{{else}}
+<section class="carte flux-reseau"><div class="flux-tete-carte"><h2>Mon réseau : d'où ça vient, qui bloque, ce qui est visé</h2><span class="aide">{{$d.NomPeriode}} · épaisseur = nombre de flux · cliquer un bloc pour filtrer</span></div>
+{{with $d.Sankey}}<p class="flux-glisser">← faire glisser pour voir les 3 colonnes →</p>
+<div class="flux-defile"><svg class="flux-sankey" viewBox="0 0 1000 {{printf "%.0f" .Hauteur}}" role="img" aria-label="Pays, pare-feu et ports des flux bloqués" data-flux-sankey>
+<text x="157" y="12" class="col">D'OÙ ÇA VIENT</text><text x="477" y="12" class="col">QUI BLOQUE</text><text x="797" y="12" class="col">CE QUI EST VISÉ</text>
+{{range .Rubans}}<path d="{{.D}}" class="ruban {{.Classe}}" data-a="{{.A}}" data-b="{{.B}}" data-centre="{{.Centre}}"><title>{{.Titre}}</title></path>{{end}}
+{{range .Pays}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-pays"/><text x="{{printf "%.0f" .X}}" dx="-8" y="{{printf "%.1f" .TY}}" class="lib droite-a">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="-8" y="{{printf "%.1f" .TY}}" dy="15" class="val droite-a">{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
+{{range .PareFeux}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-pf"/><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" class="lib">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="15" class="val">{{if .Sous}}{{.Sous}} · {{end}}{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
+{{range .Ports}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-port"/><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" class="lib">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="15" class="val">{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
+<g data-flux-points></g></svg></div>
+{{if .Estime}}<p class="aide"><small>Avec ce filtre, le lien entre pare-feu et ports (ou pays) est estimé au prorata : les compteurs par heure ne gardent pas les trois ensemble.</small></p>{{end}}
+{{else}}<p class="vide">Aucun flux bloqué sur la période.</p>{{end}}
+{{if $d.Note}}<p class="flux-note">{{$d.Note}}</p>{{end}}</section>
+{{end}}
+<div class="flux-tops">
+<section class="carte flux-top"><h2>Pays</h2>{{range $d.Pays}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}{{drapeau .Code}} {{.Nom}}{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+<section class="carte flux-top"><h2>Ports visés</h2>{{range $d.Ports}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}{{.Nom}}{{if .Lien}}</a>{{end}} {{if .Sous}}<small>{{.Sous}}</small>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+<section class="carte flux-top"><h2>Bloqué par</h2>{{range $d.PareFeux}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}<b>{{.Nom}}</b>{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
+<section class="carte flux-top"><h2>Adresses les plus insistantes</h2>{{range $d.IPs}}<div class="rang"><span class="nom">{{drapeau .Code}} <a href="{{.Lien}}" title="Chercher cette adresse dans les logs"><code>{{.Nom}}</code></a>{{if ge .PareFeux 2}} <span class="flux-pf">{{.PareFeux}} pare-feu</span>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">{{if $d.B.SansAdresses}}Adresses non suivies par port : enlever le filtre pour les voir.{{else}}Aucune.{{end}}</p>{{end}}</section>
+</div>
+<p class="aide"><small>OPNsense : seuls les blocages entrants venus d'Internet sont comptés, par le collecteur, sans garder les lignes. Conservation : 30 jours (adresses : 7 jours). {{if $d.GeoIP}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).{{end}}</small></p>
+</div>
 {{end}}

@@ -918,6 +918,7 @@ type ReglagesInterface struct {
 	Theme       string `json:"theme"`        // auto, clair, sombre
 	DebugJusqua int64  `json:"debug_jusqua"` // journal du serveur en « debug » jusqu'à (secondes Unix)
 	GeoIP       bool   `json:"geoip"`        // base GéoIP téléchargée chaque mois (pays des flux bloqués)
+	PaysCarte   string `json:"pays_carte"`   // pays des pare-feu : arrivée des traits de la carte des flux bloqués
 	Menu        string `json:"menu"`         // gauche (défaut) ou haut
 	MenuReplie  bool   `json:"menu_replie"`  // menu latéral replié par défaut
 	// Ingestion : adresse publique d'ingestion (https://hôte[:port]) que les
@@ -926,7 +927,7 @@ type ReglagesInterface struct {
 }
 
 func interfaceDefaut() ReglagesInterface {
-	return ReglagesInterface{Fuseau: "Europe/Paris", Theme: "auto", GeoIP: true, Menu: "gauche"}
+	return ReglagesInterface{Fuseau: "Europe/Paris", Theme: "auto", GeoIP: true, Menu: "gauche", PaysCarte: "FR"}
 }
 
 // normaliserIngestion : « https://hôte[:port] » seul (pas de chemin, de
@@ -956,6 +957,9 @@ func (r ReglagesInterface) valider() error {
 	}
 	if r.Menu != "gauche" && r.Menu != "haut" {
 		return errors.New("menu : gauche ou haut")
+	}
+	if _, ok := nomsPays[r.PaysCarte]; !ok && r.PaysCarte != "" {
+		return errors.New("pays des pare-feu : code à 2 lettres (ex. FR)")
 	}
 	if n, err := normaliserIngestion(r.Ingestion); err != nil || n != r.Ingestion {
 		return errors.New("adresse d'ingestion : https://hôte ou https://hôte:port attendu (sans chemin)")
@@ -1123,6 +1127,7 @@ func (c *Console) postInterface(q *req) {
 	case "geoip_auto":
 		avantGeo := r.GeoIP
 		r.GeoIP = f.coche("geoip")
+		r.PaysCarte = strings.ToUpper(strings.TrimSpace(f.texte("pays_carte")))
 		if r.GeoIP && !avantGeo && c.opt.GeoIP != nil {
 			c.opt.GeoIP.Demander()
 		}
