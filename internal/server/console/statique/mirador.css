@@ -2734,3 +2734,17 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
   .page-flux .cc-grille { grid-template-columns: 1fr; } .page-flux .cc-col:nth-child(n) { border-left: 0; } .page-flux .cc-col:nth-child(n+2) { border-top: 1px solid var(--bord-doux); }
   .page-flux .cc-h, .page-flux .cc-alerte { padding-left: 16px; padding-right: 16px; }
 }
+
+/* --- Choix d'un pare-feu au-dessus de « Mon réseau » (SPEC § 140) --- */
+.page-flux .flux-choix-pf { display: flex; align-items: center; gap: 10px; padding: 12px 22px 0; min-width: 0; }
+.page-flux .flux-choix-pf .lbl { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fc-pale); flex: none; }
+.page-flux .flux-choix-pf .puces { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding: 2px; min-width: 0; flex: 1; }
+.page-flux .flux-choix-pf .choix { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; color: var(--fc-texte); background: var(--fc-port); border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
+.page-flux .flux-choix-pf .choix:hover { border-color: var(--fc-vignette-bord); }
+.page-flux .flux-choix-pf .choix.actif { background: var(--fc-fond); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.page-flux .flux-choix-pf .choix small { color: var(--fc-pale); } .page-flux .flux-choix-pf .choix .n { color: var(--fc-pale); font-variant-numeric: tabular-nums; }
+.page-flux .flux-choix-pf .pt { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--sk-pfx); }
+.page-flux .flux-choix-pf .pt.pf0 { background: var(--sk-pf0); } .page-flux .flux-choix-pf .pt.pf1 { background: var(--sk-pf1); } .page-flux .flux-choix-pf .pt.pf2 { background: var(--sk-pf2); } .page-flux .flux-choix-pf .pt.pf3 { background: var(--sk-pf3); }
+.page-flux .flux-choix-pf .pt.pf4 { background: var(--sk-pf4); } .page-flux .flux-choix-pf .pt.pf5 { background: var(--sk-pf5); } .page-flux .flux-choix-pf .pt.pf6 { background: var(--sk-pf6); } .page-flux .flux-choix-pf .pt.pf7 { background: var(--sk-pf7); }
+.page-flux .flux-tous { flex: none; font-size: 12.5px; font-weight: 600; color: var(--accent); }
+@media (max-width: 700px) { .page-flux .flux-choix-pf { flex-wrap: wrap; padding: 10px 16px 0; } .page-flux .flux-choix-pf .puces { flex-basis: 100%; } }

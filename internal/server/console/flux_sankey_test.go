@@ -59,7 +59,7 @@ func verifierSankey(t *testing.T, pfs []string) {
 		b.Total += c.N
 	}
 	b.NbPays = len(b.Pays)
-	s := construireSankey(b, url.Values{}, nil)
+	s := construireSankey(b, url.Values{}, nil, nil)
 	if s == nil || len(s.PareFeux) != len(pfs) {
 		t.Fatalf("pare-feu affichés : %d, attendu %d", len(s.PareFeux), len(pfs))
 	}
@@ -94,7 +94,7 @@ func TestClassementFlux(t *testing.T) {
 		b.Pays = append(b.Pays, fluxbloques.Compte{Nom: string(rune('A'+i%26)) + string(rune('A'+i/26)), N: 100 - i})
 		b.Total += 100 - i
 	}
-	cols := (&Console{}).classementFlux(b, url.Values{}, nil, false, false)
+	cols := (&Console{}).classementFlux(b, url.Values{}, nil, nil, false, false)
 	p := cols[0]
 	if len(p.Lignes) != 6 || len(p.Plus) != 20 || p.Autres != 24 || p.Lignes[0].Rang != 1 || p.Plus[0].Rang != 7 {
 		t.Fatalf("pays : %d lignes, %d de plus, %d autres", len(p.Lignes), len(p.Plus), p.Autres)

@@ -671,6 +671,13 @@ func tirageFlux(r *rand.Rand) (string, protocole.FluxBloque) {
 	if f.Port == 5060 {
 		f.Proto = "udp"
 	}
+	// DEMO_PAREFEU=12 : une part des blocages sur des machines en plus,
+	// pour voir un parc de plus de 8 pare-feu (SPEC § 140).
+	if n, _ := strconv.Atoi(os.Getenv("DEMO_PAREFEU")); n > 4 && r.IntN(4) == 0 {
+		k := 5 + r.IntN(n-4)
+		f.Interface, f.Regle = "eth0", "DROP_IN:"
+		return fmt.Sprintf("srv-%02d", k), f
+	}
 	switch y := r.IntN(10); {
 	case y < 6:
 		f.Interface, f.Regle = "igb0", "règle 81"

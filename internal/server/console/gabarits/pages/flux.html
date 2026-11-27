@@ -40,6 +40,7 @@
 <section class="flux-mappe flux-reseau" aria-label="Mon réseau">
 <div class="flux-tete-reseau"><div><h2>Mon réseau</h2><span>{{if $d.Sortant}}vers quel pays → qui bloque → quel port{{else}}d'où ça vient → qui bloque → ce qui est visé{{end}} · {{$d.NomPeriode}}</span></div>
 <div class="flux-indic"><span>survoler un bloc : ses chemins ressortent</span><span>cliquer : filtrer la page</span></div></div>
+{{with $d.ChoixPF}}<nav class="flux-choix-pf" aria-label="Choisir un pare-feu"><span class="lbl">Pare-feu</span><div class="puces">{{range .}}<a href="{{.Lien}}" class="choix{{if .Actif}} actif{{end}}"{{if .Actif}} aria-current="true"{{end}}>{{with .Couleur}}<span class="pt {{.}}"></span>{{end}}<b>{{.Nom}}</b>{{with .Outil}}<small>{{.}}</small>{{end}}<span class="n">{{.N}}</span></a>{{end}}</div>{{with $d.LienTous}}<a class="flux-tous" href="{{.}}">{{if $d.ToutPF}}Regrouper au-delà de 8{{else}}Les {{$d.NbPF}} dans le schéma{{end}}</a>{{end}}</nav>{{end}}
 {{with $d.Sankey}}<p class="flux-glisser">← faire glisser pour voir les 3 colonnes →</p>
 <div class="flux-defile"><svg class="flux-sankey" viewBox="0 0 1000 {{printf "%.0f" .Hauteur}}" role="img" aria-label="Pays, pare-feu et ports des flux bloqués" data-flux-sankey>
 <defs>{{range .Degrades}}<linearGradient id="{{.ID}}" x1="0" x2="1"><stop offset="0" class="s-{{.De}}"/><stop offset="1" class="s-{{.Vers}}"/></linearGradient>{{end}}</defs>

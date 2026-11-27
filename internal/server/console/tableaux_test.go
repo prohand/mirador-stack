@@ -218,13 +218,13 @@ func donneesFluxExemple(vue string) donneesFlux {
 	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
 		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
 		Fil:     []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
-		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}),
+		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}, nil),
 		Chemins: cheminsVue([]fluxbloques.Chemin{{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 4120}}, v),
 		Sources: []sourceFlux{{Collecteur: "collecteur-lan", Texte: "aucune ligne filterlog reçue depuis 1 h", Classe: "attention"}},
 		Note:    "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
 	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
 	d.AlerteIP, d.AlertePF = "45.143.203.10", 2
-	d.Classement = (&Console{}).classementFlux(b, v, map[string]string{"fw": "OPNsense"}, false, false)
+	d.Classement = (&Console{}).classementFlux(b, v, map[string]string{"fw": "OPNsense"}, nil, false, false)
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	d.Bord, d.Grille, d.Bulles, d.TopPays = bordCarte, grilleCarte, bullesFlux(b.Pays), d.Pays
 	return d

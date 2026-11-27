@@ -2834,3 +2834,12 @@ document.addEventListener("change", function (ev) {
   });
   svg.addEventListener('mouseleave', eteindre);
 })();
+
+// Choix d'un pare-feu (SPEC § 140) : la pastille choisie est rendue visible
+// dans la barre qui défile (téléphone, parc de plus de 8 pare-feu).
+(function () {
+  var actif = document.querySelector('.flux-choix-pf .choix.actif');
+  var barre = actif && actif.parentElement;
+  if (!barre || barre.scrollWidth <= barre.clientWidth) return;
+  barre.scrollLeft = Math.max(0, actif.offsetLeft - barre.offsetLeft - 16);
+})();

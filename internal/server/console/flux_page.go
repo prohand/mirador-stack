@@ -78,6 +78,28 @@ type rangFlux struct {
 	Adresse                 bool // adresse IP : écrite en police fixe
 }
 
+// choixPF : une pastille de la barre de choix d'un pare-feu.
+type choixPF struct {
+	Nom, N, Couleur, Outil, Lien string
+	Actif                        bool
+}
+
+// maxPFSchema : pare-feu dessinés un par un dans « Mon réseau » avant
+// « N autres » ; ?tous=1 les dessine tous (jusqu'à maxPFTous).
+const (
+	maxPFSchema = 8
+	maxPFTous   = 40
+)
+
+// couleurPF : couleur d'un pare-feu d'après son rang sur la période
+// (pf0 à pf7, puis gris) : la même partout, même page filtrée.
+func couleurPF(rangs map[string]int, nom string) string {
+	if r, ok := rangs[nom]; ok && r < 8 {
+		return "pf" + strconv.Itoa(r)
+	}
+	return "pfx"
+}
+
 // colonneClassement : une colonne du bloc « Classements » (SPEC § 139) :
 // 6 lignes, puis jusqu'à 20 de plus derrière « + N autres ».
 type colonneClassement struct {
@@ -137,6 +159,10 @@ type donneesFlux struct {
 	Bulles                  []bulleFlux
 	Chemins                 []cheminVue
 	TopPays                 []rangFlux
+	ChoixPF                 []choixPF // barre de choix d'un pare-feu (SPEC § 140)
+	ToutPF                  bool      // tous les pare-feu dans le schéma (?tous=1)
+	NbPF                    int       // plus de maxPFSchema pare-feu : lien « tout afficher »
+	LienTous                string
 	Classement              []colonneClassement
 	AlerteIP, AlertePays    string // adresse bloquée par plusieurs pare-feu (bas des classements)
 	AlertePF                int
@@ -147,7 +173,7 @@ type donneesFlux struct {
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
 func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 	w := url.Values{}
-	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port"} {
+	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port", "tous"} {
 		if x := v.Get(k); x != "" && !(sansFiltre && (k == "pays" || k == "pf" || k == "port")) {
 			w.Set(k, x)
 		}
@@ -229,6 +255,22 @@ func (c *Console) pageFlux(q *req) {
 		c.flash(q, "", "lecture des flux bloqués : "+err.Error())
 	}
 	d.B = b
+	// Liste de tous les pare-feu de la période (même filtrée sur une
+	// machine) : barre de choix au-dessus du schéma et couleurs stables
+	// (SPEC § 140). Le bilan sans filtre est gardé 1 min en cache.
+	tousPF := b.PareFeux
+	if f.PareFeu != "" || f.Pays != "" || f.Port != "" {
+		if bt, err := mag.Bilan(q.r.Context(), debut, fin, fluxbloques.Filtre{}, p.Barres); err == nil {
+			tousPF = bt.PareFeux
+		}
+	}
+	rangs := map[string]int{}
+	for _, x := range tousPF {
+		if x.Nom != fluxbloques.Autres {
+			rangs[x.Nom] = len(rangs)
+		}
+	}
+	d.ToutPF = v.Get("tous") == "1"
 	minutes, _ := mag.ParMinute(30)
 	if len(minutes) > 0 {
 		d.ParMinute = minutes[len(minutes)-1]
@@ -314,8 +356,27 @@ func (c *Console) pageFlux(q *req) {
 			outils[l.Machine] = l.PareFeu
 		}
 	}
-	d.Sankey = construireSankey(b, v, outils)
-	d.Classement = c.classementFlux(b, v, outils, d.Sortant, d.GeoIP)
+	d.Sankey = construireSankey(b, v, outils, rangs)
+	d.Classement = c.classementFlux(b, v, outils, rangs, d.Sortant, d.GeoIP)
+	// Barre de choix d'un pare-feu (vue « Mon réseau »).
+	if len(rangs) > 1 || f.PareFeu != "" {
+		d.ChoixPF = append(d.ChoixPF, choixPF{Nom: "Tous", N: nombreLisible(len(rangs)) + " pare-feu", Lien: lienFluxAvec(v, "pf", "", false), Actif: f.PareFeu == ""})
+		for _, x := range tousPF {
+			if x.Nom == fluxbloques.Autres {
+				continue
+			}
+			d.ChoixPF = append(d.ChoixPF, choixPF{Nom: x.Nom, N: nombreLisible(x.N), Couleur: couleurPF(rangs, x.Nom), Outil: outils[x.Nom],
+				Lien: lienFluxAvec(v, "pf", x.Nom, false), Actif: f.PareFeu == x.Nom})
+		}
+	}
+	if len(rangs) > maxPFSchema && f.PareFeu == "" {
+		d.NbPF = len(rangs)
+		if d.ToutPF {
+			d.LienTous = lienFluxAvec(v, "tous", "", false)
+		} else {
+			d.LienTous = lienFluxAvec(v, "tous", "1", false)
+		}
+	}
 	d.Chemins = cheminsVue(b.Chemins, v)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
@@ -665,14 +726,22 @@ func regrouperTop(cs []fluxbloques.Compte, n int) (garder map[string]bool, ordre
 
 // construireSankey : pays → pare-feu → ports ; outils : outil de chaque
 // pare-feu (OPNsense, ufw, nftables…) pour son étiquette.
-func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string) *sankeyVue {
+func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string, rangs map[string]int) *sankeyVue {
 	if b.Total == 0 {
 		return nil
 	}
-	gPays, oPays := regrouperTop(b.Pays, 4)
-	// Pare-feu : jusqu'à 8 (un parc en a rarement plus) ; au-delà, « N autres ».
-	gPF, oPF := regrouperTop(b.PareFeux, 8)
-	gPort, oPort := regrouperTop(b.Ports, 5)
+	// Pare-feu : 8 dessinés un par un, au-delà « N autres » (?tous=1 : tous).
+	// Une seule machine choisie : plus de pays et de ports (SPEC § 140).
+	nPaysMax, nPFMax, nPortsMax := 4, maxPFSchema, 5
+	if v.Get("tous") == "1" {
+		nPFMax = maxPFTous
+	}
+	if v.Get("pf") != "" {
+		nPaysMax, nPortsMax = 8, 10
+	}
+	gPays, oPays := regrouperTop(b.Pays, nPaysMax)
+	gPF, oPF := regrouperTop(b.PareFeux, nPFMax)
+	gPort, oPort := regrouperTop(b.Ports, nPortsMax)
 	cle := func(g map[string]bool, k string) string {
 		if g[k] {
 			return k
@@ -769,10 +838,16 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	})
 	s.PareFeux = placer(colPF, nPF, sankeyXPF, func(i int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130}
+			// Clic : les dessiner tous.
+			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130,
+				Lien: lienFluxAvec(v, "tous", "1", false)}
 		}
 		outil := outils[c]
-		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 7)),
+		classe := "pf" + strconv.Itoa(min(i, 7))
+		if rangs != nil {
+			classe = couleurPF(rangs, c)
+		}
+		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: classe,
 			Pilule: math.Max(110, float64(len([]rune(c))+len([]rune(outil)))*7.2+34)}
 	})
 	s.Ports = placer(colPort, nPort, sankeyXPorts, func(_ int, c string) noeudSankey {
@@ -895,7 +970,7 @@ func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
 
 // classementFlux : les quatre colonnes du bloc « Classements » (maquette C
 // validée le 27/11, SPEC § 139).
-func (c *Console) classementFlux(b fluxbloques.Bilan, v url.Values, outils map[string]string, sortant, geo bool) []colonneClassement {
+func (c *Console) classementFlux(b fluxbloques.Bilan, v url.Values, outils map[string]string, rangs map[string]int, sortant, geo bool) []colonneClassement {
 	part := func(n int) string {
 		p := n * 100 / max(b.Total, 1)
 		if p == 0 && n > 0 {
@@ -968,7 +1043,9 @@ func (c *Console) classementFlux(b fluxbloques.Bilan, v url.Values, outils map[s
 		Aide: "couleurs du schéma « Mon réseau »"}
 	colonne(&pfs, b.PareFeux, nbPF, func(i int, r *rangFlux) {
 		r.Outil, r.Couleur = outils[r.Nom], "pfx"
-		if i < 8 {
+		if rangs != nil {
+			r.Couleur = couleurPF(rangs, r.Nom)
+		} else if i < 8 {
 			r.Couleur = "pf" + strconv.Itoa(i)
 		}
 		r.Lien = lienFluxAvec(v, "pf", r.Nom, false)
