@@ -118,6 +118,7 @@ type donneesFlux struct {
 	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
 	Table                      []ligneSource
 	Bulles                     []bulleFlux
+	Chemins                    []cheminVue
 	TopPays                    []rangFlux
 	Bord, Grille               string // contour du monde et quadrillage (projection Equal Earth)
 	TableLues, TableSans       int
@@ -296,7 +297,18 @@ func (c *Console) pageFlux(q *req) {
 			d.Note = fmt.Sprintf("%s a été bloquée par %d pare-feu sur la période : la même adresse essaie plusieurs de vos machines.", x.Nom, x.PareFeux)
 		}
 	}
-	d.Sankey = construireSankey(b, v)
+	d.Table = c.tableauSources(q.r.Context(), q.t)
+	outils := map[string]string{}
+	for _, l := range d.Table {
+		switch {
+		case strings.HasPrefix(l.PareFeu, "équipement"):
+			outils[l.Machine] = "OPNsense"
+		case l.PareFeu != "" && l.PareFeu != "aucun":
+			outils[l.Machine] = l.PareFeu
+		}
+	}
+	d.Sankey = construireSankey(b, v, outils)
+	d.Chemins = cheminsVue(b.Chemins, v)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
 	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
@@ -304,7 +316,6 @@ func (c *Console) pageFlux(q *req) {
 			d.Sources = append(d.Sources, x)
 		}
 	}
-	d.Table = c.tableauSources(q.r.Context(), q.t)
 	for _, l := range d.Table {
 		if l.Bloques > 0 {
 			d.TableLues++
@@ -578,28 +589,40 @@ func (c *Console) fluxBloquesDirect(q *req) {
 
 type noeudSankey struct {
 	Nom, Sous, Cle, Lien string
+	Classe, Pct, Outil   string
 	N                    int
 	X, Y, H              float64
-	TY                   float64 // position du texte
+	TY                   float64 // milieu du bloc (texte)
+	Pilule               float64 // largeur de l'étiquette d'un pare-feu
 }
 
 type rubanSankey struct {
-	D, Centre, Classe, Titre string
-	A, B                     string // clés des deux bouts (direct)
+	D, Centre, Degrade, Titre string
+	A, B                      string // clés des deux bouts (survol, direct)
 }
+
+// degradeSankey : dégradé d'un lien, de la couleur de départ à celle d'arrivée.
+type degradeSankey struct{ ID, De, Vers string }
 
 type sankeyVue struct {
 	Pays, PareFeux, Ports []noeudSankey
 	Rubans                []rubanSankey
+	Degrades              []degradeSankey
 	Hauteur               float64
 	Estime                bool
+	NbPays, NbPF, NbPorts int
 }
 
+// Mise en page de « Mon réseau » (SPEC § 138, maquette validée le 27/11).
 const (
-	sankeyHaut     = 400.0
+	sankeyHaut     = 390.0
+	sankeyTop      = 34.0
 	sankeyEcart    = 14.0
-	sankeyMinNoeud = 30.0
-	sankeyLargeur  = 14.0
+	sankeyMinNoeud = 26.0
+	sankeyLargeur  = 12.0
+	sankeyXPays    = 200.0
+	sankeyXPF      = 494.0
+	sankeyXPorts   = 800.0
 )
 
 // regrouperTop : les n premiers, le reste dans « autres ».
@@ -615,7 +638,9 @@ func regrouperTop(cs []fluxbloques.Compte, n int) (garder map[string]bool, ordre
 	return garder, ordre
 }
 
-func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
+// construireSankey : pays → pare-feu → ports ; outils : outil de chaque
+// pare-feu (OPNsense, ufw, nftables…) pour son étiquette.
+func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string) *sankeyVue {
 	if b.Total == 0 {
 		return nil
 	}
@@ -670,46 +695,69 @@ func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
 	if len(colPays) == 0 || len(colPF) == 0 {
 		return nil
 	}
-	s := &sankeyVue{Estime: b.Estime}
+	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux)}
+	for _, p := range b.Ports {
+		if p.Nom != fluxbloques.Autres {
+			s.NbPorts++
+		}
+	}
 	total := 0
 	for _, n := range nPF {
 		total += n
 	}
-	placer := func(col []string, m map[string]int, x float64, nom func(string) (string, string, string)) []noeudSankey {
+	pct := func(n int) string {
+		p := n * 100 / max(total, 1)
+		if p == 0 && n > 0 {
+			return "< 1 %"
+		}
+		return strconv.Itoa(p) + " %"
+	}
+	plusGrosPays := 1
+	if len(b.Pays) > 0 {
+		plusGrosPays = max(b.Pays[0].N, 1)
+	}
+	placer := func(col []string, m map[string]int, x float64, nom func(int, string) noeudSankey) []noeudSankey {
 		k := (sankeyHaut - sankeyEcart*float64(len(col)-1)) / float64(max(total, 1))
-		y := 24.0
+		y := sankeyTop
 		var out []noeudSankey
-		for _, c := range col {
+		for i, c := range col {
 			h := float64(m[c]) * k
-			nm, sous, lien := nom(c)
-			out = append(out, noeudSankey{Nom: nm, Sous: sous, Cle: c, Lien: lien, N: m[c], X: x, Y: y, H: h, TY: y + max(h, 16)/2})
+			n := nom(i, c)
+			n.Cle, n.N, n.X, n.Y, n.H, n.TY, n.Pct = c, m[c], x, y, max(h, 3), y+max(h, 16)/2, pct(m[c])
+			out = append(out, n)
 			y += max(h, sankeyMinNoeud) + sankeyEcart
 		}
-		s.Hauteur = max(s.Hauteur, y+30)
+		s.Hauteur = max(s.Hauteur, y+10)
 		return out
 	}
-	s.Pays = placer(colPays, nPays, 150, func(c string) (string, string, string) {
+	s.Pays = placer(colPays, nPays, sankeyXPays, func(_ int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return fmt.Sprintf("Autres pays (%d)", max(b.NbPays-len(gPays), 0)), "", ""
+			return noeudSankey{Nom: fmt.Sprintf("Autres pays (%d)", max(b.NbPays-len(gPays), 0)), Classe: "pa"}
 		}
-		return strings.TrimSpace(drapeau(c) + " " + nomCourtPays(c)), "", lienFluxAvec(v, "pays", c, false)
+		// Niveau de couleur, comme sur la carte.
+		niveau := 1 + int(4*math.Log1p(float64(nPays[c]))/math.Log1p(float64(plusGrosPays)))
+		return noeudSankey{Nom: strings.TrimSpace(drapeau(c) + " " + nomCourtPays(c)), Lien: lienFluxAvec(v, "pays", c, false),
+			Classe: "n" + strconv.Itoa(min(max(niveau, 1), 5))}
 	})
-	s.PareFeux = placer(colPF, nPF, 470, func(c string) (string, string, string) {
+	s.PareFeux = placer(colPF, nPF, sankeyXPF, func(i int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), "machines", ""
+			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130}
 		}
-		return c, "", lienFluxAvec(v, "pf", c, false)
+		outil := outils[c]
+		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 3)),
+			Pilule: math.Max(110, float64(len([]rune(c))+len([]rune(outil)))*7.2+34)}
 	})
-	s.Ports = placer(colPort, nPort, 790, func(c string) (string, string, string) {
+	s.Ports = placer(colPort, nPort, sankeyXPorts, func(_ int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return "Autres ports", "", ""
+			return noeudSankey{Nom: fmt.Sprintf("Autres ports (%d)", max(s.NbPorts-len(gPort), 0)), Classe: "po"}
 		}
-		return strings.TrimSpace(c + " " + nomsServices[c]), "", lienFluxAvec(v, "port", c, false)
+		return noeudSankey{Nom: c, Outil: nomsServices[c], Lien: lienFluxAvec(v, "port", c, false), Classe: "po"}
 	})
 	k := (sankeyHaut - sankeyEcart*float64(len(colPF)-1)) / float64(max(total, 1))
-	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int, classe string) {
+	vus := map[string]bool{}
+	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int) {
 		offS, offD := map[string]float64{}, map[string]float64{}
-		for i, a := range src {
+		for _, a := range src {
 			for _, bn := range dst {
 				n := m[fluxbloques.Paire{A: a.Cle, B: bn.Cle}]
 				if n == 0 {
@@ -719,19 +767,24 @@ func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
 				x1, y1 := a.X+sankeyLargeur, a.Y+offS[a.Cle]
 				x2, y2 := bn.X, bn.Y+offD[bn.Cle]
 				mx := (x1 + x2) / 2
+				id := "fd-" + a.Classe + "-" + bn.Classe
+				if !vus[id] {
+					vus[id] = true
+					s.Degrades = append(s.Degrades, degradeSankey{ID: id, De: a.Classe, Vers: bn.Classe})
+				}
 				s.Rubans = append(s.Rubans, rubanSankey{
 					D: fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1fL%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1fZ",
 						x1, y1, mx, y1, mx, y2, x2, y2, x2, y2+h, mx, y2+h, mx, y1+h, x1, y1+h),
-					Centre: fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1f", x1, y1+h/2, mx, y1+h/2, mx, y2+h/2, x2, y2+h/2),
-					Classe: classe + strconv.Itoa(min(i, 4)), Titre: fmt.Sprintf("%s → %s : %d", a.Nom, bn.Nom, n),
+					Centre:  fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1f", x1, y1+h/2, mx, y1+h/2, mx, y2+h/2, x2, y2+h/2),
+					Degrade: id, Titre: fmt.Sprintf("%s → %s : %s", a.Nom, bn.Nom, nombreLisible(n)),
 					A: a.Cle, B: bn.Cle})
 				offS[a.Cle] += h
 				offD[bn.Cle] += h
 			}
 		}
 	}
-	relier(s.Pays, s.PareFeux, gauche, "g")
-	relier(s.PareFeux, s.Ports, droite, "m")
+	relier(s.Pays, s.PareFeux, gauche)
+	relier(s.PareFeux, s.Ports, droite)
 	return s
 }
 
@@ -782,4 +835,33 @@ func nombreBulle(n int) string {
 		return s + "k"
 	}
 	return strconv.Itoa(n)
+}
+
+// cheminVue : une ligne de « Chemins les plus fréquents » (SPEC § 138).
+type cheminVue struct {
+	Code, Pays, PareFeu, Port, Service, Lien string
+	N, Pct                                   int
+}
+
+func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
+	var out []cheminVue
+	plusGros := 1
+	if len(cs) > 0 {
+		plusGros = max(cs[0].N, 1)
+	}
+	for _, c := range cs {
+		if len(out) >= 6 {
+			break
+		}
+		x := cheminVue{Code: c.Pays, Pays: nomCourtPays(c.Pays), PareFeu: c.PareFeu, Port: c.Port, Service: nomsServices[c.Port],
+			N: c.N, Pct: min(100, c.N*100/plusGros)}
+		if c.Pays == "" {
+			x.Pays = "Pays inconnu"
+		}
+		if c.PareFeu != fluxbloques.Autres {
+			x.Lien = lienFluxAvec(v, "pf", c.PareFeu, false)
+		}
+		out = append(out, x)
+	}
+	return out
 }

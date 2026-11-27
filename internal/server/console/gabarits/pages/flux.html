@@ -37,18 +37,27 @@
 </div>
 </section>
 {{else}}
-<section class="carte flux-reseau"><div class="flux-tete-carte"><h2>Mon réseau : {{if $d.Sortant}}vers où, qui bloque, quel port{{else}}d'où ça vient, qui bloque, ce qui est visé{{end}}</h2><span class="aide">{{$d.NomPeriode}} · épaisseur = nombre de flux · cliquer un bloc pour filtrer</span></div>
+<section class="flux-mappe flux-reseau" aria-label="Mon réseau">
+<div class="flux-tete-reseau"><div><h2>Mon réseau</h2><span>{{if $d.Sortant}}vers quel pays → qui bloque → quel port{{else}}d'où ça vient → qui bloque → ce qui est visé{{end}} · {{$d.NomPeriode}}</span></div>
+<div class="flux-indic"><span>survoler un bloc : ses chemins ressortent</span><span>cliquer : filtrer la page</span></div></div>
 {{with $d.Sankey}}<p class="flux-glisser">← faire glisser pour voir les 3 colonnes →</p>
 <div class="flux-defile"><svg class="flux-sankey" viewBox="0 0 1000 {{printf "%.0f" .Hauteur}}" role="img" aria-label="Pays, pare-feu et ports des flux bloqués" data-flux-sankey>
-<text x="157" y="12" class="col">{{if $d.Sortant}}VERS QUEL PAYS{{else}}D'OÙ ÇA VIENT{{end}}</text><text x="477" y="12" class="col">QUI BLOQUE</text><text x="797" y="12" class="col">{{if $d.Sortant}}QUEL PORT{{else}}CE QUI EST VISÉ{{end}}</text>
-{{range .Rubans}}<path d="{{.D}}" class="ruban {{.Classe}}" data-a="{{.A}}" data-b="{{.B}}" data-centre="{{.Centre}}"><title>{{.Titre}}</title></path>{{end}}
-{{range .Pays}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-pays"/><text x="{{printf "%.0f" .X}}" dx="-8" y="{{printf "%.1f" .TY}}" class="lib droite-a">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="-8" y="{{printf "%.1f" .TY}}" dy="15" class="val droite-a">{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
-{{range .PareFeux}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-pf"/><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" class="lib">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="15" class="val">{{if .Sous}}{{.Sous}} · {{end}}{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
-{{range .Ports}}{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="14" height="{{printf "%.1f" (maxf .H 3)}}" rx="3" class="noeud n-port"/><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" class="lib">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="15" class="val">{{nombre .N}}</text>{{if .Lien}}</a>{{end}}{{end}}
-<g data-flux-points></g></svg></div>
-{{if .Estime}}<p class="aide"><small>Avec ce filtre, le lien entre pare-feu et ports (ou pays) est estimé au prorata : les compteurs par heure ne gardent pas les trois ensemble.</small></p>{{end}}
-{{else}}<p class="vide">Aucun flux bloqué sur la période.</p>{{end}}
-{{if $d.Note}}<p class="flux-note">{{$d.Note}}</p>{{end}}</section>
+<defs>{{range .Degrades}}<linearGradient id="{{.ID}}" x1="0" x2="1"><stop offset="0" class="s-{{.De}}"/><stop offset="1" class="s-{{.Vers}}"/></linearGradient>{{end}}</defs>
+<text x="206" y="18" class="col">{{if $d.Sortant}}VERS QUEL PAYS{{else}}D'OÙ ÇA VIENT{{end}} · {{.NbPays}} PAYS</text><text x="500" y="18" class="col">QUI BLOQUE · {{.NbPF}} PARE-FEU</text><text x="806" y="18" class="col">{{if $d.Sortant}}QUEL PORT{{else}}CE QUI EST VISÉ{{end}} · {{.NbPorts}} PORTS</text>
+<g class="rubans">{{range .Rubans}}<path d="{{.D}}" class="ruban" fill="url(#{{.Degrade}})" data-a="{{.A}}" data-b="{{.B}}" data-centre="{{.Centre}}"><title>{{.Titre}}</title></path>{{end}}</g>
+<g data-flux-points></g>
+{{range .Pays}}<g class="noeud" data-cle="{{.Cle}}">{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="12" height="{{printf "%.1f" .H}}" rx="4" class="nd {{.Classe}}"/><text x="{{printf "%.0f" .X}}" dx="-12" y="{{printf "%.1f" .TY}}" dy="-6" class="lib fin">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="-12" y="{{printf "%.1f" .TY}}" dy="10" class="val fin">{{nombre .N}} · {{.Pct}}</text>{{if .Lien}}</a>{{end}}</g>{{end}}
+{{range .PareFeux}}<g class="noeud" data-cle="{{.Cle}}">{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="12" height="{{printf "%.1f" .H}}" rx="4" class="nd {{.Classe}}"/><g class="pilule"><rect x="{{printf "%.0f" .X}}" transform="translate(20 -18)" y="{{printf "%.1f" .TY}}" height="36" width="{{printf "%.0f" .Pilule}}" rx="9" class="fond-pilule"/><text x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .TY}}" dx="32" dy="-3" class="lib">{{.Nom}}{{with .Outil}} <tspan class="outil">{{.}}</tspan>{{end}}</text><text x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .TY}}" dx="32" dy="12" class="val">{{nombre .N}} · {{.Pct}}</text></g>{{if .Lien}}</a>{{end}}</g>{{end}}
+{{range .Ports}}<g class="noeud" data-cle="{{.Cle}}">{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="12" height="{{printf "%.1f" .H}}" rx="4" class="nd {{.Classe}}"/><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="-6" class="lib">{{.Nom}}{{with .Outil}} <tspan class="outil">{{.}}</tspan>{{end}}</text><text x="{{printf "%.0f" .X}}" dx="22" y="{{printf "%.1f" .TY}}" dy="10" class="val">{{nombre .N}} · {{.Pct}}</text>{{if .Lien}}</a>{{end}}</g>{{end}}
+</svg></div>
+{{if .Estime}}<p class="aide flux-estime"><small>Avec ce filtre, le lien entre pare-feu et ports (ou pays) est estimé au prorata : les compteurs par heure ne gardent pas les trois ensemble.</small></p>{{end}}
+{{else}}<p class="vide flux-vide-reseau">Aucun flux bloqué sur la période.</p>{{end}}
+{{if or $d.Chemins $d.Note}}<div class="flux-bas-reseau">
+<div class="flux-chemins">{{with $d.Chemins}}<div class="flux-tete-carte"><h3>Chemins les plus fréquents</h3><span class="aide">pays → pare-feu → port</span></div>
+{{range .}}{{if .Lien}}<a href="{{.Lien}}" class="chemin">{{else}}<div class="chemin">{{end}}<span class="p">{{drapeau .Code}} {{.Pays}}</span><span class="f">→</span><b>{{.PareFeu}}</b><span class="f">→</span><span class="port">{{.Port}}</span><small>{{.Service}}</small><span class="jauge"><i class="largeur-{{.Pct}}"></i></span><b class="n">{{nombre .N}}</b>{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}{{end}}</div>
+{{with $d.Note}}<div class="flux-multi">{{.}}</div>{{end}}
+</div>{{end}}
+</section>
 {{end}}
 <div class="flux-tops">
 <section class="carte flux-top"><h2>Pays</h2>{{range $d.Pays}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}{{drapeau .Code}} {{.Nom}}{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>

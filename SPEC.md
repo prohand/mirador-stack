@@ -8963,3 +8963,26 @@ Demande du 27/11 : « améliore le design de la vue carte ». Deux maquettes
   page un peu plus légère (fil de 6 lignes au lieu de 12).
 - Menaces : aucune nouvelle (même contenu, toujours échappé).
 
+
+## 138. Vue « Mon réseau » des flux bloqués : nouveau dessin (27/11, maquette validée) **[Fait, à valider]**
+
+Demande du 27/11 : « améliore aussi le mode réseau ». Maquette validée
+(« Je valides ») : même cadre que la carte, couleurs du thème (nuit en
+sombre, clair en clair).
+- Trois colonnes (pays → pare-feu → ports) avec titres et nombres ; chaque
+  bloc affiche son total et sa part (%). Pays colorés selon le volume
+  (5 teintes), chaque pare-feu a sa couleur, ports en gris.
+- Liens en dégradé (couleur du départ vers celle de l'arrivée) ; au survol
+  d'un bloc ou d'un lien, ses chemins ressortent et les autres s'atténuent.
+  Clic : filtre la page (inchangé).
+- Pare-feu dans une pastille avec son outil (OPNsense, ufw, nftables…).
+- Dessous : « Chemins les plus fréquents » (pays → pare-feu → port, 6 lignes
+  avec barre) et l'encadré « même adresse sur plusieurs pare-feu ».
+- Magasin : nouveau genre `c` (chemin pays + pare-feu + port) par minute et
+  par heure, 100 chemins gardés par heure, 30 jours.
+- Téléphone : schéma qui glisse de côté, chemins en liste sans barre.
+- Coût : disque ≈ 100 lignes par heure (≈ 3 Mo sur 30 j) ; calcul de la
+  page 30 j : 125 → 250 ms (base pleine), gardé 1 min en cache ; 24 h :
+  négligeable. Mémoire : une carte de 100 chemins par heure au plus.
+- Menaces : aucune nouvelle (noms et ports toujours échappés, pas de style
+  en ligne : CSP inchangée).

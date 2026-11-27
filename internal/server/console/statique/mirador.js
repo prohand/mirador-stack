@@ -2806,3 +2806,31 @@ document.addEventListener("change", function (ev) {
   });
   window.addEventListener('pagehide', function () { source.close(); });
 })();
+
+// « Mon réseau » (SPEC § 138) : au survol d'un bloc ou d'un lien, ses
+// chemins ressortent et les autres s'atténuent.
+(function () {
+  var svg = document.querySelector('[data-flux-sankey]');
+  if (!svg) return;
+  var rubans = svg.querySelectorAll('path.ruban');
+  function eteindre() {
+    svg.classList.remove('focus');
+    rubans.forEach(function (r) { r.classList.remove('fort'); });
+  }
+  function allumer(test) {
+    svg.classList.add('focus');
+    rubans.forEach(function (r) { r.classList.toggle('fort', test(r)); });
+  }
+  svg.addEventListener('mouseover', function (e) {
+    var r = e.target.closest('path.ruban');
+    if (r) { allumer(function (x) { return x === r; }); return; }
+    var n = e.target.closest('g.noeud[data-cle]');
+    if (n) {
+      var cle = n.getAttribute('data-cle');
+      allumer(function (x) { return x.getAttribute('data-a') === cle || x.getAttribute('data-b') === cle; });
+      return;
+    }
+    eteindre();
+  });
+  svg.addEventListener('mouseleave', eteindre);
+})();

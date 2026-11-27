@@ -51,6 +51,12 @@ const (
 	maxCachePays = 5000
 )
 
+// SepChemin sépare le pays et le pare-feu dans la clé d'un chemin.
+const SepChemin = "\x1f"
+
+// garderCheminsHeure : chemins (pays × pare-feu × port) gardés par heure.
+const garderCheminsHeure = 100
+
 // Autres : nom de la clé qui regroupe ce qui dépasse les limites.
 const Autres = "autres"
 
@@ -133,6 +139,7 @@ const (
 	gPaysPort = "x" // a = pays, b = port
 	gTronque  = "z" // a = « ip » : adresses perdues (limite)
 	gSource   = "s" // a = adresse locale (sortants), b = pare-feu
+	gChemin   = "c" // a = pays + SepChemin + pare-feu, b = port (chemins les plus fréquents)
 )
 
 type paire struct{ a, b string }
@@ -142,13 +149,14 @@ type seau struct {
 	total                   map[string]int
 	pays, ports, ips, xport map[paire]int
 	sources                 map[paire]int // sortants : adresse locale × pare-feu
+	chemins                 map[paire]int // pays × pare-feu × port
 	ipsPerdues              int
 	maxIP, maxAutres        int
 }
 
 func nouveauSeau(debut int64, maxIP, maxAutres int) *seau {
 	return &seau{debut: debut, total: map[string]int{}, pays: map[paire]int{}, ports: map[paire]int{},
-		ips: map[paire]int{}, xport: map[paire]int{}, sources: map[paire]int{}, maxIP: maxIP, maxAutres: maxAutres}
+		ips: map[paire]int{}, xport: map[paire]int{}, sources: map[paire]int{}, chemins: map[paire]int{}, maxIP: maxIP, maxAutres: maxAutres}
 }
 
 // ajouterBorne : compte k, ou « autres » (même premier élément) au-delà de max.
@@ -166,6 +174,9 @@ func ajouterBorne(m map[paire]int, k paire, n, max int, autresA bool) {
 func (s *seau) ajouter(pf, pays, port, ip, source string, n int) {
 	if source != "" {
 		ajouterBorne(s.sources, paire{source, pf}, n, s.maxAutres, true)
+	}
+	if k := (paire{pays + SepChemin + pf, port}); len(s.chemins) < s.maxAutres || s.chemins[k] > 0 {
+		s.chemins[k] += n // au-delà de la limite : les plus gros sont déjà là
 	}
 	if len(s.total) < s.maxAutres || s.total[pf] > 0 {
 		s.total[pf] += n
@@ -200,6 +211,8 @@ func (s *seau) reprendre(l ligneBase) {
 		s.ipsPerdues += l.n
 	case gSource:
 		s.sources[paire{l.a, l.b}] += l.n
+	case gChemin:
+		s.chemins[paire{l.a, l.b}] += l.n
 	}
 }
 
@@ -208,7 +221,7 @@ func (s *seau) copie() *seau {
 	for k, v := range s.total {
 		c.total[k] = v
 	}
-	for _, p := range [][2]map[paire]int{{s.pays, c.pays}, {s.ports, c.ports}, {s.ips, c.ips}, {s.xport, c.xport}, {s.sources, c.sources}} {
+	for _, p := range [][2]map[paire]int{{s.pays, c.pays}, {s.ports, c.ports}, {s.ips, c.ips}, {s.xport, c.xport}, {s.sources, c.sources}, {s.chemins, c.chemins}} {
 		for k, v := range p[0] {
 			p[1][k] = v
 		}
@@ -479,7 +492,8 @@ func (m *Magasin) ecrireHeure(ctx context.Context, s *seau) error {
 		m     map[paire]int
 	}{{gPays, s.pays}, {gPort, garderPlusGros(s.ports, garderPortsHeure, true)},
 		{gPaysPort, garderPlusGros(s.xport, garderPaysPortsHeure, true)}, {gIP, ips},
-		{gSource, garderPlusGros(s.sources, garderPortsHeure, false)}} {
+		{gSource, garderPlusGros(s.sources, garderPortsHeure, false)},
+		{gChemin, garderPlusGros(s.chemins, garderCheminsHeure, false)}} {
 		for k, n := range g.m {
 			if err := ins(g.genre, k.a, k.b, n); err != nil {
 				return err

@@ -2031,6 +2031,12 @@ thème sombre, B en thème clair) ; projection Equal Earth, bulles, classement
 et légende sur la carte, frise et fil compact dessous. Captures clair, sombre
 et téléphone sur la démo.
 
+**Vue « Mon réseau » redessinée (27/11, SPEC § 138)** : maquette validée ;
+blocs avec totaux et %, liens en dégradé, survol qui fait ressortir les
+chemins, pastille pare-feu + outil, « Chemins les plus fréquents ». Mesure
+(base pleine 30 j, 100 chemins/h) : calcul 30 j 125 → 250 ms, en cache 1 min ;
+disque + 3 Mo environ. Captures clair, sombre et téléphone sur la démo.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

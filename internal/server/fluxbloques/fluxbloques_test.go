@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/netip"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +65,9 @@ func TestMagasinBilanEtRedemarrage(t *testing.T) {
 	if b.IPs[0].Nom != "45.0.0.1" || b.IPs[0].PareFeux != 2 {
 		t.Errorf("adresses : %+v", b.IPs)
 	}
+	if len(b.Chemins) != 4 || b.Chemins[0] != (Chemin{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 10}) {
+		t.Errorf("chemins : %+v", b.Chemins)
+	}
 	if b.PaysPareFeu[Paire{"CN", "vps"}] != 2 || b.PareFeuPort[Paire{"fw", "tcp/5432"}] != 5 {
 		t.Errorf("liens : %v %v", b.PaysPareFeu, b.PareFeuPort)
 	}
@@ -99,6 +103,12 @@ func TestMagasinBilanEtRedemarrage(t *testing.T) {
 	}
 	if b.Total != 22 || b.NbIP != 4 || b.Pays[0] != (Compte{Nom: "CN", N: 16}) {
 		t.Fatalf("après redémarrage : total %d, ip %d, %+v", b.Total, b.NbIP, b.Pays)
+	}
+	if len(b.Chemins) != 5 || b.Chemins[0].N != 10 {
+		t.Errorf("chemins (base) : %+v", b.Chemins)
+	}
+	if b, _ := m2.Bilan(ctx, h.t.Add(-24*time.Hour), h.t, Filtre{PareFeu: "vps"}, 24); len(b.Chemins) != 1 || b.Chemins[0].PareFeu != "vps" {
+		t.Errorf("chemins filtrés : %+v", b.Chemins)
 	}
 	// Période d'avant connue (une heure écrite au moins dans la base) ?
 	h.t = h.t.Add(25 * time.Hour)
@@ -253,4 +263,55 @@ func BenchmarkLignes(b *testing.B) {
 			m.Lignes(false, ordinaire)
 		}
 	})
+}
+
+// BenchmarkBilan30j : page « 30 j » avec une base pleine (720 heures, 100
+// chemins par heure), cache vidé à chaque tour pour mesurer le vrai calcul.
+func BenchmarkBilan30j(b *testing.B) {
+	ctx := context.Background()
+	db, err := base.Ouvrir(filepath.Join(b.TempDir(), "flux.db"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	h := &horloge{t: time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)}
+	m, err := Nouveau(ctx, Options{DB: db, Maintenant: h.maintenant, Pays: func(netip.Addr) string { return "CN" }})
+	if err != nil {
+		b.Fatal(err)
+	}
+	tx, _ := db.Begin()
+	pays := []string{"CN", "US", "RU", "NL", "BR", "IN", "DE", "FR", "KR", "VN"}
+	pfs := []string{"fw", "vps-web", "srv-test", "pve1"}
+	for i := 1; i <= 720; i++ {
+		hr := h.t.Add(-time.Duration(i) * time.Hour).Unix()
+		ins := func(g, a, bb string, n int) {
+			if _, err := tx.Exec(`INSERT INTO heures (heure, genre, a, b, n) VALUES (?, ?, ?, ?, ?)`, hr, g, a, bb, n); err != nil {
+				b.Fatal(err)
+			}
+		}
+		ins("t", "", "", 1000)
+		for j, p := range pays {
+			ins("p", p, pfs[j%4], 100-j)
+			for k := 0; k < 10; k++ {
+				port := "tcp/" + strconv.Itoa(20+k)
+				ins("x", p, port, 10)
+				ins("c", p+SepChemin+pfs[(j+k)%4], port, 10-k)
+			}
+		}
+		for k := 0; k < 50; k++ {
+			ins("o", pfs[k%4], "tcp/"+strconv.Itoa(20+k), 20)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		m.cache.mu.Lock()
+		m.cache.m = nil
+		m.cache.mu.Unlock()
+		if bl, err := m.Bilan(ctx, h.t.Add(-30*24*time.Hour), h.t, Filtre{}, 30); err != nil || len(bl.Chemins) == 0 {
+			b.Fatal(err, len(bl.Chemins))
+		}
+	}
 }
