@@ -135,6 +135,13 @@
 <button name="action" value="inverser" class="secondaire" formnovalidate data-confirmer="Inverser le canal principal et le canal de secours ?">Inverser principal et secours</button>
 {{template "code2fa"}}<button>Enregistrer</button></div>{{end}}
 </form>
+<section class="carte" id="resume"><div class="entete-carte"><h2>Résumé de la semaine</h2>{{if .D.Resume.Actif}}<span class="pastille ok">chaque {{.D.Resume.NomJour}} à {{.D.Resume.Heure}}</span>{{else}}<span class="pastille">désactivé</span>{{end}}</div>
+<p class="sous">Un message sur les 7 derniers jours : alertes, disponibilité, disques bientôt pleins, tâches en échec, mises à jour de sécurité, flux bloqués. Une ligne n'apparaît que s'il y a quelque chose à dire. Envoyé sur les canaux de l'info, sans son.</p>
+{{if .Admin}}<form method="post" class="ligne">{{template "csrf" .CSRF}}
+<label class="case"><input type="checkbox" name="actif" value="1"{{if .D.Resume.Actif}} checked{{end}}> Envoyer le résumé</label>
+<label>Jour <select name="jour">{{range $i, $j := .D.Jours}}{{if $i}}<option value="{{$i}}"{{if eq $i $.D.Resume.Jour}} selected{{end}}>{{$j}}</option>{{end}}{{end}}</select></label>
+<label>Heure <input type="time" name="heure" value="{{.D.Resume.Heure}}" required></label>
+<button class="secondaire petit" name="action" value="resume">Enregistrer</button><button class="secondaire petit" name="action" value="resume-essai" formnovalidate>Envoyer maintenant</button></form>{{end}}</section>
 <p class="doux">Adresse de l'interface (lien dans les messages) et fuseau : <a href="/reglages/interface">Réglages › Interface</a>. Règles « machine en panne » : <a href="/sourdine#dependances">Alertes › Silences et maintenances</a>.</p>
 {{if .D.Tests}}<details class="carte" id="tests"><summary><strong>Derniers tests</strong> ({{len .D.Tests}})</summary><div class="defile"><table><thead><tr><th>Canal</th><th>Demandé</th><th>Résultat</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>{{range .D.Tests}}<tr><td>{{majuscule .Canal}}</td><td>{{dateMs .Demande}}</td><td>{{if .Fait}}<span class="pastille {{if egal .Statut "ok"}}ok{{else}}erreur{{end}}">{{majuscule .Statut}}</span> {{.Erreur}}{{else}}En attente{{end}}</td>
 {{if $.Admin}}<td><form method="post">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="test-effacer" class="secondaire petit" title="Effacer cette ligne">Effacer</button></form></td>{{end}}</tr>{{end}}</tbody></table></div>

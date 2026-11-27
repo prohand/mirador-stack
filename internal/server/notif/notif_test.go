@@ -460,6 +460,16 @@ func TestTexte(t *testing.T) {
 	if strings.Contains(h, "<script>") {
 		t.Error("HTML non échappé")
 	}
+	if strings.Contains(h, "Procédure") {
+		t.Error("ligne « Procédure » sans procédure")
+	}
+	// « Que faire » : une seule ligne, le texte reste sur la page (27/11).
+	a.AvecProcedure = true
+	m.Actives = []alertes.Alerte{a}
+	if h = Texte(m, Mise{HTML: true, Fuseau: paris, Lien: "https://mirador.example.org"}); strings.Count(h, "📝 Procédure : voir l&#39;alerte") != 1 && strings.Count(h, "📝 Procédure : voir l'alerte") != 1 {
+		t.Errorf("ligne « Procédure » absente :\n%s", h)
+	}
+	a.AvecProcedure = false
 	// Coupé proprement.
 	var beaucoup []alertes.Alerte
 	for i := 0; i < 200; i++ {

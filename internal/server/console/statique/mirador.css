@@ -2802,3 +2802,8 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .maj-outils { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 @media (max-width: 700px) { .maj-vagues { grid-auto-flow: row; } .maj-vague { border-left: 0; border-top: 1px solid var(--bord); } .maj-vague:first-child { border-top: 0; } }
 .groupe-alertes .actions-groupe { margin-left: auto; display: inline-flex; gap: 6px; }
+
+/* « Que faire ? » d'une règle, replié sur la page de l'alerte (27/11) */
+.que-faire { margin: 4px 0 14px; font-size: 13.5px; }
+.que-faire summary { cursor: pointer; color: var(--pale); width: fit-content; }
+.que-faire .texte-procedure { white-space: pre-wrap; margin: 6px 0 4px; padding: 8px 12px; border-left: 3px solid var(--bord); }

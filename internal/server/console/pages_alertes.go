@@ -104,6 +104,7 @@ type etiquette struct{ Nom, Valeur string }
 
 type donneesAlerte struct {
 	A          alertes.Alerte
+	Procedure  string // « Que faire ? » de la règle, montré replié (demande du 27/11)
 	Machine    string
 	Etiquettes []etiquette
 	Sourdine   string
@@ -150,10 +151,11 @@ func (c *Console) pageAlerte(q *req) {
 		}
 	}
 	exprRegle := ""
-	if c.lecteur != nil {
-		if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
-			for _, r := range rs {
-				if r.Nom == a.Regle {
+	if rs, err := alertes.ListerRegles(q.r.Context(), c.db); err == nil {
+		for _, r := range rs {
+			if r.Nom == a.Regle {
+				d.Procedure = r.Procedure // « Que faire ? » (demande du 27/11)
+				if c.lecteur != nil {
 					fin := q.t
 					if !d.EnCours && !a.Fin.IsZero() {
 						fin = a.Fin.Add(2 * time.Hour)

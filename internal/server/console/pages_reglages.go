@@ -114,6 +114,8 @@ type testCanal struct {
 }
 
 type donneesNotif struct {
+	Resume     ReglageResume // résumé de la semaine (27/11)
+	Jours      []string      // lundi … dimanche (index 1 à 7)
 	ServicesHB []notif.ServiceHeartbeat
 	// FormatsWebhook : formats du canal webhook (SPEC § 81).
 	FormatsWebhook [][2]string
@@ -223,6 +225,7 @@ func (c *Console) pageNotifications(q *req) {
 		Scan(&de.Le, &de.Canal, &de.Gravite, &de.Type, &de.Statut) == nil {
 		d.Dernier = &de
 	}
+	d.Resume, d.Jours = c.lireResume(ctx), joursResume
 	c.rendre(q, "notifications", "Notifications", "reglages", d)
 }
 
@@ -268,6 +271,27 @@ func (c *Console) postNotifications(q *req) {
 				}
 			}
 			return "comparaison avec vmalert enregistrée", alertes.EcrireReglagesVmalert(ctx, c.db, v, q.qui(), q.t)
+		}
+		// Résumé de la semaine (27/11) : réglage sans secret, sans code.
+		switch action {
+		case "resume":
+			j, _ := strconv.Atoi(f.texte("jour"))
+			r := ReglageResume{Actif: f.coche("actif"), Jour: j, Heure: f.texte("heure")}
+			if err := c.ecrireResume(ctx, r, q.qui(), q.ip.String(), q.t); err != nil {
+				return "", err
+			}
+			if !r.Actif {
+				return "résumé de la semaine désactivé", nil
+			}
+			return "résumé de la semaine : chaque " + r.NomJour() + " à " + r.Heure, nil
+		case "resume-essai":
+			if c.informer == nil {
+				return "", errors.New("service de notification absent")
+			}
+			if !c.informer(ctx, "resume-semaine", c.texteResume(ctx, q.t)) {
+				return "", errors.New("résumé non envoyé : aucun canal n'a répondu (voir l'historique des envois)")
+			}
+			return "résumé envoyé (en mode ombre : noté dans l'historique des envois seulement)", nil
 		}
 		if err := c.verifierCode(q); err != nil {
 			return "", err
