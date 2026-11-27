@@ -181,7 +181,7 @@ type donneesFlux struct {
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
 func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 	w := url.Values{}
-	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port", "tous"} {
+	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port", "tous", "par", "site", "groupe"} {
 		if x := v.Get(k); x != "" && !(sansFiltre && (k == "pays" || k == "pf" || k == "port")) {
 			w.Set(k, x)
 		}
@@ -193,6 +193,18 @@ func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 				w.Del("pf")
 				w.Del("port")
 			}
+		}
+		// Grand parc (SPEC § 140) : changer de regroupement ou de site/groupe
+		// repart de ce niveau (machine choisie et « tous » oubliés).
+		switch cle {
+		case "par":
+			w.Del("site")
+			w.Del("groupe")
+			w.Del("pf")
+			w.Del("tous")
+		case "site", "groupe":
+			w.Del("pf")
+			w.Del("tous")
 		}
 		if val == "" {
 			w.Del(cle)
@@ -364,29 +376,7 @@ func (c *Console) pageFlux(q *req) {
 			outils[l.Machine] = l.PareFeu
 		}
 	}
-	d.Sankey = construireSankey(b, v, outils, rangs)
-	d.Classement = c.classementFlux(b, v, outils, rangs, d.Sortant, d.GeoIP)
-	// Barre de choix d'un pare-feu (vue « Mon réseau »).
-	if len(rangs) > 1 || f.PareFeu != "" {
-		d.TitreChoix = "Pare-feu"
-		d.ChoixPF = append(d.ChoixPF, choixPF{Nom: "Tous", N: nombreLisible(len(rangs)) + " pare-feu", Lien: lienFluxAvec(v, "pf", "", false), Actif: f.PareFeu == ""})
-		for _, x := range tousPF {
-			if x.Nom == fluxbloques.Autres {
-				continue
-			}
-			d.ChoixPF = append(d.ChoixPF, choixPF{Nom: x.Nom, N: nombreLisible(x.N), Couleur: couleurPF(rangs, x.Nom), Outil: outils[x.Nom],
-				Lien: lienFluxAvec(v, "pf", x.Nom, false), Actif: f.PareFeu == x.Nom})
-		}
-	}
-	if len(rangs) > maxPFSchema && f.PareFeu == "" {
-		d.NbPF = len(rangs)
-		if d.ToutPF {
-			d.LienTous = lienFluxAvec(v, "tous", "", false)
-		} else {
-			d.LienTous = lienFluxAvec(v, "tous", "1", false)
-		}
-	}
-	d.Chemins = cheminsVue(b.Chemins, v)
+	c.vueParc(q.r.Context(), &d, b, v, f, tousPF, rangs, outils)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
 	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
@@ -849,7 +839,12 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	s.PareFeux = placer(colPF, nPF, sankeyXPF, func(i int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
 			// Clic : les dessiner tous.
-			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130,
+			reste := max(len(b.PareFeux)-len(gPF), 0)
+			nom, outil := fmt.Sprintf("%d autres", reste), "machines"
+			if reste == 1 {
+				nom, outil = "1 autre", "machine"
+			}
+			return noeudSankey{Nom: nom, Outil: outil, Classe: "pfx", Pilule: 130,
 				Lien: lienFluxAvec(v, "tous", "1", false)}
 		}
 		outil := outils[c]

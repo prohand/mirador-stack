@@ -9012,3 +9012,39 @@ des deux** (« je valide c »).
   colonne au plus) ; page un peu plus longue en HTML (≈ 80 lignes cachées).
 - Menaces : aucune nouvelle (noms et adresses échappés, pas de style en
   ligne : CSP inchangée).
+
+## 140. Flux bloqués : choisir une machine, grand parc par site ou groupe (27/11, maquette validée) **[Fait, à valider]**
+
+Questions du 27/11 : « il n'est pas possible de voir plus et de filtrer sur
+une machine ? », puis « s'il y a 500 machines c'est compliqué non ? ».
+Choix B (maquette « grand parc » validée : « oui »).
+- Barre au-dessus de « Mon réseau » : une pastille par pare-feu (couleur,
+  outil, blocages) et « Tous » ; clic : page filtrée sur la machine.
+  Couleurs d'après le rang sur la période, identiques filtré ou non.
+- Plus de 8 pare-feu : « Les N dans le schéma » (?tous=1, jusqu'à 40) ;
+  le bloc « N autres » y mène aussi. Une machine choisie : 8 pays et
+  10 ports au lieu de 4 et 5.
+- Grand parc (plus de 8) : recherche d'une machine (liste complétée au fil
+  de la frappe, sans JavaScript), « Regrouper : Site | Groupe | Machine »,
+  chemin parcouru (Tous › Paris › par-042).
+- Plus de 20 pare-feu : regroupement par site d'office. Colonne du milieu
+  = sites (« Paris · 182 machines ») ; clic : les machines du site (8 plus
+  actives + « N autres ») ; clic : la machine. Machines hors inventaire :
+  « Sans site » / « Sans groupe ». Site et groupe : ceux de l'inventaire.
+- Vue d'un site : calculée sur le bilan de la période (liens pays ×
+  pare-feu et pare-feu × port) ; adresses non suivies par site.
+- Stockage : chaque pare-feu garde au moins ses 8 ports et 3 chemins
+  principaux par heure, en plus des plus gros (avant : seuls les 150 plus
+  gros couples pare-feu × port, les petites machines n'avaient que
+  « Autres ports »).
+- Coût mesuré (1 h écrite, `MESURE_PARC`) : 6 pare-feu, rien ne change
+  (72 lignes « ports » et 72 « chemins », sous les anciennes limites) ;
+  30 pare-feu : 270 et 105 lignes, 64 Ko ; 500 pare-feu : 2 500 et 1 131
+  lignes, 208 Ko par heure, soit environ + 60 Mo sur 30 jours. Page
+  filtrée : un 2e bilan (sans filtre) pour la liste des machines, gardé
+  1 min en cache ; inventaire lu une fois par page.
+- Limite connue : en mémoire, 2 000 clés par heure et 200 par minute ;
+  au-delà (plusieurs centaines de pare-feu très actifs), le surplus passe
+  dans « Autres » (totaux justes, détail réduit).
+- Menaces : paramètres par, site, groupe lus comme texte, comparés aux
+  noms de l'inventaire, toujours échappés ; rien de nouveau exposé.

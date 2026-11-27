@@ -75,6 +75,14 @@ func TestDemoInterface(t *testing.T) {
 	fluxDemo(t, s)
 	ctx, now := context.Background(), time.Now()
 	machines := []string{"srv-test", "pve1", "vps-web", "nas-backup", "vm-docker"}
+	// DEMO_PAREFEU : machines en plus, réparties sur trois sites (grand parc).
+	if n, _ := strconv.Atoi(os.Getenv("DEMO_PAREFEU")); n > 4 {
+		for k := 5; k <= n; k++ {
+			_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, site, env, groupe, version_agent, architecture, derniere_ip)
+				VALUES (?, 'approuvee', ?, ?, ?, 'vm', ?, '0.5.0', 'amd64', '192.0.2.1')`, fmt.Sprintf("srv-%02d", k), now.Unix()-86400, now.Unix(),
+				[]string{"Paris", "Lyon", "Lille"}[k%3], []string{"web", "base", "dmz"}[k%3])
+		}
+	}
 	var series []stockage.Serie
 	for i, m := range machines {
 		_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, site, env, groupe, version_agent, architecture, derniere_ip)

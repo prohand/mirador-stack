@@ -2042,6 +2042,12 @@ disque + 3 Mo environ. Captures clair, sombre et téléphone sur la démo.
 validée) : rang, part, protocole, outil, « N pare-feu », lignes en plus
 repliées. Aucun calcul en plus (mêmes listes du bilan).
 
+**Grand parc (27/11, SPEC § 140)** : barre de choix d'une machine,
+recherche, regroupement par site ou groupe au-delà de 20 pare-feu, chemin
+parcouru ; chaque pare-feu garde ses 8 ports et 3 chemins par heure.
+Mesure (1 h) : 6 pare-feu inchangé ; 500 pare-feu 208 Ko/h (≈ + 60 Mo sur
+30 j). Démo : `DEMO_PAREFEU=30` (machines sur trois sites).
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

@@ -4,7 +4,9 @@ package fluxbloques
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -314,4 +316,75 @@ func BenchmarkBilan30j(b *testing.B) {
 			b.Fatal(err, len(bl.Chemins))
 		}
 	}
+}
+
+// Chaque pare-feu garde ses ports principaux, même petit (SPEC § 140).
+func TestGarderParPareFeu(t *testing.T) {
+	m := map[paire]int{}
+	for i := 0; i < 20; i++ {
+		m[paire{"gros", "tcp/" + strconv.Itoa(i)}] = 1000 - i
+	}
+	for i := 0; i < 12; i++ {
+		m[paire{"petit", "tcp/" + strconv.Itoa(i)}] = 12 - i
+	}
+	out := garderParPareFeu(m, 10, 8, true, func(k paire) string { return k.a })
+	petits, autres := 0, 0
+	for k, n := range out {
+		if k.a == "petit" && k.b != Autres {
+			petits++
+		}
+		if k.a == "petit" && k.b == Autres {
+			autres = n
+		}
+	}
+	if petits != 8 || autres != 4+3+2+1 {
+		t.Errorf("petit pare-feu : %d ports gardés, %d en autres", petits, autres)
+	}
+	total := 0
+	for _, n := range out {
+		total += n
+	}
+	attendu := 0
+	for _, n := range m {
+		attendu += n
+	}
+	if total != attendu {
+		t.Errorf("total %d, attendu %d (rien ne doit se perdre)", total, attendu)
+	}
+}
+
+// Taille de la base pour un grand parc (lancé à la main : MESURE_PARC=500).
+func TestMesureBaseGrandParc(t *testing.T) {
+	nb, _ := strconv.Atoi(os.Getenv("MESURE_PARC"))
+	if nb == 0 {
+		t.Skip()
+	}
+	chemin := filepath.Join(t.TempDir(), "flux.db")
+	h := &horloge{t: time.Date(2026, 11, 27, 10, 0, 30, 0, time.UTC)}
+	m := ouvrir(t, chemin, h)
+	r := 0
+	for minute := 0; minute < 59; minute++ {
+		for pf := 0; pf < nb; pf++ {
+			for k := 0; k < 6; k++ {
+				r = (r*1103515245 + 12345) & 0x7fffffff
+				f := flux(fmt.Sprintf("45.%d.%d.%d", r%200, (r/200)%250, 1+r%250), "tcp", []int{22, 23, 445, 3389, 5432, 8080, 443, 21, 1433, 6379, 25, 110}[r%12], 1)
+				m.Recevoir("pf-"+strconv.Itoa(pf), f, h.t)
+			}
+		}
+		h.t = h.t.Add(time.Minute)
+	}
+	m.Ecrire(context.Background(), true)
+	lignes := map[string]int{}
+	rows, _ := m.opt.DB.Query(`SELECT genre, count(*) FROM heures GROUP BY genre`)
+	for rows.Next() {
+		var g string
+		var n int
+		_ = rows.Scan(&g, &n)
+		lignes[g] = n
+	}
+	_ = rows.Close()
+	var pages, taille int
+	_ = m.opt.DB.QueryRow(`PRAGMA page_count`).Scan(&pages)
+	_ = m.opt.DB.QueryRow(`PRAGMA page_size`).Scan(&taille)
+	t.Logf("%d pare-feu, 1 h : lignes %v, base %d Ko", nb, lignes, pages*taille/1024)
 }

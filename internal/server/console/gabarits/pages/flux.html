@@ -58,7 +58,7 @@
 </svg></div>
 {{if .Estime}}<p class="aide flux-estime"><small>Avec ce filtre, le lien entre pare-feu et ports (ou pays) est estimé au prorata : les compteurs par heure ne gardent pas les trois ensemble.</small></p>{{end}}
 {{else}}<p class="vide flux-vide-reseau">Aucun flux bloqué sur la période.</p>{{end}}
-{{if or $d.Chemins $d.Note}}<div class="flux-bas-reseau">
+{{if $d.Chemins}}<div class="flux-bas-reseau">
 <div class="flux-chemins">{{with $d.Chemins}}<div class="flux-tete-carte"><h3>Chemins les plus fréquents</h3><span class="aide">pays → pare-feu → port</span></div>
 {{range .}}{{if .Lien}}<a href="{{.Lien}}" class="chemin">{{else}}<div class="chemin">{{end}}<span class="p">{{drapeau .Code}} {{.Pays}}</span><span class="f">→</span><b>{{.PareFeu}}</b><span class="f">→</span><span class="port">{{.Port}}</span><small>{{.Service}}</small><span class="jauge"><i class="largeur-{{.Pct}}"></i></span><b class="n">{{nombre .N}}</b>{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}{{end}}</div>
 {{with $d.Note}}<div class="flux-multi">{{.}}</div>{{end}}
@@ -70,7 +70,7 @@
 {{range .Lignes}}{{template "flux-rang" .}}{{else}}<p class="vide">Aucun.</p>{{end}}
 {{if .Autres}}<details class="cc-plus"><summary><span>+ {{nombre .Autres}} autres {{.NomAutres}}</span><span>{{nombre .Reste}}</span></summary>{{range .Plus}}{{template "flux-rang" .}}{{end}}{{if gt .Autres (len .Plus)}}<p class="aide"><small>… et {{.Autres}} au total ; les filtres de la page affinent la liste.</small></p>{{end}}</details>{{end}}
 {{with .Aide}}<div class="cc-pied">{{.}}</div>{{end}}</div>{{end}}</div>
-{{if and (ne $d.Vue "reseau") $d.AlerteIP}}<footer class="cc-alerte"><span class="multi">{{$d.AlertePF}} pare-feu</span><span><b>{{$d.AlerteIP}}</b>{{with $d.AlertePays}} {{drapeau .}}{{end}} a été bloquée par {{$d.AlertePF}} pare-feu sur la période : la même adresse essaie plusieurs de vos machines.</span></footer>{{end}}</section>
+{{if and $d.AlerteIP (or (ne $d.Vue "reseau") (not $d.Chemins))}}<footer class="cc-alerte"><span class="multi">{{$d.AlertePF}} pare-feu</span><span><b>{{$d.AlerteIP}}</b>{{with $d.AlertePays}} {{drapeau .}}{{end}} a été bloquée par {{$d.AlertePF}} pare-feu sur la période : la même adresse essaie plusieurs de vos machines.</span></footer>{{end}}</section>
 {{if $d.Sortant}}{{with $d.Locales}}<section class="carte flux-top flux-locales"><h2>Adresses locales qui essaient de sortir</h2>{{range .}}<div class="rang"><span class="nom"><code>{{.Nom}}</code></span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{end}}</section>{{end}}{{end}}
 {{with $d.Table}}<section class="carte flux-table"><div class="flux-tete-carte"><h2>Sources</h2><span class="aide">{{$d.TableLues}} {{accord $d.TableLues "pare-feu lu(s)"}} sur {{len .}}{{if $d.TableSans}} · {{$d.TableSans}} sans journalisation{{end}}</span></div>
 <div class="defile"><table class="flux-sources-table"><thead><tr><th>Machine</th><th>Pare-feu</th><th>Journalisation</th><th class="nombre">Bloqués 24 h</th><th>Dernier</th><th></th></tr></thead><tbody>

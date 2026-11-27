@@ -111,3 +111,42 @@ func TestClassementFlux(t *testing.T) {
 		}
 	}
 }
+
+// Grand parc (SPEC § 140) : pare-feu regroupés par site, puis un site seul.
+func TestRegrouperEtRestreindreBilan(t *testing.T) {
+	b := fluxbloques.Bilan{Total: 100, PaysPareFeu: map[fluxbloques.Paire]int{
+		{A: "CN", B: "par-1"}: 40, {A: "US", B: "par-2"}: 30, {A: "CN", B: "lyo-1"}: 20, {A: "US", B: "inconnu"}: 10},
+		PareFeuPort: map[fluxbloques.Paire]int{{A: "par-1", B: "tcp/22"}: 40, {A: "par-2", B: "tcp/22"}: 30, {A: "lyo-1", B: "tcp/23"}: 20, {A: "inconnu", B: "tcp/22"}: 10},
+		PareFeux:    []fluxbloques.Compte{{Nom: "par-1", N: 40}, {Nom: "par-2", N: 30}, {Nom: "lyo-1", N: 20}, {Nom: "inconnu", N: 10}},
+		Chemins:     []fluxbloques.Chemin{{Pays: "CN", PareFeu: "par-1", Port: "tcp/22", N: 40}, {Pays: "CN", PareFeu: "lyo-1", Port: "tcp/23", N: 20}}}
+	sites := map[string]string{"par-1": "Paris", "par-2": "Paris", "lyo-1": "Lyon"}
+	groupeDe := func(pf string) string {
+		if s := sites[pf]; s != "" {
+			return s
+		}
+		return "Sans site"
+	}
+	g, membres := regrouperBilan(b, groupeDe)
+	if len(g.PareFeux) != 3 || g.PareFeux[0].Nom != "Paris" || g.PareFeux[0].N != 70 || membres["Paris"] != 2 || membres["Sans site"] != 1 {
+		t.Fatalf("regroupé : %+v %v", g.PareFeux, membres)
+	}
+	if g.PaysPareFeu[fluxbloques.Paire{A: "US", B: "Paris"}] != 30 || g.PareFeuPort[fluxbloques.Paire{A: "Paris", B: "tcp/22"}] != 70 {
+		t.Errorf("liens regroupés : %v %v", g.PaysPareFeu, g.PareFeuPort)
+	}
+	if s := construireSankey(g, url.Values{}, nil, nil); s == nil || len(s.PareFeux) != 3 {
+		t.Error("schéma par site")
+	}
+	r := restreindreBilan(b, func(pf string) bool { return groupeDe(pf) == "Paris" })
+	if r.Total != 70 || len(r.PareFeux) != 2 || r.NbPays != 2 || len(r.Chemins) != 1 || !r.SansAdresses || r.Ports[0].N != 70 {
+		t.Errorf("Paris seul : total %d, %d pare-feu, %d pays, %d chemins", r.Total, len(r.PareFeux), r.NbPays, len(r.Chemins))
+	}
+	// Liens : changer de regroupement oublie site, machine et « tous » ;
+	// choisir un site oublie la machine.
+	v := url.Values{"vue": {"reseau"}, "par": {"site"}, "site": {"Paris"}, "pf": {"par-1"}, "tous": {"1"}}
+	if l := lienFluxAvec(v, "par", "groupe", false); l != "/flux-bloques?par=groupe&vue=reseau" {
+		t.Errorf("par : %s", l)
+	}
+	if l := lienFluxAvec(v, "site", "Lyon", false); l != "/flux-bloques?par=site&site=Lyon&vue=reseau" {
+		t.Errorf("site : %s", l)
+	}
+}
