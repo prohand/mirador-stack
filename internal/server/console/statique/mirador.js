@@ -2843,3 +2843,25 @@ document.addEventListener("change", function (ev) {
   if (!barre || barre.scrollWidth <= barre.clientWidth) return;
   barre.scrollLeft = Math.max(0, actif.offsetLeft - barre.offsetLeft - 16);
 })();
+
+// Machines, actions de masse (SPEC § 141) : compte des machines cochées,
+// case « tout cocher » d'un bloc. Sans JavaScript, la barre marche aussi.
+(function () {
+  var barre = document.querySelector('[data-barre-masse]');
+  if (!barre) return;
+  var nombre = barre.querySelector('[data-masse-nombre]');
+  function compter() {
+    var n = document.querySelectorAll('input[data-masse]:checked').length;
+    nombre.textContent = n ? n + (n > 1 ? ' machines cochées' : ' machine cochée') : 'Cocher des machines (présentation « Tableau »)';
+    barre.classList.toggle('active', n > 0);
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.matches && t.matches('input[data-masse-tout]')) {
+      var table = t.closest('table');
+      table.querySelectorAll('input[data-masse]').forEach(function (c) { c.checked = t.checked; });
+    }
+    if (t.matches && t.matches('input[data-masse], input[data-masse-tout]')) compter();
+  });
+  compter();
+})();

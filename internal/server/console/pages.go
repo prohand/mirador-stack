@@ -67,6 +67,7 @@ func (c *Console) routesPages() {
 	m.HandleFunc("GET /machines/{nom}/direct", c.lecture(c.fluxDirect)) // relevés en direct (SPEC § 97)
 	m.HandleFunc("GET /machines/ajouter", c.admin(c.pageAjouter))
 	m.HandleFunc("POST /machines/jeton", c.admin(c.postJeton))
+	m.HandleFunc("POST /machines/masse", c.admin(c.postMachinesMasse)) // actions de masse (SPEC § 141)
 	m.HandleFunc("POST /machines/equipement", c.admin(c.postEquipement))
 	m.HandleFunc("GET /machines/{nom}", c.lecture(c.pageMachine))
 	m.HandleFunc("POST /machines/{nom}", c.admin(c.postMachine))
@@ -400,6 +401,9 @@ type donneesMachines struct {
 	Compteurs         compteursFiltres
 	Groupes           []groupeMachines
 	Cases             casesMachines // cases du haut (SPEC § 120)
+	// Grand parc (SPEC § 141) : page compacte, versions pour l'action de masse.
+	Compact  bool
+	Versions []string // versions d'agent publiées (une fois chacune)
 }
 
 // donneesAjout : page « Ajouter une machine » (SPEC § 36), en étapes.
@@ -438,7 +442,8 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		c.flash(q, "", err.Error())
 	}
 	u := q.r.URL.Query()
-	d := donneesMachines{Filtres: lireFiltresMachines(u.Get("vue"), u.Get("filtre"), u.Get("q")), ToutesAttente: u.Get("attente") == "toutes"}
+	d := donneesMachines{Filtres: lireFiltresMachines(u.Get("vue"), u.Get("filtre"), u.Get("q")).avecListes(u.Get("site"), u.Get("groupe")),
+		ToutesAttente: u.Get("attente") == "toutes"}
 	var aValider map[string]int
 	if c.lecteur != nil {
 		aValider = c.aValider(ctx, q.t)
@@ -493,7 +498,18 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 	d.Approuvees, d.Sites = len(approuvees), len(sites)
 	d.Compteurs = d.Filtres.compter(approuvees)
 	d.Groupes = regrouperMachines(approuvees, d.Filtres)
+	f := d.Filtres
+	if d.Compact = len(approuvees) > seuilCompact && f.Q == "" && f.Site == "" && f.Groupe == "" && f.Filtre == ""; d.Compact {
+		compacter(d.Groupes, f)
+	}
 	d.Listes = c.lireListes(ctx)
+	if vs, err := flotte.ListerVersions(ctx, c.db); err == nil {
+		for _, v := range vs {
+			if !slices.Contains(d.Versions, v.Version) {
+				d.Versions = append(d.Versions, v.Version)
+			}
+		}
+	}
 	for i := range d.Groupes {
 		d.Groupes[i].Tuiles = tuilesDe(d.Groupes[i].Machines, mesures)
 	}

@@ -2768,3 +2768,16 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .cons-parc-champ label { display: flex; flex-direction: column; gap: 4px; }
 .cons-parc-champ input { max-width: 180px; }
 @media (max-width: 700px) { .cons-parc-chiffres { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Machines, grand parc (SPEC § 141) : listes Site / Groupe, blocs repliés, actions de masse. */
+.filtres-machines label.liste-filtre { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--doux); }
+.filtres-machines .liste-filtre select { max-width: 180px; }
+.bloc-replie .titre-tuiles { margin-bottom: 0; }
+.bloc-replie-texte { margin: 8px 16px 12px; }
+.col-choix { width: 28px; }
+.barre-masse { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; padding: 10px 14px; border-radius: 12px; background: var(--carte); border: 1px solid var(--bord); box-shadow: 0 8px 24px rgba(15, 23, 42, .12); }
+.barre-masse.active { background: var(--accent-fond); border-color: var(--accent); }
+.barre-masse .masse-groupe { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.barre-masse select { max-width: 160px; }
+.approuver-tout { margin: 8px 0; }
+@media (max-width: 700px) { .barre-masse { position: static; } }
