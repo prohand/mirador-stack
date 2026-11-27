@@ -134,18 +134,31 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 			t.Error("page Olvid : code SAS, échappement ou QR code")
 		}
 		if nom == "flux" && (!strings.Contains(corps, "🇫🇷") || !strings.Contains(corps, "45.143.203.10") || !strings.Contains(corps, `data-code="CN"`) ||
-			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier") || !strings.Contains(corps, "Sources OPNsense") || !strings.Contains(corps, `class="bulle"`) || !strings.Contains(corps, ">30k<") ||
+			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier") || strings.Contains(corps, "Sources OPNsense") || !strings.Contains(corps, "voir Mon réseau › Sources") || !strings.Contains(corps, `class="bulle"`) || !strings.Contains(corps, ">30k<") ||
 			!strings.Contains(corps, "Top pays")) {
 			t.Errorf("page flux (monde) incomplète :\n%s", corps)
 		}
 		// Classements (SPEC § 139) : protocole, outil, couleur du pare-feu, part, alerte.
 		if nom == "flux" {
 			for _, attendu := range []string{"<h2>Classements</h2>", `<span class="pr TCP">TCP</span><code>22</code><small>ssh</small>`,
-				`<span class="pt pf0"></span><b>fw</b><span class="outil">OPNsense</span>`, `<span class="multi">2 pare-feu</span>`,
-				`<small>78 %</small>`, `class="cc-alerte"`, `href="/logs?mots=45.143.203.10&amp;periode=24h"`, `class="cc-l premier"`} {
+				`<span class="multi">2 pare-feu</span>`, `<small>78 %</small>`, `class="cc-alerte"`, `href="/logs?mots=45.143.203.10&amp;periode=24h"`, `class="cc-l premier"`} {
 				if !strings.Contains(corps, attendu) {
 					t.Errorf("classements : %q absent", attendu)
 				}
+			}
+			// Retour du 27/11 : chaque vue a ses colonnes (pas de doublon).
+			if strings.Contains(corps, "<h3>Bloqué par</h3>") || strings.Contains(corps, "<h3>Pays</h3>") {
+				t.Error("monde : colonnes de « Mon réseau » présentes")
+			}
+		}
+		if nom == "flux-reseau" {
+			for _, attendu := range []string{"<h3>Bloqué par</h3>", "<h3>Pays</h3>", `<span class="pt pf0"></span><b>fw</b><span class="outil">OPNsense</span>`, "Sources OPNsense"} {
+				if !strings.Contains(corps, attendu) {
+					t.Errorf("réseau : %q absent", attendu)
+				}
+			}
+			if strings.Contains(corps, "<h3>Ports visés</h3>") || strings.Contains(corps, "<h3>Adresses insistantes</h3>") {
+				t.Error("réseau : colonnes de « Monde » présentes")
 			}
 		}
 		if nom == "flux-reseau" && strings.Contains(corps, `class="cc-alerte"`) {
@@ -215,16 +228,17 @@ func donneesFluxExemple(vue string) donneesFlux {
 		PareFeuPort: map[fluxbloques.Paire]int{{A: "fw", B: "tcp/22"}: 30000, {A: "fw", B: "tcp/443"}: 8000, {A: "vps", B: "tcp/443"}: 214},
 		Barres:      []fluxbloques.Barre{{N: 10}, {N: 400}, {N: 12}, {N: 9}}, LargeurBarre: time.Hour}
 	v := url.Values{"vue": {vue}}
-	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
+	d := donneesFlux{Vue: vue, Periode: "24h", LienReseau: "/flux-bloques?vue=reseau", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
 		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
-		Fil:     []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
-		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}, nil),
-		Chemins: cheminsVue([]fluxbloques.Chemin{{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 4120}}, v),
+		Fil:       []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
+		Sankey:    construireSankey(b, v, map[string]string{"fw": "OPNsense"}, nil),
+		Chemins:   cheminsVue([]fluxbloques.Chemin{{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 4120}}, v),
+		TableSans: 1, Table: []ligneSource{{Machine: "vps", Classe: "erreur"}},
 		Sources: []sourceFlux{{Collecteur: "collecteur-lan", Texte: "aucune ligne filterlog reçue depuis 1 h", Classe: "attention"}},
 		Note:    "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
 	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
 	d.AlerteIP, d.AlertePF = "45.143.203.10", 2
-	d.Classement = (&Console{}).classementFlux(b, v, map[string]string{"fw": "OPNsense"}, nil, false, false)
+	d.Classement = colonnesDeVue((&Console{}).classementFlux(b, v, map[string]string{"fw": "OPNsense"}, nil, false, false), vue)
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	d.Bord, d.Grille, d.Bulles, d.TopPays = bordCarte, grilleCarte, bullesFlux(b.Pays), d.Pays
 	return d

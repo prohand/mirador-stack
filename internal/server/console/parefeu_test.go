@@ -74,8 +74,12 @@ func TestReglagePareFeu(t *testing.T) {
 	// Page Flux bloqués : tableau des sources et choix du sens.
 	_, corps, _ = b.get(cl, "/flux-bloques?sens=sortant")
 	if !strings.Contains(corps, "Vers où vont les flux bloqués") || !strings.Contains(corps, `href="/flux-bloques?sens=sortant"`) ||
-		!strings.Contains(corps, "Adresses locales qui essaient de sortir") {
+		strings.Contains(corps, "Adresses locales qui essaient de sortir") {
 		t.Error("page des sortants incomplète")
+	}
+	// Adresses locales : onglet « Mon réseau » (retour du 27/11).
+	if _, corps, _ = b.get(cl, "/flux-bloques?sens=sortant&vue=reseau"); !strings.Contains(corps, "Adresses locales qui essaient de sortir") {
+		t.Error("sortants, Mon réseau : adresses locales absentes")
 	}
 }
 

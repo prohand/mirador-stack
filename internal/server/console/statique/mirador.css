@@ -2727,10 +2727,7 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .page-flux .cc-pied { margin-top: auto; font-size: 12px; color: var(--pale); padding: 8px 8px 2px; }
 .page-flux .cc-plus + .cc-pied { margin-top: 0; padding-top: 2px; }
 .page-flux .cc-alerte { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 13px; border-top: 1px solid var(--bord-doux); background: color-mix(in srgb, var(--cl-un) 8%, transparent); }
-@media (min-width: 1700px) {
-  .page-flux .cc-grille { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .page-flux .cc-col:nth-child(n) { border-left: 1px solid var(--bord-doux); border-top: 0; } .page-flux .cc-col:first-child { border-left: 0; }
-}
+.page-flux .flux-reglage { margin: 0 0 16px; font-size: 13.5px; }
 @media (max-width: 700px) {
   .page-flux .cc-grille { grid-template-columns: 1fr; } .page-flux .cc-col:nth-child(n) { border-left: 0; } .page-flux .cc-col:nth-child(n+2) { border-top: 1px solid var(--bord-doux); }
   .page-flux .cc-h, .page-flux .cc-alerte { padding-left: 16px; padding-right: 16px; }
