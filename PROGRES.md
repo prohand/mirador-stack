@@ -2026,6 +2026,11 @@ root : détection de la journalisation). Changement de comportement : les
 lignes du pare-feu ne sont plus gardées dans Logs par défaut (case « garder »
 par machine).
 
+**Vue carte redessinée (27/11, SPEC § 137)** : maquettes A/B validées (A en
+thème sombre, B en thème clair) ; projection Equal Earth, bulles, classement
+et légende sur la carte, frise et fil compact dessous. Captures clair, sombre
+et téléphone sur la démo.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

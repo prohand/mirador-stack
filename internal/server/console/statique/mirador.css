@@ -2523,3 +2523,92 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .page-flux .flux-table { margin-bottom: 16px; } .page-flux .flux-locales { margin-bottom: 16px; }
 .page-flux .flux-sources-table { width: 100%; font-size: 13.5px; } .page-flux .flux-sources-table td small { display: block; color: var(--pale); font-size: 12px; }
 .page-flux .flux-sources-table td.nombre, .page-flux .flux-sources-table th.nombre { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* --- Vue carte des flux bloqués (SPEC § 137, maquettes A/B validées le 27/11) ---
+   Thème clair : B (océan bleu pâle, pays blancs) ; thème sombre : A (nuit,
+   traits lumineux). Couleurs en variables, redéfinies pour le thème sombre. */
+.page-flux {
+  --fc-fond: var(--carte); --fc-bord: var(--bord); --fc-texte: var(--texte); --fc-pale: var(--pale);
+  --fc-ocean: #EEF3FA; --fc-grille: #DCE5F2; --fc-contour: #C9D4E5;
+  --fc-n0: #FFFFFF; --fc-n1: #FFF1E6; --fc-n2: #FFD9BD; --fc-n3: #FDB088; --fc-n4: #F2784B; --fc-n5: #C8402A;
+  --fc-trait: #E5602B; --fc-comete: #FFFFFF; --fc-comete-bord: #E5602B; --fc-lueur: none;
+  --fc-bulle: rgba(180, 35, 24, .14); --fc-bulle-bord: #B42318; --fc-bulle-texte: #7A1A10;
+  --fc-source: #B42318; --fc-halo: #E5602B; --fc-maison: #3456C8;
+  --fc-vignette: rgba(255, 255, 255, .88); --fc-vignette-bord: var(--bord); --fc-ombre: 0 6px 18px rgba(15, 23, 42, .08); --fc-barre: #F2784B; --fc-chiffre: var(--texte);
+  --fc-frise: #FBC08F; --fc-frise-pic: #B42318; --fc-neuf: color-mix(in srgb, #E5602B 10%, transparent); --fc-port: var(--survol); --fc-port-texte: var(--doux);
+}
+:root[data-theme="sombre"] .page-flux {
+  --fc-fond: #0A1020; --fc-bord: #1E2A44; --fc-texte: #DCE6F5; --fc-pale: #7F8EA8;
+  --fc-ocean: #0D1628; --fc-grille: #1A2640; --fc-contour: #0A1020;
+  --fc-n0: #18233A; --fc-n1: #3A2633; --fc-n2: #5A2A2E; --fc-n3: #7E2F28; --fc-n4: #A8381F; --fc-n5: #D9481C;
+  --fc-trait: #FF8A4C; --fc-comete: #FFE1B0; --fc-comete-bord: #FFB15C; --fc-lueur: drop-shadow(0 0 3px #FF6A2C);
+  --fc-bulle: rgba(255, 106, 44, .22); --fc-bulle-bord: #FF8A4C; --fc-bulle-texte: #FFE9D6;
+  --fc-source: #FF4D4F; --fc-halo: #FF6A2C; --fc-maison: #5B8CFF;
+  --fc-vignette: rgba(16, 24, 44, .8); --fc-vignette-bord: #24324F; --fc-ombre: none; --fc-barre: #FF7A45; --fc-chiffre: #FFB98A;
+  --fc-frise: #3B4A6B; --fc-frise-pic: #FF6A2C; --fc-neuf: rgba(255, 106, 44, .14); --fc-port: #16213A; --fc-port-texte: #FFB98A;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="clair"]) .page-flux {
+    --fc-fond: #0A1020; --fc-bord: #1E2A44; --fc-texte: #DCE6F5; --fc-pale: #7F8EA8;
+    --fc-ocean: #0D1628; --fc-grille: #1A2640; --fc-contour: #0A1020;
+    --fc-n0: #18233A; --fc-n1: #3A2633; --fc-n2: #5A2A2E; --fc-n3: #7E2F28; --fc-n4: #A8381F; --fc-n5: #D9481C;
+    --fc-trait: #FF8A4C; --fc-comete: #FFE1B0; --fc-comete-bord: #FFB15C; --fc-lueur: drop-shadow(0 0 3px #FF6A2C);
+    --fc-bulle: rgba(255, 106, 44, .22); --fc-bulle-bord: #FF8A4C; --fc-bulle-texte: #FFE9D6;
+    --fc-source: #FF4D4F; --fc-halo: #FF6A2C; --fc-maison: #5B8CFF;
+    --fc-vignette: rgba(16, 24, 44, .8); --fc-vignette-bord: #24324F; --fc-ombre: none; --fc-barre: #FF7A45; --fc-chiffre: #FFB98A;
+    --fc-frise: #3B4A6B; --fc-frise-pic: #FF6A2C; --fc-neuf: rgba(255, 106, 44, .14); --fc-port: #16213A; --fc-port-texte: #FFB98A;
+  }
+}
+.page-flux .flux-mappe { background: var(--fc-fond); color: var(--fc-texte); border: 1px solid var(--fc-bord); border-radius: 18px; overflow: hidden; margin-bottom: 16px; }
+.page-flux .flux-sur-carte { position: relative; }
+.page-flux .flux-titre-carte { position: absolute; left: 22px; top: 16px; z-index: 2; }
+.page-flux .flux-titre-carte h2 { margin: 0; font-size: 17px; color: var(--fc-texte); } .page-flux .flux-titre-carte span { font-size: 12.5px; color: var(--fc-pale); }
+.page-flux .flux-vide-carte { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 2; background: var(--fc-vignette); border: 1px solid var(--fc-vignette-bord); border-radius: 10px; padding: 8px 14px; color: var(--fc-pale); }
+.page-flux .flux-monde { display: block; width: 100%; height: auto; }
+.page-flux .flux-monde .ocean { fill: var(--fc-ocean); } .page-flux .flux-monde .grille { fill: none; stroke: var(--fc-grille); stroke-width: .6; }
+.page-flux .flux-monde .pays { stroke: var(--fc-contour); stroke-width: .5; }
+.page-flux .flux-monde .n0 { fill: var(--fc-n0); } .page-flux .flux-monde .n1 { fill: var(--fc-n1); } .page-flux .flux-monde .n2 { fill: var(--fc-n2); }
+.page-flux .flux-monde .n3 { fill: var(--fc-n3); } .page-flux .flux-monde .n4 { fill: var(--fc-n4); } .page-flux .flux-monde .n5 { fill: var(--fc-n5); }
+.page-flux .flux-monde a .pays:hover, .page-flux .flux-monde .pays:hover { opacity: .85; }
+.page-flux .flux-monde .trait { fill: none; stroke: var(--fc-trait); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: none; filter: var(--fc-lueur); }
+.page-flux .flux-monde .voyageur { fill: var(--fc-comete); stroke: var(--fc-comete-bord); stroke-width: 2; filter: var(--fc-lueur); }
+.page-flux .flux-monde .source { fill: var(--fc-source); } .page-flux .flux-monde .halo { fill: none; stroke: var(--fc-halo); stroke-width: 2; opacity: .6; }
+.page-flux .flux-monde .bulle circle { fill: var(--fc-bulle); stroke: var(--fc-bulle-bord); stroke-width: 1.2; }
+.page-flux .flux-monde .bulle text { fill: var(--fc-bulle-texte); font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.page-flux .flux-monde .maison { fill: var(--fc-maison); } .page-flux .flux-monde .maison-halo { fill: var(--fc-maison); opacity: .22; }
+.page-flux .flux-classement { position: absolute; right: 18px; bottom: 14px; width: 230px; background: var(--fc-vignette); border: 1px solid var(--fc-vignette-bord); box-shadow: var(--fc-ombre); border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(6px); }
+.page-flux .flux-classement h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fc-pale); }
+.page-flux .flux-classement ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.page-flux .flux-classement li { display: grid; grid-template-columns: 1fr auto; font-size: 13px; position: relative; padding-bottom: 5px; }
+.page-flux .flux-classement li a, .page-flux .flux-classement li span { color: var(--fc-texte); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-flux .flux-classement li b { color: var(--fc-chiffre); font-variant-numeric: tabular-nums; }
+.page-flux .flux-classement li i { position: absolute; left: 0; bottom: 0; height: 3px; border-radius: 2px; background: var(--fc-barre); }
+.page-flux .flux-legende-carte { position: absolute; left: 22px; bottom: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fc-pale); background: var(--fc-vignette); border: 1px solid var(--fc-vignette-bord); border-radius: 999px; padding: 5px 12px; }
+.page-flux .flux-legende-carte span { display: inline-block; } .page-flux .flux-legende-carte .sep { width: 6px; }
+.page-flux .flux-legende-carte .g1, .page-flux .flux-legende-carte .g5 { width: 22px; height: 8px; border-radius: 4px; }
+.page-flux .flux-legende-carte .g1 { background: var(--fc-n1); border: 1px solid var(--fc-contour); } .page-flux .flux-legende-carte .g5 { background: var(--fc-n5); }
+.page-flux .flux-legende-carte .bul { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--fc-bulle-bord); background: var(--fc-bulle); }
+.page-flux .flux-legende-carte .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--fc-source); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fc-halo) 35%, transparent); }
+.page-flux .flux-legende-carte .mai { width: 9px; height: 9px; border-radius: 50%; background: var(--fc-maison); }
+.page-flux .flux-bas-carte { display: grid; grid-template-columns: 1.25fr 1fr; border-top: 1px solid var(--fc-bord); }
+.page-flux .flux-bas-carte .flux-bloc-frise { margin: 0; border: 0; padding: 14px 20px; }
+.page-flux .flux-bas-carte .flux-fil { padding: 14px 20px; border-left: 1px solid var(--fc-bord); }
+.page-flux .flux-bas-carte h3 { font-size: 13.5px; color: var(--fc-texte); } .page-flux .flux-bas-carte .aide { color: var(--fc-pale); }
+.page-flux .flux-bas-carte .flux-frise rect { fill: var(--fc-frise); } .page-flux .flux-bas-carte .flux-frise rect.pic { fill: var(--fc-frise-pic); }
+.page-flux .flux-bas-carte .flux-axe { color: var(--fc-pale); }
+.page-flux .flux-pause { margin-left: auto; font-size: 12px; color: var(--fc-pale); background: none; border: 0; padding: 0; cursor: pointer; }
+.page-flux .flux-fil ul { list-style: none; margin: 0; padding: 0; max-height: none; }
+.page-flux .flux-fil li.evt { display: grid; grid-template-columns: 62px 20px auto auto 14px auto auto 1fr; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 8px; border-radius: 8px; border: 0; margin: 0; color: var(--fc-texte); }
+.page-flux .flux-fil li.evt .h { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--fc-pale); }
+.page-flux .flux-fil li.evt code { font-size: 12px; background: none; color: var(--fc-texte); } .page-flux .flux-fil li.evt small { color: var(--fc-pale); }
+.page-flux .flux-fil li.evt .fl { color: var(--fc-pale); } .page-flux .flux-fil li.evt b { white-space: nowrap; }
+.page-flux .flux-fil li.evt .port { font-family: ui-monospace, monospace; font-size: 11.5px; padding: 1px 6px; border-radius: 6px; background: var(--fc-port); color: var(--fc-port-texte); white-space: nowrap; }
+.page-flux .flux-fil li.evt.neuf { background: var(--fc-neuf); }
+.page-flux .flux-mappe .vide { color: var(--fc-pale); }
+@media (max-width: 900px) {
+  .page-flux .flux-titre-carte { position: static; padding: 14px 16px 0; }
+  .page-flux .flux-classement, .page-flux .flux-legende-carte { position: static; width: auto; margin: 0 12px 10px; }
+  .page-flux .flux-legende-carte { border-radius: 12px; }
+  .page-flux .flux-bas-carte { grid-template-columns: 1fr; } .page-flux .flux-bas-carte .flux-fil { border-left: 0; border-top: 1px solid var(--fc-bord); }
+  .page-flux .flux-fil li.evt { grid-template-columns: 56px 18px auto auto 12px auto 1fr; } .page-flux .flux-fil li.evt .svc { display: none; }
+}

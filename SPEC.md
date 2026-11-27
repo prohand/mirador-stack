@@ -8946,3 +8946,20 @@ Lignes du pare-feu plus gardées par défaut : moins de logs rangés.
 - Rien n'est exécuté sur les machines ; l'assistant root lance les deux
   mêmes programmes qu'avant (arguments figés).
 
+## 137. Vue carte des flux bloqués : nouveau dessin (27/11, maquettes validées) **[Fait, à valider]**
+
+Demande du 27/11 : « améliore le design de la vue carte ». Deux maquettes
+(A « nuit », B « clair ») ; choix : **A en thème sombre, B en thème clair**.
+- Projection Equal Earth (pays aux bonnes proportions, bords arrondis, océan
+  et quadrillage) : contours embarqués reprojetés une fois au démarrage
+  (aucun fichier en plus, aucune ressource externe).
+- Carte en pleine largeur ; bulles chiffrées sur les 5 pays les plus actifs ;
+  classement « Top pays » et légende posés sur la carte (sur l'océan).
+- Sous la carte, sur une ligne : frise (par minute ou par heure) et fil « En
+  direct » compact (6 lignes : heure, drapeau, adresse, pare-feu, port).
+- Couleurs en variables, redéfinies pour le thème sombre (fond nuit, traits
+  lumineux) ; téléphone : classement et légende sous la carte.
+- Coût : calcul de la projection au démarrage (≈ 30 000 points, quelques ms),
+  page un peu plus légère (fil de 6 lignes au lieu de 12).
+- Menaces : aucune nouvelle (même contenu, toujours échappé).
+

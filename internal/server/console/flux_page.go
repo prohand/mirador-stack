@@ -117,6 +117,9 @@ type donneesFlux struct {
 	Sortant                    bool
 	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
 	Table                      []ligneSource
+	Bulles                     []bulleFlux
+	TopPays                    []rangFlux
+	Bord, Grille               string // contour du monde et quadrillage (projection Equal Earth)
 	TableLues, TableSans       int
 }
 
@@ -232,6 +235,8 @@ func (c *Console) pageFlux(q *req) {
 		parPays[x.Nom] = x.N
 	}
 	d.Carte = carteFlux(parPays)
+	d.Bord, d.Grille = bordCarte, grilleCarte
+	d.Bulles = bullesFlux(b.Pays)
 	d.Centres = centresJSON
 	if centre, ok := centresPays[lireInterface(q.r.Context(), c.db).PaysCarte]; ok {
 		d.Maison = centre
@@ -250,7 +255,7 @@ func (c *Console) pageFlux(q *req) {
 	}
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	// Fil des derniers blocages (le direct ajoute les suivants).
-	ev, _ := mag.Depuis(0, 12)
+	ev, _ := mag.Depuis(0, 6)
 	for i := len(ev) - 1; i >= 0; i-- {
 		d.Fil = append(d.Fil, ligneFilDe(ev[i]))
 	}
@@ -261,6 +266,14 @@ func (c *Console) pageFlux(q *req) {
 			r.Lien = lienFluxAvec(v, "pays", r.Code, false)
 		}
 	})
+	if len(d.Pays) > 0 {
+		d.TopPays = d.Pays[:min(5, len(d.Pays))]
+		for i := range d.TopPays {
+			if d.TopPays[i].Code != "" && d.TopPays[i].Code != fluxbloques.Autres {
+				d.TopPays[i].Nom = nomCourtPays(d.TopPays[i].Code)
+			}
+		}
+	}
 	d.Ports = rangsFlux(b.Ports, 6, func(r *rangFlux) {
 		r.Sous = nomsServices[r.Nom]
 		if r.Nom != fluxbloques.Autres && r.Nom != "?" {
@@ -727,35 +740,46 @@ var centresJSON = func() string {
 	return string(b)
 }()
 
-// --- Centres des pays (points et traits de la carte) -----------------------------
+// bulleFlux : cercle chiffré sur un des pays les plus actifs (SPEC § 137).
+type bulleFlux struct {
+	X, Y, R      float64
+	Texte, Titre string
+}
 
-// centresPays : point représentatif de chaque pays sur la carte (médiane
-// des points du contour ; corrigé à la main pour les pays dont les
-// territoires lointains déplacent la médiane).
-var centresPays = func() map[string][2]float64 {
-	m := make(map[string][2]float64, len(paysCarte))
-	for _, p := range paysCarte {
-		var xs, ys []float64
-		for i, champ := range strings.FieldsFunc(p.D, func(r rune) bool { return r == ' ' || r == 'M' || r == 'L' || r == 'Z' }) {
-			f, err := strconv.ParseFloat(champ, 64)
-			if err != nil {
-				continue
-			}
-			if i%2 == 0 {
-				xs = append(xs, f)
-			} else {
-				ys = append(ys, f)
-			}
+// bullesFlux : les 5 pays les plus actifs (rayon selon la racine du nombre).
+func bullesFlux(pays []fluxbloques.Compte) []bulleFlux {
+	var out []bulleFlux
+	plusGros := 0
+	for _, p := range pays {
+		plusGros = max(plusGros, p.N)
+	}
+	for _, p := range pays {
+		if len(out) >= 5 {
+			break
 		}
-		if len(xs) == 0 || len(ys) == 0 {
+		c, ok := centresPays[p.Nom]
+		if !ok || p.N == 0 {
 			continue
 		}
-		sort.Float64s(xs)
-		sort.Float64s(ys)
-		m[p.Code] = [2]float64{xs[len(xs)/2], ys[len(ys)/2]}
+		out = append(out, bulleFlux{X: c[0], Y: c[1], R: 7 + 17*math.Sqrt(float64(p.N)/float64(max(plusGros, 1))),
+			Texte: nombreBulle(p.N), Titre: nomPaysOuCode(p.Nom) + " : " + nombreLisible(p.N)})
 	}
-	for k, v := range map[string][2]float64{"FR": {507, 120}, "US": {230, 140}, "RU": {700, 70}, "CN": {760, 160}, "NO": {525, 75}} {
-		m[k] = v
+	return out
+}
+
+// nombreBulle : 9120 → « 9k », 1250 → « 1,2k », 540 → « 540 ».
+func nombreBulle(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return strconv.Itoa(n/1_000_000) + "M"
+	case n >= 10_000:
+		return strconv.Itoa(n/1000) + "k"
+	case n >= 1000:
+		s := strconv.Itoa(n / 1000)
+		if d := (n % 1000) / 100; d > 0 {
+			s += "," + strconv.Itoa(d)
+		}
+		return s + "k"
 	}
-	return m
-}()
+	return strconv.Itoa(n)
+}

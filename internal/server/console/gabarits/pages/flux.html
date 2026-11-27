@@ -13,22 +13,29 @@
 </div>
 <div class="flux-onglets"><span class="segment">{{range $d.Vues}}<a href="{{.Lien}}" {{if .Actif}}class="actif" aria-current="page"{{end}}>{{.Nom}}</a>{{end}}</span></div>
 {{if eq $d.Vue "monde"}}
-<div class="flux-duo">
-<section class="carte flux-mappe"><div class="flux-tete-carte"><h2>{{if $d.Sortant}}Vers où vont les flux bloqués{{else}}D'où viennent les flux bloqués{{end}}</h2><span class="aide">couleur : nombre sur {{$d.NomPeriode}}{{if $d.Direct}} · points : dernières 10 s{{end}}</span></div>
-{{if $d.CarteVide}}<p class="vide">{{$d.CarteVide}}.</p>{{end}}
-<svg class="flux-monde" viewBox="0 20 1000 420" role="img" aria-label="Carte du monde des flux bloqués par pays" data-flux-carte data-centres="{{$d.Centres}}" data-maison="{{index $d.Maison 0}},{{index $d.Maison 1}}">
-{{range $d.Carte}}<path d="{{.D}}" class="niveau-{{.Niveau}}" data-code="{{.Code}}"><title>{{.Nom}} : {{if .N}}{{nombre .N}} {{accord .N "bloqué(s)"}}{{else}}aucun{{end}}</title></path>{{end}}
-<g data-flux-traits></g><circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="14" class="flux-maison-halo"/><circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="6" class="flux-maison"/><text x="{{index $d.Maison 0}}" y="{{index $d.Maison 1}}" dx="-30" dy="30" class="flux-etiq">vos pare-feu</text></svg>
-<p class="legende-carte"><span class="niveau-0"></span>Aucun <span class="niveau-1"></span>Peu <span class="niveau-3"></span> <span class="niveau-5"></span>Beaucoup{{if $d.Direct}} <span class="flux-sep"></span><span class="flux-pt"></span>bloqué à l'instant{{end}} <small class="aide">(échelle logarithmique)</small></p>
-{{if $d.Barres}}<div class="flux-bloc-frise"><div class="flux-tete-carte"><h3>{{if eq $d.B.LargeurBarre.Minutes 1.0}}Par minute, dernière heure{{else}}Sur {{$d.NomPeriode}}{{end}}</h3>{{if $d.PicTexte}}<span class="aide">{{$d.PicTexte}}</span>{{end}}</div>
-<svg class="flux-frise" viewBox="0 0 600 70" preserveAspectRatio="none" role="img" aria-label="Flux bloqués dans le temps">{{range $d.Barres}}<rect x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .H}}" rx="1.5"{{if .Pic}} class="pic"{{end}}><title>{{.Titre}}</title></rect>{{end}}</svg>
-<div class="flux-axe"><span>{{index $d.Axe 0}}</span><span>{{index $d.Axe 1}}</span><span>{{index $d.Axe 2}}</span></div></div>{{end}}
-</section>
-<section class="carte flux-fil"><div class="flux-tete-carte"><h2>Derniers blocages</h2>{{if $d.Direct}}<button type="button" class="secondaire petit" data-flux-pause>Mettre en pause</button>{{end}}</div>
-<ul data-flux-fil>{{range $d.Fil}}<li><span class="h mono">{{.Heure}}</span><span class="src">{{drapeau .Pays}} <code>{{.IP}}</code>{{if gt .N 1}} <small>×{{.N}}</small>{{end}}</span><span class="dst"><b>{{.PareFeu}}</b> <small>{{.Port}}{{if .Service}} · {{.Service}}{{end}}</small></span></li>{{end}}</ul>
-{{if not $d.Fil}}<p class="vide" data-flux-fil-vide>Aucun blocage reçu depuis le démarrage du serveur.</p>{{end}}
-{{if not $d.Direct}}<p class="aide"><small><a href="{{$d.LienDirect}}">Passer en direct</a> pour voir les blocages arriver.</small></p>{{end}}</section>
+<section class="flux-mappe" aria-label="Carte du monde">
+<div class="flux-sur-carte">
+<div class="flux-titre-carte"><h2>{{if $d.Sortant}}Vers où vont les flux bloqués{{else}}D'où viennent les flux bloqués{{end}}</h2><span>{{$d.NomPeriode}}{{if $d.Direct}} · points : dernières 10 s{{end}}</span></div>
+{{if $d.CarteVide}}<p class="flux-vide-carte">{{$d.CarteVide}}.</p>{{end}}
+<svg class="flux-monde" viewBox="0 0 1000 520" role="img" aria-label="Carte du monde des flux bloqués par pays" data-flux-carte data-centres="{{$d.Centres}}" data-maison="{{index $d.Maison 0}},{{index $d.Maison 1}}">
+<path d="{{$d.Bord}}" class="ocean"/><path d="{{$d.Grille}}" class="grille"/>
+{{range $d.Carte}}<path d="{{.D}}" class="pays n{{.Niveau}}" data-code="{{.Code}}"><title>{{.Nom}} : {{if .N}}{{nombre .N}} {{accord .N "bloqué(s)"}}{{else}}aucun{{end}}</title></path>{{end}}
+<g data-flux-traits></g>
+{{range $d.Bulles}}<g class="bulle"><circle cx="{{printf "%.1f" .X}}" cy="{{printf "%.1f" .Y}}" r="{{printf "%.1f" .R}}"><title>{{.Titre}}</title></circle><text x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" dy="4">{{.Texte}}</text></g>{{end}}
+<circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="16" class="maison-halo"/><circle cx="{{index $d.Maison 0}}" cy="{{index $d.Maison 1}}" r="5.5" class="maison"><title>Vos pare-feu</title></circle></svg>
+{{with $d.TopPays}}<div class="flux-classement"><h3>Top pays · {{$d.NomPeriode}}</h3><ol>{{range .}}<li>{{if .Lien}}<a href="{{.Lien}}">{{drapeau .Code}} {{.Nom}}</a>{{else}}<span>{{drapeau .Code}} {{.Nom}}</span>{{end}}<b>{{nombre .N}}</b><i class="largeur-{{.Pct}}"></i></li>{{end}}</ol></div>{{end}}
+<div class="flux-legende-carte"><span class="g1"></span>peu<span class="g5"></span>beaucoup<span class="sep"></span><span class="bul"></span>blocages par pays{{if $d.Direct}}<span class="sep"></span><span class="pt"></span>à l'instant{{end}}<span class="sep"></span><span class="mai"></span>vos pare-feu</div>
 </div>
+<div class="flux-bas-carte">
+<div class="flux-bloc-frise">{{if $d.Barres}}<div class="flux-tete-carte"><h3>{{if eq $d.B.LargeurBarre.Minutes 1.0}}Par minute, dernière heure{{else}}Sur {{$d.NomPeriode}}{{end}}</h3>{{if $d.PicTexte}}<span class="aide">{{$d.PicTexte}}</span>{{end}}</div>
+<svg class="flux-frise" viewBox="0 0 600 70" preserveAspectRatio="none" role="img" aria-label="Flux bloqués dans le temps">{{range $d.Barres}}<rect x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" width="{{printf "%.1f" .L}}" height="{{printf "%.1f" .H}}" rx="1.5"{{if .Pic}} class="pic"{{end}}><title>{{.Titre}}</title></rect>{{end}}</svg>
+<div class="flux-axe"><span>{{index $d.Axe 0}}</span><span>{{index $d.Axe 1}}</span><span>{{index $d.Axe 2}}</span></div>{{end}}</div>
+<div class="flux-fil"><div class="flux-tete-carte"><h3>{{if $d.Direct}}En direct{{else}}Derniers blocages{{end}}</h3>{{if $d.Direct}}<button type="button" class="lien flux-pause" data-flux-pause>❚❚ pause</button>{{end}}</div>
+<ul data-flux-fil>{{range $d.Fil}}<li class="evt"><span class="h">{{.Heure}}</span><span class="d">{{drapeau .Pays}}</span><code>{{.IP}}</code>{{if gt .N 1}}<small>×{{.N}}</small>{{else}}<small></small>{{end}}<span class="fl">→</span><b>{{.PareFeu}}</b><span class="port">{{.Port}}</span><small class="svc">{{.Service}}</small></li>{{end}}</ul>
+{{if not $d.Fil}}<p class="vide" data-flux-fil-vide>Aucun blocage reçu depuis le démarrage du serveur.</p>{{end}}
+{{if not $d.Direct}}<p class="aide"><small><a href="{{$d.LienDirect}}">Passer en direct</a> pour voir les blocages arriver.</small></p>{{end}}</div>
+</div>
+</section>
 {{else}}
 <section class="carte flux-reseau"><div class="flux-tete-carte"><h2>Mon réseau : {{if $d.Sortant}}vers où, qui bloque, quel port{{else}}d'où ça vient, qui bloque, ce qui est visé{{end}}</h2><span class="aide">{{$d.NomPeriode}} · épaisseur = nombre de flux · cliquer un bloc pour filtrer</span></div>
 {{with $d.Sankey}}<p class="flux-glisser">← faire glisser pour voir les 3 colonnes →</p>
