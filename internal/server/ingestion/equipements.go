@@ -56,6 +56,13 @@ func (g *Ingestion) equipementsDe(ctx context.Context, collecteur int64, mainten
 			noms[nom] = q
 		}
 	}
+	if err := rows.Err(); err != nil {
+		// Lecture coupée (requête annulée…) : liste partielle pas mise en
+		// cache, sinon les séries des équipements manquants étaient
+		// rejetées « hors parc » pendant 30 s.
+		g.opt.Journal.Warn("équipements du collecteur illisibles", "erreur", err)
+		return e.noms
+	}
 	g.equipements.mu.Lock()
 	if g.equipements.liste == nil || len(g.equipements.liste) > 1000 {
 		g.equipements.liste = map[int64]entreeEquipements{}
