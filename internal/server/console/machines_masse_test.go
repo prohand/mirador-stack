@@ -124,3 +124,36 @@ func TestCompacterApercu(t *testing.T) {
 		t.Errorf("site à problème : %+v", s)
 	}
 }
+
+// Mises à jour par vagues depuis la page (SPEC § 141) : lancer, voir les
+// vagues, mettre en pause ; « Réessayer les échecs ».
+func TestPageVagues(t *testing.T) {
+	b := nouveauBanc(t)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
+	for _, q := range []string{
+		`INSERT INTO versions_binaires(produit, version, architecture, sha256, taille, signature, publiee_le) VALUES ('mirador-agent', '0.7.0', 'amd64', 'x', 1, 'x', 1)`,
+		`INSERT INTO machines(nom, statut, site, version_agent, cree_le, vu_le, battement_le) VALUES ('essai', 'approuvee', 'Paris', '0.6.0', 0, 0, 1)`,
+		`INSERT INTO machines(nom, statut, site, version_agent, maj_echec, cree_le, vu_le, battement_le) VALUES ('p2', 'approuvee', 'Paris', '0.6.0', 'signature refusée', 0, 0, 1)`,
+	} {
+		if _, err := b.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	jeton := b.csrf(c, "/mises-a-jour")
+	_, corps, _ := b.get(c, "/mises-a-jour")
+	if !strings.Contains(corps, "Déployer par vagues") || !strings.Contains(corps, "Réessayer les 1 échec") {
+		t.Fatal("bloc vagues ou bouton « Réessayer » absent")
+	}
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {jeton}, "action": {"vagues"}, "version": {"0.7.0"}, "essai": {"essai"}, "site": {"Paris"}, "code": {b.code(secret)}})
+	_, corps, _ = b.get(c, "/mises-a-jour")
+	for _, attendu := range []string{"Déploiement de 0.7.0 par vagues", "Machine d&#39;essai · essai", "Site Paris", "Tout le parc", "Mettre en pause"} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("%q absent", attendu)
+		}
+	}
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {jeton}, "action": {"vagues_pause"}, "code": {b.code(secret)}})
+	if _, corps, _ = b.get(c, "/mises-a-jour"); !strings.Contains(corps, "en pause") {
+		t.Error("pause non montrée")
+	}
+	b.post(c, "/mises-a-jour", url.Values{"csrf": {jeton}, "action": {"reessayer_echecs"}, "code": {b.code(secret)}})
+}

@@ -97,6 +97,8 @@ type Console struct {
 	// dernierAuto : dernier passage de l'application automatique des modèles.
 	dernierAuto  time.Time
 	machinesAuto int // machines vues au dernier passage (rythme, SPEC § 141)
+	// dernierVagues : dernier passage du déploiement par vagues.
+	dernierVagues time.Time
 	// dernierNettoyageConfiance : appareils de confiance expirés, une fois par heure.
 	dernierNettoyageConfiance time.Time
 	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
@@ -264,6 +266,15 @@ func (c *Console) Tour(ctx context.Context) {
 	if t.Sub(c.dernierAuto) >= time.Minute*time.Duration(1+c.machinesAuto/250) {
 		c.dernierAuto = t
 		c.appliquerAuto(ctx, t)
+	}
+	// Déploiement par vagues (SPEC § 141) : avancé une fois par minute.
+	if t.Sub(c.dernierVagues) >= time.Minute {
+		c.dernierVagues = t
+		if msg, err := flotte.AvancerDeploiement(ctx, c.db, t); err != nil {
+			c.journal.Error("déploiement par vagues", "erreur", err)
+		} else if msg != "" {
+			c.journal.Info(msg)
+		}
 	}
 	c.lireNomsAnciens(ctx)
 	c.tourSante(ctx, t) // pastille « Santé de mirador » (toutes les 2 min)

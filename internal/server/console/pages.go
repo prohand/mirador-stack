@@ -1261,6 +1261,12 @@ type donneesMaj struct {
 	Proposees   []versionProposee
 	ListeGitHub string
 	Vue         vueMajParc // page revue le 21/11 (SPEC § 109)
+	// Déploiement par vagues (SPEC § 141) ; listes pour le formulaire ;
+	// Site : filtre du tableau des machines.
+	Deploiement *flotte.Deploiement
+	Vagues      []flotte.EtatVague
+	Listes      ListesMachines
+	Site        string
 }
 
 // versionProposee : une version de GitHub dans la liste d'import.
@@ -1408,6 +1414,11 @@ func (c *Console) pageMisesAJour(q *req) {
 	if !slices.Contains([]string{majAJour, majRetard, majEchec}, filtre) {
 		filtre = ""
 	}
+	d.Site = strings.TrimSpace(q.r.URL.Query().Get("site"))
+	d.Listes = c.lireListes(ctx)
+	if dep, err := flotte.LireDeploiement(ctx, c.db); err == nil && dep != nil {
+		d.Deploiement, d.Vagues = dep, flotte.EtatsVagues(dep, d.Machines, q.t)
+	}
 	construireVueMaj(&d, filtre)
 	c.rendre(q, "maj", "Mises à jour des agents", "machines", d)
 }
@@ -1428,6 +1439,36 @@ func (c *Console) postMisesAJour(q *req) {
 				err = flotte.DefinirCible(ctx, c.db, id, q.r.PostFormValue("version"), q.qui(), q.t)
 			}
 			ok = "version assignée à " + q.r.PostFormValue("machine") + " : elle se met à jour dans la fenêtre horaire (ou tout de suite avec « Mettre à jour maintenant »)"
+		case "vagues":
+			// Déploiement par vagues (SPEC § 141) : essai, groupe, site, tout.
+			var vs []flotte.Vague
+			for _, x := range []struct{ genre, cle string }{{"machine", "essai"}, {"groupe", "groupe"}, {"site", "site"}} {
+				if v := strings.TrimSpace(q.r.PostFormValue(x.cle)); v != "" {
+					vs = append(vs, flotte.Vague{Genre: x.genre, Valeur: v})
+				}
+			}
+			err = flotte.LancerDeploiement(ctx, c.db, q.r.PostFormValue("version"), vs, q.qui(), q.t)
+			ok = "déploiement lancé : chaque vague attend que la précédente soit saine (30 min sans échec)"
+		case "vagues_pause", "vagues_reprise":
+			err = flotte.PauseDeploiement(ctx, c.db, q.r.PostFormValue("action") == "vagues_pause", q.qui(), q.t)
+			ok = map[bool]string{true: "déploiement en pause", false: "déploiement repris"}[q.r.PostFormValue("action") == "vagues_pause"]
+		case "vagues_arret":
+			err = flotte.ArreterDeploiement(ctx, c.db, q.qui(), q.t)
+			ok = "déploiement arrêté (les versions déjà assignées restent)"
+		case "reessayer_echecs":
+			ms, e := flotte.ListerMachines(ctx, c.db)
+			err = e
+			n := 0
+			for _, m := range ms {
+				if err == nil && m.Statut == "approuvee" && m.MajEchec != "" {
+					if e := flotte.ForcerMaj(ctx, c.db, m.ID, q.qui(), q.t); e != nil {
+						err = e
+						break
+					}
+					n++
+				}
+			}
+			ok = fmt.Sprintf("mise à jour redemandée à %d %s", n, accorder(n, "machine(s)"))
 		case "forcer":
 			var id int64
 			if id, err = flotte.IDMachine(ctx, c.db, q.r.PostFormValue("machine")); err == nil {

@@ -2791,3 +2791,15 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .apercu-ok { font-size: 12.5px; }
 .apercu-verts { margin: 8px 0 0; }
 @media (max-width: 700px) { .apercu-ligne { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Mises à jour par vagues (SPEC § 141). */
+.maj-vagues { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 10px 0; border: 1px solid var(--bord); border-radius: 12px; overflow: hidden; }
+.maj-vague { padding: 10px 12px; border-left: 1px solid var(--bord); display: flex; flex-direction: column; gap: 4px; }
+.maj-vague:first-child { border-left: 0; }
+.maj-vague small { color: var(--pale); } .maj-vague .erreur { color: var(--erreur); }
+.maj-vague.faite { background: var(--ok-fond); } .maj-vague.encours { background: var(--accent-fond); }
+.maj-prog { display: block; height: 5px; border-radius: 3px; background: var(--survol); overflow: hidden; } .maj-prog i { display: block; height: 100%; background: var(--accent); }
+.maj-vagues-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.maj-vagues-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.maj-outils { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
+@media (max-width: 700px) { .maj-vagues { grid-auto-flow: row; } .maj-vague { border-left: 0; border-top: 1px solid var(--bord); } .maj-vague:first-child { border-top: 0; } }
