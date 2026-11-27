@@ -246,6 +246,23 @@ func ReglesMirador() []Regle {
 			Resume:  "La mise à jour de l'agent a échoué sur {{ $labels.instance }} (version {{ $labels.version }})",
 			Description: "L'agent est revenu à sa version précédente. Cette version ne sera pas retentée sur cette " +
 				"machine."}),
+		// Nouveau port en écoute (demande du 27/11) : désactivée par défaut
+		// (bavarde pendant une installation) ; le changement est noté dans
+		// tous les cas (page machine › Changements). Machine qui n'avait aucun
+		// port relevé la veille : ignorée.
+		func() Regle {
+			r := m(Regle{Nom: "NouveauPortEnEcoute", Groupe: "securite", Intervalle: Duree(5 * time.Minute),
+				Expr: `(max by (instance, port, adresse) (last_over_time(mirador_port_ecoute[10m])) unless ` +
+					`max by (instance, port, adresse) (last_over_time(mirador_port_ecoute[1d] offset 15m))) ` +
+					`and on (instance) max by (instance) (last_over_time(mirador_port_ecoute[1d] offset 15m))`,
+				Gravite: Info,
+				Resume:  "Nouveau port en écoute sur {{ $labels.instance }} : tcp/{{ $labels.port }}",
+				Description: "Relevé par l'agent dans /proc/net/tcp (toutes les 5 min). Si ce n'est pas une installation " +
+					"voulue : voir quel programme écoute (ss -ltnp) sur la machine.",
+				Note: "Demande du 27/11 : désactivée par défaut, le changement est toujours noté"})
+			r.Active = false
+			return r
+		}(),
 		m(Regle{Nom: "ServeurDisquePresquePlein", Groupe: "mirador",
 			Expr:        `mirador_disque_libre_octets / mirador_disque_total_octets < 0.10`,
 			Pour:        Duree(10 * time.Minute),

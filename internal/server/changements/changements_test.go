@@ -128,3 +128,62 @@ func TestDetecteur(t *testing.T) {
 		t.Fatalf("après redémarrage : %d lignes au lieu de %d", len(cs2), len(cs))
 	}
 }
+
+// Ports (demande du 27/11) : ouvert puis fermé sur une machine connue ;
+// rien au tout premier tour ni pour une machine nouvelle ; machine muette :
+// ses ports ne sont pas « fermés ».
+func TestPorts(t *testing.T) {
+	ctx := context.Background()
+	d := t.TempDir()
+	db, err := base.Ouvrir(filepath.Join(d, "mirador.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := base.Migrer(ctx, db, filepath.Join(d, "copies")); err != nil {
+		t.Fatal(err)
+	}
+	const ePorts = `max by (instance, port, adresse, protocole) (last_over_time(mirador_port_ecoute[10m]))`
+	t0 := time.Date(2026, 11, 27, 21, 0, 0, 0, time.UTC)
+	l := fauxLecteur{
+		eBoot:  {ech(float64(t0.Add(-48*time.Hour).Unix()), "instance", "web1")},
+		ePorts: {ech(1, "instance", "web1", "port", "22", "adresse", "*", "protocole", "ssh")},
+	}
+	det := &Detecteur{DB: db, Lecteur: l}
+	tour := func(dt time.Duration) []Changement {
+		if err := det.Tour(ctx, t0.Add(dt)); err != nil {
+			t.Fatal(err)
+		}
+		cs, _ := ListerType(ctx, db, Port, t0.Add(-time.Hour), 50)
+		return cs
+	}
+	if cs := tour(0); len(cs) != 0 {
+		t.Fatalf("premier tour : %+v", cs)
+	}
+	l[ePorts] = append(l[ePorts], ech(1, "instance", "web1", "port", "8080", "adresse", "*", "protocole", "http"),
+		ech(1, "instance", "neuve", "port", "443", "adresse", "*", "protocole", "https"))
+	l[eBoot] = append(l[eBoot], ech(float64(t0.Unix()), "instance", "neuve"))
+	cs := tour(time.Minute)
+	if len(cs) != 1 || cs[0].Machine != "web1" || cs[0].Detail != "Port ouvert : tcp/8080 (http) · toutes les adresses" {
+		t.Fatalf("port ouvert : %+v", cs)
+	}
+	// Protocole relu autrement : pas un changement.
+	l[ePorts][1] = ech(1, "instance", "web1", "port", "8080", "adresse", "*", "protocole", "https")
+	if cs := tour(2 * time.Minute); len(cs) != 1 {
+		t.Fatalf("protocole changé : %+v", cs)
+	}
+	// 8080 fermé ; « neuve » muette : rien pour elle.
+	l[ePorts] = l[ePorts][:1]
+	cs = tour(3 * time.Minute)
+	if len(cs) != 2 || cs[0].Detail != "Port fermé : tcp/8080 · toutes les adresses" {
+		t.Fatalf("port fermé : %+v", cs)
+	}
+	for _, c := range cs {
+		if c.Machine == "neuve" {
+			t.Errorf("machine muette signalée : %+v", c)
+		}
+	}
+	if cs := tour(4 * time.Minute); len(cs) != 2 {
+		t.Errorf("« fermé » redit : %+v", cs)
+	}
+}

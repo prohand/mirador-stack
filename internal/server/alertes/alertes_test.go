@@ -618,3 +618,39 @@ func TestHistoriquePeriodeIndex(t *testing.T) {
 		t.Errorf("plan : %s", p)
 	}
 }
+
+// NouveauPortEnEcoute (demande du 27/11) : un port apparu sur une machine
+// qui avait déjà des ports ; rien pour un port ancien ni pour une machine
+// toute neuve.
+func TestRegleNouveauPort(t *testing.T) {
+	ctx := context.Background()
+	donnees := tsdbTest(t)
+	t0 := time.Now().Truncate(time.Minute).Add(-3 * time.Hour)
+	un := func(time.Time) float64 { return 1 }
+	port := func(inst, p string) labels.Labels {
+		return labels.FromStrings("__name__", "mirador_port_ecoute", "instance", inst, "port", p, "adresse", "*", "protocole", "tcp")
+	}
+	ecrirePoints(t, donnees, port("web1", "22"), t0, t0.Add(3*time.Hour), 5*time.Minute, un)
+	ecrirePoints(t, donnees, port("web1", "8080"), t0.Add(170*time.Minute), t0.Add(3*time.Hour), 5*time.Minute, un)
+	ecrirePoints(t, donnees, port("neuve", "443"), t0.Add(170*time.Minute), t0.Add(3*time.Hour), 5*time.Minute, un)
+	m, err := Nouveau(ctx, Options{DB: baseTest(t), Donnees: donnees})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var expr string
+	for _, r := range ReglesMirador() {
+		if r.Nom == "NouveauPortEnEcoute" {
+			expr = r.Expr
+			if r.Active {
+				t.Error("règle active par défaut")
+			}
+		}
+	}
+	res, err := m.requete(ctx, expr, t0.Add(175*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res) != 1 || res[0].etq.Get("instance") != "web1" || res[0].etq.Get("port") != "8080" {
+		t.Fatalf("nouveau port : %+v", res)
+	}
+}
