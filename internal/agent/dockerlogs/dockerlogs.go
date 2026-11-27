@@ -16,6 +16,7 @@ package dockerlogs
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -275,8 +276,17 @@ func lireMultiplexe(r *bufio.Reader, ligne func([]byte, string)) error {
 		if _, err := io.ReadFull(r, contenu); err != nil {
 			return finFlux(err)
 		}
-		for _, l := range strings.Split(strings.TrimRight(string(contenu), "\n"), "\n") {
-			ligne([]byte(l), flux)
+		// Lignes passées sur place, sans copie (relecture perf du 27/11 :
+		// string + Split + []byte copiaient chaque ligne 3 fois). La
+		// fonction ligne ne garde pas l'octet reçu (couperHorodatage copie).
+		reste := bytes.TrimRight(contenu, "\n")
+		for {
+			l, suite, encore := bytes.Cut(reste, []byte("\n"))
+			ligne(l, flux)
+			if !encore {
+				break
+			}
+			reste = suite
 		}
 	}
 }
@@ -301,7 +311,7 @@ func lireBrut(r *bufio.Reader, ligne func([]byte, string)) error {
 			continue // ligne pas finie
 		}
 		if len(l) > 0 {
-			ligne([]byte(strings.TrimRight(string(l), "\r\n")), "stdout")
+			ligne(bytes.TrimRight(l, "\r\n"), "stdout") // sur place, sans copie
 		}
 		l = l[:0]
 		if err != nil {

@@ -45,6 +45,9 @@ type Releveur struct {
 	utilisatLu time.Time
 	pageOctets float64
 	ticksSec   float64
+	// tampon : lecture des /proc/<pid>/stat, réutilisée d'un processus à
+	// l'autre (relecture perf du 27/11 : os.ReadFile allouait à chaque fois).
+	tampon []byte
 }
 
 // Nouveau prépare un releveur sur la machine.
@@ -270,11 +273,14 @@ func (r *Releveur) scanner(premier bool, ecart float64) []proc {
 	vus := make(map[int]uint64, len(r.ticksProc)+16)
 	liste := make([]proc, 0, 256)
 	for _, e := range entrees {
+		if c := e.Name()[0]; c < '1' || c > '9' {
+			continue // pas un processus (« acpi », « meminfo »…) : évite l'erreur allouée par Atoi
+		}
 		pid, err := strconv.Atoi(e.Name())
 		if err != nil || pid <= 0 {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(r.Proc, e.Name(), "stat"))
+		b, err := lireDans(filepath.Join(r.Proc, e.Name(), "stat"), &r.tampon)
 		if err != nil {
 			continue // processus fini entre-temps
 		}
@@ -370,20 +376,67 @@ func analyserStat(b []byte) (proc, bool) {
 	if i < 0 || j < i {
 		return p, false
 	}
-	p.nom = string(b[i+1 : j])
-	f := strings.Fields(string(b[j+1:]))
-	// Après « ) » : état(0) … utime(11) stime(12) … rss(21).
-	if len(f) < 22 {
-		return p, false
+	// Après « ) » : état(0) … utime(11) stime(12) … rss(21). Champs lus
+	// sur place, sans découpage (pas d'allocation).
+	var f [22][]byte
+	reste := b[j+1:]
+	for k := range f {
+		reste = bytes.TrimLeft(reste, " \t\n")
+		fin := bytes.IndexAny(reste, " \t\n")
+		if fin < 0 {
+			fin = len(reste)
+		}
+		if fin == 0 {
+			return p, false // moins de 22 champs
+		}
+		f[k], reste = reste[:fin], reste[fin:]
 	}
-	u, e1 := strconv.ParseUint(f[11], 10, 64)
-	s, e2 := strconv.ParseUint(f[12], 10, 64)
-	rss, e3 := strconv.ParseInt(f[21], 10, 64)
+	u, e1 := strconv.ParseUint(string(f[11]), 10, 64)
+	s, e2 := strconv.ParseUint(string(f[12]), 10, 64)
+	rss, e3 := strconv.ParseInt(string(f[21]), 10, 64)
 	if e1 != nil || e2 != nil || e3 != nil {
 		return p, false
 	}
+	p.nom = string(b[i+1 : j])
 	p.ticks, p.rss = u+s, float64(max(0, rss))
 	return p, true
+}
+
+// lireDans lit un petit fichier de /proc dans *tampon (réutilisé) ; le
+// résultat n'est valable que jusqu'au prochain appel. Appels système
+// directs, comme pour /proc/self/statm (agent.go) : pas d'os.File à
+// allouer ni de fstat en plus, pour chacun des centaines de processus.
+func lireDans(chemin string, tampon *[]byte) ([]byte, error) {
+	fd, err := syscall.Open(chemin, syscall.O_RDONLY|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer syscall.Close(fd)
+	if cap(*tampon) == 0 {
+		*tampon = make([]byte, 0, 4<<10)
+	}
+	b := (*tampon)[:0]
+	for {
+		if len(b) == cap(b) {
+			if cap(b) >= 64<<10 {
+				break // borne : /proc/<pid>/stat fait moins de 1 Kio
+			}
+			b = append(b, 0)[:len(b)]
+		}
+		n, err := syscall.Read(fd, b[len(b):cap(b)])
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if n <= 0 {
+			break // fin du fichier
+		}
+		b = b[:len(b)+n]
+	}
+	*tampon = b
+	return b, nil
 }
 
 var (

@@ -251,9 +251,12 @@ func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string) {
 		return
 	}
 	r := bufio.NewReaderSize(c, tailleTamponLecture)
+	// tampon : message en cours, réutilisé (recevoir copie ce qu'il garde).
+	var tampon []byte
 	for {
 		_ = c.SetReadDeadline(time.Now().Add(DelaiInactivite))
-		trame, err := LireTrame(r)
+		trame, err := LireTrameDans(r, tampon)
+		tampon = trame[:0]
 		if err != nil {
 			if errors.Is(err, ErrTrame) {
 				s.refus[RefusTrame].Add(1)

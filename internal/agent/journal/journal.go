@@ -199,8 +199,13 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 	}
 	lire := bufio.NewReaderSize(sortie, 64<<10)
 	var e Entree
+	var tampon []byte // ligne en cours, réutilisée (analyser copie ce qu'il garde)
 	for {
-		ligne, err := lireLigne(lire)
+		ligne, err := lireLigneDans(lire, tampon[:0])
+		tampon = ligne
+		if cap(tampon) > 64<<10 {
+			tampon = nil // agrandi par une très longue ligne : rendu après usage
+		}
 		if len(ligne) > 0 {
 			l.Lignes.Add(1)
 			if analyser(ligne, &e) {
@@ -229,8 +234,11 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 }
 
 // lireLigne lit une ligne entière ; au-delà de tailleMaxLigne, le reste est jeté.
-func lireLigne(r *bufio.Reader) ([]byte, error) {
-	var ligne []byte
+func lireLigne(r *bufio.Reader) ([]byte, error) { return lireLigneDans(r, nil) }
+
+// lireLigneDans : comme lireLigne, en écrivant dans ligne (tampon réutilisé :
+// pas d'allocation par ligne une fois le tampon à la bonne taille).
+func lireLigneDans(r *bufio.Reader, ligne []byte) ([]byte, error) {
 	for {
 		morceau, err := r.ReadSlice('\n')
 		if len(ligne)+len(morceau) <= tailleMaxLigne {

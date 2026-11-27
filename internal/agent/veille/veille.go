@@ -15,7 +15,6 @@
 package veille
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"log/slog"
@@ -72,23 +71,48 @@ func (v *Veilleur) Tourner(ctx context.Context) {
 
 // --- Manque de mémoire ------------------------------------------------------------------
 
-func lireOOM(proc string) (uint64, bool) {
-	b, err := os.ReadFile(filepath.Join(proc, "vmstat")) // #nosec G304 -- /proc/vmstat (chemin figé, remplacé seulement dans les tests)
+// lecteurOOM relit /proc/vmstat dans un tampon gardé (relecture perf du
+// 27/11 : c'est la boucle la plus fréquente de l'agent, toutes les 2 s ;
+// os.ReadFile + bufio.Scanner y faisaient ~20 Kio de déchets à chaque fois).
+type lecteurOOM struct {
+	chemin string
+	buf    []byte
+}
+
+func nouveauLecteurOOM(proc string) *lecteurOOM {
+	return &lecteurOOM{chemin: filepath.Join(proc, "vmstat"), buf: make([]byte, 0, 16<<10)}
+}
+
+func (l *lecteurOOM) lire() (uint64, bool) {
+	f, err := os.Open(l.chemin) // #nosec G304 -- /proc/vmstat (chemin figé, remplacé seulement dans les tests)
 	if err != nil {
 		return 0, false
 	}
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	for sc.Scan() {
-		if v, ok := strings.CutPrefix(sc.Text(), "oom_kill "); ok {
-			n, err := strconv.ParseUint(strings.TrimSpace(v), 10, 64)
-			return n, err == nil
+	defer f.Close()
+	b := l.buf[:0]
+	for len(b) < cap(b) {
+		n, err := f.Read(b[len(b):cap(b)])
+		b = b[:len(b)+n]
+		if err != nil {
+			break // io.EOF : fin du fichier
 		}
 	}
-	return 0, false
+	// « oom_kill N » en début de ligne (jamais la première ligne).
+	i := bytes.Index(b, []byte("\noom_kill "))
+	if i < 0 {
+		return 0, false
+	}
+	v := b[i+len("\noom_kill "):]
+	if j := bytes.IndexByte(v, '\n'); j >= 0 {
+		v = v[:j]
+	}
+	n, err := strconv.ParseUint(string(bytes.TrimSpace(v)), 10, 64)
+	return n, err == nil
 }
 
 func (v *Veilleur) surveillerOOM(ctx context.Context) {
-	avant, ok := lireOOM(v.Proc)
+	lect := nouveauLecteurOOM(v.Proc)
+	avant, ok := lect.lire()
 	if !ok {
 		return // noyau sans ce compteur (très ancien) : rien à surveiller
 	}
@@ -100,7 +124,7 @@ func (v *Veilleur) surveillerOOM(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		n, ok := lireOOM(v.Proc)
+		n, ok := lect.lire()
 		if ok && n > avant {
 			texte := strconv.FormatUint(n-avant, 10) + " processus tué(s)"
 			v.Signaler(protocole.EvenementAgent{Type: protocole.EvenementOOM, Texte: texte, Le: time.Now().UnixMilli()})
