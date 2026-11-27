@@ -2062,23 +2062,39 @@ pages de 200, Sondes, Tâches, Logs, Événements), Conteneurs en une vue.
 ## Prochaine étape
 
 Mise à jour le 27/11 au soir. Les 7 étapes du plan sont validées (26/11).
-Dernières versions publiées : **0.6.30** (grand parc, Flux bloqués :
-classements et choix d'un pare-feu, SPEC § 139 à 141) et **0.6.31**
-(Classements et Sources propres à chaque vue de Flux bloqués). Serveur à
-passer en 0.6.31 ; agents et collecteur inchangés depuis 0.6.30 (rien
-d'obligatoire).
+
+**Versions publiées le 27/11**
+- **0.6.30** : grand parc, Flux bloqués (classements, choix d'un
+  pare-feu), SPEC § 139 à 141.
+- **0.6.31** : Classements et Sources propres à chaque vue de Flux bloqués.
+- **0.6.32** : sept améliorations (SPEC § 142) : « Que faire » par règle,
+  résumé de la semaine, ports en écoute, SSH depuis une adresse nouvelle,
+  expiration des domaines (RDAP), prévision des inodes et volumes RAID,
+  liste de blocage (OPNsense + script VPS).
+- **0.6.33** : adresses SSH connues dans Réglages › Sécurité, par plage et
+  par machine ; deux boutons « C'est moi » sur l'alerte.
+
+**À installer par l'utilisateur**
+- Serveur en **0.6.33**.
+- Agents en **0.6.32** (connexions SSH ; par vagues : une machine d'essai
+  d'abord). Collecteur : rien d'obligatoire.
+- Le serveur doit joindre `data.iana.org` et les serveurs RDAP en HTTPS
+  (expiration des domaines).
 
 **En cours**
-- Mesure du serveur après 0.6.30 / 0.6.31 : relancée par l'utilisateur
-  le 27/11 (`docker stats` chaque minute, fichier `/root/mesure-0631.txt`
-  sur le VPS). À reporter ici et à comparer à la mesure du 26/11
-  (252 Mio au plus, objectif 256 Mio, limite du conteneur 300 Mio).
+- Mesure du serveur : relancée par l'utilisateur le 27/11 (`docker stats`
+  chaque minute, `/root/mesure-0631.txt` sur le VPS). Couvre 0.6.31 puis
+  0.6.32 / 0.6.33 si installées pendant la mesure. À reporter ici et à
+  comparer à la mesure du 26/11 (252 Mio au plus, objectif 256 Mio,
+  limite du conteneur 300 Mio).
 
 **À valider par l'utilisateur**
-- SPEC § 136 à 141 : pare-feu par machine et flux sortants, carte et
-  « Mon réseau », classements, choix d'un pare-feu, grand parc (taille du
-  parc dans Réglages › Conservation, recherche et actions de masse,
-  vagues de mise à jour, alertes par site, listes avec recherche).
+- SPEC § 136 à 142 : pare-feu par machine et flux sortants, carte et
+  « Mon réseau », classements, choix d'un pare-feu, grand parc, et les
+  améliorations du 27/11 (§ 142, dont adresses SSH connues).
+- Après la mise à jour : « Envoyer maintenant » du résumé de la semaine
+  (Réglages › Notifications) ; bloc « Noms de domaine » (Réglages ›
+  Certificats) ; ajouter la box dans « Adresses SSH connues ».
 - 8 fonctions « en service, pas encore essayées », au fil de l'eau :
   § 39 site injoignable, § 49 disponibilité, § 52 motifs de logs, § 54
   incidents, § 81 maintenance récurrente et webhook, § 82 modèles des
@@ -2086,15 +2102,9 @@ d'obligatoire).
   Docker Compose.
 
 **Facultatif**
+- Liste de blocage (désactivée par défaut) : alias OPNsense, script sur
+  les VPS.
 - Essai réel d'Olvid (`docs/olvid.md`).
-
-**Fait le 27/11 (SPEC § 142, maquettes validées)** : « Que faire » par
-règle, résumé de la semaine, ports en écoute, SSH depuis une adresse
-nouvelle (agent 0.6.32), expiration des domaines (RDAP), prévision des
-inodes et volumes RAID, liste de blocage (OPNsense + script VPS). Coût
-estimé faible (quelques requêtes par minute ou par jour) ; mesure réelle
-avec celle en cours sur le VPS. Ajout (même jour) : adresses SSH connues dans
-Réglages › Sécurité, par plage et par machine.
 
 Historique : mode **actif** (Telegram) depuis le 13/11 ; ancienne stack
 supprimée le 24/11 ; archives effacées le 26/11. L'ancien texte de cette
