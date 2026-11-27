@@ -14,7 +14,7 @@
 {{if $d.Machine}}<span class="pastille">sur {{$d.Machine}} · <a href="/conteneurs">tout voir</a></span>{{end}}
 </div>
 {{if eq $d.Vue "projet"}}<div data-vue-ct="projet">{{range $d.Groupes}}{{$g := .}}<section class="carte groupe-ct" data-groupe-ct{{if .CacheFiltre $d.Filtre}} hidden{{end}}>
-<div class="tete-ct"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><h2><a href="/machines/{{.Machine}}">{{.Machine}}</a> {{if .Projet}}<span class="doux">· projet</span> {{.Projet}}{{else}}<span class="doux">· hors projet Compose</span>{{end}}</h2>
+<div class="tete-ct"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><h2><a href="{{lienMachine .Machine}}">{{.Machine}}</a> {{if .Projet}}<span class="doux">· projet</span> {{.Projet}}{{else}}<span class="doux">· hors projet Compose</span>{{end}}</h2>
 {{if .NbNonSains}}<span class="pastille erreur">{{.NbNonSains}} non {{accord .NbNonSains "sain(s)"}}</span>{{end}}{{if .NbArretes}}<span class="pastille attention">{{.NbArretes}} {{accord .NbArretes "arrêté(s)"}}</span>{{end}}{{if not .AProbleme}}<span class="pastille ok">tout va bien</span>{{end}}
 {{with .Application}}<a class="pastille app" href="/applications/{{.}}">application {{.}}</a>{{end}}{{with .Proposer}}<a class="pastille propose" href="{{.}}">+ créer l'application</a>{{end}}
 <small class="doux">{{len .Lignes}} {{accord (len .Lignes) "conteneur(s)"}}</small></div>
@@ -33,7 +33,7 @@
 {{define "bouton-filtre-ct"}}<button type="button" data-filtre="{{.F}}"{{if eq .F .Actif}} class="actif" aria-pressed="true"{{else}} aria-pressed="false"{{end}}>{{.Texte}} <b>{{.N}}</b></button>{{end}}
 {{define "ligne-ct"}}{{$l := .L}}<tr data-ct data-filtres="{{$l.Filtres}}" data-texte="{{$l.Texte}}"{{if $l.Probleme}} class="pb"{{end}}{{if $l.CacheFiltre .F}} data-onglet-cache=""{{end}}{{if .Trop}} data-en-trop hidden{{end}}>
 <td><a href="{{$l.Lien}}"><strong>{{$l.Nom}}</strong></a>{{with $l.Application}} <a class="pastille app" href="/applications/{{.}}">{{.}}</a>{{end}}{{if $l.Image}}<small class="img">{{$l.Image}}{{with $l.ImageChangee}} · <span class="neuf">{{.}}</span>{{end}}</small>{{end}}{{with $l.LigneErreur}}<small class="err">{{.}}</small>{{end}}</td>
-{{if .AvecMachine}}<td class="sans-coupure"><a href="/machines/{{$l.Machine}}">{{$l.Machine}}</a>{{with $l.Projet}}<small class="doux sans-coupure"> · {{.}}</small>{{end}}</td>{{end}}
+{{if .AvecMachine}}<td class="sans-coupure"><a href="{{lienMachine $l.Machine}}">{{$l.Machine}}</a>{{with $l.Projet}}<small class="doux sans-coupure"> · {{.}}</small>{{end}}</td>{{end}}
 <td>{{if $l.ClasseEtat}}<span class="pastille {{$l.ClasseEtat}}">{{$l.Etat}}</span>{{else}}<span class="pastille">{{$l.Etat}}</span>{{end}}{{if $l.OOM}} <span class="pastille erreur" title="Tué faute de mémoire">Mémoire épuisée</span>{{end}}</td>
 <td>{{if $l.Sante}}<span class="pastille {{$l.ClasseSante}}">{{$l.Sante}}</span>{{else}}<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>{{end}}</td>
 <td data-valeur="{{$l.PctCPU}}"><div class="cpu-ct">{{if $l.Etincelle}}<svg class="etincelle" viewBox="0 0 90 24" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{$l.Etincelle}}"></polyline></svg>{{end}}<span class="sans-coupure">{{$l.CPU}}</span></div></td>

@@ -739,7 +739,7 @@
         {
           "type": "tableau",
           "titre": "Actives au démarrage, arrêtés",
-          "description": "Liste vide = tout va bien. Faux positif : ajouter le service dans /etc/obs-systemd-ignore sur la machine.",
+          "description": "Liste vide = tout va bien. Faux positif : ajouter le service à « Unités systemd ignorées » (Configuration des agents, pour tout le parc ou pour la machine).",
           "requetes": [
             {
               "id": "A",

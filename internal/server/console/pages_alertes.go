@@ -58,7 +58,7 @@ type donneesAlertes struct {
 	Historique []ligneHistorique
 	Filtre     alertes.Filtre
 	Suivant    int64
-	Requete    string
+	Requete    template.URL // voir donneesLogs.Requete
 	FiltreSur  filtreSur
 }
 
@@ -88,7 +88,7 @@ func (c *Console) pageAlertes(q *req) {
 			qs.Set(k, x)
 		}
 	}
-	d.Requete = qs.Encode()
+	d.Requete = template.URL(qs.Encode()) // #nosec G203 -- url.Values.Encode : tout est encodé
 	switch {
 	case f.Sonde != "":
 		d.FiltreSur = filtreSur{"la sonde « " + f.Sonde + " »", "/alertes"}

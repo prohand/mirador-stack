@@ -33,8 +33,8 @@
 <h2>Seuils</h2>
 <p class="aide"><small class="aide">Réglables par groupe puis par machine. Dans une règle : <code>&gt; $nom</code>.</small></p>
 <div class="defile"><table class="formulaire"><thead><tr><th>Nom</th><th>Titre</th><th>Unité</th><th>Défaut</th><th>Min</th><th>Max</th></tr></thead><tbody>
-{{range $m.Parametres}}<tr><td><input name="p_nom" value="{{.Nom}}" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" value="{{.Titre}}" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" value="{{.Unite}}" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" value="{{seuil .Defaut}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" value="{{seuil .Min}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" value="{{seuil .Max}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
-{{range $d.Vides}}<tr><td><input name="p_nom" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
+{{range $m.Parametres}}<tr><td><input name="p_nom" aria-label="Nom du paramètre" value="{{.Nom}}" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" aria-label="Titre du paramètre" value="{{.Titre}}" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" aria-label="Unité" value="{{.Unite}}" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" aria-label="Valeur par défaut" value="{{seuil .Defaut}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" aria-label="Minimum" value="{{seuil .Min}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" aria-label="Maximum" value="{{seuil .Max}}" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
+{{range $d.Vides}}<tr><td><input name="p_nom" aria-label="Nom du paramètre" size="14" {{if $ro}}disabled{{end}}></td><td><input name="p_titre" aria-label="Titre du paramètre" size="30" {{if $ro}}disabled{{end}}></td><td><input name="p_unite" aria-label="Unité" size="6" {{if $ro}}disabled{{end}}></td><td><input name="p_defaut" aria-label="Valeur par défaut" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_min" aria-label="Minimum" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td><td><input name="p_max" aria-label="Maximum" size="6" inputmode="decimal" {{if $ro}}disabled{{end}}></td></tr>{{end}}
 </tbody></table></div>
 <p class="aide"><small class="aide">Vider le nom pour retirer la ligne.</small></p>
 </section>
@@ -62,9 +62,9 @@
 </section>{{end}}
 {{end}}
 
-{{define "ligne-liste-perso"}}{{$l := .L}}<tr><td><input name="l_nom" value="{{if $l}}{{$l.Nom}}{{end}}" size="12" {{if .RO}}disabled{{end}}></td><td><input name="l_titre" value="{{if $l}}{{$l.Titre}}{{end}}" size="24" {{if .RO}}disabled{{end}}></td>
-<td><select name="l_type" {{if .RO}}disabled{{end}}>{{range .D.TypesCheck}}<option{{if and $l (eq $l.Type .)}} selected{{end}}>{{.}}</option>{{end}}</select></td>
-<td><input name="l_exemple" value="{{if $l}}{{barres $l.Exemple}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td><td><input name="l_aide" value="{{if $l}}{{$l.Aide}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td></tr>{{end}}
+{{define "ligne-liste-perso"}}{{$l := .L}}<tr><td><input name="l_nom" aria-label="Nom de la liste" value="{{if $l}}{{$l.Nom}}{{end}}" size="12" {{if .RO}}disabled{{end}}></td><td><input name="l_titre" aria-label="Titre de la liste" value="{{if $l}}{{$l.Titre}}{{end}}" size="24" {{if .RO}}disabled{{end}}></td>
+<td><select name="l_type" aria-label="Type de la liste" {{if .RO}}disabled{{end}}>{{range .D.TypesCheck}}<option{{if and $l (eq $l.Type .)}} selected{{end}}>{{.}}</option>{{end}}</select></td>
+<td><input name="l_exemple" aria-label="Exemple" value="{{if $l}}{{barres $l.Exemple}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td><td><input name="l_aide" aria-label="Aide" value="{{if $l}}{{$l.Aide}}{{end}}" size="28" {{if .RO}}disabled{{end}}></td></tr>{{end}}
 
 {{define "regle-perso"}}{{$r := .R}}<fieldset class="pile regle-perso{{if not $r}} vide{{end}}">{{if not $r}}<legend>Nouvelle règle</legend>{{end}}<div class="ligne">
 <label>Nom <input name="r_nom" value="{{if $r}}{{$r.Nom}}{{end}}" size="24" {{if .RO}}disabled{{end}}></label>

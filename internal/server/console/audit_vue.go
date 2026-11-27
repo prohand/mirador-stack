@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/url"
 	"regexp"
 	"sort"
@@ -293,7 +294,7 @@ type donneesAudit struct {
 	F          filtreAudit
 	Masquees   int // actions automatiques masquées sur la période
 	Suivant    int64
-	Requete    string // filtres, pour « plus anciennes » et l'export
+	Requete    template.URL // filtres, pour « plus anciennes » et l'export (voir donneesLogs.Requete)
 }
 
 // filtreAudit : filtres de la page (paramètres d'URL).
@@ -381,7 +382,7 @@ func (f filtreAudit) condition(t time.Time, avecAuto bool) (string, []any) {
 
 func (c *Console) pageAudit(q *req) {
 	f := lireFiltreAudit(q.r.URL.Query())
-	d := donneesAudit{Categories: categoriesAudit, F: f, Requete: f.requete()}
+	d := donneesAudit{Categories: categoriesAudit, F: f, Requete: template.URL(f.requete())} // #nosec G203 -- url.Values.Encode
 	cond, args := f.condition(q.t, false)
 	ls, err := c.lireAuditID(q, cond, args, 200)
 	if err != nil {

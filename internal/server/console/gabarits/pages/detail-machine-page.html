@@ -1,4 +1,4 @@
 {{define "contenu"}}
-<p><a href="/machines/{{.D.Machine}}">← Retour à {{.D.Machine}}</a></p>
+<p><a href="{{lienMachine .D.Machine}}">← Retour à {{.D.Machine}}</a></p>
 <section class="carte detail-pleine-page">{{template "detail-machine" .}}</section>
 {{end}}

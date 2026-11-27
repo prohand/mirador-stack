@@ -78,6 +78,12 @@ pre { background: var(--entete-table); border: 1px solid var(--bord); padding: .
 .barre nav a.actif { background: var(--menu-actif); color: #FFFFFF; font-weight: 600; }
 .compteur { margin-left: auto; min-width: 20px; height: 20px; padding: 0 7px; border-radius: 999px; background: #3A1A1C; color: #F87171; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .barre-pied { margin-top: auto; padding: 12px 4px 0; border-top: 1px solid var(--menu-bord); display: flex; align-items: center; gap: 8px; }
+/* Fenêtre basse (1366×768) : le menu défile, ses éléments ne rétrécissent
+   pas (« Modifier le menu » était rogné) et le pied (compte, thème, aides)
+   reste collé en bas, toujours visible (revue du 27/11). */
+.barre > * { flex-shrink: 0; }
+.barre-pied { position: sticky; bottom: -18px; margin-bottom: -18px; padding-bottom: 18px; background: var(--menu); }
+.appli.menu-haut .barre-pied { position: static; background: none; }
 .moi { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--menu-texte); font-weight: 600; font-size: 13px; min-width: 0; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: #2A3560; color: #C7D3FF; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: none; text-transform: uppercase; }
 .moi small { display: block; color: var(--menu-pale); font-size: 12px; font-weight: 400; }
@@ -99,7 +105,7 @@ main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 36px; }
 .appli.replie .barre nav a + .groupe-sep { display: block; }
 .compteur.attention { background: #3A2A10; color: #F5B83D; }
 .appli.replie .compteur { position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
-.appli.replie .barre-pied { flex-direction: column; padding: 14px 0 0; }
+.appli.replie .barre-pied { flex-direction: column; padding: 14px 0 18px; }
 .appli.replie .sortir { margin: 0; }
 
 /* Menu en haut (réglage), et toujours sur téléphone. */
@@ -123,6 +129,7 @@ main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 28px 36px; }
   .barre nav, .barre-pied, .appli.replie .barre-pied { display: none; }
   .appli.ouvert .barre nav { display: flex; width: 100%; padding-top: 8px; align-items: stretch; }
   .appli.ouvert .barre-pied { display: flex; flex-direction: row; width: 100%; margin: 8px 0 0; padding: 10px 0 0; }
+  .barre-pied { position: static; background: none; }
   .appli.ouvert .barre nav a, .appli.ouvert.replie .barre nav a { width: auto; height: auto; justify-content: flex-start; padding: 11px 10px; }
   .appli.ouvert .txt, .appli.ouvert .groupe { display: block; }
   .appli.ouvert .compteur { position: static; }
@@ -755,7 +762,8 @@ body.ecran-mural { background: var(--fond); color: var(--texte); padding: 24px 3
 .mur-machine b { font-size: 20px; } .mur-etat { font-size: 15px; color: var(--doux); } .mur-mesures { font-size: 14px; color: var(--pale); }
 .mur-machine .plein-dans { align-self: flex-start; margin: 2px 0 0; }
 .mur-machine.etat-erreur { border-left-color: var(--erreur); } .mur-machine.etat-attention { border-left-color: var(--attention-trait); }
-.mur-machine.etat-muette { border-left-color: var(--pale); opacity: .8; }
+.mur-machine.etat-muette { border-left-color: var(--erreur); opacity: .8; } /* rouge, comme l'accueil */
+.mur-compteur b small { font-size: 28px; color: var(--doux); font-weight: 500; }
 .mur-pied { margin-top: 18px; font-size: 12px; color: var(--pale); }
 @media (max-width: 700px) { .mur-compteurs { grid-template-columns: repeat(2, 1fr); } body.ecran-mural { padding: 16px; } }
 /* Avancement de la création d'un certificat (SPEC § 32). */
@@ -1222,7 +1230,7 @@ fieldset.bloc-absence .aide { margin: 0 0 8px; }
 
 /* --- Sondes (SPEC § 48) ---------------------------------------------------------- */
 .cible-sonde { max-width: 360px; min-width: 200px; }
-.url-sonde { word-break: break-all; }
+.url-sonde { overflow-wrap: anywhere; } /* coupe aux séparateurs si possible */
 .cible-sonde + td + td .pastille { white-space: normal; max-width: 260px; min-width: 120px; }
 
 /* --- Disponibilité (SPEC § 49) ----------------------------------------------------- */
@@ -1607,14 +1615,14 @@ pre.journal-tache .e { color: #F87171; } pre.journal-tache .h { color: #8E93A0; 
 .frise-tache i.er { background: #E5484D; }
 .frise-tache i.at { background: #F5A623; }
 .texte-anomalie { color: #B45309; font-weight: 500; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-anomalie { color: #F5B54A; } }
-:root[data-theme="dark"] .texte-anomalie { color: #F5B54A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .texte-anomalie { color: #F5B54A; } }
+:root[data-theme="sombre"] .texte-anomalie { color: #F5B54A; }
 tr.groupe-taches > td { padding-top: 14px; font-weight: 600; background: none; border-bottom: 1px solid var(--bord); }
 .filtre-taches { margin: 0; }
 table.en-cartes .frise-tache { justify-content: flex-end; }
 .texte-ok { color: #18794E; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .texte-ok { color: #4CC38A; } }
-:root[data-theme="dark"] .texte-ok { color: #4CC38A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="clair"]) .texte-ok { color: #4CC38A; } }
+:root[data-theme="sombre"] .texte-ok { color: #4CC38A; }
 .vm-oubliees ul.puces-tache { list-style: none; padding: 0; margin: 6px 0 0; }
 
 /* Alertes sur téléphone (retour du 20/11) :
@@ -2672,7 +2680,7 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 
 /* --- Classements des flux bloqués (SPEC § 139, maquette C validée le 27/11) --- */
 .page-flux {
-  --cl-tcp: #3456C8; --cl-tcp-f: #EEF2FF; --cl-udp: #0E9384; --cl-udp-f: #E6F6F4; --cl-icmp: #B54708; --cl-icmp-f: #FEF0E1;
+  --cl-tcp: #3456C8; --cl-tcp-f: #EEF2FF; --cl-udp: #0B7A6E; --cl-udp-f: #E6F6F4; --cl-icmp: #B54708; --cl-icmp-f: #FEF0E1;
   --cl-multi: #B42318; --cl-multi-f: #FEECEB; --cl-pays: #F2784B; --cl-ports: #667085; --cl-ip: #F04438; --cl-un: #E5602B;
 }
 :root[data-theme="sombre"] .page-flux {

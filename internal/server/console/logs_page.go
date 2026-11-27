@@ -5,6 +5,7 @@ package console
 import (
 	"encoding/json"
 	"errors"
+	"html/template"
 	"net/url"
 	"regexp"
 	"sort"
@@ -313,8 +314,12 @@ type donneesLogs struct {
 	LienGroupes    string
 	LienPlusAncien string
 	Autour         *vueAutour
-	Requete        string // adresse de la recherche (enregistrer, exporter, direct)
-	PlusOuvert     bool   // « Plus de filtres » déplié (un de ces filtres est actif)
+	// Requete : adresse de la recherche (enregistrer, exporter, direct).
+	// template.URL : sans lui, html/template échappait « = » et « & » après
+	// le « ? » d'un lien, et l'export sortait tous les logs (revue du 27/11).
+	// Sûr : construite par url.Values.Encode (tout est encodé).
+	Requete    template.URL
+	PlusOuvert bool // « Plus de filtres » déplié (un de ces filtres est actif)
 }
 
 // raccourcisFixes : recherches proposées à tous.
@@ -529,7 +534,7 @@ func (c *Console) pageLogs(q *req) {
 			w[k] = x
 		}
 	}
-	d.Requete = w.Encode()
+	d.Requete = template.URL(w.Encode()) // #nosec G203 -- url.Values.Encode : tout est encodé
 	d.LienLignes = lienLogsAvec(v, func(w url.Values) { w.Del("vue"); w.Del("tri") })
 	niv := v.Get("level")
 	for _, x := range []struct {

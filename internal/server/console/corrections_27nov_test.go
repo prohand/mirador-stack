@@ -150,3 +150,26 @@ func TestLogsDirectRafaleEtRetard(t *testing.T) {
 		t.Errorf("curseur reculé : %d < %d", out2.Fin, out.Fin)
 	}
 }
+
+// Les liens d'export et « Plus anciennes » gardent les filtres (html/template
+// échappait « = » et « & » après le « ? »).
+func TestLiensExportGardentLesFiltres(t *testing.T) {
+	b := nouveauBanc(t)
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(c, "/audit?periode=30j&q=pve")
+	if !strings.Contains(corps, `href="/audit.csv?periode=30j&amp;q=pve"`) && !strings.Contains(corps, `href="/audit.csv?q=pve&amp;periode=30j"`) {
+		i := strings.Index(corps, "/audit.csv")
+		t.Errorf("lien d'export de l'audit : %q", corps[i:min(len(corps), i+80)])
+	}
+}
+
+// « mirador-server » (sondes du serveur) n'a pas de fiche machine.
+func TestLienMachineServeur(t *testing.T) {
+	f := fonctions()["lienMachine"].(func(string) string)
+	if got := f(instanceServeur); got != "/sante-mirador" {
+		t.Errorf("lienMachine(mirador-server) = %q", got)
+	}
+	if got := f("web 1"); got != "/machines/web%201" {
+		t.Errorf("lienMachine(web 1) = %q", got)
+	}
+}

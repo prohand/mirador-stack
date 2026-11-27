@@ -222,8 +222,12 @@ func (c *Console) calculerSante(ctx context.Context, t time.Time) donneesSante {
 	var envois []string
 	for _, l := range ag.Lignes {
 		switch {
-		case l.Nom == "mirador-agent":
-			caseAgents.Valeur, caseAgents.Sur, caseAgents.Texte = l.Chiffres[0].Valeur, l.Chiffres[1].Valeur, l.Sous
+		case l.Nom == "Agents": // nom de la ligne (ligneAgents) : « mirador-agent » ne trouvait rien
+			// « 5 / 11 en ligne » → 5 sur 11 ; le texte dit l'état des mises à jour.
+			caseAgents.Texte = l.Sous
+			if len(l.Chiffres) > 0 {
+				caseAgents.Valeur, caseAgents.Sur, _ = strings.Cut(l.Chiffres[0].Valeur, " / ")
+			}
 			if l.Probleme() {
 				caseAgents.Classe = l.Etat
 			}
@@ -553,7 +557,9 @@ func (c *Console) carteCollecteurSante(ctx context.Context, m flotte.InfoMachine
 	l := ligneSante{Etat: "ok", Icone: "reseau", Nom: "mirador-collector", Version: versionCourte(m.Version), Lien: page, LienTexte: "Page",
 		Sous: "écoute seulement sur le LAN · mise à jour signée"}
 	if m.VuLe == 0 || t.Sub(time.Unix(m.VuLe, 0)) > delaiMuette {
-		l.Etat, l.Alerte = "erreur", "muet : plus de données depuis "+dureeLisible(t.Sub(time.Unix(m.VuLe, 0)))
+		// Nom du collecteur dans le texte : le résumé « services à
+		// regarder » en montrait deux identiques (revue du 27/11).
+		l.Etat, l.Alerte = "erreur", m.Nom+" muet : plus de données depuis "+dureeLisible(t.Sub(time.Unix(m.VuLe, 0)))
 	}
 	if m.VuLe > 0 {
 		l.Chiffres = append(l.Chiffres, chiffreSante{dureeLisible(t.Sub(time.Unix(m.VuLe, 0))), "dernier envoi"})

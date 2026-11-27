@@ -16,6 +16,7 @@ import (
 	"mirador-stack/internal/server/auth"
 	"mirador-stack/internal/server/taches"
 	"net/http"
+	"net/url"
 	"path"
 	"reflect"
 	"regexp"
@@ -157,6 +158,14 @@ func fonctions() template.FuncMap {
 			return mois[t.Month()-1] + " " + strconv.Itoa(t.Year())
 		},
 		// heure : « aujourd'hui 03:43 », « demain 03:43 » ou date (fuseau de l'interface).
+		// lienMachine : fiche d'une machine ; « mirador-server » (sondes et
+		// alertes du serveur lui-même) n'a pas de fiche : page Santé.
+		"lienMachine": func(nom string) string {
+			if nom == instanceServeur {
+				return "/sante-mirador"
+			}
+			return "/machines/" + url.PathEscape(nom)
+		},
 		"heure": func(t time.Time) string {
 			loc := fuseau.Load()
 			l, n := t.In(loc), time.Now().In(loc)

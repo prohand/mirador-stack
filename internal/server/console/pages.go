@@ -395,6 +395,8 @@ type donneesMachines struct {
 	AttenteCachees    int  // en attente au-delà des premières (lien « Voir les N autres »)
 	ToutesAttente     bool // ?attente=toutes
 	Listes            ListesMachines
+	ChoixSites        []string // filtres : Réglages + valeurs des machines
+	ChoixGroupes      []string
 	Approuvees        int // nombre total, sans filtre
 	Sites             int // nombre de sites différents
 	Filtres           filtresPage
@@ -503,6 +505,20 @@ func (c *Console) donneesMachines(q *req) donneesMachines {
 		compacter(d.Groupes, f)
 	}
 	d.Listes = c.lireListes(ctx)
+	// Filtres Site et Groupe : valeurs des Réglages ET celles des machines
+	// (un site « bureau » porté par une machine mais absent des Réglages
+	// ne pouvait pas être choisi, revue du 27/11).
+	d.ChoixSites, d.ChoixGroupes = slices.Clone(d.Listes.Sites), slices.Clone(d.Listes.Groupes)
+	for _, m := range approuvees {
+		if m.Site != "" && !slices.Contains(d.ChoixSites, m.Site) {
+			d.ChoixSites = append(d.ChoixSites, m.Site)
+		}
+		if m.Groupe != "" && !slices.Contains(d.ChoixGroupes, m.Groupe) {
+			d.ChoixGroupes = append(d.ChoixGroupes, m.Groupe)
+		}
+	}
+	slices.Sort(d.ChoixSites)
+	slices.Sort(d.ChoixGroupes)
 	if vs, err := flotte.ListerVersions(ctx, c.db); err == nil {
 		for _, v := range vs {
 			if !slices.Contains(d.Versions, v.Version) {
@@ -940,10 +956,12 @@ func (c *Console) pageMachine(q *req) {
 // tableauEquipement : tableau d'un équipement relevé par un collecteur,
 // choisi d'après ses mesures, et la variable qui le filtre sur lui (vide :
 // pas de filtre). Sans mesure reconnue : courbes Linux (agent).
+// Recherche sur une journée (revue du 27/11) : un équipement muet depuis
+// plus de 15 min basculait sur la vue Linux, juste quand on en a besoin.
 func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time) (tableau, variable, valeur string) {
 	for _, x := range []struct{ expr, tableau, variable string }{
-		{`count(systemStatus{job="snmp", instance=` + strconv.Quote(nom) + `})`, "synology", "nas"},
-		{`count(up{job="unifi", instance=` + strconv.Quote(nom) + `})`, "unifi", ""},
+		{`count(last_over_time(systemStatus{job="snmp", instance=` + strconv.Quote(nom) + `}[1d]))`, "synology", "nas"},
+		{`count(last_over_time(up{job="unifi", instance=` + strconv.Quote(nom) + `}[1d]))`, "unifi", ""},
 	} {
 		if e, err := c.instant(ctx, x.expr, t); err == nil && len(e) > 0 {
 			return x.tableau, x.variable, nom
@@ -951,7 +969,7 @@ func (c *Console) tableauEquipement(ctx context.Context, nom string, t time.Time
 	}
 	// OPNsense (Telegraf) : le tableau filtre sur l'étiquette « host » que
 	// Telegraf pose (nom d'hôte du pare-feu), pas sur le nom dans mirador.
-	if e, err := c.instant(ctx, `max by (host) (last_over_time(cpu_usage_idle{cpu="cpu-total", instance=`+strconv.Quote(nom)+`}[15m]))`, t); err == nil && len(e) > 0 {
+	if e, err := c.instant(ctx, `max by (host) (last_over_time(cpu_usage_idle{cpu="cpu-total", instance=`+strconv.Quote(nom)+`}[1d]))`, t); err == nil && len(e) > 0 {
 		if h := e[0].Etiquettes.Get("host"); h != "" {
 			return "opnsense", "host", h
 		}
