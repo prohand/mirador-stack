@@ -14,7 +14,9 @@ import (
 // Racine lit le fichier écrit par l'assistant root (toutes les 15 min) et en
 // tire les métriques, avec les noms actuels (SPEC.md § 4.2) :
 //
-//	node_firewall_input_policy_drop{tool,policy}, node_firewall_input_rules{tool,policy}
+//	node_firewall_input_policy_drop{tool,policy}, node_firewall_input_rules{tool,policy},
+//	node_firewall_log_rules{tool}, node_firewall_log_rules_unlimited{tool},
+//	node_firewall_log_prefix{prefix}, node_firewall_manager{name}
 //	smartctl_device_smart_status{device}, smartctl_device_temperature{device,temperature_type}
 //	smartctl_device_power_on_seconds{device}, smartctl_device_available_spare{device}
 //	smartctl_device_attribute{device,attribute_name,attribute_value_type="raw"}
@@ -157,6 +159,22 @@ func (r *Racine) Collecter(b *metrics.Batch) error {
 		l := [2]metrics.Label{metrics.L("tool", pf.Outil), metrics.L("policy", pf.Politique)}
 		b.Add("node_firewall_input_policy_drop", bool01(pf.Restrictif()), l[:]...)
 		b.Add("node_firewall_input_rules", float64(pf.Regles), l[:]...)
+		// Journalisation des blocages (SPEC § 136) : nombre de règles, sans
+		// limite de débit, préfixes (10 au plus), outil qui les pose.
+		if j := pf.Journal; j != nil {
+			outil := metrics.L("tool", pf.Outil)
+			b.Add("node_firewall_log_rules", float64(j.Regles), outil)
+			b.Add("node_firewall_log_rules_unlimited", float64(j.SansLimite), outil)
+			for i, p := range j.Prefixes {
+				if i >= 10 || len(p) > 40 {
+					break
+				}
+				b.Add("node_firewall_log_prefix", 1, metrics.L("prefix", p))
+			}
+		}
+		if pf.Gestion == "ufw" || pf.Gestion == "firewalld" {
+			b.Add("node_firewall_manager", 1, metrics.L("name", pf.Gestion))
+		}
 	}
 
 	for i := range res.Smart {

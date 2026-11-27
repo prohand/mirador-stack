@@ -2700,7 +2700,7 @@ document.addEventListener("change", function (ev) {
   try { centres = JSON.parse(carte ? carte.getAttribute('data-centres') : '{}') || {}; } catch (e) { centres = {}; }
   var maison = (carte ? carte.getAttribute('data-maison') : '0,0').split(',').map(Number);
   var actifs = {}; // pays → éléments dessinés (un seul jeu par pays)
-  var MAX_FIL = 12, VIE = 10000;
+  var MAX_FIL = 6, VIE = 10000;
 
   function el(nom, attrs, parent) {
     var e = document.createElementNS(NS, nom);
@@ -2717,14 +2717,17 @@ document.addEventListener("change", function (ev) {
   function surCarte(ev) {
     if (!carte || !traits || !ev.pays || !centres[ev.pays]) return;
     var p = centres[ev.pays], x = p[0], y = p[1];
-    var mx = (x + maison[0]) / 2, my = Math.min(y, maison[1]) - Math.abs(x - maison[0]) * 0.22 - 10;
-    var d = 'M' + x + ' ' + y + ' Q' + mx + ' ' + my + ' ' + maison[0] + ' ' + maison[1];
+    var mx = (x + maison[0]) / 2, my = Math.min(y, maison[1]) - Math.abs(x - maison[0]) * 0.25 - 12;
+    // Entrant : du pays vers vos pare-feu ; sortant : de vos pare-feu vers le pays.
+    var d = page.getAttribute('data-flux-sens') === 'sortant'
+      ? 'M' + maison[0] + ' ' + maison[1] + ' Q' + mx + ' ' + my + ' ' + x + ' ' + y
+      : 'M' + x + ' ' + y + ' Q' + mx + ' ' + my + ' ' + maison[0] + ' ' + maison[1];
     var deja = actifs[ev.pays];
     if (deja) { clearTimeout(deja.minuteur); deja.g.classList.remove('eteint'); }
     else {
       var g = el('g', {}, traits);
       el('path', { d: d, 'class': 'trait' }, g);
-      el('circle', { cx: x, cy: y, r: 12, 'class': 'halo' }, g);
+      el('circle', { cx: x, cy: y, r: 11, 'class': 'halo' }, g);
       el('circle', { cx: x, cy: y, r: 4.5, 'class': 'source' }, g);
       deja = actifs[ev.pays] = { g: g };
     }
@@ -2749,24 +2752,29 @@ document.addEventListener("change", function (ev) {
     if (r2) setTimeout(function () { voyage(points, r2.getAttribute('data-centre'), '1s'); }, 1000);
   }
   function ligne(ev) {
+    // Une ligne compacte : heure, drapeau, adresse, ×n, → pare-feu, port, service.
     var li = document.createElement('li');
-    li.className = 'neuf';
-    var h = document.createElement('span'); h.className = 'h mono'; h.textContent = ev.heure; li.appendChild(h);
-    var s = document.createElement('span'); s.className = 'src';
-    s.appendChild(document.createTextNode((ev.drapeau || '') + ' '));
-    var code = document.createElement('code'); code.textContent = ev.ip; s.appendChild(code);
-    if (ev.n > 1) { var n = document.createElement('small'); n.textContent = ' ×' + ev.n; s.appendChild(n); }
-    li.appendChild(s);
-    var d = document.createElement('span'); d.className = 'dst';
-    var b = document.createElement('b'); b.textContent = ev.pf; d.appendChild(b);
-    var sm = document.createElement('small'); sm.textContent = ' ' + ev.port + (ev.service ? ' · ' + ev.service : ''); d.appendChild(sm);
-    li.appendChild(d);
+    li.className = 'evt neuf';
+    function morceau(tag, classe, texte) {
+      var e = document.createElement(tag);
+      if (classe) e.className = classe;
+      e.textContent = texte;
+      li.appendChild(e);
+    }
+    morceau('span', 'h', ev.heure);
+    morceau('span', 'd', ev.drapeau || '');
+    morceau('code', '', ev.ip);
+    morceau('small', '', ev.n > 1 ? '×' + ev.n : '');
+    morceau('span', 'fl', '→');
+    morceau('b', '', ev.pf);
+    morceau('span', 'port', ev.port);
+    morceau('small', 'svc', ev.service || '');
     setTimeout(function () { li.classList.remove('neuf'); }, 5000);
     return li;
   }
   if (pauseBtn) pauseBtn.addEventListener('click', function () {
     enPause = !enPause;
-    pauseBtn.textContent = enPause ? 'Reprendre' : 'Mettre en pause';
+    pauseBtn.textContent = enPause ? '▶ reprendre' : '❚❚ pause';
   });
   var source = new EventSource(page.getAttribute('data-flux-direct'));
   source.addEventListener('open', function () { if (etat) etat.classList.remove('coupe'); });
@@ -2797,4 +2805,32 @@ document.addEventListener("change", function (ev) {
     });
   });
   window.addEventListener('pagehide', function () { source.close(); });
+})();
+
+// « Mon réseau » (SPEC § 138) : au survol d'un bloc ou d'un lien, ses
+// chemins ressortent et les autres s'atténuent.
+(function () {
+  var svg = document.querySelector('[data-flux-sankey]');
+  if (!svg) return;
+  var rubans = svg.querySelectorAll('path.ruban');
+  function eteindre() {
+    svg.classList.remove('focus');
+    rubans.forEach(function (r) { r.classList.remove('fort'); });
+  }
+  function allumer(test) {
+    svg.classList.add('focus');
+    rubans.forEach(function (r) { r.classList.toggle('fort', test(r)); });
+  }
+  svg.addEventListener('mouseover', function (e) {
+    var r = e.target.closest('path.ruban');
+    if (r) { allumer(function (x) { return x === r; }); return; }
+    var n = e.target.closest('g.noeud[data-cle]');
+    if (n) {
+      var cle = n.getAttribute('data-cle');
+      allumer(function (x) { return x.getAttribute('data-a') === cle || x.getAttribute('data-b') === cle; });
+      return;
+    }
+    eteindre();
+  });
+  svg.addEventListener('mouseleave', eteindre);
 })();

@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/server/fluxbloques"
 )
 
@@ -111,12 +112,22 @@ type donneesFlux struct {
 	Centres                    string // JSON : centre de chaque pays (points du direct)
 	LienDirect                 string
 	Sources                    []sourceFlux // état de la collecte OPNsense par collecteur
+	Sens                       string       // entrant ou sortant (SPEC § 136)
+	Sensz                      []lienFlux
+	Sortant                    bool
+	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
+	Table                      []ligneSource
+	Bulles                     []bulleFlux
+	Chemins                    []cheminVue
+	TopPays                    []rangFlux
+	Bord, Grille               string // contour du monde et quadrillage (projection Equal Earth)
+	TableLues, TableSans       int
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
 func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 	w := url.Values{}
-	for _, k := range []string{"periode", "vue", "pays", "pf", "port"} {
+	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port"} {
 		if x := v.Get(k); x != "" && !(sansFiltre && (k == "pays" || k == "pf" || k == "port")) {
 			w.Set(k, x)
 		}
@@ -143,10 +154,15 @@ func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 
 func (c *Console) pageFlux(q *req) {
 	v := q.r.URL.Query()
-	d := donneesFlux{Periode: v.Get("periode"), Vue: v.Get("vue")}
+	d := donneesFlux{Periode: v.Get("periode"), Vue: v.Get("vue"), Sens: protocole.Entrant}
 	if d.Vue != "reseau" {
 		d.Vue = "monde"
 	}
+	if v.Get("sens") == protocole.Sortant {
+		d.Sens, d.Sortant = protocole.Sortant, true
+	}
+	d.Sensz = []lienFlux{{"Entrants", lienFluxAvec(v, "sens", "", true), !d.Sortant},
+		{"Sortants", lienFluxAvec(v, "sens", protocole.Sortant, true), d.Sortant}}
 	p := periodesFlux[0]
 	for _, x := range periodesFlux {
 		if x.Cle == d.Periode {
@@ -187,12 +203,13 @@ func (c *Console) pageFlux(q *req) {
 	if p.Duree <= time.Hour {
 		debut = fin.Truncate(time.Minute).Add(-59 * time.Minute)
 	}
-	b, err := c.opt.Flux.Bilan(q.r.Context(), debut, fin, f, p.Barres)
+	mag := c.opt.Flux.Sens(d.Sens)
+	b, err := mag.Bilan(q.r.Context(), debut, fin, f, p.Barres)
 	if err != nil {
 		c.flash(q, "", "lecture des flux bloqués : "+err.Error())
 	}
 	d.B = b
-	minutes, _ := c.opt.Flux.ParMinute(30)
+	minutes, _ := mag.ParMinute(30)
 	if len(minutes) > 0 {
 		d.ParMinute = minutes[len(minutes)-1]
 		d.Spark = sparkFlux(minutes)
@@ -219,6 +236,8 @@ func (c *Console) pageFlux(q *req) {
 		parPays[x.Nom] = x.N
 	}
 	d.Carte = carteFlux(parPays)
+	d.Bord, d.Grille = bordCarte, grilleCarte
+	d.Bulles = bullesFlux(b.Pays)
 	d.Centres = centresJSON
 	if centre, ok := centresPays[lireInterface(q.r.Context(), c.db).PaysCarte]; ok {
 		d.Maison = centre
@@ -237,7 +256,7 @@ func (c *Console) pageFlux(q *req) {
 	}
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	// Fil des derniers blocages (le direct ajoute les suivants).
-	ev, _ := c.opt.Flux.Depuis(0, 12)
+	ev, _ := mag.Depuis(0, 6)
 	for i := len(ev) - 1; i >= 0; i-- {
 		d.Fil = append(d.Fil, ligneFilDe(ev[i]))
 	}
@@ -248,6 +267,14 @@ func (c *Console) pageFlux(q *req) {
 			r.Lien = lienFluxAvec(v, "pays", r.Code, false)
 		}
 	})
+	if len(d.Pays) > 0 {
+		d.TopPays = d.Pays[:min(5, len(d.Pays))]
+		for i := range d.TopPays {
+			if d.TopPays[i].Code != "" && d.TopPays[i].Code != fluxbloques.Autres {
+				d.TopPays[i].Nom = nomCourtPays(d.TopPays[i].Code)
+			}
+		}
+	}
 	d.Ports = rangsFlux(b.Ports, 6, func(r *rangFlux) {
 		r.Sous = nomsServices[r.Nom]
 		if r.Nom != fluxbloques.Autres && r.Nom != "?" {
@@ -270,8 +297,33 @@ func (c *Console) pageFlux(q *req) {
 			d.Note = fmt.Sprintf("%s a été bloquée par %d pare-feu sur la période : la même adresse essaie plusieurs de vos machines.", x.Nom, x.PareFeux)
 		}
 	}
-	d.Sankey = construireSankey(b, v)
-	d.Sources = c.sourcesFlux(q.r.Context(), q.t)
+	d.Table = c.tableauSources(q.r.Context(), q.t)
+	outils := map[string]string{}
+	for _, l := range d.Table {
+		switch {
+		case strings.HasPrefix(l.PareFeu, "équipement"):
+			outils[l.Machine] = "OPNsense"
+		case l.PareFeu != "" && l.PareFeu != "aucun":
+			outils[l.Machine] = l.PareFeu
+		}
+	}
+	d.Sankey = construireSankey(b, v, outils)
+	d.Chemins = cheminsVue(b.Chemins, v)
+	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
+	d.Sources = nil
+	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
+		if x.Classe != "ok" { // l'encadré ne reste que pour signaler un réglage à faire
+			d.Sources = append(d.Sources, x)
+		}
+	}
+	for _, l := range d.Table {
+		if l.Bloques > 0 {
+			d.TableLues++
+		}
+		if l.Classe == "erreur" {
+			d.TableSans++
+		}
+	}
 	c.rendre(q, "flux", "Flux bloqués", "tableaux", d)
 }
 
@@ -464,12 +516,16 @@ func (c *Console) fluxBloquesDirect(q *req) {
 		return
 	}
 	defer nbFluxDirect.Add(-1)
+	mag := c.opt.Flux.Entrants
+	if q.r.URL.Query().Get("sens") == protocole.Sortant {
+		mag = c.opt.Flux.Sortants
+	}
 	depuis, _ := strconv.ParseInt(q.r.URL.Query().Get("depuis"), 10, 64)
 	if id, err := strconv.ParseInt(q.r.Header.Get("Last-Event-ID"), 10, 64); err == nil && id > depuis {
 		depuis = id
 	}
 	if depuis <= 0 {
-		depuis = c.opt.Flux.DernierID()
+		depuis = mag.DernierID()
 	}
 	h := q.w.Header()
 	h.Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -492,7 +548,7 @@ func (c *Console) fluxBloquesDirect(q *req) {
 	minute := time.NewTicker(10 * time.Second)
 	defer minute.Stop()
 	for {
-		ev, signal := c.opt.Flux.Depuis(depuis, 50)
+		ev, signal := mag.Depuis(depuis, 50)
 		if len(ev) > 0 {
 			depuis = ev[len(ev)-1].ID
 			out := make([]evenementDirect, 0, len(ev))
@@ -513,7 +569,7 @@ func (c *Console) fluxBloquesDirect(q *req) {
 			ecrire("event: fin\ndata: {}\n\n")
 			return
 		case <-minute.C:
-			mins, _ := c.opt.Flux.ParMinute(30)
+			mins, _ := mag.ParMinute(30)
 			b, _ := json.Marshal(map[string]any{"minute": mins[len(mins)-1], "spark": sparkFlux(mins)})
 			if !ecrire("event: minute\ndata: " + string(b) + "\n\n") {
 				return
@@ -533,28 +589,40 @@ func (c *Console) fluxBloquesDirect(q *req) {
 
 type noeudSankey struct {
 	Nom, Sous, Cle, Lien string
+	Classe, Pct, Outil   string
 	N                    int
 	X, Y, H              float64
-	TY                   float64 // position du texte
+	TY                   float64 // milieu du bloc (texte)
+	Pilule               float64 // largeur de l'étiquette d'un pare-feu
 }
 
 type rubanSankey struct {
-	D, Centre, Classe, Titre string
-	A, B                     string // clés des deux bouts (direct)
+	D, Centre, Degrade, Titre string
+	A, B                      string // clés des deux bouts (survol, direct)
 }
+
+// degradeSankey : dégradé d'un lien, de la couleur de départ à celle d'arrivée.
+type degradeSankey struct{ ID, De, Vers string }
 
 type sankeyVue struct {
 	Pays, PareFeux, Ports []noeudSankey
 	Rubans                []rubanSankey
+	Degrades              []degradeSankey
 	Hauteur               float64
 	Estime                bool
+	NbPays, NbPF, NbPorts int
 }
 
+// Mise en page de « Mon réseau » (SPEC § 138, maquette validée le 27/11).
 const (
-	sankeyHaut     = 400.0
+	sankeyHaut     = 390.0
+	sankeyTop      = 34.0
 	sankeyEcart    = 14.0
-	sankeyMinNoeud = 30.0
-	sankeyLargeur  = 14.0
+	sankeyMinNoeud = 26.0
+	sankeyLargeur  = 12.0
+	sankeyXPays    = 200.0
+	sankeyXPF      = 494.0
+	sankeyXPorts   = 800.0
 )
 
 // regrouperTop : les n premiers, le reste dans « autres ».
@@ -570,7 +638,9 @@ func regrouperTop(cs []fluxbloques.Compte, n int) (garder map[string]bool, ordre
 	return garder, ordre
 }
 
-func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
+// construireSankey : pays → pare-feu → ports ; outils : outil de chaque
+// pare-feu (OPNsense, ufw, nftables…) pour son étiquette.
+func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string) *sankeyVue {
 	if b.Total == 0 {
 		return nil
 	}
@@ -625,46 +695,69 @@ func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
 	if len(colPays) == 0 || len(colPF) == 0 {
 		return nil
 	}
-	s := &sankeyVue{Estime: b.Estime}
+	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux)}
+	for _, p := range b.Ports {
+		if p.Nom != fluxbloques.Autres {
+			s.NbPorts++
+		}
+	}
 	total := 0
 	for _, n := range nPF {
 		total += n
 	}
-	placer := func(col []string, m map[string]int, x float64, nom func(string) (string, string, string)) []noeudSankey {
+	pct := func(n int) string {
+		p := n * 100 / max(total, 1)
+		if p == 0 && n > 0 {
+			return "< 1 %"
+		}
+		return strconv.Itoa(p) + " %"
+	}
+	plusGrosPays := 1
+	if len(b.Pays) > 0 {
+		plusGrosPays = max(b.Pays[0].N, 1)
+	}
+	placer := func(col []string, m map[string]int, x float64, nom func(int, string) noeudSankey) []noeudSankey {
 		k := (sankeyHaut - sankeyEcart*float64(len(col)-1)) / float64(max(total, 1))
-		y := 24.0
+		y := sankeyTop
 		var out []noeudSankey
-		for _, c := range col {
+		for i, c := range col {
 			h := float64(m[c]) * k
-			nm, sous, lien := nom(c)
-			out = append(out, noeudSankey{Nom: nm, Sous: sous, Cle: c, Lien: lien, N: m[c], X: x, Y: y, H: h, TY: y + max(h, 16)/2})
+			n := nom(i, c)
+			n.Cle, n.N, n.X, n.Y, n.H, n.TY, n.Pct = c, m[c], x, y, max(h, 3), y+max(h, 16)/2, pct(m[c])
+			out = append(out, n)
 			y += max(h, sankeyMinNoeud) + sankeyEcart
 		}
-		s.Hauteur = max(s.Hauteur, y+30)
+		s.Hauteur = max(s.Hauteur, y+10)
 		return out
 	}
-	s.Pays = placer(colPays, nPays, 150, func(c string) (string, string, string) {
+	s.Pays = placer(colPays, nPays, sankeyXPays, func(_ int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return fmt.Sprintf("Autres pays (%d)", max(b.NbPays-len(gPays), 0)), "", ""
+			return noeudSankey{Nom: fmt.Sprintf("Autres pays (%d)", max(b.NbPays-len(gPays), 0)), Classe: "pa"}
 		}
-		return strings.TrimSpace(drapeau(c) + " " + nomCourtPays(c)), "", lienFluxAvec(v, "pays", c, false)
+		// Niveau de couleur, comme sur la carte.
+		niveau := 1 + int(4*math.Log1p(float64(nPays[c]))/math.Log1p(float64(plusGrosPays)))
+		return noeudSankey{Nom: strings.TrimSpace(drapeau(c) + " " + nomCourtPays(c)), Lien: lienFluxAvec(v, "pays", c, false),
+			Classe: "n" + strconv.Itoa(min(max(niveau, 1), 5))}
 	})
-	s.PareFeux = placer(colPF, nPF, 470, func(c string) (string, string, string) {
+	s.PareFeux = placer(colPF, nPF, sankeyXPF, func(i int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), "machines", ""
+			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130}
 		}
-		return c, "", lienFluxAvec(v, "pf", c, false)
+		outil := outils[c]
+		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 3)),
+			Pilule: math.Max(110, float64(len([]rune(c))+len([]rune(outil)))*7.2+34)}
 	})
-	s.Ports = placer(colPort, nPort, 790, func(c string) (string, string, string) {
+	s.Ports = placer(colPort, nPort, sankeyXPorts, func(_ int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return "Autres ports", "", ""
+			return noeudSankey{Nom: fmt.Sprintf("Autres ports (%d)", max(s.NbPorts-len(gPort), 0)), Classe: "po"}
 		}
-		return strings.TrimSpace(c + " " + nomsServices[c]), "", lienFluxAvec(v, "port", c, false)
+		return noeudSankey{Nom: c, Outil: nomsServices[c], Lien: lienFluxAvec(v, "port", c, false), Classe: "po"}
 	})
 	k := (sankeyHaut - sankeyEcart*float64(len(colPF)-1)) / float64(max(total, 1))
-	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int, classe string) {
+	vus := map[string]bool{}
+	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int) {
 		offS, offD := map[string]float64{}, map[string]float64{}
-		for i, a := range src {
+		for _, a := range src {
 			for _, bn := range dst {
 				n := m[fluxbloques.Paire{A: a.Cle, B: bn.Cle}]
 				if n == 0 {
@@ -674,19 +767,24 @@ func construireSankey(b fluxbloques.Bilan, v url.Values) *sankeyVue {
 				x1, y1 := a.X+sankeyLargeur, a.Y+offS[a.Cle]
 				x2, y2 := bn.X, bn.Y+offD[bn.Cle]
 				mx := (x1 + x2) / 2
+				id := "fd-" + a.Classe + "-" + bn.Classe
+				if !vus[id] {
+					vus[id] = true
+					s.Degrades = append(s.Degrades, degradeSankey{ID: id, De: a.Classe, Vers: bn.Classe})
+				}
 				s.Rubans = append(s.Rubans, rubanSankey{
 					D: fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1fL%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1fZ",
 						x1, y1, mx, y1, mx, y2, x2, y2, x2, y2+h, mx, y2+h, mx, y1+h, x1, y1+h),
-					Centre: fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1f", x1, y1+h/2, mx, y1+h/2, mx, y2+h/2, x2, y2+h/2),
-					Classe: classe + strconv.Itoa(min(i, 4)), Titre: fmt.Sprintf("%s → %s : %d", a.Nom, bn.Nom, n),
+					Centre:  fmt.Sprintf("M%.1f %.1fC%.1f %.1f %.1f %.1f %.1f %.1f", x1, y1+h/2, mx, y1+h/2, mx, y2+h/2, x2, y2+h/2),
+					Degrade: id, Titre: fmt.Sprintf("%s → %s : %s", a.Nom, bn.Nom, nombreLisible(n)),
 					A: a.Cle, B: bn.Cle})
 				offS[a.Cle] += h
 				offD[bn.Cle] += h
 			}
 		}
 	}
-	relier(s.Pays, s.PareFeux, gauche, "g")
-	relier(s.PareFeux, s.Ports, droite, "m")
+	relier(s.Pays, s.PareFeux, gauche)
+	relier(s.PareFeux, s.Ports, droite)
 	return s
 }
 
@@ -695,35 +793,75 @@ var centresJSON = func() string {
 	return string(b)
 }()
 
-// --- Centres des pays (points et traits de la carte) -----------------------------
+// bulleFlux : cercle chiffré sur un des pays les plus actifs (SPEC § 137).
+type bulleFlux struct {
+	X, Y, R      float64
+	Texte, Titre string
+}
 
-// centresPays : point représentatif de chaque pays sur la carte (médiane
-// des points du contour ; corrigé à la main pour les pays dont les
-// territoires lointains déplacent la médiane).
-var centresPays = func() map[string][2]float64 {
-	m := make(map[string][2]float64, len(paysCarte))
-	for _, p := range paysCarte {
-		var xs, ys []float64
-		for i, champ := range strings.FieldsFunc(p.D, func(r rune) bool { return r == ' ' || r == 'M' || r == 'L' || r == 'Z' }) {
-			f, err := strconv.ParseFloat(champ, 64)
-			if err != nil {
-				continue
-			}
-			if i%2 == 0 {
-				xs = append(xs, f)
-			} else {
-				ys = append(ys, f)
-			}
+// bullesFlux : les 5 pays les plus actifs (rayon selon la racine du nombre).
+func bullesFlux(pays []fluxbloques.Compte) []bulleFlux {
+	var out []bulleFlux
+	plusGros := 0
+	for _, p := range pays {
+		plusGros = max(plusGros, p.N)
+	}
+	for _, p := range pays {
+		if len(out) >= 5 {
+			break
 		}
-		if len(xs) == 0 || len(ys) == 0 {
+		c, ok := centresPays[p.Nom]
+		if !ok || p.N == 0 {
 			continue
 		}
-		sort.Float64s(xs)
-		sort.Float64s(ys)
-		m[p.Code] = [2]float64{xs[len(xs)/2], ys[len(ys)/2]}
+		out = append(out, bulleFlux{X: c[0], Y: c[1], R: 7 + 17*math.Sqrt(float64(p.N)/float64(max(plusGros, 1))),
+			Texte: nombreBulle(p.N), Titre: nomPaysOuCode(p.Nom) + " : " + nombreLisible(p.N)})
 	}
-	for k, v := range map[string][2]float64{"FR": {507, 120}, "US": {230, 140}, "RU": {700, 70}, "CN": {760, 160}, "NO": {525, 75}} {
-		m[k] = v
+	return out
+}
+
+// nombreBulle : 9120 → « 9k », 1250 → « 1,2k », 540 → « 540 ».
+func nombreBulle(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return strconv.Itoa(n/1_000_000) + "M"
+	case n >= 10_000:
+		return strconv.Itoa(n/1000) + "k"
+	case n >= 1000:
+		s := strconv.Itoa(n / 1000)
+		if d := (n % 1000) / 100; d > 0 {
+			s += "," + strconv.Itoa(d)
+		}
+		return s + "k"
 	}
-	return m
-}()
+	return strconv.Itoa(n)
+}
+
+// cheminVue : une ligne de « Chemins les plus fréquents » (SPEC § 138).
+type cheminVue struct {
+	Code, Pays, PareFeu, Port, Service, Lien string
+	N, Pct                                   int
+}
+
+func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
+	var out []cheminVue
+	plusGros := 1
+	if len(cs) > 0 {
+		plusGros = max(cs[0].N, 1)
+	}
+	for _, c := range cs {
+		if len(out) >= 6 {
+			break
+		}
+		x := cheminVue{Code: c.Pays, Pays: nomCourtPays(c.Pays), PareFeu: c.PareFeu, Port: c.Port, Service: nomsServices[c.Port],
+			N: c.N, Pct: min(100, c.N*100/plusGros)}
+		if c.Pays == "" {
+			x.Pays = "Pays inconnu"
+		}
+		if c.PareFeu != fluxbloques.Autres {
+			x.Lien = lienFluxAvec(v, "pf", c.PareFeu, false)
+		}
+		out = append(out, x)
+	}
+	return out
+}

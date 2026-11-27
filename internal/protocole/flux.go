@@ -25,10 +25,20 @@ const IdentFlux = "mirador-flux"
 // collecteur ne peut pas annoncer des milliards de flux d'un coup).
 const MaxNFlux = 1_000_000
 
-// FluxBloque : un flux entrant bloqué (ou N flux identiques).
+// Sens d'un flux bloqué.
+const (
+	Entrant = "entrant" // venu d'Internet (IP = source)
+	Sortant = "sortant" // vers Internet (IP = destination, Source = adresse locale)
+)
+
+// FluxBloque : un flux bloqué (ou N flux identiques). IP est toujours
+// l'adresse publique (source d'un entrant, destination d'un sortant) ; Port
+// est le port visé.
 type FluxBloque struct {
+	Sens                    string
 	Regle, Interface, Proto string
 	IP                      netip.Addr
+	Source                  netip.Addr // sortant : adresse locale qui essayait de sortir
 	Port                    int
 	N                       int
 }
@@ -37,6 +47,8 @@ var (
 	reIN    = regexp.MustCompile(`\bIN=(\S*)`)
 	reOUT   = regexp.MustCompile(`\bOUT=(\S*)`)
 	reSRC   = regexp.MustCompile(`\bSRC=(\S+)`)
+	reDST   = regexp.MustCompile(`\bDST=(\S+)`)
+	reSENS  = regexp.MustCompile(`\bSENS=(entrant|sortant)\b`)
 	reDPT   = regexp.MustCompile(`\bDPT=(\d{1,5})\b`)
 	rePROTO = regexp.MustCompile(`\bPROTO=([A-Za-z0-9]{1,12})\b`)
 	reN     = regexp.MustCompile(`\bN=(\d{1,7})\b`)
@@ -70,24 +82,68 @@ var nonPubliques = []netip.Prefix{
 	netip.MustParsePrefix("255.255.255.255/32"),
 }
 
-// LireFluxBloque lit une ligne au format du noyau. Gardée seulement si
-// c'est un flux entrant (IN= rempli, OUT= vide) venu d'une adresse
-// publique. avecN : la ligne peut porter « N= » (ligne de comptage du
-// collecteur) ; sinon N vaut 1.
+// LireFluxBloque lit une ligne au format du noyau. Gardée seulement si un
+// côté est public :
+//   - IN rempli, OUT vide (paquet pour la machine) : entrant si la source
+//     est publique ;
+//   - IN vide, OUT rempli (paquet émis par la machine) : sortant si la
+//     destination est publique ;
+//   - les deux remplis (paquet qui traverse) : entrant si la source est
+//     publique, sinon sortant si la destination l'est.
+//
+// avecN : ligne de comptage du collecteur (« N= » et « SENS= » lus) ;
+// sinon N vaut 1.
 func LireFluxBloque(msg string, avecN bool) (FluxBloque, bool) {
 	var f FluxBloque
 	if !strings.Contains(msg, "SRC=") {
 		return f, false
 	}
 	in, out, src := reIN.FindStringSubmatch(msg), reOUT.FindStringSubmatch(msg), reSRC.FindStringSubmatch(msg)
-	if in == nil || out == nil || src == nil || in[1] == "" || out[1] != "" {
+	if in == nil || out == nil || src == nil || (in[1] == "" && out[1] == "") {
 		return f, false
 	}
-	ip, err := netip.ParseAddr(src[1])
-	if err != nil || !AdressePublique(ip) {
+	ipSrc, err := netip.ParseAddr(src[1])
+	if err != nil {
 		return f, false
 	}
-	f.IP, f.Interface, f.N = ip.Unmap(), borner(in[1], 32), 1
+	ipSrc = ipSrc.Unmap()
+	var ipDst netip.Addr
+	if d := reDST.FindStringSubmatch(msg); d != nil {
+		if a, err := netip.ParseAddr(d[1]); err == nil {
+			ipDst = a.Unmap()
+		}
+	}
+	sens := ""
+	if avecN {
+		if p := reSENS.FindStringSubmatch(msg); p != nil {
+			sens = p[1]
+		}
+	}
+	switch {
+	case sens == Sortant || (sens == "" && in[1] == "" && out[1] != ""):
+		sens = Sortant
+	case sens == Entrant || (sens == "" && out[1] == ""):
+		sens = Entrant
+	case AdressePublique(ipSrc): // traversant
+		sens = Entrant
+	default:
+		sens = Sortant
+	}
+	f.Sens, f.N = sens, 1
+	if sens == Entrant {
+		if !AdressePublique(ipSrc) {
+			return FluxBloque{}, false
+		}
+		f.IP, f.Interface = ipSrc, borner(in[1], 32)
+	} else {
+		if !AdressePublique(ipDst) {
+			return FluxBloque{}, false
+		}
+		f.IP, f.Source, f.Interface = ipDst, ipSrc, borner(out[1], 32)
+		if f.Interface == "" {
+			f.Interface = borner(in[1], 32)
+		}
+	}
 	if p := reDPT.FindStringSubmatch(msg); p != nil {
 		if n, err := strconv.Atoi(p[1]); err == nil && n <= 65535 {
 			f.Port = n
@@ -113,6 +169,20 @@ func LireFluxBloque(msg string, avecN bool) (FluxBloque, bool) {
 	return f, true
 }
 
+// PrefixeLigne renvoie le préfixe d'une ligne du noyau (ce qui précède « IN= »),
+// ou "" (filtre « seulement ces préfixes »).
+func PrefixeLigne(msg string) string {
+	i := strings.Index(msg, "IN=")
+	if i < 0 {
+		return ""
+	}
+	r := strings.TrimSpace(msg[:i])
+	if j := strings.LastIndex(r, "] "); j >= 0 && strings.HasPrefix(r, "[") {
+		r = strings.TrimSpace(r[j+2:])
+	}
+	return r
+}
+
 // LigneFlux écrit un comptage au format du noyau (lu par LireFluxBloque).
 func LigneFlux(f FluxBloque) string {
 	var b strings.Builder
@@ -120,7 +190,11 @@ func LigneFlux(f FluxBloque) string {
 		b.WriteString(f.Regle)
 		b.WriteByte(' ')
 	}
-	b.WriteString("IN=" + f.Interface + " OUT= SRC=" + f.IP.String())
+	if f.Sens == Sortant {
+		b.WriteString("IN= OUT=" + f.Interface + " SRC=" + f.Source.String() + " DST=" + f.IP.String())
+	} else {
+		b.WriteString("IN=" + f.Interface + " OUT= SRC=" + f.IP.String())
+	}
 	if f.Proto != "" {
 		b.WriteString(" PROTO=" + strings.ToUpper(f.Proto))
 	}
@@ -128,6 +202,9 @@ func LigneFlux(f FluxBloque) string {
 		b.WriteString(" DPT=" + strconv.Itoa(f.Port))
 	}
 	b.WriteString(" N=" + strconv.Itoa(f.N))
+	if f.Sens == Sortant {
+		b.WriteString(" SENS=" + Sortant)
+	}
 	return b.String()
 }
 

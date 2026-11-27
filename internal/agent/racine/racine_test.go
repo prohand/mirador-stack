@@ -389,3 +389,58 @@ func BenchmarkCertificats(b *testing.B) {
 		}
 	})
 }
+
+// Règles de journalisation (SPEC § 136) : préfixes, limite de débit, ufw,
+// firewalld ; lecture seule de « iptables -S » et « nft list ruleset ».
+func TestJournalPareFeu(t *testing.T) {
+	ipt := `-P INPUT DROP
+-P FORWARD DROP
+-P OUTPUT ACCEPT
+-N LOGDROP
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -j LOG --log-prefix "DROP_IN: " --log-level 4
+-A OUTPUT -m limit --limit 10/sec -j LOG --log-prefix "DROP_OUT: "
+-A LOGDROP -j NFLOG --nflog-prefix sans_guillemets
+`
+	pf, err := lirePareFeu(&progFactices{ipt: []byte(ipt), errNft: errAbsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	j := pf.Journal
+	if pf.Politique != "DROP" || pf.Regles != 3 || j == nil || j.Regles != 3 || j.SansLimite != 2 ||
+		strings.Join(j.Prefixes, "|") != "DROP_IN:|DROP_OUT:|sans_guillemets" || pf.Gestion != "" {
+		t.Fatalf("iptables : %+v %+v", pf, j)
+	}
+	// ufw : chaînes ufw-…, journalisation limitée.
+	ufw := `-P INPUT DROP
+-N ufw-logging-deny
+-A INPUT -j ufw-before-input
+-A ufw-logging-deny -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+`
+	pf, _ = lirePareFeu(&progFactices{ipt: []byte(ufw), errNft: errAbsent})
+	if pf.Gestion != "ufw" || pf.Journal.Regles != 1 || pf.Journal.SansLimite != 0 || pf.Journal.Prefixes[0] != "[UFW BLOCK]" {
+		t.Errorf("ufw : %+v %+v", pf, pf.Journal)
+	}
+	// nftables natif (iptables vide) : « log prefix », « limit rate », firewalld.
+	nft := `table inet firewalld {
+	chain filter_INPUT {
+		type filter hook input priority filter + 10; policy drop;
+		ct state established,related accept
+		limit rate 10/second burst 20 packets log prefix "DROP_IN: " drop
+		log prefix "sans limite " drop
+		log
+	}
+}
+`
+	pf, _ = lirePareFeu(&progFactices{ipt: []byte("-P INPUT ACCEPT\n"), nft: []byte(nft)})
+	if pf.Outil != "nftables" || pf.Gestion != "firewalld" || pf.Journal.Regles != 3 || pf.Journal.SansLimite != 2 ||
+		strings.Join(pf.Journal.Prefixes, "|") != "DROP_IN:|sans limite" {
+		t.Errorf("nftables : %+v %+v", pf, pf.Journal)
+	}
+	// Aucune journalisation : 0 règle (et non « inconnu »).
+	pf, _ = lirePareFeu(&progFactices{ipt: []byte(iptablesDrop), errNft: errAbsent})
+	if pf.Journal == nil || pf.Journal.Regles != 0 {
+		t.Errorf("sans journalisation : %+v", pf.Journal)
+	}
+}

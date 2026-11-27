@@ -8875,3 +8875,114 @@ la liste des Tableaux (raccourci perdu avec la liste en cartes, § 133), et
   blocage entrant (journalisation des règles WAN), ou nombre de blocages
   comptés sur 1 h.
 
+## 136. Pare-feu de chaque machine réglé depuis l'interface ; flux sortants (27/11, maquette validée) **[Fait, à valider]**
+
+Demande du 27/11 : « pouvoir configurer depuis l'interface comment sont
+récupérés les logs du pare-feu sur chaque machine », puis « rajoute le
+sortant ». Choix : réglage machine par machine ; lignes brutes non gardées
+par défaut ; détection du pare-feu par l'assistant root.
+
+**Réglage par machine** (page machine › Réglages › bloc « Pare-feu »)
+- Lecture : automatique (toute ligne du noyau `IN=… OUT=… SRC=…`), seulement
+  certains préfixes (10 au plus, 40 caractères), ou ne pas lire (la machine
+  sort de la carte, ses lignes restent des logs ordinaires).
+- Sens : entrants (cochés par défaut), sortants.
+- Garder aussi les lignes du pare-feu dans Logs (décoché par défaut : comptées
+  seulement). Équipement OPNsense : « compter » et « garder les lignes
+  filterlog » (réglage de son collecteur).
+- Gardé en base (clé `parefeu`, audit), appliqué tout de suite à la
+  réception ; action sensible (code 2FA ou mode administration) : couper la
+  lecture masquerait des attaques. mirador ne modifie jamais le pare-feu : les
+  règles proposées sont du texte à copier.
+
+**Ce que le bloc affiche**
+- Pare-feu détecté par l'assistant root (iptables, nftables, ufw, firewalld),
+  politique d'INPUT, règles de journalisation (préfixes, sans limite de débit).
+- Reçu par mirador : bloqués sur 24 h (deux sens), dernier, adresses, pays.
+- Conseil : aucune règle de journalisation (et rien reçu) → règle à ajouter ;
+  règles sans limite → la même avec limite (10/s, rafale 20), pour l'outil
+  détecté d'abord (ufw : `ufw logging low` ; firewalld :
+  `--set-log-denied=unicast` ; nftables ; iptables), les autres repliés.
+
+**Assistant root** : `iptables -S` (toutes les chaînes, au lieu de `-S INPUT`)
+et `nft list ruleset`, toujours en lecture seule, chemins figés. Nouvelles
+séries : `node_firewall_log_rules{tool}`, `node_firewall_log_rules_unlimited{tool}`,
+`node_firewall_log_prefix{prefix}` (10 au plus), `node_firewall_manager{name}`.
+Série absente : assistant trop ancien (« à mettre à jour »).
+
+**Sortants**
+- Ligne du noyau : IN vide et OUT rempli (paquet émis par la machine) →
+  sortant si la destination est publique ; IN et OUT remplis (paquet qui
+  traverse) → entrant si la source est publique, sinon sortant si la
+  destination l'est. filterlog : sens `out` → sortant ; sens `in` venu du LAN
+  vers une adresse publique → sortant.
+- Deuxième magasin et deuxième base (`flux-sortants.db`, mêmes durées) ;
+  adresses locales qui essaient de sortir (genre `s`, 7 jours).
+- Page Flux bloqués : choix Entrants / Sortants ; en sortant, carte « vers
+  où » (trait de vos pare-feu vers le pays), Mon réseau « vers quel pays →
+  qui bloque → quel port », destinations les plus visées, adresses locales.
+
+**Tableau « Sources »** (bas de la page Flux bloqués) : une ligne par
+machine (pare-feu relevé ou blocages reçus), journalisation (reçues, limitée,
+sans limite, aucune règle, désactivée, inconnue), bloqués 24 h, dernier, lien
+vers le réglage. L'encadré « Sources OPNsense » ne reste que pour un réglage
+à faire.
+
+**Coût mesuré** : ligne iptables 7,9 µs (réglage lu en mémoire, sans
+verrou d'écriture) ; ligne ordinaire 40 ns ; filterlog 0,5 µs (sortants
+compris). Mémoire : deuxième magasin, mêmes bornes (pire cas ≈ 6 Mio).
+Disque : `flux-sortants.db`, en général bien plus petit que les entrants.
+Lignes du pare-feu plus gardées par défaut : moins de logs rangés.
+
+**Menaces**
+- Couper la lecture d'une machine masque ses blocages : action sensible,
+  notée dans l'audit, visible dans le tableau « Sources » (« lecture
+  désactivée »).
+- Préfixes saisis : bornés, comparés comme du texte (jamais une expression
+  régulière), affichés échappés.
+- Préfixes lus par l'assistant root : caractères de contrôle, guillemets et
+  barres obliques inverses retirés, 40 caractères, 10 au plus (côté agent
+  aussi).
+- Rien n'est exécuté sur les machines ; l'assistant root lance les deux
+  mêmes programmes qu'avant (arguments figés).
+
+## 137. Vue carte des flux bloqués : nouveau dessin (27/11, maquettes validées) **[Fait, à valider]**
+
+Demande du 27/11 : « améliore le design de la vue carte ». Deux maquettes
+(A « nuit », B « clair ») ; choix : **A en thème sombre, B en thème clair**.
+- Projection Equal Earth (pays aux bonnes proportions, bords arrondis, océan
+  et quadrillage) : contours embarqués reprojetés une fois au démarrage
+  (aucun fichier en plus, aucune ressource externe).
+- Carte en pleine largeur ; bulles chiffrées sur les 5 pays les plus actifs ;
+  classement « Top pays » et légende posés sur la carte (sur l'océan).
+- Sous la carte, sur une ligne : frise (par minute ou par heure) et fil « En
+  direct » compact (6 lignes : heure, drapeau, adresse, pare-feu, port).
+- Couleurs en variables, redéfinies pour le thème sombre (fond nuit, traits
+  lumineux) ; téléphone : classement et légende sous la carte.
+- Coût : calcul de la projection au démarrage (≈ 30 000 points, quelques ms),
+  page un peu plus légère (fil de 6 lignes au lieu de 12).
+- Menaces : aucune nouvelle (même contenu, toujours échappé).
+
+
+## 138. Vue « Mon réseau » des flux bloqués : nouveau dessin (27/11, maquette validée) **[Fait, à valider]**
+
+Demande du 27/11 : « améliore aussi le mode réseau ». Maquette validée
+(« Je valides ») : même cadre que la carte, couleurs du thème (nuit en
+sombre, clair en clair).
+- Trois colonnes (pays → pare-feu → ports) avec titres et nombres ; chaque
+  bloc affiche son total et sa part (%). Pays colorés selon le volume
+  (5 teintes), chaque pare-feu a sa couleur, ports en gris.
+- Liens en dégradé (couleur du départ vers celle de l'arrivée) ; au survol
+  d'un bloc ou d'un lien, ses chemins ressortent et les autres s'atténuent.
+  Clic : filtre la page (inchangé).
+- Pare-feu dans une pastille avec son outil (OPNsense, ufw, nftables…).
+- Dessous : « Chemins les plus fréquents » (pays → pare-feu → port, 6 lignes
+  avec barre) et l'encadré « même adresse sur plusieurs pare-feu ».
+- Magasin : nouveau genre `c` (chemin pays + pare-feu + port) par minute et
+  par heure, 100 chemins gardés par heure, 30 jours.
+- Téléphone : schéma qui glisse de côté, chemins en liste sans barre.
+- Coût : disque ≈ 100 lignes par heure (≈ 3 Mo sur 30 j) ; calcul de la
+  page 30 j : 125 → 250 ms (base pleine), gardé 1 min en cache ; 24 h :
+  négligeable. Mémoire : une carte de 100 chemins par heure au plus.
+- Menaces : aucune nouvelle (noms et ports toujours échappés, pas de style
+  en ligne : CSP inchangée).

@@ -134,11 +134,13 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 			t.Error("page Olvid : code SAS, échappement ou QR code")
 		}
 		if nom == "flux" && (!strings.Contains(corps, "🇫🇷") || !strings.Contains(corps, "45.143.203.10") || !strings.Contains(corps, `data-code="CN"`) ||
-			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier") || !strings.Contains(corps, "Sources OPNsense")) {
+			!strings.Contains(corps, "38\u202f214") || !strings.Contains(corps, "−8 % / hier") || !strings.Contains(corps, "Sources OPNsense") || !strings.Contains(corps, `class="bulle"`) || !strings.Contains(corps, ">30k<") ||
+			!strings.Contains(corps, "Top pays")) {
 			t.Errorf("page flux (monde) incomplète :\n%s", corps)
 		}
-		if nom == "flux-reseau" && (!strings.Contains(corps, `class="ruban g0"`) || !strings.Contains(corps, `href="/flux-bloques?pf=fw&amp;vue=reseau"`) ||
-			!strings.Contains(corps, "a été bloquée par 2 pare-feu")) {
+		if nom == "flux-reseau" && (!strings.Contains(corps, `fill="url(#fd-n5-pf0)"`) || !strings.Contains(corps, `href="/flux-bloques?pf=fw&amp;vue=reseau"`) ||
+			!strings.Contains(corps, "a été bloquée par 2 pare-feu") || !strings.Contains(corps, "Chemins les plus fréquents") ||
+			!strings.Contains(corps, `<tspan class="outil">OPNsense</tspan>`) || !strings.Contains(corps, "78 %")) {
 			t.Errorf("page flux (réseau) incomplète :\n%s", corps)
 		}
 	}
@@ -203,11 +205,13 @@ func donneesFluxExemple(vue string) donneesFlux {
 	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
 		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
 		Fil:     []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
-		Sankey:  construireSankey(b, v),
+		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}),
+		Chemins: cheminsVue([]fluxbloques.Chemin{{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 4120}}, v),
 		Sources: []sourceFlux{{Collecteur: "collecteur-lan", Texte: "aucune ligne filterlog reçue depuis 1 h", Classe: "attention"}},
 		Note:    "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
 	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
 	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) { r.Lien = "/logs" })
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
+	d.Bord, d.Grille, d.Bulles, d.TopPays = bordCarte, grilleCarte, bullesFlux(b.Pays), d.Pays
 	return d
 }

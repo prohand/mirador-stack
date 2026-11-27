@@ -37,8 +37,8 @@ func carteFlux(parPays map[string]int) []paysVue {
 			max = n
 		}
 	}
-	out := make([]paysVue, 0, len(paysCarte))
-	for _, p := range paysCarte {
+	out := make([]paysVue, 0, len(paysProjetes))
+	for _, p := range paysProjetes {
 		v := paysVue{Code: p.Code, Nom: p.Nom, D: p.D, N: parPays[p.Code]}
 		if v.N > 0 && max > 0 {
 			v.Niveau = 1 + int(4*math.Log1p(float64(v.N))/math.Log1p(float64(max)))

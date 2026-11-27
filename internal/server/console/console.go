@@ -62,9 +62,9 @@ type Options struct {
 	Ingestion  *ingestion.Ingestion
 	// Direct : relevés « en direct » des machines (SPEC § 97) ; nil : pas de direct.
 	Direct *direct.Hub
-	Motifs *motifs.Registre     // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
-	Flux   *fluxbloques.Magasin // flux bloqués par les pare-feu (SPEC § 135) ; nil : page vide
-	GeoIP  *geoip.Base          // pays des adresses (peut être nil)
+	Motifs *motifs.Registre  // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)
+	Flux   *fluxbloques.Flux // flux bloqués par les pare-feu (SPEC § 135) ; nil : page vide
+	GeoIP  *geoip.Base       // pays des adresses (peut être nil)
 	// Niveau : niveau du journal du serveur (mode debug temporaire) ; peut être nil.
 	Niveau *slog.LevelVar
 	// Maintenant : horloge (remplaçable dans les tests).
@@ -182,6 +182,7 @@ func Nouvelle(ctx context.Context, opt Options) (*Console, error) {
 	}
 	c.appliquerConservation(ctx, c.maintenant())
 	c.appliquerInterface(ctx, c.maintenant())
+	c.chargerPareFeu(ctx) // réglage « Pare-feu » de chaque machine (SPEC § 136)
 	c.chargerTableaux(ctx)
 	// Une levée de verrous ancienne ne compte pas (rien à lever au démarrage).
 	var leve string

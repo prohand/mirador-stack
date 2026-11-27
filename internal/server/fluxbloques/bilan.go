@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,6 +27,37 @@ type Compte struct {
 	PareFeux int // adresses : nombre de pare-feu qui l'ont bloquée
 }
 
+// Chemin : un pays, un pare-feu, un port, et leur nombre de blocages.
+type Chemin struct {
+	Pays, PareFeu, Port string
+	N                   int
+}
+
+// maxChemins : chemins rendus par Bilan.
+const maxChemins = 8
+
+// cheminsDe : les plus fréquents, selon le filtre.
+func cheminsDe(m map[paire]int, f Filtre) []Chemin {
+	var out []Chemin
+	for k, n := range m {
+		pays, pf, ok := strings.Cut(k.a, SepChemin)
+		if !ok || (f.Pays != "" && pays != f.Pays) || (f.PareFeu != "" && pf != f.PareFeu) || (f.Port != "" && k.b != f.Port) {
+			continue
+		}
+		out = append(out, Chemin{Pays: pays, PareFeu: pf, Port: k.b, N: n})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].N != out[j].N {
+			return out[i].N > out[j].N
+		}
+		return out[i].Pays+out[i].PareFeu+out[i].Port < out[j].Pays+out[j].PareFeu+out[j].Port
+	})
+	if len(out) > maxChemins {
+		out = out[:maxChemins]
+	}
+	return out
+}
+
 // Paire : deux noms (pays et pare-feu, ou pare-feu et port).
 type Paire struct{ A, B string }
 
@@ -37,6 +69,8 @@ type Barre struct {
 
 // Bilan : tout ce que montre la page pour une période.
 type Bilan struct {
+	sourcesN                   map[string]int // calcul des Sources
+	cheminsN                   map[paire]int  // calcul des Chemins
 	Total                      int
 	Avant                      int // même durée juste avant (si AvantConnu)
 	AvantConnu                 bool
@@ -44,6 +78,8 @@ type Bilan struct {
 	IPPlus                     bool // limite atteinte : « plus de NbIP »
 	NbPays                     int
 	Pays, Ports, PareFeux, IPs []Compte // du plus gros au plus petit
+	Sources                    []Compte // sortants : adresses locales qui essaient de sortir
+	Chemins                    []Chemin // pays → pare-feu → port, les plus fréquents
 	PaysPareFeu, PareFeuPort   map[Paire]int
 	Estime                     bool // répartition estimée (filtre pays ou port)
 	SansAdresses               bool // filtre port : adresses non suivies par port
@@ -116,7 +152,7 @@ func (m *Magasin) paysCache(ip string) string {
 // par SQLite sur les résumés par heure (mémoire constante, même sur 30 j),
 // après écriture de l'heure en cours.
 func (m *Magasin) Bilan(ctx context.Context, debut, fin time.Time, f Filtre, nbBarres int) (Bilan, error) {
-	b := Bilan{PaysPareFeu: map[Paire]int{}, PareFeuPort: map[Paire]int{}, Pic: -1}
+	b := Bilan{PaysPareFeu: map[Paire]int{}, PareFeuPort: map[Paire]int{}, Pic: -1, sourcesN: map[string]int{}, cheminsN: map[paire]int{}}
 	grain := time.Hour
 	if !debut.Before(m.opt.Maintenant().Add(-time.Hour).Truncate(time.Minute)) {
 		grain = time.Minute
@@ -174,6 +210,13 @@ func (m *Magasin) Bilan(ctx context.Context, debut, fin time.Time, f Filtre, nbB
 		repartir(&b, pays, pfs, ports, f)
 	}
 	b.Pays, b.Ports, b.PareFeux = trier(pays), trier(ports), trier(pfs)
+	b.Sources = trier(b.sourcesN)
+	if len(b.Sources) > maxIPBilan {
+		b.Sources = b.Sources[:maxIPBilan]
+	}
+	b.sourcesN = nil
+	b.Chemins = cheminsDe(b.cheminsN, f)
+	b.cheminsN = nil
 	b.IPs = trier(ips)
 	if len(b.IPs) > maxIPBilan {
 		b.IPs = b.IPs[:maxIPBilan]
@@ -347,6 +390,28 @@ func (m *Magasin) bilanBase(ctx context.Context, b *Bilan, debut, fin time.Time,
 		_ = m.opt.DB.QueryRowContext(ctx, `SELECT count(*)`+plage+`'z'`, h0, h1).Scan(&tronque)
 		b.IPPlus = tronque > 0
 	}
+	// Sortants : adresses locales qui essaient de sortir.
+	if f.Pays == "" && f.Port == "" {
+		filtre, args := "", []any{}
+		if f.PareFeu != "" {
+			filtre, args = " AND b = ?", []any{f.PareFeu}
+		}
+		x, err := sommes(`SELECT a, '', sum(n)`+plage+`'s'`+filtre+` GROUP BY a ORDER BY 3 DESC LIMIT `+strconv.Itoa(maxIPBilan), args...)
+		if err != nil {
+			return err
+		}
+		for _, l := range x {
+			b.sourcesN[l.a] += l.n
+		}
+	}
+	// Chemins les plus fréquents (filtrés ensuite par cheminsDe).
+	if x, err := sommes(`SELECT a, b, sum(n)` + plage + `'c' GROUP BY a, b ORDER BY 3 DESC LIMIT 2000`); err == nil {
+		for _, l := range x {
+			b.cheminsN[paire{l.a, l.b}] += l.n
+		}
+	} else {
+		return err
+	}
 	// Pic : la tranche la plus haute, son adresse et son port.
 	b.Pic = pic(b.Barres)
 	if b.Pic >= 0 {
@@ -361,6 +426,18 @@ func (m *Magasin) bilanBase(ctx context.Context, b *Bilan, debut, fin time.Time,
 // ajouterSeau : contributions d'un seau selon le filtre ; renvoie son total.
 func (m *Magasin) ajouterSeau(s *seau, f Filtre, pays, ports, pfs, ips map[string]int, ipPF map[string]map[string]bool, b *Bilan) int {
 	total := 0
+	if b.cheminsN != nil {
+		for k, n := range s.chemins {
+			b.cheminsN[k] += n
+		}
+	}
+	if f.Pays == "" && f.Port == "" {
+		for k, n := range s.sources {
+			if f.PareFeu == "" || k.b == f.PareFeu {
+				b.sourcesN[k.a] += n
+			}
+		}
+	}
 	noterIP := func(ip, pf string, n int) {
 		ips[ip] += n
 		if ipPF[ip] == nil {
@@ -504,7 +581,7 @@ func (m *Magasin) chercherPic(b *Bilan, seaux []*seau, f Filtre, debut time.Time
 	b.Pic = haut
 	pays, ports, pfs, ips := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
 	ipPF := map[string]map[string]bool{}
-	tmp := Bilan{PaysPareFeu: map[Paire]int{}, PareFeuPort: map[Paire]int{}}
+	tmp := Bilan{PaysPareFeu: map[Paire]int{}, PareFeuPort: map[Paire]int{}, sourcesN: map[string]int{}} // cheminsN nil : pas compté
 	for _, s := range seaux {
 		if int(time.Unix(s.debut, 0).Sub(debut)/largeur) == haut {
 			m.ajouterSeau(s, f, pays, ports, pfs, ips, ipPF, &tmp)

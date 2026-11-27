@@ -2007,6 +2007,36 @@ vraie trame (test ajouté). 0.6.28 : carte « Flux bloqués » dans Tableaux
 (le lien avait disparu avec la liste en cartes), encadré « Sources
 OPNsense » qui dit où ça coince.
 
+## Pare-feu par machine et flux sortants (27/11, SPEC § 136)
+
+Maquettes validées le 27/11 (bloc « Pare-feu » de la page machine, tableau
+« Sources »), sortants ajoutés le même jour. Codé : réglage par machine
+(lecture, préfixes, sens, lignes gardées), détection de la journalisation par
+l'assistant root, sens sortant (agent, collecteur, serveur, page). Tests
+unitaires et de bout en bout, `-race`, gosec : OK. Captures sur la démo.
+
+| Mesure | Résultat |
+|---|---|
+| Serveur, une ligne iptables (réglage compris) | 7,9 µs |
+| Serveur, une ligne ordinaire | 40 ns |
+| Collecteur, une ligne filterlog | 0,5 µs |
+
+À installer : serveur, collecteur (sortants d'OPNsense) et agents (assistant
+root : détection de la journalisation). Changement de comportement : les
+lignes du pare-feu ne sont plus gardées dans Logs par défaut (case « garder »
+par machine).
+
+**Vue carte redessinée (27/11, SPEC § 137)** : maquettes A/B validées (A en
+thème sombre, B en thème clair) ; projection Equal Earth, bulles, classement
+et légende sur la carte, frise et fil compact dessous. Captures clair, sombre
+et téléphone sur la démo.
+
+**Vue « Mon réseau » redessinée (27/11, SPEC § 138)** : maquette validée ;
+blocs avec totaux et %, liens en dégradé, survol qui fait ressortir les
+chemins, pastille pare-feu + outil, « Chemins les plus fréquents ». Mesure
+(base pleine 30 j, 100 chemins/h) : calcul 30 j 125 → 250 ms, en cache 1 min ;
+disque + 3 Mo environ. Captures clair, sombre et téléphone sur la démo.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

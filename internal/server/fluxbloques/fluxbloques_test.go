@@ -6,6 +6,8 @@ import (
 	"context"
 	"net/netip"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +65,9 @@ func TestMagasinBilanEtRedemarrage(t *testing.T) {
 	if b.IPs[0].Nom != "45.0.0.1" || b.IPs[0].PareFeux != 2 {
 		t.Errorf("adresses : %+v", b.IPs)
 	}
+	if len(b.Chemins) != 4 || b.Chemins[0] != (Chemin{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 10}) {
+		t.Errorf("chemins : %+v", b.Chemins)
+	}
 	if b.PaysPareFeu[Paire{"CN", "vps"}] != 2 || b.PareFeuPort[Paire{"fw", "tcp/5432"}] != 5 {
 		t.Errorf("liens : %v %v", b.PaysPareFeu, b.PareFeuPort)
 	}
@@ -98,6 +103,12 @@ func TestMagasinBilanEtRedemarrage(t *testing.T) {
 	}
 	if b.Total != 22 || b.NbIP != 4 || b.Pays[0] != (Compte{Nom: "CN", N: 16}) {
 		t.Fatalf("après redémarrage : total %d, ip %d, %+v", b.Total, b.NbIP, b.Pays)
+	}
+	if len(b.Chemins) != 5 || b.Chemins[0].N != 10 {
+		t.Errorf("chemins (base) : %+v", b.Chemins)
+	}
+	if b, _ := m2.Bilan(ctx, h.t.Add(-24*time.Hour), h.t, Filtre{PareFeu: "vps"}, 24); len(b.Chemins) != 1 || b.Chemins[0].PareFeu != "vps" {
+		t.Errorf("chemins filtrés : %+v", b.Chemins)
 	}
 	// Période d'avant connue (une heure écrite au moins dans la base) ?
 	h.t = h.t.Add(25 * time.Hour)
@@ -164,32 +175,79 @@ func TestMagasinBorneEtPic(t *testing.T) {
 	}
 }
 
-// Branchement sur l'ingestion : comptages du collecteur retirés des logs,
-// lignes iptables gardées ; un agent ne peut pas annoncer N blocages.
-func TestMagasinLignes(t *testing.T) {
+// Branchement sur l'ingestion et réglage par machine (SPEC § 136).
+func TestFluxLignesEtReglages(t *testing.T) {
 	h := &horloge{time.Date(2026, 11, 26, 19, 20, 0, 0, time.UTC)}
-	m, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
-	comptage := stockage.Ligne{T: h.t.UnixMilli(), Msg: "règle 81 IN=igb0 OUT= SRC=45.0.0.1 PROTO=TCP DPT=23 N=40",
-		Champs: map[string]string{"host": "fw", "ident": protocole.IdentFlux}}
-	iptables := stockage.Ligne{T: h.t.UnixMilli(), Msg: "DROP_IN: IN=eth0 OUT= SRC=45.0.0.2 PROTO=TCP DPT=22",
-		Champs: map[string]string{"host": "vps"}}
-	ordinaire := stockage.Ligne{T: h.t.UnixMilli(), Msg: "bonjour", Champs: map[string]string{"host": "vps"}}
-	garde := m.Lignes(true, []stockage.Ligne{comptage, iptables, ordinaire})
-	if len(garde) != 2 || garde[0].Msg != iptables.Msg || garde[1].Msg != "bonjour" {
+	nouveau := func() *Flux {
+		e, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
+		so, _ := Nouveau(context.Background(), Options{Maintenant: h.maintenant})
+		return NouveauFlux(e, so)
+	}
+	ligne := func(hote, msg, ident string) stockage.Ligne {
+		c := map[string]string{"host": hote}
+		if ident != "" {
+			c["ident"] = ident
+		}
+		return stockage.Ligne{T: h.t.UnixMilli(), Msg: msg, Champs: c}
+	}
+	comptage := ligne("fw", "règle 81 IN=igb0 OUT= SRC=45.0.0.1 PROTO=TCP DPT=23 N=40", protocole.IdentFlux)
+	sortantFw := ligne("fw", "règle 9 IN= OUT=igb0 SRC=192.168.1.9 DST=93.184.216.34 PROTO=TCP DPT=25 N=3 SENS=sortant", protocole.IdentFlux)
+	entrant := ligne("vps", "DROP_IN: IN=eth0 OUT= SRC=45.0.0.2 PROTO=TCP DPT=22", "")
+	sortant := ligne("vps", "DROP_OUT: IN= OUT=eth0 SRC=10.0.0.5 DST=8.8.4.4 PROTO=UDP DPT=53", "")
+	lan := ligne("vps", "DROP_IN: IN=eth0 OUT= SRC=192.168.1.4 PROTO=TCP DPT=22", "")
+	ordinaire := ligne("vps", "bonjour", "")
+
+	// Défaut : entrants comptés, sortants ignorés, lignes du pare-feu pas gardées.
+	x := nouveau()
+	garde := x.Lignes(true, []stockage.Ligne{comptage, sortantFw, entrant, sortant, lan, ordinaire})
+	if len(garde) != 1 || garde[0].Msg != "bonjour" {
 		t.Fatalf("gardées : %+v", garde)
 	}
-	if m.Recus() != 41 {
-		t.Errorf("comptés : %d", m.Recus())
+	if x.Entrants.Recus() != 41 || x.Sortants.Recus() != 0 {
+		t.Errorf("comptés : %d entrants, %d sortants", x.Entrants.Recus(), x.Sortants.Recus())
 	}
-	// La même ligne de comptage envoyée par un agent : gardée, comptée 1.
-	if garde := m.Lignes(false, []stockage.Ligne{comptage}); len(garde) != 1 || m.Recus() != 42 {
-		t.Errorf("agent : %d gardées, %d comptés", len(garde), m.Recus())
+	// Une ligne de comptage venue d'un agent : log ordinaire, comptée 1.
+	if garde := x.Lignes(false, []stockage.Ligne{ligne("vps", comptage.Msg, protocole.IdentFlux)}); len(garde) != 0 || x.Entrants.Recus() != 42 {
+		t.Errorf("agent : %d gardées, %d comptés", len(garde), x.Entrants.Recus())
+	}
+
+	// Sortants cochés, lignes gardées sur vps ; fw en lecture désactivée.
+	x = nouveau()
+	x.DefinirReglages(map[string]Reglage{
+		"vps": {Lecture: LectureAuto, Entrants: true, Sortants: true, GarderLignes: true},
+		"fw":  {Lecture: LectureNon, Entrants: true},
+	})
+	garde = x.Lignes(true, []stockage.Ligne{comptage, sortantFw, entrant, sortant, ordinaire})
+	if len(garde) != 3 || x.Entrants.Recus() != 1 || x.Sortants.Recus() != 1 {
+		t.Fatalf("gardées %d, entrants %d, sortants %d", len(garde), x.Entrants.Recus(), x.Sortants.Recus())
+	}
+	b, _ := x.Sortants.Bilan(context.Background(), h.t.Add(-time.Hour), h.t.Add(time.Minute), Filtre{}, 60)
+	if len(b.Sources) != 1 || b.Sources[0].Nom != "10.0.0.5" || b.IPs[0].Nom != "8.8.4.4" {
+		t.Errorf("sortants : sources %+v, adresses %+v", b.Sources, b.IPs)
+	}
+
+	// Seulement certains préfixes : les autres lignes du noyau restent des logs ordinaires.
+	x = nouveau()
+	x.DefinirReglages(map[string]Reglage{"vps": {Lecture: LecturePrefixes, Prefixes: []string{"DROP_OUT:"}, Entrants: true, Sortants: true}})
+	garde = x.Lignes(false, []stockage.Ligne{entrant, sortant})
+	if len(garde) != 1 || garde[0].Msg != entrant.Msg || x.Entrants.Recus() != 0 || x.Sortants.Recus() != 1 {
+		t.Errorf("préfixes : gardées %+v, %d / %d", garde, x.Entrants.Recus(), x.Sortants.Recus())
+	}
+	// Réglage bancal : normalisé.
+	r := Reglage{Lecture: "n'importe", Prefixes: []string{" ", strings.Repeat("x", 50), "UFW BLOCK"}}.Normaliser()
+	if r.Lecture != LectureAuto || len(r.Prefixes) != 1 {
+		t.Errorf("normalisé : %+v", r)
+	}
+	if r = (Reglage{Lecture: LecturePrefixes}).Normaliser(); r.Lecture != LectureAuto {
+		t.Errorf("préfixes vides : %+v", r)
 	}
 }
 
 // Coût côté serveur (SPEC § 135) : une ligne iptables reçue.
 func BenchmarkLignes(b *testing.B) {
-	m, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	e, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	so, _ := Nouveau(context.Background(), Options{Pays: func(netip.Addr) string { return "CN" }})
+	m := NouveauFlux(e, so)
 	l := []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: "[12345.6] DROP_IN: IN=eth0 OUT= MAC=00 SRC=45.143.203.10 DST=1.2.3.4 LEN=40 PROTO=TCP SPT=4444 DPT=22",
 		Champs: map[string]string{"host": "vps"}}}
 	ordinaire := []stockage.Ligne{{T: time.Now().UnixMilli(), Msg: "Started Session 12 of User root.", Champs: map[string]string{"host": "vps"}}}
@@ -205,4 +263,55 @@ func BenchmarkLignes(b *testing.B) {
 			m.Lignes(false, ordinaire)
 		}
 	})
+}
+
+// BenchmarkBilan30j : page « 30 j » avec une base pleine (720 heures, 100
+// chemins par heure), cache vidé à chaque tour pour mesurer le vrai calcul.
+func BenchmarkBilan30j(b *testing.B) {
+	ctx := context.Background()
+	db, err := base.Ouvrir(filepath.Join(b.TempDir(), "flux.db"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	h := &horloge{t: time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)}
+	m, err := Nouveau(ctx, Options{DB: db, Maintenant: h.maintenant, Pays: func(netip.Addr) string { return "CN" }})
+	if err != nil {
+		b.Fatal(err)
+	}
+	tx, _ := db.Begin()
+	pays := []string{"CN", "US", "RU", "NL", "BR", "IN", "DE", "FR", "KR", "VN"}
+	pfs := []string{"fw", "vps-web", "srv-test", "pve1"}
+	for i := 1; i <= 720; i++ {
+		hr := h.t.Add(-time.Duration(i) * time.Hour).Unix()
+		ins := func(g, a, bb string, n int) {
+			if _, err := tx.Exec(`INSERT INTO heures (heure, genre, a, b, n) VALUES (?, ?, ?, ?, ?)`, hr, g, a, bb, n); err != nil {
+				b.Fatal(err)
+			}
+		}
+		ins("t", "", "", 1000)
+		for j, p := range pays {
+			ins("p", p, pfs[j%4], 100-j)
+			for k := 0; k < 10; k++ {
+				port := "tcp/" + strconv.Itoa(20+k)
+				ins("x", p, port, 10)
+				ins("c", p+SepChemin+pfs[(j+k)%4], port, 10-k)
+			}
+		}
+		for k := 0; k < 50; k++ {
+			ins("o", pfs[k%4], "tcp/"+strconv.Itoa(20+k), 20)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		m.cache.mu.Lock()
+		m.cache.m = nil
+		m.cache.mu.Unlock()
+		if bl, err := m.Bilan(ctx, h.t.Add(-30*24*time.Hour), h.t, Filtre{}, 30); err != nil || len(bl.Chemins) == 0 {
+			b.Fatal(err, len(bl.Chemins))
+		}
+	}
 }

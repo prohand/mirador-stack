@@ -393,3 +393,36 @@
 <p class="aide-duo">{{$b.Pourquoi}}</p></section>{{end}}
 {{define "morceau-mirador"}}<div class="morceau{{if .Root}} root{{end}}"><div class="h"><span class="puce {{.Teinte}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><div><b>{{.Nom}}</b>{{with .Version}} <code>{{.}}</code>{{end}} <span class="pastille {{.Classe}}">{{.Pastille}}</span></div></div>
 {{if .Absent}}<p class="absent">{{.Absent}}</p>{{else}}<dl>{{range .Lignes}}<dt>{{.Titre}}</dt><dd>{{if .Classe}}<span class="pastille {{.Classe}}">{{.Texte}}</span>{{else}}{{.Texte}}{{end}}{{range .Puces}} <span class="pastille {{.Classe}}">{{.Texte}}</span>{{end}}{{if .Lien}} <a href="{{.Lien}}">{{.LienTexte}}</a>{{end}}</dd>{{end}}</dl>{{end}}</div>{{end}}
+
+{{/* Bloc « Pare-feu » de la page machine (SPEC § 136, maquette validée le 27/11). */}}
+{{define "bloc-parefeu"}}{{$p := .P}}<section class="carte bloc-parefeu" id="parefeu">
+<div class="pf-tete"><h2>Pare-feu</h2><span class="pastille {{$p.Classe}}">{{$p.Etat}}</span>{{if $p.Recus24h}}<a class="pf-droite" href="/flux-bloques?pf={{$p.Nom}}&amp;periode=24h">Voir sur Flux bloqués →</a>{{end}}</div>
+<div class="pf-etat">
+{{if $p.Equipement}}<div><small>Pare-feu</small><b>OPNsense</b><em>syslog vers {{$p.Collecteur}}</em></div>
+<div><small>Lignes filterlog</small><b>{{if $p.Filterlog1h}}reçues{{else}}aucune depuis 1 h{{end}}</b><em>{{if $p.Filterlog1h}}{{nombre $p.Filterlog1h}} sur 1 h{{else}}application filterlog et niveau « info » dans la destination syslog d'OPNsense{{end}}</em></div>
+{{else}}<div><small>Pare-feu détecté (assistant root)</small><b>{{if $p.Gestion}}{{$p.Gestion}}{{else if $p.Outil}}{{$p.Outil}}{{else}}inconnu{{end}}</b><em>{{if $p.Outil}}{{if eq $p.Outil "aucun"}}aucun outil de pare-feu{{else}}INPUT en {{$p.Politique}} · {{$p.Regles}} {{accord $p.Regles "règle(s)"}}{{end}}{{else}}pas encore relevé{{end}}</em></div>
+<div><small>Journalisation des blocages</small>{{if not $p.JournalConnu}}<b>inconnue</b><em>assistant root à mettre à jour (0.6.29 ou plus)</em>{{else if eq $p.Journal 0}}<b>aucune règle</b><em>le noyau jette les paquets sans rien écrire</em>{{else}}<b>oui{{with $p.Prefixes}} · {{range $i, $x := .}}{{if $i}}, {{end}}<code>{{$x}}</code>{{end}}{{end}}</b><em>{{if $p.SansLimite}}{{$p.SansLimite}} {{accord $p.SansLimite "règle(s)"}} sans limite de débit{{else}}débit limité{{end}}</em>{{end}}</div>{{end}}
+<div><small>Reçu par mirador</small><b>{{nombre $p.Recus24h}} {{accord $p.Recus24h "bloqué(s)"}} sur 24 h</b><em>{{if $p.Dernier.IsZero}}aucun depuis le démarrage du serveur{{else}}dernier {{depuisMs $p.Dernier.UnixMilli}}{{end}}{{if $p.NbIP}} · {{$p.NbIP}} {{accord $p.NbIP "adresse(s)"}} · {{$p.NbPays}} pays{{end}}</em></div>
+</div>
+{{if eq $p.Conseil "limite"}}<div class="pf-conseil attention"><b>Conseil : limiter le débit de la journalisation.</b> Sans limite, un balayage peut écrire des milliers de lignes par seconde dans le journal. Les paquets restent bloqués ; seule l'écriture est limitée. À copier :
+{{template "pf-commandes" $p.Commandes}}</div>
+{{else if eq $p.Conseil "ajouter"}}<div class="pf-conseil erreur"><b>Pour voir {{$p.Nom}} sur la carte : ajouter une règle de journalisation</b>, juste avant le blocage (avec limite de débit). À copier :
+{{template "pf-commandes" $p.Commandes}}</div>{{end}}
+{{if .Admin}}<form method="post" class="pf-form">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="parefeu">
+{{if $p.Equipement}}<input type="hidden" name="filterlog_present" value="1">
+<label class="pf-case"><input type="checkbox" name="lecture" value="auto" {{if ne $p.R.Lecture "non"}}checked{{end}}> <span>Compter les blocages (filterlog)</span></label>
+<input type="hidden" name="lecture" value="non">
+{{else}}<div class="pf-choix">
+<label><input type="radio" name="lecture" value="auto" {{if eq $p.R.Lecture "auto"}}checked{{end}}> <span><b>Automatique</b><small>toute ligne de blocage du noyau (« IN=… OUT=… SRC=… »), quel que soit le préfixe</small></span></label>
+<label><input type="radio" name="lecture" value="prefixes" {{if eq $p.R.Lecture "prefixes"}}checked{{end}}> <span><b>Seulement ces préfixes</b><small>séparés par des virgules ; les autres lignes du noyau restent des logs ordinaires</small><input name="prefixes" value="{{$p.PrefixesTxt}}" maxlength="420" placeholder="DROP_IN:, UFW BLOCK"></span></label>
+<label><input type="radio" name="lecture" value="non" {{if eq $p.R.Lecture "non"}}checked{{end}}> <span><b>Ne pas lire</b><small>la machine n'apparaît pas sur la carte ; ses lignes restent dans Logs</small></span></label>
+</div>{{end}}
+<div class="pf-sens"><span>Sens :</span><label class="pf-case"><input type="checkbox" name="entrants" value="1" {{if $p.R.Entrants}}checked{{end}}> Entrants (venus d'Internet)</label>
+<label class="pf-case"><input type="checkbox" name="sortants" value="1" {{if $p.R.Sortants}}checked{{end}}> Sortants (vers Internet)</label></div>
+{{if $p.Equipement}}<label class="pf-case"><input type="checkbox" name="garder_filterlog" value="1" {{if $p.GarderFL}}checked{{end}}> <span>Garder aussi les lignes filterlog dans Logs<small>réglage du collecteur {{$p.Collecteur}} (tous ses pare-feu) ; plusieurs Go par jour : à réserver au dépannage</small></span></label>
+{{else}}<label class="pf-case"><input type="checkbox" name="garder_lignes" value="1" {{if $p.R.GarderLignes}}checked{{end}}> <span>Garder aussi les lignes du pare-feu dans Logs<small>décoché : comptées seulement (adresse, port, règle) ; moins de logs rangés</small></span></label>{{end}}
+<div class="pf-boutons">{{template "code2fa"}}<button>Enregistrer</button><small class="aide">mirador ne modifie jamais le pare-feu de la machine.</small></div>
+</form>{{end}}
+</section>{{end}}
+{{define "pf-commandes"}}{{range $i, $c := .}}{{if eq $i 0}}<p class="pf-outil"><b>{{$c.Outil}}</b>{{if $c.Detecte}} <span class="pastille">détecté</span>{{end}}</p><pre>{{$c.Texte}}</pre><small class="aide">{{$c.Note}}</small>{{end}}{{end}}
+<details class="pf-autres"><summary>Autres pare-feu</summary>{{range $i, $c := .}}{{if $i}}<p class="pf-outil"><b>{{$c.Outil}}</b></p><pre>{{$c.Texte}}</pre><small class="aide">{{$c.Note}}</small>{{end}}{{end}}</details>{{end}}
