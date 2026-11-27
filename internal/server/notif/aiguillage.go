@@ -76,6 +76,7 @@ type Aiguilleur struct {
 	// injoignable) → clé de ce groupe, pour y ranger aussi leur fin.
 	deplacees map[uint64]string
 	sitesBas  map[string]SiteInjoignable // sites injoignables au dernier tour
+	prep      *Actives                   // alertes actives rangées pour la sourdine (une fois par tour)
 }
 
 // Nouveau crée l'aiguillage. Les alertes déjà actives (redémarrage) sont
@@ -247,6 +248,7 @@ func (g *Aiguilleur) Tour(ctx context.Context) {
 	// Site injoignable (site.go) : les pannes de ses machines passent dans
 	// un seul groupe, donc un seul message.
 	g.sitesBas = g.sourdine.sitesInjoignables(actives)
+	g.prep = g.sourdine.Preparer(actives) // une fois par tour (SPEC § 141)
 	g.regrouperSites(g.sitesBas, t)
 	enSourd := map[uint64]string{}
 	var messages []*Message
@@ -298,7 +300,7 @@ func (g *Aiguilleur) decider(gr *groupe, t time.Time, actives []alertes.Alerte, 
 			}
 			continue
 		}
-		if raison := g.sourdine.Raison(&s.a, actives, t); raison != "" {
+		if raison := g.sourdine.RaisonAvec(&s.a, g.prep, t); raison != "" {
 			enSourd[h] = raison
 			continue
 		}
@@ -397,7 +399,7 @@ func (g *Aiguilleur) dependantes(dans, actives []alertes.Alerte, t time.Time) in
 	}
 	n := 0
 	for i := range actives {
-		if p := g.sourdine.parentEnPanne(&actives[i], actives); p != "" && pannes[p] {
+		if p := g.sourdine.parentEnPanne(&actives[i], g.prep); p != "" && pannes[p] {
 			n++
 		}
 	}

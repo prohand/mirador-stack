@@ -5,6 +5,7 @@ package notif
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -538,5 +539,42 @@ func TestMaintenanceSite(t *testing.T) {
 		if got := s.Raison(&c.a, nil, b.horloge) != ""; got != c.tue {
 			t.Errorf("%s : en sourdine %v, attendu %v", c.a.Machine(), got, c.tue)
 		}
+	}
+}
+
+// Grand parc (SPEC § 141) : tempête de 2 000 alertes (1 000 machines
+// muettes + leurs avertissements). La sourdine reste juste et rapide.
+func TestSourdineTempete(t *testing.T) {
+	b := nouveauBanc(t)
+	s, err := Charger(context.Background(), b.db, nil, b.horloge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actives []alertes.Alerte
+	for i := 0; i < 1000; i++ {
+		m := fmt.Sprintf("m%04d", i)
+		actives = append(actives, alerte(int64(2*i), "AgentMuet", alertes.Critique, m, b.horloge),
+			alerte(int64(2*i+1), "DisqueFaible", alertes.Avertissement, m, b.horloge))
+	}
+	debut := time.Now()
+	prep := s.Preparer(actives)
+	tues := 0
+	for i := range actives {
+		if r := s.RaisonAvec(&actives[i], prep, b.horloge); strings.Contains(r, "inhibée par AgentMuet") {
+			tues++
+		}
+	}
+	if d := time.Since(debut); d > 2*time.Second {
+		t.Errorf("trop lent : %v", d)
+	}
+	if tues != 1000 {
+		t.Errorf("%d avertissements tus, 1 000 attendus", tues)
+	}
+	// Même résultat que l'ancienne façon (une alerte à la fois).
+	if r := s.Raison(&actives[1], actives, b.horloge); !strings.Contains(r, "inhibée par AgentMuet (m0000)") {
+		t.Errorf("raison : %q", r)
+	}
+	if r := s.Raison(&actives[0], actives, b.horloge); r != "" {
+		t.Errorf("une machine muette ne se tait pas elle-même : %q", r)
 	}
 }

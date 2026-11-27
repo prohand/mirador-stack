@@ -299,10 +299,68 @@ type Sourdine struct {
 
 // Raison renvoie pourquoi une alerte est en sourdine à l'instant t ("" si elle
 // ne l'est pas). actives : alertes actives (sources d'inhibition, pannes des
-// parents). Ordre : maintenance, silence, dépendance, inhibition.
+// parents). Ordre : maintenance, silence, dépendance, inhibition. Pour
+// plusieurs alertes de suite, Preparer puis RaisonAvec (grand parc).
 func (s *Sourdine) Raison(a *alertes.Alerte, actives []alertes.Alerte, t time.Time) string {
+	return s.RaisonAvec(a, s.Preparer(actives), t)
+}
+
+// Actives : alertes actives rangées une fois pour toutes les alertes d'un
+// tour (SPEC § 141 : avant, chaque alerte parcourait toutes les actives et
+// recalculait leurs empreintes ; 1 000 alertes = 2 millions d'empreintes
+// toutes les 5 s, sous verrou, pendant une tempête).
+type Actives struct {
+	panne  map[string]bool                // machines avec une alerte de panne
+	source []map[string][]*alertes.Alerte // par inhibition : valeurs « égales » → sources
+	hash   map[*alertes.Alerte]uint64
+}
+
+// Preparer range les alertes actives (une fois par tour).
+func (s *Sourdine) Preparer(actives []alertes.Alerte) *Actives {
+	x := &Actives{panne: map[string]bool{}, hash: map[*alertes.Alerte]uint64{}}
+	if s == nil {
+		return x
+	}
+	for j := range actives {
+		if p := &actives[j]; s.reglesPanne[p.Regle] {
+			x.panne[p.Machine()] = true
+		}
+	}
+	x.source = make([]map[string][]*alertes.Alerte, len(s.inhibitions))
+	for i := range s.inhibitions {
+		in := &s.inhibitions[i]
+		m := map[string][]*alertes.Alerte{}
+		for j := range actives {
+			src := &actives[j]
+			if !correspond(in.fsource, src.Etiquettes) {
+				continue
+			}
+			k := cleEgales(in.Egales, src)
+			m[k] = append(m[k], src)
+			x.hash[src] = src.Etiquettes.Hash()
+		}
+		x.source[i] = m
+	}
+	return x
+}
+
+// cleEgales : valeurs des étiquettes qui doivent être égales (inhibition).
+func cleEgales(egales []string, a *alertes.Alerte) string {
+	var b strings.Builder
+	for _, e := range egales {
+		b.WriteString(a.Etiquettes.Get(e))
+		b.WriteByte(0)
+	}
+	return b.String()
+}
+
+// RaisonAvec : comme Raison, avec les alertes actives déjà rangées.
+func (s *Sourdine) RaisonAvec(a *alertes.Alerte, actives *Actives, t time.Time) string {
 	if s == nil {
 		return ""
+	}
+	if actives == nil {
+		actives = s.Preparer(nil)
 	}
 	for i := range s.maintenances {
 		m := &s.maintenances[i]
@@ -319,21 +377,17 @@ func (s *Sourdine) Raison(a *alertes.Alerte, actives []alertes.Alerte, t time.Ti
 	if p := s.parentEnPanne(a, actives); p != "" {
 		return "dépendance : " + p + " en panne"
 	}
+	var ha uint64
 	for i := range s.inhibitions {
 		in := &s.inhibitions[i]
 		if !correspond(in.fcible, a.Etiquettes) {
 			continue
 		}
-		for j := range actives {
-			src := &actives[j]
-			if src.Etiquettes.Hash() == a.Etiquettes.Hash() || !correspond(in.fsource, src.Etiquettes) {
-				continue
-			}
-			egal := true
-			for _, e := range in.Egales {
-				egal = egal && src.Etiquettes.Get(e) == a.Etiquettes.Get(e)
-			}
-			if egal {
+		if ha == 0 {
+			ha = a.Etiquettes.Hash()
+		}
+		for _, src := range actives.source[i][cleEgales(in.Egales, a)] {
+			if actives.hash[src] != ha {
 				return fmt.Sprintf("inhibée par %s (%s)", src.Regle, src.Machine())
 			}
 		}
@@ -343,16 +397,17 @@ func (s *Sourdine) Raison(a *alertes.Alerte, actives []alertes.Alerte, t time.Ti
 
 // parentEnPanne : nom du parent en panne dont dépend l'alerte ("" sinon).
 // Les alertes du parent lui-même ne sont jamais tues par sa propre panne.
-func (s *Sourdine) parentEnPanne(a *alertes.Alerte, actives []alertes.Alerte) string {
+func (s *Sourdine) parentEnPanne(a *alertes.Alerte, actives *Actives) string {
+	if actives == nil {
+		return ""
+	}
 	for i := range s.dependances {
 		d := &s.dependances[i]
 		if a.Machine() == d.Parent || !d.enfant.touche(a, s.groupes, s.siteMachine) {
 			continue
 		}
-		for j := range actives {
-			if p := &actives[j]; s.reglesPanne[p.Regle] && p.Machine() == d.Parent {
-				return d.Parent
-			}
+		if actives.panne[d.Parent] {
+			return d.Parent
 		}
 	}
 	return ""
