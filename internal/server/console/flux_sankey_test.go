@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package console
+
+import (
+	"net/url"
+	"regexp"
+	"strconv"
+	"testing"
+
+	"mirador-stack/internal/server/fluxbloques"
+)
+
+// Six pare-feu, beaucoup de ports (cas du 27/11) : tous les pare-feu sont
+// affichés et chaque lien tient dans les blocs de ses deux bouts.
+func TestSankeyTousLesPareFeuEtLiensDansLesBlocs(t *testing.T) {
+	for _, pfs := range [][]string{{"dns2", "proxy", "fw", "dns1", "web", "nas"}, {"fw", "dns1"}} {
+		verifierSankey(t, pfs)
+	}
+}
+
+func verifierSankey(t *testing.T, pfs []string) {
+	t.Helper()
+	pays := []string{"US", "CH", "FR", "DE", "GB", "BG", "NL"}
+	b := fluxbloques.Bilan{PaysPareFeu: map[fluxbloques.Paire]int{}, PareFeuPort: map[fluxbloques.Paire]int{}}
+	nPF, nPays, nPort := map[string]int{}, map[string]int{}, map[string]int{}
+	for i, pf := range pfs {
+		for j, p := range pays {
+			n := 1 + (i*7+j*3)%9
+			b.PaysPareFeu[fluxbloques.Paire{A: p, B: pf}] += n
+			nPays[p] += n
+			nPF[pf] += n
+		}
+		reste := nPF[pf]
+		for k := 0; reste > 0; k++ {
+			port := "udp/" + strconv.Itoa(1000+(i+k)%12)
+			n := min(reste, 1+k%4)
+			b.PareFeuPort[fluxbloques.Paire{A: pf, B: port}] += n
+			nPort[port] += n
+			reste -= n
+		}
+	}
+	trier := func(m map[string]int) []fluxbloques.Compte {
+		var out []fluxbloques.Compte
+		for k, n := range m {
+			out = append(out, fluxbloques.Compte{Nom: k, N: n})
+		}
+		for i := range out {
+			for j := i + 1; j < len(out); j++ {
+				if out[j].N > out[i].N || (out[j].N == out[i].N && out[j].Nom < out[i].Nom) {
+					out[i], out[j] = out[j], out[i]
+				}
+			}
+		}
+		return out
+	}
+	b.Pays, b.PareFeux, b.Ports = trier(nPays), trier(nPF), trier(nPort)
+	for _, c := range b.Pays {
+		b.Total += c.N
+	}
+	b.NbPays = len(b.Pays)
+	s := construireSankey(b, url.Values{}, nil)
+	if s == nil || len(s.PareFeux) != len(pfs) {
+		t.Fatalf("pare-feu affichés : %d, attendu %d", len(s.PareFeux), len(pfs))
+	}
+	for _, n := range s.PareFeux {
+		if n.Cle == fluxbloques.Autres {
+			t.Fatal("« autres » ne doit pas apparaître avec si peu de pare-feu")
+		}
+	}
+	noeuds := append(append(append([]noeudSankey{}, s.Pays...), s.PareFeux...), s.Ports...)
+	chiffre := regexp.MustCompile(`-?[0-9.]+`)
+	for _, r := range s.Rubans {
+		v := chiffre.FindAllString(r.D, -1)
+		f := func(i int) float64 { x, _ := strconv.ParseFloat(v[i], 64); return x }
+		x1, y1, x2, y2, y2b, y1b := f(0), f(1), f(6), f(7), f(9), f(15)
+		for _, n := range noeuds {
+			bord := n.X
+			if n.Cle == r.A && bord+sankeyLargeur == x1 && (y1 < n.Y-0.2 || y1b > n.Y+n.H+0.2) {
+				t.Errorf("lien %s → %s déborde au départ : %.1f-%.1f hors de %.1f-%.1f", r.A, r.B, y1, y1b, n.Y, n.Y+n.H)
+			}
+			if n.Cle == r.B && bord == x2 && (y2 < n.Y-0.2 || y2b > n.Y+n.H+0.2) {
+				t.Errorf("lien %s → %s déborde à l'arrivée : %.1f-%.1f hors de %.1f-%.1f", r.A, r.B, y2, y2b, n.Y, n.Y+n.H)
+			}
+		}
+	}
+}

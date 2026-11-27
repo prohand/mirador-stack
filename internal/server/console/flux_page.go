@@ -645,7 +645,8 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 		return nil
 	}
 	gPays, oPays := regrouperTop(b.Pays, 4)
-	gPF, oPF := regrouperTop(b.PareFeux, 4)
+	// Pare-feu : jusqu'à 8 (un parc en a rarement plus) ; au-delà, « N autres ».
+	gPF, oPF := regrouperTop(b.PareFeux, 8)
 	gPort, oPort := regrouperTop(b.Ports, 5)
 	cle := func(g map[string]bool, k string) string {
 		if g[k] {
@@ -716,8 +717,10 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	if len(b.Pays) > 0 {
 		plusGrosPays = max(b.Pays[0].N, 1)
 	}
+	// Même échelle pour les trois colonnes et pour les liens (sinon les liens
+	// débordent des blocs d'une colonne qui a plus de blocs que les autres).
+	k := (sankeyHaut - sankeyEcart*float64(max(len(colPays), len(colPF), len(colPort))-1)) / float64(max(total, 1))
 	placer := func(col []string, m map[string]int, x float64, nom func(int, string) noeudSankey) []noeudSankey {
-		k := (sankeyHaut - sankeyEcart*float64(len(col)-1)) / float64(max(total, 1))
 		y := sankeyTop
 		var out []noeudSankey
 		for i, c := range col {
@@ -744,7 +747,7 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130}
 		}
 		outil := outils[c]
-		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 3)),
+		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 7)),
 			Pilule: math.Max(110, float64(len([]rune(c))+len([]rune(outil)))*7.2+34)}
 	})
 	s.Ports = placer(colPort, nPort, sankeyXPorts, func(_ int, c string) noeudSankey {
@@ -753,7 +756,6 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 		}
 		return noeudSankey{Nom: c, Outil: nomsServices[c], Lien: lienFluxAvec(v, "port", c, false), Classe: "po"}
 	})
-	k := (sankeyHaut - sankeyEcart*float64(len(colPF)-1)) / float64(max(total, 1))
 	vus := map[string]bool{}
 	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int) {
 		offS, offD := map[string]float64{}, map[string]float64{}

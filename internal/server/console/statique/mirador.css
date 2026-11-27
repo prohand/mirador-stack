@@ -2607,18 +2607,18 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 /* --- « Mon réseau » (SPEC § 138, maquette validée le 27/11) : même cadre que la carte. --- */
 .page-flux {
   --sk-n5: #C8402A; --sk-n4: #F2784B; --sk-n3: #F5A27A; --sk-n2: #FDB088; --sk-n1: #FDD3B5; --sk-pa: #98A2B3;
-  --sk-pf0: #3456C8; --sk-pf1: #6D3FD1; --sk-pf2: #0E9384; --sk-pf3: #2E90FA; --sk-pfx: #98A2B3; --sk-po: #667085;
+  --sk-pf0: #3456C8; --sk-pf1: #6D3FD1; --sk-pf2: #0E9384; --sk-pf3: #2E90FA; --sk-pf4: #C11574; --sk-pf5: #B54708; --sk-pf6: #4E5BA6; --sk-pf7: #088AB2; --sk-pfx: #98A2B3; --sk-po: #667085;
   --sk-ruban: .28; --sk-pilule: #FFFFFF;
 }
 :root[data-theme="sombre"] .page-flux {
   --sk-n5: #FF5A24; --sk-n4: #C8452A; --sk-n3: #A8381F; --sk-n2: #8A3A30; --sk-n1: #6B3530; --sk-pa: #4A5878;
-  --sk-pf0: #5B8CFF; --sk-pf1: #8B6CFF; --sk-pf2: #2BB3A3; --sk-pf3: #4FA3F7; --sk-pfx: #4A5878; --sk-po: #7C8BAA;
+  --sk-pf0: #5B8CFF; --sk-pf1: #8B6CFF; --sk-pf2: #2BB3A3; --sk-pf3: #4FA3F7; --sk-pf4: #EE46BC; --sk-pf5: #F79009; --sk-pf6: #8098F9; --sk-pf7: #22CCEE; --sk-pfx: #4A5878; --sk-po: #7C8BAA;
   --sk-ruban: .34; --sk-pilule: #121C33;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="clair"]) .page-flux {
     --sk-n5: #FF5A24; --sk-n4: #C8452A; --sk-n3: #A8381F; --sk-n2: #8A3A30; --sk-n1: #6B3530; --sk-pa: #4A5878;
-    --sk-pf0: #5B8CFF; --sk-pf1: #8B6CFF; --sk-pf2: #2BB3A3; --sk-pf3: #4FA3F7; --sk-pfx: #4A5878; --sk-po: #7C8BAA;
+    --sk-pf0: #5B8CFF; --sk-pf1: #8B6CFF; --sk-pf2: #2BB3A3; --sk-pf3: #4FA3F7; --sk-pf4: #EE46BC; --sk-pf5: #F79009; --sk-pf6: #8098F9; --sk-pf7: #22CCEE; --sk-pfx: #4A5878; --sk-po: #7C8BAA;
     --sk-ruban: .34; --sk-pilule: #121C33;
   }
 }
@@ -2647,6 +2647,10 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .page-flux .flux-reseau .nd.n2 { fill: var(--sk-n2); } .page-flux .flux-reseau .nd.n1 { fill: var(--sk-n1); } .page-flux .flux-reseau .nd.pa { fill: var(--sk-pa); }
 .page-flux .flux-reseau .nd.pf0 { fill: var(--sk-pf0); } .page-flux .flux-reseau .nd.pf1 { fill: var(--sk-pf1); } .page-flux .flux-reseau .nd.pf2 { fill: var(--sk-pf2); }
 .page-flux .flux-reseau .nd.pf3 { fill: var(--sk-pf3); } .page-flux .flux-reseau .nd.pfx { fill: var(--sk-pfx); } .page-flux .flux-reseau .nd.po { fill: var(--sk-po); }
+.page-flux .flux-reseau .s-pf4 { stop-color: var(--sk-pf4); } .page-flux .flux-reseau .nd.pf4 { fill: var(--sk-pf4); }
+.page-flux .flux-reseau .s-pf5 { stop-color: var(--sk-pf5); } .page-flux .flux-reseau .nd.pf5 { fill: var(--sk-pf5); }
+.page-flux .flux-reseau .s-pf6 { stop-color: var(--sk-pf6); } .page-flux .flux-reseau .nd.pf6 { fill: var(--sk-pf6); }
+.page-flux .flux-reseau .s-pf7 { stop-color: var(--sk-pf7); } .page-flux .flux-reseau .nd.pf7 { fill: var(--sk-pf7); }
 .page-flux .flux-reseau .voyageur { fill: var(--fc-comete); stroke: var(--fc-comete-bord); stroke-width: 2; filter: var(--fc-lueur); }
 .page-flux .flux-reseau .flux-estime, .page-flux .flux-reseau .flux-vide-reseau { padding: 0 22px; color: var(--fc-pale); }
 .page-flux .flux-bas-reseau { display: grid; grid-template-columns: 1.6fr 1fr; border-top: 1px solid var(--fc-bord); }
