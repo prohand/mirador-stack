@@ -8986,3 +8986,29 @@ sombre, clair en clair).
   négligeable. Mémoire : une carte de 100 chemins par heure au plus.
 - Menaces : aucune nouvelle (noms et ports toujours échappés, pas de style
   en ligne : CSP inchangée).
+
+
+## 139. Flux bloqués : bloc « Classements » et tous les pare-feu dans « Mon réseau » (27/11, maquette C validée) **[Fait, à valider]**
+
+Retours du 27/11 après 0.6.29 : « on ne voit pas les 2 autres machines »
+(schéma « Mon réseau ») et « améliore ceci » (les quatre classements).
+Maquettes A (4 cartes) et B (un bloc en 4 colonnes) ; choix : **C, mélange
+des deux** (« je valide c »).
+- « Mon réseau » : jusqu'à 8 pare-feu affichés (couleurs pf0 à pf7) avant
+  « N autres » ; même échelle pour les trois colonnes et les liens (les
+  liens dépassaient d'un bloc quand une colonne avait plus de blocs).
+- Un bloc « Classements » (période et total en tête), 4 colonnes : Pays,
+  Ports visés, Bloqué par, Adresses insistantes ; 2 × 2 sur ordinateur,
+  4 côte à côte au-delà de 1700 px, une colonne sur téléphone.
+- Chaque ligne : rang (n° 1 en orange), barre en fond, nombre et part du
+  total ; ports avec TCP / UDP / ICMP et le service ; pare-feu avec la
+  couleur du schéma et l'outil ; adresses avec drapeau et « N pare-feu ».
+- « + N autres … » (et leurs blocages) : déplie jusqu'à 20 lignes de plus,
+  sans JavaScript (details).
+- En bas (vue Monde) : l'adresse bloquée par plusieurs pare-feu ; en vue
+  « Mon réseau » elle reste à côté des chemins.
+- Noms des petits pays absents de la carte (Singapour, Hong Kong…).
+- Coût : rien de plus à calculer (mêmes listes du bilan, 26 lignes par
+  colonne au plus) ; page un peu plus longue en HTML (≈ 80 lignes cachées).
+- Menaces : aucune nouvelle (noms et adresses échappés, pas de style en
+  ligne : CSP inchangée).

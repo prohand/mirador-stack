@@ -2037,6 +2037,11 @@ chemins, pastille pare-feu + outil, « Chemins les plus fréquents ». Mesure
 (base pleine 30 j, 100 chemins/h) : calcul 30 j 125 → 250 ms, en cache 1 min ;
 disque + 3 Mo environ. Captures clair, sombre et téléphone sur la démo.
 
+**Après 0.6.29 (27/11, SPEC § 139)** : tous les pare-feu dans « Mon réseau »
+(jusqu'à 8, liens qui ne débordent plus) ; bloc « Classements » (maquette C
+validée) : rang, part, protocole, outil, « N pare-feu », lignes en plus
+repliées. Aucun calcul en plus (mêmes listes du bilan).
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

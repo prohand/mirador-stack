@@ -70,6 +70,23 @@ type rangFlux struct {
 	Nom, Sous, Code, Lien string
 	N, Pct                int
 	PareFeux              int
+	// Classements (SPEC § 139) : rang, part du total, protocole et numéro
+	// d'un port, outil et couleur d'un pare-feu (comme « Mon réseau »).
+	Rang                    int
+	Part, Proto, Num, Outil string
+	Couleur, Titre          string
+	Adresse                 bool // adresse IP : écrite en police fixe
+}
+
+// colonneClassement : une colonne du bloc « Classements » (SPEC § 139) :
+// 6 lignes, puis jusqu'à 20 de plus derrière « + N autres ».
+type colonneClassement struct {
+	Titre, Icone, Classe, Aide string
+	Nb                         string
+	Lignes, Plus               []rangFlux
+	Autres                     int    // éléments au-delà des 6 premières lignes
+	NomAutres                  string // « pays », « ports »…
+	Reste                      int    // blocages de ces autres éléments
 }
 
 type barreFlux struct {
@@ -86,42 +103,45 @@ type ligneFil struct {
 }
 
 type donneesFlux struct {
-	Periode, Vue               string
-	Periodes, Vues             []lienFlux
-	Direct                     bool
-	FiltreTexte, SansFiltre    string
-	B                          fluxbloques.Bilan
-	ParMinute                  int
-	Spark                      string // points de la petite courbe (30 min)
-	Comparaison                string
-	ComparaisonClasse          string
-	PortPrincipal              string
-	ServicePrincipal           string
-	Carte                      []paysVue
-	CarteVide                  string
-	Maison                     [2]float64
-	Barres                     []barreFlux
-	Axe                        [3]string
-	PicTexte                   string
-	Fil                        []ligneFil
-	Pays, Ports, PareFeux, IPs []rangFlux
-	Sankey                     *sankeyVue
-	Note                       string
-	GeoIP                      bool
-	NomPeriode                 string
-	Centres                    string // JSON : centre de chaque pays (points du direct)
-	LienDirect                 string
-	Sources                    []sourceFlux // état de la collecte OPNsense par collecteur
-	Sens                       string       // entrant ou sortant (SPEC § 136)
-	Sensz                      []lienFlux
-	Sortant                    bool
-	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
-	Table                      []ligneSource
-	Bulles                     []bulleFlux
-	Chemins                    []cheminVue
-	TopPays                    []rangFlux
-	Bord, Grille               string // contour du monde et quadrillage (projection Equal Earth)
-	TableLues, TableSans       int
+	Periode, Vue            string
+	Periodes, Vues          []lienFlux
+	Direct                  bool
+	FiltreTexte, SansFiltre string
+	B                       fluxbloques.Bilan
+	ParMinute               int
+	Spark                   string // points de la petite courbe (30 min)
+	Comparaison             string
+	ComparaisonClasse       string
+	PortPrincipal           string
+	ServicePrincipal        string
+	Carte                   []paysVue
+	CarteVide               string
+	Maison                  [2]float64
+	Barres                  []barreFlux
+	Axe                     [3]string
+	PicTexte                string
+	Fil                     []ligneFil
+	Pays                    []rangFlux // pour le classement posé sur la carte
+	Sankey                  *sankeyVue
+	Note                    string
+	GeoIP                   bool
+	NomPeriode              string
+	Centres                 string // JSON : centre de chaque pays (points du direct)
+	LienDirect              string
+	Sources                 []sourceFlux // état de la collecte OPNsense par collecteur
+	Sens                    string       // entrant ou sortant (SPEC § 136)
+	Sensz                   []lienFlux
+	Sortant                 bool
+	Locales                 []rangFlux // sortants : adresses locales qui essaient de sortir
+	Table                   []ligneSource
+	Bulles                  []bulleFlux
+	Chemins                 []cheminVue
+	TopPays                 []rangFlux
+	Classement              []colonneClassement
+	AlerteIP, AlertePays    string // adresse bloquée par plusieurs pare-feu (bas des classements)
+	AlertePF                int
+	Bord, Grille            string // contour du monde et quadrillage (projection Equal Earth)
+	TableLues, TableSans    int
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
@@ -275,26 +295,13 @@ func (c *Console) pageFlux(q *req) {
 			}
 		}
 	}
-	d.Ports = rangsFlux(b.Ports, 6, func(r *rangFlux) {
-		r.Sous = nomsServices[r.Nom]
-		if r.Nom != fluxbloques.Autres && r.Nom != "?" {
-			r.Lien = lienFluxAvec(v, "port", r.Nom, false)
-		}
-	})
-	d.PareFeux = rangsFlux(b.PareFeux, 6, func(r *rangFlux) {
-		if r.Nom != fluxbloques.Autres {
-			r.Lien = lienFluxAvec(v, "pf", r.Nom, false)
-		}
-	})
-	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) {
-		if c.opt.GeoIP != nil && d.GeoIP {
-			r.Code = paysDeTexte(c, r.Nom)
-		}
-		r.Lien = "/logs?mots=" + url.QueryEscape(r.Nom) + "&periode=24h"
-	})
 	for _, x := range b.IPs {
 		if x.PareFeux >= 2 && d.Note == "" {
 			d.Note = fmt.Sprintf("%s a été bloquée par %d pare-feu sur la période : la même adresse essaie plusieurs de vos machines.", x.Nom, x.PareFeux)
+			d.AlerteIP, d.AlertePF = x.Nom, x.PareFeux
+			if c.opt.GeoIP != nil && d.GeoIP {
+				d.AlertePays = paysDeTexte(c, x.Nom)
+			}
 		}
 	}
 	d.Table = c.tableauSources(q.r.Context(), q.t)
@@ -308,6 +315,7 @@ func (c *Console) pageFlux(q *req) {
 		}
 	}
 	d.Sankey = construireSankey(b, v, outils)
+	d.Classement = c.classementFlux(b, v, outils, d.Sortant, d.GeoIP)
 	d.Chemins = cheminsVue(b.Chemins, v)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
@@ -377,7 +385,24 @@ func nomPaysOuCode(code string) string {
 	if n, ok := nomsPays[code]; ok {
 		return n
 	}
+	if n, ok := nomsPetitsPays[code]; ok {
+		return n
+	}
 	return code
+}
+
+// nomsPetitsPays : pays et territoires trop petits pour la carte (absents
+// des contours) mais fréquents dans la GéoIP (hébergeurs, relais).
+var nomsPetitsPays = map[string]string{
+	"SG": "Singapour", "HK": "Hong Kong", "MO": "Macao", "BH": "Bahreïn", "MT": "Malte", "LU": "Luxembourg",
+	"MU": "Maurice", "SC": "Seychelles", "MV": "Maldives", "AD": "Andorre", "MC": "Monaco", "LI": "Liechtenstein",
+	"SM": "Saint-Marin", "VA": "Vatican", "GI": "Gibraltar", "IM": "Île de Man", "JE": "Jersey", "GG": "Guernesey",
+	"BB": "Barbade", "BM": "Bermudes", "KY": "Îles Caïmans", "VG": "Îles Vierges britanniques", "CW": "Curaçao",
+	"AW": "Aruba", "SX": "Saint-Martin", "AG": "Antigua-et-Barbuda", "KN": "Saint-Kitts-et-Nevis", "LC": "Sainte-Lucie",
+	"VC": "Saint-Vincent", "GD": "Grenade", "DM": "Dominique", "CV": "Cap-Vert", "KM": "Comores", "ST": "Sao Tomé",
+	"GU": "Guam", "RE": "La Réunion", "GP": "Guadeloupe", "MQ": "Martinique", "YT": "Mayotte", "PF": "Polynésie française",
+	"FO": "Îles Féroé", "AX": "Åland", "WS": "Samoa", "TO": "Tonga", "FM": "Micronésie", "MH": "Îles Marshall",
+	"PW": "Palaos", "NR": "Nauru", "TV": "Tuvalu", "KI": "Kiribati", "SB": "Îles Salomon", "PS": "Palestine",
 }
 
 // nomCourtPays : nom du pays pour la colonne de gauche de « Mon réseau »
@@ -866,4 +891,118 @@ func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
 		out = append(out, x)
 	}
 	return out
+}
+
+// classementFlux : les quatre colonnes du bloc « Classements » (maquette C
+// validée le 27/11, SPEC § 139).
+func (c *Console) classementFlux(b fluxbloques.Bilan, v url.Values, outils map[string]string, sortant, geo bool) []colonneClassement {
+	part := func(n int) string {
+		p := n * 100 / max(b.Total, 1)
+		if p == 0 && n > 0 {
+			return "< 1 %"
+		}
+		return strconv.Itoa(p) + " %"
+	}
+	// colonne : 6 lignes, 20 de plus au plus ; nb : nombre total d'éléments.
+	colonne := func(col *colonneClassement, cs []fluxbloques.Compte, nb int, f func(i int, r *rangFlux)) {
+		var vus []fluxbloques.Compte
+		for _, x := range cs {
+			if x.Nom != fluxbloques.Autres {
+				vus = append(vus, x)
+			}
+		}
+		if len(vus) == 0 {
+			return
+		}
+		plusGros := max(vus[0].N, 1)
+		montres := 0
+		for i, x := range vus {
+			if i >= 26 {
+				break
+			}
+			r := rangFlux{Nom: x.Nom, N: x.N, Pct: min(100, x.N*100/plusGros), PareFeux: x.PareFeux, Rang: i + 1, Part: part(x.N)}
+			f(i, &r)
+			if i < 6 {
+				col.Lignes = append(col.Lignes, r)
+				montres += x.N
+			} else {
+				col.Plus = append(col.Plus, r)
+			}
+		}
+		col.Autres = max(nb-len(col.Lignes), 0)
+		col.Reste = max(b.Total-montres, 0)
+	}
+	compter := func(cs []fluxbloques.Compte) int {
+		n := 0
+		for _, x := range cs {
+			if x.Nom != fluxbloques.Autres {
+				n++
+			}
+		}
+		return n
+	}
+	nbPorts, nbPF := compter(b.Ports), compter(b.PareFeux)
+
+	pays := colonneClassement{Titre: "Pays", Icone: "🌍", Classe: "c-pays", Nb: nombreLisible(b.NbPays), NomAutres: "pays"}
+	if sortant {
+		pays.Titre = "Pays visés"
+	}
+	colonne(&pays, b.Pays, b.NbPays, func(_ int, r *rangFlux) {
+		r.Code, r.Nom, r.Titre = r.Nom, nomCourtPays(r.Nom), nomPaysOuCode(r.Nom)
+		if r.Code != "" {
+			r.Lien = lienFluxAvec(v, "pays", r.Code, false)
+		}
+	})
+
+	ports := colonneClassement{Titre: "Ports visés", Icone: "🎯", Classe: "c-ports", Nb: nombreLisible(nbPorts), NomAutres: "ports"}
+	colonne(&ports, b.Ports, nbPorts, func(_ int, r *rangFlux) {
+		r.Sous = nomsServices[r.Nom]
+		r.Proto, r.Num = protoPort(r.Nom)
+		if r.Nom != "?" {
+			r.Lien = lienFluxAvec(v, "port", r.Nom, false)
+		}
+	})
+
+	// Pare-feu : même couleur que dans « Mon réseau » (rang dans la liste).
+	pfs := colonneClassement{Titre: "Bloqué par", Icone: "🛡️", Classe: "c-pf", Nb: nombreLisible(nbPF), NomAutres: "pare-feu",
+		Aide: "couleurs du schéma « Mon réseau »"}
+	colonne(&pfs, b.PareFeux, nbPF, func(i int, r *rangFlux) {
+		r.Outil, r.Couleur = outils[r.Nom], "pfx"
+		if i < 8 {
+			r.Couleur = "pf" + strconv.Itoa(i)
+		}
+		r.Lien = lienFluxAvec(v, "pf", r.Nom, false)
+	})
+
+	ips := colonneClassement{Titre: "Adresses insistantes", Icone: "📍", Classe: "c-ip", Nb: nombreLisible(b.NbIP), NomAutres: "adresses",
+		Aide: "clic : lignes dans Logs"}
+	if b.IPPlus {
+		ips.Nb = "+ de " + ips.Nb
+	}
+	if sortant {
+		ips.Titre = "Destinations visées"
+	}
+	if b.SansAdresses {
+		ips.Aide = "adresses non suivies par port : enlever le filtre pour les voir"
+	}
+	colonne(&ips, b.IPs, b.NbIP, func(_ int, r *rangFlux) {
+		if c.opt.GeoIP != nil && geo {
+			r.Code = paysDeTexte(c, r.Nom)
+			r.Titre = nomPaysOuCode(r.Code)
+		}
+		r.Adresse = true
+		r.Lien = "/logs?mots=" + url.QueryEscape(r.Nom) + "&periode=24h"
+	})
+	return []colonneClassement{pays, ports, pfs, ips}
+}
+
+// protoPort : « tcp/22 » → (TCP, 22) ; « icmpv6 » → (ICMP, icmpv6).
+func protoPort(nom string) (string, string) {
+	if p, n, ok := strings.Cut(nom, "/"); ok {
+		return strings.ToUpper(p), n
+	}
+	if strings.HasPrefix(nom, "icmp") {
+		return "ICMP", nom
+	}
+	return "", nom
 }

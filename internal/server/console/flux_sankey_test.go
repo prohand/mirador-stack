@@ -85,3 +85,29 @@ func verifierSankey(t *testing.T, pfs []string) {
 		}
 	}
 }
+
+// Classements (SPEC § 139) : 6 lignes, 20 de plus repliées, « + N autres »
+// et le reste des blocages ; protocole et numéro d'un port.
+func TestClassementFlux(t *testing.T) {
+	b := fluxbloques.Bilan{NbPays: 30, NbIP: 0}
+	for i := 0; i < 30; i++ {
+		b.Pays = append(b.Pays, fluxbloques.Compte{Nom: string(rune('A'+i%26)) + string(rune('A'+i/26)), N: 100 - i})
+		b.Total += 100 - i
+	}
+	cols := (&Console{}).classementFlux(b, url.Values{}, nil, false, false)
+	p := cols[0]
+	if len(p.Lignes) != 6 || len(p.Plus) != 20 || p.Autres != 24 || p.Lignes[0].Rang != 1 || p.Plus[0].Rang != 7 {
+		t.Fatalf("pays : %d lignes, %d de plus, %d autres", len(p.Lignes), len(p.Plus), p.Autres)
+	}
+	if montres := 100 + 99 + 98 + 97 + 96 + 95; p.Reste != b.Total-montres {
+		t.Errorf("reste : %d, attendu %d", p.Reste, b.Total-montres)
+	}
+	if len(cols[3].Lignes) != 0 || cols[3].Autres != 0 {
+		t.Error("adresses : rien à montrer")
+	}
+	for nom, attendu := range map[string][2]string{"tcp/22": {"TCP", "22"}, "udp/10001": {"UDP", "10001"}, "icmpv6": {"ICMP", "icmpv6"}, "?": {"", "?"}} {
+		if p, n := protoPort(nom); p != attendu[0] || n != attendu[1] {
+			t.Errorf("protoPort(%q) = %q %q", nom, p, n)
+		}
+	}
+}
