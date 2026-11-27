@@ -281,7 +281,7 @@ func (c *Console) ligneResumeDispo(ctx context.Context, debut, fin time.Time) st
 
 // ligneResumeDisques : systèmes de fichiers pleins dans moins de 30 jours.
 func (c *Console) ligneResumeDisques(ctx context.Context, t time.Time) string {
-	p := c.previsionsDisques(ctx, `instance=~".+"`, t)
+	p := fusionPrevisions(c.previsionsDisques(ctx, `instance=~".+"`, t), c.previsionsRAID(ctx, t))
 	type d struct {
 		cle   string
 		jours float64
