@@ -16,6 +16,7 @@ import (
 	"mirador-stack/internal/server/auth"
 	"mirador-stack/internal/server/taches"
 	"net/http"
+	"net/url"
 	"path"
 	"reflect"
 	"regexp"
@@ -157,13 +158,21 @@ func fonctions() template.FuncMap {
 			return mois[t.Month()-1] + " " + strconv.Itoa(t.Year())
 		},
 		// heure : « aujourd'hui 03:43 », « demain 03:43 » ou date (fuseau de l'interface).
+		// lienMachine : fiche d'une machine ; « mirador-server » (sondes et
+		// alertes du serveur lui-même) n'a pas de fiche : page Santé.
+		"lienMachine": func(nom string) string {
+			if nom == instanceServeur {
+				return "/sante-mirador"
+			}
+			return "/machines/" + url.PathEscape(nom)
+		},
 		"heure": func(t time.Time) string {
 			loc := fuseau.Load()
 			l, n := t.In(loc), time.Now().In(loc)
 			switch {
 			case l.YearDay() == n.YearDay() && l.Year() == n.Year():
 				return "aujourd'hui " + l.Format("15:04")
-			case l.YearDay() == n.Add(24*time.Hour).YearDay():
+			case l.Year() == n.AddDate(0, 0, 1).Year() && l.YearDay() == n.AddDate(0, 0, 1).YearDay():
 				return "demain " + l.Format("15:04")
 			}
 			return l.Format("02/01 15:04")
@@ -468,9 +477,10 @@ func virgule(s string) string { return strings.Replace(s, ".", ",", 1) }
 
 func tailleLisible(n int64) string {
 	switch {
-	case n >= 1<<30:
+	// Seuil à 1023,95 Mio : au-dessus, « 1024,0 Mo » s'affichait (revue du 27/11).
+	case n >= 1<<30-(1<<20)/20:
 		return virgule(fmt.Sprintf("%.1f Go", float64(n)/(1<<30)))
-	case n >= 1<<20:
+	case n >= 1<<20-(1<<10)/2:
 		return virgule(fmt.Sprintf("%.1f Mo", float64(n)/(1<<20)))
 	case n >= 1<<10:
 		return fmt.Sprintf("%.0f Ko", float64(n)/(1<<10))

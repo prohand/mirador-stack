@@ -21,14 +21,17 @@ func purgerTables(ctx context.Context, db *sql.DB, t time.Time, hist, donnees ti
 		return 0, nil
 	}
 	avant := t.Add(-hist).Unix()
+	// Silences, maintenances et écarts vmalert sont écrits en millisecondes
+	// (comparés en secondes, ils n'étaient jamais purgés).
+	avantMs := t.Add(-hist).UnixMilli()
 	requetes := []struct {
 		sql  string
 		args []any
 	}{
 		// Silences finis ou annulés.
-		{`DELETE FROM silences WHERE fin < ? OR (annule_le > 0 AND annule_le < ?)`, []any{avant, avant}},
+		{`DELETE FROM silences WHERE fin < ? OR (annule_le > 0 AND annule_le < ?)`, []any{avantMs, avantMs}},
 		// Maintenances ponctuelles finies (les récurrentes restent).
-		{`DELETE FROM maintenances WHERE recurrence = '' AND fin > 0 AND fin < ?`, []any{avant}},
+		{`DELETE FROM maintenances WHERE recurrence = '' AND fin > 0 AND fin < ?`, []any{avantMs}},
 		// Jetons d'installation expirés et jamais liés à une machine.
 		{`DELETE FROM jetons_enrolement WHERE expire_le < ? AND machine_id IS NULL`, []any{avant}},
 		// Tokens d'agent révoqués.
@@ -36,7 +39,7 @@ func purgerTables(ctx context.Context, db *sql.DB, t time.Time, hist, donnees ti
 		// Notes d'incident (l'incident, une alerte, part avec l'historique).
 		{`DELETE FROM notes_incidents WHERE le < ?`, []any{avant}},
 		// Écarts avec vmalert terminés (mode ombre).
-		{`DELETE FROM ecarts_vmalert WHERE fin > 0 AND fin < ?`, []any{avant}},
+		{`DELETE FROM ecarts_vmalert WHERE fin > 0 AND fin < ?`, []any{avantMs}},
 		// Historique des sauvegardes (la dernière réussie reste toujours).
 		{`DELETE FROM sauvegardes WHERE statut IN ('ok', 'echec') AND fin > 0 AND fin < ?
 			AND id != (SELECT coalesce(max(id), 0) FROM sauvegardes WHERE statut = 'ok')`, []any{avant}},

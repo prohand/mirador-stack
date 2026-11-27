@@ -27,7 +27,7 @@ func TestModelesPersoInterface(t *testing.T) {
 	}
 	// Dupliquer « Serveur web » : formulaire prérempli, règles renommées.
 	if _, corps, _ := b.get(c, "/modeles/nouveau?depuis=serveur-web"); !strings.Contains(corps, `value="serveur-web-perso"`) ||
-		!strings.Contains(corps, `value="WebInjoignablePerso"`) || !strings.Contains(corps, `name="l_nom" value="adresses"`) {
+		!strings.Contains(corps, `value="WebInjoignablePerso"`) || !strings.Contains(corps, `name="l_nom" aria-label="Nom de la liste" value="adresses"`) {
 		t.Fatal("copie de Serveur web non préremplie")
 	}
 	formulaire := url.Values{"csrf": {csrf}, "action": {"enregistrer"}, "nouveau": {"oui"}, "code": {""},

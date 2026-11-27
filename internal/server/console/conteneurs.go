@@ -14,7 +14,6 @@ import (
 
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/changements"
-	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/servicesmetier"
 )
 
@@ -642,7 +641,7 @@ func (c *Console) pageConteneurs(q *req) {
 	}
 	toutes := c.conteneursDuParc(ctx, q.t)
 	connues := map[string]bool{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				connues[m.Nom] = true

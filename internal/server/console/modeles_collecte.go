@@ -114,7 +114,7 @@ func (c *Console) suivreModeles(ctx context.Context, m flotte.InfoMachine, avant
 // photoModeles : modèles portés par chaque machine (agents approuvés), à
 // prendre avant un changement qui touche plusieurs machines.
 func (c *Console) photoModeles(ctx context.Context) ([]flotte.InfoMachine, map[int64]map[string]*modeles.Modele, error) {
-	tous, err := flotte.ListerMachines(ctx, c.db)
+	tous, err := c.machines(ctx)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -96,12 +96,21 @@ func (d *destinationSFTP) connecter(ctx context.Context) (*sftp.Client, *ssh.Cli
 	if err != nil {
 		return nil, nil, err
 	}
+	// conf.Timeout ne borne que ssh.Dial : la poignée de main sur une
+	// connexion déjà ouverte reste bloquée si l'hôte ne répond plus.
+	_ = conn.SetDeadline(time.Now().Add(conf.Timeout))
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() }) // contexte annulé pendant la poignée de main
 	c, chans, reqs, err := ssh.NewClientConn(conn, d.r.Hote, conf)
+	stop()
 	if err != nil {
 		_ = conn.Close()
 		return nil, nil, err
 	}
+	_ = conn.SetDeadline(time.Time{})
 	cs := ssh.NewClient(c, chans, reqs)
+	// Contexte annulé (délai, arrêt du serveur) : la connexion est fermée,
+	// ce qui débloque une copie figée (NAS qui ne répond plus).
+	context.AfterFunc(ctx, func() { _ = cs.Close() })
 	cl, err := sftp.NewClient(cs)
 	if err != nil {
 		_ = cs.Close()

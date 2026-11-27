@@ -31,7 +31,7 @@ func (c *Console) postMachinesMasse(q *req) {
 		c.retour(q, "/machines", fmt.Errorf("au plus %d machines par action", maxMasse), "")
 		return
 	}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		c.retour(q, "/machines", err, "")
 		return

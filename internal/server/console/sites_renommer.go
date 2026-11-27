@@ -94,6 +94,7 @@ func (c *Console) impact(ctx context.Context, liste listeMachines, ancien string
 				im.Regles = append(im.Regles, nom)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "impact")
 		_ = rows.Close()
 	}
 	if rows, err := c.db.QueryContext(ctx, `SELECT nom, contenu FROM tableaux WHERE supprime = 0`); err == nil {
@@ -103,6 +104,7 @@ func (c *Console) impact(ctx context.Context, liste listeMachines, ancien string
 				im.Tableaux = append(im.Tableaux, nom)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "impact")
 		_ = rows.Close()
 	}
 	return im

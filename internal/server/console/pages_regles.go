@@ -204,7 +204,7 @@ func (c *Console) filtreCible(q *req, cible string) (string, error) {
 	case "site", "env":
 		return "," + genre + `="` + v + `"`, nil
 	case "groupe":
-		ms, err := flotte.ListerMachines(q.r.Context(), c.db)
+		ms, err := c.machines(q.r.Context())
 		if err != nil {
 			return "", err
 		}
@@ -232,7 +232,7 @@ type donneesFormRegle struct {
 }
 
 func (c *Console) pageNouvelleRegle(q *req) {
-	ms, _ := flotte.ListerMachines(q.r.Context(), c.db)
+	ms, _ := c.machines(q.r.Context())
 	r := alertes.Regle{Groupe: "perso", Gravite: alertes.Avertissement, Active: true, Origine: "interface",
 		Intervalle: alertes.Duree(time.Minute)}
 	c.rendre(q, "regle-nouvelle", "Nouvelle règle", "regles", donneesFormRegle{R: r, Nouvelle: true, Modeles: modelesRegles, Machines: ms})
@@ -273,7 +273,7 @@ func (c *Console) postNouvelleRegle(q *req) {
 		if _, err := r.Valider(); err != nil {
 			return err
 		}
-		ms, _ := flotte.ListerMachines(q.r.Context(), c.db)
+		ms, _ := c.machines(q.r.Context())
 		d := donneesFormRegle{R: r, Nouvelle: true, Machines: ms}
 		d.Test = c.testerRegle(q, r)
 		c.flash(q, "règle préparée et testée sur 24 h : vérifier puis enregistrer", "")

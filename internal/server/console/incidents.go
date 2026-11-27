@@ -92,7 +92,7 @@ func (a alerteIncident) cles(services map[string][]string) []string {
 // incidentsDe : alertes de la période regroupées, les plus récents d'abord.
 func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*incident {
 	sites := map[string]string{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			sites[m.Nom] = m.Site
 		}
@@ -184,6 +184,7 @@ func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*inci
 			cible.Prise = "pris en charge par " + strings.TrimPrefix(par, "web:") + " à " + time.UnixMilli(ackLe).In(fuseau.Load()).Format("15:04")
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "incidentsDe")
 	for _, inc := range tous {
 		c.completerIncident(inc, services)
 		inc.DureeTexte = inc.Duree(fin)
@@ -432,6 +433,7 @@ func (c *Console) notesIncident(ctx context.Context, id int64) []noteIncident {
 			out = append(out, n)
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "notesIncident")
 	return out
 }
 

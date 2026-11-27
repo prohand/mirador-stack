@@ -360,10 +360,16 @@ func formater(v float64, unite string, decimales *int) string {
 		return nombre(v, dec(1)) + " %"
 	case "percentunit":
 		return nombre(v*100, dec(1)) + " %"
-	case "bytes", "decbytes":
+	// Unités Grafana : « bytes » et « binBps » en base 1024, « decbytes » et
+	// « Bps » en base 1000 (revue du 27/11 : tout était en base 1024).
+	case "bytes":
 		return echelle(v, 1024, []string{"o", "Kio", "Mio", "Gio", "Tio", "Pio"}, dec(1))
-	case "Bps", "binBps":
+	case "decbytes":
+		return echelle(v, 1000, []string{"o", "ko", "Mo", "Go", "To", "Po"}, dec(1))
+	case "binBps":
 		return echelle(v, 1024, []string{"o/s", "Kio/s", "Mio/s", "Gio/s"}, dec(1))
+	case "Bps":
+		return echelle(v, 1000, []string{"o/s", "ko/s", "Mo/s", "Go/s"}, dec(1))
 	case "bps":
 		return echelle(v, 1000, []string{"bit/s", "kbit/s", "Mbit/s", "Gbit/s", "Tbit/s"}, dec(1))
 	case "pps":

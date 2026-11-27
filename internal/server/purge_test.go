@@ -26,13 +26,15 @@ func TestPurgerTables(t *testing.T) {
 	}
 	m := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
 	vieux, recent := m.Add(-200*24*time.Hour).Unix(), m.Add(-time.Hour).Unix()
+	// Silences et maintenances : en millisecondes, comme notif.ms (revue du 27/11).
+	vieuxMs, recentMs := m.Add(-200*24*time.Hour).UnixMilli(), m.Add(-time.Hour).UnixMilli()
 	for _, q := range []struct {
 		sql  string
 		args []any
 	}{
 		{`INSERT INTO machines(id, nom, statut, cree_le) VALUES (1, 'pc1', 'approuvee', 1)`, nil},
-		{`INSERT INTO silences(selecteur, debut, fin, auteur, cree_le) VALUES ('a', ?, ?, 'x', 1), ('b', ?, ?, 'x', 1)`, []any{vieux, vieux, recent, m.Unix() + 3600}},
-		{`INSERT INTO maintenances(cible, debut, fin, recurrence, auteur, cree_le) VALUES ('machine:pc1', ?, ?, '', 'x', 1), ('machine:pc1', 0, 0, '{"jours":[1]}', 'x', 1)`, []any{vieux, vieux}},
+		{`INSERT INTO silences(selecteur, debut, fin, auteur, cree_le) VALUES ('a', ?, ?, 'x', 1), ('b', ?, ?, 'x', 1)`, []any{vieuxMs, vieuxMs, recentMs, m.UnixMilli() + 3600_000}},
+		{`INSERT INTO maintenances(cible, debut, fin, recurrence, auteur, cree_le) VALUES ('machine:pc1', ?, ?, '', 'x', 1), ('machine:pc1', 0, 0, '{"jours":[1]}', 'x', 1)`, []any{vieuxMs, vieuxMs}},
 		{`INSERT INTO tokens(machine_id, empreinte, cree_le, revoque_le) VALUES (1, x'01', 1, ?), (1, x'02', 1, 0)`, []any{vieux}},
 		{`INSERT INTO notes_incidents(incident, le, qui, texte) VALUES (1, ?, 'x', 'vieux'), (2, ?, 'x', 'récent')`, []any{vieux, recent}},
 		{`INSERT INTO sauvegardes(demandee_le, fin, statut, origine) VALUES (1, ?, 'ok', 'planifiee'), (2, ?, 'echec', 'planifiee')`, []any{vieux - 10, vieux}},

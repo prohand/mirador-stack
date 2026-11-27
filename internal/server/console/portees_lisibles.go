@@ -33,6 +33,7 @@ func (c *Console) nomsMachinesParID(ctx context.Context) map[string]string {
 			noms["machine:"+strconv.FormatInt(id, 10)] = nom
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "nomsMachinesParID")
 	return noms
 }
 

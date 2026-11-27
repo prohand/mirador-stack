@@ -131,5 +131,6 @@ func (c *Console) auditMachine(ctx context.Context, instance string, debut, fin 
 			out = append(out, evenementCourbe{T: le, Nom: phraseAudit(action, objet)})
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "auditMachine")
 	return out
 }

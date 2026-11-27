@@ -23,7 +23,7 @@ const maxGroupe = 5000
 func (c *Console) postAlertesGroupe(q *req) {
 	ctx := q.r.Context()
 	vue, cle := vueAlertesValide(q.r.PostFormValue("vue")), q.r.PostFormValue("cle")
-	retour := q.r.PostFormValue("retour")
+	retour := retourLocal(q.r.PostFormValue("retour"))
 	if !strings.HasPrefix(retour, "/alertes") {
 		retour = "/alertes"
 	}

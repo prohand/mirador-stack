@@ -9197,3 +9197,67 @@ minuterie installée par lui (mirador ne modifie toujours aucun pare-feu,
   reference/ changent (THIRD-PARTY.md compte comme du code). Une tâche
   sautée compte comme réussie. Coût : ~1 min facturée par push de
   documentation (avant : 0, mais PR impossible à fusionner).
+
+## 143. Revue du 27/11 : performance, bugs, interface **[Fait, à valider]**
+
+Demande de l'utilisateur : améliorer les performances du serveur, des agents
+et du collecteur ; chercher les bugs et les problèmes d'interface. Détail
+des mesures : PROGRES.md, « Revue du 27/11 ».
+
+**Performance (choix et coût)**
+- **Liste des machines lue une fois par page** (`machines_memo.go`) : une
+  page la lisait 2 à 4 fois. Gardée dans le contexte de la requête (GET
+  seulement ; une action relit toujours la base). Coût : aucune mémoire
+  en plus (même liste), rien de gardé entre deux requêtes.
+- **Deux index SQLite** (migration 0041) : `tokens(machine_id, revoque_le)`
+  et `jetons_enrolement(machine_id)`. Sans eux, la liste des machines
+  relisait les deux tables pour chaque machine. Coût : ~30 octets par
+  token ou jeton sur disque, rien en mémoire.
+- **Règles couvertes par un modèle** : calculées seulement s'il y a des
+  règles importées à comparer ; une seule photo des modèles.
+- **Masquage des logs** (agent et collecteur) : l'expression « cartes »
+  n'est essayée que sur une vraie suite de 13 chiffres ; mots-clés exacts ;
+  minuscules dans un tampon réutilisé. Mêmes résultats (test différentiel
+  sur 300 000 lignes). Le masqueur n'est utilisé que par un fil à la fois.
+- **Tampons réutilisés** : trames syslog, découpage filterlog, relevé des
+  processus, surveillance OOM, logs Docker et journal. Aucun tampon
+  au-delà de 64 Kio n'est gardé.
+
+**Bugs corrigés (les plus graves)** : serveur arrêté si un canal de
+notification est retiré pendant un envoi ; sauvegarde SFTP bloquée pour
+toujours (et l'arrêt du serveur avec) ; collecteur qui redémarrait sans fin
+quand la liste des émetteurs syslog devenait vide ; retour arrière de la mise
+à jour du serveur impossible après 25 min ; purge des silences et
+maintenances jamais faite (millisecondes comparées à des secondes) ;
+dépendances perdues au renommage d'une machine ; machine approuvée après
+l'expiration du jeton jamais servie ; logs en direct qui sautaient des lignes.
+
+**Interface** : export des logs et de l'audit qui perdait les filtres ;
+lien `/machines/mirador-server` en 404 (renvoie vers la Santé) ; carte
+« Agents » de la Santé vide ; fiche d'un équipement muet qui passait en vue
+Linux ; couleurs fausses en thème forcé ; pied du menu caché à 768 px ;
+filtres Site/Groupe incomplets ; écran mural (« 9 / 11 en ligne »).
+
+**Filtre « bruit » des logs** : voie rapide sans changer le comportement.
+Si le motif n'est qu'une liste de textes fixes où chaque lettre accepte ses
+deux casses (motif par défaut), et si la ligne est en ASCII, une recherche de
+texte sur la ligne en minuscules suffit ; sinon l'expression complète. Écarté :
+retirer `(?i)` (2 fois plus rapide seulement, et le réglage aurait changé de
+sens). Coût : un tampon de la taille d'une ligne (64 Kio au plus gardé).
+
+**Ligne de journal trop longue** : début (256 Kio) et fin (8 Kio) gardés,
+message recollé avec « … » ; si le JSON obtenu n'est pas valide, la ligne
+reste illisible comme avant. Coût : 8 Kio de plus pendant la lecture d'une
+telle ligne seulement.
+
+**Modèle de menaces**
+- Session admin volée, mode administration fermé : « C'est moi » sur
+  l'alerte SSH exige maintenant le code 2FA, comme Réglages › Sécurité.
+- Redirection vers un autre site par `/\autre.site` : refusée
+  (`retourLocal` partout).
+- Hôte SFTP qui accepte la connexion puis se tait : poignée de main bornée
+  (20 s), contexte écouté, sauvegarde bornée à 2 h.
+- Liens d'export en `template.URL` : sûrs car construits par
+  `url.Values.Encode` (tout est encodé), jamais à partir de texte brut.
+- Enrôlement : un jeton expiré reste refusé pour une première demande et
+  après la remise du token ; seule une demande déjà en attente reste suivie.

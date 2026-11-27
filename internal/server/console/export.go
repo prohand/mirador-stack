@@ -103,7 +103,7 @@ func (c *Console) configuration(ctx context.Context, avecSecrets bool, t time.Ti
 		cf.Notifications = cf.Notifications.Masques()
 		cf.Sauvegarde = cf.Sauvegarde.Masques()
 	}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	e[8] = err
 	noms := map[string]string{}
 	for _, m := range ms {
@@ -129,6 +129,7 @@ func (c *Console) configuration(ctx context.Context, avecSecrets bool, t time.Ti
 				cf.ConfigAgents[p] = doc
 			}
 		}
+		err = rows.Err() // lecture coupée : export refusé plutôt qu'incomplet
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
 	}
 	e[9] = err
@@ -304,7 +305,7 @@ func (c *Console) postImporterConfiguration(q *req) {
 		}
 		if parties["agents"] {
 			ids := map[string]int64{}
-			ms, _ := flotte.ListerMachines(ctx, c.db)
+			ms, _ := c.machines(ctx)
 			for _, m := range ms {
 				ids[m.Nom] = m.ID
 			}

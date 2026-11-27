@@ -474,6 +474,9 @@ func (c *Console) proteger(role string, f gestionnaire) http.HandlerFunc {
 		}
 		c.sessions.Modifier(q.s.Empreinte, func(s *auth.Session) { s.Vue = t })
 		c.toucherConfiance(r.Context(), q.s, t)
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			q.r = r.WithContext(avecMemoMachines(r.Context()))
+		}
 		f(q)
 	}
 }
@@ -773,4 +776,13 @@ var iconesRacine = map[string]string{
 	"/favicon.ico":                      "/statique/icones/favicon.ico",
 	"/apple-touch-icon.png":             "/statique/icones/icone-apple-180.png",
 	"/apple-touch-icon-precomposed.png": "/statique/icones/icone-apple-180.png",
+}
+
+// lectureIncomplete : une lecture de la base coupée en route (requête
+// annulée, base occupée…) donnait une liste incomplète sans rien dire
+// (revue du 27/11) ; elle est au moins notée dans le journal du serveur.
+func (c *Console) lectureIncomplete(err error, quoi string) {
+	if err != nil && c.journal != nil {
+		c.journal.Warn("console : lecture de la base incomplète", "partie", quoi, "erreur", err)
+	}
 }

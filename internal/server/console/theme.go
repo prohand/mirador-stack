@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"mirador-stack/internal/server/auth"
 )
@@ -70,3 +71,15 @@ func retourLocal(v string) string {
 }
 
 var reAncreRetour = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+// couperUTF8 : au plus n octets, sans couper une lettre accentuée en deux
+// (une recherche coupée au milieu d'un « é » ne trouvait plus rien).
+func couperUTF8(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
+}

@@ -231,6 +231,9 @@ func (p *Planificateur) Boucle(ctx context.Context) {
 
 // Tour : ajoute la sauvegarde quotidienne si elle est due, puis exécute la
 // plus ancienne demande en attente.
+// dureeMaxSauvegarde : au-delà, la sauvegarde est abandonnée (échec noté).
+const dureeMaxSauvegarde = 2 * time.Hour
+
 func (p *Planificateur) Tour(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -266,7 +269,11 @@ func (p *Planificateur) Tour(ctx context.Context) error {
 	if _, err := db.ExecContext(ctx, `UPDATE sauvegardes SET statut = 'en_cours', debut = ? WHERE id = ?`, maintenant.Unix(), e.ID); err != nil {
 		return err
 	}
-	chemin, taille, destinations, errS := p.executer(ctx, e, r)
+	// Durée bornée : une destination figée ne bloque pas les sauvegardes
+	// suivantes ni l'arrêt du serveur.
+	ctxS, annuler := context.WithTimeout(ctx, dureeMaxSauvegarde)
+	chemin, taille, destinations, errS := p.executer(ctxS, e, r)
+	annuler()
 	statut, msg := "ok", ""
 	if errS != nil {
 		statut, msg = "echec", tronquer(errS.Error(), 500)

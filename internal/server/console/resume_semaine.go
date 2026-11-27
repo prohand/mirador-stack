@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -190,6 +191,7 @@ func (c *Console) alertesSemaine(ctx context.Context, debut, fin time.Time) []al
 		a.duree = time.Duration(f-le) * time.Millisecond
 		out = append(out, a)
 	}
+	c.lectureIncomplete(rows.Err(), "alertesSemaine")
 	return out
 }
 
@@ -248,7 +250,7 @@ func (c *Console) ligneResumeDispo(ctx context.Context, debut, fin time.Time) st
 		}
 	}
 	nb := 0
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				nb++
@@ -373,7 +375,8 @@ func (c *Console) ligneResumeFlux(ctx context.Context, debut, fin time.Time) str
 	}
 	s := "🧱 Flux bloqués : " + nombreLisible(b.Total)
 	if b.AvantConnu && b.Avant > 0 {
-		d := (b.Total - b.Avant) * 100 / b.Avant
+		// Arrondi comme la page Flux bloqués (même chiffre des deux côtés).
+		d := int(math.Round(float64(b.Total-b.Avant) * 100 / float64(b.Avant)))
 		signe := "+"
 		if d < 0 {
 			signe = "−"

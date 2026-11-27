@@ -267,7 +267,8 @@ func HistoriqueFiltre(ctx context.Context, db *sql.DB, f Filtre) ([]Alerte, erro
 		// Même règle que Alerte.Machine() : instance, sinon host, sinon
 		// src_ip (relecture du 21/11 : une alerte qui ne portait que « host »
 		// apparaissait sur la fiche mais pas dans la liste filtrée).
-		q += ` AND COALESCE(json_extract(etiquettes, '$.instance'), json_extract(etiquettes, '$.host'), json_extract(etiquettes, '$.src_ip')) = ?`
+		// NULLIF : une étiquette vide compte comme absente (comme Machine()).
+		q += ` AND COALESCE(NULLIF(json_extract(etiquettes, '$.instance'), ''), NULLIF(json_extract(etiquettes, '$.host'), ''), json_extract(etiquettes, '$.src_ip')) = ?`
 		args = append(args, f.Machine)
 	}
 	if f.Activees {

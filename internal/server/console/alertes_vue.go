@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"html/template"
 	"math"
-	"mirador-stack/internal/server/flotte"
 	"net/url"
 	"strconv"
 	"strings"
@@ -87,7 +86,7 @@ func cleGroupeAlerte(r resumeAlerte, vue string, sites map[string]string) (cle, 
 // sitesMachines : site de chaque machine (vue « par site », résumés).
 func (c *Console) sitesMachines(ctx context.Context) map[string]string {
 	out := map[string]string{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			out[m.Nom] = m.Site
 		}

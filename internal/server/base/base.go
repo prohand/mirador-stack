@@ -188,10 +188,9 @@ func Copier(ctx context.Context, db *sql.DB, dossier, nom string) (string, error
 	if _, err := os.Stat(chemin); err == nil {
 		return "", fmt.Errorf("%s existe déjà", chemin)
 	}
-	// Le chemin ne contient ni apostrophe ni séparateur dangereux (vérifié
-	// ci-dessus et par le dossier venant de la configuration) ; VACUUM INTO
-	// n'accepte pas de paramètre lié.
-	if _, err := db.ExecContext(ctx, `VACUUM INTO '`+chemin+`'`); err != nil { // #nosec G202 -- chemin contrôlé, pas d'entrée utilisateur
+	// VACUUM INTO n'accepte pas de paramètre lié : apostrophes doublées
+	// (un dossier de données « l'équipe » cassait les sauvegardes).
+	if _, err := db.ExecContext(ctx, `VACUUM INTO '`+strings.ReplaceAll(chemin, "'", "''")+`'`); err != nil { // #nosec G202 -- chemin contrôlé, apostrophes échappées
 		return "", err
 	}
 	return chemin, os.Chmod(chemin, 0o600)

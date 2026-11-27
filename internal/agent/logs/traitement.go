@@ -26,7 +26,7 @@ type Options struct {
 // goroutine de collecte des métriques (d'où le verrou).
 type Traitement struct {
 	opt       Options
-	bruit     *regexp.Regexp
+	bruit     *filtreBruit
 	lot       *Lot // journal
 	lotDocker *Lot // conteneurs (nil si pas de Docker)
 
@@ -68,7 +68,7 @@ func NewTraitement(opt Options, lot, lotDocker *Lot) *Traitement {
 		horloge:    time.Now,
 	}
 	if opt.Bruit != "" {
-		t.bruit = regexp.MustCompile(opt.Bruit) // validée par la configuration
+		t.bruit = nouveauFiltreBruit(opt.Bruit) // validée par la configuration
 	}
 	return t
 }
@@ -95,7 +95,7 @@ func (t *Traitement) Traiter(e *journal.Entree) {
 	}
 	t.compter(e)
 
-	if t.bruit != nil && t.bruit.MatchString(e.Message) {
+	if t.bruit != nil && t.bruit.Correspond(e.Message) {
 		t.jetes["bruit"]++
 		return
 	}
@@ -138,7 +138,7 @@ func (t *Traitement) TraiterDocker(temps time.Time, msg, conteneur, flux string)
 		t.plantages[nom]++
 		t.plantageLe[nom] = t.horloge()
 	}
-	if t.bruit != nil && t.bruit.MatchString(msg) {
+	if t.bruit != nil && t.bruit.Correspond(msg) {
 		t.jetes["bruit"]++
 		return
 	}

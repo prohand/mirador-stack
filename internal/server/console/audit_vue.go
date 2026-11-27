@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/url"
 	"regexp"
 	"sort"
@@ -293,7 +294,7 @@ type donneesAudit struct {
 	F          filtreAudit
 	Masquees   int // actions automatiques masquées sur la période
 	Suivant    int64
-	Requete    string // filtres, pour « plus anciennes » et l'export
+	Requete    template.URL // filtres, pour « plus anciennes » et l'export (voir donneesLogs.Requete)
 }
 
 // filtreAudit : filtres de la page (paramètres d'URL).
@@ -311,9 +312,7 @@ func lireFiltreAudit(v url.Values) filtreAudit {
 	if _, ok := periodesAudit[f.Periode]; !ok {
 		f.Periode = "7j"
 	}
-	if len(f.Recherche) > 100 {
-		f.Recherche = f.Recherche[:100]
-	}
+	f.Recherche = couperUTF8(f.Recherche, 100)
 	f.Avant, _ = strconv.ParseInt(v.Get("avant"), 10, 64)
 	return f
 }
@@ -365,8 +364,10 @@ func (f filtreAudit) condition(t time.Time, avecAuto bool) (string, []any) {
 		args = append(args, t.Add(-d).Unix())
 	}
 	if f.Recherche != "" {
-		r := "%" + strings.NewReplacer("%", "", "_", "").Replace(f.Recherche) + "%"
-		cond = append(cond, "(objet LIKE ? OR action LIKE ? OR qui LIKE ? OR apres LIKE ?)")
+		// « _ » et « % » échappés (pas supprimés) : « mode_admin » doit trouver
+		// l'action mode_admin.
+		r := "%" + echapperLike(f.Recherche) + "%"
+		cond = append(cond, `(objet LIKE ? ESCAPE '\' OR action LIKE ? ESCAPE '\' OR qui LIKE ? ESCAPE '\' OR apres LIKE ? ESCAPE '\')`)
 		args = append(args, r, r, r, r)
 	}
 	if !f.Auto && !avecAuto {
@@ -381,7 +382,7 @@ func (f filtreAudit) condition(t time.Time, avecAuto bool) (string, []any) {
 
 func (c *Console) pageAudit(q *req) {
 	f := lireFiltreAudit(q.r.URL.Query())
-	d := donneesAudit{Categories: categoriesAudit, F: f, Requete: f.requete()}
+	d := donneesAudit{Categories: categoriesAudit, F: f, Requete: template.URL(f.requete())} // #nosec G203 -- url.Values.Encode
 	cond, args := f.condition(q.t, false)
 	ls, err := c.lireAuditID(q, cond, args, 200)
 	if err != nil {
@@ -418,6 +419,7 @@ func (c *Console) pageAudit(q *req) {
 				d.Quis = append(d.Quis, s)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "pageAudit")
 	}
 	c.rendre(q, "audit", "Journal d'audit", "audit", d)
 }
@@ -452,7 +454,7 @@ func (c *Console) csvAudit(q *req) {
 	_ = w.Write([]string{"date", "qui", "adresse", "categorie", "action", "objet", "phrase", "avant", "apres"})
 	for _, l := range ls {
 		_ = w.Write([]string{time.Unix(l.Le, 0).In(fuseau.Load()).Format("2006-01-02 15:04:05"), l.Qui, l.Adresse, categorieDe(l.Action).Titre,
-			l.Action, l.Objet, phraseAudit(l.Action, l.Objet), csvSur(l.Avant), csvSur(l.Apres)})
+			l.Action, csvSur(l.Objet), csvSur(phraseAudit(l.Action, l.Objet)), csvSur(l.Avant), csvSur(l.Apres)})
 	}
 	w.Flush()
 }

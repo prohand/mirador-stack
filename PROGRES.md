@@ -2059,6 +2059,68 @@ Machines (recherche, sites, actions de masse), coup d'œil par site, mises
 à jour par vagues, alertes regroupées, listes avec recherche (Éléments en
 pages de 200, Sondes, Tâches, Logs, Événements), Conteneurs en une vue.
 
+## Revue du 27/11 : performance, bugs, interface (SPEC § 143)
+
+Branche `claude/elegant-bell-rij5ee`. Six analyses : performance agent et
+collecteur, performance serveur, bugs (agent, cœur serveur, console),
+interface (217 pages parcourues, 1366 et 390 px, clair et sombre).
+
+**Serveur, 1 500 machines simulées** (`MESURE_GRAND=1500`, même machine,
+avant = 0.6.33, médiane) :
+
+| Page | Avant | Après |
+|---|---|---|
+| `/` (vue d'ensemble) | 1,83 s | 51 ms |
+| `/fragments/accueil` (rafraîchi chaque minute) | 1,67 s | 64 ms |
+| `/machines` | 1,75 s | 71 ms |
+| `/mur` (rechargé toutes les 30 s) | 2,15 s | 54 ms |
+| `/regles` | 1,40 s | 19 ms |
+| `/sante-mirador` | 0,70 s | 99 ms |
+| `/disponibilite` | 1,21 s | 0,48 s |
+
+Objectif tenu : plus aucune page courante au-dessus de 0,5 s sur le grand
+parc (avant : 1 à 2 s, un cœur occupé à chaque rafraîchissement).
+
+**Agent et collecteur** (benchmarks Go, médianes) :
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Masquage, ligne syslog (collecteur) | 10,7 µs | 2,05 µs |
+| Masquage, 6 lignes (agent) | 38 µs, 26 allocations | 4,5 µs, 0 |
+| Filterlog, une ligne | 744 ns, 484 o | 480 ns, 4 o |
+| Lecture syslog, 1 000 messages | 300 µs, 226 Kio | 163 µs, 16 Kio |
+| Cycle de collecte de l'agent | 1,48 ms, 372 Kio | 1,04 ms, 75 Kio |
+| Surveillance OOM (toutes les 2 s) | 31 µs, 20 Kio | 16 µs, 120 o |
+| Journal, 1 000 lignes | 310 µs, 545 Kio | 60 µs, 66 Kio |
+
+Ordre de grandeur : le collecteur à 1 000 messages syslog/s passe d'environ
+1,1 % d'un cœur à 0,25 %. Mémoire : rien de plus gardé (tampons bornés à
+64 Kio).
+
+**Bugs** : 18 corrigés, chacun avec un test (SPEC § 143). **Interface** :
+15 problèmes corrigés, vérifiés dans le navigateur.
+
+**Suite (« fais tout », 27/11)**
+- Filtre « bruit » des logs : voie rapide, même comportement (choix
+  recommandé : pas de changement de casse). Ligne : 12,7 µs → 0,18 µs ;
+  traitement complet d'une ligne du journal : 8,4 µs → 3,7 µs (−56 %).
+- Ligne de journal de plus de 256 Kio : coupée au milieu (« … »), plus perdue.
+- Restes `.telechargement-*` (arrêt brutal pendant une mise à jour) retirés.
+- 28 lectures de la console : une lecture coupée est notée dans le journal du
+  serveur ; l'export de configuration refuse au lieu d'être incomplet.
+- Filtre « machine » des alertes : étiquette vide = absente (comme ailleurs).
+- Tailles : plus de « 1024,0 Mo » ; unités Grafana `decbytes` et `Bps` en
+  base 1000 ; même arrondi du % de flux bloqués (résumé et page).
+- Flux bloqués : un comptage sans nom d'interface n'est plus perdu.
+
+**Laissé de côté (faible effet, plus risqué à toucher)** : un lot d'envoi de
+l'agent peut partir deux fois s'il est déplacé sur disque pendant son envoi ;
+tampon des logs du serveur vidé avant une écriture qui échoue (disque plein) ;
+corps des réponses en erreur UniFi / Docker non vidés (pas de fuite).
+
+À mesurer sur le VPS après installation : RAM et CPU du serveur (comparer
+au 26/11 : 252 Mio au plus).
+
 ## Prochaine étape
 
 Mise à jour le 27/11 au soir. Les 7 étapes du plan sont validées (26/11).

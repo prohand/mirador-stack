@@ -58,7 +58,7 @@ type donneesAlertes struct {
 	Historique []ligneHistorique
 	Filtre     alertes.Filtre
 	Suivant    int64
-	Requete    string
+	Requete    template.URL // voir donneesLogs.Requete
 	FiltreSur  filtreSur
 }
 
@@ -88,7 +88,7 @@ func (c *Console) pageAlertes(q *req) {
 			qs.Set(k, x)
 		}
 	}
-	d.Requete = qs.Encode()
+	d.Requete = template.URL(qs.Encode()) // #nosec G203 -- url.Values.Encode : tout est encodé
 	switch {
 	case f.Sonde != "":
 		d.FiltreSur = filtreSur{"la sonde « " + f.Sonde + " »", "/alertes"}
@@ -178,7 +178,7 @@ func (c *Console) pageAlerte(q *req) {
 		d.VuToutDeSuite, _ = flotte.ListerPannes(q.r.Context(), c.db, d.Machine, a.Debut.Add(-10*time.Minute), a.Debut.Add(10*time.Minute), 5)
 	}
 	if d.Machine != "" {
-		if ms, err := flotte.ListerMachines(q.r.Context(), c.db); err == nil {
+		if ms, err := c.machines(q.r.Context()); err == nil {
 			for _, m := range ms {
 				if m.Nom == d.Machine {
 					d.Verif = c.verifMachine(m, q.t)
@@ -231,6 +231,12 @@ func (c *Console) postAlerte(q *req) {
 	case "ssh_connue":
 		// « C'est moi » (demande du 27/11) : l'adresse vient de l'alerte,
 		// pas du formulaire.
+		// Code 2FA (ou mode administration ouvert), comme l'ajout depuis
+		// Réglages › Sécurité : une session volée ne doit pas pouvoir
+		// rendre son adresse « connue ».
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		var a alertes.Alerte
 		if a, err = alertes.LireAlerte(ctx, c.db, id); err == nil {
 			adr := a.Etiquettes.Get("adresse")
@@ -329,7 +335,7 @@ func (c *Console) pageSourdine(q *req) {
 	d.Inhibitions, e[2] = notif.ListerInhibitions(ctx, c.db)
 	d.Dependances, e[3] = notif.ListerDependances(ctx, c.db)
 	var ms []flotte.InfoMachine
-	ms, e[4] = flotte.ListerMachines(ctx, c.db)
+	ms, e[4] = c.machines(ctx)
 	vuS, vuG := map[string]bool{}, map[string]bool{}
 	for _, m := range ms {
 		d.Machines = append(d.Machines, m.Nom)
@@ -524,7 +530,7 @@ func (c *Console) pageComparaison(q *req) {
 		vm, err := alertes.LireVmalert(ctx, reg.URL)
 		if err != nil {
 			d.Erreur = err.Error()
-		} else if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		} else if ms, err := c.machines(ctx); err == nil {
 			connues := map[string]bool{}
 			for _, m := range ms {
 				if m.Statut == "approuvee" {

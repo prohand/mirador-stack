@@ -39,7 +39,7 @@
 <ul><li>URL : <code>{{$srv}}/api/agent/v1/influx</code> (Telegraf ajoute lui-même <code>/api/v2/write</code>)</li>
 <li>Token : celui ci-dessus</li><li>Organization et Bucket : au choix (ignorés)</li></ul>
 <p><small>Basculer coupe l'envoi vers l'ancienne cible InfluxDB v2.</small></p>
-<p><a class="bouton secondaire" href="/machines/{{.D.Equipement}}">Voir la page de {{.D.Equipement}}</a> <a href="/machines/ajouter?quoi=equipement">Ajouter un autre équipement</a></p>
+<p><a class="bouton secondaire" href="{{lienMachine .D.Equipement}}">Voir la page de {{.D.Equipement}}</a> <a href="/machines/ajouter?quoi=equipement">Ajouter un autre équipement</a></p>
 </section>{{end}}
 
 {{else}}

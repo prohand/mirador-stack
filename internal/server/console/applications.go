@@ -113,6 +113,7 @@ func (c *Console) historiqueApplications(ctx context.Context, debut, t time.Time
 		}
 		par[e["service"]] = append(par[e["service"]], intervalleEtat{deb / 1000, fin / 1000, regle == "ApplicationEnPanne"})
 	}
+	c.lectureIncomplete(rows.Err(), "historiqueApplications")
 	return par
 }
 
@@ -235,7 +236,7 @@ func elementsApp(e servicesmetier.EtatService, machines map[string]flotte.InfoMa
 func (c *Console) infosApps(ctx context.Context, etats []servicesmetier.EtatService, t time.Time) map[string]infoApp {
 	hist := c.historiqueApplications(ctx, t.AddDate(0, 0, -joursFriseApp), t)
 	machines := map[string]flotte.InfoMachine{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			machines[m.Nom] = m
 		}
@@ -356,7 +357,7 @@ func (c *Console) editeurDe(ctx context.Context, q *req, svcs []servicesmetier.S
 		}
 		ajouter(candidat{Sorte: servicesmetier.Conteneur, Nom: k.Machine + "/" + k.Nom, Detail: d, Projet: k.Projet, Hote: k.Machine})
 	}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				ajouter(candidat{Sorte: servicesmetier.Machine, Nom: m.Nom, Detail: strings.Trim(m.Site+" · "+m.Env, " ·")})

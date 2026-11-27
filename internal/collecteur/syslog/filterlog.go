@@ -36,7 +36,12 @@ import (
 //     destination l'est (machine du LAN bloquée en allant vers Internet).
 func LireFilterlog(texte string) (protocole.FluxBloque, bool) {
 	var f protocole.FluxBloque
-	c := strings.Split(strings.TrimSpace(texte), ",")
+	// Découpage dans un tableau sur la pile (relecture perf du 27/11 :
+	// strings.Split allouait ~500 octets par ligne, et filterlog est
+	// l'essentiel du débit d'un pare-feu). Les champs utiles sont avant
+	// le 22e ; au-delà de 32, le reste est ignoré.
+	var champs [32]string
+	c := decouper(champs[:0], strings.TrimSpace(texte))
 	if len(c) < 17 || c[6] != "block" || (c[7] != "in" && c[7] != "out") {
 		return f, false
 	}
@@ -78,6 +83,20 @@ func LireFilterlog(texte string) (protocole.FluxBloque, bool) {
 		f.Regle = "règle " + r
 	}
 	return f, true
+}
+
+// decouper : champs séparés par des virgules, ajoutés à c sans dépasser
+// sa capacité (pas d'allocation).
+func decouper(c []string, s string) []string {
+	for len(c) < cap(c)-1 {
+		i := strings.IndexByte(s, ',')
+		if i < 0 {
+			break
+		}
+		c = append(c, s[:i])
+		s = s[i+1:]
+	}
+	return append(c, s)
 }
 
 // nomCourt : n octets au plus, lettres, chiffres, « . _ - » seulement.

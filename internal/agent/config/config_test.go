@@ -235,3 +235,14 @@ func TestDossierCertificatsAutorites(t *testing.T) {
 		}
 	}
 }
+
+// La copie du motif bruit dans les tests de logs (voie rapide) reste à jour.
+func TestBruitDefautCopie(t *testing.T) {
+	b, err := os.ReadFile("../logs/bruit_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "const bruitDefaut = `"+BruitDefaut+"`") {
+		t.Error("logs/bruit_test.go : copie de BruitDefaut à mettre à jour")
+	}
+}

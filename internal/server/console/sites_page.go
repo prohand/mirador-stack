@@ -111,7 +111,7 @@ func (c *Console) pageSites(q *req) {
 		liste = listesMachines[0]
 	}
 	l := c.lireListes(ctx)
-	ms, _ := flotte.ListerMachines(ctx, c.db)
+	ms, _ := c.machines(ctx)
 	d := donneesSites{Liste: liste}
 	for _, x := range listesMachines {
 		d.Onglets = append(d.Onglets, ongletListe{x, len(*l.valeurs(x.Cle)), x.Cle == liste.Cle})
@@ -163,12 +163,13 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{pluriel(n, "maintenance"), "/sourdine"})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 	}
 	switch liste.Cle {
 	case "sites":
-		if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		if ms, err := c.machines(ctx); err == nil {
 			for _, m := range ms {
 				if m.Type == "collecteur" && m.Site != "" {
 					r[m.Site] = append(r[m.Site], aussi{m.Nom + " (collecteur du site)", "/machines/" + url.PathEscape(m.Nom)})
@@ -184,6 +185,7 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{"réglages d'agent", "/reglages/agents?portee=groupe:" + url.QueryEscape(v)})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 		if rows, err := c.db.QueryContext(ctx, `SELECT portee, COUNT(*) FROM modeles_attribues WHERE portee LIKE 'groupe:%' AND etat = 'actif' GROUP BY portee`); err == nil {
@@ -195,6 +197,7 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{pluriel(n, "modèle"), "/reglages/agents?portee=groupe:" + url.QueryEscape(v)})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 	}
@@ -233,7 +236,7 @@ func (c *Console) postSites(q *req) {
 			if i < 0 {
 				return fmt.Errorf("%s %q inconnu", nom, v)
 			}
-			if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+			if ms, err := c.machines(ctx); err == nil {
 				for _, m := range ms {
 					if valeurDe(m, liste.Cle) == v {
 						return fmt.Errorf("%s %q utilisé par %s : changer d'abord ses machines", nom, v, m.Nom)
@@ -275,7 +278,7 @@ func (c *Console) postSites(q *req) {
 // l'avaient et ne sont plus cochées la perdent (valeur vide). Une ligne
 // d'audit par machine changée (comme dans sa fiche).
 func (c *Console) rangerMachines(ctx context.Context, liste listeMachines, v string, cochees []string, q *req) (int, error) {
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		return 0, err
 	}

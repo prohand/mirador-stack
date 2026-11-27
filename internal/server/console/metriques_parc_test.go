@@ -97,7 +97,7 @@ func TestGourmandsChaleurMur(t *testing.T) {
 	}
 
 	_, corps, _ = b.get(c, "/mur")
-	for _, attendu := range []string{`<meta http-equiv="refresh" content="30">`, `data-theme="sombre"`, `class="ecran-mural"`, "<b>2</b><span>machines</span>",
+	for _, attendu := range []string{`<meta http-equiv="refresh" content="30">`, `data-theme="sombre"`, `class="ecran-mural"`, " / 2</small></b><span>en ligne</span>",
 		"Tout va bien", `<b>web1</b>`, "Quitter l'écran mural"} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("écran mural : %q absent", attendu)

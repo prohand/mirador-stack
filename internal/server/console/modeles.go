@@ -393,7 +393,7 @@ type vueDetectes struct {
 func (c *Console) pageModeles(q *req) {
 	ctx := q.r.Context()
 	l := c.lireListes(ctx)
-	ms, _ := flotte.ListerMachines(ctx, c.db)
+	ms, _ := c.machines(ctx)
 	det := c.detectes(ctx, q.t)
 	d := donneesModeles{Groupes: l.Groupes, Auto: modeles.LireAuto(ctx, c.db)}
 	parGroupe := map[string]map[string]modeles.Attribution{}

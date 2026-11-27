@@ -66,6 +66,7 @@ func (c *Console) chargerTableaux(ctx context.Context) {
 				e.origine[nom] = OrigineModifie
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "chargerTableaux")
 		_ = rows.Close() // lecture seule
 	} else {
 		c.journal.Warn("tableaux de la base illisibles", "erreur", err)

@@ -119,7 +119,9 @@ func appliquer(r majserveur.Reglages, sortie io.Writer) error {
 	if err := syscall.Flock(int(verrou.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil { // #nosec G115 -- descripteur de fichier
 		return errors.New("une mise à jour est déjà en cours")
 	}
-	ctx, fin := context.WithTimeout(context.Background(), 25*time.Minute)
+	// Délai global plus long que l'attente de la nouvelle version (DELAI,
+	// jusqu'à 30 min) ; le retour arrière a son propre délai.
+	ctx, fin := context.WithTimeout(context.Background(), 25*time.Minute+r.Delai)
 	defer fin()
 	h := &majserveur.Hote{R: r, Docker: docker{dossier: r.DossierCompose}, Journal: sortie}
 	_ = h.EcrireInfo(version.Version, nil) // réglages affichés dans l'interface

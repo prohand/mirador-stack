@@ -109,6 +109,7 @@ func (c *Console) machinesEnMaintenance(ctx context.Context, t time.Time) map[st
 			out[cible[len("machine:"):]] = true
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "machinesEnMaintenance")
 	return out
 }
 

@@ -316,7 +316,12 @@ func (l *Lien) boucleConfig(ctx context.Context) {
 					rythme = r
 				}
 			}
-			l.appliquer(d)
+			if !l.appliquer(d) {
+				// Écriture impossible (disque plein…) : ETag oublié, sinon
+				// le serveur répond « inchangé » et le changement est perdu
+				// jusqu'au redémarrage de l'agent.
+				r.etag = ""
+			}
 		}
 		// « Actualiser » demandé dans l'interface (pas à la toute première
 		// réponse : une ancienne demande ne relance pas l'assistant à chaque
@@ -394,22 +399,33 @@ func (l *Lien) actualiserRacine() {
 
 // appliquer : une configuration refusée est ignorée (la configuration en cours
 // est gardée) ; une configuration différente est enregistrée puis l'agent
-// redémarre pour l'appliquer à tous ses collecteurs.
-func (l *Lien) appliquer(d *ConfigDistante) {
+// redémarre pour l'appliquer à tous ses collecteurs. Renvoie false si le
+// document n'a pas pu être enregistré (à redemander en entier).
+func (l *Lien) appliquer(d *ConfigDistante) bool {
+	// Comparaison sur la forme relue du disque : une liste vide reçue
+	// (« [] ») est relue absente (omitempty) au démarrage suivant ; comparée
+	// telle quelle, elle paraissait toujours nouvelle et le collecteur
+	// redémarrait sans fin (revue du 27/11).
+	if brut, err := json.Marshal(d); err == nil {
+		if n, err := Decoder(bytes.NewReader(brut)); err == nil {
+			d = n
+		}
+	}
 	nouvelle, err := Appliquer(l.Locale, d)
 	if err != nil {
 		l.Journal.Error("configuration distante refusée, la configuration actuelle est gardée", "erreur", err)
-		return
+		return true
 	}
 	if reflect.DeepEqual(nouvelle, l.Cfg) {
-		return
+		return true
 	}
 	if err := EnregistrerConfig(l.Cfg.FichierConfigDistante, d); err != nil {
 		l.Journal.Error("enregistrement de la configuration distante", "erreur", err)
-		return
+		return false
 	}
 	l.Journal.Info("configuration distante modifiée : redémarrage pour l'appliquer")
 	l.Redemarrer(RaisonConfiguration)
+	return true
 }
 
 // RaisonConfiguration : redémarrage pour appliquer une configuration

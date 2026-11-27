@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"slices"
 	"strconv"
 	"time"
 	"unicode/utf8"
@@ -37,9 +38,14 @@ var ErrTrame = errors.New("trame syslog illisible")
 // LireTrame lit le message suivant : « LONGUEUR ESPACE MESSAGE » (RFC 5425),
 // sinon une ligne terminée par « \n ». Une ligne trop longue est coupée
 // (le reste est jeté) ; une trame trop longue ferme la connexion.
-func LireTrame(r *bufio.Reader) ([]byte, error) {
+func LireTrame(r *bufio.Reader) ([]byte, error) { return LireTrameDans(r, nil) }
+
+// LireTrameDans : comme LireTrame, mais le message est écrit dans tampon
+// (réutilisé d'un message à l'autre par la connexion : pas d'allocation
+// par message). Le résultat n'est valable que jusqu'au prochain appel.
+func LireTrameDans(r *bufio.Reader, tampon []byte) ([]byte, error) {
 	for {
-		b, err := lireUneTrame(r)
+		b, err := lireUneTrame(r, tampon[:0])
 		if err != nil || len(b) > 0 {
 			return b, err
 		}
@@ -47,7 +53,7 @@ func LireTrame(r *bufio.Reader) ([]byte, error) {
 	}
 }
 
-func lireUneTrame(r *bufio.Reader) ([]byte, error) {
+func lireUneTrame(r *bufio.Reader, ligne []byte) ([]byte, error) {
 	premier, err := r.Peek(1)
 	if err != nil {
 		return nil, err
@@ -71,7 +77,7 @@ func lireUneTrame(r *bufio.Reader) ([]byte, error) {
 		if n <= 0 || n > TailleMaxMessage {
 			return nil, ErrTrame
 		}
-		msg := make([]byte, n)
+		msg := slices.Grow(ligne, n)[:n]
 		if _, err := io.ReadFull(r, msg); err != nil {
 			return nil, err
 		}
@@ -85,7 +91,6 @@ func lireUneTrame(r *bufio.Reader) ([]byte, error) {
 	// Fin de message : « \n », ou « \0 » (cadrage cité par la RFC 6587 ;
 	// relecture du 21/11 : 1 000 messages terminés par NUL n'en faisaient
 	// qu'un, le reste était jeté).
-	var ligne []byte
 	for {
 		// Ce qui est déjà en mémoire (au moins un octet : attend s'il le faut).
 		dispo, err := r.Peek(max(1, r.Buffered()))

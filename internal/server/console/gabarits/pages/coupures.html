@@ -5,7 +5,7 @@
 <p class="sous">Une coupure : au moins 2 machines d'un même site en panne (AgentMuet…) à moins de 10 min d'écart, sur les 30 derniers jours. Pendant la coupure, chaque agent garde ses données en mémoire et les renvoie au retour ; le serveur accepte jusqu'à 24 h de retard.</p>
 {{if .D.Choisie}}{{$c := .D.Choisie}}<section class="carte"><h2>Bilan : site {{$c.Site}}, {{date $c.Debut}} → {{if $c.Fin.IsZero}}<strong>en cours</strong>{{else}}{{date $c.Fin}}{{end}} ({{duree ($c.Duree .D.Le)}})</h2>
 <div class="defile"><table data-cartes><thead><tr><th>Machine</th><th>Muette</th><th>Relevés reçus pour la coupure</th><th>File d'attente max</th><th>Lots jetés (métriques · logs)</th><th>Autonomie du tampon</th><th>État</th></tr></thead><tbody>
-{{range .D.Bilan}}<tr><td><a href="/machines/{{.Machine}}">{{.Machine}}</a></td>
+{{range .D.Bilan}}<tr><td><a href="{{lienMachine .Machine}}">{{.Machine}}</a></td>
 <td>{{date .Muette}} → {{if .Revenue.IsZero}}<strong>encore muette</strong>{{else}}{{date .Revenue}}{{end}}</td>
 <td>{{if ge .Couverture 0}}{{.Couverture}} %{{else}}—{{end}}</td>
 <td>{{.FileMax}}{{if ge .FilePct 0}} <small class="pale">({{.FilePct}} % de 8 Mo)</small>{{end}}</td>

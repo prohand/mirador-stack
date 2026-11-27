@@ -6,10 +6,12 @@
 package logs
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Remplacement d'une donnée masquée.
@@ -40,13 +42,17 @@ var modeles = map[string]modele{
 	"tokens": {
 		re:           regexp.MustCompile(`(?i)((?:token|secret|access[_-]?key|session[_-]?id)["']?\s*[:=]\s*["']?)[^\s"',;&]+`),
 		remplacement: "${1}" + masqueTexte,
-		indices:      []string{"token", "secret", "key", "session"},
+		// Mots exacts de l'expression (relecture perf du 27/11 : « key » et
+		// « session » faisaient essayer l'expression sur « publickey » et sur
+		// chaque « session opened/closed »).
+		indices: []string{"token", "secret", "accesskey", "access_key", "access-key",
+			"sessionid", "session_id", "session-id"},
 	},
 	// api_key=xxx, apikey: xxx, x-api-key: xxx
 	"cles_api": {
 		re:           regexp.MustCompile(`(?i)((?:api[_-]?key|x-api-key|client[_-]?secret)["']?\s*[:=]\s*["']?)[^\s"',;&]+`),
 		remplacement: "${1}" + masqueTexte,
-		indices:      []string{"api", "client"},
+		indices:      []string{"apikey", "api_key", "api-key", "clientsecret", "client_secret", "client-secret"},
 	},
 	// Authorization: Bearer xxx / Basic xxx (en-têtes HTTP)
 	"autorisation": {
@@ -58,7 +64,7 @@ var modeles = map[string]modele{
 	// masqués seulement si la clé de Luhn est bonne (moins de faux positifs).
 	"cartes": {
 		re:       regexp.MustCompile(`\b(?:\d[ -]?){12,18}\d\b`),
-		indices:  nil, // essayé seulement s'il y a assez de chiffres (voir appliquer)
+		indices:  nil, // essayé seulement s'il y a une suite d'au moins 13 chiffres (voir Masquer)
 		verifier: luhn,
 	},
 	// Adresses e-mail (désactivé par défaut : utile au diagnostic).
@@ -89,6 +95,10 @@ const (
 // Masqueur applique les règles choisies.
 type Masqueur struct {
 	regles []modele
+	// tampon : copie en minuscules de la ligne, réutilisée d'une ligne à
+	// l'autre (évite une allocation par ligne). Masquer n'est appelé que
+	// par une goroutine à la fois (sous le verrou du traitement).
+	tampon []byte
 	// Masquees compte les lignes modifiées (métrique interne).
 	Masquees uint64
 }
@@ -131,21 +141,21 @@ func (m *Masqueur) Masquer(ligne string) string {
 	if len(ligne) > tailleMaxLigneMasquee {
 		ligne = ligne[:tailleMaxLigneMasquee]
 	}
-	var minuscule string // calculée seulement si besoin
+	var minuscule []byte // calculée seulement si besoin
 	avant := ligne
 	for i := range m.regles {
 		r := &m.regles[i]
 		if r.verifier != nil {
-			if compterChiffres(ligne) < 13 {
+			if suiteChiffres(ligne) < 13 {
 				continue
 			}
 		} else if len(r.indices) > 0 {
-			if minuscule == "" {
-				minuscule = strings.ToLower(ligne)
+			if minuscule == nil {
+				minuscule = enMinuscules(ligne, &m.tampon)
 			}
 			trouve := false
 			for _, ind := range r.indices {
-				if strings.Contains(minuscule, ind) {
+				if bytes.Contains(minuscule, []byte(ind)) { // conversion sans allocation (chaîne courte)
 					trouve = true
 					break
 				}
@@ -164,7 +174,7 @@ func (m *Masqueur) Masquer(ligne string) string {
 		} else {
 			ligne = r.re.ReplaceAllString(ligne, r.remplacement)
 		}
-		minuscule = ""
+		minuscule = nil
 	}
 	if ligne != avant {
 		m.Masquees++
@@ -172,14 +182,48 @@ func (m *Masqueur) Masquer(ligne string) string {
 	return ligne
 }
 
-func compterChiffres(s string) int {
-	n := 0
+// suiteChiffres : plus longue suite de chiffres séparés au plus par UNE
+// espace ou UN tiret (ce que demande l'expression des cartes). Sous 13,
+// l'expression ne peut pas trouver de carte : elle n'est pas essayée.
+// Relecture perf du 27/11 : compter TOUS les chiffres de la ligne faisait
+// passer l'expression sur presque chaque ligne (adresses IP, heures, PID).
+func suiteChiffres(s string) int {
+	plus, n, sep := 0, 0, false
 	for i := 0; i < len(s); i++ {
-		if s[i] >= '0' && s[i] <= '9' {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9':
 			n++
+			sep = false
+			plus = max(plus, n)
+		case (c == ' ' || c == '-') && n > 0 && !sep:
+			sep = true // un séparateur entre deux chiffres
+		default:
+			n, sep = 0, false
 		}
 	}
-	return n
+	return plus
+}
+
+// enMinuscules : s en minuscules, écrit dans *tampon (réutilisé : pas
+// d'allocation par ligne). Le résultat n'est valable que jusqu'au prochain
+// appel. Une ligne non ASCII passe par strings.ToLower (règles Unicode,
+// ex. signe Kelvin → k, comme l'expression en (?i)).
+func enMinuscules(s string, tampon *[]byte) []byte {
+	b := (*tampon)[:0]
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= utf8.RuneSelf {
+			b = append(b[:0], strings.ToLower(s)...)
+			break
+		}
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b = append(b, c)
+	}
+	*tampon = b
+	return b
 }
 
 // luhn vérifie la clé d'un numéro de carte (espaces et tirets ignorés).

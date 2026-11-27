@@ -150,6 +150,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 					Objet: machine, Lien: lien, Machine: machine})
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	// Pannes vues tout de suite par l'agent (SPEC § 98).
@@ -176,6 +177,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			ajouter(evenement{Le: x.Le, Type: evChangement, Texte: changements.Titre(x.Type) + " : " + x.Resume(), Objet: x.Machine,
 				Lien: "/machines/" + url.PathEscape(x.Machine) + "#changements", Machine: x.Machine})
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	// Maintenances déclarées (début).
@@ -197,6 +199,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			}
 			ajouter(evenement{Le: time.Unix(d, 0), Type: evMaintenance, Texte: texte, Objet: cible, Lien: "/sourdine", Machine: machine})
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	// Réglages (audit) ; machine retrouvée par « machine:ID » ou par le nom.
@@ -210,6 +213,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 				noms[nom] = nom
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	sqlAudit, argsAudit := "", []any{f.Debut.Unix(), f.Fin.Unix()}
@@ -247,6 +251,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 			ajouter(evenement{Le: time.Unix(le, 0), Type: evReglage, Texte: texte, Objet: objet, Lien: "/audit", Machine: machine,
 				Auto: qui == "mirador" || qui == "auto"})
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	// Sauvegardes.
@@ -272,6 +277,7 @@ func (c *Console) journalEvenements(ctx context.Context, f filtreEvenements) []e
 					Objet: "incident " + strconv.FormatInt(inc, 10), Lien: "/incidents/" + strconv.FormatInt(inc, 10)})
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "journalEvenements")
 		_ = rows.Close()
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Le.After(out[j].Le) })
@@ -343,6 +349,7 @@ func (c *Console) pageEvenements(q *req) {
 				d.Machines = append(d.Machines, n)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "pageEvenements")
 		_ = rows.Close()
 	}
 	for _, t := range []string{evAlerte, evSonde, evChangement, evMaintenance, evReglage, evSauvegarde, evNote} {

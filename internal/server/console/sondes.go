@@ -167,7 +167,7 @@ func (c *Console) pageSondes(q *req) {
 		}
 	}
 	// Panneau d'ajout : machine choisie → son bloc (adresses, ports proposés).
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		choisie := q.r.URL.Query().Get("ajouter")
 		d.Ajout.Ouvert = q.r.URL.Query().Get("ajout") != "" || choisie != "" // bouton « + Ajouter une sonde »
 		for _, m := range ms {
@@ -491,7 +491,7 @@ func (c *Console) postSondes(q *req) {
 // nomsMachines : machines approuvées, triées (liste « Machine liée »).
 func (c *Console) nomsMachines(ctx context.Context) []string {
 	var out []string
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				out = append(out, m.Nom)

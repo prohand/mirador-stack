@@ -61,3 +61,15 @@ func TestLireFluxBloque(t *testing.T) {
 		t.Errorf("aller-retour : %+v", h)
 	}
 }
+
+// Comptage sans interface (nom refusé par le collecteur) : relu quand même
+// (revue du 27/11).
+func TestLigneFluxSansInterface(t *testing.T) {
+	for _, sens := range []string{Entrant, Sortant} {
+		f := FluxBloque{Sens: sens, IP: netip.MustParseAddr("9.9.9.9"), Source: netip.MustParseAddr("192.168.1.5"), Proto: "tcp", Port: 443, N: 3}
+		g, ok := LireFluxBloque(LigneFlux(f), true)
+		if !ok || g.Interface != "" || g.N != 3 || g.Sens != sens {
+			t.Errorf("sens %s : %+v, lu=%v (ligne %q)", sens, g, ok, LigneFlux(f))
+		}
+	}
+}
