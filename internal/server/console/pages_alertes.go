@@ -236,9 +236,17 @@ func (c *Console) postAlerte(q *req) {
 			adr := a.Etiquettes.Get("adresse")
 			if a.Regle != "SshAdresseNouvelle" || adr == "" {
 				err = errors.New("pas une alerte de connexion SSH")
-			} else if err = flotte.MarquerSSHConnue(ctx, c.db, adr, q.qui(), q.t); err == nil {
-				_ = Auditer(ctx, c.db, q.qui(), "ssh_adresse_connue", adr, "", "", q.ip.String(), q.t)
-				ok = adr + " est maintenant connue : plus d'alerte pour elle (l'alerte se ferme dans la minute)"
+			} else {
+				// Toutes les machines, ou seulement celle de l'alerte (retour du 27/11).
+				machine, ou := "", "toutes les machines"
+				if q.r.PostFormValue("portee") == "machine" {
+					machine = a.Etiquettes.Get("instance")
+					ou = machine
+				}
+				if _, err = flotte.AjouterSSHConnue(ctx, c.db, adr, machine, "C'est moi (alerte)", q.qui(), q.t); err == nil {
+					_ = Auditer(ctx, c.db, q.qui(), "ssh_adresse_connue", adr+" ("+ou+")", "", "", q.ip.String(), q.t)
+					ok = adr + " est maintenant connue (" + ou + ") : l'alerte se ferme dans la minute. Liste : Réglages › Sécurité"
+				}
 			}
 		}
 	case "acquitter":

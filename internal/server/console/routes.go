@@ -39,6 +39,7 @@ func (c *Console) routes() {
 	m.HandleFunc("GET /securite", c.admin(c.pageSecurite))
 	m.HandleFunc("POST /securite", c.admin(c.postSecurite))
 	m.HandleFunc("POST /securite/fermer-session", c.admin(c.postFermerSession))
+	m.HandleFunc("POST /securite/ssh", c.admin(c.postSSHConnues)) // adresses SSH connues (27/11)
 
 	c.routesPages()
 	c.routesTableaux()

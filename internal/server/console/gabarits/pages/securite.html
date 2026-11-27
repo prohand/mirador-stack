@@ -36,6 +36,18 @@
 {{template "code2fa-toujours"}}<button>Enregistrer</button></div>
 </form>
 
+<section class="carte" id="ssh"><div class="entete-carte"><h2>Adresses SSH connues ({{len .D.SSHConnues}})</h2></div>
+<p class="sous">Une connexion SSH depuis ces adresses ne déclenche pas l'alerte « adresse nouvelle » (règle SshAdresseNouvelle). Une adresse ou une plage, pour toutes les machines ou une seule. Ces adresses ne sont jamais mises dans la liste de blocage.</p>
+{{if .D.SSHConnues}}<div class="defile"><table><thead><tr><th>Adresse ou plage</th><th>Machines</th><th>Note</th><th>Ajoutée</th><th></th></tr></thead><tbody>
+{{range .D.SSHConnues}}<tr><td><code>{{.Prefixe}}</code></td><td>{{if .Machine}}<a href="/machines/{{.Machine}}">{{.Machine}}</a>{{else}}toutes{{end}}</td><td>{{.Note}}</td><td><small class="doux">{{.Par}} · {{dateCourte .Le}}</small></td>
+<td><form method="post" action="/securite/ssh" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="id" value="{{.ID}}"><button name="action" value="retirer" class="secondaire petit" data-confirmer="Retirer {{.Prefixe}} ? Une connexion depuis elle alertera de nouveau.">Retirer</button></form></td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="vide">Aucune : « C'est moi » sur une alerte, ou le formulaire ci-dessous.</p>{{end}}
+<form method="post" action="/securite/ssh" class="ligne">{{template "csrf" .CSRF}}
+<label>Adresse ou plage <input name="plage" required maxlength="50" placeholder="203.0.113.7 ou 203.0.113.0/24"></label>
+<label>Machines <select name="machine"><option value="">Toutes</option>{{range .D.Machines}}<option>{{.}}</option>{{end}}</select></label>
+<label>Note <input name="note" maxlength="100" placeholder="box de la maison"></label>
+<button name="action" value="ajouter" data-code>Ajouter</button></form>
+<small class="aide">Votre adresse actuelle : <code>{{.D.MonIP}}</code>. Plage trop large refusée (au moins /8 en IPv4, /16 en IPv6).</small></section>
 <section class="carte" id="sessions">
 <div class="entete-carte"><h2>Sessions ouvertes ({{len .D.Sessions}})</h2>
 {{if gt (len .D.Sessions) 1}}<form method="post" action="/securite/fermer-session">{{template "csrf" $.CSRF}}<input type="hidden" name="session" value="autres"><button class="secondaire petit" data-confirmer="Fermer toutes les sessions sauf celle-ci ?">Fermer toutes les autres</button></form>{{end}}</div>

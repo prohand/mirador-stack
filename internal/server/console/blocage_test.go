@@ -50,7 +50,7 @@ func TestListeBlocage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := b.c.db.Exec(`INSERT INTO ssh_connues(adresse, par, le) VALUES ('198.51.100.23', 'admin', 0)`); err != nil {
+	if _, err := b.c.db.Exec(`INSERT INTO ssh_connues(prefixe, machine, par, le) VALUES ('198.51.100.23/32', 'web1', 'admin', 0)`); err != nil {
 		t.Fatal(err)
 	}
 	cl, secret := b.premierAdmin("admin", mdpAdmin)

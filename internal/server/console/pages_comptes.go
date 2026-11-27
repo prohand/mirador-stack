@@ -7,7 +7,10 @@ import (
 	"errors"
 	"html/template"
 	"mirador-stack/internal/server/auth"
+	"mirador-stack/internal/server/flotte"
 	"net/http"
+	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -355,6 +358,9 @@ type donneesSecurite struct {
 	Bilan     []pointBilan // ce qui va bien, ce qui est à regarder (SPEC § 38)
 	// Appareils de confiance (SPEC § 78), avec la date où ils expirent.
 	Appareils []appareilVue
+	// Adresses SSH connues (retour du 27/11) et machines (choix de la portée).
+	SSHConnues []flotte.SSHConnue
+	Machines   []string
 }
 
 type appareilVue struct {
@@ -383,7 +389,47 @@ func (c *Console) pageSecurite(q *req) {
 	if us, err := auth.ListerUtilisateurs(q.r.Context(), c.db); err == nil {
 		d.Bilan = bilanSecurite(s, us)
 	}
+	d.SSHConnues, _ = flotte.ListerSSHConnues(q.r.Context(), c.db)
+	d.Machines = c.nomsMachines(q.r.Context())
 	c.rendre(q, "securite", "Sécurité", "securite", d)
+}
+
+// postSSHConnues : ajouter (code 2FA : moins d'alertes) ou retirer une
+// adresse SSH connue (retour du 27/11).
+func (c *Console) postSSHConnues(q *req) {
+	ctx := q.r.Context()
+	var err error
+	ok := ""
+	switch q.r.PostFormValue("action") {
+	case "ajouter":
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
+		machine := strings.TrimSpace(q.r.PostFormValue("machine"))
+		if machine != "" && !slices.Contains(c.nomsMachines(ctx), machine) {
+			err = errors.New("machine inconnue")
+			break
+		}
+		var p netip.Prefix
+		if p, err = flotte.AjouterSSHConnue(ctx, c.db, q.r.PostFormValue("plage"), machine, q.r.PostFormValue("note"), q.qui(), q.t); err == nil {
+			ou := machine
+			if ou == "" {
+				ou = "toutes les machines"
+			}
+			_ = Auditer(ctx, c.db, q.qui(), "ssh_adresse_connue", p.String()+" ("+ou+")", "", "", q.ip.String(), q.t)
+			ok = p.String() + " ajoutée (" + ou + ")"
+		}
+	case "retirer":
+		id, _ := strconv.ParseInt(q.r.PostFormValue("id"), 10, 64)
+		var quoi string
+		if quoi, err = flotte.RetirerSSHConnue(ctx, c.db, id); err == nil {
+			_ = Auditer(ctx, c.db, q.qui(), "ssh_adresse_retiree", quoi, "", "", q.ip.String(), q.t)
+			ok = quoi + " retirée : une connexion depuis elle alertera de nouveau"
+		}
+	default:
+		err = errors.New("action inconnue")
+	}
+	c.retour(q, "/securite#ssh", err, ok)
 }
 
 func (c *Console) postSecurite(q *req) {

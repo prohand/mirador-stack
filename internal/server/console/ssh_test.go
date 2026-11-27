@@ -28,11 +28,14 @@ func TestSSHCestMoi(t *testing.T) {
 	if _, corps, _ := b.get(c, page); !strings.Contains(corps, `value="ssh_connue"`) || !strings.Contains(corps, "<code>198.51.100.23</code>") {
 		t.Fatal("bouton « C'est moi » absent")
 	}
-	b.post(c, page, url.Values{"csrf": {b.csrf(c, page)}, "action": {"ssh_connue"}, "adresse": {"203.0.113.66"}})
-	var adr string
-	_ = b.c.db.QueryRow(`SELECT adresse FROM ssh_connues`).Scan(&adr)
-	if adr != "198.51.100.23" {
-		t.Fatalf("adresse connue : %q (celle du formulaire ne doit pas compter)", adr)
+	if _, corps, _ := b.get(c, page); !strings.Contains(corps, `name="portee" value="machine"`) || !strings.Contains(corps, "Seulement sur web1") {
+		t.Error("bouton « Seulement sur web1 » absent")
+	}
+	b.post(c, page, url.Values{"csrf": {b.csrf(c, page)}, "action": {"ssh_connue"}, "portee": {"machine"}, "adresse": {"203.0.113.66"}})
+	var adr, machine string
+	_ = b.c.db.QueryRow(`SELECT prefixe, machine FROM ssh_connues`).Scan(&adr, &machine)
+	if adr != "198.51.100.23/32" || machine != "web1" {
+		t.Fatalf("adresse connue : %q %q (celle du formulaire ne doit pas compter)", adr, machine)
 	}
 	var n int
 	_ = b.c.db.QueryRow(`SELECT count(*) FROM audit WHERE action = 'ssh_adresse_connue'`).Scan(&n)
@@ -48,5 +51,38 @@ func TestSSHCestMoi(t *testing.T) {
 	_ = b.c.db.QueryRow(`SELECT count(*) FROM ssh_connues`).Scan(&n)
 	if n != 1 {
 		t.Errorf("adresse d'une autre alerte rendue connue : %d", n)
+	}
+}
+
+// Réglages › Sécurité : adresses SSH connues, ajout (toutes ou une machine)
+// et retrait (retour du 27/11).
+func TestSSHConnuesSecurite(t *testing.T) {
+	b := nouveauBanc(t)
+	b.machinesApprouvees(t, "web1")
+	c, _ := b.premierAdmin("admin", mdpAdmin)
+	ajouter := func(plage, machine string) {
+		b.post(c, "/securite/ssh", url.Values{"csrf": {b.csrf(c, "/securite")}, "action": {"ajouter"}, "plage": {plage}, "machine": {machine}, "note": {"box"}})
+	}
+	ajouter("203.0.113.0/24", "")
+	ajouter("198.51.100.7", "web1")
+	ajouter("0.0.0.0/0", "")         // trop large : refusé
+	ajouter("192.0.2.1", "inconnue") // machine inconnue : refusé
+	_, corps, _ := b.get(c, "/securite")
+	for _, attendu := range []string{"Adresses SSH connues (2)", "<code>203.0.113.0/24</code>", "<code>198.51.100.7/32</code>", `href="/machines/web1">web1</a>`} {
+		if !strings.Contains(corps, attendu) {
+			t.Errorf("page Sécurité : %q absent", attendu)
+		}
+	}
+	var id string
+	_ = b.c.db.QueryRow(`SELECT id FROM ssh_connues WHERE machine = 'web1'`).Scan(&id)
+	b.post(c, "/securite/ssh", url.Values{"csrf": {b.csrf(c, "/securite")}, "action": {"retirer"}, "id": {id}})
+	var n int
+	_ = b.c.db.QueryRow(`SELECT count(*) FROM ssh_connues`).Scan(&n)
+	if n != 1 {
+		t.Errorf("après retrait : %d", n)
+	}
+	_ = b.c.db.QueryRow(`SELECT count(*) FROM audit WHERE action IN ('ssh_adresse_connue', 'ssh_adresse_retiree')`).Scan(&n)
+	if n != 3 {
+		t.Errorf("audit : %d", n)
 	}
 }
