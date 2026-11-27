@@ -3,6 +3,7 @@
 package console
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -52,6 +53,11 @@ func TestElementsFichesEtiquettes(t *testing.T) {
 	if strings.Contains(corps, `href="/sondes/Nextcloud"`) || !strings.Contains(corps, `href="/machines/web1"`) {
 		t.Error("filtre par étiquette")
 	}
+	// Recherche par nom (grand parc, SPEC § 141).
+	_, corps, _ = b.get(cl, "/elements?q=NEXT")
+	if !strings.Contains(corps, `href="/sondes/Nextcloud"`) || strings.Contains(corps, `href="/machines/web1"`) {
+		t.Error("recherche par nom")
+	}
 	for chemin, attendus := range map[string][]string{
 		"/sondes/Nextcloud":   {"Disponibilité 30 j", "Échec", "fait partie de", "Page Sondes"},
 		"/applications/Cloud": {"En panne", "comprend", "Page Applications"},
@@ -69,4 +75,31 @@ func TestElementsFichesEtiquettes(t *testing.T) {
 		t.Errorf("fiche inconnue : %d", code)
 	}
 	_ = time.Second
+}
+
+// Pages de la liste des éléments (grand parc, SPEC § 141).
+func TestElementsPages(t *testing.T) {
+	b := nouveauBanc(t)
+	noms := make([]string, 0, elementsParPage+5)
+	for i := range elementsParPage + 5 {
+		noms = append(noms, fmt.Sprintf("srv-%03d", i))
+	}
+	b.machinesApprouvees(t, noms...)
+	cl, _ := b.premierAdmin("admin", mdpAdmin)
+	_, corps, _ := b.get(cl, "/elements?sorte=machine")
+	if n := strings.Count(corps, `href="/machines/srv-`); n < elementsParPage || n > elementsParPage+2 {
+		t.Errorf("page 1 : %d liens", n)
+	}
+	if !strings.Contains(corps, "page 1 / 2") || !strings.Contains(corps, `href="/elements?page=2&amp;sorte=machine"`) {
+		t.Error("lien vers la page 2 absent")
+	}
+	_, corps, _ = b.get(cl, "/elements?sorte=machine&page=2")
+	if !strings.Contains(corps, "page 2 / 2") || !strings.Contains(corps, "← précédents") {
+		t.Error("page 2")
+	}
+	// Page hors limites : ramenée à la dernière.
+	_, corps, _ = b.get(cl, "/elements?sorte=machine&page=99")
+	if !strings.Contains(corps, "page 2 / 2") {
+		t.Error("page hors limites")
+	}
 }

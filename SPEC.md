@@ -9049,7 +9049,7 @@ Choix B (maquette « grand parc » validée : « oui »).
 - Menaces : paramètres par, site, groupe lus comme texte, comparés aux
   noms de l'inventaire, toujours échappés ; rien de nouveau exposé.
 
-## 141. Grand parc : jusqu'à 1 500 machines (27/11) **[Fait côté serveur, à valider ; interface : maquettes]**
+## 141. Grand parc : jusqu'à 1 500 machines (27/11) **[Fait, à valider]**
 
 Demande du 27/11 : « trouve d'autres améliorations pour un grand parc »,
 puis « fais tout » ; cible : homelab de 40 machines, mirador déployable sur
@@ -9084,9 +9084,22 @@ ou par un essai avant correction.
 - **Vérifiés, non changés** : règle « machine muette » (1 500 machines ×
   24 h : 0,22 s, aucune erreur) et prévision brute sur 7 j (la limite de
   500 000 points ne joue pas : séries lues une à une).
-- **Reste (interface, maquettes à valider)** : actions de masse, recherche
-  et filtre par site sur les listes, vue d'ensemble par site, pages rendues
-  deux fois (tuiles + tableau).
+- **Interface (maquettes validées le 27/11)** :
+  - Machines : recherche, filtres site et groupe, sites repliés au-delà de
+    50 machines, actions de masse (approuver tout, actualiser, étiquettes,
+    version cible avec 2FA).
+  - Vue d'ensemble : coup d'œil par site (8 au plus), blocs masqués non
+    calculés.
+  - Mises à jour par vagues : 30 min de santé par vague, un échec met en
+    pause ; filtre par site, « réessayer les échecs ».
+  - Alertes regroupées par site au-delà de 20 machines ; acquitter (4 h) ou
+    faire taire (1 h) tout un groupe.
+  - Listes : machine à taper (Logs, Événements) ; Conteneurs construit une
+    seule vue ; Éléments : recherche + pages de 200 ; Sondes : recherche
+    (nom, adresse, machine) + « En problème », courbe non calculée pour
+    une ligne masquée ; Tâches : recherche (tâche ou machine).
+  - Coût : pages plus légères (une vue au lieu de deux, 200 lignes au plus
+    pour Éléments) ; rien de plus pour 40 machines.
 - Coût : rien de plus pour 40 machines ; au-delà, mémoire et disque
   proportionnels (tableau de la doc), CPU ~×(machines/27) (à mesurer).
 - Menaces : taille prévue réservée à l'administrateur, bornée (0 à 5 000),

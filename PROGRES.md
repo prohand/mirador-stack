@@ -2054,7 +2054,10 @@ places séparées, signal par machine, compteur « à valider » sans attente,
 tableaux « les plus critiques », prévision par paquets, logs par machine
 (2 blocs lus au lieu de 60), sourdine en une passe (2 000 alertes en
 0,04 s). Vérifiés sans changement : règle « machine muette » (1 500 ×
-24 h : 0,22 s) et prévision brute 7 j. Interface : maquettes à faire.
+24 h : 0,22 s) et prévision brute 7 j. Interface (maquettes validées) :
+Machines (recherche, sites, actions de masse), coup d'œil par site, mises
+à jour par vagues, alertes regroupées, listes avec recherche (Éléments en
+pages de 200, Sondes, Tâches, Logs, Événements), Conteneurs en une vue.
 
 ## Prochaine étape
 

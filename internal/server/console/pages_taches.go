@@ -240,6 +240,8 @@ type donneesTaches struct {
 	// « en problème seulement ».
 	Groupes  []groupeTaches
 	Probleme bool
+	// Q : recherche par nom de tâche ou de machine (grand parc, SPEC § 141).
+	Q string
 	// SansSauvegarde : VM et conteneurs qu'aucun travail de sauvegarde
 	// Proxmox ne couvre (SPEC § 95, lu par l'assistant root).
 	SansSauvegarde []vmSansSauvegarde
@@ -467,12 +469,39 @@ func (c *Console) pageTaches(q *req) {
 
 // rendreTaches : page des tâches (groupes par machine, filtre).
 func (c *Console) rendreTaches(q *req, d donneesTaches) {
-	d.Groupes = grouperTaches(d.Suivies, d.Probleme)
+	d.Q = strings.TrimSpace(q.r.URL.Query().Get("q"))
+	if len(d.Q) > 100 {
+		d.Q = d.Q[:100]
+	}
+	suivies := d.Suivies
+	if d.Q != "" {
+		qmin := strings.ToLower(d.Q)
+		suivies = nil
+		for _, l := range d.Suivies {
+			if strings.Contains(strings.ToLower(l.T.Nom+" "+l.T.Libelle+" "+l.T.Machine), qmin) {
+				suivies = append(suivies, l)
+			}
+		}
+		d.Detectees = chercherDetectees(d.Detectees, qmin)
+		d.DuSysteme = chercherDetectees(d.DuSysteme, qmin)
+	}
+	d.Groupes = grouperTaches(suivies, d.Probleme)
 	if d.Probleme {
 		d.Detectees = filtrerEchecs(d.Detectees)
 		d.DuSysteme = filtrerEchecs(d.DuSysteme)
 	}
 	c.rendre(q, "taches", "Tâches planifiées", "taches", d)
+}
+
+// chercherDetectees : tâches détectées dont le nom ou la machine contient qmin.
+func chercherDetectees(l []tacheDetectee, qmin string) []tacheDetectee {
+	var out []tacheDetectee
+	for _, x := range l {
+		if strings.Contains(strings.ToLower(x.Nom+" "+x.Machine), qmin) {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // filtrerEchecs : tâches détectées dont la dernière exécution a échoué.

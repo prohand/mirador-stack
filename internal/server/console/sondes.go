@@ -69,6 +69,12 @@ type donneesSondes struct {
 	Toutes                    []string // machines approuvées (« Machine liée »)
 	FiltreSur                 filtreSur
 	Ajout                     ajoutSonde
+	// Grand parc (SPEC § 141) : recherche (nom, cible, machine) et « en
+	// problème ». Les compteurs restent ceux de toutes les sondes.
+	Q          string
+	Probleme   bool
+	NbProbleme int
+	Caches     int // sondes masquées par la recherche ou le filtre
 }
 
 // ajoutSonde : panneau « + Ajouter une sonde » en haut de la page (retour du
@@ -133,7 +139,12 @@ func (c *Console) nbSondesEnEchec(ctx context.Context, t time.Time) int {
 
 func (c *Console) pageSondes(q *req) {
 	ctx := q.r.Context()
-	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx), EnEssai: enEssai(q)}
+	d := donneesSondes{Depuis: []string{essais.ServeurLocal}, Toutes: c.nomsMachines(ctx), EnEssai: enEssai(q),
+		Q: strings.TrimSpace(q.r.URL.Query().Get("q")), Probleme: q.r.URL.Query().Get("filtre") == "probleme"}
+	if len(d.Q) > 100 {
+		d.Q = d.Q[:100]
+	}
+	qmin := strings.ToLower(d.Q)
 	if cs, err := flotte.Collecteurs(ctx, c.db); err == nil {
 		d.Depuis = append(d.Depuis, cs...)
 	}
@@ -200,6 +211,14 @@ func (c *Console) pageSondes(q *req) {
 		}
 		if bilan == bilanOK || bilan == bilanLente {
 			durees = append(durees, lues["duree"][k].Valeur*1000)
+		}
+		if l.Probleme {
+			d.NbProbleme++
+		}
+		// Filtres d'affichage : ligne non construite (courbe comprise).
+		if (d.Probleme && !l.Probleme) || (qmin != "" && !strings.Contains(strings.ToLower(s.Nom+" "+s.Cible+" "+s.Machine), qmin)) {
+			d.Caches++
+			continue
 		}
 		l.ClasseLigne = map[int]string{bilanOK: "ok", bilanLente: "lente", bilanEchec: "echec"}[bilan]
 		l.TriEtat = strconv.Itoa(map[int]int{bilanEchec: 0, bilanLente: 1, bilanSansEssai: 2, bilanOK: 3}[bilan])

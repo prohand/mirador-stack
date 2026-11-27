@@ -63,6 +63,13 @@ func TestTachesPing(t *testing.T) {
 	if strings.Contains(corps, chemin) {
 		t.Error("le jeton ne doit plus être affiché")
 	}
+	// Recherche par nom ou machine (grand parc, SPEC § 141).
+	if _, c1, _ := b.get(c, "/taches?q=nas"); !strings.Contains(c1, "Échec · code 3") || !strings.Contains(c1, `value="nas"`) {
+		t.Error("recherche : tâche attendue absente")
+	}
+	if _, c2, _ := b.get(c, "/taches?q=introuvable"); strings.Contains(c2, "Échec · code 3") {
+		t.Error("recherche : tâche non filtrée")
+	}
 	// Limite : 60 appels par minute et par adresse.
 	n := 0
 	for i := 0; i < 70; i++ {
