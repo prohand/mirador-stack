@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"html/template"
 	"math"
+	"mirador-stack/internal/server/flotte"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +37,11 @@ type groupeAlertes struct {
 	Titre, Lien string
 	Gravites    []string
 	Alertes     []vueAlerte
+	// Grand parc (SPEC § 141) : clé du groupe (actions de groupe) et
+	// résumé (« 271 machines · Paris 88, Lyon 71, + 12 sites »).
+	Cle    string
+	Resume string
+	Ouvert bool
 }
 
 // donneesEnCours : bloc « en cours » (page et fragment rechargé).
@@ -49,16 +56,43 @@ type donneesEnCours struct {
 	Masquees                         []resumeAlerte          // conséquences d'une alerte plus grave (bloc replié)
 	Sites                            []notif.SiteInjoignable // sites injoignables (SPEC § 39)
 	Retour                           string                  // page après une action sur une ligne
+	Grand                            bool                    // beaucoup d'alertes : groupes repliés, pas de mini-courbes
 }
 
 // maxCourbes : mini-courbes calculées par affichage (coût borné).
 const maxCourbes = 30
 
 func vueAlertesValide(v string) string {
-	if v == "regle" || v == "liste" {
+	if v == "regle" || v == "liste" || v == "site" {
 		return v
 	}
 	return "machine"
+}
+
+// cleGroupeAlerte : groupe d'une alerte selon la vue (machine, règle, site).
+func cleGroupeAlerte(r resumeAlerte, vue string, sites map[string]string) (cle, titre, lien string) {
+	switch {
+	case vue == "site":
+		s := sites[r.Machine]
+		if s == "" {
+			return "s:", "sans site", "/machines"
+		}
+		return "s:" + s, "Site " + s, "/machines?site=" + url.QueryEscape(s)
+	case vue == "regle" || r.Machine == "":
+		return "r:" + r.Regle, libelleRegle(r.Regle), "/alertes?regle=" + url.QueryEscape(r.Regle)
+	}
+	return r.Machine, r.Machine, "/machines/" + url.PathEscape(r.Machine)
+}
+
+// sitesMachines : site de chaque machine (vue « par site », résumés).
+func (c *Console) sitesMachines(ctx context.Context) map[string]string {
+	out := map[string]string{}
+	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+		for _, m := range ms {
+			out[m.Nom] = m.Site
+		}
+	}
+	return out
 }
 
 // enCoursVue : alertes en cours groupées, avec leurs mini-courbes.
@@ -101,29 +135,71 @@ func (c *Console) enCoursVue(ctx context.Context, vue string, t time.Time) donne
 	}
 	index := map[string]int{}
 	n := 0
+	sites := c.sitesMachines(ctx)
+	// Grand parc : au-delà de maxCourbes alertes, groupes repliés (le plus
+	// grave ouvert) et pas de mini-courbes (30 requêtes toutes les 30 s
+	// par onglet ouvert, pour des courbes que personne ne déplie).
+	d.Grand = len(rs) > maxCourbes
 	for _, r := range rs {
-		cle, titre, lien := r.Machine, r.Machine, "/machines/"+url.PathEscape(r.Machine)
-		if d.Vue == "regle" || r.Machine == "" {
-			cle, titre, lien = "r:"+r.Regle, libelleRegle(r.Regle), "/alertes?regle="+url.QueryEscape(r.Regle)
-		}
+		cle, titre, lien := cleGroupeAlerte(r, d.Vue, sites)
 		i, ok := index[cle]
 		if !ok {
 			i = len(d.Groupes)
 			index[cle] = i
-			d.Groupes = append(d.Groupes, groupeAlertes{Titre: titre, Lien: lien})
+			d.Groupes = append(d.Groupes, groupeAlertes{Titre: titre, Lien: lien, Cle: cle, Ouvert: !d.Grand})
 		}
 		g := &d.Groupes[i]
 		if !contientTexte(g.Gravites, r.Gravite) {
 			g.Gravites = append(g.Gravites, r.Gravite)
 		}
 		v := vueAlerte{resumeAlerte: r}
-		if n < maxCourbes && c.lecteur != nil {
+		if !d.Grand && n < maxCourbes && c.lecteur != nil {
 			n++
 			v.Courbe = c.courbeAlerte(ctx, exprs[r.Regle], etiquettes[r.ID], r.Gravite, t, 6*time.Hour, 120, 28)
 		}
 		g.Alertes = append(g.Alertes, v)
 	}
+	if d.Grand {
+		for i := range d.Groupes {
+			d.Groupes[i].Resume = resumeGroupe(d.Groupes[i].Alertes, d.Vue, sites)
+		}
+		if len(d.Groupes) > 0 {
+			d.Groupes[0].Ouvert = true
+		}
+	}
 	return d
+}
+
+// resumeGroupe : « 271 machines · Paris 88, Lyon 71, + 12 sites » (vue par
+// règle), « 48 machines » (vue par site).
+func resumeGroupe(as []vueAlerte, vue string, sites map[string]string) string {
+	machines := map[string]bool{}
+	parSite := map[string]int{}
+	for _, a := range as {
+		if a.Machine != "" && !machines[a.Machine] {
+			machines[a.Machine] = true
+			if s := sites[a.Machine]; s != "" {
+				parSite[s]++
+			}
+		}
+	}
+	if len(machines) < 2 {
+		return ""
+	}
+	r := nbMachines(len(machines))
+	if vue == "regle" && len(parSite) > 0 {
+		cs := trierComptes(parSite)
+		var l []string
+		for i, x := range cs {
+			if i == 2 {
+				l = append(l, "+ "+strconv.Itoa(len(cs)-2)+" "+accorder(len(cs)-2, "site(s)"))
+				break
+			}
+			l = append(l, x.Nom+" "+strconv.Itoa(x.N))
+		}
+		r += " · " + strings.Join(l, ", ")
+	}
+	return r
 }
 
 func contientTexte(l []string, s string) bool {

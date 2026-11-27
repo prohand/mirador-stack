@@ -157,3 +157,24 @@ func TestPageVagues(t *testing.T) {
 	}
 	b.post(c, "/mises-a-jour", url.Values{"csrf": {jeton}, "action": {"reessayer_echecs"}, "code": {b.code(secret)}})
 }
+
+// Alertes, grand parc : groupe par site, résumé d'un groupe par règle.
+func TestGroupesAlertesGrandParc(t *testing.T) {
+	sites := map[string]string{"p1": "Paris", "p2": "Paris", "l1": "Lyon", "m1": "Marseille", "x": ""}
+	if k, titre, lien := cleGroupeAlerte(resumeAlerte{Machine: "p1", Regle: "DisqueFaible"}, "site", sites); k != "s:Paris" || titre != "Site Paris" || lien != "/machines?site=Paris" {
+		t.Errorf("site : %q %q %q", k, titre, lien)
+	}
+	if k, titre, _ := cleGroupeAlerte(resumeAlerte{Machine: "x"}, "site", sites); k != "s:" || titre != "sans site" {
+		t.Errorf("sans site : %q %q", k, titre)
+	}
+	if k, _, _ := cleGroupeAlerte(resumeAlerte{Machine: "p1", Regle: "DisqueFaible"}, "regle", sites); k != "r:DisqueFaible" {
+		t.Errorf("règle : %q", k)
+	}
+	var as []vueAlerte
+	for _, m := range []string{"p1", "p2", "l1", "m1"} {
+		as = append(as, vueAlerte{resumeAlerte: resumeAlerte{Machine: m}})
+	}
+	if r := resumeGroupe(as, "regle", sites); r != "4 machines · Paris 2, Lyon 1, + 1 site" {
+		t.Errorf("résumé : %q", r)
+	}
+}

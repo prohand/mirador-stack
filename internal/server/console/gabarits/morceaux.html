@@ -274,7 +274,10 @@
  <span class="tuile"><small>Nouvelles depuis ta dernière visite</small><b data-nb-nouvelles>0</b></span>
 </div>
 {{if eq $v.Vue "liste"}}<section class="carte">{{template "liste-alertes" $v.Liste}}</section>
-{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary>{{with $g.Gravites}}<span class="point-gravite {{index . 0}}" title="Alerte la plus grave du groupe"></span>{{end}}<strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong><span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}</span></summary>
+{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes"{{if $g.Ouvert}} open{{end}}><summary>{{with $g.Gravites}}<span class="point-gravite {{index . 0}}" title="Alerte la plus grave du groupe"></span>{{end}}<strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong><span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}{{with $g.Resume}} · {{.}}{{end}}</span>
+{{if and $.Admin $v.Grand (gt (len $g.Alertes) 1)}}<span class="actions-groupe"><form method="post" action="/alertes/groupe" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="vue" value="{{$v.Vue}}"><input type="hidden" name="cle" value="{{$g.Cle}}"><input type="hidden" name="retour" value="{{$v.Retour}}">
+<button name="action" value="acquitter" class="petit secondaire" title="Je m'en occupe : plus de rappel pendant 4 h">Acquitter les {{len $g.Alertes}}</button>
+<button name="action" value="silence" class="petit secondaire" title="Silence d'une heure sur chacune">Silence 1 h</button></form></span>{{end}}</summary>
 <div class="defile"><table class="table-alertes" data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
 {{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
 <td><a class="titre" href="/alertes/{{.ID}}" title="Règle {{.Regle}}">{{nomAlerte .Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>

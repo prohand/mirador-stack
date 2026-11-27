@@ -2803,3 +2803,4 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .maj-vagues-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .maj-outils { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 10px; }
 @media (max-width: 700px) { .maj-vagues { grid-auto-flow: row; } .maj-vague { border-left: 0; border-top: 1px solid var(--bord); } .maj-vague:first-child { border-top: 0; } }
+.groupe-alertes .actions-groupe { margin-left: auto; display: inline-flex; gap: 6px; }

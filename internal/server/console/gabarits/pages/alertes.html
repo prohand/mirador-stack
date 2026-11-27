@@ -1,7 +1,7 @@
 {{define "contenu"}}
 <h1>Alertes</h1>
 {{template "onglets-alertes" "alertes"}}
-<div class="barre-alertes"><span class="segment">{{range $x := (liste "machine" "regle" "liste")}}<a href="/alertes?vue={{$x}}"{{if eq $x $.D.Vue.Vue}} class="actif"{{end}}>{{if eq $x "machine"}}Par machine{{else if eq $x "regle"}}Par règle{{else}}Liste{{end}}</a>{{end}}</span>
+<div class="barre-alertes"><span class="segment">{{range $x := (liste "machine" "regle" "site" "liste")}}<a href="/alertes?vue={{$x}}"{{if eq $x $.D.Vue.Vue}} class="actif"{{end}}>{{if eq $x "machine"}}Par machine{{else if eq $x "regle"}}Par règle{{else if eq $x "site"}}Par site{{else}}Liste{{end}}</a>{{end}}</span>
 <span class="maj">Mis à jour toutes les 30 s</span></div>
 <div data-rafraichir="/fragments/alertes?vue={{.D.Vue.Vue}}" data-intervalle="30">{{template "alertes-en-cours" (dict "D" .D.Vue "Admin" .Admin "CSRF" .CSRF)}}</div>
 {{$f := .D.Frise}}<section class="carte" id="frise"><div class="barre-alertes"><h2>Historique</h2>
