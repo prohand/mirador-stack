@@ -52,16 +52,16 @@ type Options struct {
 	Series   LimitesSeries
 	Horloge  LimitesHorloge
 
-	MaxCorpsMetriques int64   // octets compressés
-	MaxSimultanees    int     // requêtes décodées en même temps
+	MaxCorpsMetriques int64 // octets compressés
+	MaxSimultanees    int   // requêtes décodées en même temps
 	// Grand parc (SPEC § 141) : petites requêtes (config, battement, maj,
 	// direct) et téléchargements de binaires ont leurs propres places, pour
 	// ne pas prendre celles du décodage des métriques et des logs.
 	MaxLegeres, MaxTelechargements int
-	RequetesMachine   float64 // requêtes par seconde et par machine (rafale ×10)
-	RequetesIP        float64 // requêtes par seconde et par IP (rafale ×4) ; plusieurs machines derrière un même NAT
-	EchecsIP          float64 // échecs d'authentification par seconde et par IP (rafale 10)
-	LignesMinute      int     // lignes de logs par minute et par machine (rafale : 1 minute)
+	RequetesMachine                float64 // requêtes par seconde et par machine (rafale ×10)
+	RequetesIP                     float64 // requêtes par seconde et par IP (rafale ×4) ; plusieurs machines derrière un même NAT
+	EchecsIP                       float64 // échecs d'authentification par seconde et par IP (rafale 10)
+	LignesMinute                   int     // lignes de logs par minute et par machine (rafale : 1 minute)
 
 	Maintenant func() time.Time // remplaçable dans les tests
 
@@ -133,9 +133,9 @@ type Compteurs struct {
 
 // Ingestion : points d'entrée des machines.
 type Ingestion struct {
-	opt    Options
-	auth   *Auth
-	quotas *Quotas
+	opt                     Options
+	auth                    *Auth
+	quotas                  *Quotas
 	places, legeres, telech chan struct{} // décodage, petites requêtes, binaires (SPEC § 141)
 
 	parIP, echecsIP, parMachine, lignes *Limiteur
