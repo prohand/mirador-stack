@@ -1,0 +1,12 @@
+{{define "contenu"}}
+<h1>Liste de blocage</h1>
+<section class="carte"><h2>Adresse de lecture</h2>
+<p class="sous">Montrée <b>une seule fois</b> : la copier maintenant. Elle ne donne accès qu'à la liste des adresses bloquées.</p>
+<pre class="url-jeton">{{.D.URL}}</pre>
+<p><b>OPNsense</b> : Pare-feu › Alias › type « URL Table (IPs) », coller cette adresse.</p>
+<p><b>VPS</b> (une fois par VPS, à lancer vous-même) :</p>
+<pre>curl -fsS {{.D.Script}} -o mirador-blocage.sh
+sudo sh mirador-blocage.sh {{.D.URL}}</pre>
+<p><a class="bouton secondaire" href="/flux-bloques?vue=reseau#blocage">Retour à Flux bloqués</a></p>
+</section>
+{{end}}

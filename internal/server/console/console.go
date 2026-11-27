@@ -105,6 +105,9 @@ type Console struct {
 	dernierNettoyageConfiance time.Time
 	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
 	pings limitePing
+	// Liste de blocage (27/11) : lectures limitées, liste gardée 10 min.
+	lecturesBlocage limitePing
+	blocage         cacheBlocage
 	// statuts : limite des lectures de la page de statut publique (SPEC § 84).
 	statuts limitePing
 
@@ -320,6 +323,12 @@ func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// forcément) ; protégé par le jeton, ne permet qu'une chose.
 	if strings.HasPrefix(r.URL.Path, "/ping/") {
 		c.servirPing(w, r)
+		return
+	}
+	// Liste de blocage (demande du 27/11) : lue par OPNsense et les VPS,
+	// protégée par le jeton ; le script d'installation est public.
+	if strings.HasPrefix(r.URL.Path, "/blocage/") {
+		c.servirBlocage(w, r)
 		return
 	}
 	// Page de statut publique (SPEC § 84) : même principe, en lecture seule.

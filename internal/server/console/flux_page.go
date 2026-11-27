@@ -30,6 +30,7 @@ import (
 func (c *Console) routesFlux() {
 	c.mux.HandleFunc("GET /flux-bloques", c.lecture(c.pageFlux))
 	c.mux.HandleFunc("GET /flux-bloques/direct", c.lecture(c.fluxBloquesDirect))
+	c.mux.HandleFunc("POST /flux-bloques/blocage", c.admin(c.postBlocage)) // liste de blocage (27/11)
 }
 
 // Périodes proposées.
@@ -125,6 +126,7 @@ type ligneFil struct {
 }
 
 type donneesFlux struct {
+	Blocage                 *vueBlocage // liste de blocage (Mon réseau, 27/11)
 	Periode, Vue            string
 	Periodes, Vues          []lienFlux
 	Direct                  bool
@@ -263,6 +265,7 @@ func (c *Console) pageFlux(q *req) {
 		d.SansFiltre = lienFluxAvec(v, "", "", true)
 	}
 	if c.opt.Flux == nil {
+		c.vueBlocageFlux(q, &d)
 		c.rendre(q, "flux", "Flux bloqués", "tableaux", d)
 		return
 	}
@@ -395,6 +398,7 @@ func (c *Console) pageFlux(q *req) {
 			d.TableSans++
 		}
 	}
+	c.vueBlocageFlux(q, &d)
 	c.rendre(q, "flux", "Flux bloqués", "tableaux", d)
 }
 

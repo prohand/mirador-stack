@@ -9114,3 +9114,69 @@ ou par un essai avant correction.
   plus de places = plus de mémoire au pire (16 Mo par requête décodée,
   dans le budget calculé) ; limites par adresse relevées avec le parc (les
   échecs d'authentification gardent leur propre limite).
+## 142. Sept améliorations du 27/11 (maquettes validées le 27/11) **[Fait, à valider]**
+
+Choix de l'utilisateur : SSH en alerte (avertissement), nouveau port en
+événement + règle désactivée, liste de blocage appliquée sur les VPS par une
+minuterie installée par lui (mirador ne modifie toujours aucun pare-feu,
+§ 136), résumé désactivable, alerte « Que faire » discrète.
+
+- **« Que faire ? » par règle** : champ `procedure` (2 000 caractères,
+  texte brut échappé) ; page de l'alerte : une ligne grise repliée ;
+  message : une seule ligne « 📝 Procédure : voir l'alerte ». Coût : nul.
+- **Résumé de la semaine** : lundi 8 h par défaut, jour et heure réglables,
+  désactivable (Réglages › Notifications, clé de réglage à part) ;
+  alertes, disponibilité sous 100 %, disques bientôt pleins, tâches et
+  sauvegardes en échec, mises à jour de sécurité et redémarrages, flux
+  bloqués ; une ligne seulement s'il y a quelque chose à dire ; envoyé
+  comme « info » sans son, noté avant l'envoi (jamais répété).
+  « Envoyer maintenant » pour essayer. Coût : quelques requêtes par semaine.
+- **Ports** : `mirador_port_ecoute` (déjà envoyé) comparé chaque minute par
+  le suivi des changements : « Port ouvert : tcp/8080 (http) » / « Port
+  fermé » ; rien pour une machine nouvelle ni une machine muette ; règle
+  `NouveauPortEnEcoute` (info) **désactivée par défaut**. Le nom du
+  programme n'est pas connu (il faudrait root) : le message dit d'utiliser
+  `ss -ltnp`. Coût : une requête par minute.
+- **SSH depuis une adresse nouvelle** : l'agent lit déjà le journal ; une
+  ligne « Accepted … for U from A » devient un événement (une fois par
+  adresse et utilisateur toutes les 10 min). Le serveur ignore LAN, boucle,
+  lien local, CGNAT ; garde les adresses publiques par machine 90 jours ;
+  adresse nouvelle → événement, série `mirador_ssh_adresse_nouvelle` 24 h,
+  règle `SshAdresseNouvelle` (avertissement). « C'est moi » sur l'alerte :
+  adresse connue partout (prise dans l'alerte, jamais dans le formulaire,
+  auditée). Nécessite l'agent 0.6.32 et le journal activé.
+- **Noms de domaine** : domaines principaux tirés des sondes (liste
+  publique des suffixes, `golang.org/x/net/publicsuffix`, BSD) ; une ligne
+  et une alerte par domaine ; RDAP par l'annuaire IANA (gardé 7 j), une
+  lecture par jour, https seulement, 1 Mio au plus, la dernière date reste
+  si le registre ne répond pas ; règles `DomaineExpireBientot` (30 j) et
+  `DomaineExpireTresBientot` (7 j, critique). Réglages › Certificats.
+  Coût : quelques requêtes HTTPS par jour.
+- **Prévision étendue** : inodes (même calcul que la place libre) et volumes
+  RAID du NAS (`raidFreeSize`, SNMP) ; ZFS déjà couvert par les systèmes
+  de fichiers montés. Coût : 2 à 4 requêtes de plus toutes les 10 min.
+- **Liste de blocage** : désactivée par défaut, code 2FA pour l'activer et
+  pour créer l'adresse de lecture (jeton 144 bits, gardé haché, montré une
+  fois). Adresses bloquées par N pare-feu (2) ou N fois (500) sur la période
+  (7 j au plus : adresses gardées 7 jours). Jamais bloquées : LAN, adresses
+  des machines, adresses autorisées de l'interface, adresses SSH connues,
+  liste de l'utilisateur. 2 000 adresses au plus, gardée 10 min. Lue sans
+  session (comme `/ping/`), 60 lectures par minute et par adresse.
+  OPNsense : alias « URL Table (IPs) ». VPS : `mirador-blocage.sh` (lu et
+  lancé par l'utilisateur) : sa propre table nftables `inet
+  mirador_blocage`, minuterie 15 min, liste refusée si une ligne n'est pas
+  une adresse, rien ne change si la liste est injoignable ; `--retirer`.
+  Vérifié avec `nft -c` (liste pleine et vide).
+- Menaces :
+  - jeton de la liste volé : l'attaquant lit la liste des adresses bloquées
+    (rien d'autre) ; « Nouvelle adresse » le change ;
+  - serveur mirador compromis : il peut faire bloquer des adresses par les
+    VPS. Limites : jamais les adresses autorisées, SSH connues, LAN, ni
+    celles des machines, 2 000 au plus, table à part qui ne touche pas aux
+    règles de l'utilisateur ; `--retirer` défait tout ;
+  - événement SSH forgé par un agent : il ne peut ouvrir qu'une alerte sur
+    sa propre machine (jeton de l'agent) ;
+  - RDAP : réponse d'un registre lue comme donnée (date seulement), bornée.
+- Retour à une version d'avant : les règles qui ont un « Que faire »
+  deviennent illisibles pour l'ancien serveur (champ inconnu) : retirer le
+  texte avant de revenir en arrière.

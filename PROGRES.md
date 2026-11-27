@@ -2088,8 +2088,12 @@ d'obligatoire).
 **Facultatif**
 - Essai réel d'Olvid (`docs/olvid.md`).
 
-**Ensuite** : nouvelles améliorations proposées le 27/11 (liste dans la
-réponse du jour ; ce qui est retenu sera décrit dans SPEC).
+**Fait le 27/11 (SPEC § 142, maquettes validées)** : « Que faire » par
+règle, résumé de la semaine, ports en écoute, SSH depuis une adresse
+nouvelle (agent 0.6.32), expiration des domaines (RDAP), prévision des
+inodes et volumes RAID, liste de blocage (OPNsense + script VPS). Coût
+estimé faible (quelques requêtes par minute ou par jour) ; mesure réelle
+avec celle en cours sur le VPS.
 
 Historique : mode **actif** (Telegram) depuis le 13/11 ; ancienne stack
 supprimée le 24/11 ; archives effacées le 26/11. L'ancien texte de cette
