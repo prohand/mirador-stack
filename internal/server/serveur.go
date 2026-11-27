@@ -198,7 +198,13 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		}
 	}
 	s.flux = fluxbloques.NouveauFlux(magasins[0], magasins[1])
+	// Plafonds d'après la taille du parc prévue (SPEC § 141).
+	dims := cfg.Dimensions()
+	series := ingestion.LimitesSeriesDefaut()
+	series.Total = dims.Series
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal,
+		Series: series, MaxSimultanees: dims.Places, MaxLegeres: dims.Legeres, MaxTelechargements: dims.Telechargements,
+		RequetesIP: dims.RequetesIP,
 		ApresLignes: func(ls []stockage.Ligne) {
 			for _, l := range ls {
 				s.motifs.Ajouter(l.Msg, l.T/1000)

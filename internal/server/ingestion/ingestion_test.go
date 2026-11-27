@@ -641,3 +641,38 @@ func TestJobCollecteurAligne(t *testing.T) {
 		t.Fatalf("serveur %q, collecteur %q", jobCollecteur, collecteur.Job)
 	}
 }
+
+// Grand parc (SPEC § 141) : places du décodage toutes prises, une petite
+// requête (config, battement) passe encore ; les téléchargements de
+// binaires ont aussi leurs places.
+func TestPlacesSepareesParType(t *testing.T) {
+	b := nouveauBanc(t, func(o *Options) { o.MaxSimultanees, o.MaxLegeres, o.MaxTelechargements = 1, 1, 1 })
+	b.g.places <- struct{}{} // décodage occupé
+	accueil := func(f func(http.ResponseWriter, *http.Request) (Machine, func(), bool)) int {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = "192.0.2.10:5000"
+		r.Header.Set("Authorization", "Bearer "+tokenPC)
+		w := httptest.NewRecorder()
+		_, liberer, ok := f(w, r)
+		if ok {
+			liberer()
+			return http.StatusOK
+		}
+		return w.Code
+	}
+	if c := accueil(b.g.Accueillir); c != http.StatusServiceUnavailable {
+		t.Errorf("décodage occupé : %d", c)
+	}
+	if c := accueil(b.g.AccueillirLeger); c != http.StatusOK {
+		t.Errorf("petite requête bloquée par le décodage : %d", c)
+	}
+	b.g.telech <- struct{}{}
+	if c := accueil(b.g.AccueillirTelechargement); c != http.StatusServiceUnavailable {
+		t.Errorf("téléchargements occupés : %d", c)
+	}
+	<-b.g.telech
+	if c := accueil(b.g.AccueillirTelechargement); c != http.StatusOK {
+		t.Errorf("téléchargement : %d", c)
+	}
+	<-b.g.places
+}

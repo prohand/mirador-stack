@@ -179,7 +179,7 @@ func ConfigMachine(ctx context.Context, db *sql.DB, machine int64) (doc []byte, 
 }
 
 func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
-	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	m, liberer, ok := f.opt.Ingestion.AccueillirLeger(w, r)
 	if !ok {
 		return
 	}
@@ -219,6 +219,7 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		return doc, etag, nil
 	}
 	signal := attenteSignal() // avant la lecture : aucun changement manqué
+	signalMachine := attenteSignalMachine(m.ID)
 	// Direct (SPEC § 97) : une page qui commence à regarder la machine
 	// réveille son agent ; un direct déjà demandé mais pas encore commencé
 	// par l'agent est répondu tout de suite.
@@ -264,6 +265,7 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 		minuterie := time.NewTimer(attente)
 		select {
 		case <-signal:
+		case <-signalMachine:
 		case <-signalDirect:
 		case <-minuterie.C:
 		case <-r.Context().Done():

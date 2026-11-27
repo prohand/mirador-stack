@@ -224,7 +224,7 @@ func (f *Flotte) manifeste(ctx context.Context, produit, version, arch string) (
 // maj : version assignée. Rien (manifeste nul) si aucune version n'est
 // assignée, si l'agent l'a déjà, ou si elle n'existe pas pour son architecture.
 func (f *Flotte) maj(w http.ResponseWriter, r *http.Request) {
-	machine, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	machine, liberer, ok := f.opt.Ingestion.AccueillirLeger(w, r)
 	if !ok {
 		return
 	}
@@ -258,7 +258,7 @@ func (f *Flotte) maj(w http.ResponseWriter, r *http.Request) {
 // binaire : seulement la version assignée à cette machine, pour son
 // architecture (une machine ne peut pas télécharger n'importe quoi).
 func (f *Flotte) binaire(w http.ResponseWriter, r *http.Request) {
-	machine, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	machine, liberer, ok := f.opt.Ingestion.AccueillirTelechargement(w, r)
 	if !ok {
 		return
 	}
@@ -306,7 +306,7 @@ func (f *Flotte) binaire(w http.ResponseWriter, r *http.Request) {
 var formatTexteCourt = motif.Doit(`^[\p{L}\p{N} .,:;/()'+_-]*$`, 0, 200)
 
 func (f *Flotte) battre(w http.ResponseWriter, r *http.Request) {
-	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	m, liberer, ok := f.opt.Ingestion.AccueillirLeger(w, r)
 	if !ok {
 		return
 	}

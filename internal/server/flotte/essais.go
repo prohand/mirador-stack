@@ -48,7 +48,7 @@ func DemanderEssai(machine int64, nom string, t time.Time) {
 	}
 	demandesEssai.m[machine][nom] = t.UnixNano()
 	demandesEssai.mu.Unlock()
-	SignalerConfig()
+	SignalerMachine(machine)
 }
 
 // essaisDe : demandes plus récentes que vu, et le numéro de la plus récente.

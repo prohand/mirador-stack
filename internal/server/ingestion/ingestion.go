@@ -54,6 +54,10 @@ type Options struct {
 
 	MaxCorpsMetriques int64   // octets compressés
 	MaxSimultanees    int     // requêtes décodées en même temps
+	// Grand parc (SPEC § 141) : petites requêtes (config, battement, maj,
+	// direct) et téléchargements de binaires ont leurs propres places, pour
+	// ne pas prendre celles du décodage des métriques et des logs.
+	MaxLegeres, MaxTelechargements int
 	RequetesMachine   float64 // requêtes par seconde et par machine (rafale ×10)
 	RequetesIP        float64 // requêtes par seconde et par IP (rafale ×4) ; plusieurs machines derrière un même NAT
 	EchecsIP          float64 // échecs d'authentification par seconde et par IP (rafale 10)
@@ -99,6 +103,12 @@ func (o *Options) completer() {
 		// Pire cas ~16 Mo par requête : 4 × 16 = 64 Mo au plus (budget 256 Mio).
 		o.MaxSimultanees = 4
 	}
+	if o.MaxLegeres <= 0 {
+		o.MaxLegeres = 16
+	}
+	if o.MaxTelechargements <= 0 {
+		o.MaxTelechargements = 2
+	}
 	if o.LignesMinute <= 0 {
 		// L'agent limite déjà à 200 lignes/s (SPEC § 15.2 quater) : le serveur
 		// laisse un peu de marge et protège contre un agent modifié.
@@ -126,7 +136,7 @@ type Ingestion struct {
 	opt    Options
 	auth   *Auth
 	quotas *Quotas
-	places chan struct{}
+	places, legeres, telech chan struct{} // décodage, petites requêtes, binaires (SPEC § 141)
 
 	parIP, echecsIP, parMachine, lignes *Limiteur
 
@@ -164,6 +174,8 @@ func Nouvelle(opt Options) *Ingestion {
 		auth:       NouvelleAuth(opt.DB),
 		quotas:     NouveauxQuotas(opt.Series),
 		places:     make(chan struct{}, opt.MaxSimultanees),
+		legeres:    make(chan struct{}, opt.MaxLegeres),
+		telech:     make(chan struct{}, opt.MaxTelechargements),
 		parIP:      NouveauLimiteur(opt.RequetesIP, opt.RequetesIP*4, maxCles),
 		echecsIP:   NouveauLimiteur(opt.EchecsIP, 10, maxCles),
 		parMachine: NouveauLimiteur(opt.RequetesMachine, opt.RequetesMachine*10, maxCles),
@@ -414,14 +426,31 @@ func (g *Ingestion) refuser(w http.ResponseWriter, code int, msg string, attente
 // d'entrée des agents : configuration, battement, mises à jour). Si ok, l'appelant doit appeler
 // liberer() à la fin.
 func (g *Ingestion) Accueillir(w http.ResponseWriter, r *http.Request) (m Machine, liberer func(), ok bool) {
+	return g.accueillir(w, r, g.places, 2)
+}
+
+// AccueillirLeger : comme Accueillir, pour une petite requête (config,
+// battement, maj, direct, événement) : places à part (SPEC § 141).
+func (g *Ingestion) AccueillirLeger(w http.ResponseWriter, r *http.Request) (m Machine, liberer func(), ok bool) {
+	return g.accueillir(w, r, g.legeres, 2)
+}
+
+// AccueillirTelechargement : binaire d'agent (~8 Mo, lent sur un WAN) :
+// quelques places à part ; les autres agents réessaient plus tard, ce qui
+// étale une mise à jour du parc en vagues (SPEC § 141).
+func (g *Ingestion) AccueillirTelechargement(w http.ResponseWriter, r *http.Request) (m Machine, liberer func(), ok bool) {
+	return g.accueillir(w, r, g.telech, 60)
+}
+
+func (g *Ingestion) accueillir(w http.ResponseWriter, r *http.Request, places chan struct{}, attente int) (m Machine, liberer func(), ok bool) {
 	g.Compteurs.Requetes.Add(1)
 	select {
-	case g.places <- struct{}{}:
+	case places <- struct{}{}:
 	default:
-		g.refuser(w, http.StatusServiceUnavailable, "serveur occupé", 2)
+		g.refuser(w, http.StatusServiceUnavailable, "serveur occupé", attente)
 		return m, nil, false
 	}
-	liberer = func() { <-g.places }
+	liberer = func() { <-places }
 	maintenant := g.opt.Maintenant()
 	adresse := web.AdresseClient(r)
 	ip := CleLimite(adresse) // IPv6 : le /64 entier (on ne contourne pas les limites en changeant d'adresse)

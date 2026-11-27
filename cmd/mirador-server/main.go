@@ -50,8 +50,7 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		fmt.Fprintln(sortie, "mirador-server", version.Complete())
 		return 0
 	}
-	// Plafond mémoire souple du ramasse-miettes (SPEC § 16.1), si le
-	// conteneur ne le fixe pas déjà par GOMEMLIMIT.
+	// Plafond mémoire souple provisoire, jusqu'à la lecture du fichier.
 	if os.Getenv("GOMEMLIMIT") == "" {
 		debug.SetMemoryLimit(200 << 20)
 	}
@@ -68,6 +67,11 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		return 1
 	}
 	cfg.Fichier = *chemin
+	// Plafond mémoire souple du ramasse-miettes (SPEC § 16.1, § 141) :
+	// d'après la taille du parc, si le conteneur ne fixe pas GOMEMLIMIT.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(cfg.Dimensions().Memoire)
+	}
 	if *sante {
 		return verifierSante(cfg.EcouteInterface, erreurs)
 	}

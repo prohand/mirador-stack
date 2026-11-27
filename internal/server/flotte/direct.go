@@ -39,6 +39,36 @@ func SignalerConfig() {
 	signalConfig.mu.Unlock()
 }
 
+// signauxMachine : un canal par machine en attente (SPEC § 141) : les
+// demandes qui ne concernent qu'une machine (Actualiser, Vérifier, essai
+// d'une sonde) ne réveillent plus tout le parc (500 agents qui relisent
+// leur configuration d'un coup pour un clic).
+var signauxMachine = struct {
+	mu sync.Mutex
+	m  map[int64]chan struct{}
+}{m: map[int64]chan struct{}{}}
+
+// SignalerMachine réveille seulement l'agent de cette machine.
+func SignalerMachine(machine int64) {
+	signauxMachine.mu.Lock()
+	if ch, ok := signauxMachine.m[machine]; ok {
+		close(ch)
+		delete(signauxMachine.m, machine)
+	}
+	signauxMachine.mu.Unlock()
+}
+
+func attenteSignalMachine(machine int64) <-chan struct{} {
+	signauxMachine.mu.Lock()
+	defer signauxMachine.mu.Unlock()
+	ch, ok := signauxMachine.m[machine]
+	if !ok {
+		ch = make(chan struct{})
+		signauxMachine.m[machine] = ch
+	}
+	return ch
+}
+
 func attenteSignal() <-chan struct{} {
 	signalConfig.mu.Lock()
 	defer signalConfig.mu.Unlock()
@@ -60,7 +90,7 @@ func DemanderActualisation(machine int64, maintenant time.Time) {
 	actualisations.mu.Lock()
 	actualisations.m[machine] = maintenant.UnixNano()
 	actualisations.mu.Unlock()
-	SignalerConfig()
+	SignalerMachine(machine)
 }
 
 func actualisationDe(machine int64) int64 {
@@ -84,7 +114,7 @@ func DemanderVerification(machine int64, maintenant time.Time) {
 	verifications.mu.Lock()
 	verifications.m[machine] = maintenant.UnixNano()
 	verifications.mu.Unlock()
-	SignalerConfig()
+	SignalerMachine(machine)
 }
 
 // VerificationDe : heure de la dernière demande « Vérifier maintenant » de
@@ -115,7 +145,7 @@ func lireAttente(v string) time.Duration {
 // réponse donne les secondes restantes (0 : l'agent s'arrête). Aucun relevé
 // n'est accepté sans page qui regarde la machine.
 func (f *Flotte) recevoirDirect(w http.ResponseWriter, r *http.Request) {
-	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	m, liberer, ok := f.opt.Ingestion.AccueillirLeger(w, r)
 	if !ok {
 		return
 	}

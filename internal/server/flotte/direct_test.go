@@ -68,3 +68,25 @@ func TestDirectServeur(t *testing.T) {
 		t.Errorf("sans token : %d", w.Code)
 	}
 }
+
+// Grand parc (SPEC § 141) : « Actualiser » une machine ne réveille qu'elle.
+func TestSignalParMachine(t *testing.T) {
+	a, b := attenteSignalMachine(9001), attenteSignalMachine(9002)
+	DemanderActualisation(9002, time.Now())
+	select {
+	case <-a:
+		t.Fatal("la machine 9001 réveillée pour 9002")
+	default:
+	}
+	select {
+	case <-b:
+	default:
+		t.Fatal("la machine 9002 pas réveillée")
+	}
+	DemanderVerification(9001, time.Now())
+	select {
+	case <-a:
+	default:
+		t.Fatal("vérification de 9001 : pas réveillée")
+	}
+}
