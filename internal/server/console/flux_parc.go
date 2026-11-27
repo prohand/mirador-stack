@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"sort"
 
-	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/fluxbloques"
 )
 
@@ -177,7 +176,7 @@ func (c *Console) vueParc(ctx context.Context, d *donneesFlux, b fluxbloques.Bil
 // appartenancePF : site (ou groupe) de chaque machine de l'inventaire.
 func (c *Console) appartenancePF(ctx context.Context, par string) map[string]string {
 	out := map[string]string{}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		return out
 	}

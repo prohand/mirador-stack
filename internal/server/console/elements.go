@@ -64,7 +64,7 @@ func (c *Console) elementsDuParc(ctx context.Context, parc []ligneParc, t time.T
 	maint := c.machinesEnMaintenance(ctx, t)
 	releves, _ := flotte.RelevesParCollecteur(ctx, c.db)
 	types := map[string]string{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			types[m.Nom] = m.Type
 		}

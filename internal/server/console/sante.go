@@ -148,7 +148,7 @@ func (c *Console) pageSante(q *req) {
 // calculerSante : toute la page.
 func (c *Console) calculerSante(ctx context.Context, t time.Time) donneesSante {
 	d := donneesSante{CalculeLe: t}
-	machines, _ := flotte.ListerMachines(ctx, c.db)
+	machines, _ := c.machines(ctx)
 	sondes, _ := flotte.LireSondes(ctx, c.db)
 	lues := c.sondesLues(ctx, t)
 

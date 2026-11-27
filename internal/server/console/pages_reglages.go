@@ -847,7 +847,7 @@ func (c *Console) donneesAgents(q *req, portee string) donneesAgents {
 		}
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
 	}
-	d.Machines, _ = flotte.ListerMachines(ctx, c.db)
+	d.Machines, _ = c.machines(ctx)
 	for _, g := range c.lireListes(ctx).Groupes {
 		ga := groupeAgents{Nom: g}
 		for _, m := range d.Machines {

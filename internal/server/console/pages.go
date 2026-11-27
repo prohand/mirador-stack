@@ -229,7 +229,7 @@ const delaiMuette = 5 * time.Minute
 func (c *Console) donneesAccueil(q *req) donneesAccueil {
 	ctx := q.r.Context()
 	d := donneesAccueil{Depuis: c.opt.Debut.UnixMilli(), LienLinux: c.tableau("serveurs-linux") != nil}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			switch m.Statut {
 			case "en_attente":
@@ -296,7 +296,7 @@ func (c *Console) donneesAccueil(q *req) donneesAccueil {
 		d.Nouveautes += l.Nouveautes
 	}
 	majEchec := map[string]string{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		d.Chaleur = c.chaleurParc(ctx, ms, q.t)
 		for _, m := range ms {
 			if m.Statut == "approuvee" && m.MajEchec != "" {
@@ -439,7 +439,7 @@ func (c *Console) pageMachines(q *req) {
 
 func (c *Console) donneesMachines(q *req) donneesMachines {
 	ctx := q.r.Context()
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		c.flash(q, "", err.Error())
 	}
@@ -545,7 +545,7 @@ func (c *Console) donneesAjout(q *req, quoi string) donneesAjout {
 	d.Ingestion = lireInterface(ctx, c.db).Ingestion
 	d.Listes = c.lireListes(ctx)
 	d.Collecteurs, _ = flotte.Collecteurs(ctx, c.db)
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "en_attente" {
 				d.EnAttente++
@@ -816,7 +816,7 @@ func adresseAutorisee(adresse, liste string) bool {
 
 func (c *Console) machine(q *req) (flotte.InfoMachine, bool) {
 	nom := q.r.PathValue("nom")
-	ms, err := flotte.ListerMachines(q.r.Context(), c.db)
+	ms, err := c.machines(q.r.Context())
 	if err == nil {
 		for _, m := range ms {
 			if m.Nom == nom {
@@ -1002,7 +1002,7 @@ func (c *Console) vueTokenDe(ctx context.Context, m flotte.InfoMachine) vueToken
 // candidatsEquipement : machines approuvées qu'on peut rattacher à ce
 // collecteur (ni collecteur, ni déjà rattachées à lui).
 func (c *Console) candidatsEquipement(ctx context.Context, collecteur int64) []string {
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		return nil
 	}
@@ -1393,7 +1393,7 @@ func (c *Console) pageMisesAJour(q *req) {
 	d.Versions, e1 = flotte.ListerVersions(ctx, c.db)
 	d.Cible, e2 = flotte.CibleGlobale(ctx, c.db)
 	d.Fenetre, e3 = flotte.LireFenetre(ctx, c.db)
-	d.Machines, e4 = flotte.ListerMachines(ctx, c.db)
+	d.Machines, e4 = c.machines(ctx)
 	vu := map[string]bool{}
 	for _, v := range d.Versions {
 		if !vu[v.Version] {
@@ -1474,7 +1474,7 @@ func (c *Console) postMisesAJour(q *req) {
 			err = flotte.ArreterDeploiement(ctx, c.db, q.qui(), q.t)
 			ok = "déploiement arrêté (les versions déjà assignées restent)"
 		case "reessayer_echecs":
-			ms, e := flotte.ListerMachines(ctx, c.db)
+			ms, e := c.machines(ctx)
 			err = e
 			n := 0
 			for _, m := range ms {
@@ -1675,7 +1675,7 @@ func (c *Console) parcLeger(q *req) []ligneParc {
 
 func (c *Console) parcAvec(q *req, actives []resumeAlerte, complet bool) []ligneParc {
 	ctx := q.r.Context()
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		return nil
 	}
@@ -1857,7 +1857,7 @@ func (c *Console) donneesAller(q *req) {
 			destination{"Sauvegardes", "Page", "/reglages/sauvegardes"},
 			destination{"Utilisateurs", "Page", "/utilisateurs"}, destination{"Sécurité", "Page", "/securite"})
 	}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				out = append(out, destination{m.Nom, "Machine", "/machines/" + url.PathEscape(m.Nom)})

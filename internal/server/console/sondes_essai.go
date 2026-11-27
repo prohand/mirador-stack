@@ -51,7 +51,7 @@ func essaiPossible(s essais.Sonde, collecteurs map[string]flotte.InfoMachine) (b
 // collecteursParNom : machines de type collecteur, par nom.
 func (c *Console) collecteursParNom(ctx context.Context) map[string]flotte.InfoMachine {
 	r := map[string]flotte.InfoMachine{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Type == "collecteur" {
 				r[m.Nom] = m

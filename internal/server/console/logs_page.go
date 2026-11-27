@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode"
 
-	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/stockage"
 	"mirador-stack/internal/server/stockage/journaux"
 )
@@ -496,7 +495,7 @@ func (c *Console) pageLogs(q *req) {
 	}
 	// Filtres et valeurs proposées.
 	var machines []string
-	if ms, e := flotte.ListerMachines(ctx, c.db); e == nil {
+	if ms, e := c.machines(ctx); e == nil {
 		for _, m := range ms {
 			machines = append(machines, m.Nom)
 		}

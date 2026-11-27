@@ -248,7 +248,7 @@ func (c *Console) ligneResumeDispo(ctx context.Context, debut, fin time.Time) st
 		}
 	}
 	nb := 0
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut == "approuvee" {
 				nb++

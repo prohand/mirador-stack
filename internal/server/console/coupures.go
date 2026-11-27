@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/alertes"
-	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/notif"
 )
 
@@ -160,7 +159,7 @@ func (c *Console) pageCoupures(q *req) {
 		c.erreurCoupures(q, err)
 		return
 	}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		c.erreurCoupures(q, err)
 		return

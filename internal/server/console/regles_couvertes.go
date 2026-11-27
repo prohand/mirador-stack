@@ -37,13 +37,26 @@ func (c *Console) reglesCouvertes(ctx context.Context, t time.Time) ([]regleCouv
 		return nil, err
 	}
 	rempl := modeles.Remplacees()
-	_, avant, err := c.photoModeles(ctx)
+	// Aucune règle importée remplacée par un modèle : rien à calculer (la
+	// photo des modèles coûte 1 à 2 requêtes par machine).
+	aVoir := false
+	for _, r := range rs {
+		if len(rempl[r.Nom]) > 0 && strings.HasPrefix(r.Origine, "vmalert:") {
+			aVoir = true
+			break
+		}
+	}
+	if !aVoir {
+		return nil, nil
+	}
+	// Une seule photo (avant : une deuxième pour les noms des machines).
+	porteurs, avant, err := c.photoModeles(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ms, err := c.machinesParNom(ctx)
-	if err != nil {
-		return nil, err
+	ms := make(map[string]int64, len(porteurs))
+	for _, m := range porteurs {
+		ms[m.Nom] = m.ID
 	}
 	det := c.detectes(ctx, t)
 	var out []regleCouverte
@@ -92,19 +105,6 @@ func (c *Console) reglesCouvertes(ctx context.Context, t time.Time) ([]regleCouv
 		out = append(out, rc)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Nom < out[j].Nom })
-	return out, nil
-}
-
-// machinesParNom : nom → identifiant des machines approuvées.
-func (c *Console) machinesParNom(ctx context.Context) (map[string]int64, error) {
-	ms, _, err := c.photoModeles(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]int64, len(ms))
-	for _, m := range ms {
-		out[m.Nom] = m.ID
-	}
 	return out, nil
 }
 

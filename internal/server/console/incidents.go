@@ -92,7 +92,7 @@ func (a alerteIncident) cles(services map[string][]string) []string {
 // incidentsDe : alertes de la période regroupées, les plus récents d'abord.
 func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*incident {
 	sites := map[string]string{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			sites[m.Nom] = m.Site
 		}

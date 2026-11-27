@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"slices"
 	"sort"
-
-	"mirador-stack/internal/server/flotte"
 )
 
 // Sites, types et groupes de machines (demandes du 10 et 11/11, SPEC
@@ -48,7 +46,7 @@ func (c *Console) lireListes(ctx context.Context) ListesMachines {
 	}
 	// Valeurs déjà portées par des machines : toujours proposées (premier
 	// passage, ou groupes créés avant que la liste existe).
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if !enregistre && m.Site != "" && !slices.Contains(l.Sites, m.Site) {
 				l.Sites = append(l.Sites, m.Site)

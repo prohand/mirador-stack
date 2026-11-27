@@ -241,7 +241,7 @@ func (c *Console) pageDisponibilite(q *req) {
 		suivi                 time.Time
 	}
 	var els []element
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			if m.Statut != "approuvee" {
 				continue

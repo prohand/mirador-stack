@@ -209,7 +209,7 @@ func (c *Console) avancementCertificat(ctx context.Context, nomCollecteur string
 // machinesParNom : machines du parc, par nom.
 func machinesParNom(ctx context.Context, c *Console) map[string]flotte.InfoMachine {
 	out := map[string]flotte.InfoMachine{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
+	if ms, err := c.machines(ctx); err == nil {
 		for _, m := range ms {
 			out[m.Nom] = m
 		}

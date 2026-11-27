@@ -711,7 +711,7 @@ func (c *Console) garderAValider(out map[string]int, machines int, t time.Time, 
 // calculerAValider : le calcul lui-même, et le nombre de machines approuvées.
 func (c *Console) calculerAValider(ctx context.Context, t time.Time) (map[string]int, int) {
 	out := map[string]int{}
-	ms, err := flotte.ListerMachines(ctx, c.db)
+	ms, err := c.machines(ctx)
 	if err != nil {
 		return out, 0
 	}
