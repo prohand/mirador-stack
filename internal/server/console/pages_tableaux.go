@@ -102,6 +102,7 @@ type vueBarre struct {
 type vuePanneau struct {
 	P        *Panneau
 	Erreur   string
+	Note     string // ex. « 60 sur 1 480 : les plus critiques » (grand parc, SPEC § 141)
 	Chiffres []vueValeur
 	Barres   []vueBarre
 	Entetes  []string
@@ -308,9 +309,10 @@ func (c *Console) remplirPanneau(ctx context.Context, vp *vuePanneau, vals map[s
 		if len(vp.Chiffres) == 1 {
 			vp.Chiffres[0].Legende = ""
 		}
-		if len(vp.Barres) > 60 {
-			vp.Barres = vp.Barres[:60]
-		}
+		// Grand parc (SPEC § 141) : au-delà de 60 barres, les 60 les plus
+		// critiques d'après les seuils (avant : les 60 premières par nom,
+		// un disque plein en « z… » ne se voyait pas).
+		vp.Barres, vp.Note = garderCritiques(vp.Barres, p.Seuils)
 	case PanneauTableau:
 		return c.remplirTableau(ctx, vp, vals, pas, d, t)
 	}
@@ -634,6 +636,21 @@ func (c *Console) courbe(ctx context.Context, rs []Requete, unite string, vals m
 			out.Erreur = "pas agrandi"
 		}
 		sort.Slice(courbes, func(i, j int) bool { return nomSerie(courbes[i].Etiquettes) < nomSerie(courbes[j].Etiquettes) })
+		// Grand parc (SPEC § 141) : trop de séries, on garde celles qui
+		// montent le plus haut (charge, mémoire, débit), puis l'ordre des noms.
+		if reste := seriesParCourbeMax - len(out.Series); len(courbes) > reste && reste > 0 {
+			sens := 1
+			extreme := func(cb alertes.Courbe) float64 { return extremeSerie(cb.V, sens) }
+			sort.SliceStable(courbes, func(i, j int) bool {
+				if sens < 0 {
+					return extreme(courbes[i]) < extreme(courbes[j])
+				}
+				return extreme(courbes[i]) > extreme(courbes[j])
+			})
+			out.Erreur = fmt.Sprintf("%d séries sur %s : les plus critiques ; filtrer pour voir les autres", seriesParCourbeMax, nombreLisible(len(courbes)+len(out.Series)))
+			courbes = courbes[:reste]
+			sort.Slice(courbes, func(i, j int) bool { return nomSerie(courbes[i].Etiquettes) < nomSerie(courbes[j].Etiquettes) })
+		}
 		for _, cb := range courbes {
 			if len(out.Series) >= seriesParCourbeMax {
 				out.Erreur = fmt.Sprintf("%d séries au plus affichées : filtrer", seriesParCourbeMax)
@@ -651,4 +668,58 @@ func (c *Console) courbe(ctx context.Context, rs []Requete, unite string, vals m
 		}
 	}
 	return out
+}
+
+// barresMax : barres affichées au plus dans un panneau « barres ».
+const barresMax = 60
+
+// sensCritique : +1 si une valeur haute est grave (seuils qui vont vers
+// « erreur » en montant, cas par défaut), -1 si c'est une valeur basse
+// (ex. jours restants d'un certificat).
+func sensCritique(seuils []Seuil) int {
+	grav := map[string]int{"ok": 0, "info": 1, "attention": 2, "erreur": 3}
+	if len(seuils) < 2 {
+		return 1
+	}
+	premier, dernier := grav[seuils[0].Couleur], grav[seuils[len(seuils)-1].Couleur]
+	if premier > dernier {
+		return -1
+	}
+	return 1
+}
+
+// extremeSerie : sommet (sens +1) ou creux (sens -1) d'une série, NaN ignorés.
+func extremeSerie(v []float64, sens int) float64 {
+	out := math.NaN()
+	for _, x := range v {
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			continue
+		}
+		if math.IsNaN(out) || (sens >= 0 && x > out) || (sens < 0 && x < out) {
+			out = x
+		}
+	}
+	if math.IsNaN(out) {
+		if sens < 0 {
+			return math.Inf(1)
+		}
+		return math.Inf(-1)
+	}
+	return out
+}
+
+// garderCritiques : au plus barresMax barres, les plus critiques d'abord.
+func garderCritiques(barres []vueBarre, seuils []Seuil) ([]vueBarre, string) {
+	n := len(barres)
+	if n <= barresMax {
+		return barres, ""
+	}
+	sens := sensCritique(seuils)
+	sort.SliceStable(barres, func(i, j int) bool {
+		if sens < 0 {
+			return barres[i].Valeur < barres[j].Valeur
+		}
+		return barres[i].Valeur > barres[j].Valeur
+	})
+	return barres[:barresMax], fmt.Sprintf("%d sur %s : les plus critiques d'abord", barresMax, nombreLisible(n))
 }

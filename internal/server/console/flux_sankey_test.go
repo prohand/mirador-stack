@@ -3,8 +3,11 @@
 package console
 
 import (
+	"fmt"
+	"math"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -148,5 +151,39 @@ func TestRegrouperEtRestreindreBilan(t *testing.T) {
 	}
 	if l := lienFluxAvec(v, "site", "Lyon", false); l != "/flux-bloques?par=site&site=Lyon&vue=reseau" {
 		t.Errorf("site : %s", l)
+	}
+}
+
+// Grand parc (SPEC § 141) : sens des seuils et extrême d'une série.
+func TestSensCritique(t *testing.T) {
+	un, sept := 1.0, 7.0
+	if sensCritique([]Seuil{{Couleur: "ok"}, {Valeur: &un, Couleur: "attention"}, {Valeur: &sept, Couleur: "erreur"}}) != 1 {
+		t.Error("occupation : haut = grave")
+	}
+	if sensCritique([]Seuil{{Couleur: "erreur"}, {Valeur: &un, Couleur: "attention"}, {Valeur: &sept, Couleur: "ok"}}) != -1 {
+		t.Error("jours restants : bas = grave")
+	}
+	if sensCritique(nil) != 1 {
+		t.Error("sans seuil : haut = grave")
+	}
+	if extremeSerie([]float64{3, 9, math.NaN(), 1}, 1) != 9 || extremeSerie([]float64{3, 9, 1}, -1) != 1 {
+		t.Error("extrêmes")
+	}
+}
+
+// 1 500 disques : le disque plein de « zz-999 » reste affiché.
+func TestGarderCritiques(t *testing.T) {
+	var bs []vueBarre
+	for i := 0; i < 1500; i++ {
+		bs = append(bs, vueBarre{Nom: fmt.Sprintf("m-%04d", i), Valeur: float64(i % 50)})
+	}
+	bs = append(bs, vueBarre{Nom: "zz-999", Valeur: 99})
+	sort.Slice(bs, func(i, j int) bool { return bs[i].Nom < bs[j].Nom })
+	out, note := garderCritiques(bs, nil)
+	if len(out) != barresMax || out[0].Nom != "zz-999" || note == "" {
+		t.Fatalf("%d barres, première %s, note %q", len(out), out[0].Nom, note)
+	}
+	if out, note := garderCritiques(bs[:10], nil); len(out) != 10 || note != "" {
+		t.Error("peu de barres : rien ne change")
 	}
 }
