@@ -9012,6 +9012,13 @@ des deux** (« je valide c »).
   colonne au plus) ; page un peu plus longue en HTML (≈ 80 lignes cachées).
 - Menaces : aucune nouvelle (noms et adresses échappés, pas de style en
   ligne : CSP inchangée).
+- **Retour du 27/11 (après 0.6.30)** : le bloc et le tableau Sources étaient
+  les mêmes dans les deux onglets. Désormais chaque vue a ses colonnes :
+  Monde → « Adresses insistantes » et « Ports visés » ; Mon réseau →
+  « Bloqué par » et « Pays », suivis du tableau Sources (et de l'encadré
+  OPNsense). Monde garde une ligne « Réglage à faire » si une source est à
+  régler, avec un lien vers Mon réseau › Sources. Coût : rien (mêmes
+  calculs, deux colonnes rendues au lieu de quatre).
 
 ## 140. Flux bloqués : choisir une machine, grand parc par site ou groupe (27/11, maquette validée) **[Fait, à valider]**
 

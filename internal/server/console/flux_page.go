@@ -159,6 +159,7 @@ type donneesFlux struct {
 	Bulles                  []bulleFlux
 	Chemins                 []cheminVue
 	TopPays                 []rangFlux
+	LienReseau              string    // onglet « Mon réseau » (encadré « Réglage à faire » de Monde)
 	ChoixPF                 []choixPF // barre de choix d'un pare-feu (SPEC § 140)
 	ToutPF                  bool      // tous les pare-feu dans le schéma (?tous=1)
 	NbPF                    int       // plus de maxPFSchema pare-feu : lien « tout afficher »
@@ -243,6 +244,7 @@ func (c *Console) pageFlux(q *req) {
 	for _, x := range periodesFlux {
 		d.Periodes = append(d.Periodes, lienFlux{x.Nom, lienFluxAvec(v, "periode", x.Cle, false), x.Cle == p.Cle})
 	}
+	d.LienReseau = lienFluxAvec(v, "vue", "reseau", false)
 	d.Vues = []lienFlux{{"🌍 Monde", lienFluxAvec(v, "vue", "monde", false), d.Vue == "monde"},
 		{"🔀 Mon réseau", lienFluxAvec(v, "vue", "reseau", false), d.Vue == "reseau"}}
 	var f fluxbloques.Filtre
@@ -377,6 +379,7 @@ func (c *Console) pageFlux(q *req) {
 		}
 	}
 	c.vueParc(q.r.Context(), &d, b, v, f, tousPF, rangs, outils)
+	d.Classement = colonnesDeVue(d.Classement, d.Vue)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
 	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
@@ -969,6 +972,26 @@ func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
 			x.Lien = lienFluxAvec(v, "pf", c.PareFeu, false)
 		}
 		out = append(out, x)
+	}
+	return out
+}
+
+// colonnesDeVue : colonnes du bloc « Classements » propres à chaque vue
+// (retour du 27/11 : le bloc était le même dans les deux onglets). Monde :
+// ce qui vient de dehors (adresses, ports visés) ; Mon réseau : qui bloque et
+// d'où (pare-feu, pays), avec le tableau Sources.
+func colonnesDeVue(cols []colonneClassement, vue string) []colonneClassement {
+	ordre := []string{"c-ip", "c-ports"}
+	if vue == "reseau" {
+		ordre = []string{"c-pf", "c-pays"}
+	}
+	var out []colonneClassement
+	for _, cl := range ordre {
+		for _, c := range cols {
+			if c.Classe == cl {
+				out = append(out, c)
+			}
+		}
 	}
 	return out
 }

@@ -164,9 +164,22 @@ func TestInterfaceDeBoutEnBout(t *testing.T) {
 			t.Errorf("%s : erreur de gabarit", chemin)
 		}
 	}
-	// La vue d'ensemble calcule l'état du parc (CPU, mémoire 75 %…).
+	// La vue d'ensemble calcule l'état du parc (CPU, mémoire 75 %…). Le
+	// bloc « Machines » est masqué par défaut et n'est alors pas construit
+	// (SPEC § 141) : on l'affiche d'abord, comme le bouton « Modifier la vue ».
 	_, corps, _ = n.faire(http.MethodGet, "/", nil)
-	if !strings.Contains(corps, "75") {
+	r, _ := http.NewRequest(http.MethodPost, n.base+"/compte/accueil", strings.NewReader(`{"mode":"ordi","ordre":["bandeau"],"caches":[]}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-CSRF", reCSRFe2e.FindStringSubmatch(corps)[1])
+	r.Header.Set("X-Requested-With", "mirador")
+	r.AddCookie(&http.Cookie{Name: auth.NomCookie, Value: n.cookie})
+	if resp, err := n.c.Do(r); err != nil || resp.StatusCode >= 400 {
+		t.Fatalf("disposition de la vue d'ensemble : %v %v", err, resp)
+	} else {
+		_ = resp.Body.Close()
+	}
+	_, corps, _ = n.faire(http.MethodGet, "/", nil)
+	if !strings.Contains(corps, "75 %") && !strings.Contains(corps, "75\u202f%") && !strings.Contains(corps, "75\u00a0%") {
 		t.Error("mémoire (75 %) absente de l'état du parc")
 	}
 	// Données d'une courbe : JSON avec la série de la machine.
