@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"hash/crc32"
+	"hash/fnv"
 	"io"
 	"log/slog"
 	"math"
@@ -49,8 +50,27 @@ type Options struct {
 	Reglages   Reglages
 	TailleBloc int           // texte avant compression (défaut 256 Kio)
 	Vidage     time.Duration // écriture du bloc en cours au plus tard après (défaut 30 s)
+	// Partitions : blocs en cours séparés par machine (hachage de « host »).
+	// Grand parc (SPEC § 141) : un bloc ne liste ses machines que s'il en a
+	// au plus 64 ; avec des centaines de machines mélangées, une recherche
+	// sur une machine lisait tous les blocs. 1 (défaut) : un seul bloc en
+	// cours, comme avant.
+	Partitions int
 	Journal    *slog.Logger
 	Maintenant func() time.Time
+}
+
+// tampon : lignes pas encore écrites d'une partition.
+type tampon struct {
+	lignes []stockage.Ligne
+	taille int
+	debut  time.Time
+}
+
+// PartitionsPour : partitions conseillées pour n machines (~48 par bloc,
+// sous la limite des 64 valeurs listées dans l'en-tête).
+func PartitionsPour(n int) int {
+	return max(1, (n+47)/48)
 }
 
 // Moteur : fichiers de segments et index en mémoire.
@@ -59,12 +79,10 @@ type Moteur struct {
 	enc *zstd.Encoder
 	dec *zstd.Decoder
 
-	mu        sync.Mutex
-	reglages  Reglages
-	fichiers  []*fichier // triés par heure
-	enCours   []stockage.Ligne
-	tailleEnC int
-	debutEnC  time.Time
+	mu       sync.Mutex
+	reglages Reglages
+	fichiers []*fichier // triés par heure
+	enCours  []tampon   // un par partition
 
 	arret chan struct{}
 	// arrivees : fermé (puis remplacé) à chaque écriture de lignes : réveille
@@ -157,6 +175,9 @@ func Ouvrir(opt Options) (*Moteur, error) {
 	if opt.Vidage <= 0 {
 		opt.Vidage = 30 * time.Second
 	}
+	if opt.Partitions <= 0 {
+		opt.Partitions = 1
+	}
 	if opt.Journal == nil {
 		opt.Journal = slog.New(slog.DiscardHandler)
 	}
@@ -174,7 +195,8 @@ func Ouvrir(opt Options) (*Moteur, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Moteur{opt: opt, enc: enc, dec: dec, reglages: opt.Reglages, arret: make(chan struct{}), arrivees: make(chan struct{})}
+	m := &Moteur{opt: opt, enc: enc, dec: dec, reglages: opt.Reglages, arret: make(chan struct{}), arrivees: make(chan struct{}),
+		enCours: make([]tampon, opt.Partitions)}
 	if err := m.relire(); err != nil {
 		return nil, err
 	}
@@ -264,17 +286,19 @@ func (m *Moteur) Ecrire(_ context.Context, lignes []stockage.Ligne) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range lignes {
-		if len(m.enCours) == 0 {
-			m.debutEnC = m.opt.Maintenant()
+		p := m.partition(&lignes[i])
+		t := &m.enCours[p]
+		if len(t.lignes) == 0 {
+			t.debut = m.opt.Maintenant()
 		}
-		m.enCours = append(m.enCours, lignes[i])
+		t.lignes = append(t.lignes, lignes[i])
 		m.noterValeurs(&lignes[i])
-		m.tailleEnC += len(lignes[i].Msg) + 40
+		t.taille += len(lignes[i].Msg) + 40
 		for k, v := range lignes[i].Champs {
-			m.tailleEnC += len(k) + len(v)
+			t.taille += len(k) + len(v)
 		}
-		if m.tailleEnC >= m.opt.TailleBloc {
-			if err := m.viderVerrou(); err != nil {
+		if t.taille >= m.opt.TailleBloc {
+			if err := m.viderPartition(p); err != nil {
 				return err
 			}
 		}
@@ -295,13 +319,41 @@ func (m *Moteur) Arrivees() <-chan struct{} {
 	return m.arrivees
 }
 
-// viderVerrou écrit le bloc en cours (m.mu tenu).
+// partition : tampon d'une ligne (même machine, même tampon).
+func (m *Moteur) partition(l *stockage.Ligne) int {
+	if len(m.enCours) <= 1 {
+		return 0
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(l.Champs["host"]))
+	return int(h.Sum32() % uint32(len(m.enCours))) // #nosec G115 -- len(m.enCours) petit et positif
+}
+
+// viderVerrou écrit tous les blocs en cours (m.mu tenu).
 func (m *Moteur) viderVerrou() error {
-	if len(m.enCours) == 0 {
+	var errs []error
+	for p := range m.enCours {
+		errs = append(errs, m.viderPartition(p))
+	}
+	return errors.Join(errs...)
+}
+
+// lignesEnCours : copie des lignes pas encore écrites (m.mu tenu).
+func (m *Moteur) lignesEnCours() []stockage.Ligne {
+	var out []stockage.Ligne
+	for _, t := range m.enCours {
+		out = append(out, t.lignes...)
+	}
+	return out
+}
+
+// viderPartition écrit le bloc en cours d'une partition (m.mu tenu).
+func (m *Moteur) viderPartition(p int) error {
+	if len(m.enCours[p].lignes) == 0 {
 		return nil
 	}
-	lignes := m.enCours
-	m.enCours, m.tailleEnC = nil, 0
+	lignes := m.enCours[p].lignes
+	m.enCours[p] = tampon{}
 	e := &entete{tmin: lignes[0].T, tmax: lignes[0].T, lignes: len(lignes), index: map[string][]string{}}
 	valeurs := map[string]map[string]struct{}{}
 	motsBloc := map[string]struct{}{}
@@ -479,8 +531,10 @@ func (m *Moteur) boucle() {
 		maintenant := m.opt.Maintenant()
 		m.mu.Lock()
 		var err error
-		if len(m.enCours) > 0 && maintenant.Sub(m.debutEnC) >= m.opt.Vidage {
-			err = m.viderVerrou()
+		for p, t := range m.enCours {
+			if len(t.lignes) > 0 && maintenant.Sub(t.debut) >= m.opt.Vidage {
+				err = errors.Join(err, m.viderPartition(p))
+			}
 		}
 		// Changement d'heure : le segment précédent est fermé (fsync).
 		if n := len(m.fichiers); n > 0 && m.fichiers[n-1].f != nil &&

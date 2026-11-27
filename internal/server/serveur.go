@@ -116,7 +116,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		return echec(fmt.Errorf("stockage des métriques : %w", err))
 	}
 	ouverts = append(ouverts, s.met.Fermer)
-	if s.jx, err = journaux.Ouvrir(journaux.Options{Dossier: s.chemin("logs"),
+	if s.jx, err = journaux.Ouvrir(journaux.Options{Dossier: s.chemin("logs"), Partitions: journaux.PartitionsPour(cfg.TailleParc),
 		Journal: journal.With("composant", "logs")}); err != nil {
 		return echec(fmt.Errorf("stockage des logs : %w", err))
 	}
