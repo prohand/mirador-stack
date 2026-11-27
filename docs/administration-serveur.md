@@ -10,6 +10,36 @@ Dans la suite, `MS` remplace `docker exec mirador-server /mirador-server -config
 Les options se placent **avant** le nom de la machine. Chaque action est notée
 dans le journal d'audit (jamais les tokens ni les jetons).
 
+## Taille du parc (SPEC.md § 141)
+
+Une ligne du fichier de démarrage (`server.conf`) fixe les plafonds :
+
+```
+MIRADOR_TAILLE_PARC=50
+```
+
+- Nombre de machines prévues (agents, collecteurs, équipements), entre 1 et
+  5 000. **50 par défaut** : rien ne change pour un homelab (plafonds
+  mesurés depuis le début).
+- Ce qui en découle :
+
+| Machines prévues | Séries au plus | Mémoire (GOMEMLIMIT) | Requêtes décodées / petites / binaires | Tampons de logs |
+|---|---|---|---|---|
+| 50 (défaut) | 60 000 | 200 Mio | 4 / 16 / 2 | 1 |
+| 200 | 240 000 | 780 Mio | 4 / 20 / 2 | 5 |
+| 500 | 600 000 | 1,8 Gio | 10 / 50 / 2 | 11 |
+| 1 500 | 1 800 000 | 5,2 Gio | 30 / 150 / 5 | 32 |
+
+- Mémoire du conteneur : prévoir **1,5 fois** la valeur GOMEMLIMIT (limite
+  dure de Docker), soit 300 Mio jusqu'à 50 machines, ~8 Go pour 1 500.
+- Disque (estimation, à vérifier par la mesure sur le parc) : ~73 Mo par
+  agent avec les durées par défaut (logs 30 j ≈ 22 Mo, métriques brutes
+  7 j ≈ 36 Mo, agrégées 30 j ≈ 15 Mo). 50 machines ≈ 4 Go ; 500 ≈ 37 Go ;
+  1 500 ≈ 110 Go. Relever les plafonds de taille en conséquence dans
+  **Réglages › Conservation des données** (sinon les plus anciennes
+  données partent avant la durée choisie).
+- Après un changement : redémarrer le conteneur.
+
 ## Machines
 
 | Besoin | Commande |

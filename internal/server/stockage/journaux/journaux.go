@@ -68,9 +68,13 @@ type tampon struct {
 }
 
 // PartitionsPour : partitions conseillées pour n machines (~48 par bloc,
-// sous la limite des 64 valeurs listées dans l'en-tête).
+// sous la limite des 64 valeurs listées dans l'en-tête ; une seule, comme
+// avant, tant que le parc tient dans un bloc).
 func PartitionsPour(n int) int {
-	return max(1, (n+47)/48)
+	if n <= maxValeursIndex {
+		return 1
+	}
+	return (n + 47) / 48
 }
 
 // Moteur : fichiers de segments et index en mémoire.

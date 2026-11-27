@@ -9048,3 +9048,44 @@ Choix B (maquette « grand parc » validée : « oui »).
   dans « Autres » (totaux justes, détail réduit).
 - Menaces : paramètres par, site, groupe lus comme texte, comparés aux
   noms de l'inventaire, toujours échappés ; rien de nouveau exposé.
+
+## 141. Grand parc : jusqu'à 1 500 machines (27/11) **[Fait côté serveur, à valider ; interface : maquettes]**
+
+Demande du 27/11 : « trouve d'autres améliorations pour un grand parc »,
+puis « fais tout » ; cible : homelab de 40 machines, mirador déployable sur
+~1 500. Inventaire (interface et serveur), chaque point vérifié dans le code
+ou par un essai avant correction.
+- **Taille du parc** : `MIRADOR_TAILLE_PARC` (50 par défaut, 1 à 5 000)
+  fixe plafond de séries (40 000 → 1 200 par machine), GOMEMLIMIT (200 Mio
+  jusqu'à 50, puis 80 Mio + 3,5 Mio par machine), places, requêtes par
+  adresse, tampons de logs. Homelab : rien ne change. Tableau de
+  dimensionnement (RAM, disque) dans docs/administration-serveur.md.
+- **Places séparées** pour les requêtes d'agents : décodage (métriques,
+  logs), petites (config, battement, maj, direct, événement), binaires
+  (les agents refusés réessaient : mise à jour du parc en vagues).
+- **Un clic = une machine réveillée** (Actualiser, Vérifier, essai de
+  sonde) ; avant, tout le parc relisait sa configuration.
+- **Compteur « à valider »** du menu : valeur rendue tout de suite,
+  recalcul en tâche de fond (avant : toutes les pages attendaient) ;
+  durée 1 min + 1 par 250 machines, comme l'application auto des modèles.
+- **Conteneurs** : images changées en une requête (avant : une par machine).
+- **Tableaux** : au-delà de 60 barres / 50 courbes, les plus critiques
+  (sens d'après les seuils) au lieu des premières par nom.
+- **Prévision « plein dans »** : parc découpé en paquets de 1 500 disques
+  (une requête rend au plus 2 000 séries) ; échec gardé en cache.
+- **Logs** : tampons par machine (~48 par bloc) au-delà de 64 machines ;
+  mesure 1 500 machines : 2 blocs lus au lieu de 60 pour une machine.
+- **Tempête d'alertes** : sourdine calculée en une passe (2 000 alertes :
+  0,04 s, résultat identique).
+- **Vérifiés, non changés** : règle « machine muette » (1 500 machines ×
+  24 h : 0,22 s, aucune erreur) et prévision brute sur 7 j (la limite de
+  500 000 points ne joue pas : séries lues une à une).
+- **Reste (interface, maquettes à valider)** : actions de masse, recherche
+  et filtre par site sur les listes, vue d'ensemble par site, pages rendues
+  deux fois (tuiles + tableau).
+- Coût : rien de plus pour 40 machines ; au-delà, mémoire et disque
+  proportionnels (tableau de la doc), CPU ~×(machines/27) (à mesurer).
+- Menaces : `MIRADOR_TAILLE_PARC` lu dans le fichier de démarrage (borné) ;
+  plus de places = plus de mémoire au pire (16 Mo par requête décodée,
+  dans le budget calculé) ; limites par adresse relevées avec le parc (les
+  échecs d'authentification gardent leur propre limite).

@@ -2048,6 +2048,13 @@ parcouru ; chaque pare-feu garde ses 8 ports et 3 chemins par heure.
 Mesure (1 h) : 6 pare-feu inchangé ; 500 pare-feu 208 Ko/h (≈ + 60 Mo sur
 30 j). Démo : `DEMO_PAREFEU=30` (machines sur trois sites).
 
+**Grand parc, côté serveur (27/11, SPEC § 141)** : `MIRADOR_TAILLE_PARC`,
+places séparées, signal par machine, compteur « à valider » sans attente,
+tableaux « les plus critiques », prévision par paquets, logs par machine
+(2 blocs lus au lieu de 60), sourdine en une passe (2 000 alertes en
+0,04 s). Vérifiés sans changement : règle « machine muette » (1 500 ×
+24 h : 0,22 s) et prévision brute 7 j. Interface : maquettes à faire.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en
