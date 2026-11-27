@@ -194,15 +194,29 @@ type donneesElements struct {
 	Compte map[string]int
 	Sortes []string
 	Filtre string // étiquette « clé=valeur » (§ 59)
+	// Grand parc (SPEC § 141) : recherche par nom, pages de elementsParPage.
+	Q                  string
+	Page, Pages, Total int
+	LienPrec, LienSuiv string
 }
+
+// elementsParPage : lignes par page de la liste des éléments.
+const elementsParPage = 200
 
 func (c *Console) pageElements(q *req) {
 	ctx := q.r.Context()
-	d := donneesElements{Sorte: q.r.URL.Query().Get("sorte"), Filtre: strings.TrimSpace(q.r.URL.Query().Get("etiquette")), Compte: map[string]int{}}
+	d := donneesElements{Sorte: q.r.URL.Query().Get("sorte"), Filtre: strings.TrimSpace(q.r.URL.Query().Get("etiquette")), Compte: map[string]int{},
+		Q: strings.TrimSpace(q.r.URL.Query().Get("q"))}
+	if len(d.Q) > 100 {
+		d.Q = d.Q[:100]
+	}
 	cleF, valF, avecFiltre := strings.Cut(d.Filtre, "=")
 	for _, e := range c.elementsDuParc(ctx, c.parcLeger(q), q.t) {
 		sorte := strings.SplitN(e.Sorte, " ", 2)[0]
 		if avecFiltre && e.Etiquettes[strings.TrimSpace(cleF)] != strings.TrimSpace(valF) {
+			continue
+		}
+		if d.Q != "" && !strings.Contains(strings.ToLower(e.Nom), strings.ToLower(d.Q)) {
 			continue
 		}
 		d.Compte[sorte]++
@@ -220,5 +234,33 @@ func (c *Console) pageElements(q *req) {
 		return d.Lignes[i].Nom < d.Lignes[j].Nom
 	})
 	d.Sortes = []string{sorteMachine, sorteCollecteur, sorteEquipement, sorteConteneur, sorteSonde, sorteService}
+	// Pages (problèmes en premier : ils sont sur la première).
+	d.Total = len(d.Lignes)
+	d.Pages = max(1, (d.Total+elementsParPage-1)/elementsParPage)
+	d.Page, _ = strconv.Atoi(q.r.URL.Query().Get("page"))
+	d.Page = min(max(d.Page, 1), d.Pages)
+	debut := (d.Page - 1) * elementsParPage
+	d.Lignes = d.Lignes[debut:min(debut+elementsParPage, d.Total)]
+	lien := func(p int) string {
+		v := url.Values{}
+		for k, x := range map[string]string{"sorte": d.Sorte, "etiquette": d.Filtre, "q": d.Q} {
+			if x != "" {
+				v.Set(k, x)
+			}
+		}
+		if p > 1 {
+			v.Set("page", strconv.Itoa(p))
+		}
+		if len(v) == 0 {
+			return "/elements"
+		}
+		return "/elements?" + v.Encode()
+	}
+	if d.Page > 1 {
+		d.LienPrec = lien(d.Page - 1)
+	}
+	if d.Page < d.Pages {
+		d.LienSuiv = lien(d.Page + 1)
+	}
 	c.rendre(q, "elements", "Éléments", "elements", d)
 }

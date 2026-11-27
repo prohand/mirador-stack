@@ -2037,6 +2037,28 @@ chemins, pastille pare-feu + outil, « Chemins les plus fréquents ». Mesure
 (base pleine 30 j, 100 chemins/h) : calcul 30 j 125 → 250 ms, en cache 1 min ;
 disque + 3 Mo environ. Captures clair, sombre et téléphone sur la démo.
 
+**Après 0.6.29 (27/11, SPEC § 139)** : tous les pare-feu dans « Mon réseau »
+(jusqu'à 8, liens qui ne débordent plus) ; bloc « Classements » (maquette C
+validée) : rang, part, protocole, outil, « N pare-feu », lignes en plus
+repliées. Aucun calcul en plus (mêmes listes du bilan).
+
+**Grand parc (27/11, SPEC § 140)** : barre de choix d'une machine,
+recherche, regroupement par site ou groupe au-delà de 20 pare-feu, chemin
+parcouru ; chaque pare-feu garde ses 8 ports et 3 chemins par heure.
+Mesure (1 h) : 6 pare-feu inchangé ; 500 pare-feu 208 Ko/h (≈ + 60 Mo sur
+30 j). Démo : `DEMO_PAREFEU=30` (machines sur trois sites).
+
+**Grand parc, côté serveur (27/11, SPEC § 141)** : taille du parc
+automatique (machines + 20 %, réglable dans Réglages › Conservation),
+places séparées, signal par machine, compteur « à valider » sans attente,
+tableaux « les plus critiques », prévision par paquets, logs par machine
+(2 blocs lus au lieu de 60), sourdine en une passe (2 000 alertes en
+0,04 s). Vérifiés sans changement : règle « machine muette » (1 500 ×
+24 h : 0,22 s) et prévision brute 7 j. Interface (maquettes validées) :
+Machines (recherche, sites, actions de masse), coup d'œil par site, mises
+à jour par vagues, alertes regroupées, listes avec recherche (Éléments en
+pages de 200, Sondes, Tâches, Logs, Événements), Conteneurs en une vue.
+
 ## Prochaine étape
 
 Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en

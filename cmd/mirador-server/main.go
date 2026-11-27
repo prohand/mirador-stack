@@ -51,7 +51,8 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 		return 0
 	}
 	// Plafond mémoire souple du ramasse-miettes (SPEC § 16.1), si le
-	// conteneur ne le fixe pas déjà par GOMEMLIMIT.
+	// conteneur ne le fixe pas déjà par GOMEMLIMIT. Relevé ensuite par le
+	// serveur si le parc grandit (SPEC § 141).
 	if os.Getenv("GOMEMLIMIT") == "" {
 		debug.SetMemoryLimit(200 << 20)
 	}

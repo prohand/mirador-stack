@@ -54,6 +54,17 @@ func TestPageSondes(t *testing.T) {
 	if strings.Index(corps, "Nextcloud</strong>") > strings.Index(corps, "Vaultwarden</strong>") {
 		t.Error("la sonde en échec doit venir en premier")
 	}
+	// Recherche et filtre « en problème » (grand parc, SPEC § 141).
+	for chemin, garde := range map[string]string{"/sondes?q=PASS.exemple": "Vaultwarden", "/sondes?filtre=probleme": "Nextcloud"} {
+		_, c, _ := b.get(cl, chemin)
+		autre := map[string]string{"Vaultwarden": "Nextcloud", "Nextcloud": "Vaultwarden"}[garde]
+		if !strings.Contains(c, garde+"</strong>") || strings.Contains(c, autre+"</strong>") || !strings.Contains(c, "1 sonde(s) masquée(s)") {
+			t.Errorf("%s : filtre mal appliqué", chemin)
+		}
+	}
+	if _, c, _ := b.get(cl, "/sondes?q=introuvable"); !strings.Contains(c, "Aucune sonde pour ce filtre.") {
+		t.Error("recherche sans résultat")
+	}
 	// Refus : collecteur inconnu, cible invalide.
 	b.h.avancer(31 * time.Second)
 	ajouter(url.Values{"nom": {"X"}, "type": {"tcp"}, "cible": {"a:22"}, "depuis": {"inconnu"}})

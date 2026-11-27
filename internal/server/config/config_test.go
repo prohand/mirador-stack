@@ -104,3 +104,21 @@ func TestMajServeurDossiers(t *testing.T) {
 		t.Error("chemin relatif accepté")
 	}
 }
+
+// Taille du parc (SPEC § 141) : homelab inchangé, grand parc proportionné.
+func TestDimensions(t *testing.T) {
+	if d := DimensionsPour(13); d.Series != 40_000 || d.Memoire != 200<<20 {
+		t.Errorf("13 machines : plafonds de toujours, %+v", d)
+	}
+	d := DimensionsPour(40)
+	if d.Series != 48_000 || d.Memoire != 220<<20 || d.Places != 4 || d.Legeres != 16 || d.Telechargements != 2 || d.RequetesIP != 50 {
+		t.Errorf("40 machines : %+v", d)
+	}
+	if d := DimensionsPour(0); d.Machines != TailleParcDefaut {
+		t.Errorf("défaut : %+v", d)
+	}
+	d = DimensionsPour(1500)
+	if d.Series != 1_800_000 || d.Memoire < 5<<30 || d.Memoire > 6<<30 || d.Places != 30 || d.Legeres != 150 || d.Telechargements != 5 {
+		t.Errorf("1 500 machines : %+v (mémoire %d Mio)", d, d.Memoire>>20)
+	}
+}

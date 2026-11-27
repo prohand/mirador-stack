@@ -239,6 +239,7 @@ func TestColonnesSiteType(t *testing.T) {
 	b.machinesApprouvees(t, "web1", "nas")
 	_, _ = b.c.db.Exec(`UPDATE machines SET site = 'maison', env = CASE nom WHEN 'web1' THEN 'vm' ELSE 'physique' END`)
 	cl, _ := b.premierAdmin("admin", mdpAdmin)
+	montrerBlocsAccueil(t, b, cl)
 	_, corps, _ := b.get(cl, "/")
 	for _, attendu := range []string{`data-colonnes-cachees="site"`, `data-tri="site">Site</th>`, `data-tri="type">Type</th>`,
 		`data-site="maison" data-type="vm"`, `<td class="col-type masque-tel">Physique</td>`, `data-colonne="site"`} {

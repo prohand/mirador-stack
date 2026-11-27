@@ -184,6 +184,9 @@ type donneesConteneurs struct {
 	NbMachines, NbProjets                      int
 	SansDonnees                                bool
 	Admin                                      bool
+	// Vue : projet (défaut) ou liste ; une seule est construite (grand
+	// parc, SPEC § 141 : avant, chaque conteneur était rendu deux fois).
+	Vue string
 }
 
 // lireConteneurs : un échantillon par (machine, conteneur), clé « machine\x00nom ».
@@ -406,21 +409,23 @@ func (c *Console) etincellesConteneurs(ctx context.Context, t time.Time) map[str
 // les changements notés par le serveur (« nom recréé : image A → B »).
 func (c *Console) imagesChangees(ctx context.Context, machines []string, t time.Time) map[string]string {
 	out := map[string]string{}
+	vues := map[string]bool{}
 	for _, m := range machines {
-		chg, err := changements.Lister(ctx, c.db, m, t.Add(-7*24*time.Hour), 300)
-		if err != nil {
+		vues[m] = true
+	}
+	chg, err := changements.ListerType(ctx, c.db, changements.Conteneur, t.Add(-7*24*time.Hour), 20_000)
+	if err != nil {
+		return out
+	}
+	for _, x := range chg { // les plus récents d'abord
+		if !vues[x.Machine] {
 			continue
 		}
-		for _, x := range chg { // les plus récents d'abord
-			if x.Type != changements.Conteneur {
-				continue
-			}
-			nom, images, ok := strings.Cut(x.Detail, " recréé : image ")
-			if !ok || out[m+"\x00"+nom] != "" {
-				continue
-			}
-			out[m+"\x00"+nom] = "image changée il y a " + dureeLisible(t.Sub(x.Le)) + " (" + images + ")"
+		nom, images, ok := strings.Cut(x.Detail, " recréé : image ")
+		if !ok || out[x.Machine+"\x00"+nom] != "" {
+			continue
 		}
+		out[x.Machine+"\x00"+nom] = "image changée il y a " + dureeLisible(t.Sub(x.Le)) + " (" + images + ")"
 	}
 	return out
 }
@@ -623,7 +628,10 @@ func casesConteneurs(ls []ligneConteneur, nbMachines, nbProjets int) []caseConte
 
 func (c *Console) pageConteneurs(q *req) {
 	ctx := q.r.Context()
-	d := donneesConteneurs{Machine: q.r.URL.Query().Get("machine"), Admin: q.admin()}
+	d := donneesConteneurs{Machine: q.r.URL.Query().Get("machine"), Admin: q.admin(), Vue: "projet"}
+	if q.r.URL.Query().Get("vue") == "liste" {
+		d.Vue = "liste"
+	}
 	switch q.r.URL.Query().Get("etat") {
 	case "problemes":
 		d.Filtre = "pb"

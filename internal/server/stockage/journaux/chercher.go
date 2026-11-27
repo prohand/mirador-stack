@@ -183,7 +183,7 @@ func (m *Moteur) candidats(r Requete) ([]candidat, []stockage.Ligne) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].b.tmax > out[j].b.tmax })
-	return out, slices.Clone(m.enCours)
+	return out, m.lignesEnCours()
 }
 
 // lireBloc lit l'en-tête, écarte le bloc si l'index ou le Bloom le permettent,

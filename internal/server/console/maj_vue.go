@@ -56,6 +56,7 @@ type vueMajParc struct {
 	PctEchec         int
 	Filtre           string
 	Lignes           []ligneMaj
+	NomsEchecs       []string // machines en échec (« Réessayer les N échecs », SPEC § 141)
 	// Déploiement : version proposée, étape en cours (0 : rien à faire,
 	// 1 importer, 2 essayer, 3 déployer, 4 fait), machine d'essai.
 	Deployer   string
@@ -139,7 +140,10 @@ func construireVueMaj(d *donneesMaj, filtre string) {
 		if m.Type != "collecteur" {
 			v.Candidates = append(v.Candidates, m.Nom)
 		}
-		if filtre == "" || filtre == l.Etat || (filtre == majRetard && l.Etat == majEnCours) {
+		if l.Etat == majEchec {
+			v.NomsEchecs = append(v.NomsEchecs, m.Nom)
+		}
+		if (filtre == "" || filtre == l.Etat || (filtre == majRetard && l.Etat == majEnCours)) && (d.Site == "" || strings.EqualFold(m.Site, d.Site)) {
 			v.Lignes = append(v.Lignes, l)
 		}
 	}

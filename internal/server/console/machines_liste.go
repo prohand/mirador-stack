@@ -28,6 +28,7 @@ const attenteVisibles = 5
 // filtresPage : choix lus dans l'adresse de la page.
 type filtresPage struct {
 	Vue, Filtre, Q string
+	Site, Groupe   string // listes Site / Groupe de la barre (SPEC § 141)
 }
 
 // lireFiltresMachines : vue, filtre et recherche, ramenés aux valeurs admises.
@@ -45,6 +46,18 @@ func lireFiltresMachines(vue, filtre, q string) filtresPage {
 	return f
 }
 
+// avecListes : site et groupe choisis dans les listes (bornés).
+func (f filtresPage) avecListes(site, groupe string) filtresPage {
+	f.Site, f.Groupe = strings.TrimSpace(site), strings.TrimSpace(groupe)
+	if len(f.Site) > 100 {
+		f.Site = ""
+	}
+	if len(f.Groupe) > 100 {
+		f.Groupe = ""
+	}
+	return f
+}
+
 // Lien : adresse de la page avec ces choix, en changeant une seule clé.
 // Les valeurs par défaut sont omises (adresse courte).
 func (f filtresPage) Lien(cle, valeur string) string {
@@ -53,6 +66,10 @@ func (f filtresPage) Lien(cle, valeur string) string {
 		f.Vue = valeur
 	case "filtre":
 		f.Filtre = valeur
+	case "site":
+		f.Site = valeur
+	case "groupe":
+		f.Groupe = valeur
 	}
 	var p []string
 	if f.Vue != "site" {
@@ -63,6 +80,12 @@ func (f filtresPage) Lien(cle, valeur string) string {
 	}
 	if f.Q != "" {
 		p = append(p, "q="+url.QueryEscape(f.Q))
+	}
+	if f.Site != "" {
+		p = append(p, "site="+url.QueryEscape(f.Site))
+	}
+	if f.Groupe != "" {
+		p = append(p, "groupe="+url.QueryEscape(f.Groupe))
 	}
 	if len(p) == 0 {
 		return "/machines"
@@ -82,6 +105,12 @@ type groupeMachines struct {
 	Machines  []vueMachine
 	Problemes int
 	Tuiles    []tuileMachine // présentation en tuiles (SPEC § 120)
+	// Grand parc (SPEC § 141) : bloc replié (tout va bien) ou réduit aux
+	// machines à regarder ; Total : machines du bloc, Lien : le bloc entier.
+	Total    int
+	Replie   bool
+	Caches   int
+	LienTout string
 }
 
 // Probleme : machine muette ou dont la mise à jour a échoué.
@@ -93,6 +122,9 @@ func (v vueMachine) Collecteur() bool { return v.Type == "collecteur" }
 // garde : la machine passe-t-elle la recherche et le filtre ?
 func (f filtresPage) garde(v vueMachine) bool {
 	if !f.trouve(v) {
+		return false
+	}
+	if f.Site != "" && !strings.EqualFold(v.Site, f.Site) || f.Groupe != "" && !strings.EqualFold(v.Groupe, f.Groupe) {
 		return false
 	}
 	switch f.Filtre {
@@ -192,7 +224,7 @@ func regrouperMachines(ms []vueMachine, f filtresPage) []groupeMachines {
 	})
 	out := make([]groupeMachines, 0, len(ordre))
 	for _, k := range ordre {
-		g := groupeMachines{Titre: k, Machines: ranger(parCle[k])}
+		g := groupeMachines{Titre: k, Machines: ranger(parCle[k]), Total: len(parCle[k])}
 		for _, v := range g.Machines {
 			if v.Probleme() {
 				g.Problemes++
@@ -326,4 +358,35 @@ func adresseInconnue(ip string, connus map[netip.Prefix]bool) bool {
 	}
 	p, ok := reseauDe(ip)
 	return ok && !connus[p]
+}
+
+// seuilCompact : au-delà, la page est compacte (blocs sans problème repliés,
+// seules les machines à regarder listées), sauf recherche ou filtre.
+const seuilCompact = 50
+
+// compacter : grand parc (SPEC § 141, maquette validée le 27/11).
+func compacter(gs []groupeMachines, f filtresPage) {
+	for i := range gs {
+		g := &gs[i]
+		cle := "site"
+		if f.Vue == "groupe" {
+			cle = "groupe"
+		}
+		g.LienTout = f.Lien(cle, g.Titre)
+		if f.Vue == "liste" || g.Titre == "" {
+			g.LienTout = f.Lien("filtre", "")
+		}
+		if g.Problemes == 0 {
+			g.Replie, g.Machines = true, nil
+			continue
+		}
+		var garde []vueMachine
+		for _, v := range g.Machines {
+			if v.Probleme() {
+				garde = append(garde, v)
+			}
+		}
+		g.Caches = len(g.Machines) - len(garde)
+		g.Machines = garde
+	}
 }

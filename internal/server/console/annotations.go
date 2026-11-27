@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -142,10 +143,11 @@ func (c *Console) annotationsMachine(ctx context.Context, instance string, debut
 // Prévision des disques (SPEC § 31) : jours avant d'être plein, d'après la
 // pente de la place libre sur 7 jours ; seulement si moins de 30 jours.
 // Pente sur 7 jours moins 1 heure (167 h) : la lecture reste dans la base
-// brute (gardée 7 jours par défaut). Au-delà de 7 jours, elle passerait sur
-// la base agrégée (un point par 5 min, en retard, vide au début). La place
-// libre actuelle est lue à part (base brute) et divisée ici : juste même si
-// la conservation brute est réglée plus courte. Résultat gardé 10 minutes.
+// brute (gardée 7 jours par défaut). La place libre actuelle est lue à part
+// (base brute). Grand parc (SPEC § 141) : une requête rend au plus 2 000
+// séries ; au-delà (~500 machines), la prévision tombait en erreur sans
+// bruit. Le parc est découpé en paquets d'au plus seriesParPaquet disques.
+// Résultat (échec compris) gardé 10 minutes.
 const (
 	exprLibreDisque = `node_filesystem_avail_bytes{%s}`
 	exprPenteDisque = `-deriv(node_filesystem_avail_bytes{%s}[167h]) > 0` // octets perdus par seconde
@@ -154,6 +156,9 @@ const (
 	// ponctuelle dans la semaine. Le disque doit perdre de la place sur 7 j
 	// ET sur le dernier jour ; on retient la pente la plus lente.
 	exprPenteDisqueJour = `-deriv(node_filesystem_avail_bytes{%s}[24h]) > 0`
+	// exprDisquesParMachine : nombre de disques de chaque machine (découpage).
+	exprDisquesParMachine = `count by (instance) (node_filesystem_avail_bytes{%s})`
+	seriesParPaquet       = 1500 // < 2 000 séries rendues au plus par requête
 )
 
 // filtreDisques : systèmes de fichiers réels (comme les barres d'occupation).
@@ -181,34 +186,8 @@ func (c *Console) previsionsDisques(ctx context.Context, filtre string, t time.T
 	}
 	c.prevDisques.mu.Unlock()
 	out := map[string]float64{}
-	cle := func(e alertes.Echantillon) string {
-		return e.Etiquettes.Get("instance") + "|" + e.Etiquettes.Get("mountpoint")
-	}
-	pentes, err := c.instant(ctx, fmt.Sprintf(exprPenteDisque, filtre), t)
-	if err != nil {
-		return out
-	}
-	jour, err := c.instant(ctx, fmt.Sprintf(exprPenteDisqueJour, filtre), t)
-	if err != nil {
-		return out
-	}
-	penteJour := map[string]float64{}
-	for _, e := range jour {
-		penteJour[cle(e)] = e.Valeur
-	}
-	libres, err := c.instant(ctx, fmt.Sprintf(exprLibreDisque, filtre), t)
-	if err != nil {
-		return out
-	}
-	libre := map[string]float64{}
-	for _, e := range libres {
-		libre[cle(e)] = e.Valeur
-	}
-	for _, e := range pentes {
-		pj, perdJour := penteJour[cle(e)]
-		if l, ok := libre[cle(e)]; ok && e.Valeur > 0 && perdJour && pj > 0 {
-			out[cle(e)] = l / min(e.Valeur, pj) / 86400
-		}
+	for _, f := range paquetsDisques(c.instant(ctx, fmt.Sprintf(exprDisquesParMachine, filtre), t)) {
+		c.previsionsPaquet(ctx, filtre+f, t, out)
 	}
 	c.prevDisques.mu.Lock()
 	if c.prevDisques.tout == nil || len(c.prevDisques.tout) > 100 {
@@ -242,4 +221,72 @@ func pleinDansMachine(prev map[string]float64) map[string]float64 {
 		}
 	}
 	return out
+}
+
+// paquetsDisques : filtres en plus (« , instance=~"a|b" ») qui découpent le
+// parc en paquets d'au plus seriesParPaquet disques ; un seul filtre vide
+// si le parc tient en une requête (ou si le décompte a échoué).
+func paquetsDisques(parMachine []alertes.Echantillon, err error) []string {
+	total := 0
+	for _, e := range parMachine {
+		total += int(e.Valeur)
+	}
+	if err != nil || total <= seriesParPaquet {
+		return []string{""}
+	}
+	sort.Slice(parMachine, func(i, j int) bool {
+		return parMachine[i].Etiquettes.Get("instance") < parMachine[j].Etiquettes.Get("instance")
+	})
+	var out []string
+	var noms []string
+	n := 0
+	fermer := func() {
+		if len(noms) > 0 {
+			out = append(out, `, instance=~"`+strings.Join(noms, "|")+`"`)
+			noms, n = nil, 0
+		}
+	}
+	for _, e := range parMachine {
+		k := int(e.Valeur)
+		if n+k > seriesParPaquet {
+			fermer()
+		}
+		noms = append(noms, regexp.QuoteMeta(e.Etiquettes.Get("instance")))
+		n += k
+	}
+	fermer()
+	return out
+}
+
+// previsionsPaquet : prévisions d'un paquet de machines, ajoutées à out.
+func (c *Console) previsionsPaquet(ctx context.Context, filtre string, t time.Time, out map[string]float64) {
+	cle := func(e alertes.Echantillon) string {
+		return e.Etiquettes.Get("instance") + "|" + e.Etiquettes.Get("mountpoint")
+	}
+	pentes, err := c.instant(ctx, fmt.Sprintf(exprPenteDisque, filtre), t)
+	if err != nil {
+		return
+	}
+	jour, err := c.instant(ctx, fmt.Sprintf(exprPenteDisqueJour, filtre), t)
+	if err != nil {
+		return
+	}
+	penteJour := map[string]float64{}
+	for _, e := range jour {
+		penteJour[cle(e)] = e.Valeur
+	}
+	libres, err := c.instant(ctx, fmt.Sprintf(exprLibreDisque, filtre), t)
+	if err != nil {
+		return
+	}
+	libre := map[string]float64{}
+	for _, e := range libres {
+		libre[cle(e)] = e.Valeur
+	}
+	for _, e := range pentes {
+		pj, perdJour := penteJour[cle(e)]
+		if l, ok := libre[cle(e)]; ok && e.Valeur > 0 && perdJour && pj > 0 {
+			out[cle(e)] = l / min(e.Valeur, pj) / 86400
+		}
+	}
 }

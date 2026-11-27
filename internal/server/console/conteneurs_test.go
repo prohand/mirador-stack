@@ -79,14 +79,22 @@ func TestPageConteneurs(t *testing.T) {
 		"100 %", `<svg class="etincelle"`, "1,0 Go / 4,0 Go</small>", "il y a 3 j", `href="/logs?container=postgres&amp;host=web1"`,
 		`<span class="sans-test" title="Pas de test de santé (healthcheck) défini pour ce conteneur">—</span>`,
 		// Filtres et vue Liste.
-		`data-filtre="pb"`, "Sans test de santé <b>", `data-vue-ct="liste"`, `data-vue="projet"`,
+		`data-filtre="pb"`, "Sans test de santé <b>", `data-vue="projet"`,
 	} {
 		if !strings.Contains(corps, attendu) {
 			t.Errorf("page des conteneurs : %q absent", attendu)
 		}
 	}
 	// Problèmes en premier : le groupe « site » avant « media », appli et cache avant postgres.
-	vueProjet := corps[strings.Index(corps, `data-vue-ct="projet"`):strings.Index(corps, `data-vue-ct="liste"`)]
+	// Une seule vue construite (SPEC § 141) : « Par projet » d'office, la
+	// liste à son adresse.
+	if strings.Contains(corps, `data-vue-ct="liste"`) {
+		t.Error("vue Liste construite en plus de la vue Par projet")
+	}
+	if _, liste, _ := b.get(cl, "/conteneurs?vue=liste"); !strings.Contains(liste, `data-vue-ct="liste"`) || strings.Contains(liste, `data-vue-ct="projet"`) {
+		t.Error("?vue=liste : mauvaise vue")
+	}
+	vueProjet := corps[strings.Index(corps, `data-vue-ct="projet"`):]
 	if strings.Index(vueProjet, "· projet</span> site") > strings.Index(vueProjet, "· projet</span> media") {
 		t.Error("groupe avec problème pas en premier")
 	}

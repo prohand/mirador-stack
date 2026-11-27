@@ -395,7 +395,8 @@ type donneesConservation struct {
 	Cartes                  []carteConservation // métriques brutes, agrégées, logs
 	Disque                  vueDisque
 	OptAudit, OptHistorique []optionDuree
-	AttenteTexte            string // réduction programmée, en clair
+	AttenteTexte            string  // réduction programmée, en clair
+	Parc                    vueParc // taille du parc (SPEC § 141)
 }
 
 // Les plafonds se saisissent en Mio.
@@ -420,6 +421,7 @@ func (c *Console) donneesConservation(q *req) donneesConservation {
 	if a := d.Attente; a != nil {
 		d.AttenteTexte = texteChangements(d.C, a.Valeur)
 	}
+	d.Parc = c.vueTailleParc(ctx)
 	return d
 }
 
@@ -463,6 +465,27 @@ func (c *Console) postConservation(q *req) {
 	switch f.texte("action") {
 	case "annuler":
 		c.retour(q, "/reglages/conservation", AnnulerReduction(ctx, c.db, q.qui(), q.ip.String(), q.t), "réduction annulée : rien n'a été supprimé")
+		return
+	case "taille_parc":
+		// Vide = automatique.
+		n := 0
+		var err error
+		if x := f.texte("taille_parc"); x != "" {
+			if n, err = strconv.Atoi(x); err != nil {
+				err = errors.New("taille du parc : un nombre de machines (vide = automatique)")
+			}
+		}
+		if err == nil {
+			err = EcrireTailleParc(ctx, c.db, n, q.qui(), q.t)
+		}
+		if err == nil && c.opt.Redimensionner != nil {
+			c.opt.Redimensionner()
+		}
+		ok := "taille du parc : automatique"
+		if n > 0 {
+			ok = "taille du parc : prévue pour " + strconv.Itoa(n) + " machines"
+		}
+		c.retour(q, "/reglages/conservation", err, ok+" (appliqué tout de suite)")
 		return
 	}
 	var errs []error

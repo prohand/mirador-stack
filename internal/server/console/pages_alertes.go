@@ -27,6 +27,7 @@ func (c *Console) routesAlertes() {
 	m.HandleFunc("GET /alertes", c.lecture(c.pageAlertes))
 	m.HandleFunc("GET /fragments/alertes", c.lecture(c.fragmentAlertes))
 	m.HandleFunc("GET /alertes/{id}", c.lecture(c.pageAlerte))
+	m.HandleFunc("POST /alertes/groupe", c.admin(c.postAlertesGroupe)) // actions de groupe (SPEC § 141)
 	m.HandleFunc("POST /alertes/{id}", c.admin(c.postAlerte))
 	m.HandleFunc("GET /sourdine", c.lecture(c.pageSourdine))
 	m.HandleFunc("POST /sourdine", c.admin(c.postSourdine))

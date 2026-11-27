@@ -32,6 +32,13 @@ func NouveauLimiteur(debit, rafale float64, maxCles int) *Limiteur {
 	return &Limiteur{debit: debit, rafale: rafale, maxCles: maxCles, seaux: make(map[string]*seau)}
 }
 
+// Regler change le débit et la rafale à chaud (taille du parc, SPEC § 141).
+func (l *Limiteur) Regler(debit, rafale float64) {
+	l.mu.Lock()
+	l.debit, l.rafale = debit, rafale
+	l.mu.Unlock()
+}
+
 // Prendre retire n jetons pour cette clé. Faux si le seau est vide.
 // Le seau peut passer en négatif (lot plus gros que le reste) : la clé
 // attend alors d'avoir remboursé avant la requête suivante.
@@ -127,6 +134,13 @@ type seriesMachine struct {
 type vue struct {
 	nom string // __name__ (chaîne partagée avec parNom)
 	t   int64  // secondes Unix
+}
+
+// ReglerTotal change le plafond de séries de tout le parc, à chaud.
+func (q *Quotas) ReglerTotal(n int) {
+	q.mu.Lock()
+	q.lim.Total = n
+	q.mu.Unlock()
 }
 
 // NouveauxQuotas prépare le suivi des séries.
@@ -253,4 +267,39 @@ func (h LimitesHorloge) Juger(heureAgent, maintenant time.Time) (Decision, time.
 	default:
 		return HeureRefuse, d
 	}
+}
+
+// Places : requêtes servies en même temps, nombre réglable à chaud
+// (taille du parc, SPEC § 141).
+type Places struct {
+	mu        sync.Mutex
+	prises, n int
+}
+
+// NouvellesPlaces : n places.
+func NouvellesPlaces(n int) *Places { return &Places{n: max(1, n)} }
+
+// Prendre : faux si toutes les places sont prises.
+func (p *Places) Prendre() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.prises >= p.n {
+		return false
+	}
+	p.prises++
+	return true
+}
+
+// Rendre une place prise.
+func (p *Places) Rendre() {
+	p.mu.Lock()
+	p.prises--
+	p.mu.Unlock()
+}
+
+// Regler : nouveau nombre de places (les requêtes en cours finissent).
+func (p *Places) Regler(n int) {
+	p.mu.Lock()
+	p.n = max(1, n)
+	p.mu.Unlock()
 }

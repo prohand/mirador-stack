@@ -2633,6 +2633,16 @@ document.addEventListener("change", function (ev) {
   var cle = "mirador.conteneurs.vue";
   function vue(v, garder) {
     if (v !== "liste") { v = "projet"; }
+    if (garder) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+    // Une seule vue est construite par le serveur (SPEC § 141) : l'autre
+    // se demande à la page (« ?vue= »).
+    if (!document.querySelector('[data-vue-ct="' + v + '"]')) {
+      var u = new URL(window.location.href);
+      if (!garder && u.searchParams.has("vue")) { return; } // choix de l'adresse prioritaire
+      u.searchParams.set("vue", v);
+      window.location.replace(u.toString());
+      return;
+    }
     document.querySelectorAll("[data-vue-ct]").forEach(function (x) { x.hidden = x.getAttribute("data-vue-ct") !== v; });
     choix.querySelectorAll("button[data-vue]").forEach(function (x) {
       var on = x.getAttribute("data-vue") === v;
@@ -2833,4 +2843,35 @@ document.addEventListener("change", function (ev) {
     eteindre();
   });
   svg.addEventListener('mouseleave', eteindre);
+})();
+
+// Choix d'un pare-feu (SPEC § 140) : la pastille choisie est rendue visible
+// dans la barre qui défile (téléphone, parc de plus de 8 pare-feu).
+(function () {
+  var actif = document.querySelector('.flux-choix-pf .choix.actif');
+  var barre = actif && actif.parentElement;
+  if (!barre || barre.scrollWidth <= barre.clientWidth) return;
+  barre.scrollLeft = Math.max(0, actif.offsetLeft - barre.offsetLeft - 16);
+})();
+
+// Machines, actions de masse (SPEC § 141) : compte des machines cochées,
+// case « tout cocher » d'un bloc. Sans JavaScript, la barre marche aussi.
+(function () {
+  var barre = document.querySelector('[data-barre-masse]');
+  if (!barre) return;
+  var nombre = barre.querySelector('[data-masse-nombre]');
+  function compter() {
+    var n = document.querySelectorAll('input[data-masse]:checked').length;
+    nombre.textContent = n ? n + (n > 1 ? ' machines cochées' : ' machine cochée') : 'Cocher des machines (présentation « Tableau »)';
+    barre.classList.toggle('active', n > 0);
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.matches && t.matches('input[data-masse-tout]')) {
+      var table = t.closest('table');
+      table.querySelectorAll('input[data-masse]').forEach(function (c) { c.checked = t.checked; });
+    }
+    if (t.matches && t.matches('input[data-masse], input[data-masse-tout]')) compter();
+  });
+  compter();
 })();

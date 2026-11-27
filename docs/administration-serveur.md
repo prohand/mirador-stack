@@ -10,6 +10,35 @@ Dans la suite, `MS` remplace `docker exec mirador-server /mirador-server -config
 Les options se placent **avant** le nom de la machine. Chaque action est notée
 dans le journal d'audit (jamais les tokens ni les jetons).
 
+## Taille du parc (SPEC.md § 141)
+
+Rien à régler : mirador compte les machines approuvées, prend 20 % de marge
+et ajuste seul ses plafonds, sans redémarrage (toutes les 5 minutes). Pour
+une trentaine de machines, ce sont les plafonds de toujours.
+
+- **Réglages › Conservation des données › Taille du parc** : nombre de
+  machines vues, taille retenue, plafonds, mémoire du conteneur et disque
+  conseillés (avertissement si la limite mémoire du conteneur est trop
+  juste). Champ facultatif « Prévoir plus de machines » avant une grosse
+  arrivée (vide = automatique).
+- Ce qui en découle :
+
+| Machines | Séries au plus | Mémoire visée (GOMEMLIMIT) | Requêtes décodées / petites / binaires | Tampons de logs |
+|---|---|---|---|---|
+| jusqu'à 33 | 40 000 | 200 Mio | 4 / 16 / 2 | 1 |
+| 50 | 60 000 | 255 Mio | 4 / 16 / 2 | 1 |
+| 200 | 240 000 | 780 Mio | 4 / 20 / 2 | 5 |
+| 500 | 600 000 | 1,8 Gio | 10 / 50 / 2 | 11 |
+| 1 500 | 1 800 000 | 5,2 Gio | 30 / 150 / 5 | 32 |
+
+- Mémoire du conteneur : **1,5 fois** la mémoire visée (limite dure de
+  Docker, `mem_limit` du compose), soit 300 Mio pour un petit parc, ~380 Mio
+  pour 50 machines, ~8 Go
+  pour 1 500. Si `GOMEMLIMIT` est donné au conteneur, mirador le garde.
+- Disque (estimation, à vérifier par la mesure) : ~73 Mo par machine avec
+  les durées par défaut. 50 machines ≈ 4 Go ; 500 ≈ 37 Go ; 1 500 ≈ 110 Go.
+  Relever les plafonds de taille sur la même page.
+
 ## Machines
 
 | Besoin | Commande |

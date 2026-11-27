@@ -48,7 +48,7 @@ func (l *limitePannes) permis(machine int64, t time.Time) bool {
 }
 
 func (f *Flotte) recevoirEvenement(w http.ResponseWriter, r *http.Request) {
-	m, liberer, ok := f.opt.Ingestion.Accueillir(w, r)
+	m, liberer, ok := f.opt.Ingestion.AccueillirLeger(w, r)
 	if !ok {
 		return
 	}

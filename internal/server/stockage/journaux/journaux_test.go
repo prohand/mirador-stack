@@ -360,3 +360,42 @@ func TestValeursVues(t *testing.T) {
 		t.Errorf("host n'est pas suivi : %v", v)
 	}
 }
+
+// Grand parc (SPEC § 141) : 1 500 machines. Avec des tampons par machine,
+// chercher une machine saute presque tous les blocs ; sans, tous sont lus.
+func TestPartitionsGrandParc(t *testing.T) {
+	ctx := context.Background()
+	lus := func(partitions int) (int, int) {
+		h := nouvelleHorloge(t0)
+		m, err := Ouvrir(Options{Dossier: t.TempDir(), Maintenant: h.maintenant, TailleBloc: 64 << 10, Partitions: partitions})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer m.Fermer()
+		var lot []stockage.Ligne
+		for i := 0; i < 30_000; i++ {
+			lot = append(lot, ligne(time.Duration(i)*time.Millisecond, fmt.Sprintf("srv-%04d", i%1500), "info", "connexion acceptée depuis 192.0.2.7 port 22"))
+		}
+		if err := m.Ecrire(ctx, lot); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Vider(); err != nil {
+			t.Fatal(err)
+		}
+		res, err := m.Chercher(ctx, Requete{Debut: t0.UnixMilli(), Fin: t0.Add(time.Minute).UnixMilli(), Champs: map[string]string{"host": "srv-0042"}, Limite: 100},
+			LimitesRechercheDefaut())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Lignes) != 20 {
+			t.Fatalf("%d partitions : %d lignes trouvées, 20 attendues", partitions, len(res.Lignes))
+		}
+		return res.BlocsLus, res.BlocsLus + res.BlocsSautes
+	}
+	lu1, total1 := lus(1)
+	luP, totalP := lus(PartitionsPour(1500))
+	t.Logf("1 partition : %d blocs lus sur %d ; %d partitions : %d sur %d", lu1, total1, PartitionsPour(1500), luP, totalP)
+	if lu1 != total1 || luP > 2 {
+		t.Errorf("sans partitions tout est lu (%d/%d) ; avec, 2 blocs au plus (%d)", lu1, total1, luP)
+	}
+}

@@ -27,6 +27,7 @@ import (
 	"net/netip"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +57,10 @@ const SepChemin = "\x1f"
 
 // garderCheminsHeure : chemins (pays × pare-feu × port) gardés par heure.
 const garderCheminsHeure = 100
+
+// Par pare-feu, en plus des plus gros de l'heure (SPEC § 140) : ses 8 ports
+// et ses 3 chemins principaux, pour le détail d'une machine d'un grand parc.
+const garderPortsParPF, garderCheminsParPF = 8, 3
 
 // Autres : nom de la clé qui regroupe ce qui dépasse les limites.
 const Autres = "autres"
@@ -458,6 +463,44 @@ func garderPlusGros(m map[paire]int, n int, regrouper bool) map[paire]int {
 	return out
 }
 
+// garderParPareFeu : comme garderPlusGros, mais chaque pare-feu garde au
+// moins ses parPF plus gros (SPEC § 140 : détail d'une petite machine d'un
+// grand parc). pf : pare-feu d'une clé.
+func garderParPareFeu(m map[paire]int, n, parPF int, regrouper bool, pf func(paire) string) map[paire]int {
+	if len(m) <= n {
+		return m
+	}
+	cles := make([]paire, 0, len(m))
+	for k := range m {
+		cles = append(cles, k)
+	}
+	sort.Slice(cles, func(i, j int) bool {
+		if m[cles[i]] != m[cles[j]] {
+			return m[cles[i]] > m[cles[j]]
+		}
+		return cles[i].a+cles[i].b < cles[j].a+cles[j].b
+	})
+	out := make(map[paire]int, n+8)
+	vus := map[string]int{}
+	for i, k := range cles {
+		p := pf(k)
+		switch {
+		case i < n || vus[p] < parPF:
+			out[k] += m[k]
+			vus[p]++
+		case regrouper:
+			out[paire{k.a, Autres}] += m[k]
+		}
+	}
+	return out
+}
+
+// pareFeuDuChemin : pare-feu d'une clé de chemin (pays SepChemin pare-feu).
+func pareFeuDuChemin(k paire) string {
+	_, pf, _ := strings.Cut(k.a, SepChemin)
+	return pf
+}
+
 func (m *Magasin) ecrireHeure(ctx context.Context, s *seau) error {
 	tx, err := m.opt.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -490,10 +533,10 @@ func (m *Magasin) ecrireHeure(ctx context.Context, s *seau) error {
 	for _, g := range []struct {
 		genre string
 		m     map[paire]int
-	}{{gPays, s.pays}, {gPort, garderPlusGros(s.ports, garderPortsHeure, true)},
+	}{{gPays, s.pays}, {gPort, garderParPareFeu(s.ports, garderPortsHeure, garderPortsParPF, true, func(k paire) string { return k.a })},
 		{gPaysPort, garderPlusGros(s.xport, garderPaysPortsHeure, true)}, {gIP, ips},
 		{gSource, garderPlusGros(s.sources, garderPortsHeure, false)},
-		{gChemin, garderPlusGros(s.chemins, garderCheminsHeure, false)}} {
+		{gChemin, garderParPareFeu(s.chemins, garderCheminsHeure, garderCheminsParPF, false, pareFeuDuChemin)}} {
 		for k, n := range g.m {
 			if err := ins(g.genre, k.a, k.b, n); err != nil {
 				return err

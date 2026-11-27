@@ -138,6 +138,19 @@ func TestGabaritsAvecDonnees(t *testing.T) {
 			!strings.Contains(corps, "Top pays")) {
 			t.Errorf("page flux (monde) incomplète :\n%s", corps)
 		}
+		// Classements (SPEC § 139) : protocole, outil, couleur du pare-feu, part, alerte.
+		if nom == "flux" {
+			for _, attendu := range []string{"<h2>Classements</h2>", `<span class="pr TCP">TCP</span><code>22</code><small>ssh</small>`,
+				`<span class="pt pf0"></span><b>fw</b><span class="outil">OPNsense</span>`, `<span class="multi">2 pare-feu</span>`,
+				`<small>78 %</small>`, `class="cc-alerte"`, `href="/logs?mots=45.143.203.10&amp;periode=24h"`, `class="cc-l premier"`} {
+				if !strings.Contains(corps, attendu) {
+					t.Errorf("classements : %q absent", attendu)
+				}
+			}
+		}
+		if nom == "flux-reseau" && strings.Contains(corps, `class="cc-alerte"`) {
+			t.Error("vue réseau : l'alerte est déjà à côté des chemins")
+		}
 		if nom == "flux-reseau" && (!strings.Contains(corps, `fill="url(#fd-n5-pf0)"`) || !strings.Contains(corps, `href="/flux-bloques?pf=fw&amp;vue=reseau"`) ||
 			!strings.Contains(corps, "a été bloquée par 2 pare-feu") || !strings.Contains(corps, "Chemins les plus fréquents") ||
 			!strings.Contains(corps, `<tspan class="outil">OPNsense</tspan>`) || !strings.Contains(corps, "78 %")) {
@@ -205,12 +218,13 @@ func donneesFluxExemple(vue string) donneesFlux {
 	d := donneesFlux{Vue: vue, Periode: "24h", NomPeriode: "24 h", B: b, GeoIP: true, Carte: carteFlux(map[string]int{"FR": 3, "CN": 900}),
 		Maison: centresPays["FR"], Centres: centresJSON, Comparaison: "−8 % / hier", ComparaisonClasse: "moins",
 		Fil:     []ligneFil{{Heure: "19:42:07", Pays: "FR", IP: "45.143.203.10", PareFeu: "fw", Port: "tcp/22", Service: "ssh", N: 3}},
-		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}),
+		Sankey:  construireSankey(b, v, map[string]string{"fw": "OPNsense"}, nil),
 		Chemins: cheminsVue([]fluxbloques.Chemin{{Pays: "CN", PareFeu: "fw", Port: "tcp/22", N: 4120}}, v),
 		Sources: []sourceFlux{{Collecteur: "collecteur-lan", Texte: "aucune ligne filterlog reçue depuis 1 h", Classe: "attention"}},
 		Note:    "45.143.203.10 a été bloquée par 2 pare-feu sur la période : la même adresse essaie plusieurs de vos machines."}
 	d.Pays = rangsFlux(b.Pays, 6, func(r *rangFlux) { r.Code, r.Nom = r.Nom, nomPaysOuCode(r.Nom) })
-	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) { r.Lien = "/logs" })
+	d.AlerteIP, d.AlertePF = "45.143.203.10", 2
+	d.Classement = (&Console{}).classementFlux(b, v, map[string]string{"fw": "OPNsense"}, nil, false, false)
 	d.Barres, d.Axe, d.PicTexte = barresFlux(b)
 	d.Bord, d.Grille, d.Bulles, d.TopPays = bordCarte, grilleCarte, bullesFlux(b.Pays), d.Pays
 	return d

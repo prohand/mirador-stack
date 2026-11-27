@@ -32,7 +32,7 @@
 {{if .Erreur}}<p class="message erreur">{{majuscule .Erreur}}</p>
 {{else if .Courbe}}<div class="graphe" data-courbe="{{.Courbe}}"{{if .CourbeJSON}} data-json="{{.CourbeJSON}}"{{end}}></div>
 {{else if egal .P.Type "chiffre"}}{{if .Chiffres}}<div class="chiffres-panneau">{{range .Chiffres}}<div class="chiffre {{.Couleur}}"><b>{{.Texte}}</b>{{if .Legende}}<span>{{.Legende}}</span>{{end}}</div>{{end}}</div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
-{{else if egal .P.Type "barres"}}{{if .Barres}}<table class="barres">{{range .Barres}}<tr><td>{{.Nom}}</td><td class="nombre {{.Couleur}}">{{.Texte}}</td><td><meter min="0" max="{{.Max}}" value="{{.Valeur}}"></meter>{{if .Prevision}}<span class="plein-dans{{if .Urgent}} plein-urgent{{end}}" title="D'après la pente des 7 derniers jours">{{.Prevision}}</span>{{end}}</td></tr>{{end}}</table>{{else}}<p class="vide">Aucune donnée</p>{{end}}
+{{else if egal .P.Type "barres"}}{{if .Barres}}<table class="barres">{{range .Barres}}<tr><td>{{.Nom}}</td><td class="nombre {{.Couleur}}">{{.Texte}}</td><td><meter min="0" max="{{.Max}}" value="{{.Valeur}}"></meter>{{if .Prevision}}<span class="plein-dans{{if .Urgent}} plein-urgent{{end}}" title="D'après la pente des 7 derniers jours">{{.Prevision}}</span>{{end}}</td></tr>{{end}}</table>{{with .Note}}<p class="aide"><small>{{.}}</small></p>{{end}}{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{else if egal .P.Type "tableau"}}{{if .Lignes}}<div class="defile"><table><thead><tr>{{range .Entetes}}<th>{{.}}</th>{{end}}</tr></thead>
 <tbody>{{range .Lignes}}<tr>{{range .}}<td class="{{if .Couleur}}cellule-{{.Couleur}}{{end}}">{{if .Lien}}<a href="{{.Lien}}">{{.Texte}}</a>{{else if .Barre}}<span class="mini-barre {{.Couleur}}"><i><u class="largeur-{{printf "%.0f" .Pct}}"></u></i>{{.Texte}}</span>{{else}}{{.Texte}}{{end}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{else}}<p class="vide">Aucune donnée</p>{{end}}
 {{end}}
@@ -86,13 +86,19 @@
 {{if .D.R.Regarder}}<div class="liste-regarder">{{range .D.R.Regarder}}<div class="l {{.Classe}}"><span class="puce {{.Puce}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><span class="e"><b>{{.Titre}}</b>{{if .Texte}}<small>{{.Texte}}</small>{{end}}</span>{{if .Lien}}<a class="pastille" href="{{.Lien}}">{{.Action}}</a>{{end}}</div>{{end}}</div>
 {{else}}<p class="vide">Rien à signaler.</p>{{end}}</section>
 <section class="carte bloc-moitie {{index $.ClassesAccueil "apercu"}}" data-bloc="apercu" data-titre="Le parc d'un coup d'œil"><div class="entete-carte"><h2>Le parc d'un coup d'œil</h2><a href="/machines">Toutes les machines →</a></div>
-{{range .D.R.Apercu}}<div class="apercu-site"><h3>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}} <small class="doux">{{len .Machines}}</small></h3><div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div></div>{{else}}<p class="vide">Aucune machine approuvée.</p>{{end}}
+{{if .D.R.ApercuCompact}}{{range .D.R.Apercu}}<div class="apercu-ligne"><a class="t" href="{{.Lien}}"><b>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}}</b> <small class="doux">· {{.Total}}</small></a>
+<div class="b"><span class="barre-etat"><i class="erreur largeur-{{.PctErreur}}"></i><i class="attention largeur-{{.PctAttention}}"></i><i class="ok largeur-{{.PctOk}}"></i></span>
+<div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}{{if .Ok}}<span class="doux apercu-ok">{{if .Machines}}+ {{end}}{{.Ok}} ok</span>{{end}}</div></div>
+<span class="pastille {{if .Erreurs}}erreur{{else if .Attentions}}attention{{else}}ok{{end}}">{{if or .Erreurs .Attentions}}{{.ARegarder}} à regarder{{else}}tout va bien{{end}}</span></div>{{end}}
+{{with .D.R.SitesVerts}}<p class="doux apercu-verts">+ {{.}} {{accord . "autre(s) site(s)"}}, tous verts · <a href="/machines">toutes les machines</a></p>{{end}}
+{{else}}{{range .D.R.Apercu}}<div class="apercu-site"><h3>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}} <small class="doux">{{len .Machines}}</small></h3><div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div></div>{{else}}<p class="vide">Aucune machine approuvée.</p>{{end}}{{end}}
 {{with .D.R.ChaleurCPU}}{{if .Lignes}}<h3 class="apercu-titre-chaleur">{{.Titre}} sur 24 h <small class="doux">les {{len .Lignes}} plus chargées</small></h3>
 <div class="defile"><table class="table-chaleur" data-sans-tri><colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
 <tbody>{{range .Lignes}}<tr><th><a href="/machines/{{.Nom}}" title="{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div>{{end}}{{end}}
 </section>
 <section class="carte {{index $.ClassesAccueil "parc"}}" data-parc data-bloc="parc" data-titre="Machines">
+{{if masque (index $.ClassesAccueil "parc")}}<p class="vide">Bloc masqué : « Modifier la vue » pour l'afficher.</p>{{else}}
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
       <label>Afficher <select data-filtre-etat>
@@ -128,8 +134,8 @@
     <td class="col-vu masque-tel">{{sansIlYA (depuisS .VuLe)}}</td></tr>{{end}}</tbody>
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
-</section>
-<div class="{{index $.ClassesAccueil "chaleur"}}" data-bloc="chaleur" data-titre="Le parc sur 24 h">{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
+{{end}}</section>
+<div class="{{index $.ClassesAccueil "chaleur"}}" data-bloc="chaleur" data-titre="Le parc sur 24 h">{{if and .D.Chaleur (not (masque (index $.ClassesAccueil "chaleur")))}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
 <div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur" data-chaleur><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur" data-sans-tri>
 <colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
@@ -268,7 +274,10 @@
  <span class="tuile"><small>Nouvelles depuis ta dernière visite</small><b data-nb-nouvelles>0</b></span>
 </div>
 {{if eq $v.Vue "liste"}}<section class="carte">{{template "liste-alertes" $v.Liste}}</section>
-{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes" open><summary>{{with $g.Gravites}}<span class="point-gravite {{index . 0}}" title="Alerte la plus grave du groupe"></span>{{end}}<strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong><span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}</span></summary>
+{{else if $v.Groupes}}{{range $g := $v.Groupes}}<details class="carte groupe-alertes"{{if $g.Ouvert}} open{{end}}><summary>{{with $g.Gravites}}<span class="point-gravite {{index . 0}}" title="Alerte la plus grave du groupe"></span>{{end}}<strong><a href="{{$g.Lien}}">{{$g.Titre}}</a></strong><span class="nb">{{len $g.Alertes}} {{accord (len $g.Alertes) "alerte(s)"}}{{with $g.Resume}} · {{.}}{{end}}</span>
+{{if and $.Admin $v.Grand (gt (len $g.Alertes) 1)}}<span class="actions-groupe"><form method="post" action="/alertes/groupe" class="enligne">{{template "csrf" $.CSRF}}<input type="hidden" name="vue" value="{{$v.Vue}}"><input type="hidden" name="cle" value="{{$g.Cle}}"><input type="hidden" name="retour" value="{{$v.Retour}}">
+<button name="action" value="acquitter" class="petit secondaire" title="Je m'en occupe : plus de rappel pendant 4 h">Acquitter les {{len $g.Alertes}}</button>
+<button name="action" value="silence" class="petit secondaire" title="Silence d'une heure sur chacune">Silence 1 h</button></form></span>{{end}}</summary>
 <div class="defile"><table class="table-alertes" data-cartes><thead><tr><th>Gravité</th><th>Alerte</th><th>6 dernières heures</th><th>Depuis</th><th></th></tr></thead><tbody>
 {{range $g.Alertes}}<tr class="ligne-alerte" data-depuis="{{.Depuis}}"><td>{{template "gravite" .Gravite}}</td>
 <td><a class="titre" href="/alertes/{{.ID}}" title="Règle {{.Regle}}">{{nomAlerte .Regle}}</a>{{if and (eq $v.Vue "regle") .Machine}} · <a href="/machines/{{.Machine}}">{{.Machine}}</a>{{end}}<span class="resume">{{.Resume}}</span>

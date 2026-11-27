@@ -37,7 +37,29 @@
  </div>
 </div></section>
 
+{{/* Déploiement par vagues (SPEC § 141, maquette validée le 27/11). */}}
+<section class="carte" id="vagues"><div class="entete-carte"><h2>{{with $d.Deploiement}}{{if .Fini}}Déploiement de {{.Version}} terminé{{else}}Déploiement de {{.Version}} par vagues{{end}}{{else}}Déployer par vagues{{end}}</h2>
+{{with $d.Deploiement}}{{if not .Fini}}<span class="pastille {{if .Pause}}attention{{else}}info{{end}}">{{if .Pause}}en pause{{else}}en cours{{end}}</span>{{end}}{{end}}</div>
+{{with $d.Deploiement}}<p class="sous">Chaque vague attend que la précédente soit saine : toutes ses machines dans la version, sans échec, pendant 30 min. Un échec met le déploiement en pause.</p>
+{{if .Pause}}<p class="message attention">En pause : {{.Raison}}.</p>{{end}}
+<div class="maj-vagues">{{range $d.Vagues}}<div class="maj-vague{{if .Saine}} faite{{else if .Lancee}} encours{{end}}"><b>{{.Titre}}</b>
+<small>{{if .Lancee}}{{.AJour}} / {{.Total}} à jour{{if .Echecs}} · <span class="erreur">{{.Echecs}} {{accord .Echecs "échec(s)"}}</span>{{end}}{{if .Muettes}} · {{.Muettes}} {{accord .Muettes "muette(s)"}}{{end}}{{if .Saine}} · saine ✓{{end}}{{else}}{{.Total}} en attente{{end}}</small>
+{{if and .Lancee (not .Saine)}}<span class="maj-prog"><i class="largeur-{{.Pct}}"></i></span>{{end}}</div>{{end}}</div>
+{{if $.Admin}}<div class="ligne">{{if not .Fini}}<form method="post" action="/mises-a-jour#vagues" class="enligne">{{template "csrf" $.CSRF}}{{template "code2fa"}}{{if .Pause}}<button name="action" value="vagues_reprise" class="petit">Reprendre</button>{{else}}<button name="action" value="vagues_pause" class="petit secondaire">Mettre en pause</button>{{end}}</form>{{end}}
+<form method="post" action="/mises-a-jour#vagues" class="enligne">{{template "csrf" $.CSRF}}{{template "code2fa"}}<button name="action" value="vagues_arret" class="petit secondaire" data-confirmer="{{if .Fini}}Effacer ce déploiement terminé ?{{else}}Arrêter le déploiement ? Les versions déjà assignées restent.{{end}}">{{if .Fini}}Effacer{{else}}Arrêter{{end}}</button></form></div>{{end}}
+{{else}}<p class="sous">Pour un grand parc : la version passe d'abord sur une machine d'essai, puis sur un groupe, puis sur un site, puis sur tout le parc ; chaque vague attend que la précédente soit saine (30 min sans échec) et un échec met tout en pause.</p>
+{{if and $.Admin $d.Choix}}<form method="post" action="/mises-a-jour#vagues" class="maj-vagues-form">{{template "csrf" $.CSRF}}
+<label>Version <select name="version">{{range $d.Choix}}<option>{{.}}</option>{{end}}</select></label>
+<label>1 · Machine d'essai <select name="essai"><option value="">(aucune)</option>{{range $v.Candidates}}<option>{{.}}</option>{{end}}</select></label>
+<label>2 · Groupe <select name="groupe"><option value="">(aucun)</option>{{range $d.Listes.Groupes}}<option>{{.}}</option>{{end}}</select></label>
+<label>3 · Site <select name="site"><option value="">(aucun)</option>{{range $d.Listes.Sites}}<option>{{.}}</option>{{end}}</select></label>
+<span class="doux">puis tout le parc</span>
+{{template "code2fa"}}<button name="action" value="vagues">Lancer</button></form>{{end}}{{end}}
+</section>
+
 <section class="carte" id="machines"><div class="entete-carte"><h2>Machines</h2></div>
+{{if or $d.Listes.Sites (and $.Admin $v.NomsEchecs)}}<div class="maj-outils">{{with $d.Listes.Sites}}<form method="get" action="/mises-a-jour#machines" class="enligne">{{if $v.Filtre}}<input type="hidden" name="etat" value="{{$v.Filtre}}">{{end}}<label>Site <select name="site" data-envoi-auto><option value="">Tous</option>{{range .}}<option{{if eq . $d.Site}} selected{{end}}>{{.}}</option>{{end}}</select></label></form>{{end}}
+{{if and $.Admin $v.NomsEchecs}}<form method="post" action="/mises-a-jour#machines" class="enligne">{{template "csrf" $.CSRF}}{{template "code2fa"}}<button name="action" value="reessayer_echecs" class="petit">Réessayer les {{len $v.NomsEchecs}} {{accord (len $v.NomsEchecs) "échec(s)"}}</button></form>{{end}}</div>{{end}}
 <nav class="filtres-maj" aria-label="Filtrer par état"><a href="/mises-a-jour#machines"{{if eq $v.Filtre ""}} class="actif" aria-current="page"{{end}}>Toutes <b>{{$v.Total}}</b></a><a href="/mises-a-jour?etat=ajour#machines"{{if eq $v.Filtre "ajour"}} class="actif" aria-current="page"{{end}}>À jour <b>{{$v.AJour}}</b></a><a href="/mises-a-jour?etat=retard#machines"{{if eq $v.Filtre "retard"}} class="actif" aria-current="page"{{end}}>En retard <b>{{$v.Retard}}</b></a><a href="/mises-a-jour?etat=echec#machines"{{if eq $v.Filtre "echec"}} class="actif" aria-current="page"{{end}}>En échec <b>{{$v.Echec}}</b></a></nav>
 {{if $v.Lignes}}<div class="defile"><table class="table-maj" data-cartes><thead><tr><th>Machine</th><th>Version</th><th>Cible</th><th>Dernier contact</th>{{if .Admin}}<th></th>{{end}}</tr></thead><tbody>
 {{range $v.Lignes}}<tr class="{{.Etat}}"><td><a class="maj-machine" href="/machines/{{.Nom}}"><span class="ic"><svg class="icone"><use href="#i-{{if egal .Type "collecteur"}}routeur{{else}}machines{{end}}"></use></svg></span><span><b>{{.Nom}}</b><small>{{if egal .Type "collecteur"}}collecteur{{else}}agent{{end}}{{if .Architecture}} · {{.Architecture}}{{end}}{{if .Essai}} · machine d'essai{{end}}</small></span></a></td>

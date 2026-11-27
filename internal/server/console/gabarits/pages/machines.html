@@ -29,11 +29,14 @@
 {{else}}<td>{{.Site}}</td><td>{{.Env}}</td><td>{{.Groupe}}</td><td></td><td></td>{{end}}
 </tr>{{end}}</tbody></table></div>
 {{if .D.AttenteCachees}}<p><a href="/machines?attente=toutes#attente">Voir les {{.D.AttenteCachees}} autres</a></p>{{end}}
+{{if and .Admin (gt .D.TotalAttente 1)}}<form method="post" action="/machines/masse" class="approuver-tout">{{template "csrf" .CSRF}}<button name="action" value="approuver_tout" data-confirmer="Approuver les {{.D.TotalAttente}} machines en attente, avec leur site, type et groupe actuels ?">Approuver les {{.D.TotalAttente}} (site, type et groupe gardés)</button></form>{{end}}
 <p class="aide"><small class="aide">Une par une : approuver donne un token à la machine. Les pastilles orange sont des indices, rien n'est bloqué. {{template "plus" "aide.md#machines-en-attente"}}</small></p>
 </details>{{end}}
 
 <form method="get" action="/machines" class="filtres-machines">
 <span class="recherche-machines"><input type="search" name="q" value="{{$f.Q}}" placeholder="Chercher une machine…" maxlength="100" aria-label="Chercher une machine (nom, site, type, groupe)"><button class="secondaire">Chercher</button>{{if $f.Q}} <a href="/machines">Effacer</a>{{end}}</span>
+{{if .D.Listes.Sites}}<label class="liste-filtre">Site <select name="site" data-envoi-auto><option value="">Tous ({{len .D.Listes.Sites}})</option>{{range .D.Listes.Sites}}<option{{if eq . $f.Site}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
+{{if .D.Listes.Groupes}}<label class="liste-filtre">Groupe <select name="groupe" data-envoi-auto><option value="">Tous</option>{{range .D.Listes.Groupes}}<option{{if eq . $f.Groupe}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
 {{if ne $f.Vue "site"}}<input type="hidden" name="vue" value="{{$f.Vue}}">{{end}}{{if $f.Filtre}}<input type="hidden" name="filtre" value="{{$f.Filtre}}">{{end}}
 <span class="segment" aria-label="Filtre">
 <a href="{{$f.Lien "filtre" ""}}"{{if eq $f.Filtre ""}} class="actif" aria-current="page"{{end}}>Toutes ({{.D.Compteurs.Toutes}})</a>
@@ -48,16 +51,19 @@
 </form>
 <div class="machines-groupes" data-affichage-machines="tuiles">
 
-{{range .D.Groupes}}<section class="vue-tuiles bloc-tuiles">
-<div class="titre-tuiles">{{if ne $f.Vue "liste"}}<h2>{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</h2>{{end}}<small class="doux">{{len .Machines}} {{accord (len .Machines) "machine(s)"}}</small>{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}</div>
-<div class="grille-tuiles">{{range .Tuiles}}{{template "tuile-machine" .}}{{end}}</div>
+{{range .D.Groupes}}<section class="vue-tuiles bloc-tuiles{{if .Replie}} bloc-replie{{end}}">
+<div class="titre-tuiles">{{if ne $f.Vue "liste"}}<h2>{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</h2>{{end}}<small class="doux">{{.Total}} {{accord .Total "machine(s)"}}</small>{{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}{{if .Replie}} <a href="{{.LienTout}}">Voir les {{.Total}}</a>{{end}}</div>
+{{if not .Replie}}<div class="grille-tuiles">{{range .Tuiles}}{{template "tuile-machine" .}}{{end}}</div>
+{{if .Caches}}<p class="aide"><small>Seules les {{len .Machines}} machines à regarder sont montrées · <a href="{{.LienTout}}">voir les {{.Total}}</a></small></p>{{end}}{{end}}
 </section>
-<div class="vue-tableau">{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines" open>
+<div class="vue-tableau">{{if eq $f.Vue "liste"}}<section class="carte bloc-machines">{{else}}<details class="carte bloc-machines"{{if not .Replie}} open{{end}}>
 <summary><strong class="titre-bloc">{{if .Titre}}{{.Titre}}{{else if eq $f.Vue "groupe"}}sans groupe{{else}}sans site{{end}}</strong>
-<span class="doux">· {{len .Machines}} {{accord (len .Machines) "machine(s)"}}</span>
+<span class="doux">· {{.Total}} {{accord .Total "machine(s)"}}</span>
 {{if .Problemes}}<span class="pastille erreur">{{.Problemes}} {{accord .Problemes "problème(s)"}}</span>{{else}}<span class="pastille ok">Tout va bien</span>{{end}}</summary>{{end}}
-<div class="defile"><table data-cartes><thead><tr><th>Nom</th>{{if ne $f.Vue "site"}}<th>Site</th>{{end}}<th>Type</th>{{if ne $f.Vue "groupe"}}<th>Groupe</th>{{end}}<th>Version</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
+{{if .Replie}}<p class="aide bloc-replie-texte"><a href="{{.LienTout}}">Voir les {{.Total}} machines</a></p>{{else}}
+<div class="defile"><table data-cartes><thead><tr>{{if $.Admin}}<th class="col-choix"><input type="checkbox" data-masse-tout aria-label="Tout cocher dans ce bloc"></th>{{end}}<th>Nom</th>{{if ne $f.Vue "site"}}<th>Site</th>{{end}}<th>Type</th>{{if ne $f.Vue "groupe"}}<th>Groupe</th>{{end}}<th>Version</th><th>Dernière donnée</th><th></th></tr></thead><tbody>
 {{range .Machines}}<tr{{if .Sous}} class="sous-ligne"{{end}}>
+{{if $.Admin}}<td class="col-choix"><input type="checkbox" name="m" value="{{.Nom}}" form="masse" data-masse aria-label="Choisir {{.Nom}}"></td>{{end}}
 <td>{{if .Sous}}<span class="doux" aria-hidden="true">↳ </span>{{end}}<a href="/machines/{{.Nom}}">{{.Nom}}</a>{{if .Collecteur}} <span class="pastille info">Collecteur</span>{{end}}{{if .ReleveePar}} <small class="doux">relevé par {{.ReleveePar}}</small>{{end}}</td>
 {{if ne $f.Vue "site"}}<td>{{if .Site}}{{.Site}}{{else}}<span class="doux">—</span>{{end}}</td>{{end}}
 <td>{{if .Env}}{{.Env}}{{else}}<span class="doux">—</span>{{end}}</td>
@@ -66,8 +72,19 @@
 <td>{{if not .VuLe}}<span class="pastille erreur">Jamais reçue</span>{{else if .Muette}}<span class="pastille erreur">Muette {{sansIlYA (depuisS .VuLe) | printf "depuis %s"}}</span>{{else}}{{depuisS .VuLe}}{{end}}</td>
 <td>{{if .AValider}}<a class="pastille attention" href="/machines/{{.Nom}}#surveillance" title="Éléments trouvés par l'agent, à valider">{{.AValider}} à valider</a>{{end}}</td>
 </tr>{{end}}</tbody></table></div>
+{{if .Caches}}<p class="aide"><small>Seules les {{len .Machines}} machines à regarder sont listées · <a href="{{.LienTout}}">voir les {{.Total}}</a></small></p>{{end}}{{end}}
 {{if eq $f.Vue "liste"}}</section>{{else}}</details>{{end}}</div>{{else}}{{if .D.Approuvees}}{{template "vide" "Aucune machine ne correspond à ce choix."}}<p><a href="/machines">Tout afficher</a></p>{{else}}<section class="carte">{{template "vide" "Aucune machine approuvée."}}{{if .Admin}}<p><a class="bouton" href="/machines/ajouter">+ Ajouter une machine</a></p>{{end}}</section>{{end}}{{end}}
+{{if and .Admin .D.Approuvees}}<form method="post" action="/machines/masse" id="masse" class="barre-masse vue-tableau" data-barre-masse>{{template "csrf" .CSRF}}
+<b data-masse-nombre>Cocher des machines (présentation « Tableau »)</b>
+<button name="action" value="actualiser" class="petit secondaire">Actualiser</button>
+<span class="masse-groupe"><select name="site" aria-label="Site"><option value="=">Site : garder</option>{{range .D.Listes.Sites}}<option>{{.}}</option>{{end}}</select>
+<select name="env" aria-label="Type"><option value="=">Type : garder</option>{{range .D.Listes.Types}}<option>{{.}}</option>{{end}}</select>
+<select name="groupe" aria-label="Groupe"><option value="=">Groupe : garder</option>{{range .D.Listes.Groupes}}<option>{{.}}</option>{{end}}</select>
+<button name="action" value="etiquettes" class="petit secondaire">Changer</button></span>
+{{with .D.Versions}}<span class="masse-groupe"><select name="version" aria-label="Version"><option value="">Version du parc</option>{{range .}}<option>{{.}}</option>{{end}}</select>{{template "code2fa"}}<button name="action" value="version" class="petit secondaire">Assigner</button></span>{{end}}
+</form>{{end}}
 </div>
+
 
 {{if .D.Autres}}<details class="carte"><summary><strong>Refusées ({{len .D.Autres}})</strong></summary>
 <ul>{{range .D.Autres}}<li><a href="/machines/{{.Nom}}">{{.Nom}}</a> — {{if eq .Statut "refusee"}}refusée{{else}}{{.Statut}}{{end}}</li>{{end}}</ul></details>{{end}}

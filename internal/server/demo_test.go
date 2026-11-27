@@ -75,6 +75,14 @@ func TestDemoInterface(t *testing.T) {
 	fluxDemo(t, s)
 	ctx, now := context.Background(), time.Now()
 	machines := []string{"srv-test", "pve1", "vps-web", "nas-backup", "vm-docker"}
+	// DEMO_PAREFEU : machines en plus, réparties sur trois sites (grand parc).
+	if n, _ := strconv.Atoi(os.Getenv("DEMO_PAREFEU")); n > 4 {
+		for k := 5; k <= n; k++ {
+			_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, site, env, groupe, version_agent, architecture, derniere_ip)
+				VALUES (?, 'approuvee', ?, ?, ?, 'vm', ?, '0.5.0', 'amd64', '192.0.2.1')`, fmt.Sprintf("srv-%02d", k), now.Unix()-86400, now.Unix(),
+				[]string{"Paris", "Lyon", "Lille"}[k%3], []string{"web", "base", "dmz"}[k%3])
+		}
+	}
 	var series []stockage.Serie
 	for i, m := range machines {
 		_, _ = s.db.Exec(`INSERT INTO machines(nom, statut, cree_le, vu_le, site, env, groupe, version_agent, architecture, derniere_ip)
@@ -670,6 +678,13 @@ func tirageFlux(r *rand.Rand) (string, protocole.FluxBloque) {
 	f := protocole.FluxBloque{IP: ip, Proto: "tcp", Port: ports[r.IntN(len(ports))], N: 1 + r.IntN(3)}
 	if f.Port == 5060 {
 		f.Proto = "udp"
+	}
+	// DEMO_PAREFEU=12 : une part des blocages sur des machines en plus,
+	// pour voir un parc de plus de 8 pare-feu (SPEC § 140).
+	if n, _ := strconv.Atoi(os.Getenv("DEMO_PAREFEU")); n > 4 && r.IntN(4) == 0 {
+		k := 5 + r.IntN(n-4)
+		f.Interface, f.Regle = "eth0", "DROP_IN:"
+		return fmt.Sprintf("srv-%02d", k), f
 	}
 	switch y := r.IntN(10); {
 	case y < 6:

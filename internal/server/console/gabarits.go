@@ -292,6 +292,11 @@ func fonctions() template.FuncMap {
 		"pagesLieesReglages": func() []sectionReglages { return pagesLieesReglages },
 		// accord : « alerte(s) » → « alerte » ou « alertes » selon le nombre.
 		"accord": accorder,
+		// masque : bloc de la vue d'ensemble caché sur ordinateur et sur
+		// téléphone : pas la peine de le construire (grand parc, SPEC § 141).
+		"masque": func(classes string) bool {
+			return strings.Contains(classes, "cache-o") && strings.Contains(classes, "cache-t")
+		},
 		// nombre : entier avec espace fine entre les milliers (38 214).
 		"nombre": nombreLisible,
 		"maxf":   func(a, b float64) float64 { return max(a, b) },

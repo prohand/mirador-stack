@@ -70,6 +70,45 @@ type rangFlux struct {
 	Nom, Sous, Code, Lien string
 	N, Pct                int
 	PareFeux              int
+	// Classements (SPEC § 139) : rang, part du total, protocole et numéro
+	// d'un port, outil et couleur d'un pare-feu (comme « Mon réseau »).
+	Rang                    int
+	Part, Proto, Num, Outil string
+	Couleur, Titre          string
+	Adresse                 bool // adresse IP : écrite en police fixe
+}
+
+// choixPF : une pastille de la barre de choix d'un pare-feu.
+type choixPF struct {
+	Nom, N, Couleur, Outil, Lien string
+	Actif                        bool
+}
+
+// maxPFSchema : pare-feu dessinés un par un dans « Mon réseau » avant
+// « N autres » ; ?tous=1 les dessine tous (jusqu'à maxPFTous).
+const (
+	maxPFSchema = 8
+	maxPFTous   = 40
+)
+
+// couleurPF : couleur d'un pare-feu d'après son rang sur la période
+// (pf0 à pf7, puis gris) : la même partout, même page filtrée.
+func couleurPF(rangs map[string]int, nom string) string {
+	if r, ok := rangs[nom]; ok && r < 8 {
+		return "pf" + strconv.Itoa(r)
+	}
+	return "pfx"
+}
+
+// colonneClassement : une colonne du bloc « Classements » (SPEC § 139) :
+// 6 lignes, puis jusqu'à 20 de plus derrière « + N autres ».
+type colonneClassement struct {
+	Titre, Icone, Classe, Aide string
+	Nb                         string
+	Lignes, Plus               []rangFlux
+	Autres                     int    // éléments au-delà des 6 premières lignes
+	NomAutres                  string // « pays », « ports »…
+	Reste                      int    // blocages de ces autres éléments
 }
 
 type barreFlux struct {
@@ -86,48 +125,63 @@ type ligneFil struct {
 }
 
 type donneesFlux struct {
-	Periode, Vue               string
-	Periodes, Vues             []lienFlux
-	Direct                     bool
-	FiltreTexte, SansFiltre    string
-	B                          fluxbloques.Bilan
-	ParMinute                  int
-	Spark                      string // points de la petite courbe (30 min)
-	Comparaison                string
-	ComparaisonClasse          string
-	PortPrincipal              string
-	ServicePrincipal           string
-	Carte                      []paysVue
-	CarteVide                  string
-	Maison                     [2]float64
-	Barres                     []barreFlux
-	Axe                        [3]string
-	PicTexte                   string
-	Fil                        []ligneFil
-	Pays, Ports, PareFeux, IPs []rangFlux
-	Sankey                     *sankeyVue
-	Note                       string
-	GeoIP                      bool
-	NomPeriode                 string
-	Centres                    string // JSON : centre de chaque pays (points du direct)
-	LienDirect                 string
-	Sources                    []sourceFlux // état de la collecte OPNsense par collecteur
-	Sens                       string       // entrant ou sortant (SPEC § 136)
-	Sensz                      []lienFlux
-	Sortant                    bool
-	Locales                    []rangFlux // sortants : adresses locales qui essaient de sortir
-	Table                      []ligneSource
-	Bulles                     []bulleFlux
-	Chemins                    []cheminVue
-	TopPays                    []rangFlux
-	Bord, Grille               string // contour du monde et quadrillage (projection Equal Earth)
-	TableLues, TableSans       int
+	Periode, Vue            string
+	Periodes, Vues          []lienFlux
+	Direct                  bool
+	FiltreTexte, SansFiltre string
+	B                       fluxbloques.Bilan
+	ParMinute               int
+	Spark                   string // points de la petite courbe (30 min)
+	Comparaison             string
+	ComparaisonClasse       string
+	PortPrincipal           string
+	ServicePrincipal        string
+	Carte                   []paysVue
+	CarteVide               string
+	Maison                  [2]float64
+	Barres                  []barreFlux
+	Axe                     [3]string
+	PicTexte                string
+	Fil                     []ligneFil
+	Pays                    []rangFlux // pour le classement posé sur la carte
+	Sankey                  *sankeyVue
+	Note                    string
+	GeoIP                   bool
+	NomPeriode              string
+	Centres                 string // JSON : centre de chaque pays (points du direct)
+	LienDirect              string
+	Sources                 []sourceFlux // état de la collecte OPNsense par collecteur
+	Sens                    string       // entrant ou sortant (SPEC § 136)
+	Sensz                   []lienFlux
+	Sortant                 bool
+	Locales                 []rangFlux // sortants : adresses locales qui essaient de sortir
+	Table                   []ligneSource
+	Bulles                  []bulleFlux
+	Chemins                 []cheminVue
+	TopPays                 []rangFlux
+	ChoixPF                 []choixPF // barre de choix d'un pare-feu (SPEC § 140)
+	ToutPF                  bool      // tous les pare-feu dans le schéma (?tous=1)
+	NbPF                    int       // plus de maxPFSchema pare-feu : lien « tout afficher »
+	LienTous                string
+	// Grand parc (SPEC § 140) : recherche d'une machine, regroupement par
+	// site ou groupe, chemin parcouru (Tous › site › machine).
+	ChercherPF           []string
+	NbTotalPF            int
+	ChampsCaches         [][2]string
+	Regroupements        []lienFlux
+	Ariane               []lienFlux
+	TitreChoix           string
+	Classement           []colonneClassement
+	AlerteIP, AlertePays string // adresse bloquée par plusieurs pare-feu (bas des classements)
+	AlertePF             int
+	Bord, Grille         string // contour du monde et quadrillage (projection Equal Earth)
+	TableLues, TableSans int
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
 func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 	w := url.Values{}
-	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port"} {
+	for _, k := range []string{"sens", "periode", "vue", "pays", "pf", "port", "tous", "par", "site", "groupe"} {
 		if x := v.Get(k); x != "" && !(sansFiltre && (k == "pays" || k == "pf" || k == "port")) {
 			w.Set(k, x)
 		}
@@ -139,6 +193,18 @@ func lienFluxAvec(v url.Values, cle, val string, sansFiltre bool) string {
 				w.Del("pf")
 				w.Del("port")
 			}
+		}
+		// Grand parc (SPEC § 140) : changer de regroupement ou de site/groupe
+		// repart de ce niveau (machine choisie et « tous » oubliés).
+		switch cle {
+		case "par":
+			w.Del("site")
+			w.Del("groupe")
+			w.Del("pf")
+			w.Del("tous")
+		case "site", "groupe":
+			w.Del("pf")
+			w.Del("tous")
 		}
 		if val == "" {
 			w.Del(cle)
@@ -209,6 +275,22 @@ func (c *Console) pageFlux(q *req) {
 		c.flash(q, "", "lecture des flux bloqués : "+err.Error())
 	}
 	d.B = b
+	// Liste de tous les pare-feu de la période (même filtrée sur une
+	// machine) : barre de choix au-dessus du schéma et couleurs stables
+	// (SPEC § 140). Le bilan sans filtre est gardé 1 min en cache.
+	tousPF := b.PareFeux
+	if f.PareFeu != "" || f.Pays != "" || f.Port != "" {
+		if bt, err := mag.Bilan(q.r.Context(), debut, fin, fluxbloques.Filtre{}, p.Barres); err == nil {
+			tousPF = bt.PareFeux
+		}
+	}
+	rangs := map[string]int{}
+	for _, x := range tousPF {
+		if x.Nom != fluxbloques.Autres {
+			rangs[x.Nom] = len(rangs)
+		}
+	}
+	d.ToutPF = v.Get("tous") == "1"
 	minutes, _ := mag.ParMinute(30)
 	if len(minutes) > 0 {
 		d.ParMinute = minutes[len(minutes)-1]
@@ -275,26 +357,13 @@ func (c *Console) pageFlux(q *req) {
 			}
 		}
 	}
-	d.Ports = rangsFlux(b.Ports, 6, func(r *rangFlux) {
-		r.Sous = nomsServices[r.Nom]
-		if r.Nom != fluxbloques.Autres && r.Nom != "?" {
-			r.Lien = lienFluxAvec(v, "port", r.Nom, false)
-		}
-	})
-	d.PareFeux = rangsFlux(b.PareFeux, 6, func(r *rangFlux) {
-		if r.Nom != fluxbloques.Autres {
-			r.Lien = lienFluxAvec(v, "pf", r.Nom, false)
-		}
-	})
-	d.IPs = rangsFlux(b.IPs, 6, func(r *rangFlux) {
-		if c.opt.GeoIP != nil && d.GeoIP {
-			r.Code = paysDeTexte(c, r.Nom)
-		}
-		r.Lien = "/logs?mots=" + url.QueryEscape(r.Nom) + "&periode=24h"
-	})
 	for _, x := range b.IPs {
 		if x.PareFeux >= 2 && d.Note == "" {
 			d.Note = fmt.Sprintf("%s a été bloquée par %d pare-feu sur la période : la même adresse essaie plusieurs de vos machines.", x.Nom, x.PareFeux)
+			d.AlerteIP, d.AlertePF = x.Nom, x.PareFeux
+			if c.opt.GeoIP != nil && d.GeoIP {
+				d.AlertePays = paysDeTexte(c, x.Nom)
+			}
 		}
 	}
 	d.Table = c.tableauSources(q.r.Context(), q.t)
@@ -307,8 +376,7 @@ func (c *Console) pageFlux(q *req) {
 			outils[l.Machine] = l.PareFeu
 		}
 	}
-	d.Sankey = construireSankey(b, v, outils)
-	d.Chemins = cheminsVue(b.Chemins, v)
+	c.vueParc(q.r.Context(), &d, b, v, f, tousPF, rangs, outils)
 	d.Locales = rangsFlux(b.Sources, 6, func(*rangFlux) {})
 	d.Sources = nil
 	for _, x := range c.sourcesFlux(q.r.Context(), q.t) {
@@ -377,7 +445,24 @@ func nomPaysOuCode(code string) string {
 	if n, ok := nomsPays[code]; ok {
 		return n
 	}
+	if n, ok := nomsPetitsPays[code]; ok {
+		return n
+	}
 	return code
+}
+
+// nomsPetitsPays : pays et territoires trop petits pour la carte (absents
+// des contours) mais fréquents dans la GéoIP (hébergeurs, relais).
+var nomsPetitsPays = map[string]string{
+	"SG": "Singapour", "HK": "Hong Kong", "MO": "Macao", "BH": "Bahreïn", "MT": "Malte", "LU": "Luxembourg",
+	"MU": "Maurice", "SC": "Seychelles", "MV": "Maldives", "AD": "Andorre", "MC": "Monaco", "LI": "Liechtenstein",
+	"SM": "Saint-Marin", "VA": "Vatican", "GI": "Gibraltar", "IM": "Île de Man", "JE": "Jersey", "GG": "Guernesey",
+	"BB": "Barbade", "BM": "Bermudes", "KY": "Îles Caïmans", "VG": "Îles Vierges britanniques", "CW": "Curaçao",
+	"AW": "Aruba", "SX": "Saint-Martin", "AG": "Antigua-et-Barbuda", "KN": "Saint-Kitts-et-Nevis", "LC": "Sainte-Lucie",
+	"VC": "Saint-Vincent", "GD": "Grenade", "DM": "Dominique", "CV": "Cap-Vert", "KM": "Comores", "ST": "Sao Tomé",
+	"GU": "Guam", "RE": "La Réunion", "GP": "Guadeloupe", "MQ": "Martinique", "YT": "Mayotte", "PF": "Polynésie française",
+	"FO": "Îles Féroé", "AX": "Åland", "WS": "Samoa", "TO": "Tonga", "FM": "Micronésie", "MH": "Îles Marshall",
+	"PW": "Palaos", "NR": "Nauru", "TV": "Tuvalu", "KI": "Kiribati", "SB": "Îles Salomon", "PS": "Palestine",
 }
 
 // nomCourtPays : nom du pays pour la colonne de gauche de « Mon réseau »
@@ -611,6 +696,7 @@ type sankeyVue struct {
 	Hauteur               float64
 	Estime                bool
 	NbPays, NbPF, NbPorts int
+	NomPF                 string // titre de la colonne du milieu : « PARE-FEU » ou « SITES » (grand parc)
 }
 
 // Mise en page de « Mon réseau » (SPEC § 138, maquette validée le 27/11).
@@ -640,13 +726,22 @@ func regrouperTop(cs []fluxbloques.Compte, n int) (garder map[string]bool, ordre
 
 // construireSankey : pays → pare-feu → ports ; outils : outil de chaque
 // pare-feu (OPNsense, ufw, nftables…) pour son étiquette.
-func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string) *sankeyVue {
+func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]string, rangs map[string]int) *sankeyVue {
 	if b.Total == 0 {
 		return nil
 	}
-	gPays, oPays := regrouperTop(b.Pays, 4)
-	gPF, oPF := regrouperTop(b.PareFeux, 4)
-	gPort, oPort := regrouperTop(b.Ports, 5)
+	// Pare-feu : 8 dessinés un par un, au-delà « N autres » (?tous=1 : tous).
+	// Une seule machine choisie : plus de pays et de ports (SPEC § 140).
+	nPaysMax, nPFMax, nPortsMax := 4, maxPFSchema, 5
+	if v.Get("tous") == "1" {
+		nPFMax = maxPFTous
+	}
+	if v.Get("pf") != "" {
+		nPaysMax, nPortsMax = 8, 10
+	}
+	gPays, oPays := regrouperTop(b.Pays, nPaysMax)
+	gPF, oPF := regrouperTop(b.PareFeux, nPFMax)
+	gPort, oPort := regrouperTop(b.Ports, nPortsMax)
 	cle := func(g map[string]bool, k string) string {
 		if g[k] {
 			return k
@@ -695,7 +790,7 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	if len(colPays) == 0 || len(colPF) == 0 {
 		return nil
 	}
-	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux)}
+	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux), NomPF: "PARE-FEU"}
 	for _, p := range b.Ports {
 		if p.Nom != fluxbloques.Autres {
 			s.NbPorts++
@@ -716,8 +811,10 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	if len(b.Pays) > 0 {
 		plusGrosPays = max(b.Pays[0].N, 1)
 	}
+	// Même échelle pour les trois colonnes et pour les liens (sinon les liens
+	// débordent des blocs d'une colonne qui a plus de blocs que les autres).
+	k := (sankeyHaut - sankeyEcart*float64(max(len(colPays), len(colPF), len(colPort))-1)) / float64(max(total, 1))
 	placer := func(col []string, m map[string]int, x float64, nom func(int, string) noeudSankey) []noeudSankey {
-		k := (sankeyHaut - sankeyEcart*float64(len(col)-1)) / float64(max(total, 1))
 		y := sankeyTop
 		var out []noeudSankey
 		for i, c := range col {
@@ -741,10 +838,21 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	})
 	s.PareFeux = placer(colPF, nPF, sankeyXPF, func(i int, c string) noeudSankey {
 		if c == fluxbloques.Autres {
-			return noeudSankey{Nom: fmt.Sprintf("%d autres", max(len(b.PareFeux)-len(gPF), 0)), Outil: "machines", Classe: "pfx", Pilule: 130}
+			// Clic : les dessiner tous.
+			reste := max(len(b.PareFeux)-len(gPF), 0)
+			nom, outil := fmt.Sprintf("%d autres", reste), "machines"
+			if reste == 1 {
+				nom, outil = "1 autre", "machine"
+			}
+			return noeudSankey{Nom: nom, Outil: outil, Classe: "pfx", Pilule: 130,
+				Lien: lienFluxAvec(v, "tous", "1", false)}
 		}
 		outil := outils[c]
-		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: "pf" + strconv.Itoa(min(i, 3)),
+		classe := "pf" + strconv.Itoa(min(i, 7))
+		if rangs != nil {
+			classe = couleurPF(rangs, c)
+		}
+		return noeudSankey{Nom: c, Outil: outil, Lien: lienFluxAvec(v, "pf", c, false), Classe: classe,
 			Pilule: math.Max(110, float64(len([]rune(c))+len([]rune(outil)))*7.2+34)}
 	})
 	s.Ports = placer(colPort, nPort, sankeyXPorts, func(_ int, c string) noeudSankey {
@@ -753,7 +861,6 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 		}
 		return noeudSankey{Nom: c, Outil: nomsServices[c], Lien: lienFluxAvec(v, "port", c, false), Classe: "po"}
 	})
-	k := (sankeyHaut - sankeyEcart*float64(len(colPF)-1)) / float64(max(total, 1))
 	vus := map[string]bool{}
 	relier := func(src, dst []noeudSankey, m map[fluxbloques.Paire]int) {
 		offS, offD := map[string]float64{}, map[string]float64{}
@@ -864,4 +971,120 @@ func cheminsVue(cs []fluxbloques.Chemin, v url.Values) []cheminVue {
 		out = append(out, x)
 	}
 	return out
+}
+
+// classementFlux : les quatre colonnes du bloc « Classements » (maquette C
+// validée le 27/11, SPEC § 139).
+func (c *Console) classementFlux(b fluxbloques.Bilan, v url.Values, outils map[string]string, rangs map[string]int, sortant, geo bool) []colonneClassement {
+	part := func(n int) string {
+		p := n * 100 / max(b.Total, 1)
+		if p == 0 && n > 0 {
+			return "< 1 %"
+		}
+		return strconv.Itoa(p) + " %"
+	}
+	// colonne : 6 lignes, 20 de plus au plus ; nb : nombre total d'éléments.
+	colonne := func(col *colonneClassement, cs []fluxbloques.Compte, nb int, f func(i int, r *rangFlux)) {
+		var vus []fluxbloques.Compte
+		for _, x := range cs {
+			if x.Nom != fluxbloques.Autres {
+				vus = append(vus, x)
+			}
+		}
+		if len(vus) == 0 {
+			return
+		}
+		plusGros := max(vus[0].N, 1)
+		montres := 0
+		for i, x := range vus {
+			if i >= 26 {
+				break
+			}
+			r := rangFlux{Nom: x.Nom, N: x.N, Pct: min(100, x.N*100/plusGros), PareFeux: x.PareFeux, Rang: i + 1, Part: part(x.N)}
+			f(i, &r)
+			if i < 6 {
+				col.Lignes = append(col.Lignes, r)
+				montres += x.N
+			} else {
+				col.Plus = append(col.Plus, r)
+			}
+		}
+		col.Autres = max(nb-len(col.Lignes), 0)
+		col.Reste = max(b.Total-montres, 0)
+	}
+	compter := func(cs []fluxbloques.Compte) int {
+		n := 0
+		for _, x := range cs {
+			if x.Nom != fluxbloques.Autres {
+				n++
+			}
+		}
+		return n
+	}
+	nbPorts, nbPF := compter(b.Ports), compter(b.PareFeux)
+
+	pays := colonneClassement{Titre: "Pays", Icone: "🌍", Classe: "c-pays", Nb: nombreLisible(b.NbPays), NomAutres: "pays"}
+	if sortant {
+		pays.Titre = "Pays visés"
+	}
+	colonne(&pays, b.Pays, b.NbPays, func(_ int, r *rangFlux) {
+		r.Code, r.Nom, r.Titre = r.Nom, nomCourtPays(r.Nom), nomPaysOuCode(r.Nom)
+		if r.Code != "" {
+			r.Lien = lienFluxAvec(v, "pays", r.Code, false)
+		}
+	})
+
+	ports := colonneClassement{Titre: "Ports visés", Icone: "🎯", Classe: "c-ports", Nb: nombreLisible(nbPorts), NomAutres: "ports"}
+	colonne(&ports, b.Ports, nbPorts, func(_ int, r *rangFlux) {
+		r.Sous = nomsServices[r.Nom]
+		r.Proto, r.Num = protoPort(r.Nom)
+		if r.Nom != "?" {
+			r.Lien = lienFluxAvec(v, "port", r.Nom, false)
+		}
+	})
+
+	// Pare-feu : même couleur que dans « Mon réseau » (rang dans la liste).
+	pfs := colonneClassement{Titre: "Bloqué par", Icone: "🛡️", Classe: "c-pf", Nb: nombreLisible(nbPF), NomAutres: "pare-feu",
+		Aide: "couleurs du schéma « Mon réseau »"}
+	colonne(&pfs, b.PareFeux, nbPF, func(i int, r *rangFlux) {
+		r.Outil, r.Couleur = outils[r.Nom], "pfx"
+		if rangs != nil {
+			r.Couleur = couleurPF(rangs, r.Nom)
+		} else if i < 8 {
+			r.Couleur = "pf" + strconv.Itoa(i)
+		}
+		r.Lien = lienFluxAvec(v, "pf", r.Nom, false)
+	})
+
+	ips := colonneClassement{Titre: "Adresses insistantes", Icone: "📍", Classe: "c-ip", Nb: nombreLisible(b.NbIP), NomAutres: "adresses",
+		Aide: "clic : lignes dans Logs"}
+	if b.IPPlus {
+		ips.Nb = "+ de " + ips.Nb
+	}
+	if sortant {
+		ips.Titre = "Destinations visées"
+	}
+	if b.SansAdresses {
+		ips.Aide = "adresses non suivies par port : enlever le filtre pour les voir"
+	}
+	colonne(&ips, b.IPs, b.NbIP, func(_ int, r *rangFlux) {
+		if c.opt.GeoIP != nil && geo {
+			r.Code = paysDeTexte(c, r.Nom)
+			r.Titre = nomPaysOuCode(r.Code)
+		}
+		r.Adresse = true
+		r.Lien = "/logs?mots=" + url.QueryEscape(r.Nom) + "&periode=24h"
+	})
+	return []colonneClassement{pays, ports, pfs, ips}
+}
+
+// protoPort : « tcp/22 » → (TCP, 22) ; « icmpv6 » → (ICMP, icmpv6).
+func protoPort(nom string) (string, string) {
+	if p, n, ok := strings.Cut(nom, "/"); ok {
+		return strings.ToUpper(p), n
+	}
+	if strings.HasPrefix(nom, "icmp") {
+		return "ICMP", nom
+	}
+	return "", nom
 }

@@ -666,35 +666,71 @@ type cacheAValider struct {
 	mu         sync.Mutex
 	expire     time.Time
 	parMachine map[string]int
+	enCours    bool // recalcul en tâche de fond lancé
+	version    int  // changée par oublierAValider : un recalcul plus ancien est jeté
 }
 
 // aValider : éléments « à valider » par machine (approuvées seulement).
+// Grand parc (SPEC § 141) : le calcul lit la configuration de chaque
+// machine (~3 requêtes chacune). Une fois la première valeur connue, une
+// valeur expirée est rendue tout de suite et recalculée en tâche de fond :
+// aucune page n'attend plus derrière le verrou. Durée de vie : 1 min
+// jusqu'à 250 machines, puis 1 min de plus par 250 machines.
 func (c *Console) aValider(ctx context.Context, t time.Time) map[string]int {
 	c.cacheValider.mu.Lock()
-	defer c.cacheValider.mu.Unlock()
-	if c.cacheValider.parMachine != nil && t.Before(c.cacheValider.expire) {
-		return c.cacheValider.parMachine
+	if v := c.cacheValider.parMachine; v != nil {
+		if !t.Before(c.cacheValider.expire) && !c.cacheValider.enCours {
+			c.cacheValider.enCours = true
+			version := c.cacheValider.version
+			go func() {
+				out, n := c.calculerAValider(context.WithoutCancel(ctx), t)
+				c.garderAValider(out, n, t, version)
+			}()
+		}
+		c.cacheValider.mu.Unlock()
+		return v
 	}
-	out := map[string]int{}
-	if ms, err := flotte.ListerMachines(ctx, c.db); err == nil {
-		var approuvees []flotte.InfoMachine
-		for _, m := range ms {
-			if m.Statut == "approuvee" {
-				approuvees = append(approuvees, m)
-			}
-		}
-		for nom, n := range c.nouveautes(ctx, approuvees, t) {
-			if n > 0 {
-				out[nom] = n
-			}
-		}
-		// Modèles de surveillance détectés, ni attribués ni ignorés (SPEC § 24.3).
-		for nom, n := range c.nbModelesProposes(ctx, approuvees, t) {
-			out[nom] += n
-		}
-	}
-	c.cacheValider.parMachine, c.cacheValider.expire = out, t.Add(time.Minute)
+	version := c.cacheValider.version
+	c.cacheValider.mu.Unlock()
+	out, n := c.calculerAValider(ctx, t)
+	c.garderAValider(out, n, t, version)
 	return out
+}
+
+func (c *Console) garderAValider(out map[string]int, machines int, t time.Time, version int) {
+	c.cacheValider.mu.Lock()
+	defer c.cacheValider.mu.Unlock()
+	c.cacheValider.enCours = false
+	if version != c.cacheValider.version {
+		return // configuration changée pendant le calcul : le prochain appel recalcule
+	}
+	c.cacheValider.parMachine = out
+	c.cacheValider.expire = t.Add(time.Minute * time.Duration(1+machines/250))
+}
+
+// calculerAValider : le calcul lui-même, et le nombre de machines approuvées.
+func (c *Console) calculerAValider(ctx context.Context, t time.Time) (map[string]int, int) {
+	out := map[string]int{}
+	ms, err := flotte.ListerMachines(ctx, c.db)
+	if err != nil {
+		return out, 0
+	}
+	var approuvees []flotte.InfoMachine
+	for _, m := range ms {
+		if m.Statut == "approuvee" {
+			approuvees = append(approuvees, m)
+		}
+	}
+	for nom, n := range c.nouveautes(ctx, approuvees, t) {
+		if n > 0 {
+			out[nom] = n
+		}
+	}
+	// Modèles de surveillance détectés, ni attribués ni ignorés (SPEC § 24.3).
+	for nom, n := range c.nbModelesProposes(ctx, approuvees, t) {
+		out[nom] += n
+	}
+	return out, len(approuvees)
 }
 
 // serviceChoisi : service déjà surveillé ou ignoré dans la configuration.
@@ -714,6 +750,7 @@ func serviceChoisi(cfg *distant.ConfigDistante, nom string) bool {
 func (c *Console) oublierAValider() {
 	c.cacheValider.mu.Lock()
 	c.cacheValider.parMachine = nil
+	c.cacheValider.version++
 	c.cacheValider.mu.Unlock()
 }
 

@@ -8986,3 +8986,124 @@ sombre, clair en clair).
   négligeable. Mémoire : une carte de 100 chemins par heure au plus.
 - Menaces : aucune nouvelle (noms et ports toujours échappés, pas de style
   en ligne : CSP inchangée).
+
+
+## 139. Flux bloqués : bloc « Classements » et tous les pare-feu dans « Mon réseau » (27/11, maquette C validée) **[Fait, à valider]**
+
+Retours du 27/11 après 0.6.29 : « on ne voit pas les 2 autres machines »
+(schéma « Mon réseau ») et « améliore ceci » (les quatre classements).
+Maquettes A (4 cartes) et B (un bloc en 4 colonnes) ; choix : **C, mélange
+des deux** (« je valide c »).
+- « Mon réseau » : jusqu'à 8 pare-feu affichés (couleurs pf0 à pf7) avant
+  « N autres » ; même échelle pour les trois colonnes et les liens (les
+  liens dépassaient d'un bloc quand une colonne avait plus de blocs).
+- Un bloc « Classements » (période et total en tête), 4 colonnes : Pays,
+  Ports visés, Bloqué par, Adresses insistantes ; 2 × 2 sur ordinateur,
+  4 côte à côte au-delà de 1700 px, une colonne sur téléphone.
+- Chaque ligne : rang (n° 1 en orange), barre en fond, nombre et part du
+  total ; ports avec TCP / UDP / ICMP et le service ; pare-feu avec la
+  couleur du schéma et l'outil ; adresses avec drapeau et « N pare-feu ».
+- « + N autres … » (et leurs blocages) : déplie jusqu'à 20 lignes de plus,
+  sans JavaScript (details).
+- En bas (vue Monde) : l'adresse bloquée par plusieurs pare-feu ; en vue
+  « Mon réseau » elle reste à côté des chemins.
+- Noms des petits pays absents de la carte (Singapour, Hong Kong…).
+- Coût : rien de plus à calculer (mêmes listes du bilan, 26 lignes par
+  colonne au plus) ; page un peu plus longue en HTML (≈ 80 lignes cachées).
+- Menaces : aucune nouvelle (noms et adresses échappés, pas de style en
+  ligne : CSP inchangée).
+
+## 140. Flux bloqués : choisir une machine, grand parc par site ou groupe (27/11, maquette validée) **[Fait, à valider]**
+
+Questions du 27/11 : « il n'est pas possible de voir plus et de filtrer sur
+une machine ? », puis « s'il y a 500 machines c'est compliqué non ? ».
+Choix B (maquette « grand parc » validée : « oui »).
+- Barre au-dessus de « Mon réseau » : une pastille par pare-feu (couleur,
+  outil, blocages) et « Tous » ; clic : page filtrée sur la machine.
+  Couleurs d'après le rang sur la période, identiques filtré ou non.
+- Plus de 8 pare-feu : « Les N dans le schéma » (?tous=1, jusqu'à 40) ;
+  le bloc « N autres » y mène aussi. Une machine choisie : 8 pays et
+  10 ports au lieu de 4 et 5.
+- Grand parc (plus de 8) : recherche d'une machine (liste complétée au fil
+  de la frappe, sans JavaScript), « Regrouper : Site | Groupe | Machine »,
+  chemin parcouru (Tous › Paris › par-042).
+- Plus de 20 pare-feu : regroupement par site d'office. Colonne du milieu
+  = sites (« Paris · 182 machines ») ; clic : les machines du site (8 plus
+  actives + « N autres ») ; clic : la machine. Machines hors inventaire :
+  « Sans site » / « Sans groupe ». Site et groupe : ceux de l'inventaire.
+- Vue d'un site : calculée sur le bilan de la période (liens pays ×
+  pare-feu et pare-feu × port) ; adresses non suivies par site.
+- Stockage : chaque pare-feu garde au moins ses 8 ports et 3 chemins
+  principaux par heure, en plus des plus gros (avant : seuls les 150 plus
+  gros couples pare-feu × port, les petites machines n'avaient que
+  « Autres ports »).
+- Coût mesuré (1 h écrite, `MESURE_PARC`) : 6 pare-feu, rien ne change
+  (72 lignes « ports » et 72 « chemins », sous les anciennes limites) ;
+  30 pare-feu : 270 et 105 lignes, 64 Ko ; 500 pare-feu : 2 500 et 1 131
+  lignes, 208 Ko par heure, soit environ + 60 Mo sur 30 jours. Page
+  filtrée : un 2e bilan (sans filtre) pour la liste des machines, gardé
+  1 min en cache ; inventaire lu une fois par page.
+- Limite connue : en mémoire, 2 000 clés par heure et 200 par minute ;
+  au-delà (plusieurs centaines de pare-feu très actifs), le surplus passe
+  dans « Autres » (totaux justes, détail réduit).
+- Menaces : paramètres par, site, groupe lus comme texte, comparés aux
+  noms de l'inventaire, toujours échappés ; rien de nouveau exposé.
+
+## 141. Grand parc : jusqu'à 1 500 machines (27/11) **[Fait, à valider]**
+
+Demande du 27/11 : « trouve d'autres améliorations pour un grand parc »,
+puis « fais tout » ; cible : homelab de 40 machines, mirador déployable sur
+~1 500. Inventaire (interface et serveur), chaque point vérifié dans le code
+ou par un essai avant correction.
+- **Taille du parc, automatique** (retour du 27/11 : « gérable dans
+  l'interface, rien à régler pour un petit parc ») : machines approuvées
+  + 20 %, ou taille prévue dans Réglages › Conservation des données ;
+  appliquée à chaud toutes les 5 min (et dès l'enregistrement) : plafond
+  de séries (40 000, puis 1 200 par machine), GOMEMLIMIT (200 Mio, puis
+  80 Mio + 3,5 Mio par machine ; gardé s'il est donné au conteneur),
+  places, requêtes par adresse, tampons de logs. Une trentaine de machines :
+  plafonds de toujours. La page dit la mémoire du conteneur et le disque
+  conseillés, et prévient si la limite du conteneur (cgroup) est trop juste.
+- **Places séparées** pour les requêtes d'agents : décodage (métriques,
+  logs), petites (config, battement, maj, direct, événement), binaires
+  (les agents refusés réessaient : mise à jour du parc en vagues).
+- **Un clic = une machine réveillée** (Actualiser, Vérifier, essai de
+  sonde) ; avant, tout le parc relisait sa configuration.
+- **Compteur « à valider »** du menu : valeur rendue tout de suite,
+  recalcul en tâche de fond (avant : toutes les pages attendaient) ;
+  durée 1 min + 1 par 250 machines, comme l'application auto des modèles.
+- **Conteneurs** : images changées en une requête (avant : une par machine).
+- **Tableaux** : au-delà de 60 barres / 50 courbes, les plus critiques
+  (sens d'après les seuils) au lieu des premières par nom.
+- **Prévision « plein dans »** : parc découpé en paquets de 1 500 disques
+  (une requête rend au plus 2 000 séries) ; échec gardé en cache.
+- **Logs** : tampons par machine (~48 par bloc) au-delà de 64 machines ;
+  mesure 1 500 machines : 2 blocs lus au lieu de 60 pour une machine.
+- **Tempête d'alertes** : sourdine calculée en une passe (2 000 alertes :
+  0,04 s, résultat identique).
+- **Vérifiés, non changés** : règle « machine muette » (1 500 machines ×
+  24 h : 0,22 s, aucune erreur) et prévision brute sur 7 j (la limite de
+  500 000 points ne joue pas : séries lues une à une).
+- **Interface (maquettes validées le 27/11)** :
+  - Machines : recherche, filtres site et groupe, sites repliés au-delà de
+    50 machines, actions de masse (approuver tout, actualiser, étiquettes,
+    version cible avec 2FA).
+  - Vue d'ensemble : coup d'œil par site (8 au plus), blocs masqués non
+    calculés.
+  - Mises à jour par vagues : 30 min de santé par vague, un échec met en
+    pause ; filtre par site, « réessayer les échecs ».
+  - Alertes regroupées par site au-delà de 20 machines ; acquitter (4 h) ou
+    faire taire (1 h) tout un groupe.
+  - Listes : machine à taper (Logs, Événements) ; Conteneurs construit une
+    seule vue ; Éléments : recherche + pages de 200 ; Sondes : recherche
+    (nom, adresse, machine) + « En problème », courbe non calculée pour
+    une ligne masquée ; Tâches : recherche (tâche ou machine).
+  - Coût : pages plus légères (une vue au lieu de deux, 200 lignes au plus
+    pour Éléments) ; rien de plus pour 40 machines.
+- Coût : rien de plus pour 40 machines ; au-delà, mémoire et disque
+  proportionnels (tableau de la doc), CPU ~×(machines/27) (à mesurer).
+- Menaces : taille prévue réservée à l'administrateur, bornée (0 à 5 000),
+  auditée ;
+  plus de places = plus de mémoire au pire (16 Mo par requête décodée,
+  dans le budget calculé) ; limites par adresse relevées avec le parc (les
+  échecs d'authentification gardent leur propre limite).

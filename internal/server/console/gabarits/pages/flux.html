@@ -40,10 +40,16 @@
 <section class="flux-mappe flux-reseau" aria-label="Mon réseau">
 <div class="flux-tete-reseau"><div><h2>Mon réseau</h2><span>{{if $d.Sortant}}vers quel pays → qui bloque → quel port{{else}}d'où ça vient → qui bloque → ce qui est visé{{end}} · {{$d.NomPeriode}}</span></div>
 <div class="flux-indic"><span>survoler un bloc : ses chemins ressortent</span><span>cliquer : filtrer la page</span></div></div>
+{{if or $d.ChoixPF $d.Ariane}}<div class="flux-parc">
+{{if or $d.Ariane $d.ChercherPF $d.Regroupements}}<div class="flux-parc-l1">{{with $d.Ariane}}<nav class="flux-ariane" aria-label="Où je suis">{{range $i, $a := .}}{{if $i}}<span class="sep">›</span>{{end}}{{if .Actif}}<b>{{.Nom}}</b>{{else}}<a href="{{.Lien}}">{{.Nom}}</a>{{end}}{{end}}</nav>{{end}}
+{{with $d.ChercherPF}}<form class="flux-cherche" method="get" action="/flux-bloques" role="search">{{range $d.ChampsCaches}}<input type="hidden" name="{{index . 0}}" value="{{index . 1}}">{{end}}<input type="search" name="pf" list="flux-liste-pf" placeholder="Chercher une machine… ({{$d.NbTotalPF}})" aria-label="Chercher une machine" autocomplete="off"><datalist id="flux-liste-pf">{{range .}}<option value="{{.}}">{{end}}</datalist><button type="submit" class="bouton petit">Voir</button></form>{{end}}
+{{with $d.Regroupements}}<div class="seg flux-regrouper" role="group" aria-label="Regrouper les pare-feu"><span class="lbl">Regrouper</span>{{range .}}<a href="{{.Lien}}"{{if .Actif}} class="actif" aria-current="true"{{end}}>{{.Nom}}</a>{{end}}</div>{{end}}</div>{{end}}
+{{with $d.ChoixPF}}<nav class="flux-choix-pf" aria-label="Choisir"><span class="lbl">{{$d.TitreChoix}}</span><div class="puces">{{range .}}<a href="{{.Lien}}" class="choix{{if .Actif}} actif{{end}}"{{if .Actif}} aria-current="true"{{end}}>{{with .Couleur}}<span class="pt {{.}}"></span>{{end}}<b>{{.Nom}}</b>{{with .Outil}}<small>{{.}}</small>{{end}}<span class="n">{{.N}}</span></a>{{end}}</div>{{with $d.LienTous}}<a class="flux-tous" href="{{.}}">{{if $d.ToutPF}}Regrouper au-delà de 8{{else}}Les {{$d.NbPF}} dans le schéma{{end}}</a>{{end}}</nav>{{end}}
+</div>{{end}}
 {{with $d.Sankey}}<p class="flux-glisser">← faire glisser pour voir les 3 colonnes →</p>
 <div class="flux-defile"><svg class="flux-sankey" viewBox="0 0 1000 {{printf "%.0f" .Hauteur}}" role="img" aria-label="Pays, pare-feu et ports des flux bloqués" data-flux-sankey>
 <defs>{{range .Degrades}}<linearGradient id="{{.ID}}" x1="0" x2="1"><stop offset="0" class="s-{{.De}}"/><stop offset="1" class="s-{{.Vers}}"/></linearGradient>{{end}}</defs>
-<text x="206" y="18" class="col">{{if $d.Sortant}}VERS QUEL PAYS{{else}}D'OÙ ÇA VIENT{{end}} · {{.NbPays}} PAYS</text><text x="500" y="18" class="col">QUI BLOQUE · {{.NbPF}} PARE-FEU</text><text x="806" y="18" class="col">{{if $d.Sortant}}QUEL PORT{{else}}CE QUI EST VISÉ{{end}} · {{.NbPorts}} PORTS</text>
+<text x="206" y="18" class="col">{{if $d.Sortant}}VERS QUEL PAYS{{else}}D'OÙ ÇA VIENT{{end}} · {{.NbPays}} PAYS</text><text x="500" y="18" class="col">QUI BLOQUE · {{.NbPF}} {{.NomPF}}</text><text x="806" y="18" class="col">{{if $d.Sortant}}QUEL PORT{{else}}CE QUI EST VISÉ{{end}} · {{.NbPorts}} PORTS</text>
 <g class="rubans">{{range .Rubans}}<path d="{{.D}}" class="ruban" fill="url(#{{.Degrade}})" data-a="{{.A}}" data-b="{{.B}}" data-centre="{{.Centre}}"><title>{{.Titre}}</title></path>{{end}}</g>
 <g data-flux-points></g>
 {{range .Pays}}<g class="noeud" data-cle="{{.Cle}}">{{if .Lien}}<a href="{{.Lien}}">{{end}}<rect x="{{printf "%.0f" .X}}" y="{{printf "%.1f" .Y}}" width="12" height="{{printf "%.1f" .H}}" rx="4" class="nd {{.Classe}}"/><text x="{{printf "%.0f" .X}}" dx="-12" y="{{printf "%.1f" .TY}}" dy="-6" class="lib fin">{{.Nom}}</text><text x="{{printf "%.0f" .X}}" dx="-12" y="{{printf "%.1f" .TY}}" dy="10" class="val fin">{{nombre .N}} · {{.Pct}}</text>{{if .Lien}}</a>{{end}}</g>{{end}}
@@ -52,19 +58,19 @@
 </svg></div>
 {{if .Estime}}<p class="aide flux-estime"><small>Avec ce filtre, le lien entre pare-feu et ports (ou pays) est estimé au prorata : les compteurs par heure ne gardent pas les trois ensemble.</small></p>{{end}}
 {{else}}<p class="vide flux-vide-reseau">Aucun flux bloqué sur la période.</p>{{end}}
-{{if or $d.Chemins $d.Note}}<div class="flux-bas-reseau">
+{{if $d.Chemins}}<div class="flux-bas-reseau">
 <div class="flux-chemins">{{with $d.Chemins}}<div class="flux-tete-carte"><h3>Chemins les plus fréquents</h3><span class="aide">pays → pare-feu → port</span></div>
 {{range .}}{{if .Lien}}<a href="{{.Lien}}" class="chemin">{{else}}<div class="chemin">{{end}}<span class="p">{{drapeau .Code}} {{.Pays}}</span><span class="f">→</span><b>{{.PareFeu}}</b><span class="f">→</span><span class="port">{{.Port}}</span><small>{{.Service}}</small><span class="jauge"><i class="largeur-{{.Pct}}"></i></span><b class="n">{{nombre .N}}</b>{{if .Lien}}</a>{{else}}</div>{{end}}{{end}}{{end}}</div>
 {{with $d.Note}}<div class="flux-multi">{{.}}</div>{{end}}
 </div>{{end}}
 </section>
 {{end}}
-<div class="flux-tops">
-<section class="carte flux-top"><h2>Pays</h2>{{range $d.Pays}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}{{drapeau .Code}} {{.Nom}}{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-<section class="carte flux-top"><h2>Ports visés</h2>{{range $d.Ports}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}{{.Nom}}{{if .Lien}}</a>{{end}} {{if .Sous}}<small>{{.Sous}}</small>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-<section class="carte flux-top"><h2>Bloqué par</h2>{{range $d.PareFeux}}<div class="rang"><span class="nom">{{if .Lien}}<a href="{{.Lien}}">{{end}}<b>{{.Nom}}</b>{{if .Lien}}</a>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">Aucun.</p>{{end}}</section>
-<section class="carte flux-top"><h2>{{if $d.Sortant}}Destinations les plus visées{{else}}Adresses les plus insistantes{{end}}</h2>{{range $d.IPs}}<div class="rang"><span class="nom">{{drapeau .Code}} <a href="{{.Lien}}" title="Chercher cette adresse dans les logs"><code>{{.Nom}}</code></a>{{if ge .PareFeux 2}} <span class="flux-pf">{{.PareFeux}} pare-feu</span>{{end}}</span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{else}}<p class="vide">{{if $d.B.SansAdresses}}Adresses non suivies par port : enlever le filtre pour les voir.{{else}}Aucune.{{end}}</p>{{end}}</section>
-</div>
+<section class="carte flux-classement-bloc"><header class="cc-h"><h2>Classements</h2><span class="aide">sur {{$d.NomPeriode}} · {{nombre $d.B.Total}} blocages · clic sur une ligne : filtrer la page</span></header>
+<div class="cc-grille">{{range $d.Classement}}<div class="cc-col {{.Classe}}"><div class="cc-tete"><span class="cl-ic">{{.Icone}}</span><h3>{{.Titre}}</h3><span class="cl-chip">{{.Nb}}</span></div>
+{{range .Lignes}}{{template "flux-rang" .}}{{else}}<p class="vide">Aucun.</p>{{end}}
+{{if .Autres}}<details class="cc-plus"><summary><span>+ {{nombre .Autres}} autres {{.NomAutres}}</span><span>{{nombre .Reste}}</span></summary>{{range .Plus}}{{template "flux-rang" .}}{{end}}{{if gt .Autres (len .Plus)}}<p class="aide"><small>… et {{.Autres}} au total ; les filtres de la page affinent la liste.</small></p>{{end}}</details>{{end}}
+{{with .Aide}}<div class="cc-pied">{{.}}</div>{{end}}</div>{{end}}</div>
+{{if and $d.AlerteIP (or (ne $d.Vue "reseau") (not $d.Chemins))}}<footer class="cc-alerte"><span class="multi">{{$d.AlertePF}} pare-feu</span><span><b>{{$d.AlerteIP}}</b>{{with $d.AlertePays}} {{drapeau .}}{{end}} a été bloquée par {{$d.AlertePF}} pare-feu sur la période : la même adresse essaie plusieurs de vos machines.</span></footer>{{end}}</section>
 {{if $d.Sortant}}{{with $d.Locales}}<section class="carte flux-top flux-locales"><h2>Adresses locales qui essaient de sortir</h2>{{range .}}<div class="rang"><span class="nom"><code>{{.Nom}}</code></span><span class="nombre">{{nombre .N}}</span><span class="mini-barre"><i><u class="largeur-{{.Pct}}"></u></i></span></div>{{end}}</section>{{end}}{{end}}
 {{with $d.Table}}<section class="carte flux-table"><div class="flux-tete-carte"><h2>Sources</h2><span class="aide">{{$d.TableLues}} {{accord $d.TableLues "pare-feu lu(s)"}} sur {{len .}}{{if $d.TableSans}} · {{$d.TableSans}} sans journalisation{{end}}</span></div>
 <div class="defile"><table class="flux-sources-table"><thead><tr><th>Machine</th><th>Pare-feu</th><th>Journalisation</th><th class="nombre">Bloqués 24 h</th><th>Dernier</th><th></th></tr></thead><tbody>
@@ -76,3 +82,5 @@
 <p class="aide"><small>Seuls les flux avec Internet sont comptés (entrants, et sortants là où c'est coché) ; le réglage de chaque machine est dans son onglet Réglages › Pare-feu. Conservation : 30 jours (adresses : 7 jours). {{if $d.GeoIP}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).{{end}}</small></p>
 </div>
 {{end}}
+
+{{define "flux-rang"}}<a class="cc-l{{if eq .Rang 1}} premier{{end}}"{{if .Lien}} href="{{.Lien}}"{{end}}{{if .Titre}} title="{{.Titre}}"{{end}}><i class="largeur-{{.Pct}}"></i><span class="rg">{{.Rang}}</span><span class="lib">{{if .Couleur}}<span class="pt {{.Couleur}}"></span><b>{{.Nom}}</b>{{with .Outil}}<span class="outil">{{.}}</span>{{end}}{{else if .Proto}}<span class="pr {{.Proto}}">{{.Proto}}</span><code>{{.Num}}</code>{{with .Sous}}<small>{{.}}</small>{{end}}{{else}}{{with .Code}}<span class="dr">{{drapeau .}}</span>{{end}}{{if .Adresse}}<code>{{.Nom}}</code>{{else}}{{.Nom}}{{end}}{{end}}{{if ge .PareFeux 2}}<span class="multi">{{.PareFeux}} pare-feu</span>{{end}}</span><span class="v"><b>{{nombre .N}}</b><small>{{.Part}}</small></span></a>{{end}}

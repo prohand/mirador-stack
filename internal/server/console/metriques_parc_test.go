@@ -79,6 +79,7 @@ func TestGourmandsChaleurMur(t *testing.T) {
 		t.Error("plus gourmands sans conteneurs")
 	}
 
+	montrerBlocsAccueil(t, b, c)
 	_, corps, _ = b.get(c, "/")
 	ch := section(corps, `id="chaleur"`)
 	for _, attendu := range []string{"Le parc sur 24 h", "<h3>Processeur</h3>", "<h3>Mémoire</h3>", `<a href="/machines/nas" title="nas">nas</a>`, `data-nom="web1" data-texte="web1   "`, "data-chaleur-plus",
