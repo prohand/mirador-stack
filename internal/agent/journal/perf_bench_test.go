@@ -34,7 +34,7 @@ func BenchmarkLireLigneJournal(b *testing.B) {
 		r := bufio.NewReaderSize(bytes.NewReader(data), 64<<10)
 		var t []byte
 		for {
-			l, err := lireLigneDans(r, t[:0])
+			l, _, _, err := lireLigneDans(r, t[:0], nil)
 			if err != nil {
 				break
 			}

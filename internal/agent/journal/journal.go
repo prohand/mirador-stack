@@ -199,10 +199,13 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 	}
 	lire := bufio.NewReaderSize(sortie, 64<<10)
 	var e Entree
-	var tampon []byte // ligne en cours, réutilisée (analyser copie ce qu'il garde)
+	var tampon, queue []byte // ligne en cours, réutilisée (analyser copie ce qu'il garde)
 	for {
-		ligne, err := lireLigneDans(lire, tampon[:0])
-		tampon = ligne
+		ligne, q, coupee, err := lireLigneDans(lire, tampon[:0], queue)
+		tampon, queue = ligne, q
+		if coupee {
+			ligne = reparer(ligne, q) // message coupé au milieu au lieu d'être perdu
+		}
 		if cap(tampon) > 64<<10 {
 			tampon = nil // agrandi par une très longue ligne : rendu après usage
 		}
@@ -233,22 +236,120 @@ func (l *Lecteur) lancer(ctx context.Context, traiter func(*Entree)) error {
 	return errAttente
 }
 
-// lireLigne lit une ligne entière ; au-delà de tailleMaxLigne, le reste est jeté.
-func lireLigne(r *bufio.Reader) ([]byte, error) { return lireLigneDans(r, nil) }
+// lireLigne lit une ligne entière ; au-delà de tailleMaxLigne, le milieu est
+// jeté (voir lireLigneDans).
+func lireLigne(r *bufio.Reader) ([]byte, error) {
+	l, q, coupee, err := lireLigneDans(r, nil, nil)
+	if coupee {
+		l = reparer(l, q)
+	}
+	return l, err
+}
+
+// tailleQueue : fin d'une ligne trop longue gardée pour la réparer (les
+// champs écrits après MESSAGE : priorité, unité…).
+const tailleQueue = 8 << 10
 
 // lireLigneDans : comme lireLigne, en écrivant dans ligne (tampon réutilisé :
-// pas d'allocation par ligne une fois le tampon à la bonne taille).
-func lireLigneDans(r *bufio.Reader, ligne []byte) ([]byte, error) {
+// pas d'allocation par ligne une fois le tampon à la bonne taille). Ligne
+// trop longue : coupee vaut true, ligne garde le début (tailleMaxLigne) et
+// queue les derniers tailleQueue octets.
+func lireLigneDans(r *bufio.Reader, ligne, queue []byte) (_, _ []byte, coupee bool, err error) {
+	queue = queue[:0]
 	for {
-		morceau, err := r.ReadSlice('\n')
-		if len(ligne)+len(morceau) <= tailleMaxLigne {
+		var morceau []byte
+		morceau, err = r.ReadSlice('\n')
+		if !coupee && len(ligne)+len(morceau) <= tailleMaxLigne {
 			ligne = append(ligne, morceau...)
+		} else {
+			if !coupee {
+				// Début rempli jusqu'à la limite, le reste va dans la queue.
+				n := tailleMaxLigne - len(ligne)
+				ligne = append(ligne, morceau[:n]...)
+				morceau = morceau[n:]
+				coupee = true
+			}
+			queue = append(queue, morceau...)
+			if len(queue) > tailleQueue {
+				queue = append(queue[:0], queue[len(queue)-tailleQueue:]...)
+			}
 		}
 		if err == bufio.ErrBufferFull {
 			continue
 		}
-		return bytes.TrimRight(ligne, "\n"), err
+		if coupee {
+			return ligne, bytes.TrimRight(queue, "\n"), true, err
+		}
+		return bytes.TrimRight(ligne, "\n"), queue, false, err
 	}
+}
+
+// reparer : ligne JSON trop longue (revue du 27/11 : elle était perdue,
+// comptée « illisible »). Le message est coupé au milieu : début + « … » +
+// fin de la ligne (champs après MESSAGE). Si ce n'est pas MESSAGE qui est
+// trop long, ou si le résultat n'est pas du JSON valide, la ligne reste
+// illisible comme avant.
+func reparer(debut, queue []byte) []byte {
+	p := bytes.LastIndex(debut, []byte(`"MESSAGE":`))
+	if p < 0 {
+		return debut
+	}
+	v := p + len(`"MESSAGE":`)
+	if v >= len(debut) {
+		return debut
+	}
+	var out []byte
+	switch debut[v] {
+	case '"': // texte
+		if finTexte(debut[v+1:]) >= 0 {
+			return debut // MESSAGE fini avant la coupure : autre chose de trop long
+		}
+		d := debut
+		// Pas de séquence d'échappement coupée en deux (« \ » ou « \u00 »).
+		if i := bytes.LastIndexByte(d, '\\'); i > v && len(d)-i < 6 {
+			n := 0
+			for j := i; j > v && d[j] == '\\'; j-- {
+				n++
+			}
+			if n%2 == 1 {
+				d = d[:i]
+			}
+		}
+		q := finTexte(queue)
+		if q < 0 {
+			return debut
+		}
+		out = append(append(append(out, d...), "…\""...), queue[q+1:]...)
+	case '[': // octets (caractères non imprimables)
+		if bytes.IndexByte(debut[v:], ']') >= 0 {
+			return debut
+		}
+		i, q := bytes.LastIndexByte(debut, ','), bytes.IndexByte(queue, ']')
+		if i <= v || q < 0 {
+			return debut
+		}
+		out = append(append(append(out, debut[:i]...), ']'), queue[q+1:]...)
+	default:
+		return debut
+	}
+	if !json.Valid(out) {
+		return debut
+	}
+	return out
+}
+
+// finTexte : position du premier « " » non échappé (fin d'une chaîne JSON),
+// -1 s'il n'y en a pas.
+func finTexte(b []byte) int {
+	for i := 0; i < len(b); i++ {
+		switch b[i] {
+		case '\\':
+			i++ // caractère échappé sauté
+		case '"':
+			return i
+		}
+	}
+	return -1
 }
 
 // analyser lit une ligne JSON de journalctl dans e (réutilisée).

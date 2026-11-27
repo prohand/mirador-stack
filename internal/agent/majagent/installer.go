@@ -79,6 +79,7 @@ func (i *Installateur) Installer(ctx context.Context, m *protocole.Manifeste, bi
 	nom := ProduitCourant + "-" + m.Version
 	final := filepath.Join(i.Dossier, nom)
 
+	i.oublierTelechargements() // restes d'un arrêt brutal (jusqu'à 64 Mio chacun)
 	tmp, err := os.CreateTemp(i.Dossier, ".telechargement-*")
 	if err != nil {
 		return err
@@ -281,6 +282,26 @@ func (i *Installateur) nettoyer(garder ...string) {
 	}
 	for _, e := range entrees {
 		if strings.HasPrefix(e.Name(), ProduitCourant+"-") && !ok[e.Name()] {
+			_ = os.Remove(filepath.Join(i.Dossier, e.Name()))
+		}
+	}
+	i.oublierTelechargements()
+}
+
+// oublierTelechargements : un fichier « .telechargement-* » n'existe que
+// pendant Installer ; s'il en reste un (agent tué en pleine écriture), il
+// est retiré (revue du 27/11 : il n'était jamais nettoyé). Seulement ceux
+// de plus d'une heure : jamais celui d'une installation en cours.
+func (i *Installateur) oublierTelechargements() {
+	entrees, err := os.ReadDir(i.Dossier)
+	if err != nil {
+		return
+	}
+	for _, e := range entrees {
+		if !strings.HasPrefix(e.Name(), ".telechargement-") {
+			continue
+		}
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > time.Hour {
 			_ = os.Remove(filepath.Join(i.Dossier, e.Name()))
 		}
 	}
