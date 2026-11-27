@@ -4,6 +4,7 @@ package console
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -252,5 +253,50 @@ func TestPrevisionDisqueLibereHier(t *testing.T) {
 	c := &Console{lecteur: alertes.NouveauLecteur(db, nil), cache: cacheRequetes{tout: map[string]entreeRequete{}}}
 	if p := c.previsionsDisques(context.Background(), `instance="sup"`, m); len(p) != 0 {
 		t.Errorf("prévision malgré la place libérée : %v", p)
+	}
+}
+
+// Grand parc (SPEC § 141) : 700 machines, 2 100 disques, plus que les 2 000 séries
+// qu'une requête peut rendre. Avant : erreur, prévision absente sans bruit.
+func TestPrevisionParcPlusDe2000Disques(t *testing.T) {
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	m := time.Now()
+	app := db.Appender(context.Background())
+	for i := 0; i < 2100; i++ { // 700 machines × 3 disques
+		lb := labels.FromStrings("__name__", "node_filesystem_avail_bytes", "instance", fmt.Sprintf("m%04d", i/3), "mountpoint", fmt.Sprintf("/d%d", i%3), "fstype", "ext4")
+		for _, h := range []float64{166, 100, 20, 2, 0} {
+			ts := m.Add(-time.Duration(h * float64(time.Hour)))
+			_, _ = app.Append(0, lb, ts.UnixMilli(), 34e9+2e9*h/24)
+		}
+	}
+	if err := app.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	c := &Console{lecteur: alertes.NouveauLecteur(db, nil), cache: cacheRequetes{tout: map[string]entreeRequete{}}}
+	p := c.previsionsDisques(context.Background(), `instance=~".*"`, m)
+	if len(p) != 2100 {
+		t.Fatalf("%d prévisions sur 2 100", len(p))
+	}
+	if j := p["m0007|/d1"]; j < 16.5 || j > 17.5 {
+		t.Errorf("plein dans %v j, 17 attendus", j)
+	}
+}
+
+// Découpage du parc : chaque paquet garde au plus seriesParPaquet disques.
+func TestPaquetsDisques(t *testing.T) {
+	if p := paquetsDisques(nil, nil); len(p) != 1 || p[0] != "" {
+		t.Errorf("petit parc : %v", p)
+	}
+	var ms []alertes.Echantillon
+	for i := 0; i < 1500; i++ {
+		ms = append(ms, alertes.Echantillon{Etiquettes: labels.FromStrings("instance", fmt.Sprintf("srv-%04d.lan", i)), Valeur: 4})
+	}
+	p := paquetsDisques(ms, nil)
+	if len(p) != 4 || !strings.Contains(p[0], `srv-0000\.lan|`) {
+		t.Errorf("%d paquets : %.80s", len(p), p[0])
 	}
 }
