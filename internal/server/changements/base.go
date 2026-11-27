@@ -145,6 +145,29 @@ func Lister(ctx context.Context, db *sql.DB, machine string, depuis time.Time, m
 	return out, rows.Err()
 }
 
+// ListerType : changements d'un type, toutes machines, depuis une date, les
+// plus récents d'abord (max lignes). Une requête pour tout le parc (page
+// Conteneurs, SPEC § 141 : avant, une requête par machine).
+func ListerType(ctx context.Context, db *sql.DB, typ string, depuis time.Time, max int) ([]Changement, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, machine, le, type, detail FROM changements WHERE type = ? AND le >= ?
+		ORDER BY le DESC, id DESC LIMIT ?`, typ, depuis.Unix(), max)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Changement
+	for rows.Next() {
+		var c Changement
+		var le int64
+		if err := rows.Scan(&c.ID, &c.Machine, &le, &c.Type, &c.Detail); err != nil {
+			return nil, err
+		}
+		c.Le = time.Unix(le, 0)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // Avant : dernier changement d'une machine dans la fenêtre qui précède t
 // (message d'alerte : « 12 min avant : … »).
 func Avant(ctx context.Context, db *sql.DB, machine string, t time.Time, fenetre time.Duration) (Changement, bool) {

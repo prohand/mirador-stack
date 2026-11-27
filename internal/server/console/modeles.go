@@ -676,6 +676,7 @@ func (c *Console) appliquerAuto(ctx context.Context, t time.Time) {
 	if err != nil {
 		return
 	}
+	c.machinesAuto = len(ms)
 	defer func() {
 		if err := c.suivreTous(ctx, ms, avant, modeles.QuiAuto, t); err != nil {
 			c.journal.Warn("métriques des modèles non réglées", "erreur", err)

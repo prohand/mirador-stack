@@ -92,7 +92,8 @@ type Console struct {
 	prevenir func(ctx context.Context, groupe, texte string)
 	messages antiRafale
 	// dernierAuto : dernier passage de l'application automatique des modèles.
-	dernierAuto time.Time
+	dernierAuto  time.Time
+	machinesAuto int // machines vues au dernier passage (rythme, SPEC § 141)
 	// dernierNettoyageConfiance : appareils de confiance expirés, une fois par heure.
 	dernierNettoyageConfiance time.Time
 	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
@@ -254,8 +255,10 @@ func (c *Console) Tour(ctx context.Context) {
 		c.securite.Store(&s)
 	}
 	c.leverSiDemande(ctx)
-	// Modèles détectés appliqués automatiquement (réglage), une fois par minute.
-	if t.Sub(c.dernierAuto) >= time.Minute {
+	// Modèles détectés appliqués automatiquement (réglage), une fois par
+	// minute ; grand parc (SPEC § 141) : 1 min de plus par 250 machines
+	// (~4 requêtes par machine à chaque passage).
+	if t.Sub(c.dernierAuto) >= time.Minute*time.Duration(1+c.machinesAuto/250) {
 		c.dernierAuto = t
 		c.appliquerAuto(ctx, t)
 	}

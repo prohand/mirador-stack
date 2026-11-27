@@ -406,21 +406,23 @@ func (c *Console) etincellesConteneurs(ctx context.Context, t time.Time) map[str
 // les changements notés par le serveur (« nom recréé : image A → B »).
 func (c *Console) imagesChangees(ctx context.Context, machines []string, t time.Time) map[string]string {
 	out := map[string]string{}
+	vues := map[string]bool{}
 	for _, m := range machines {
-		chg, err := changements.Lister(ctx, c.db, m, t.Add(-7*24*time.Hour), 300)
-		if err != nil {
+		vues[m] = true
+	}
+	chg, err := changements.ListerType(ctx, c.db, changements.Conteneur, t.Add(-7*24*time.Hour), 20_000)
+	if err != nil {
+		return out
+	}
+	for _, x := range chg { // les plus récents d'abord
+		if !vues[x.Machine] {
 			continue
 		}
-		for _, x := range chg { // les plus récents d'abord
-			if x.Type != changements.Conteneur {
-				continue
-			}
-			nom, images, ok := strings.Cut(x.Detail, " recréé : image ")
-			if !ok || out[m+"\x00"+nom] != "" {
-				continue
-			}
-			out[m+"\x00"+nom] = "image changée il y a " + dureeLisible(t.Sub(x.Le)) + " (" + images + ")"
+		nom, images, ok := strings.Cut(x.Detail, " recréé : image ")
+		if !ok || out[x.Machine+"\x00"+nom] != "" {
+			continue
 		}
+		out[x.Machine+"\x00"+nom] = "image changée il y a " + dureeLisible(t.Sub(x.Le)) + " (" + images + ")"
 	}
 	return out
 }
