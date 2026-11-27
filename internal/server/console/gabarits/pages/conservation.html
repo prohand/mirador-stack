@@ -12,6 +12,15 @@
 <p class="sous cons-resume">mirador occupe <b>{{taille .Mirador}}</b> aujourd'hui ; avec les réglages ci-dessous, au plus <b data-cons-prevu-total>{{taille .Prevu}}</b> (plafonds compris).</p>
 </section>{{end}}
 
+{{with $d.Parc}}<form method="post" class="carte cons-parc">{{template "csrf" $.CSRF}}
+<div class="entete-carte"><h2>Taille du parc</h2><span class="pastille {{if .T.Prevue}}info{{else}}ok{{end}}">{{if .T.Prevue}}prévue : {{.T.Prevue}} machines{{else}}automatique{{end}}</span></div>
+<p>{{nombre .T.Approuvees}} {{accord .T.Approuvees "machine(s) approuvée(s)"}} ; mirador se prépare pour <b>{{nombre .T.Retenue}}</b>{{if not .T.Prevue}} (20 % de marge){{end}} et règle seul ses plafonds, sans redémarrage. Rien à faire pour un petit parc.</p>
+<div class="cons-parc-chiffres"><span><b>{{nombre .D.Series}}</b>séries au plus</span><span><b>{{taille .D.Memoire}}</b>mémoire visée{{if .MemoireFixee}} (GOMEMLIMIT du conteneur : gardé){{end}}</span><span><b>{{taille .ConteneurConseille}}</b>mémoire du conteneur conseillée{{if .Conteneur}} · actuelle {{taille .Conteneur}}{{end}}</span><span><b>~ {{taille .DisqueConseille}}</b>disque avec les durées par défaut</span></div>
+{{if .ConteneurTropPetit}}<p class="message attention">La limite mémoire du conteneur ({{taille .Conteneur}}) est trop juste pour {{nombre .T.Retenue}} machines : la relever à {{taille .ConteneurConseille}} (fichier compose, <code>mem_limit</code>).</p>{{end}}
+{{if $.Admin}}<div class="cons-parc-champ"><label>Prévoir plus de machines <small class="doux">(facultatif : grosse arrivée de machines)</small> <input type="number" name="taille_parc" min="0" max="5000" value="{{if .T.Prevue}}{{.T.Prevue}}{{end}}" placeholder="automatique" inputmode="numeric"></label>
+<button name="action" value="taille_parc">Enregistrer</button></div>{{end}}
+</form>{{end}}
+
 <form method="post" class="carte cons-form" data-cons>{{template "csrf" .CSRF}}
 <h2>Durées et plafonds</h2>
 <div class="cons-grille">

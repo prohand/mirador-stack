@@ -48,18 +48,21 @@ import (
 // Options : ce dont l'interface a besoin. Les moteurs peuvent être nil
 // (tests) : les pages concernées l'indiquent au lieu de planter.
 type Options struct {
-	DB         *sql.DB
-	Cle        []byte // clé des secrets (2FA chiffrée en base)
-	Journal    *slog.Logger
-	Version    string
-	Debut      time.Time
-	Donnees    string // dossier des données (sauvegardes, versions)
-	Alertes    *alertes.Moteur
-	Aiguilleur *notif.Aiguilleur
-	Postier    *notif.Postier
-	Metriques  *metriques.Moteur
-	Logs       *journaux.Moteur
-	Ingestion  *ingestion.Ingestion
+	// Redimensionner : applique tout de suite une nouvelle taille du parc
+	// (plafonds du serveur, SPEC § 141). Nil : appliquée au prochain tour.
+	Redimensionner func()
+	DB             *sql.DB
+	Cle            []byte // clé des secrets (2FA chiffrée en base)
+	Journal        *slog.Logger
+	Version        string
+	Debut          time.Time
+	Donnees        string // dossier des données (sauvegardes, versions)
+	Alertes        *alertes.Moteur
+	Aiguilleur     *notif.Aiguilleur
+	Postier        *notif.Postier
+	Metriques      *metriques.Moteur
+	Logs           *journaux.Moteur
+	Ingestion      *ingestion.Ingestion
 	// Direct : relevés « en direct » des machines (SPEC § 97) ; nil : pas de direct.
 	Direct *direct.Hub
 	Motifs *motifs.Registre  // motifs des logs : « vu la 1re fois », « nouveau » (SPEC § 52)

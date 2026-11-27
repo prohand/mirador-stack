@@ -9055,11 +9055,15 @@ Demande du 27/11 : « trouve d'autres améliorations pour un grand parc »,
 puis « fais tout » ; cible : homelab de 40 machines, mirador déployable sur
 ~1 500. Inventaire (interface et serveur), chaque point vérifié dans le code
 ou par un essai avant correction.
-- **Taille du parc** : `MIRADOR_TAILLE_PARC` (50 par défaut, 1 à 5 000)
-  fixe plafond de séries (40 000 → 1 200 par machine), GOMEMLIMIT (200 Mio
-  jusqu'à 50, puis 80 Mio + 3,5 Mio par machine), places, requêtes par
-  adresse, tampons de logs. Homelab : rien ne change. Tableau de
-  dimensionnement (RAM, disque) dans docs/administration-serveur.md.
+- **Taille du parc, automatique** (retour du 27/11 : « gérable dans
+  l'interface, rien à régler pour un petit parc ») : machines approuvées
+  + 20 %, ou taille prévue dans Réglages › Conservation des données ;
+  appliquée à chaud toutes les 5 min (et dès l'enregistrement) : plafond
+  de séries (40 000, puis 1 200 par machine), GOMEMLIMIT (200 Mio, puis
+  80 Mio + 3,5 Mio par machine ; gardé s'il est donné au conteneur),
+  places, requêtes par adresse, tampons de logs. Une trentaine de machines :
+  plafonds de toujours. La page dit la mémoire du conteneur et le disque
+  conseillés, et prévient si la limite du conteneur (cgroup) est trop juste.
 - **Places séparées** pour les requêtes d'agents : décodage (métriques,
   logs), petites (config, battement, maj, direct, événement), binaires
   (les agents refusés réessaient : mise à jour du parc en vagues).
@@ -9085,7 +9089,8 @@ ou par un essai avant correction.
   deux fois (tuiles + tableau).
 - Coût : rien de plus pour 40 machines ; au-delà, mémoire et disque
   proportionnels (tableau de la doc), CPU ~×(machines/27) (à mesurer).
-- Menaces : `MIRADOR_TAILLE_PARC` lu dans le fichier de démarrage (borné) ;
+- Menaces : taille prévue réservée à l'administrateur, bornée (0 à 5 000),
+  auditée ;
   plus de places = plus de mémoire au pire (16 Mo par requête décodée,
   dans le budget calculé) ; limites par adresse relevées avec le parc (les
   échecs d'authentification gardent leur propre limite).

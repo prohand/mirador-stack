@@ -136,7 +136,7 @@ type Ingestion struct {
 	opt                     Options
 	auth                    *Auth
 	quotas                  *Quotas
-	places, legeres, telech chan struct{} // décodage, petites requêtes, binaires (SPEC § 141)
+	places, legeres, telech *Places // décodage, petites requêtes, binaires (SPEC § 141)
 
 	parIP, echecsIP, parMachine, lignes *Limiteur
 
@@ -173,9 +173,9 @@ func Nouvelle(opt Options) *Ingestion {
 		opt:        opt,
 		auth:       NouvelleAuth(opt.DB),
 		quotas:     NouveauxQuotas(opt.Series),
-		places:     make(chan struct{}, opt.MaxSimultanees),
-		legeres:    make(chan struct{}, opt.MaxLegeres),
-		telech:     make(chan struct{}, opt.MaxTelechargements),
+		places:     NouvellesPlaces(opt.MaxSimultanees),
+		legeres:    NouvellesPlaces(opt.MaxLegeres),
+		telech:     NouvellesPlaces(opt.MaxTelechargements),
 		parIP:      NouveauLimiteur(opt.RequetesIP, opt.RequetesIP*4, maxCles),
 		echecsIP:   NouveauLimiteur(opt.EchecsIP, 10, maxCles),
 		parMachine: NouveauLimiteur(opt.RequetesMachine, opt.RequetesMachine*10, maxCles),
@@ -429,6 +429,15 @@ func (g *Ingestion) Accueillir(w http.ResponseWriter, r *http.Request) (m Machin
 	return g.accueillir(w, r, g.places, 2)
 }
 
+// Dimensionner : plafonds d'après la taille du parc, à chaud (SPEC § 141).
+func (g *Ingestion) Dimensionner(series, places, legeres, telechargements int, requetesIP float64) {
+	g.quotas.ReglerTotal(series)
+	g.places.Regler(places)
+	g.legeres.Regler(legeres)
+	g.telech.Regler(telechargements)
+	g.parIP.Regler(requetesIP, requetesIP*4)
+}
+
 // AccueillirLeger : comme Accueillir, pour une petite requête (config,
 // battement, maj, direct, événement) : places à part (SPEC § 141).
 func (g *Ingestion) AccueillirLeger(w http.ResponseWriter, r *http.Request) (m Machine, liberer func(), ok bool) {
@@ -442,15 +451,13 @@ func (g *Ingestion) AccueillirTelechargement(w http.ResponseWriter, r *http.Requ
 	return g.accueillir(w, r, g.telech, 60)
 }
 
-func (g *Ingestion) accueillir(w http.ResponseWriter, r *http.Request, places chan struct{}, attente int) (m Machine, liberer func(), ok bool) {
+func (g *Ingestion) accueillir(w http.ResponseWriter, r *http.Request, places *Places, attente int) (m Machine, liberer func(), ok bool) {
 	g.Compteurs.Requetes.Add(1)
-	select {
-	case places <- struct{}{}:
-	default:
+	if !places.Prendre() {
 		g.refuser(w, http.StatusServiceUnavailable, "serveur occupé", attente)
 		return m, nil, false
 	}
-	liberer = func() { <-places }
+	liberer = places.Rendre
 	maintenant := g.opt.Maintenant()
 	adresse := web.AdresseClient(r)
 	ip := CleLimite(adresse) // IPv6 : le /64 entier (on ne contourne pas les limites en changeant d'adresse)

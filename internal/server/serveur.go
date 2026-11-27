@@ -48,6 +48,7 @@ var NiveauJournal slog.LevelVar
 
 // Serveur : état du serveur en marche.
 type Serveur struct {
+	redim   chan struct{} // taille du parc changée dans l'interface (parc.go)
 	cfg     config.Serveur
 	cle     []byte // clé de chiffrement des secrets (jamais journalisée)
 	db      *sql.DB
@@ -116,7 +117,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 		return echec(fmt.Errorf("stockage des métriques : %w", err))
 	}
 	ouverts = append(ouverts, s.met.Fermer)
-	if s.jx, err = journaux.Ouvrir(journaux.Options{Dossier: s.chemin("logs"), Partitions: journaux.PartitionsPour(cfg.TailleParc),
+	if s.jx, err = journaux.Ouvrir(journaux.Options{Dossier: s.chemin("logs"),
 		Journal: journal.With("composant", "logs")}); err != nil {
 		return echec(fmt.Errorf("stockage des logs : %w", err))
 	}
@@ -199,7 +200,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	}
 	s.flux = fluxbloques.NouveauFlux(magasins[0], magasins[1])
 	// Plafonds d'après la taille du parc prévue (SPEC § 141).
-	dims := cfg.Dimensions()
+	dims := config.DimensionsPour(config.TailleParcDefaut) // ajusté ensuite (parc.go)
 	series := ingestion.LimitesSeriesDefaut()
 	series.Total = dims.Series
 	s.ing = ingestion.Nouvelle(ingestion.Options{DB: s.db, Metriques: s.met, Logs: s.jx, Journal: journal,
@@ -218,7 +219,8 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 	s.planif = &sauvegarde.Planificateur{Cle: cle, Version: version.Version, Journal: journal.With("composant", "sauvegarde"),
 		Sources: sauvegarde.Sources{DB: s.db, Dossier: cfg.Donnees, FichierDemarrage: cfg.Fichier,
 			Metriques: s.met, Logs: segmentsLogs{s.jx}}}
-	if s.console, err = console.Nouvelle(ctx, console.Options{GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
+	s.redim = make(chan struct{}, 1)
+	if s.console, err = console.Nouvelle(ctx, console.Options{Redimensionner: s.redimensionner, GeoIP: s.geo, DB: s.db, Cle: cle, Journal: journal.With("composant", "console"),
 		Version: version.Complete(), Debut: s.debut, Donnees: cfg.Donnees, Alertes: s.alertes, Aiguilleur: s.aiguille,
 		Postier: s.postier, Metriques: s.met, Logs: s.jx, Ingestion: s.ing, Niveau: &NiveauJournal, Motifs: s.motifs, Direct: hubDirect,
 		MajDemande: cfg.MajDemande, MajEtat: cfg.MajEtat, Flux: s.flux}); err != nil {
@@ -245,7 +247,7 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 			(&sondeur{s: s}).boucle, s.motifs.Boucle,
 			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
 				Journal: journal.With("composant", "changements")}).Boucle,
-			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner, s.flux.Boucle}
+			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner, s.flux.Boucle, s.boucleParc}
 		fini := make(chan struct{}, len(taches))
 		for _, f := range taches {
 			go func() { f(fond); fini <- struct{}{} }()

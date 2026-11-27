@@ -360,11 +360,11 @@ func TestRequetesInvalides(t *testing.T) {
 
 func TestServeurOccupe(t *testing.T) {
 	b := nouveauBanc(t, func(o *Options) { o.MaxSimultanees = 1 })
-	b.g.places <- struct{}{} // une requête en cours
+	b.g.places.Prendre() // une requête en cours
 	if c := b.metriques(tokenPC, requeteSimple(reception.UnixMilli())); c != http.StatusServiceUnavailable {
 		t.Fatalf("serveur occupé : %d", c)
 	}
-	<-b.g.places
+	b.g.places.Rendre()
 	if c := b.metriques(tokenPC, requeteSimple(reception.UnixMilli())); c != http.StatusNoContent {
 		t.Fatalf("place libérée : %d", c)
 	}
@@ -647,7 +647,7 @@ func TestJobCollecteurAligne(t *testing.T) {
 // binaires ont aussi leurs places.
 func TestPlacesSepareesParType(t *testing.T) {
 	b := nouveauBanc(t, func(o *Options) { o.MaxSimultanees, o.MaxLegeres, o.MaxTelechargements = 1, 1, 1 })
-	b.g.places <- struct{}{} // décodage occupé
+	b.g.places.Prendre() // décodage occupé
 	accueil := func(f func(http.ResponseWriter, *http.Request) (Machine, func(), bool)) int {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.RemoteAddr = "192.0.2.10:5000"
@@ -666,13 +666,20 @@ func TestPlacesSepareesParType(t *testing.T) {
 	if c := accueil(b.g.AccueillirLeger); c != http.StatusOK {
 		t.Errorf("petite requête bloquée par le décodage : %d", c)
 	}
-	b.g.telech <- struct{}{}
+	b.g.telech.Prendre()
 	if c := accueil(b.g.AccueillirTelechargement); c != http.StatusServiceUnavailable {
 		t.Errorf("téléchargements occupés : %d", c)
 	}
-	<-b.g.telech
+	b.g.telech.Rendre()
 	if c := accueil(b.g.AccueillirTelechargement); c != http.StatusOK {
 		t.Errorf("téléchargement : %d", c)
 	}
-	<-b.g.places
+	b.g.places.Rendre()
+	// Plus de places à chaud (le parc a grandi) : le décodage repasse.
+	b.g.places.Prendre()
+	b.g.Dimensionner(60_000, 2, 16, 2, 50)
+	if c := accueil(b.g.Accueillir); c != http.StatusOK {
+		t.Errorf("après Dimensionner : %d", c)
+	}
+	b.g.places.Rendre()
 }

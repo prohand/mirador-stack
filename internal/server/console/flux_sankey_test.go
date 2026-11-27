@@ -3,6 +3,7 @@
 package console
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+	"time"
 
 	"mirador-stack/internal/server/fluxbloques"
 )
@@ -185,5 +187,32 @@ func TestGarderCritiques(t *testing.T) {
 	}
 	if out, note := garderCritiques(bs[:10], nil); len(out) != 10 || note != "" {
 		t.Error("peu de barres : rien ne change")
+	}
+}
+
+// Taille du parc (SPEC § 141) : automatique (machines approuvées + 20 %),
+// ou prévue dans l'interface ; vide = automatique.
+func TestTailleParc(t *testing.T) {
+	b := nouveauBanc(t)
+	ctx := context.Background()
+	for i := 0; i < 40; i++ {
+		if _, err := b.db.Exec(`INSERT INTO machines(nom, statut, cree_le) VALUES (?, 'approuvee', 0)`, fmt.Sprintf("m%02d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tp := LireTailleParc(ctx, b.db); tp.Approuvees < 40 || tp.Prevue != 0 || tp.Retenue != tp.Approuvees+tp.Approuvees/5 {
+		t.Errorf("automatique : %+v", tp)
+	}
+	if err := EcrireTailleParc(ctx, b.db, 1500, "admin", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if tp := LireTailleParc(ctx, b.db); tp.Prevue != 1500 || tp.Retenue != 1500 {
+		t.Errorf("prévue : %+v", tp)
+	}
+	if err := EcrireTailleParc(ctx, b.db, 0, "admin", time.Now()); err != nil || LireTailleParc(ctx, b.db).Prevue != 0 {
+		t.Errorf("retour à l'automatique : %v", err)
+	}
+	if err := EcrireTailleParc(ctx, b.db, 99999, "admin", time.Now()); err == nil {
+		t.Error("taille hors bornes acceptée")
 	}
 }

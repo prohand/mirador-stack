@@ -457,6 +457,20 @@ func (m *Moteur) fermerCourant() {
 	}
 }
 
+// ReglerPartitions : nombre de tampons par machine, à chaud (taille du
+// parc, SPEC § 141). Les blocs en cours sont écrits avant le changement.
+func (m *Moteur) ReglerPartitions(n int) error {
+	n = max(1, n)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if n == len(m.enCours) {
+		return nil
+	}
+	err := m.viderVerrou()
+	m.enCours = make([]tampon, n)
+	return err
+}
+
 // Vider écrit le bloc en cours (arrêt, tests).
 func (m *Moteur) Vider() error {
 	m.mu.Lock()

@@ -25,7 +25,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -42,10 +41,6 @@ type Serveur struct {
 	// d'échange avec mirador-maj-serveur (VPS). Vide : désactivée. Dossier
 	// absent : l'interface explique comment installer le service.
 	MajDemande, MajEtat string
-	// TailleParc : machines prévues (MIRADOR_TAILLE_PARC, 50 par défaut).
-	// Fixe les plafonds de séries, de mémoire et de requêtes simultanées
-	// (SPEC § 141) : voir Dimensions.
-	TailleParc int
 	// Fichier : chemin du fichier de démarrage lu (pas une clé ; copié dans
 	// les sauvegardes pour mémoire, il ne contient aucun secret).
 	Fichier string
@@ -60,7 +55,6 @@ func Defaut() Serveur {
 		FichierCle:      "/run/secrets/mirador_cle",
 		MajDemande:      "/var/lib/mirador-maj",
 		MajEtat:         "/var/lib/mirador-maj-etat",
-		TailleParc:      TailleParcDefaut,
 	}
 }
 
@@ -107,12 +101,6 @@ func Lire(r io.Reader) (Serveur, error) {
 			} else {
 				s.MajEtat = val
 			}
-		case "MIRADOR_TAILLE_PARC":
-			t, err := strconv.Atoi(val)
-			if err != nil || t < 1 || t > TailleParcMax {
-				return Serveur{}, fmt.Errorf("ligne %d : MIRADOR_TAILLE_PARC : nombre de machines entre 1 et %d", n, TailleParcMax)
-			}
-			s.TailleParc = t
 		case "MIRADOR_PROXY":
 			for _, p := range strings.Split(val, ",") {
 				if p = strings.TrimSpace(p); p == "" {
@@ -219,15 +207,17 @@ func LireCle(chemin string) ([]byte, error) {
 	return cle, nil
 }
 
-// Taille du parc (SPEC § 141).
+// Taille du parc (SPEC § 141) : calculée par le serveur d'après les
+// machines approuvées (avec une marge), ou prévue dans l'interface
+// (Réglages › Conservation des données). Rien à régler dans ce fichier.
 const (
 	TailleParcDefaut = 50
 	TailleParcMax    = 5000
 )
 
-// Dimensions : plafonds tirés de la taille du parc prévue. Jusqu'à 50
-// machines, ce sont les valeurs mesurées depuis le début (rien ne change
-// pour un homelab) ; au-delà, ils grandissent avec le parc.
+// Dimensions : plafonds tirés de la taille du parc. Pour un petit parc
+// (une trentaine de machines), ce sont les valeurs mesurées depuis le début ;
+// au-delà, ils grandissent avec le parc.
 type Dimensions struct {
 	Machines        int
 	Series          int     // séries actives au plus, toutes machines (~1 000 par agent)
@@ -238,22 +228,14 @@ type Dimensions struct {
 	RequetesIP      float64 // requêtes par seconde depuis une même adresse (site derrière un NAT)
 }
 
-// Dimensions : voir le type.
-func (s Serveur) Dimensions() Dimensions {
-	return DimensionsPour(s.TailleParc)
-}
-
 // DimensionsPour : plafonds pour n machines prévues.
 func DimensionsPour(n int) Dimensions {
 	if n < 1 {
 		n = TailleParcDefaut
 	}
-	d := Dimensions{Machines: n, Series: max(40_000, n*1_200), Memoire: 200 << 20,
+	// Mémoire (PROGRES § 16.1) : ~3,3 Ko par série active + le reste du
+	// serveur, soit ~3,5 Mio par machine plus 80 Mio de base ; jamais moins
+	// que les 200 Mio de toujours. Séries : ~1 000 par agent, 20 % de marge.
+	return Dimensions{Machines: n, Series: max(40_000, n*1_200), Memoire: max(200<<20, 80<<20+int64(n)*(7<<20)/2),
 		Places: max(4, n/50), Legeres: max(16, n/10), Telechargements: max(2, n/300), RequetesIP: max(50, float64(n)*0.4)}
-	if n > TailleParcDefaut {
-		// Mesure (PROGRES § 16.1) : ~3,3 Ko par série active + le reste du
-		// serveur ; ~3,5 Mio par machine, plus 80 Mio de base.
-		d.Memoire = 80<<20 + int64(n)*(7<<20)/2
-	}
-	return d
 }
