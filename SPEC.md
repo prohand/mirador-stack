@@ -9188,3 +9188,12 @@ minuterie installée par lui (mirador ne modifie toujours aucun pare-feu,
 - Retour à une version d'avant : les règles qui ont un « Que faire »
   deviennent illisibles pour l'ancien serveur (champ inconnu) : retirer le
   texte avant de revenir en arrière.
+- **CI et documentation seule** (27/11) : le filtre « paths » ne lançait
+  rien pour un push de documentation, et les 2 vérifications exigées par
+  la protection de main restaient en attente (PR #109 bloquée). La CI
+  démarre maintenant toujours ; une tâche « changements » regarde les
+  fichiers (depuis le push précédent, ou depuis main pour une nouvelle
+  branche) et les autres tâches sont sautées si seuls *.md, docs/ ou
+  reference/ changent (THIRD-PARTY.md compte comme du code). Une tâche
+  sautée compte comme réussie. Coût : ~1 min facturée par push de
+  documentation (avant : 0, mais PR impossible à fusionner).

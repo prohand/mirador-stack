@@ -15,7 +15,8 @@
 #     fuzzing, image Docker et compilation arm64 seulement sur main (après
 #     la fusion, avant toute release) et le dimanche (fuzzing plus long) :
 #     un push de branche passe de ~20 à ~8 min facturées ;
-#   - un push qui ne touche que la documentation ne lance rien ;
+#   - un push qui ne touche que la documentation ne lance que la tâche
+#     « changements » (les autres sont sautées, comptées comme réussies) ;
 #   - 5 tâches au lieu de 8 (GitHub arrondit CHAQUE tâche à la minute ;
 #     le fuzzing est en 2 tâches depuis le 19/11 pour aller plus vite) ;
 #   - test de sauvegarde / restauration plus lancé deux fois ;
@@ -38,16 +39,11 @@ on:
   push:
     # Branches seulement : un tag est traité par « Release ».
     branches: ['**']
-    # Documentation seule : rien à vérifier (ne s'applique pas aux tags).
-    # Exception : THIRD-PARTY.md est contrôlé par la CI (licences) ; le
-    # corriger doit donc la relancer. L'ordre compte : la dernière ligne qui
-    # correspond l'emporte.
-    paths:
-      - '**'
-      - '!**.md'
-      - '!docs/**'
-      - '!reference/**'
-      - 'THIRD-PARTY.md'
+    # Documentation seule (retour du 27/11) : la CI démarre quand même, mais
+    # la tâche « changements » le voit et toutes les autres sont sautées
+    # (une tâche sautée compte comme réussie pour les vérifications exigées
+    # par la protection de main ; avant, un filtre « paths » ne lançait rien
+    # et une PR de documentation restait bloquée). Coût : ~1 min facturée.
   # Chaque dimanche sur main : tout, avec un fuzzing plus long (1 min par cible).
   schedule:
     - cron: '41 2 * * 0'
@@ -78,8 +74,43 @@ jobs:
   # Les tâches tournent EN PARALLÈLE : la durée totale est celle de la plus
   # longue (les tests), pas leur somme.
 
+  # Documentation seule ? (*.md, docs/, reference/ ; THIRD-PARTY.md compte
+  # comme du code : la CI contrôle les licences). Dans le doute : code.
+  changements:
+    name: Changements
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.d.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: d
+        env:
+          AVANT: ${{ github.event.before }}
+          EVENEMENT: ${{ github.event_name }}
+        run: |
+          code=true
+          base="$AVANT"
+          if [ "$EVENEMENT" != push ] || [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git merge-base origin/main HEAD 2>/dev/null || true)
+          fi
+          if [ "$EVENEMENT" = push ] && [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD)" ]; then
+            fichiers=$(git diff --name-only "$base" HEAD)
+            if [ -n "$fichiers" ] && ! printf '%s\n' "$fichiers" | grep -Ev '\.md$|^docs/|^reference/' | grep -q . \
+              && ! printf '%s\n' "$fichiers" | grep -qx 'THIRD-PARTY.md'; then
+              code=false
+            fi
+          fi
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+          echo "code modifié : $code"
+
   controles:
     name: Formatage, Licences, Gosec, Govulncheck, Compilation
+    needs: changements
+    if: needs.changements.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -106,6 +137,8 @@ jobs:
 
   tests:
     name: Tests (accès concurrents compris)
+    needs: changements
+    if: needs.changements.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -129,8 +162,9 @@ jobs:
   # Chaque ligne : paquet:Cible.
   fuzzing:
     name: Fuzzing court (${{ matrix.lot }})
+    needs: changements
     # main, dimanche, lancement à la main : pas sur les autres branches.
-    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    if: needs.changements.outputs.code == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -199,8 +233,9 @@ jobs:
   # n'est publié (publication : workflow « Release »).
   image:
     name: Image Docker (construction et essai)
+    needs: changements
     # main, dimanche, lancement à la main : pas sur les autres branches.
-    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    if: needs.changements.outputs.code == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
