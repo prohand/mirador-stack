@@ -163,7 +163,7 @@ func fonctions() template.FuncMap {
 			switch {
 			case l.YearDay() == n.YearDay() && l.Year() == n.Year():
 				return "aujourd'hui " + l.Format("15:04")
-			case l.YearDay() == n.Add(24*time.Hour).YearDay():
+			case l.Year() == n.AddDate(0, 0, 1).Year() && l.YearDay() == n.AddDate(0, 0, 1).YearDay():
 				return "demain " + l.Format("15:04")
 			}
 			return l.Format("02/01 15:04")

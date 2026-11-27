@@ -231,6 +231,12 @@ func (c *Console) postAlerte(q *req) {
 	case "ssh_connue":
 		// « C'est moi » (demande du 27/11) : l'adresse vient de l'alerte,
 		// pas du formulaire.
+		// Code 2FA (ou mode administration ouvert), comme l'ajout depuis
+		// Réglages › Sécurité : une session volée ne doit pas pouvoir
+		// rendre son adresse « connue ».
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		var a alertes.Alerte
 		if a, err = alertes.LireAlerte(ctx, c.db, id); err == nil {
 			adr := a.Etiquettes.Get("adresse")

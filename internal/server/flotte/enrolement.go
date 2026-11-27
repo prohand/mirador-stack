@@ -96,19 +96,23 @@ func (f *Flotte) traiter(ctx context.Context, d protocole.DemandeEnrolement, ip 
 
 	e := ingestion.Empreinte(d.Jeton)
 	var (
-		idJeton, expire, utilise int64
-		machine                  sql.NullInt64
-		identifiant              string
-		etiq                     Etiquettes
+		idJeton, expire, utilise, remis int64
+		machine                         sql.NullInt64
+		identifiant                     string
+		etiq                            Etiquettes
 	)
-	err = tx.QueryRowContext(ctx, `SELECT id, expire_le, utilise_le, machine_id, identifiant, site, env, groupe, nom, type FROM jetons_enrolement WHERE empreinte = ?`,
-		e[:]).Scan(&idJeton, &expire, &utilise, &machine, &identifiant, &etiq.Site, &etiq.Env, &etiq.Groupe, &etiq.Nom, &etiq.TypeMachine)
+	err = tx.QueryRowContext(ctx, `SELECT id, expire_le, utilise_le, token_remis_le, machine_id, identifiant, site, env, groupe, nom, type FROM jetons_enrolement WHERE empreinte = ?`,
+		e[:]).Scan(&idJeton, &expire, &utilise, &remis, &machine, &identifiant, &etiq.Site, &etiq.Env, &etiq.Groupe, &etiq.Nom, &etiq.TypeMachine)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return refus(msgJetonInvalide)
 	case err != nil:
 		return rep, false, err
-	case expire <= maintenant.Unix():
+	case expire <= maintenant.Unix() && (utilise == 0 || remis > 0):
+		// Expiré : refusé pour une première demande, ou une fois le token
+		// remis. Une demande en attente d'approbation reste suivie même
+		// après l'expiration (machine approuvée le lendemain : elle doit
+		// recevoir son token, sinon le jeton et le nom sont perdus).
 		return refus(msgJetonInvalide)
 	}
 

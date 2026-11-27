@@ -40,9 +40,7 @@ func lireFiltresMachines(vue, filtre, q string) filtresPage {
 	if slices.Contains(filtresMachines, filtre) {
 		f.Filtre = filtre
 	}
-	if len(f.Q) > 100 { // recherche bornée : rien à gagner au-delà
-		f.Q = f.Q[:100]
-	}
+	f.Q = couperUTF8(f.Q, 100) // recherche bornée : rien à gagner au-delà
 	return f
 }
 
@@ -167,11 +165,15 @@ func (f filtresPage) trouve(v vueMachine) bool {
 	return false
 }
 
-// compter : nombre de machines par filtre, recherche appliquée.
+// compter : nombre de machines par filtre, recherche, site et groupe
+// appliqués (comme la liste affichée).
 func (f filtresPage) compter(ms []vueMachine) compteursFiltres {
 	var c compteursFiltres
 	for _, v := range ms {
 		if !f.trouve(v) {
+			continue
+		}
+		if f.Site != "" && !strings.EqualFold(v.Site, f.Site) || f.Groupe != "" && !strings.EqualFold(v.Groupe, f.Groupe) {
 			continue
 		}
 		c.Toutes++

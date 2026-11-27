@@ -394,9 +394,21 @@ func Renommer(ctx context.Context, db *sql.DB, nom, nouveau, qui string, mainten
 // suivent le renommage (relecture du 21/11 : renommer un collecteur
 // bloquait toutes les sondes, « n'est ni le serveur ni un collecteur
 // approuvé » ; une maintenance « machine:ancien » ne faisait plus taire
-// les alertes).
+// les alertes). Dépendances aussi (revue du 27/11) : après le renommage
+// du routeur, ses machines dépendantes n'étaient plus tues à sa panne.
 func renommerReferences(ctx context.Context, tx *sql.Tx, ancien, nouveau string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE maintenances SET cible = ? WHERE cible = ?`, "machine:"+nouveau, "machine:"+ancien); err != nil {
+	for _, r := range []struct{ sql, nouveau, ancien string }{
+		{`UPDATE maintenances SET cible = ? WHERE cible = ?`, "machine:" + nouveau, "machine:" + ancien},
+		{`UPDATE dependances SET parent = ? WHERE parent = ?`, nouveau, ancien},
+		{`UPDATE dependances SET enfant = ? WHERE enfant = ?`, "machine:" + nouveau, "machine:" + ancien},
+	} {
+		if _, err := tx.ExecContext(ctx, r.sql, r.nouveau, r.ancien); err != nil {
+			return err
+		}
+	}
+	// Sourdine relue tout de suite (même compteur que notif.ecrire).
+	if _, err := tx.ExecContext(ctx, `INSERT INTO generations(nom, valeur) VALUES ('sourdine', 1)
+		ON CONFLICT(nom) DO UPDATE SET valeur = valeur + 1`); err != nil {
 		return err
 	}
 	var v string

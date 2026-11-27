@@ -204,6 +204,9 @@ func (p *Postier) envoyer(ctx context.Context, m *Message, enFile bool) bool {
 		p.mu.Lock()
 		e := p.etats[nom]
 		p.mu.Unlock()
+		if e == nil || e.canal == nil {
+			continue // canal retiré (réglages rechargés) pendant l'envoi
+		}
 		copie := *m
 		if !tous && nom != principal {
 			// Le secours ne sert que si le principal est en panne ou vient
@@ -567,8 +570,14 @@ func (p *Postier) Tour(ctx context.Context) {
 	sort.Strings(dus)
 	for _, nom := range dus {
 		p.mu.Lock()
-		canal := p.etats[nom].canal
+		var canal Canal
+		if e := p.etats[nom]; e != nil {
+			canal = e.canal
+		}
 		p.mu.Unlock()
+		if canal == nil {
+			continue // canal retiré pendant le tour
+		}
 		ctxV, annuler := context.WithTimeout(ctx, 20*time.Second)
 		err := canal.Verifier(ctxV)
 		annuler()

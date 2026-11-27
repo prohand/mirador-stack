@@ -89,7 +89,13 @@ func (r *Releveur) Relever(maintenant time.Time) protocole.Direct {
 					}
 				}
 				if !premier && total > r.cpuTotal {
-					d.CPU = 100 * (1 - float64(repos-r.cpuRepos)/float64(total-r.cpuTotal))
+					// iowait peut reculer (proc(5)) : sans garde, la
+					// soustraction non signée débordait et le CPU tombait à 0 %.
+					var dRepos uint64
+					if repos > r.cpuRepos {
+						dRepos = repos - r.cpuRepos
+					}
+					d.CPU = 100 * (1 - float64(dRepos)/float64(total-r.cpuTotal))
 					d.CPU = min(100, max(0, d.CPU))
 				}
 				r.cpuTotal, r.cpuRepos = total, repos

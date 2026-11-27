@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"net/url"
@@ -42,11 +43,44 @@ type reponseDirect struct {
 	Fin    int64         `json:"fin"`
 }
 
+// margeRetard : le flux relit les dernières secondes avant « depuis ». Le
+// curseur suit l'heure des lignes, pas leur arrivée : le paquet d'une
+// machine qui envoie après une autre, avec des heures plus anciennes, était
+// sauté. Les lignes déjà envoyées sont reconnues (vus) et pas renvoyées.
+const margeRetard = 30 * time.Second
+
+// cleLigneVue : empreinte d'une ligne déjà envoyée (heure, machine, message).
+type cleLigneVue struct {
+	T    int64
+	Host string
+	Msg  uint64
+}
+
+// suiviDirect : état d'un flux en direct. debut : dernière ligne déjà
+// affichée par la page à l'ouverture ; la marge ne relit jamais avant.
+type suiviDirect struct {
+	vus   map[cleLigneVue]bool
+	debut int64
+}
+
+func empreinteLigne(t int64, host, msg string) cleLigneVue {
+	h := fnv.New64a()
+	_, _ = io.WriteString(h, msg)
+	return cleLigneVue{T: t, Host: host, Msg: h.Sum64()}
+}
+
 // lignesDepuis : lignes arrivées après « depuis » (millisecondes), mêmes
-// filtres que la page.
-func (c *Console) lignesDepuis(ctx context.Context, f filtresLogs, depuis int64, t time.Time) (reponseDirect, error) {
+// filtres que la page. suivi (facultatif, flux seulement) : lignes déjà
+// envoyées ; la recherche repart alors margeRetard avant « depuis ».
+func (c *Console) lignesDepuis(ctx context.Context, f filtresLogs, depuis int64, t time.Time, suivi *suiviDirect) (reponseDirect, error) {
 	f.Fin = t.UnixMilli()
-	f.Debut = max(depuis+1, t.Add(-directRecul).UnixMilli())
+	plancher := t.Add(-directRecul).UnixMilli()
+	f.Debut = max(depuis+1, plancher)
+	var vus map[cleLigneVue]bool
+	if suivi != nil {
+		vus = suivi.vus
+		f.Debut = max(depuis+1-margeRetard.Milliseconds(), suivi.debut+1, plancher)
+	}
 	out := reponseDirect{Lignes: []ligneDirect{}, Fin: max(depuis, f.Debut-1)}
 	res, err := c.chercherLogs(ctx, f.requete(directLignesMax))
 	if err != nil {
@@ -54,14 +88,35 @@ func (c *Console) lignesDepuis(ctx context.Context, f filtresLogs, depuis int64,
 	}
 	loc := fuseau.Load()
 	for _, l := range res.Lignes {
+		host := l.Champs["host"]
+		if vus != nil {
+			k := empreinteLigne(l.T, host, l.Msg)
+			if vus[k] {
+				continue
+			}
+			vus[k] = true
+		}
 		o := l.Champs["unit"]
 		if o == "" {
 			o = l.Champs["container"]
 		}
-		out.Lignes = append(out.Lignes, ligneDirect{T: l.T, Heure: time.UnixMilli(l.T).In(loc).Format("15:04:05"), Host: l.Champs["host"],
+		out.Lignes = append(out.Lignes, ligneDirect{T: l.T, Heure: time.UnixMilli(l.T).In(loc).Format("15:04:05"), Host: host,
 			Job: l.Champs["job"], Niveau: l.Champs["level"], Origine: o, Classe: classeNiveau(l.Champs["level"]), Msg: l.Msg})
 		if l.T > out.Fin {
 			out.Fin = l.T
+		}
+	}
+	// Rafale : seules les directLignesMax plus récentes sont lues. On le dit
+	// (ligne d'avertissement en bas du lot) au lieu de sauter les autres
+	// sans rien dire.
+	if n := len(out.Lignes); n > 0 && (res.Tronque || len(res.Lignes) >= directLignesMax) {
+		out.Lignes = append(out.Lignes, ligneDirect{T: out.Lignes[n-1].T, Heure: out.Lignes[n-1].Heure, Host: "mirador", Origine: "mode direct",
+			Classe: "warn", Niveau: "warning", Msg: "Rafale : des lignes plus anciennes de ce lot ne sont pas affichées. Relancer la recherche pour tout voir."})
+	}
+	// Mémoire bornée : on oublie ce qui est sorti de la marge.
+	for k := range vus {
+		if k.T < out.Fin-margeRetard.Milliseconds() {
+			delete(vus, k)
 		}
 	}
 	return out, nil
@@ -81,7 +136,7 @@ func (c *Console) logsDirect(q *req) {
 		return
 	}
 	depuis, _ := strconv.ParseInt(v.Get("depuis"), 10, 64)
-	out, err := c.lignesDepuis(q.r.Context(), f, depuis, q.t)
+	out, err := c.lignesDepuis(q.r.Context(), f, depuis, q.t, nil)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]string{"erreur": err.Error()})
@@ -145,6 +200,7 @@ func (c *Console) logsFlux(q *req) {
 	bat := time.NewTicker(battementFlux)
 	defer bat.Stop()
 	var derniere time.Time
+	suivi := &suiviDirect{vus: map[cleLigneVue]bool{}, debut: depuis}
 	for {
 		arrivees := c.opt.Logs.Arrivees()
 		// Lignes déjà là (ouverture, ou arrivées pendant la recherche précédente).
@@ -156,7 +212,7 @@ func (c *Console) logsFlux(q *req) {
 			}
 		}
 		derniere = time.Now()
-		out, err := c.lignesDepuis(q.r.Context(), f, depuis, c.maintenant())
+		out, err := c.lignesDepuis(q.r.Context(), f, depuis, c.maintenant(), suivi)
 		if err == nil && len(out.Lignes) > 0 {
 			depuis = out.Fin
 			b, _ := json.Marshal(out)

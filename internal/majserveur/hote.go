@@ -325,7 +325,11 @@ func (h *Hote) Appliquer(ctx context.Context) error {
 		h.rangerImages(ctx, ref, d.Version, valeurEnv(envAvant, "MIRADOR_IMAGE"), avant)
 		return h.finir(EtatOK, fmt.Sprintf("version %s en service (avant : %s)", d.Version, avant))
 	}
-	// 7. Retour arrière.
+	// 7. Retour arrière, avec son propre délai : le délai global a pu
+	// expirer pendant l'attente de la nouvelle version, et toutes les
+	// commandes du retour échouaient alors aussitôt (revue du 27/11).
+	ctx, finRetour := context.WithTimeout(context.WithoutCancel(ctx), h.R.Delai+15*time.Minute)
+	defer finRetour()
 	h.noter("la version %s n'a pas démarré en %s : retour à %s", d.Version, h.R.Delai, avant)
 	_, _ = h.Docker.Lancer(ctx, "compose", "stop", h.R.Service)
 	if err := h.remettreBase(ctx, copie); err != nil {
@@ -443,7 +447,9 @@ func (h *Hote) ranger() {
 	}
 	var copies []string
 	for _, e := range es {
-		if e.IsDir() && strings.HasPrefix(e.Name(), "avant-") {
+		// Nom écrit par mirador (« avant-…-AAAAMMJJ-HHMMSS ») : un dossier
+		// plus court, créé à la main, faisait paniquer le tri.
+		if e.IsDir() && strings.HasPrefix(e.Name(), "avant-") && len(e.Name()) >= len("avant-")+15 {
 			copies = append(copies, e.Name())
 		}
 	}

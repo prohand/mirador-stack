@@ -252,7 +252,7 @@ func lignesDomaines(ds []domaines.Domaine, t time.Time) []ligneDomaine {
 		} else {
 			j := int(math.Ceil(d.Expire.Sub(t).Hours() / 24)) // jours entamés
 			switch {
-			case j < 0:
+			case !d.Expire.After(t): // expiré, même depuis moins d'un jour
 				l.Expire, l.Classe = "expiré", "erreur"
 			case j < 7:
 				l.Expire, l.Classe = fmt.Sprintf("dans %d j", j), "erreur"
@@ -287,7 +287,7 @@ func (c *Console) pageCertificats(q *req) {
 		if l.Fin > 0 && !l.Avancement.EnCours && l.Erreur == "" {
 			jours := int((l.Fin - q.t.Unix()) / 86400)
 			switch {
-			case jours < 0:
+			case l.Fin <= q.t.Unix(): // expiré, même depuis moins d'un jour
 				l.Classe, l.Etat = "erreur", "Expiré"
 			case jours <= 7:
 				l.Classe, l.Etat = "erreur", fmt.Sprintf("Valide · expire dans %d j", jours)

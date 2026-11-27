@@ -207,9 +207,7 @@ func (c *Console) pageElements(q *req) {
 	ctx := q.r.Context()
 	d := donneesElements{Sorte: q.r.URL.Query().Get("sorte"), Filtre: strings.TrimSpace(q.r.URL.Query().Get("etiquette")), Compte: map[string]int{},
 		Q: strings.TrimSpace(q.r.URL.Query().Get("q"))}
-	if len(d.Q) > 100 {
-		d.Q = d.Q[:100]
-	}
+	d.Q = couperUTF8(d.Q, 100)
 	cleF, valF, avecFiltre := strings.Cut(d.Filtre, "=")
 	for _, e := range c.elementsDuParc(ctx, c.parcLeger(q), q.t) {
 		sorte := strings.SplitN(e.Sorte, " ", 2)[0]

@@ -114,8 +114,9 @@ func (c *Console) enregistrerEtiquettes(ctx context.Context, q *req, cle string,
 
 // postEtiquettes : formulaire des fiches et de la page Éléments.
 func (c *Console) postEtiquettes(q *req) {
-	retour := q.r.PostFormValue("retour")
-	if !strings.HasPrefix(retour, "/") || strings.HasPrefix(retour, "//") {
+	// retourLocal refuse aussi « /\autre.site » (lu « //autre.site » par les navigateurs).
+	retour := retourLocal(q.r.PostFormValue("retour"))
+	if retour == "/" {
 		retour = "/elements"
 	}
 	etq, err := lireLignesEtiquettes(q.r.PostFormValue("etiquettes"))

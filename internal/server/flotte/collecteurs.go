@@ -183,7 +183,12 @@ func configCollecteur(ctx context.Context, db *sql.DB, collecteur int64, saisie 
 						garde = append(garde, e)
 					}
 				}
-				sys["emetteurs"], _ = json.Marshal(garde)
+				// Liste vide : clé retirée (comme snmp et sondes).
+				if len(garde) == 0 {
+					delete(sys, "emetteurs")
+				} else {
+					sys["emetteurs"], _ = json.Marshal(garde)
+				}
 			}
 		}
 		if e, err := certsyslog.LireEtat(ctx, db, collecteur); err == nil && e.Certificat != "" {
