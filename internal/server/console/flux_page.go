@@ -163,11 +163,19 @@ type donneesFlux struct {
 	ToutPF                  bool      // tous les pare-feu dans le schéma (?tous=1)
 	NbPF                    int       // plus de maxPFSchema pare-feu : lien « tout afficher »
 	LienTous                string
-	Classement              []colonneClassement
-	AlerteIP, AlertePays    string // adresse bloquée par plusieurs pare-feu (bas des classements)
-	AlertePF                int
-	Bord, Grille            string // contour du monde et quadrillage (projection Equal Earth)
-	TableLues, TableSans    int
+	// Grand parc (SPEC § 140) : recherche d'une machine, regroupement par
+	// site ou groupe, chemin parcouru (Tous › site › machine).
+	ChercherPF           []string
+	NbTotalPF            int
+	ChampsCaches         [][2]string
+	Regroupements        []lienFlux
+	Ariane               []lienFlux
+	TitreChoix           string
+	Classement           []colonneClassement
+	AlerteIP, AlertePays string // adresse bloquée par plusieurs pare-feu (bas des classements)
+	AlertePF             int
+	Bord, Grille         string // contour du monde et quadrillage (projection Equal Earth)
+	TableLues, TableSans int
 }
 
 // lienFluxAvec : adresse de la page avec un paramètre changé (les autres gardés).
@@ -360,6 +368,7 @@ func (c *Console) pageFlux(q *req) {
 	d.Classement = c.classementFlux(b, v, outils, rangs, d.Sortant, d.GeoIP)
 	// Barre de choix d'un pare-feu (vue « Mon réseau »).
 	if len(rangs) > 1 || f.PareFeu != "" {
+		d.TitreChoix = "Pare-feu"
 		d.ChoixPF = append(d.ChoixPF, choixPF{Nom: "Tous", N: nombreLisible(len(rangs)) + " pare-feu", Lien: lienFluxAvec(v, "pf", "", false), Actif: f.PareFeu == ""})
 		for _, x := range tousPF {
 			if x.Nom == fluxbloques.Autres {
@@ -697,6 +706,7 @@ type sankeyVue struct {
 	Hauteur               float64
 	Estime                bool
 	NbPays, NbPF, NbPorts int
+	NomPF                 string // titre de la colonne du milieu : « PARE-FEU » ou « SITES » (grand parc)
 }
 
 // Mise en page de « Mon réseau » (SPEC § 138, maquette validée le 27/11).
@@ -790,7 +800,7 @@ func construireSankey(b fluxbloques.Bilan, v url.Values, outils map[string]strin
 	if len(colPays) == 0 || len(colPF) == 0 {
 		return nil
 	}
-	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux)}
+	s := &sankeyVue{Estime: b.Estime, NbPays: b.NbPays, NbPF: len(b.PareFeux), NomPF: "PARE-FEU"}
 	for _, p := range b.Ports {
 		if p.Nom != fluxbloques.Autres {
 			s.NbPorts++

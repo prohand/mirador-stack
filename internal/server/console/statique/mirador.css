@@ -2748,3 +2748,14 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .page-flux .flux-choix-pf .pt.pf4 { background: var(--sk-pf4); } .page-flux .flux-choix-pf .pt.pf5 { background: var(--sk-pf5); } .page-flux .flux-choix-pf .pt.pf6 { background: var(--sk-pf6); } .page-flux .flux-choix-pf .pt.pf7 { background: var(--sk-pf7); }
 .page-flux .flux-tous { flex: none; font-size: 12.5px; font-weight: 600; color: var(--accent); }
 @media (max-width: 700px) { .page-flux .flux-choix-pf { flex-wrap: wrap; padding: 10px 16px 0; } .page-flux .flux-choix-pf .puces { flex-basis: 100%; } }
+/* Grand parc (SPEC § 140) : chemin, recherche, regroupement. */
+.page-flux .flux-parc-l1 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 22px 0; }
+.page-flux .flux-ariane { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }
+.page-flux .flux-ariane a { color: var(--accent); } .page-flux .flux-ariane b { color: var(--fc-texte); } .page-flux .flux-ariane .sep { color: var(--fc-pale); }
+.page-flux .flux-cherche { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 220px; max-width: 420px; }
+.page-flux .flux-cherche input[type="search"] { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--fc-vignette-bord); background: var(--fc-fond); color: var(--fc-texte); font-size: 13px; }
+.page-flux .flux-regrouper { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; background: var(--fc-port); }
+.page-flux .flux-regrouper .lbl { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fc-pale); padding: 0 8px; }
+.page-flux .flux-regrouper a { padding: 4px 11px; border-radius: 8px; font-size: 12.5px; color: var(--fc-pale); text-decoration: none; }
+.page-flux .flux-regrouper a.actif { background: var(--fc-fond); color: var(--fc-texte); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+@media (max-width: 700px) { .page-flux .flux-parc-l1 { padding: 10px 16px 0; } .page-flux .flux-regrouper { margin-left: 0; } .page-flux .flux-cherche { max-width: none; flex-basis: 100%; } }
