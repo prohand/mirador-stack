@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mirador-stack/internal/server/certsyslog"
+	"mirador-stack/internal/server/domaines"
 	"mirador-stack/internal/server/flotte"
 )
 
@@ -228,8 +229,42 @@ type ligneCertificat struct {
 }
 
 type donneesCertificats struct {
-	R      reglagesCertificats
-	Lignes []ligneCertificat
+	R        reglagesCertificats
+	Lignes   []ligneCertificat
+	Domaines []ligneDomaine // expiration des noms de domaine (27/11)
+}
+
+// ligneDomaine : un domaine principal et sa date d'expiration.
+type ligneDomaine struct {
+	Nom, Sous, Expire, Classe, Erreur, Verifie string
+}
+
+// lignesDomaines : 30 j : attention, 7 j : erreur ; date inconnue : grise.
+func lignesDomaines(ds []domaines.Domaine, t time.Time) []ligneDomaine {
+	var out []ligneDomaine
+	for _, d := range ds {
+		l := ligneDomaine{Nom: d.Nom, Sous: strings.ReplaceAll(strings.Join(d.Sous, ", "), "@", d.Nom), Erreur: d.Erreur}
+		if !d.VerifieLe.IsZero() {
+			l.Verifie = "lu le " + d.VerifieLe.In(fuseau.Load()).Format("02/01 15:04")
+		}
+		if d.Expire.IsZero() {
+			l.Expire = "inconnue"
+		} else {
+			j := int(math.Ceil(d.Expire.Sub(t).Hours() / 24)) // jours entamés
+			switch {
+			case j < 0:
+				l.Expire, l.Classe = "expiré", "erreur"
+			case j < 7:
+				l.Expire, l.Classe = fmt.Sprintf("dans %d j", j), "erreur"
+			case j < 30:
+				l.Expire, l.Classe = fmt.Sprintf("dans %d j", j), "attention"
+			default:
+				l.Expire, l.Classe = fmt.Sprintf("dans %d j", j), "ok"
+			}
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 func (c *Console) pageCertificats(q *req) {
@@ -263,6 +298,9 @@ func (c *Console) pageCertificats(q *req) {
 			}
 		}
 		d.Lignes = append(d.Lignes, l)
+	}
+	if ds, err := domaines.Lister(ctx, c.db); err == nil {
+		d.Domaines = lignesDomaines(ds, q.t)
 	}
 	c.rendre(q, "certificats", "Certificats", "reglages", d)
 }

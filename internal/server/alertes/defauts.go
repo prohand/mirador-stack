@@ -246,6 +246,21 @@ func ReglesMirador() []Regle {
 			Resume:  "La mise à jour de l'agent a échoué sur {{ $labels.instance }} (version {{ $labels.version }})",
 			Description: "L'agent est revenu à sa version précédente. Cette version ne sera pas retentée sur cette " +
 				"machine."}),
+		// Expiration des noms de domaine (demande du 27/11) : une alerte par
+		// domaine principal, 30 jours puis 7 jours avant.
+		m(Regle{Nom: "DomaineExpireBientot", Groupe: "securite", Intervalle: Duree(time.Hour),
+			Expr:    `(max by (domaine) (last_over_time(mirador_domaine_expiration_timestamp_seconds[2h])) - time()) / 86400 < 30`,
+			Gravite: Avertissement,
+			Resume:  "Le nom de domaine {{ $labels.domaine }} expire dans {{ $value | humanize }} jours",
+			Description: "Date lue chez le registre (RDAP) une fois par jour. Renouveler le domaine chez le bureau " +
+				"d'enregistrement, ou vérifier le renouvellement automatique.",
+			Note: "Demande du 27/11"}),
+		m(Regle{Nom: "DomaineExpireTresBientot", Groupe: "securite", Intervalle: Duree(time.Hour),
+			Expr:        `(max by (domaine) (last_over_time(mirador_domaine_expiration_timestamp_seconds[2h])) - time()) / 86400 < 7`,
+			Gravite:     Critique,
+			Resume:      "Le nom de domaine {{ $labels.domaine }} expire dans {{ $value | humanize }} jours",
+			Description: "Tous les sous-domaines (sites, messagerie) s'arrêteront à l'expiration. Renouveler tout de suite.",
+			Note:        "Demande du 27/11"}),
 		// Connexion SSH depuis une adresse nouvelle (demande du 27/11) : série
 		// écrite par le serveur 24 h, ou jusqu'à « C'est moi » sur l'alerte.
 		m(Regle{Nom: "SshAdresseNouvelle", Groupe: "securite",

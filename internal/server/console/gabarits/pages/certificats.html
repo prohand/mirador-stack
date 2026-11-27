@@ -9,6 +9,11 @@
 {{if .Nom}}<details class="reglage-canal"><summary class="bouton secondaire petit">Détail ▾</summary><div>{{template "avancement-certificat" .Avancement}}</div></details>{{end}}
 </div>{{else}}<p class="vide">Aucun collecteur approuvé. <a href="/machines#ajouter">Ajouter un collecteur</a></p>{{end}}
 </section>
+<section class="carte" id="domaines"><div class="entete-carte"><h2>Noms de domaine</h2><small class="doux">date d'expiration lue chez le registre (RDAP) une fois par jour</small></div>
+{{if .D.Domaines}}<div class="defile"><table><thead><tr><th>Domaine</th><th>Expire</th><th>Sous-domaines suivis</th><th></th></tr></thead><tbody>
+{{range .D.Domaines}}<tr><td><b>{{.Nom}}</b></td><td>{{if .Classe}}<span class="pastille {{.Classe}}">{{.Expire}}</span>{{else}}<span class="pastille">{{.Expire}}</span>{{end}}</td><td class="doux">{{.Sous}}</td><td><small class="doux">{{if .Erreur}}{{.Erreur}} · {{end}}{{.Verifie}}</small></td></tr>{{end}}
+</tbody></table></div><p class="aide"><small>Un domaine principal = une ligne et une alerte (30 jours, puis 7 jours avant). Les noms viennent des sondes (sites, ports, DNS).</small></p>
+{{else}}<p class="vide">Aucun nom de domaine : ils viennent des sondes (adresse d'un site, hôte d'un port). Les adresses IP et les noms du LAN (.lan, .home) sont ignorés.</p>{{end}}</section>
 
 <section class="carte" id="compte-dns"><div class="entete-carte"><h2>Compte DNS et Let's Encrypt</h2>{{if $r.Faits}}<span class="pastille ok">Réglé</span>{{else}}<span class="pastille attention">À faire</span>{{end}}</div>
 <p class="sous">Communs à tous les collecteurs. Tous les noms de certificat doivent être dans cette zone (ex. <code>syslog.lan.{{if $r.Domaine}}{{$r.Domaine}}{{else}}exemple.org{{end}}</code>). Jeton limité au plus juste ; chiffré sur le serveur, jamais réaffiché.</p>

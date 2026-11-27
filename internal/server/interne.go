@@ -16,6 +16,7 @@ import (
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/certsyslog"
 	"mirador-stack/internal/server/console"
+	"mirador-stack/internal/server/domaines"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/notif"
@@ -117,6 +118,15 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 	if l, err := alertes.LireInvitesExclus(ctx, s.db); err == nil {
 		for _, e := range l {
 			ajout(alertes.MetriqueInviteExclue, 1, "instance", e.Machine, "id", e.ID)
+		}
+	}
+
+	// Expiration des noms de domaine (demande du 27/11).
+	if ds, err := domaines.Lister(ctx, s.db); err == nil {
+		for _, d := range ds {
+			if !d.Expire.IsZero() {
+				ajout(domaines.Metrique, float64(d.Expire.Unix()), "domaine", d.Nom)
+			}
 		}
 	}
 
