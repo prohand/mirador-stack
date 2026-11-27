@@ -374,6 +374,8 @@ func textePanne(p flotte.Panne) string {
 		return p.Objet + " " + p.Texte + " (vu par l'agent en direct)"
 	case protocole.EvenementOOM:
 		return "Processus tué faute de mémoire : " + p.Texte
+	case protocole.EvenementSSH:
+		return "Connexion SSH depuis une adresse nouvelle : " + p.Objet + " (" + p.Texte + ")"
 	}
 	return p.Type + " " + p.Objet
 }

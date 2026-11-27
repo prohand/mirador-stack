@@ -10,6 +10,7 @@ import (
 
 	"mirador-stack/internal/agent/journal"
 	"mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/protocole"
 )
 
 // Options du traitement.
@@ -36,6 +37,9 @@ type Traitement struct {
 	// l'heure des lignes servait, et une seule ligne datée dans le futur
 	// bloquait la recharge des jetons). Remplacée dans les tests.
 	horloge func() time.Time
+	// Connexions SSH réussies (demande du 27/11) : envoi au serveur.
+	signaler   func(protocole.EvenementAgent)
+	connexions map[string]time.Time // adresse|utilisateur → dernier envoi
 
 	// Compteurs (alertes de logs calculées par l'agent, SPEC.md § 4.6 bis).
 	parNiveau     [8]uint64
@@ -60,6 +64,7 @@ func NewTraitement(opt Options, lot, lotDocker *Lot) *Traitement {
 		jetons:     opt.Rafale,
 		jetes:      map[string]uint64{},
 		oom:        map[string]uint64{},
+		connexions: map[string]time.Time{},
 		horloge:    time.Now,
 	}
 	if opt.Bruit != "" {
@@ -70,7 +75,9 @@ func NewTraitement(opt Options, lot, lotDocker *Lot) *Traitement {
 
 // Motifs des compteurs (figés dans le code, pas d'expression libre).
 var (
-	reEchecSSH     = regexp.MustCompile(`Failed password|Invalid user|authentication failure`)
+	reEchecSSH = regexp.MustCompile(`Failed password|Invalid user|authentication failure`)
+	// reConnexionSSH : « Accepted publickey for admin from 198.51.100.23 port 52344 ssh2 ».
+	reConnexionSSH = regexp.MustCompile(`^Accepted ([a-z-]{1,32}) for ([^ ]{1,64}) from ([0-9A-Fa-f:.]{2,45}) port `)
 	reErreurDisque = regexp.MustCompile(`I/O error|medium error|EXT4-fs error|XFS .*error|Buffer I/O error`)
 	reOOM          = regexp.MustCompile(`Out of memory: Killed process \d+ \(([^)]{1,64})\)|oom-kill:.*task=([^,]{1,64}),`)
 )
@@ -152,6 +159,8 @@ func (t *Traitement) compter(e *journal.Entree) {
 	case e.Ident == "sshd" || strings.HasPrefix(e.Unite, "ssh"):
 		if reEchecSSH.MatchString(e.Message) {
 			t.echecsSSH++
+		} else if m := reConnexionSSH.FindStringSubmatch(e.Message); m != nil {
+			t.connexionSSH(m[3], m[2], m[1], e.Temps)
 		}
 	case e.Transport == "kernel" || e.Ident == "kernel":
 		if reErreurDisque.MatchString(e.Message) {
@@ -168,6 +177,48 @@ func (t *Traitement) compter(e *journal.Entree) {
 			t.oom[nom]++
 		}
 	}
+}
+
+// connexionSSH : connexion réussie signalée au serveur (demande du 27/11),
+// une fois par adresse et utilisateur toutes les 10 min (un outil qui se
+// connecte chaque minute n'envoie pas un événement par connexion). Sous
+// t.mu ; l'envoi lui-même ne bloque pas (Lien.Signaler part à côté).
+func (t *Traitement) connexionSSH(adresse, utilisateur, methode string, le time.Time) {
+	if t.signaler == nil {
+		return
+	}
+	cle := adresse + "|" + utilisateur
+	maintenant := t.horloge()
+	if d, ok := t.connexions[cle]; ok && maintenant.Sub(d) < 10*time.Minute {
+		return
+	}
+	if len(t.connexions) >= maxConnexionsSSH {
+		for k, d := range t.connexions {
+			if maintenant.Sub(d) >= 10*time.Minute {
+				delete(t.connexions, k)
+			}
+		}
+		if len(t.connexions) >= maxConnexionsSSH {
+			return // rafale d'adresses : le compteur d'échecs couvre l'attaque
+		}
+	}
+	t.connexions[cle] = maintenant
+	if le.IsZero() {
+		le = maintenant
+	}
+	t.signaler(protocole.EvenementAgent{Type: protocole.EvenementSSH, Objet: adresse,
+		Texte: utilisateur + " · " + methode, Le: le.UnixMilli()})
+}
+
+// maxConnexionsSSH : adresses et utilisateurs retenus (dix minutes).
+const maxConnexionsSSH = 256
+
+// SignalerConnexions : fonction appelée pour chaque connexion SSH réussie
+// (nil : rien n'est signalé, agent sans serveur).
+func (t *Traitement) SignalerConnexions(f func(protocole.EvenementAgent)) {
+	t.mu.Lock()
+	t.signaler = f
+	t.mu.Unlock()
 }
 
 // jeton applique la limite de débit (seau à jetons) : Debit lignes par

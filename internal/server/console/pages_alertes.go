@@ -105,6 +105,7 @@ type etiquette struct{ Nom, Valeur string }
 type donneesAlerte struct {
 	A          alertes.Alerte
 	Procedure  string // « Que faire ? » de la règle, montré replié (demande du 27/11)
+	SSHConnue  bool   // bouton « C'est moi » (connexion SSH, 27/11)
 	Machine    string
 	Etiquettes []etiquette
 	Sourdine   string
@@ -140,6 +141,7 @@ func (c *Console) pageAlerte(q *req) {
 		return
 	}
 	d := donneesAlerte{A: a, Machine: a.Machine(), EnCours: a.Etat != "resolue", Selecteur: selecteurSilence(&a)}
+	d.SSHConnue = a.Regle == "SshAdresseNouvelle" && a.Etiquettes.Get("adresse") != ""
 	if inc := c.incidentPar(q.r.Context(), a.ID, q.t); inc != nil && len(inc.Alertes) > 1 {
 		d.Incident = inc
 	}
@@ -226,6 +228,19 @@ func (c *Console) postAlerte(q *req) {
 	var err error
 	ok := "fait"
 	switch q.r.PostFormValue("action") {
+	case "ssh_connue":
+		// « C'est moi » (demande du 27/11) : l'adresse vient de l'alerte,
+		// pas du formulaire.
+		var a alertes.Alerte
+		if a, err = alertes.LireAlerte(ctx, c.db, id); err == nil {
+			adr := a.Etiquettes.Get("adresse")
+			if a.Regle != "SshAdresseNouvelle" || adr == "" {
+				err = errors.New("pas une alerte de connexion SSH")
+			} else if err = flotte.MarquerSSHConnue(ctx, c.db, adr, q.qui(), q.t); err == nil {
+				_ = Auditer(ctx, c.db, q.qui(), "ssh_adresse_connue", adr, "", "", q.ip.String(), q.t)
+				ok = adr + " est maintenant connue : plus d'alerte pour elle (l'alerte se ferme dans la minute)"
+			}
+		}
 	case "acquitter":
 		// Durée de la prise en charge (SPEC § 30) : 4 h par défaut, 24 h, ou
 		// jusqu'à la fin de l'alerte ; ensuite, rappel si elle dure.

@@ -175,6 +175,9 @@ func lancer(args []string, sortie, erreurs io.Writer) int {
 			},
 			Verifier: a.VerifierMaintenant}
 		go lien.Tourner(ctxCollecte)
+		// Connexions SSH réussies (demande du 27/11) : seulement envoyées,
+		// pas de relevé immédiat.
+		a.SignalerConnexions(func(e protocole.EvenementAgent) { lien.Signaler(ctxCollecte, e) })
 		veilleur.Signaler = func(e protocole.EvenementAgent) {
 			journal.Info("vu en direct", "type", e.Type, "objet", e.Objet)
 			a.Reveiller()

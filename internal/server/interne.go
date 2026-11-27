@@ -120,6 +120,14 @@ func (i *interne) tour(ctx context.Context, t time.Time) {
 		}
 	}
 
+	// Connexions SSH depuis une adresse nouvelle (demande du 27/11) : une
+	// série par adresse, tenue 24 h ou jusqu'à « C'est moi ».
+	if l, err := flotte.SSHNouvelles(ctx, s.db, t); err == nil {
+		for _, c := range l {
+			ajout(flotte.MetriqueSSHNeuve, 1, "instance", c.Machine, "adresse", c.Adresse, "utilisateur", c.Utilisateur)
+		}
+	}
+
 	// Machines : décalage d'horloge, mise à jour en échec.
 	if ms, err := flotte.ListerMachines(ctx, s.db); err == nil {
 		s.vus.remplacer(ms)                                  // vu_le relu chaque minute (SPEC § 46)

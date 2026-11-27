@@ -246,6 +246,15 @@ func ReglesMirador() []Regle {
 			Resume:  "La mise à jour de l'agent a échoué sur {{ $labels.instance }} (version {{ $labels.version }})",
 			Description: "L'agent est revenu à sa version précédente. Cette version ne sera pas retentée sur cette " +
 				"machine."}),
+		// Connexion SSH depuis une adresse nouvelle (demande du 27/11) : série
+		// écrite par le serveur 24 h, ou jusqu'à « C'est moi » sur l'alerte.
+		m(Regle{Nom: "SshAdresseNouvelle", Groupe: "securite",
+			Expr:    `max by (instance, adresse, utilisateur) (mirador_ssh_adresse_nouvelle) == 1`,
+			Gravite: Avertissement,
+			Resume:  "Connexion SSH depuis une adresse nouvelle sur {{ $labels.instance }} : {{ $labels.utilisateur }} depuis {{ $labels.adresse }}",
+			Description: "Adresse publique jamais vue sur cette machine depuis 90 jours (lue par l'agent dans le journal de sshd). " +
+				"Si c'est vous : « C'est moi » sur l'alerte. Sinon : vérifier les connexions (last, journalctl -u ssh).",
+			Note: "Demande du 27/11 : adresses du LAN ignorées"}),
 		// Nouveau port en écoute (demande du 27/11) : désactivée par défaut
 		// (bavarde pendant une installation) ; le changement est noté dans
 		// tous les cas (page machine › Changements). Machine qui n'avait aucun

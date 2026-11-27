@@ -15,6 +15,7 @@ import (
 
 	"mirador-stack/internal/agent/journal"
 	"mirador-stack/internal/agent/metrics"
+	"mirador-stack/internal/protocole"
 )
 
 var tousModeles = []string{"mots_de_passe", "tokens", "cles_api", "autorisation", "cartes", "emails"}
@@ -266,4 +267,35 @@ func FuzzMasquerEtJSON(f *testing.F) {
 			t.Fatalf("JSON invalide pour %q", s)
 		}
 	})
+}
+
+// Connexions SSH réussies (demande du 27/11) : signalées au serveur, une
+// fois par adresse et utilisateur toutes les 10 min ; rien sans fonction.
+func TestConnexionsSSH(t *testing.T) {
+	tr := NewTraitement(Options{Debit: 1000, Rafale: 1000}, NewLot("h", "journal", "s", "e", 1<<20), nil)
+	h := time.Date(2026, 11, 27, 21, 0, 0, 0, time.UTC)
+	tr.horloge = func() time.Time { return h }
+	ligne := "Accepted publickey for admin from 198.51.100.23 port 52344 ssh2: ED25519 SHA256:abc"
+	tr.Traiter(entree(ligne, 6, "ssh.service", "sshd", "syslog")) // sans fonction : rien
+	var vus []protocole.EvenementAgent
+	tr.SignalerConnexions(func(e protocole.EvenementAgent) { vus = append(vus, e) })
+	tr.Traiter(entree(ligne, 6, "ssh.service", "sshd", "syslog"))
+	tr.Traiter(entree(ligne, 6, "ssh.service", "sshd", "syslog")) // même minute : une fois
+	tr.Traiter(entree("Accepted password for bob from 2001:db8::7 port 1 ssh2", 6, "ssh.service", "sshd", "syslog"))
+	tr.Traiter(entree("Failed password for root from 203.0.113.9 port 22 ssh2", 5, "ssh.service", "sshd", "syslog"))
+	tr.Traiter(entree(ligne, 6, "app.service", "app", "stdout")) // pas sshd
+	if len(vus) != 2 || vus[0].Type != protocole.EvenementSSH || vus[0].Objet != "198.51.100.23" || vus[0].Texte != "admin · publickey" ||
+		vus[1].Objet != "2001:db8::7" || vus[1].Texte != "bob · password" {
+		t.Fatalf("connexions : %+v", vus)
+	}
+	for i := range vus {
+		if err := vus[i].Valider(); err != nil {
+			t.Errorf("événement refusé : %v", err)
+		}
+	}
+	h = h.Add(11 * time.Minute)
+	tr.Traiter(entree(ligne, 6, "ssh.service", "sshd", "syslog"))
+	if len(vus) != 3 {
+		t.Errorf("après 10 min : %d", len(vus))
+	}
 }
