@@ -190,16 +190,11 @@ func (c *Console) jamaisBloquees(ctx context.Context, r ReglageBlocage, t time.T
 			}
 		}
 	}
-	if rows, err := c.db.QueryContext(ctx, `SELECT adresse FROM ssh_connues`); err == nil {
-		for rows.Next() {
-			var s string
-			if rows.Scan(&s) == nil {
-				if a, err := netip.ParseAddr(s); err == nil {
-					exactes[a.Unmap()] = true
-				}
-			}
+	// Adresses SSH connues (toutes, quelle que soit la machine).
+	if cs, err := flotte.ListerSSHConnues(ctx, c.db); err == nil {
+		for _, x := range cs {
+			prefixes = append(prefixes, x.Prefixe)
 		}
-		_ = rows.Close()
 	}
 	return func(a netip.Addr) bool {
 		if flotte.AdresseLocale(a) || exactes[a] {

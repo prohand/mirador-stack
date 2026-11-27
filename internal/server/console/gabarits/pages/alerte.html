@@ -2,7 +2,7 @@
 {{$a := .D.A}}
 <h1>{{template "gravite" $a.Gravite}} {{nomAlerte $a.Regle}} {{if .D.Machine}}— <a href="/machines/{{.D.Machine}}">{{.D.Machine}}</a>{{end}}</h1>
 {{template "onglets-alertes" ""}}
-{{if and .Admin .D.SSHConnue}}<form method="post" class="ligne ssh-connue">{{template "csrf" .CSRF}}<span>Connexion depuis <code>{{.D.A.Etiquettes.Get "adresse"}}</code> : c'est vous ?</span><button name="action" value="ssh_connue" class="secondaire petit">C'est moi : adresse connue</button></form>{{end}}
+{{if and .Admin .D.SSHConnue}}<form method="post" class="ligne ssh-connue">{{template "csrf" .CSRF}}<span>Connexion depuis <code>{{.D.A.Etiquettes.Get "adresse"}}</code> : c'est vous ?</span><input type="hidden" name="action" value="ssh_connue"><button name="portee" value="toutes" class="secondaire petit">C'est moi : toutes les machines</button>{{with .D.Machine}}<button name="portee" value="machine" class="secondaire petit">Seulement sur {{.}}</button>{{end}}</form>{{end}}
 {{with .D.Procedure}}<details class="que-faire"><summary>📝 Que faire ?</summary><div class="texte-procedure">{{.}}</div><small class="aide"><a href="/regles/modifier/{{$a.Regle}}">Modifier dans la règle</a></small></details>{{end}}
 {{if or .D.Cause .D.VuToutDeSuite (and .Admin .D.Verif)}}<div class="grille">
 {{if .D.Cause}}<section class="carte cause-probable"><h2>Cause probable</h2><p class="sous">Processus qui prenaient le plus de {{.D.CauseQuoi}} vers {{heureCourte .D.CauseLe}} (relevé de l'agent, chaque minute) :</p>

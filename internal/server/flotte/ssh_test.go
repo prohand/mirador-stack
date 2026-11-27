@@ -67,8 +67,15 @@ func TestConnexionsSSH(t *testing.T) {
 	if !noter("web1", "198.51.100.23", t0.Add(91*24*time.Hour)) {
 		t.Error("revue après 90 jours : non signalée")
 	}
-	// « C'est moi » : plus rien, sur aucune machine.
-	if err := MarquerSSHConnue(ctx, db, "198.51.100.23", "admin", t0); err != nil {
+	// Connue seulement sur web9 : web1 alerte encore.
+	if _, err := AjouterSSHConnue(ctx, db, "198.51.100.23", "web9", "", "admin", t0); err != nil {
+		t.Fatal(err)
+	}
+	if l, _ := SSHNouvelles(ctx, db, t0.Add(91*24*time.Hour)); len(l) != 1 {
+		t.Errorf("connue sur une autre machine : %+v", l)
+	}
+	// « C'est moi » sur toutes les machines (plage) : plus rien.
+	if _, err := AjouterSSHConnue(ctx, db, "198.51.100.0/24", "", "box", "admin", t0); err != nil {
 		t.Fatal(err)
 	}
 	if l, _ := SSHNouvelles(ctx, db, t0.Add(91*24*time.Hour)); len(l) != 0 {
@@ -77,7 +84,16 @@ func TestConnexionsSSH(t *testing.T) {
 	if noter("web3", "198.51.100.23", t0) {
 		t.Error("adresse connue signalée sur une autre machine")
 	}
-	if err := MarquerSSHConnue(ctx, db, "pas une adresse", "admin", t0); err == nil {
-		t.Error("adresse invalide acceptée")
+	for _, mauvaise := range []string{"pas une adresse", "0.0.0.0/0", "10.0.0.0/7", "2001::/8"} {
+		if _, err := AjouterSSHConnue(ctx, db, mauvaise, "", "", "admin", t0); err == nil {
+			t.Errorf("%q acceptée", mauvaise)
+		}
+	}
+	cs, _ := ListerSSHConnues(ctx, db)
+	if len(cs) != 2 || cs[0].Prefixe.String() != "198.51.100.0/24" || cs[1].Machine != "web9" {
+		t.Fatalf("liste : %+v", cs)
+	}
+	if quoi, err := RetirerSSHConnue(ctx, db, cs[0].ID); err != nil || quoi != "198.51.100.0/24 (toutes les machines)" {
+		t.Errorf("retrait : %q %v", quoi, err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/netip"
+	"strings"
 	"time"
 
 	"mirador-stack/internal/protocole"
@@ -45,8 +46,11 @@ func NoterConnexionSSH(ctx context.Context, db *sql.DB, machineID int64, machine
 		return false, nil
 	}
 	adr := a.Unmap().String()
-	var x int
-	connue := db.QueryRowContext(ctx, `SELECT 1 FROM ssh_connues WHERE adresse = ?`, adr).Scan(&x) == nil
+	cs, err := ListerSSHConnues(ctx, db)
+	if err != nil {
+		return false, err
+	}
+	connue := Connue(cs, machine, a)
 	var derniere int64
 	err = db.QueryRowContext(ctx, `SELECT derniere FROM ssh_adresses WHERE machine = ? AND adresse = ?`, machine, adr).Scan(&derniere)
 	switch {
@@ -87,8 +91,12 @@ type ConnexionSSH struct {
 
 // SSHNouvelles : adresses nouvelles à signaler maintenant (métrique interne).
 func SSHNouvelles(ctx context.Context, db *sql.DB, t time.Time) ([]ConnexionSSH, error) {
+	cs, err := ListerSSHConnues(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.QueryContext(ctx, `SELECT machine, adresse, utilisateur FROM ssh_adresses
-		WHERE nouvelle_jusqua > ? AND adresse NOT IN (SELECT adresse FROM ssh_connues) LIMIT 200`, t.Unix())
+		WHERE nouvelle_jusqua > ? LIMIT 500`, t.Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -99,30 +107,126 @@ func SSHNouvelles(ctx context.Context, db *sql.DB, t time.Time) ([]ConnexionSSH,
 		if err := rows.Scan(&c.Machine, &c.Adresse, &c.Utilisateur); err != nil {
 			return nil, err
 		}
+		if a, err := netip.ParseAddr(c.Adresse); err == nil && !Connue(cs, c.Machine, a) && len(out) < 200 {
+			out = append(out, c)
+		}
+	}
+	return out, rows.Err()
+}
+
+// SSHConnue : adresse ou plage connue (retour du 27/11), pour toutes les
+// machines (Machine vide) ou une seule.
+type SSHConnue struct {
+	ID      int64
+	Prefixe netip.Prefix
+	Machine string
+	Note    string
+	Par     string
+	Le      time.Time
+}
+
+// maxSSHConnues : lignes au plus (la liste est relue à chaque connexion).
+const maxSSHConnues = 500
+
+// ListerSSHConnues : liste complète (petite), triée par plage puis machine.
+func ListerSSHConnues(ctx context.Context, db *sql.DB) ([]SSHConnue, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, prefixe, machine, note, par, le FROM ssh_connues ORDER BY prefixe, machine LIMIT ?`, maxSSHConnues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SSHConnue
+	for rows.Next() {
+		var c SSHConnue
+		var p string
+		var le int64
+		if err := rows.Scan(&c.ID, &p, &c.Machine, &c.Note, &c.Par, &le); err != nil {
+			return nil, err
+		}
+		pr, err := netip.ParsePrefix(p)
+		if err != nil {
+			continue // ligne abîmée : ignorée (jamais écrite par l'interface)
+		}
+		c.Prefixe, c.Le = pr, time.Unix(le, 0)
 		out = append(out, c)
 	}
 	return out, rows.Err()
 }
 
-// MarquerSSHConnue : « C'est moi » : l'adresse ne déclenche plus rien, sur
-// aucune machine ; les alertes en cours se ferment au tour suivant.
-func MarquerSSHConnue(ctx context.Context, db *sql.DB, adresse, qui string, t time.Time) error {
-	a, err := netip.ParseAddr(adresse)
+// Connue : a est dans une plage connue pour cette machine (ou toutes).
+func Connue(cs []SSHConnue, machine string, a netip.Addr) bool {
+	a = a.Unmap()
+	for _, c := range cs {
+		if (c.Machine == "" || c.Machine == machine) && c.Prefixe.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// LirePlage : « 203.0.113.7 » → /32, « 2001:db8::1 » → /128, ou
+// « 203.0.113.0/24 ». Refuse les plages trop larges (moins de /8 en IPv4,
+// /16 en IPv6) : « tout Internet est connu » couperait l'alerte.
+func LirePlage(s string) (netip.Prefix, error) {
+	s = strings.TrimSpace(s)
+	var p netip.Prefix
+	if strings.Contains(s, "/") {
+		x, err := netip.ParsePrefix(s)
+		if err != nil {
+			return p, errors.New("plage illisible (ex. 203.0.113.0/24)")
+		}
+		p = x.Masked()
+	} else {
+		a, err := netip.ParseAddr(s)
+		if err != nil {
+			return p, errors.New("adresse illisible")
+		}
+		a = a.Unmap()
+		p = netip.PrefixFrom(a, a.BitLen())
+	}
+	if (p.Addr().Is4() && p.Bits() < 8) || (p.Addr().Is6() && p.Bits() < 16) {
+		return p, errors.New("plage trop large (au moins /8 en IPv4, /16 en IPv6)")
+	}
+	return p, nil
+}
+
+// AjouterSSHConnue : adresse ou plage connue (machine vide : toutes) ; les
+// alertes en cours qu'elle couvre se ferment au tour suivant.
+func AjouterSSHConnue(ctx context.Context, db *sql.DB, plage, machine, note, qui string, t time.Time) (netip.Prefix, error) {
+	p, err := LirePlage(plage)
 	if err != nil {
-		return errors.New("adresse invalide")
+		return p, err
 	}
-	adr := a.Unmap().String()
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
+	note = strings.TrimSpace(note)
+	if len([]rune(note)) > 100 {
+		return p, errors.New("note : 100 caractères au plus")
 	}
-	defer tx.Rollback() //nolint:errcheck // sans effet après Commit
-	if _, err := tx.ExecContext(ctx, `INSERT INTO ssh_connues(adresse, par, le) VALUES (?, ?, ?)
-		ON CONFLICT(adresse) DO UPDATE SET par = excluded.par, le = excluded.le`, adr, qui, t.Unix()); err != nil {
-		return err
+	var n int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM ssh_connues`).Scan(&n); err != nil {
+		return p, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE ssh_adresses SET nouvelle_jusqua = 0 WHERE adresse = ?`, adr); err != nil {
-		return err
+	if n >= maxSSHConnues {
+		return p, errors.New("500 adresses connues au plus")
 	}
-	return tx.Commit()
+	if _, err := db.ExecContext(ctx, `INSERT INTO ssh_connues(prefixe, machine, note, par, le) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(prefixe, machine) DO UPDATE SET note = excluded.note, par = excluded.par, le = excluded.le`,
+		p.String(), machine, note, qui, t.Unix()); err != nil {
+		return p, err
+	}
+	return p, nil
+}
+
+// RetirerSSHConnue : par identifiant ; renvoie la ligne retirée (audit).
+func RetirerSSHConnue(ctx context.Context, db *sql.DB, id int64) (string, error) {
+	var p, m string
+	if err := db.QueryRowContext(ctx, `SELECT prefixe, machine FROM ssh_connues WHERE id = ?`, id).Scan(&p, &m); err != nil {
+		return "", errors.New("adresse connue introuvable")
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM ssh_connues WHERE id = ?`, id); err != nil {
+		return "", err
+	}
+	if m == "" {
+		m = "toutes les machines"
+	}
+	return p + " (" + m + ")", nil
 }

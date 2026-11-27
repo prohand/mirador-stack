@@ -9177,6 +9177,14 @@ minuterie installée par lui (mirador ne modifie toujours aucun pare-feu,
   - événement SSH forgé par un agent : il ne peut ouvrir qu'une alerte sur
     sa propre machine (jeton de l'agent) ;
   - RDAP : réponse d'un registre lue comme donnée (date seulement), bornée.
+- **Adresses SSH connues** (retour du 27/11, après 0.6.32) : liste dans
+  Réglages › Sécurité, une adresse ou une plage (au moins /8 en IPv4, /16
+  en IPv6), pour toutes les machines ou une seule, note, retrait (audités ;
+  ajout avec code 2FA, retrait sans). Sur l'alerte : « C'est moi : toutes
+  les machines » ou « Seulement sur <machine> ». Les adresses « C'est moi »
+  de la 0.6.32 sont reprises (toutes les machines). 500 lignes au plus ;
+  jamais dans la liste de blocage. L'alerte reste désactivable (Règles ›
+  SshAdresseNouvelle) ; les connexions restent alors dans Événements.
 - Retour à une version d'avant : les règles qui ont un « Que faire »
   deviennent illisibles pour l'ancien serveur (champ inconnu) : retirer le
   texte avant de revenir en arrière.

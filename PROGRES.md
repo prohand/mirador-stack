@@ -2093,7 +2093,8 @@ règle, résumé de la semaine, ports en écoute, SSH depuis une adresse
 nouvelle (agent 0.6.32), expiration des domaines (RDAP), prévision des
 inodes et volumes RAID, liste de blocage (OPNsense + script VPS). Coût
 estimé faible (quelques requêtes par minute ou par jour) ; mesure réelle
-avec celle en cours sur le VPS.
+avec celle en cours sur le VPS. Ajout (même jour) : adresses SSH connues dans
+Réglages › Sécurité, par plage et par machine.
 
 Historique : mode **actif** (Telegram) depuis le 13/11 ; ancienne stack
 supprimée le 24/11 ; archives effacées le 26/11. L'ancien texte de cette
