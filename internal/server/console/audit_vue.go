@@ -419,6 +419,7 @@ func (c *Console) pageAudit(q *req) {
 				d.Quis = append(d.Quis, s)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "pageAudit")
 	}
 	c.rendre(q, "audit", "Journal d'audit", "audit", d)
 }

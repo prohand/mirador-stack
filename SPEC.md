@@ -9238,6 +9238,18 @@ lien `/machines/mirador-server` en 404 (renvoie vers la Santé) ; carte
 Linux ; couleurs fausses en thème forcé ; pied du menu caché à 768 px ;
 filtres Site/Groupe incomplets ; écran mural (« 9 / 11 en ligne »).
 
+**Filtre « bruit » des logs** : voie rapide sans changer le comportement.
+Si le motif n'est qu'une liste de textes fixes où chaque lettre accepte ses
+deux casses (motif par défaut), et si la ligne est en ASCII, une recherche de
+texte sur la ligne en minuscules suffit ; sinon l'expression complète. Écarté :
+retirer `(?i)` (2 fois plus rapide seulement, et le réglage aurait changé de
+sens). Coût : un tampon de la taille d'une ligne (64 Kio au plus gardé).
+
+**Ligne de journal trop longue** : début (256 Kio) et fin (8 Kio) gardés,
+message recollé avec « … » ; si le JSON obtenu n'est pas valide, la ligne
+reste illisible comme avant. Coût : 8 Kio de plus pendant la lecture d'une
+telle ligne seulement.
+
 **Modèle de menaces**
 - Session admin volée, mode administration fermé : « C'est moi » sur
   l'alerte SSH exige maintenant le code 2FA, comme Réglages › Sécurité.

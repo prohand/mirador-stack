@@ -152,6 +152,9 @@ func LireFluxBloque(msg string, avecN bool) (FluxBloque, bool) {
 	if p := rePROTO.FindStringSubmatch(msg); p != nil {
 		f.Proto = strings.ToLower(p[1])
 	}
+	if avecN && f.Interface == interfaceInconnue {
+		f.Interface = ""
+	}
 	if avecN {
 		if p := reN.FindStringSubmatch(msg); p != nil {
 			if n, err := strconv.Atoi(p[1]); err == nil && n >= 1 && n <= MaxNFlux {
@@ -183,6 +186,9 @@ func PrefixeLigne(msg string) string {
 	return r
 }
 
+// interfaceInconnue : interface vide dans une ligne de comptage (LigneFlux).
+const interfaceInconnue = "-"
+
 // LigneFlux écrit un comptage au format du noyau (lu par LireFluxBloque).
 func LigneFlux(f FluxBloque) string {
 	var b strings.Builder
@@ -190,10 +196,17 @@ func LigneFlux(f FluxBloque) string {
 		b.WriteString(f.Regle)
 		b.WriteByte(' ')
 	}
+	// Interface inconnue (nom refusé par le collecteur) : « - ». Sans elle,
+	// « IN= OUT= » était rejeté à la lecture et le blocage perdu en silence
+	// (revue du 27/11).
+	itf := f.Interface
+	if itf == "" {
+		itf = interfaceInconnue
+	}
 	if f.Sens == Sortant {
-		b.WriteString("IN= OUT=" + f.Interface + " SRC=" + f.Source.String() + " DST=" + f.IP.String())
+		b.WriteString("IN= OUT=" + itf + " SRC=" + f.Source.String() + " DST=" + f.IP.String())
 	} else {
-		b.WriteString("IN=" + f.Interface + " OUT= SRC=" + f.IP.String())
+		b.WriteString("IN=" + itf + " OUT= SRC=" + f.IP.String())
 	}
 	if f.Proto != "" {
 		b.WriteString(" PROTO=" + strings.ToUpper(f.Proto))

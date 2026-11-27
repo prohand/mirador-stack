@@ -184,6 +184,7 @@ func (c *Console) incidentsDe(ctx context.Context, debut, fin time.Time) []*inci
 			cible.Prise = "pris en charge par " + strings.TrimPrefix(par, "web:") + " à " + time.UnixMilli(ackLe).In(fuseau.Load()).Format("15:04")
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "incidentsDe")
 	for _, inc := range tous {
 		c.completerIncident(inc, services)
 		inc.DureeTexte = inc.Duree(fin)
@@ -432,6 +433,7 @@ func (c *Console) notesIncident(ctx context.Context, id int64) []noteIncident {
 			out = append(out, n)
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "notesIncident")
 	return out
 }
 

@@ -180,6 +180,7 @@ func (c *Console) pageNotifications(q *req) {
 				d.Tests = append(d.Tests, t)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "pageNotifications")
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
 	}
 	cn := d.R.Canaux
@@ -845,6 +846,7 @@ func (c *Console) donneesAgents(q *req, portee string) donneesAgents {
 				d.Portees = append(d.Portees, porteeAgent{Valeur: p, Titre: porteeLisible(p, d.nomsMachines)})
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "donneesAgents")
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
 	}
 	d.Machines, _ = c.machines(ctx)

@@ -161,6 +161,7 @@ func (c *Console) prisesEnCharge(ctx context.Context) map[int64]infoPrise {
 			out[id] = p
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "prisesEnCharge")
 	return out
 }
 

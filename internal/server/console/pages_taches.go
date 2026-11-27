@@ -431,6 +431,7 @@ func (c *Console) donneesTaches(q *req, machine string) donneesTaches {
 				d.Machines = append(d.Machines, n)
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "donneesTaches")
 		_ = rows.Close()
 	}
 	return d

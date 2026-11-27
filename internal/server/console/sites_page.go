@@ -163,6 +163,7 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{pluriel(n, "maintenance"), "/sourdine"})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 	}
@@ -184,6 +185,7 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{"réglages d'agent", "/reglages/agents?portee=groupe:" + url.QueryEscape(v)})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 		if rows, err := c.db.QueryContext(ctx, `SELECT portee, COUNT(*) FROM modeles_attribues WHERE portee LIKE 'groupe:%' AND etat = 'actif' GROUP BY portee`); err == nil {
@@ -195,6 +197,7 @@ func (c *Console) usages(ctx context.Context, liste listeMachines) map[string][]
 					r[v] = append(r[v], aussi{pluriel(n, "modèle"), "/reglages/agents?portee=groupe:" + url.QueryEscape(v)})
 				}
 			}
+			c.lectureIncomplete(rows.Err(), "usages")
 			_ = rows.Close()
 		}
 	}

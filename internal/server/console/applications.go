@@ -113,6 +113,7 @@ func (c *Console) historiqueApplications(ctx context.Context, debut, t time.Time
 		}
 		par[e["service"]] = append(par[e["service"]], intervalleEtat{deb / 1000, fin / 1000, regle == "ApplicationEnPanne"})
 	}
+	c.lectureIncomplete(rows.Err(), "historiqueApplications")
 	return par
 }
 

@@ -477,9 +477,10 @@ func virgule(s string) string { return strings.Replace(s, ".", ",", 1) }
 
 func tailleLisible(n int64) string {
 	switch {
-	case n >= 1<<30:
+	// Seuil à 1023,95 Mio : au-dessus, « 1024,0 Mo » s'affichait (revue du 27/11).
+	case n >= 1<<30-(1<<20)/20:
 		return virgule(fmt.Sprintf("%.1f Go", float64(n)/(1<<30)))
-	case n >= 1<<20:
+	case n >= 1<<20-(1<<10)/2:
 		return virgule(fmt.Sprintf("%.1f Mo", float64(n)/(1<<20)))
 	case n >= 1<<10:
 		return fmt.Sprintf("%.0f Ko", float64(n)/(1<<10))

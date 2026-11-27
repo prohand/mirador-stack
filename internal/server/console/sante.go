@@ -452,6 +452,7 @@ func (c *Console) ligneNotifications(ctx context.Context, t time.Time) ligneSant
 				}
 			}
 		}
+		c.lectureIncomplete(rows.Err(), "ligneNotifications")
 		_ = rows.Close()
 	}
 	l.Chiffres = append(l.Chiffres, chiffreSante{strconv.Itoa(ok), "envoyées 24 h"}, chiffreSante{strconv.Itoa(echec), "échecs 24 h"})

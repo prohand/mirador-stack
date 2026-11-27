@@ -182,6 +182,7 @@ func (c *Console) pannes(ctx context.Context, regles []string, debut, fin time.T
 			out["m:"+inst] = append(out["m:"+inst], iv)
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "pannes")
 	return out
 }
 
@@ -202,6 +203,7 @@ func (c *Console) maintenancesMachines(ctx context.Context, debut, fin time.Time
 			out["m:"+nom] = append(out["m:"+nom], intervalle{d, f})
 		}
 	}
+	c.lectureIncomplete(rows.Err(), "maintenancesMachines")
 	return out
 }
 

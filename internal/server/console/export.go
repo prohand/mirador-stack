@@ -129,6 +129,7 @@ func (c *Console) configuration(ctx context.Context, avecSecrets bool, t time.Ti
 				cf.ConfigAgents[p] = doc
 			}
 		}
+		err = rows.Err() // lecture coupée : export refusé plutôt qu'incomplet
 		_ = rows.Close() // lecture seule : une erreur de fermeture est sans effet
 	}
 	e[9] = err

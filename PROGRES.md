@@ -2100,14 +2100,23 @@ Ordre de grandeur : le collecteur à 1 000 messages syslog/s passe d'environ
 **Bugs** : 18 corrigés, chacun avec un test (SPEC § 143). **Interface** :
 15 problèmes corrigés, vérifiés dans le navigateur.
 
-**Pas fait, à décider par l'utilisateur**
-- Expression « bruit » par défaut des logs (`(?i)…`) : ~75 % du coût restant
-  par ligne du journal. Sans `(?i)` elle irait 2 fois plus vite, mais elle
-  deviendrait sensible à la casse (réglage visible dans l'interface).
-- Petits points relevés non corrigés : ~25 lectures SQL de la console sans
-  `rows.Err()` (liste incomplète sans message en cas d'erreur) ; lignes de
-  journal de plus de 256 Kio perdues au lieu d'être coupées ; fichier
-  `.telechargement-*` laissé par un arrêt brutal de l'agent jamais nettoyé.
+**Suite (« fais tout », 27/11)**
+- Filtre « bruit » des logs : voie rapide, même comportement (choix
+  recommandé : pas de changement de casse). Ligne : 12,7 µs → 0,18 µs ;
+  traitement complet d'une ligne du journal : 8,4 µs → 3,7 µs (−56 %).
+- Ligne de journal de plus de 256 Kio : coupée au milieu (« … »), plus perdue.
+- Restes `.telechargement-*` (arrêt brutal pendant une mise à jour) retirés.
+- 28 lectures de la console : une lecture coupée est notée dans le journal du
+  serveur ; l'export de configuration refuse au lieu d'être incomplet.
+- Filtre « machine » des alertes : étiquette vide = absente (comme ailleurs).
+- Tailles : plus de « 1024,0 Mo » ; unités Grafana `decbytes` et `Bps` en
+  base 1000 ; même arrondi du % de flux bloqués (résumé et page).
+- Flux bloqués : un comptage sans nom d'interface n'est plus perdu.
+
+**Laissé de côté (faible effet, plus risqué à toucher)** : un lot d'envoi de
+l'agent peut partir deux fois s'il est déplacé sur disque pendant son envoi ;
+tampon des logs du serveur vidé avant une écriture qui échoue (disque plein) ;
+corps des réponses en erreur UniFi / Docker non vidés (pas de fuite).
 
 À mesurer sur le VPS après installation : RAM et CPU du serveur (comparer
 au 26/11 : 252 Mio au plus).
