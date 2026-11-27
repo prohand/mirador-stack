@@ -184,6 +184,9 @@ type donneesConteneurs struct {
 	NbMachines, NbProjets                      int
 	SansDonnees                                bool
 	Admin                                      bool
+	// Vue : projet (défaut) ou liste ; une seule est construite (grand
+	// parc, SPEC § 141 : avant, chaque conteneur était rendu deux fois).
+	Vue string
 }
 
 // lireConteneurs : un échantillon par (machine, conteneur), clé « machine\x00nom ».
@@ -625,7 +628,10 @@ func casesConteneurs(ls []ligneConteneur, nbMachines, nbProjets int) []caseConte
 
 func (c *Console) pageConteneurs(q *req) {
 	ctx := q.r.Context()
-	d := donneesConteneurs{Machine: q.r.URL.Query().Get("machine"), Admin: q.admin()}
+	d := donneesConteneurs{Machine: q.r.URL.Query().Get("machine"), Admin: q.admin(), Vue: "projet"}
+	if q.r.URL.Query().Get("vue") == "liste" {
+		d.Vue = "liste"
+	}
 	switch q.r.URL.Query().Get("etat") {
 	case "problemes":
 		d.Filtre = "pb"

@@ -10,10 +10,10 @@
 <div class="barre-ct" data-filtres-ct data-filtre-depart="{{$d.Filtre}}">
 <input type="search" data-chercher-ct placeholder="Chercher : nom, image, projet, machine…" aria-label="Chercher un conteneur" autocomplete="off">
 <p class="onglets">{{template "bouton-filtre-ct" (dict "F" "" "Actif" $d.Filtre "Texte" "Tous" "N" $d.NbTous)}}{{template "bouton-filtre-ct" (dict "F" "pb" "Actif" $d.Filtre "Texte" "Problèmes" "N" $d.NbProblemes)}}{{template "bouton-filtre-ct" (dict "F" "arrete" "Actif" $d.Filtre "Texte" "Arrêtés" "N" $d.NbArretes)}}{{template "bouton-filtre-ct" (dict "F" "sanstest" "Actif" $d.Filtre "Texte" "Sans test de santé" "N" $d.NbSansTest)}}</p>
-<span class="segment" data-vue-ct-choix hidden><button type="button" data-vue="projet" class="actif" aria-pressed="true">Par projet</button><button type="button" data-vue="liste" aria-pressed="false">Liste</button></span>
+<span class="segment" data-vue-ct-choix hidden><button type="button" data-vue="projet"{{if eq $d.Vue "projet"}} class="actif" aria-pressed="true"{{else}} aria-pressed="false"{{end}}>Par projet</button><button type="button" data-vue="liste"{{if eq $d.Vue "liste"}} class="actif" aria-pressed="true"{{else}} aria-pressed="false"{{end}}>Liste</button></span>
 {{if $d.Machine}}<span class="pastille">sur {{$d.Machine}} · <a href="/conteneurs">tout voir</a></span>{{end}}
 </div>
-<div data-vue-ct="projet">{{range $d.Groupes}}{{$g := .}}<section class="carte groupe-ct" data-groupe-ct{{if .CacheFiltre $d.Filtre}} hidden{{end}}>
+{{if eq $d.Vue "projet"}}<div data-vue-ct="projet">{{range $d.Groupes}}{{$g := .}}<section class="carte groupe-ct" data-groupe-ct{{if .CacheFiltre $d.Filtre}} hidden{{end}}>
 <div class="tete-ct"><span class="puce gris" aria-hidden="true"><svg class="icone"><use href="#i-machines"></use></svg></span><h2><a href="/machines/{{.Machine}}">{{.Machine}}</a> {{if .Projet}}<span class="doux">· projet</span> {{.Projet}}{{else}}<span class="doux">· hors projet Compose</span>{{end}}</h2>
 {{if .NbNonSains}}<span class="pastille erreur">{{.NbNonSains}} non {{accord .NbNonSains "sain(s)"}}</span>{{end}}{{if .NbArretes}}<span class="pastille attention">{{.NbArretes}} {{accord .NbArretes "arrêté(s)"}}</span>{{end}}{{if not .AProbleme}}<span class="pastille ok">tout va bien</span>{{end}}
 {{with .Application}}<a class="pastille app" href="/applications/{{.}}">application {{.}}</a>{{end}}{{with .Proposer}}<a class="pastille propose" href="{{.}}">+ créer l'application</a>{{end}}
@@ -23,9 +23,9 @@
 </tbody></table></div>
 {{if and .NbCaches (not $d.Filtre)}}<button type="button" class="voir-ct" data-voir-ct>+ {{.NbCaches}} {{accord .NbCaches "autre(s) conteneur(s) sain(s)"}} · voir</button>{{end}}
 </section>{{end}}</div>
-<div data-vue-ct="liste" hidden><section class="carte"><div class="defile"><table class="tab-ct" data-cartes="serrees" data-sans-filtre><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur 24 h</th><th>Mémoire / limite</th><th class="nombre">Redém. 24 h</th><th>Démarré</th><th></th></tr></thead><tbody>
+{{else}}<div data-vue-ct="liste"><section class="carte"><div class="defile"><table class="tab-ct" data-cartes="serrees" data-sans-filtre><thead><tr><th>Conteneur</th><th>Machine</th><th>État</th><th>Santé</th><th>Processeur 24 h</th><th>Mémoire / limite</th><th class="nombre">Redém. 24 h</th><th>Démarré</th><th></th></tr></thead><tbody>
 {{range $d.Lignes}}{{template "ligne-ct" (dict "L" . "F" $d.Filtre "Trop" false "AvecMachine" true)}}{{end}}
-</tbody></table></div></section></div>
+</tbody></table></div></section></div>{{end}}
 <p class="vide" data-aucun-ct hidden>Aucun conteneur ne correspond.</p>
 <p class="sous legende-tableau">Santé : résultat du test intégré au conteneur (« healthcheck » de l'image ou du compose). « — » : pas de test défini, seul l'état (en marche ou arrêté) est suivi.</p>
 {{end}}

@@ -2633,6 +2633,16 @@ document.addEventListener("change", function (ev) {
   var cle = "mirador.conteneurs.vue";
   function vue(v, garder) {
     if (v !== "liste") { v = "projet"; }
+    if (garder) { try { window.localStorage.setItem(cle, v); } catch (e) { /* rien */ } }
+    // Une seule vue est construite par le serveur (SPEC § 141) : l'autre
+    // se demande à la page (« ?vue= »).
+    if (!document.querySelector('[data-vue-ct="' + v + '"]')) {
+      var u = new URL(window.location.href);
+      if (!garder && u.searchParams.has("vue")) { return; } // choix de l'adresse prioritaire
+      u.searchParams.set("vue", v);
+      window.location.replace(u.toString());
+      return;
+    }
     document.querySelectorAll("[data-vue-ct]").forEach(function (x) { x.hidden = x.getAttribute("data-vue-ct") !== v; });
     choix.querySelectorAll("button[data-vue]").forEach(function (x) {
       var on = x.getAttribute("data-vue") === v;
