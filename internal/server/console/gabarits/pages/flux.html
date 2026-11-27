@@ -79,6 +79,23 @@
 {{with $d.Sources}}<section class="carte flux-sources"><h2>Sources OPNsense (par le collecteur)</h2>
 {{range .}}<p><span class="pastille {{.Classe}}">{{.Collecteur}}</span> {{.Texte}}</p>{{end}}
 <p class="aide"><small>Les iptables des machines n'ont rien à régler : il suffit que la règle de blocage journalise (cible LOG).</small></p></section>{{end}}
+{{with $d.Blocage}}<section class="carte" id="blocage"><div class="entete-carte"><h2>Liste de blocage</h2>{{if .R.Actif}}<span class="pastille ok">publiée · {{.Nb}} {{accord .Nb "adresse(s)"}}</span>{{else}}<span class="pastille">désactivée</span>{{end}}</div>
+<p class="sous">mirador publie les adresses insistantes ; OPNsense et vos VPS viennent la lire. mirador ne modifie aucun pare-feu.</p>
+{{if $.Admin}}<form method="post" action="/flux-bloques/blocage" class="pile">{{template "csrf" $.CSRF}}
+<label class="case"><input type="checkbox" name="actif" value="1"{{if .R.Actif}} checked{{end}}> Publier la liste des adresses insistantes</label>
+<div class="ligne"><label>Bloquée si vue par <input type="number" name="min_pare_feux" min="1" max="50" value="{{.R.MinPareFeux}}" class="court"> pare-feu ou plus</label>
+<label>ou bloquée <input type="number" name="min_blocages" min="10" value="{{.R.MinBlocages}}" class="court"> fois ou plus</label>
+<label>sur les <input type="number" name="jours" min="1" max="7" value="{{.R.Jours}}" class="court"> derniers jours</label></div>
+<label>Jamais bloquées (adresses ou préfixes, un par ligne) <small class="aide">en plus du LAN, des adresses de vos machines, des adresses autorisées de l'interface et des adresses SSH « connues »</small><textarea name="exclus" rows="2" maxlength="4096" placeholder="203.0.113.0/24">{{.R.Exclus}}</textarea></label>
+{{if not .R.Actif}}{{template "code2fa"}}{{end}}
+<div class="ligne"><button name="action" value="reglages">Enregistrer</button>{{if .R.Actif}}<button name="action" value="jeton" class="secondaire" data-code data-confirmer="Nouvelle adresse de lecture ? L'ancienne ne marchera plus (OPNsense et VPS à mettre à jour).">{{if .R.Jeton}}Nouvelle adresse{{else}}Créer l'adresse de lecture{{end}}</button>{{end}}</div></form>{{end}}
+{{if .R.Actif}}<p class="aide"><small>{{if .R.Jeton}}Adresse de lecture créée (montrée une seule fois ; « Nouvelle adresse » pour en refaire une).{{else}}Pas encore d'adresse de lecture : rien n'est lisible.{{end}} {{if .Ecartees}}{{.Ecartees}} adresse(s) écartée(s) (jamais bloquées). {{end}}2 000 adresses au plus, liste recalculée toutes les 10 min.</small></p>{{end}}
+<details><summary>Comment l'utiliser</summary>
+<p><b>OPNsense</b> : Pare-feu › Alias › Ajouter, type « URL Table (IPs) », adresse de lecture, mise à jour toutes les heures ; puis une règle « bloquer » qui utilise l'alias.</p>
+<p><b>VPS (nftables)</b>, une fois par VPS, à lancer vous-même (lire le script avant) :</p>
+<pre>curl -fsS {{.Base}}/blocage/installer.sh -o mirador-blocage.sh
+sudo sh mirador-blocage.sh https://…/blocage/JETON.txt</pre>
+<p class="aide"><small>Le script crée sa propre table nftables « inet mirador_blocage » et une minuterie (15 min) ; il ne touche à rien d'autre. Désinstaller : <code>sudo sh mirador-blocage.sh --retirer</code>.</small></p></details></section>{{end}}
 {{else if or $d.Sources $d.TableSans}}<p class="flux-reglage"><span class="pastille attention">Réglage à faire</span> {{if $d.TableSans}}{{$d.TableSans}} {{accord $d.TableSans "pare-feu"}} sans journalisation{{else}}une source OPNsense ne répond pas{{end}} : <a href="{{$d.LienReseau}}#sources">voir Mon réseau › Sources</a>.</p>
 {{end}}<p class="aide"><small>Seuls les flux avec Internet sont comptés (entrants, et sortants là où c'est coché) ; le réglage de chaque machine est dans son onglet Réglages › Pare-feu. Conservation : 30 jours (adresses : 7 jours). {{if $d.GeoIP}}IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).{{end}}</small></p>
 </div>

@@ -392,6 +392,27 @@ func (p *Postier) Prevenir(ctx context.Context, groupe, texte string) {
 	p.envoyer(ctx, m, true)
 }
 
+// Informer : message d'information de mirador lui-même (résumé de la
+// semaine, demande du 27/11), sans alerte ni son. Même chemin que Prevenir,
+// avec la gravité « info » (canaux de l'info). En mode ombre : noté
+// seulement dans l'historique des envois. Renvoie false si rien n'est parti.
+func (p *Postier) Informer(ctx context.Context, groupe, texte string) bool {
+	if err := p.recharger(ctx); err != nil {
+		p.opt.Journal.Error("notifications : réglages", "erreur", err)
+	}
+	t := p.opt.Maintenant()
+	m := &Message{Le: t, Groupe: groupe, Gravite: alertes.Info, Type: "resume", Systeme: texte}
+	p.mu.Lock()
+	mode := p.reglages.Mode
+	p.mu.Unlock()
+	if mode == Ombre {
+		_ = NoterEnvoi(ctx, p.opt.DB, Envoi{Le: t, Canal: "ombre", Groupe: m.Groupe, Gravite: m.Gravite, Type: m.Type,
+			Statut: Ombre, Texte: texte})
+		return true
+	}
+	return p.envoyer(ctx, m, true)
+}
+
 func listeOuAucun(noms []string) string {
 	if len(noms) == 0 {
 		return "aucun autre canal (messages gardés en file d'attente)"

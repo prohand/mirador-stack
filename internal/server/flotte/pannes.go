@@ -67,6 +67,19 @@ func (f *Flotte) recevoirEvenement(w http.ResponseWriter, r *http.Request) {
 		erreur(w, http.StatusTooManyRequests, "trop d'événements")
 		return
 	}
+	if e.Type == protocole.EvenementSSH { // connexion réussie (demande du 27/11)
+		nouvelle, err := NoterConnexionSSH(r.Context(), f.opt.DB, m.ID, m.Nom, e, t)
+		if err != nil {
+			f.opt.Journal.Error("connexion SSH non notée", "machine", m.Nom, "erreur", err)
+			erreur(w, http.StatusServiceUnavailable, "base indisponible")
+			return
+		}
+		if nouvelle {
+			f.opt.Journal.Warn("connexion SSH depuis une adresse nouvelle", "machine", m.Nom, "adresse", e.Objet)
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if err := NoterPanne(r.Context(), f.opt.DB, m.ID, t, e); err != nil {
 		f.opt.Journal.Error("panne non notée", "machine", m.Nom, "erreur", err)
 		erreur(w, http.StatusServiceUnavailable, "base indisponible")

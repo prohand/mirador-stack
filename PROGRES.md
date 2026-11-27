@@ -2061,38 +2061,40 @@ pages de 200, Sondes, Tâches, Logs, Événements), Conteneurs en une vue.
 
 ## Prochaine étape
 
-Mise à jour le 25/11 au soir (serveur 0.6.21, agents 0.6.22) ; serveur en
-0.6.26 depuis le 26/11 (0.6.25 et 0.6.26 installées et validées : courbes
-7 j jusqu'à maintenant, cartes des tableaux en chiffres clés, temps de
-calcul par partie). L'ancien
-texte (bascule pas à pas, 22-24/11) est dans l'historique Git.
+Mise à jour le 27/11 au soir. Les 7 étapes du plan sont validées (26/11).
+Dernières versions publiées : **0.6.30** (grand parc, Flux bloqués :
+classements et choix d'un pare-feu, SPEC § 139 à 141) et **0.6.31**
+(Classements et Sources propres à chaque vue de Flux bloqués). Serveur à
+passer en 0.6.31 ; agents et collecteur inchangés depuis 0.6.30 (rien
+d'obligatoire).
 
-**Fait (étapes 6 et 7, à clore après la mesure de 24 h)**
-- Collecteur sur le LAN (obscollector) : SNMP du NAS, UniFi, `fw`, syslog
-  TLS, sondes de certificats ; mesures 24 h, objectifs tenus (24/11).
-- Agents sur tout le parc par Semaphore (27 machines, approuvées le 24/11),
-  en 0.6.22 depuis le 25/11.
-- Ancienne stack supprimée (24/11) : Grafana, VictoriaMetrics,
-  VictoriaLogs, vmalert, Alertmanager (VPS) ; Alloy, snmpd, scripts et
-  minuteries `obs-*` (machines, obscollector) ; nginx, certificats, DNS.
-  Échecs systemd restants effacés par Semaphore (25/11). Gain sur le VPS :
-  environ 580 Mio.
-- Gardé exprès : `01-obs-geo.conf`, `obs-allow.conf`, minuteries
-  `obs-geo-fr` et `obs-geoip-update`.
-- Alertes Telegram en mode actif depuis le 13/11 ; signal de vie OK.
+**En cours**
+- Mesure du serveur après 0.6.30 / 0.6.31 : relancée par l'utilisateur
+  le 27/11 (`docker stats` chaque minute, fichier `/root/mesure-0631.txt`
+  sur le VPS). À reporter ici et à comparer à la mesure du 26/11
+  (252 Mio au plus, objectif 256 Mio, limite du conteneur 300 Mio).
 
-**Reste**
-1. Mesure du serveur : faite le 26/11 (16 h 35, voir plus haut), objectifs
-   tenus de justesse.
-2. Étapes 6 et 7 : **validées le 26/11** (tableau « Où on en est »).
-3. SPEC : 74 sections validées le 25/11 ; 8 « en service, pas encore
-   essayé » (§ 39 site injoignable, § 49 disponibilité, § 52 motifs de
-   logs, § 54 incidents, § 81 maintenance récurrente et webhook, § 82
-   modèles des messages, § 84 page de statut publique, § 122 applications
-   d'après Docker Compose), à essayer au fil de l'eau.
-4. Archives `/root/ancienne-stack.tgz` (machines) et
-   `/root/grafana-sauvegarde.tgz` (VPS) : **effacées le 26/11**.
-5. Facultatif : essai réel d'Olvid (`docs/olvid.md`).
+**À valider par l'utilisateur**
+- SPEC § 136 à 141 : pare-feu par machine et flux sortants, carte et
+  « Mon réseau », classements, choix d'un pare-feu, grand parc (taille du
+  parc dans Réglages › Conservation, recherche et actions de masse,
+  vagues de mise à jour, alertes par site, listes avec recherche).
+- 8 fonctions « en service, pas encore essayées », au fil de l'eau :
+  § 39 site injoignable, § 49 disponibilité, § 52 motifs de logs, § 54
+  incidents, § 81 maintenance récurrente et webhook, § 82 modèles des
+  messages, § 84 page de statut publique, § 122 applications d'après
+  Docker Compose.
 
-Historique : 0.2.20 validée le 13/11 (l'assistant root suit l'agent seul) ;
-mode **actif** (Telegram) depuis le 13/11.
+**Facultatif**
+- Essai réel d'Olvid (`docs/olvid.md`).
+
+**Fait le 27/11 (SPEC § 142, maquettes validées)** : « Que faire » par
+règle, résumé de la semaine, ports en écoute, SSH depuis une adresse
+nouvelle (agent 0.6.32), expiration des domaines (RDAP), prévision des
+inodes et volumes RAID, liste de blocage (OPNsense + script VPS). Coût
+estimé faible (quelques requêtes par minute ou par jour) ; mesure réelle
+avec celle en cours sur le VPS.
+
+Historique : mode **actif** (Telegram) depuis le 13/11 ; ancienne stack
+supprimée le 24/11 ; archives effacées le 26/11. L'ancien texte de cette
+section est dans l'historique Git.

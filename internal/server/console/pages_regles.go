@@ -319,7 +319,8 @@ func regleDuFormulaire(q *req) (alertes.Regle, error) {
 	f := func(k string) string { return strings.TrimSpace(q.r.PostFormValue(k)) }
 	r := alertes.Regle{Nom: f("nom"), Groupe: f("groupe"), Expr: f("expr"), Gravite: f("gravite"), Resume: f("resume"),
 		Description: f("description"), Active: f("active") != "", Origine: f("origine"), Note: f("note"),
-		Absence: f("absence")}
+		Procedure: strings.ReplaceAll(strings.TrimSpace(q.r.PostFormValue("procedure")), "\r\n", "\n"),
+		Absence:   f("absence")}
 	var e1, e2, e3, e4 error
 	r.Intervalle, e1 = alertes.LireDuree(f("intervalle"))
 	if f("pour") != "" {

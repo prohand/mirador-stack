@@ -301,3 +301,34 @@ func TestPaquetsDisques(t *testing.T) {
 		t.Errorf("%d paquets : %.80s", len(p), p[0])
 	}
 }
+
+// Demande du 27/11 : prévision des inodes et des volumes RAID du NAS.
+func TestPrevisionInodesEtRAID(t *testing.T) {
+	db, err := tsdb.Open(t.TempDir(), nil, nil, tsdb.DefaultOptions(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	m := time.Now()
+	app := db.Appender(context.Background())
+	for ts := m.Add(-7 * 24 * time.Hour); !ts.After(m); ts = ts.Add(10 * time.Minute) {
+		h := m.Sub(ts).Hours()
+		_, _ = app.Append(0, labels.FromStrings("__name__", "node_filesystem_files_free", "instance", "sup", "mountpoint", "/var", "fstype", "ext4"),
+			ts.UnixMilli(), 90000+10000*h/24) // 10 000 inodes par jour, 90 000 libres : 9 j
+		_, _ = app.Append(0, labels.FromStrings("__name__", "raidFreeSize", "instance", "nas", "raidName", "Volume 1", "job", "snmp"),
+			ts.UnixMilli(), 26e12+1e12*h/24) // 1 To par jour, 26 To libres : 26 j
+	}
+	_ = app.Commit()
+	c := &Console{lecteur: alertes.NouveauLecteur(db, nil), cache: cacheRequetes{tout: map[string]entreeRequete{}}}
+	p := c.previsionsDisques(context.Background(), `instance="sup"`, m)
+	if j := p["sup|/var (inodes)"]; j < 8.5 || j > 9.5 {
+		t.Errorf("inodes : %v", p)
+	}
+	r := c.previsionsRAID(context.Background(), m)
+	if j := r["nas|Volume 1 (RAID)"]; j < 25.5 || j > 26.5 {
+		t.Errorf("RAID : %v", r)
+	}
+	if pm := pleinDansMachine(fusionPrevisions(p, r)); len(pm) != 2 || pm["nas"] == 0 {
+		t.Errorf("par machine : %v", pm)
+	}
+}

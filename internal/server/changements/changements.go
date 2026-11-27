@@ -29,6 +29,7 @@ const (
 	Noyau       = "noyau"
 	Agent       = "agent"
 	Conteneur   = "conteneur"
+	Port        = "port" // port ouvert ou fermé (demande du 27/11)
 )
 
 // Conservation : 90 jours.
@@ -174,26 +175,36 @@ func (d *Detecteur) Tour(ctx context.Context, t time.Time) error {
 	}
 	evs = append(evs, d.conteneurs(lire, noter)...)
 	evs = append(evs, d.paquets(lire, noter, premier)...)
-
-	return d.ecrire(ctx, maj, evs, d.conteneursDisparus(vues), t)
+	evs = append(evs, d.ports(lire, noter, t)...)
+	disparus := d.disparus(vues, "ct|")
+	fermes := d.disparus(vues, "port|")
+	for _, k := range fermes { // « port|machine|port|adresse »
+		p := strings.SplitN(k, "|", 4)
+		if len(p) == 4 {
+			evs = append(evs, nouveau{Changement: Changement{Machine: p[1], Le: t, Type: Port,
+				Detail: "Port fermé : tcp/" + p[2] + texteAdresse(p[3])}})
+		}
+	}
+	return d.ecrire(ctx, maj, evs, disparus, fermes, t)
 }
 
-// conteneursDisparus : clés « ct|machine|nom » plus lues, seulement pour
+// disparus : clés « prefixe machine|… » (conteneurs « ct| », ports
+// « port| ») plus lues, seulement pour
 // les machines dont des conteneurs ont été lus à ce tour (une machine muette
 // garde les siens). Relecture du 21/11 : les conteneurs jetables à nom
 // aléatoire (docker run sans --name, CI) laissaient une clé chacun, pour
 // toujours, en mémoire et en base.
-func (d *Detecteur) conteneursDisparus(vues map[string]bool) []string {
+func (d *Detecteur) disparus(vues map[string]bool, prefixe string) []string {
 	vivantes := map[string]bool{}
 	for k := range vues {
-		if r, ok := strings.CutPrefix(k, "ct|"); ok {
+		if r, ok := strings.CutPrefix(k, prefixe); ok {
 			inst, _, _ := strings.Cut(r, "|")
 			vivantes[inst] = true
 		}
 	}
 	var out []string
 	for k := range d.etat {
-		if r, ok := strings.CutPrefix(k, "ct|"); ok && !vues[k] {
+		if r, ok := strings.CutPrefix(k, prefixe); ok && !vues[k] {
 			if inst, _, _ := strings.Cut(r, "|"); vivantes[inst] {
 				out = append(out, k)
 			}
@@ -248,6 +259,44 @@ func (d *Detecteur) conteneurs(lire func(string) []alertes.Echantillon, noter fu
 		evs = append(evs, nouveau{Changement: Changement{Machine: inst, Le: time.Unix(debut, 0), Type: Conteneur, Detail: detail}})
 	}
 	return evs
+}
+
+// ports : port TCP ouvert sur une machine déjà connue (demande du 27/11).
+// Lu dans mirador_port_ecoute (agent, relu toutes les 5 min, d'où la fenêtre
+// de 10 min). Une machine vue pour la première fois ne signale rien ; un
+// protocole relu autrement (http → https) n'est pas un changement.
+func (d *Detecteur) ports(lire func(string) []alertes.Echantillon, noter func(string, string) (string, bool), t time.Time) []nouveau {
+	var evs []nouveau
+	for _, e := range lire(`max by (instance, port, adresse, protocole) (last_over_time(mirador_port_ecoute[10m]))`) {
+		inst, port, adr := e.Etiquettes.Get("instance"), e.Etiquettes.Get("port"), e.Etiquettes.Get("adresse")
+		if inst == "" || port == "" {
+			continue
+		}
+		proto := e.Etiquettes.Get("protocole")
+		k := "port|" + inst + "|" + port + "|" + adr
+		_, dejaVu := d.etat[k]
+		noter(k, proto)
+		if dejaVu || len(d.etat) == 0 || !d.initialise(inst) {
+			continue // déjà connu, tout premier tour, ou machine nouvelle
+		}
+		detail := "Port ouvert : tcp/" + port
+		if proto != "" && proto != "tcp" {
+			detail += " (" + proto + ")"
+		}
+		evs = append(evs, nouveau{Changement: Changement{Machine: inst, Le: t, Type: Port, Detail: detail + texteAdresse(adr)}})
+	}
+	return evs
+}
+
+// texteAdresse : « · toutes les adresses » ou « · 192.0.2.10 ».
+func texteAdresse(a string) string {
+	switch a {
+	case "":
+		return ""
+	case "*":
+		return " · toutes les adresses"
+	}
+	return " · " + a
 }
 
 // courte : « ghcr.io/home-assistant/home-assistant:2026.11.2 » →

@@ -171,6 +171,9 @@ func Texte(m *Message, o Mise) string {
 			fmt.Fprintf(&b, "%s\n", e("📡 Données absentes depuis "+a.AbsenteDepuis.In(o.Fuseau).Format("02/01 15:04")+
 				" ("+dureeCourte(m.Le.Sub(a.AbsenteDepuis))+") : la machine n'envoie plus rien"))
 		}
+		if a.AvecProcedure && a.ID > 0 && o.Lien != "" {
+			b.WriteString(e("📝 Procédure : voir l'alerte") + "\n")
+		}
 		if ch := m.Changements[a.Etiquettes.Hash()]; ch != "" {
 			b.WriteString(e("🔧 "+ch) + "\n")
 		}

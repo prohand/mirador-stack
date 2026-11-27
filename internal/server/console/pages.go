@@ -1690,7 +1690,8 @@ func (c *Console) parcAvec(q *req, actives []resumeAlerte, complet bool) []ligne
 	var courbes map[string]string
 	var nouveautes map[string]int
 	if complet {
-		plein = pleinDansMachine(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t))
+		plein = pleinDansMachine(fusionPrevisions(c.previsionsDisques(ctx, strings.Replace(filtreDisques, `instance=~"$instance", `, "", 1), q.t),
+			c.previsionsRAID(ctx, q.t)))
 		courbes = c.etincelles(ctx, q.t)
 		// Compte « à valider » gardé 60 s, le même que le menu et la page
 		// Machines (relecture du 21/11 : relu à chaque rechargement).

@@ -27,6 +27,7 @@ import (
 	"mirador-stack/internal/server/changements"
 	"mirador-stack/internal/server/config"
 	"mirador-stack/internal/server/console"
+	"mirador-stack/internal/server/domaines"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/fluxbloques"
 	"mirador-stack/internal/server/geoip"
@@ -39,6 +40,7 @@ import (
 	"mirador-stack/internal/server/stockage/journaux"
 	"mirador-stack/internal/server/stockage/metriques"
 	"mirador-stack/internal/server/web"
+	essais "mirador-stack/internal/sondes"
 	"mirador-stack/internal/version"
 )
 
@@ -247,7 +249,10 @@ func Demarrer(ctx context.Context, cfg config.Serveur, journal *slog.Logger) (*S
 			(&sondeur{s: s}).boucle, s.motifs.Boucle,
 			(&changements.Detecteur{DB: s.db, Lecteur: alertes.NouveauLecteur(s.met.Requetes(), journal.With("composant", "changements")),
 				Journal: journal.With("composant", "changements")}).Boucle,
-			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner, s.flux.Boucle, s.boucleParc}
+			func(ctx context.Context) { s.geo.Boucle(ctx, s.console.GeoIPActive) }, gestCerts.Tourner, s.flux.Boucle, s.boucleParc,
+			// Expiration des noms de domaine (demande du 27/11).
+			(&domaines.Suivi{DB: s.db, Journal: journal.With("composant", "domaines"),
+				Sondes: func(ctx context.Context) ([]essais.Sonde, error) { return flotte.LireSondes(ctx, s.db) }}).Boucle}
 		fini := make(chan struct{}, len(taches))
 		for _, f := range taches {
 			go func() { f(fond); fini <- struct{}{} }()

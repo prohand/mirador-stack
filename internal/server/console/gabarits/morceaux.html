@@ -172,6 +172,7 @@
 <label>Description <textarea name="description" rows="2" maxlength="1024">{{.D.R.Description}}</textarea></label>
 <label>Étiquettes ajoutées (nom=valeur, une par ligne) <textarea name="etiquettes" rows="2" maxlength="2000">{{.D.Etiq}}</textarea></label>
 <label>Note <input name="note" value="{{.D.R.Note}}" maxlength="1024"></label>
+<label>Que faire ? <small class="aide">(facultatif, montré replié sur l'alerte ; le message dit seulement « Procédure : voir l'alerte »)</small><textarea name="procedure" rows="3" maxlength="2000" placeholder="1. journalctl --vacuum-size=500M&#10;2. vider /var/cache/apt">{{.D.R.Procedure}}</textarea></label>
 <input type="hidden" name="origine" value="{{.D.R.Origine}}">
 <label class="case"><input type="checkbox" name="active" value="1" {{if .D.R.Active}}checked{{end}}> Active</label>
 {{if .Admin}}<div class="ligne"><button name="bouton" value="tester" class="secondaire">Tester sur 24 h</button><button name="bouton" value="enregistrer" data-code>Enregistrer</button></div>{{end}}

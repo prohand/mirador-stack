@@ -24,6 +24,7 @@ import (
 	mm "mirador-stack/internal/agent/metrics"
 	"mirador-stack/internal/agent/racine"
 	"mirador-stack/internal/agent/remotewrite"
+	"mirador-stack/internal/protocole"
 	"mirador-stack/internal/version"
 )
 
@@ -184,6 +185,15 @@ func (a *Agent) Envoyer(ctx context.Context) { a.exp.Tourner(ctx) }
 
 // TournerLogs lit le journal et envoie les logs (rien si désactivés).
 // La lecture s'arrête avec ctxLecture, l'envoi avec ctxEnvoi.
+// SignalerConnexions : connexions SSH réussies lues dans le journal,
+// envoyées au serveur (demande du 27/11). Sans chaîne de logs (journal
+// désactivé), rien n'est lu.
+func (a *Agent) SignalerConnexions(f func(protocole.EvenementAgent)) {
+	if a.logs != nil && a.logs.traitement != nil {
+		a.logs.traitement.SignalerConnexions(f)
+	}
+}
+
 func (a *Agent) TournerLogs(ctxLecture, ctxEnvoi context.Context) {
 	if a.logs != nil {
 		a.logs.tourner(ctxLecture, ctxEnvoi)

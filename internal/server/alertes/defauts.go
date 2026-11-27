@@ -246,6 +246,47 @@ func ReglesMirador() []Regle {
 			Resume:  "La mise à jour de l'agent a échoué sur {{ $labels.instance }} (version {{ $labels.version }})",
 			Description: "L'agent est revenu à sa version précédente. Cette version ne sera pas retentée sur cette " +
 				"machine."}),
+		// Expiration des noms de domaine (demande du 27/11) : une alerte par
+		// domaine principal, 30 jours puis 7 jours avant.
+		m(Regle{Nom: "DomaineExpireBientot", Groupe: "securite", Intervalle: Duree(time.Hour),
+			Expr:    `(max by (domaine) (last_over_time(mirador_domaine_expiration_timestamp_seconds[2h])) - time()) / 86400 < 30`,
+			Gravite: Avertissement,
+			Resume:  "Le nom de domaine {{ $labels.domaine }} expire dans {{ $value | humanize }} jours",
+			Description: "Date lue chez le registre (RDAP) une fois par jour. Renouveler le domaine chez le bureau " +
+				"d'enregistrement, ou vérifier le renouvellement automatique.",
+			Note: "Demande du 27/11"}),
+		m(Regle{Nom: "DomaineExpireTresBientot", Groupe: "securite", Intervalle: Duree(time.Hour),
+			Expr:        `(max by (domaine) (last_over_time(mirador_domaine_expiration_timestamp_seconds[2h])) - time()) / 86400 < 7`,
+			Gravite:     Critique,
+			Resume:      "Le nom de domaine {{ $labels.domaine }} expire dans {{ $value | humanize }} jours",
+			Description: "Tous les sous-domaines (sites, messagerie) s'arrêteront à l'expiration. Renouveler tout de suite.",
+			Note:        "Demande du 27/11"}),
+		// Connexion SSH depuis une adresse nouvelle (demande du 27/11) : série
+		// écrite par le serveur 24 h, ou jusqu'à « C'est moi » sur l'alerte.
+		m(Regle{Nom: "SshAdresseNouvelle", Groupe: "securite",
+			Expr:    `max by (instance, adresse, utilisateur) (mirador_ssh_adresse_nouvelle) == 1`,
+			Gravite: Avertissement,
+			Resume:  "Connexion SSH depuis une adresse nouvelle sur {{ $labels.instance }} : {{ $labels.utilisateur }} depuis {{ $labels.adresse }}",
+			Description: "Adresse publique jamais vue sur cette machine depuis 90 jours (lue par l'agent dans le journal de sshd). " +
+				"Si c'est vous : « C'est moi » sur l'alerte. Sinon : vérifier les connexions (last, journalctl -u ssh).",
+			Note: "Demande du 27/11 : adresses du LAN ignorées"}),
+		// Nouveau port en écoute (demande du 27/11) : désactivée par défaut
+		// (bavarde pendant une installation) ; le changement est noté dans
+		// tous les cas (page machine › Changements). Machine qui n'avait aucun
+		// port relevé la veille : ignorée.
+		func() Regle {
+			r := m(Regle{Nom: "NouveauPortEnEcoute", Groupe: "securite", Intervalle: Duree(5 * time.Minute),
+				Expr: `(max by (instance, port, adresse) (last_over_time(mirador_port_ecoute[10m])) unless ` +
+					`max by (instance, port, adresse) (last_over_time(mirador_port_ecoute[1d] offset 15m))) ` +
+					`and on (instance) max by (instance) (last_over_time(mirador_port_ecoute[1d] offset 15m))`,
+				Gravite: Info,
+				Resume:  "Nouveau port en écoute sur {{ $labels.instance }} : tcp/{{ $labels.port }}",
+				Description: "Relevé par l'agent dans /proc/net/tcp (toutes les 5 min). Si ce n'est pas une installation " +
+					"voulue : voir quel programme écoute (ss -ltnp) sur la machine.",
+				Note: "Demande du 27/11 : désactivée par défaut, le changement est toujours noté"})
+			r.Active = false
+			return r
+		}(),
 		m(Regle{Nom: "ServeurDisquePresquePlein", Groupe: "mirador",
 			Expr:        `mirador_disque_libre_octets / mirador_disque_total_octets < 0.10`,
 			Pour:        Duree(10 * time.Minute),

@@ -53,6 +53,9 @@ type Alerte struct {
 	// AbsenteDepuis : la machine de l'alerte n'envoie plus rien depuis
 	// cette heure ; l'alerte reste ouverte (SPEC § 46). Zéro : données à jour.
 	AbsenteDepuis time.Time
+	// AvecProcedure : la règle a un « Que faire » (montré sur la page de
+	// l'alerte, signalé d'une ligne dans le message). Non stocké.
+	AvecProcedure bool
 
 	vueLe   time.Time // dernière évaluation où la condition était vraie
 	aEcrire bool      // état changé depuis la dernière écriture en base
@@ -690,6 +693,7 @@ func (m *Moteur) textes(r *etatRegle, a *Alerte) {
 	mp := a.Etiquettes.Map()
 	a.Resume = remplir(r.resume, r.def.Resume, mp, a.Valeur)
 	a.Description = remplir(r.descr, r.def.Description, mp, a.Valeur)
+	a.AvecProcedure = r.def.Procedure != ""
 }
 
 // resoudre (sous verrou) : fin d'une alerte active.

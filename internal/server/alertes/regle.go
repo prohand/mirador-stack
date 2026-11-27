@@ -95,6 +95,10 @@ type Regle struct {
 	Active      bool              `json:"active" yaml:"active"`
 	Origine     string            `json:"origine,omitempty" yaml:"origine,omitempty"` // vmalert, mirador, modèle…
 	Note        string            `json:"note,omitempty" yaml:"note,omitempty"`       // commentaire libre
+	// Procedure : « Que faire ? » écrit par l'administrateur (texte brut,
+	// jamais interprété), montré replié sur la page de l'alerte ; le message
+	// ne dit que « 📝 Procédure : voir l'alerte » (demande du 27/11).
+	Procedure string `json:"procedure,omitempty" yaml:"procedure,omitempty"`
 	// Si les données disparaissent (SPEC § 46) : que faire quand la machine
 	// de l'alerte (étiquette instance) n'envoie plus rien. "" = garder
 	// l'alerte ouverte (défaut), "fermer" (comportement d'avant), "ouvrir"
@@ -132,7 +136,9 @@ const (
 	PourMax       = 7 * 24 * time.Hour
 	FenetreMax    = 7 * 24 * time.Hour // rétention brute par défaut
 	TailleMaxTxt  = 1024               // résumé, description
-	EtiquettesMax = 16
+	// TailleMaxProcedure : « Que faire » d'une règle.
+	TailleMaxProcedure = 2000
+	EtiquettesMax      = 16
 )
 
 // Defauts complète les champs vides (intervalle 1 min, groupe « general »).
@@ -199,6 +205,9 @@ func (r *Regle) Valider() (parser.Expr, error) {
 	}
 	if len(r.Note) > TailleMaxTxt {
 		errs = append(errs, errors.New("note trop longue"))
+	}
+	if len(r.Procedure) > TailleMaxProcedure {
+		errs = append(errs, errors.New("« Que faire » trop long (2 000 caractères au plus)"))
 	}
 	e, err := AnalyserExpr(r.Expr)
 	if err != nil {

@@ -4,6 +4,7 @@ package protocole
 
 import (
 	"errors"
+	"net/netip"
 	"regexp"
 )
 
@@ -18,6 +19,10 @@ const (
 	EvenementService       = "service"        // unité systemd passée en échec
 	EvenementServiceRetour = "service-retour" // unité sortie de l'échec (SPEC § 127)
 	EvenementOOM           = "oom"            // processus tué faute de mémoire
+	// EvenementSSH : connexion SSH réussie (demande du 27/11). Objet :
+	// adresse source ; Texte : « utilisateur · méthode ». Le serveur ne
+	// garde que les adresses publiques jamais vues sur la machine.
+	EvenementSSH = "ssh"
 )
 
 // EvenementAgent : une panne vue par l'agent.
@@ -39,6 +44,12 @@ func (e *EvenementAgent) Valider() error {
 		}
 	case EvenementOOM:
 		e.Objet = ""
+	case EvenementSSH:
+		a, err := netip.ParseAddr(e.Objet)
+		if err != nil {
+			return errors.New("adresse invalide")
+		}
+		e.Objet = a.Unmap().String()
 	default:
 		return errors.New("type inconnu")
 	}

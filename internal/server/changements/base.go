@@ -40,9 +40,11 @@ const fenetreFusion = 30 * time.Minute
 const tailleMaxDetail = 4000
 
 // ecrire : état et changements en une transaction ; ménage de temps en temps.
-func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nouveau, disparus []string, t time.Time) error {
+// oublier : clés retirées tout de suite (ports fermés : sinon « fermé »
+// serait redit à chaque tour).
+func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nouveau, disparus, oublier []string, t time.Time) error {
 	purger := t.Sub(d.purgeeLe) >= 6*time.Hour
-	if len(maj) == 0 && len(evs) == 0 && !purger {
+	if len(maj) == 0 && len(evs) == 0 && len(oublier) == 0 && !purger {
 		return nil
 	}
 	tx, err := d.DB.BeginTx(ctx, nil)
@@ -74,6 +76,11 @@ func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nou
 			return err
 		}
 	}
+	for _, k := range oublier {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM changements_etat WHERE cle = ?`, k); err != nil {
+			return err
+		}
+	}
 	if purger {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM changements WHERE le < ?`, t.Add(-Conservation).Unix()); err != nil {
 			return err
@@ -95,6 +102,9 @@ func (d *Detecteur) ecrire(ctx context.Context, maj map[string]string, evs []nou
 	}
 	for k, v := range maj {
 		d.etat[k] = v
+	}
+	for _, k := range oublier {
+		delete(d.etat, k)
 	}
 	if purger {
 		d.purgeeLe = t
@@ -195,6 +205,8 @@ func Titre(typ string) string {
 		return "Agent"
 	case Conteneur:
 		return "Conteneur"
+	case Port:
+		return "Port"
 	}
 	return typ
 }

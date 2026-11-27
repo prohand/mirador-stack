@@ -259,15 +259,35 @@ func paquetsDisques(parMachine []alertes.Echantillon, err error) []string {
 }
 
 // previsionsPaquet : prévisions d'un paquet de machines, ajoutées à out.
+// sourcePrevision : métrique de place libre et étiquette qui nomme l'objet
+// (demande du 27/11 : inodes et volumes RAID du NAS, en plus des disques).
+type sourcePrevision struct{ metrique, etiquette, suffixe string }
+
+var (
+	prevDisque = sourcePrevision{"node_filesystem_avail_bytes", "mountpoint", ""}
+	prevInodes = sourcePrevision{"node_filesystem_files_free", "mountpoint", " (inodes)"}
+	prevRAID   = sourcePrevision{"raidFreeSize", "raidName", " (RAID)"}
+)
+
 func (c *Console) previsionsPaquet(ctx context.Context, filtre string, t time.Time, out map[string]float64) {
+	c.previsionsSource(ctx, prevDisque, filtre, t, out)
+	c.previsionsSource(ctx, prevInodes, filtre, t, out)
+}
+
+// previsionsSource : jours avant « plein » pour une source ; clé
+// « instance|objet » (+ suffixe : « /var (inodes) »).
+func (c *Console) previsionsSource(ctx context.Context, src sourcePrevision, filtre string, t time.Time, out map[string]float64) {
 	cle := func(e alertes.Echantillon) string {
-		return e.Etiquettes.Get("instance") + "|" + e.Etiquettes.Get("mountpoint")
+		return e.Etiquettes.Get("instance") + "|" + e.Etiquettes.Get(src.etiquette) + src.suffixe
 	}
-	pentes, err := c.instant(ctx, fmt.Sprintf(exprPenteDisque, filtre), t)
+	expr := func(modele string) string {
+		return strings.Replace(fmt.Sprintf(modele, filtre), "node_filesystem_avail_bytes", src.metrique, 1)
+	}
+	pentes, err := c.instant(ctx, expr(exprPenteDisque), t)
 	if err != nil {
 		return
 	}
-	jour, err := c.instant(ctx, fmt.Sprintf(exprPenteDisqueJour, filtre), t)
+	jour, err := c.instant(ctx, expr(exprPenteDisqueJour), t)
 	if err != nil {
 		return
 	}
@@ -275,7 +295,7 @@ func (c *Console) previsionsPaquet(ctx context.Context, filtre string, t time.Ti
 	for _, e := range jour {
 		penteJour[cle(e)] = e.Valeur
 	}
-	libres, err := c.instant(ctx, fmt.Sprintf(exprLibreDisque, filtre), t)
+	libres, err := c.instant(ctx, expr(exprLibreDisque), t)
 	if err != nil {
 		return
 	}
@@ -289,4 +309,37 @@ func (c *Console) previsionsPaquet(ctx context.Context, filtre string, t time.Ti
 			out[cle(e)] = l / min(e.Valeur, pj) / 86400
 		}
 	}
+}
+
+// previsionsRAID : volumes RAID des NAS relevés en SNMP (Synology), gardé
+// 10 minutes comme les disques.
+func (c *Console) previsionsRAID(ctx context.Context, t time.Time) map[string]float64 {
+	const cle = "raid"
+	c.prevDisques.mu.Lock()
+	if e, ok := c.prevDisques.tout[cle]; ok && t.Before(e.expire) {
+		c.prevDisques.mu.Unlock()
+		return e.v
+	}
+	c.prevDisques.mu.Unlock()
+	out := map[string]float64{}
+	c.previsionsSource(ctx, prevRAID, `job="snmp"`, t, out)
+	c.prevDisques.mu.Lock()
+	if c.prevDisques.tout == nil || len(c.prevDisques.tout) > 100 {
+		c.prevDisques.tout = map[string]entreePrevision{}
+	}
+	c.prevDisques.tout[cle] = entreePrevision{v: out, expire: t.Add(10 * time.Minute)}
+	c.prevDisques.mu.Unlock()
+	return out
+}
+
+// fusionPrevisions : réunit deux tables de prévisions.
+func fusionPrevisions(a, b map[string]float64) map[string]float64 {
+	out := make(map[string]float64, len(a)+len(b))
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		out[k] = v
+	}
+	return out
 }

@@ -93,6 +93,8 @@ type Console struct {
 	// prevenir : envoi d'un message de sécurité par les canaux de
 	// notification (nil sans canaux ; remplaçable dans les tests).
 	prevenir func(ctx context.Context, groupe, texte string)
+	// informer : message d'information (résumé de la semaine, 27/11).
+	informer func(ctx context.Context, groupe, texte string) bool
 	messages antiRafale
 	// dernierAuto : dernier passage de l'application automatique des modèles.
 	dernierAuto  time.Time
@@ -103,6 +105,9 @@ type Console struct {
 	dernierNettoyageConfiance time.Time
 	// pings : limite des appels /ping/<jeton> par adresse (SPEC § 80).
 	pings limitePing
+	// Liste de blocage (27/11) : lectures limitées, liste gardée 10 min.
+	lecturesBlocage limitePing
+	blocage         cacheBlocage
 	// statuts : limite des lectures de la page de statut publique (SPEC § 84).
 	statuts limitePing
 
@@ -167,6 +172,7 @@ func Nouvelle(ctx context.Context, opt Options) (*Console, error) {
 		recherches: make(chan struct{}, 2)}
 	if opt.Postier != nil {
 		c.prevenir = opt.Postier.Prevenir
+		c.informer = opt.Postier.Informer
 	}
 	if opt.Metriques != nil {
 		// La base brute ou agrégée est choisie selon la période demandée.
@@ -279,6 +285,7 @@ func (c *Console) Tour(ctx context.Context) {
 	c.lireNomsAnciens(ctx)
 	c.tourSante(ctx, t) // pastille « Santé de mirador » (toutes les 2 min)
 	c.majNuit(ctx, t)
+	c.tourResume(ctx, t) // résumé de la semaine (27/11)
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()
@@ -316,6 +323,12 @@ func (c *Console) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// forcément) ; protégé par le jeton, ne permet qu'une chose.
 	if strings.HasPrefix(r.URL.Path, "/ping/") {
 		c.servirPing(w, r)
+		return
+	}
+	// Liste de blocage (demande du 27/11) : lue par OPNsense et les VPS,
+	// protégée par le jeton ; le script d'installation est public.
+	if strings.HasPrefix(r.URL.Path, "/blocage/") {
+		c.servirBlocage(w, r)
 		return
 	}
 	// Page de statut publique (SPEC § 84) : même principe, en lecture seule.
