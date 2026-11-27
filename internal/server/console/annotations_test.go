@@ -129,6 +129,7 @@ func TestAnnotationsEtDisques(t *testing.T) {
 	}
 
 	// Vue d'ensemble : le disque le plus pressé de la machine.
+	montrerBlocsAccueil(t, b, c)
 	_, corps, _ = b.get(c, "/")
 	if !strings.Contains(corps, ">plein dans 17 j</span>") {
 		t.Errorf("prévision absente du parc : %s", extrait(corps, "col-disque"))

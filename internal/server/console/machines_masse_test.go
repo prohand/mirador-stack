@@ -82,3 +82,45 @@ func TestMachinesMasse(t *testing.T) {
 		t.Error("filtre site : mauvaises machines")
 	}
 }
+
+// montrerBlocsAccueil : disposition « ordinateur » enregistrée sans rien
+// masquer (le tableau du parc et la carte de chaleur, masqués par défaut,
+// ne sont plus construits tant qu'ils le restent : SPEC § 141).
+func montrerBlocsAccueil(t *testing.T, b *banc, c *http.Client) {
+	t.Helper()
+	jeton := b.csrf(c, "/")
+	r, _ := http.NewRequest(http.MethodPost, b.srv.URL+"/compte/accueil", strings.NewReader(`{"mode":"ordi","ordre":["bandeau"],"caches":[]}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-CSRF", jeton)
+	r.Header.Set("X-Requested-With", "mirador")
+	resp, err := c.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		t.Fatalf("disposition : %d", resp.StatusCode)
+	}
+}
+
+// Vue d'ensemble, grand parc : sites à problème en tête, machines à
+// regarder seules nommées, sites verts au-delà de 8 résumés.
+func TestCompacterApercu(t *testing.T) {
+	var sites []siteApercu
+	for i := 0; i < 12; i++ {
+		s := siteApercu{Titre: fmt.Sprintf("s%02d", i)}
+		for j := 0; j < 10; j++ {
+			s.Machines = append(s.Machines, puceEquipement{Nom: fmt.Sprintf("m%02d-%d", i, j), Point: "ok"})
+		}
+		sites = append(sites, s)
+	}
+	sites[7].Machines[0].Point = "erreur"
+	sites[3].Machines[0].Point = "attention"
+	out, verts := compacterApercu(sites)
+	if len(out) != 8 || verts != 4 || out[0].Titre != "s07" || out[1].Titre != "s03" {
+		t.Fatalf("%d sites, %d verts, ordre %s %s", len(out), verts, out[0].Titre, out[1].Titre)
+	}
+	if s := out[0]; len(s.Machines) != 1 || s.Ok != 9 || s.ARegarder != 1 || s.PctErreur != 10 || s.Lien != "/machines?site=s07" {
+		t.Errorf("site à problème : %+v", s)
+	}
+}

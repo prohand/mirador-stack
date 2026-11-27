@@ -60,6 +60,12 @@ type caseCertificat struct {
 type siteApercu struct {
 	Titre    string
 	Machines []puceEquipement
+	// Grand parc (SPEC § 141, maquette validée le 27/11) : une ligne par
+	// site, barre d'état, seules les machines à regarder sont nommées.
+	Total, Erreurs, Attentions, Ok int
+	ARegarder                      int
+	PctErreur, PctAttention, PctOk int
+	Lien                           string
 }
 
 // donneesRegarder : tout ce qui est propre à la nouvelle présentation.
@@ -70,6 +76,10 @@ type donneesRegarder struct {
 	Cert     caseCertificat
 	Apercu   []siteApercu
 	NbSites  int // sites nommés (sous-titre de la page)
+	// ApercuCompact : grand parc, une ligne par site ; SitesVerts : sites
+	// tout verts non montrés (« + N autres sites, tous verts »).
+	ApercuCompact bool
+	SitesVerts    int
 	// ChaleurCPU : carte du processeur réduite aux plus chargées.
 	ChaleurCPU *vueChaleur
 }
@@ -261,6 +271,10 @@ func (c *Console) regarderAccueil(ctx context.Context, d *donneesAccueil, majEch
 	}
 	// « sans site » en dernier.
 	sort.SliceStable(r.Apercu, func(i, j int) bool { return r.Apercu[i].Titre != "" && r.Apercu[j].Titre == "" })
+	if len(d.Parc) > seuilCompact {
+		r.ApercuCompact = true
+		r.Apercu, r.SitesVerts = compacterApercu(r.Apercu)
+	}
 
 	if len(d.Chaleur) > 0 {
 		h := d.Chaleur[0] // processeur
@@ -445,4 +459,56 @@ func (c *Console) caseCertificat(ctx context.Context, t time.Time) caseCertifica
 		out.Classe = "ok"
 	}
 	return out
+}
+
+// sitesApercuMax : lignes de sites montrées dans l'aperçu compact (tous les
+// sites à problème, puis des sites verts jusqu'à ce nombre).
+const sitesApercuMax = 8
+
+// compacterApercu : grand parc. Comptes et barre par site, seules les
+// machines à regarder gardées ; sites à problème d'abord (les plus touchés
+// en tête), sites verts ensuite, le reste résumé.
+func compacterApercu(sites []siteApercu) ([]siteApercu, int) {
+	for i := range sites {
+		s := &sites[i]
+		s.Total = len(s.Machines)
+		var garde []puceEquipement
+		for _, m := range s.Machines {
+			switch m.Point {
+			case "erreur":
+				s.Erreurs++
+			case "attention":
+				s.Attentions++
+			default:
+				s.Ok++
+				continue
+			}
+			garde = append(garde, m)
+		}
+		s.Machines = garde
+		s.ARegarder = s.Erreurs + s.Attentions
+		if s.Total > 0 {
+			s.PctErreur = (s.Erreurs*100 + s.Total - 1) / s.Total
+			s.PctAttention = (s.Attentions*100 + s.Total - 1) / s.Total
+			s.PctOk = max(0, 100-s.PctErreur-s.PctAttention)
+		}
+		s.Lien = "/machines?site=" + url.QueryEscape(s.Titre)
+		if s.Titre == "" {
+			s.Lien = "/machines"
+		}
+	}
+	sort.SliceStable(sites, func(i, j int) bool {
+		pi, pj := sites[i].Erreurs*1000+sites[i].Attentions, sites[j].Erreurs*1000+sites[j].Attentions
+		return pi > pj
+	})
+	var out []siteApercu
+	verts := 0
+	for _, s := range sites {
+		if s.Erreurs+s.Attentions > 0 || len(out) < sitesApercuMax {
+			out = append(out, s)
+			continue
+		}
+		verts++
+	}
+	return out, verts
 }

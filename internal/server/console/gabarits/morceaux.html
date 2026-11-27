@@ -86,13 +86,19 @@
 {{if .D.R.Regarder}}<div class="liste-regarder">{{range .D.R.Regarder}}<div class="l {{.Classe}}"><span class="puce {{.Puce}}" aria-hidden="true"><svg class="icone"><use href="#i-{{.Icone}}"></use></svg></span><span class="e"><b>{{.Titre}}</b>{{if .Texte}}<small>{{.Texte}}</small>{{end}}</span>{{if .Lien}}<a class="pastille" href="{{.Lien}}">{{.Action}}</a>{{end}}</div>{{end}}</div>
 {{else}}<p class="vide">Rien à signaler.</p>{{end}}</section>
 <section class="carte bloc-moitie {{index $.ClassesAccueil "apercu"}}" data-bloc="apercu" data-titre="Le parc d'un coup d'œil"><div class="entete-carte"><h2>Le parc d'un coup d'œil</h2><a href="/machines">Toutes les machines →</a></div>
-{{range .D.R.Apercu}}<div class="apercu-site"><h3>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}} <small class="doux">{{len .Machines}}</small></h3><div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div></div>{{else}}<p class="vide">Aucune machine approuvée.</p>{{end}}
+{{if .D.R.ApercuCompact}}{{range .D.R.Apercu}}<div class="apercu-ligne"><a class="t" href="{{.Lien}}"><b>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}}</b> <small class="doux">· {{.Total}}</small></a>
+<div class="b"><span class="barre-etat"><i class="erreur largeur-{{.PctErreur}}"></i><i class="attention largeur-{{.PctAttention}}"></i><i class="ok largeur-{{.PctOk}}"></i></span>
+<div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}{{if .Ok}}<span class="doux apercu-ok">{{if .Machines}}+ {{end}}{{.Ok}} ok</span>{{end}}</div></div>
+<span class="pastille {{if .Erreurs}}erreur{{else if .Attentions}}attention{{else}}ok{{end}}">{{if or .Erreurs .Attentions}}{{.ARegarder}} à regarder{{else}}tout va bien{{end}}</span></div>{{end}}
+{{with .D.R.SitesVerts}}<p class="doux apercu-verts">+ {{.}} {{accord . "autre(s) site(s)"}}, tous verts · <a href="/machines">toutes les machines</a></p>{{end}}
+{{else}}{{range .D.R.Apercu}}<div class="apercu-site"><h3>{{if .Titre}}{{.Titre}}{{else}}sans site{{end}} <small class="doux">{{len .Machines}}</small></h3><div class="apercu-puces">{{range .Machines}}<a class="pastille apercu-{{.Point}}" href="/machines/{{.Nom}}"><span class="point {{.Point}}" aria-hidden="true"></span>{{.Nom}}</a>{{end}}</div></div>{{else}}<p class="vide">Aucune machine approuvée.</p>{{end}}{{end}}
 {{with .D.R.ChaleurCPU}}{{if .Lignes}}<h3 class="apercu-titre-chaleur">{{.Titre}} sur 24 h <small class="doux">les {{len .Lignes}} plus chargées</small></h3>
 <div class="defile"><table class="table-chaleur" data-sans-tri><colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>
 <tbody>{{range .Lignes}}<tr><th><a href="/machines/{{.Nom}}" title="{{.Nom}}">{{.Nom}}</a></th>{{range .Cellules}}<td class="{{.Classe}}" title="{{.Titre}}"></td>{{end}}<td class="ch-max">{{.Maximum}}</td></tr>{{end}}</tbody></table></div>{{end}}{{end}}
 </section>
 <section class="carte {{index $.ClassesAccueil "parc"}}" data-parc data-bloc="parc" data-titre="Machines">
+{{if masque (index $.ClassesAccueil "parc")}}<p class="vide">Bloc masqué : « Modifier la vue » pour l'afficher.</p>{{else}}
   <div class="entete-carte"><div><h2>Machines</h2><p class="sous">Mise à jour chaque minute. Un clic sur un titre de colonne trie le tableau.</p></div>
     <div class="outils-parc">
       <label>Afficher <select data-filtre-etat>
@@ -128,8 +134,8 @@
     <td class="col-vu masque-tel">{{sansIlYA (depuisS .VuLe)}}</td></tr>{{end}}</tbody>
   </table></div>
   <p class="vide" data-parc-vide hidden>Aucune machine ne correspond aux filtres.</p>{{else}}<p class="vide">Aucune machine approuvée. <a href="/machines">Ajouter une machine</a></p>{{end}}
-</section>
-<div class="{{index $.ClassesAccueil "chaleur"}}" data-bloc="chaleur" data-titre="Le parc sur 24 h">{{if .D.Chaleur}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
+{{end}}</section>
+<div class="{{index $.ClassesAccueil "chaleur"}}" data-bloc="chaleur" data-titre="Le parc sur 24 h">{{if and .D.Chaleur (not (masque (index $.ClassesAccueil "chaleur")))}}<section class="carte" id="chaleur"><h2>Le parc sur 24 h</h2><p><small>Moyenne de chaque heure ; survoler une case pour la valeur. Clair : calme, foncé : chargé. Les plus chargées en haut ; suit le filtre du tableau ci-dessus.</small></p>
 <div class="chaleurs">{{range .D.Chaleur}}<div class="chaleur" data-chaleur><h3>{{.Titre}}</h3><div class="defile"><table class="table-chaleur" data-sans-tri>
 <colgroup><col class="ch-col-nom"></colgroup>
 <thead><tr><th></th>{{range .Heures}}<th colspan="3">{{.}}</th>{{end}}<th>max</th></tr></thead>

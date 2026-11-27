@@ -2046,7 +2046,7 @@ a.case-etat.attention { box-shadow: inset 3px 0 0 var(--attention-trait); }
 .case-etat .s { font-size: 12.5px; color: var(--doux); overflow-wrap: anywhere; }
 .barre-etat { height: 6px; border-radius: 99px; background: var(--bord); overflow: hidden; display: flex; margin: 4px 0 2px; }
 .barre-etat i { display: block; height: 100%; }
-.barre-etat i.ok { background: var(--ok); } .barre-etat i.erreur { background: var(--erreur); }
+.barre-etat i.ok { background: var(--ok); } .barre-etat i.erreur { background: var(--erreur); } .barre-etat i.attention { background: var(--attention); }
 details.bandeau-attente { background: var(--info-fond); border-radius: 16px; padding: 14px 18px; margin-bottom: 16px; }
 details.bandeau-attente > summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; cursor: pointer; list-style: none; }
 details.bandeau-attente > summary::-webkit-details-marker { display: none; }
@@ -2781,3 +2781,13 @@ details.bandeau-attente > summary .puce { background: var(--carte); }
 .barre-masse select { max-width: 160px; }
 .approuver-tout { margin: 8px 0; }
 @media (max-width: 700px) { .barre-masse { position: static; } }
+
+/* Vue d'ensemble, grand parc (SPEC § 141) : une ligne par site. */
+.apercu-ligne { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--bord-doux); }
+.apercu-ligne:last-of-type { border-bottom: 0; }
+.apercu-ligne .t { color: var(--texte); text-decoration: none; padding-top: 2px; }
+.apercu-ligne .b .barre-etat { margin: 6px 0 6px; }
+.apercu-ligne .apercu-puces { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.apercu-ok { font-size: 12.5px; }
+.apercu-verts { margin: 8px 0 0; }
+@media (max-width: 700px) { .apercu-ligne { grid-template-columns: 1fr; gap: 4px; } }
