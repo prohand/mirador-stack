@@ -332,6 +332,15 @@ func (c *Console) postStatut(q *req) {
 		c.retour(q, "/reglages/statut", errors.New("action inconnue"), "")
 		return
 	}
+	// Revue du 28/11 : publier la page (l'activer, la garder active en
+	// changeant son contenu) ou changer son adresse demande le code 2FA, ou
+	// le mode administration. La désactiver n'en demande pas.
+	if f.texte("action") == "jeton" || r.Actif {
+		if err := c.verifierCode(q); err != nil {
+			c.retour(q, "/reglages/statut", err, "")
+			return
+		}
+	}
 	if r.Titre == "" {
 		r.Titre = "État des services"
 	}

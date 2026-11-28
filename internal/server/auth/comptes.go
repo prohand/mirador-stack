@@ -257,8 +257,15 @@ func DefinirDesactive(ctx context.Context, db *sql.DB, nom string, desactive boo
 
 // SupprimerUtilisateur efface un compte (jamais le dernier admin).
 func SupprimerUtilisateur(ctx context.Context, db *sql.DB, nom, qui, adresse string, t time.Time) error {
-	return modifier(ctx, db, nom, "utilisateur_supprimer", "", "", qui, adresse, t, false,
-		`DELETE FROM utilisateurs WHERE nom = ?`)
+	if err := modifier(ctx, db, nom, "utilisateur_supprimer", "", "", qui, adresse, t, false,
+		`DELETE FROM utilisateurs WHERE nom = ?`); err != nil {
+		return err
+	}
+	// Changement de rôle en attente de confirmation (revue du 28/11) :
+	// retiré aussi, sinon son annulation automatique visait un compte
+	// supprimé (ou un compte recréé plus tard sous le même nom).
+	_, err := db.ExecContext(ctx, `DELETE FROM a_confirmer WHERE quoi = ?`, "role:"+nom)
+	return err
 }
 
 // NoterPasTOTP enregistre le pas d'un code accepté. La condition

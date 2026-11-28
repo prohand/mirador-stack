@@ -549,6 +549,10 @@ func lireReglagesTache(f url.Values) (taches.Tache, error) {
 	return t, nil
 }
 
+// postTaches : actions de la page Tâches. Revue du 28/11 : créer une
+// adresse de signal, en refaire une, ne plus suivre une tâche ou une VM
+// (une alerte de moins) demandent le code 2FA, ou le mode administration
+// (docs/interface-web.md § 3).
 func (c *Console) postTaches(q *req) {
 	ctx := q.r.Context()
 	f := q.r.PostForm
@@ -566,6 +570,9 @@ func (c *Console) postTaches(q *req) {
 			}
 		}
 	case "creer":
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		var t taches.Tache
 		if t, err = lireReglagesTache(f); err == nil {
 			t.Machine = f.Get("machine")
@@ -579,6 +586,9 @@ func (c *Console) postTaches(q *req) {
 			}
 		}
 	case "jeton":
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		var jeton string
 		if jeton, err = taches.NouveauJeton(ctx, c.db, id); err == nil {
 			_ = Auditer(ctx, c.db, q.qui(), "tache_jeton", strconv.FormatInt(id, 10), "", "", q.ip.String(), q.t)
@@ -596,11 +606,17 @@ func (c *Console) postTaches(q *req) {
 			}
 		}
 	case "retirer":
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		if err = taches.Retirer(ctx, c.db, id); err == nil {
 			msg = "tâche retirée"
 			_ = Auditer(ctx, c.db, q.qui(), "tache_retiree", f.Get("nom"), "", "", q.ip.String(), q.t)
 		}
 	case "exclure_vm":
+		if err = c.verifierCode(q); err != nil {
+			break
+		}
 		// « Ne pas surveiller » (retour du 25/11) : cet invité de ce nœud
 		// sort de la règle VMSansSauvegarde (audit dans ExclureInvite).
 		e := alertes.InviteExclu{Machine: f.Get("machine"), ID: f.Get("vm"), Nom: f.Get("nom"), Motif: f.Get("motif"), Qui: q.qui()}

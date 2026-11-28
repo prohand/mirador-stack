@@ -287,7 +287,12 @@ func TestReglagesUtilisateursSecurite(t *testing.T) {
 	}
 	// « Fermer toutes les autres » : la session courante reste.
 	autre := b.connecter("admin", mdpAdmin, secret)
+	// Sans code 2FA (revue du 28/11) : refusé, l'autre session reste.
 	b.post(c, "/securite/fermer-session", url.Values{"csrf": {csrf}, "session": {"autres"}})
+	if code, _, _ := b.get(autre, "/compte"); code != 200 {
+		t.Error("« fermer toutes les autres » sans code 2FA accepté")
+	}
+	b.post(c, "/securite/fermer-session", url.Values{"csrf": {csrf}, "session": {"autres"}, "code": {b.code(secret)}})
 	if code, _, _ := b.get(c, "/securite"); code != 200 {
 		t.Fatalf("session courante fermée : %d", code)
 	}

@@ -26,12 +26,14 @@
       <button name="action" value="role" class="secondaire petit">Changer le rôle</button></div>
       <div class="ligne"><label>Nouveau mot de passe <input type="password" name="mot_de_passe" maxlength="128" autocomplete="new-password" placeholder="12 caractères au moins"></label>
       <button name="action" value="mot_de_passe" class="secondaire petit">Changer le mot de passe</button></div>
+      <label class="case"><input type="checkbox" name="effacer_secours" value="1" checked> Effacer aussi ses passkeys et codes de secours</label>
       {{template "code2fa-toujours"}}
       <div class="ligne">
-        <button name="action" value="reinitialiser_2fa" class="secondaire petit" data-confirmer="Effacer la 2FA de {{.Nom}} ? Il la recréera à sa prochaine connexion.">Effacer la 2FA</button>
+        <button name="action" value="reinitialiser_2fa" class="secondaire petit" data-confirmer="Effacer la 2FA de {{.Nom}} ? Le nouveau mot de passe saisi au-dessus devient son mot de passe provisoire ; il recréera sa 2FA à sa prochaine connexion.">Effacer la 2FA</button>
         {{if .Desactive}}<button name="action" value="activer" class="secondaire petit">Réactiver</button>{{else}}<button name="action" value="desactiver" class="secondaire petit" data-confirmer="Désactiver {{.Nom}} ? Ses sessions sont fermées.">Désactiver</button>{{end}}
         <button name="action" value="supprimer" class="danger petit" data-confirmer="Supprimer définitivement le compte {{.Nom}} ?">Supprimer</button>
       </div>
+      <small class="aide">« Effacer la 2FA » demande aussi un nouveau mot de passe (provisoire).</small>
     </form></details>
   </td>
 </tr>{{end}}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
@@ -151,9 +152,16 @@ func empreinteAdresse(adresse string) string {
 	return fmt.Sprintf("%x", h[:8])
 }
 
+// ErrAppareilAutreCompte : adresse de push déjà abonnée par un autre compte,
+// avec d'autres clés.
+var ErrAppareilAutreCompte = errors.New("cet appareil reçoit déjà les notifications d'un autre compte : le retirer d'abord depuis ce compte")
+
 // AbonnerPush enregistre un appareil pour ce compte. Un appareil déjà connu
-// (même adresse) est repris, même s'il était lié à un autre compte : c'est
-// la personne qui tient l'appareil qui choisit. origine : « https://hôte »
+// (même adresse) n'est repris par un autre compte que s'il présente les
+// mêmes clés (p256dh, auth) : même navigateur, donc la personne qui tient
+// l'appareil (navigateur partagé). Revue du 28/11 : avant, connaître
+// l'adresse suffisait pour détourner les notifications d'un autre compte
+// (elles n'arrivaient plus sur son téléphone). origine : « https://hôte »
 // de l'interface au moment de l'abonnement (contact annoncé au service de
 // push).
 func AbonnerPush(ctx context.Context, db *sql.DB, utilisateur int64, a webpush.Abonnement, origine, appareil string, t time.Time) error {
@@ -178,6 +186,17 @@ func AbonnerPush(ctx context.Context, db *sql.DB, utilisateur int64, a webpush.A
 	}
 	if n >= MaxAppareilsPush {
 		return fmt.Errorf("%d appareils au plus par compte : en retirer un d'abord", MaxAppareilsPush)
+	}
+	var proprio int64
+	var p256dh, cleAuth []byte
+	err = tx.QueryRowContext(ctx, `SELECT utilisateur_id, p256dh, auth FROM abonnements_push WHERE adresse = ?`, a.Adresse).
+		Scan(&proprio, &p256dh, &cleAuth)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return err
+	case proprio != utilisateur && (subtle.ConstantTimeCompare(p256dh, a.P256dh) != 1 || subtle.ConstantTimeCompare(cleAuth, a.Auth) != 1):
+		return ErrAppareilAutreCompte
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO abonnements_push(utilisateur_id, adresse, p256dh, auth, origine, appareil, cree_le)
 		VALUES (?, ?, ?, ?, ?, ?, ?)

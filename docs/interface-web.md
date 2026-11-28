@@ -96,10 +96,23 @@ curl -s https://CONSOLE/sante     # {"etat":"ok"}
   Depuis le 16/11, aussi pour : adresse d'ingestion, règles (modifier,
   désactiver, importer), maintenances, inhibitions, dépendances, silences
   de plus de 24 h, adresse de vmalert, export avec les secrets chiffrés.
+  Depuis le 28/11, aussi pour : tâches planifiées (créer une tâche à
+  signaler, « Nouvelle adresse », « Ne plus suivre », « Ne pas surveiller »
+  une VM), page de statut publique (l'activer ou l'enregistrer active,
+  « Nouvelle adresse » ; la désactiver n'en demande pas).
+- **Toujours un code ressaisi**, même en mode administration : comptes
+  (« Utilisateurs », mot de passe, 2FA, passkeys, codes de secours),
+  réglages de sécurité, import de la partie « securite », « Fermer toutes
+  les autres » sessions, ajout d'une adresse SSH connue (Réglages ›
+  Sécurité ; « C'est moi » sur une alerte suit le mode administration).
 - **Mode administration** : après un code juste, plus de code pendant
-  quelques minutes (sauf comptes, sécurité, et import de la partie
-  « securite »). Si le mode est fermé, une boîte demande le code au moment
-  d'envoyer ; on peut aussi l'ouvrir dans « Mon compte ».
+  quelques minutes (sauf la liste « toujours » ci-dessus). Si le mode est
+  fermé, une boîte demande le code au moment d'envoyer ; on peut aussi
+  l'ouvrir dans « Mon compte ».
+- **Utilisateurs** (admin) : « Effacer la 2FA » demande aussi un nouveau
+  mot de passe (provisoire, à transmettre à la personne), comme
+  `utilisateur-secours`. « Changer le mot de passe » efface aussi les
+  passkeys et codes de secours du compte (case cochée d'office).
 - Changer l'adresse d'un canal (ntfy, e-mail, Olvid, UniFi, SNMP) demande de
   **ressaisir son secret**.
 - Changer la **liste d'adresses** ou **son propre rôle** : à confirmer dans
