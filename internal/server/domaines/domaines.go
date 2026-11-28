@@ -31,6 +31,7 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
+	"mirador-stack/internal/adresses"
 	essais "mirador-stack/internal/sondes"
 )
 
@@ -329,6 +330,23 @@ func (s *Suivi) serveur(ctx context.Context, domaine string) (string, error) {
 	return "", errors.New("pas de RDAP pour ." + ext)
 }
 
+// clientRDAP : https seulement, 3 redirections au plus, sans proxy ;
+// adresses internes refusées au moment de la connexion, redirections
+// comprises (revue du 28/11, B7 : l'adresse du serveur RDAP vient d'un
+// annuaire téléchargé, et un registre peut rediriger n'importe où).
+func clientRDAP() *http.Client {
+	d := &net.Dialer{Timeout: 10 * time.Second, Control: adresses.Controle(adresses.InterditeServeur, "interne refusée (RDAP)")}
+	return &http.Client{Timeout: 20 * time.Second,
+		Transport: &http.Transport{Proxy: nil, DialContext: d.DialContext, TLSHandshakeTimeout: 10 * time.Second,
+			MaxIdleConns: 4, IdleConnTimeout: time.Minute},
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			if r.URL.Scheme != "https" || len(via) >= 3 {
+				return errors.New("redirection refusée")
+			}
+			return nil
+		}}
+}
+
 func (s *Suivi) lireJSON(ctx context.Context, adresse string, v any) error {
 	if !strings.HasPrefix(adresse, "https://") {
 		return errors.New("adresse non https")
@@ -342,12 +360,7 @@ func (s *Suivi) lireJSON(ctx context.Context, adresse string, v any) error {
 	req.Header.Set("Accept", "application/rdap+json, application/json")
 	client := s.Client
 	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			if r.URL.Scheme != "https" || len(via) >= 3 {
-				return errors.New("redirection refusée")
-			}
-			return nil
-		}}
+		client = clientRDAP()
 	}
 	resp, err := client.Do(req)
 	if err != nil {

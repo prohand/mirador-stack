@@ -274,7 +274,9 @@ type Options struct {
 
 // Envoyer chiffre le message et le remet au service de push. ErrExpire :
 // l'abonnement n'existe plus. Toute autre erreur : à réessayer plus tard.
-// Le client doit refuser les redirections et les adresses internes.
+// Le client doit refuser les redirections et les adresses internes
+// (notif.ClientPush : contrôle à la connexion avec la liste commune
+// adresses.InterditeServeur).
 func Envoyer(ctx context.Context, client *http.Client, a *Abonnement, clair []byte, o Options) error {
 	if err := a.Valider(); err != nil {
 		return err

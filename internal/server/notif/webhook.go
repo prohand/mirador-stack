@@ -111,13 +111,17 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 	o.HTML = false
 	// Gotify et JSON mirador ont un champ titre : il n'est pas répété dans le texte.
 	o.TitreAPart = format == FormatGotify || format == FormatJSON
+	// Mentions et faux liens venus des logs (revue du 28/11, M5) : extraits
+	// en bloc de code (Discord, Slack, Mattermost), mentions coupées.
 	switch format {
 	case FormatDiscord:
-		o.Max = 2000
-		return json.Marshal(map[string]string{"content": Texte(m, o)})
+		o.Max, o.BlocCode = 2000, true
+		// allowed_mentions vide : aucune mention ne notifie (@everyone,
+		// @here, rôles, personnes), quel que soit le texte.
+		return json.Marshal(map[string]any{"content": Texte(m, o), "allowed_mentions": map[string]any{"parse": []string{}}})
 	case FormatSlack:
-		o.Max = 4000
-		return json.Marshal(map[string]string{"text": Texte(m, o)})
+		o.Max, o.BlocCode = 4000, true
+		return json.Marshal(map[string]string{"text": sansMentions(echapperSlack.Replace(Texte(m, o)))})
 	case FormatGotify:
 		o.Max = 4000
 		prio := map[string]int{alertes.Critique: 8, alertes.Avertissement: 5}[m.Gravite]
@@ -129,8 +133,11 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 		o.Max = 8000
 		txt := Texte(m, o)
 		o.HTML = true
-		return json.Marshal(map[string]string{"msgtype": "m.text", "body": txt,
-			"format": "org.matrix.custom.html", "formatted_body": strings.ReplaceAll(Texte(m, o), "\n", "<br>")})
+		// « m.mentions » vide : personne n'est mentionné (Matrix 1.7) ;
+		// « @room » coupé aussi pour les anciens clients.
+		return json.Marshal(map[string]any{"msgtype": "m.text", "body": sansMentions(txt),
+			"format": "org.matrix.custom.html", "formatted_body": sansMentions(strings.ReplaceAll(Texte(m, o), "\n", "<br>")),
+			"m.mentions": map[string]any{}})
 	}
 	// JSON mirador.
 	type alerteJSON struct {
@@ -189,6 +196,16 @@ func corpsWebhook(format string, m *Message, o Mise) ([]byte, error) {
 	}
 	return json.Marshal(c)
 }
+
+// echapperSlack : « & », « < » et « > » échappés comme le demande Slack
+// (Mattermost les comprend aussi) : un texte venu des logs ne peut plus
+// écrire <!channel>, <!everyone>, <@U123> ni un faux lien <https://…|texte>.
+var echapperSlack = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+// sansMentions : une espace sans largeur après chaque « @ » : « @channel »,
+// « @all », « @here » (Mattermost), « @room » (Matrix) ou « @nom » ne
+// mentionnent plus personne ; le texte affiché ne change pas.
+func sansMentions(s string) string { return strings.ReplaceAll(s, "@", "@​") }
 
 // titreCourt : « mirador : CPU élevé pve1 », « mirador : résolu CPU élevé »
 // (ou le titre du modèle de l'administrateur).

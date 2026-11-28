@@ -22,9 +22,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
+	"mirador-stack/internal/adresses"
 	"mirador-stack/internal/server/alertes"
 	"mirador-stack/internal/server/secrets"
 )
@@ -453,31 +453,18 @@ func hoteURL(adresse string) string {
 
 // --- Réseau : délais et protection SSRF ------------------------------------------
 
-// adresseInterdite : adresses internes (SSRF) refusées par défaut.
-func adresseInterdite(ip net.IP) bool {
-	if ip == nil {
-		return true
-	}
-	cgnat := &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified() || ip.IsMulticast() || ip.IsInterfaceLocalMulticast() || cgnat.Contains(ip)
-}
+// adresseInterdite : adresses internes (SSRF) refusées par défaut. Liste
+// commune au serveur (paquet adresses, revue du 28/11 : CGNAT, 0.0.0.0/8,
+// 198.18.0.0/15, formes IPv6 qui contiennent une IPv4…). Sert aussi au
+// push (ClientPush) : même client.
+func adresseInterdite(ip net.IP) bool { return adresses.InterditeServeur(ip) }
 
 // numeroteur : connexions avec délai ; adresses internes refusées sauf si
 // prive (vérifié sur l'adresse réellement jointe, après résolution DNS).
 func numeroteur(prive bool) *net.Dialer {
 	d := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	if !prive {
-		d.Control = func(_, adresse string, _ syscall.RawConn) error {
-			h, _, err := net.SplitHostPort(adresse)
-			if err != nil {
-				return err
-			}
-			if adresseInterdite(net.ParseIP(h)) {
-				return fmt.Errorf("adresse %s interne refusée (protection SSRF ; voir reseau_prive)", h)
-			}
-			return nil
-		}
+		d.Control = adresses.Controle(adresseInterdite, "interne refusée (protection SSRF ; voir reseau_prive)")
 	}
 	return d
 }
@@ -550,9 +537,9 @@ func (t *telegram) appel(ctx context.Context, methode string, corps, resultat an
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&r); err != nil || !r.OK {
 		d := r.Description
 		if len(d) > 200 {
-			d = d[:200]
+			d = strings.ToValidUTF8(d[:200], "")
 		}
-		return fmt.Errorf("telegram : HTTP %d %s", resp.StatusCode, d)
+		return &erreurTelegram{code: resp.StatusCode, description: d}
 	}
 	if resultat != nil && len(r.Result) > 0 {
 		if err := json.Unmarshal(r.Result, resultat); err != nil {
@@ -560,6 +547,24 @@ func (t *telegram) appel(ctx context.Context, methode string, corps, resultat an
 		}
 	}
 	return nil
+}
+
+// erreurTelegram : réponse d'erreur de l'API (code HTTP, description
+// bornée à 200 octets).
+type erreurTelegram struct {
+	code        int
+	description string
+}
+
+func (e *erreurTelegram) Error() string {
+	return fmt.Sprintf("telegram : HTTP %d %s", e.code, e.description)
+}
+
+// miseEnFormeRefusee : Telegram n'a pas pu lire le HTML du message
+// (« Bad Request: can't parse entities »).
+func miseEnFormeRefusee(err error) bool {
+	var e *erreurTelegram
+	return errors.As(err, &e) && e.code == http.StatusBadRequest && strings.Contains(e.description, "can't parse entities")
 }
 
 // MaxBoutons : boutons « Acquitter » au plus sous un message.
@@ -600,7 +605,16 @@ func (t *telegram) Envoyer(ctx context.Context, m *Message, o Mise) error {
 		}
 		corps["reply_markup"] = map[string]any{"inline_keyboard": clavier}
 	}
-	return t.appel(ctx, "sendMessage", corps, nil)
+	err := t.appel(ctx, "sendMessage", corps, nil)
+	if miseEnFormeRefusee(err) {
+		// HTML refusé (revue du 28/11, B6) : renvoyé une fois en texte brut,
+		// sans parse_mode, plutôt que de perdre l'alerte.
+		o.HTML = false
+		corps["text"] = Texte(m, o)
+		delete(corps, "parse_mode")
+		err = t.appel(ctx, "sendMessage", corps, nil)
+	}
+	return err
 }
 
 // Verifier : getMe (aucun message ; détecte un blocage réseau ou un jeton révoqué).

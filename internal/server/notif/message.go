@@ -98,6 +98,67 @@ type Mise struct {
 	Modeles    map[string]Modele
 	Canal      string
 	TitreAPart bool
+	// BlocCode : extraits de logs dans un bloc de code Markdown (« ``` » :
+	// Discord, Slack, Mattermost) ; rien de ce qu'ils contiennent n'est
+	// alors lu comme mise en forme, lien ou mention (revue du 28/11, M5).
+	BlocCode bool
+}
+
+// extraitOctets : taille maximale des extraits de logs d'une alerte, en
+// octets, comptée APRÈS échappement (revue du 28/11, B6 : en HTML, un
+// guillemet devient « &#34; », 5 octets ; des logs pleins de guillemets
+// dépassaient la limite de Telegram à eux seuls).
+const extraitOctets = 1200
+
+// blocLogs : extraits de logs mis en forme et bornés (les lignes les plus
+// récentes sont gardées ; une ligne trop longue est raccourcie).
+//   - HTML (Telegram, Matrix) : bloc <pre>, texte échappé ;
+//   - BlocCode : bloc ``` ; les accents graves des logs sont remplacés par
+//     « ˋ » (ils ne peuvent plus fermer le bloc) ;
+//   - sinon : lignes en retrait, texte brut.
+func blocLogs(lignes []string, o Mise) string {
+	prep := func(l string) string {
+		switch {
+		case o.HTML:
+			return html.EscapeString(l)
+		case o.BlocCode:
+			return strings.ReplaceAll(l, "`", "ˋ")
+		}
+		return "  " + l
+	}
+	var garde []string
+	reste := extraitOctets
+	for i := len(lignes) - 1; i >= 0; i-- {
+		p := prep(lignes[i])
+		if len(p)+1 > reste {
+			if len(garde) > 0 {
+				break // plus de place : les lignes plus anciennes sont laissées
+			}
+			// La plus récente ne tient pas seule : raccourcie (160
+			// caractères au plus, la boucle est courte).
+			r := []rune(lignes[i])
+			for len(r) > 0 && len(p)+1 > reste {
+				r = r[:len(r)-1]
+				p = prep(string(r) + "…")
+			}
+			if len(r) == 0 {
+				break
+			}
+		}
+		garde = append([]string{p}, garde...)
+		reste -= len(p) + 1
+	}
+	if len(garde) == 0 {
+		return ""
+	}
+	corps := strings.Join(garde, "\n")
+	switch {
+	case o.HTML:
+		return "<pre>" + corps + "</pre>\n"
+	case o.BlocCode:
+		return "```\n" + corps + "\n```\n"
+	}
+	return corps + "\n"
 }
 
 // Texte met un message en forme.
@@ -179,13 +240,7 @@ func Texte(m *Message, o Mise) string {
 		}
 		if lignes := m.Extraits[a.Etiquettes.Hash()]; len(lignes) > 0 {
 			b.WriteString(e("📄 Derniers logs :") + "\n")
-			if o.HTML {
-				b.WriteString("<pre>" + e(strings.Join(lignes, "\n")) + "</pre>\n")
-			} else {
-				for _, l := range lignes {
-					b.WriteString("  " + l + "\n")
-				}
-			}
+			b.WriteString(blocLogs(lignes, o))
 		}
 		machine := a.Machine()
 		if machine == "" {
@@ -226,7 +281,7 @@ func Texte(m *Message, o Mise) string {
 func finir(s string, o Mise) string {
 	s = strings.TrimRight(s, "\n")
 	if o.Max > 0 && len(s) > o.Max {
-		s = couper(s, o.Max)
+		s = couperTexte(s, o.Max, o.HTML, o.BlocCode)
 	}
 	return s
 }
@@ -290,9 +345,15 @@ func texteSite(b *strings.Builder, m *Message, o Mise, e, gras, code func(string
 	lien()
 }
 
-// couper : garde le début du texte, sur une fin de ligne, avec une mention.
-// En HTML, on coupe entre deux blocs (jamais au milieu d'une balise).
-func couper(s string, max int) string {
+// couper : garde le début d'un texte brut, sur une fin de ligne, avec une
+// mention.
+func couper(s string, max int) string { return couperTexte(s, max, false, false) }
+
+// couperTexte : comme couper. En HTML, jamais au milieu d'une balise ni
+// d'un bloc ouvert (<pre>, <b>…) : on coupe avant (revue du 28/11, B6 :
+// Telegram refusait le message coupé dans un <pre>, et l'alerte était
+// perdue). En Markdown (blocCode), jamais au milieu d'un bloc ```.
+func couperTexte(s string, max int, enHTML, blocCode bool) string {
 	const suite = "\n… (message coupé, voir l'interface)"
 	limite := max - len(suite)
 	if limite < 0 {
@@ -304,5 +365,58 @@ func couper(s string, max int) string {
 	} else if i := strings.LastIndex(coupe, "\n"); i > 0 {
 		coupe = coupe[:i]
 	}
-	return strings.ToValidUTF8(coupe, "") + suite
+	if enHTML {
+		coupe = avantBaliseOuverte(coupe)
+	}
+	if blocCode && strings.Count(coupe, "```")%2 == 1 {
+		coupe = coupe[:strings.LastIndex(coupe, "```")]
+	}
+	return strings.ToValidUTF8(strings.TrimRight(coupe, "\n"), "") + suite
+}
+
+// avantBaliseOuverte : texte HTML raccourci pour qu'aucune balise n'y reste
+// ouverte (coupé avant la première balise non fermée) ni coupée en deux
+// (« <pr », « &#3 »). Dans le HTML de Texte, tout « < » et tout « & »
+// venus du texte sont échappés : chaque « < » est une vraie balise.
+func avantBaliseOuverte(s string) string {
+	if i := strings.LastIndexByte(s, '<'); i >= 0 && !strings.Contains(s[i:], ">") {
+		s = s[:i]
+	}
+	if i := strings.LastIndexByte(s, '&'); i >= 0 && !strings.Contains(s[i:], ";") {
+		s = s[:i]
+	}
+	type ouverte struct {
+		nom string
+		pos int
+	}
+	var pile []ouverte
+	for i := 0; ; {
+		j := strings.IndexByte(s[i:], '<')
+		if j < 0 {
+			break
+		}
+		j += i
+		k := strings.IndexByte(s[j:], '>')
+		if k < 0 {
+			break
+		}
+		k += j
+		balise := s[j+1 : k]
+		if nom, ferme := strings.CutPrefix(balise, "/"); ferme {
+			for n := len(pile) - 1; n >= 0; n-- {
+				if pile[n].nom == nom {
+					pile = pile[:n]
+					break
+				}
+			}
+		} else if !strings.HasSuffix(balise, "/") {
+			nom, _, _ := strings.Cut(balise, " ")
+			pile = append(pile, ouverte{nom, j})
+		}
+		i = k + 1
+	}
+	if len(pile) > 0 {
+		s = s[:pile[0].pos]
+	}
+	return s
 }
