@@ -6,7 +6,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +36,14 @@ import (
 // Binaire servi : la version globale de l'agent si elle est publiée (signée,
 // vérifiée à la publication), sinon celui embarqué dans l'image du serveur
 // (construit avec lui par la CI).
+//
+// Manifeste signé (revue de sécurité du 28/11, M2) : envoyé avec le binaire,
+// dans l'en-tête X-Mirador-Manifeste (JSON en base64), dans la MÊME réponse
+// (même jeton, et jamais le manifeste d'un autre binaire). Le script vérifie
+// la signature Ed25519 avec la clé publique qu'il connaît déjà, AVANT de
+// lancer le binaire : un serveur piraté ne peut plus faire installer un
+// binaire non signé. Sans manifeste (binaire embarqué qui ne correspond à
+// aucune version publiée) : « X-Mirador-Signe: non ».
 
 // DossierAgentEmbarque : binaires livrés dans l'image du serveur
 // (mirador-agent-linux-amd64, …-arm64, mirador-collector-linux-amd64, …).
@@ -44,6 +54,11 @@ const DossierAgentEmbarque = "/usr/share/mirador/agent"
 const (
 	EnteteSHA256  = "X-Mirador-SHA256"
 	EnteteVersion = "X-Mirador-Version"
+	// EnteteManifeste : manifeste signé du binaire envoyé (JSON en base64).
+	EnteteManifeste = "X-Mirador-Manifeste"
+	// EnteteSigne : « oui » si EnteteManifeste est présent, « non » sinon
+	// (binaire embarqué non signé : le script refuse si une clé est connue).
+	EnteteSigne = "X-Mirador-Signe"
 )
 
 // jetonInstallation : le jeton de l'en-tête Authorization est-il un jeton
@@ -175,11 +190,12 @@ func produitConnu(p string) string {
 	return ""
 }
 
-// binaireInstallation : chemin, version et empreinte du binaire à servir.
-func (f *Flotte) binaireInstallation(ctx context.Context, produit, arch string) (chemin, version, sha string, err error) {
+// binaireInstallation : chemin, version, empreinte et manifeste signé (nil
+// s'il n'y en a pas) du binaire à servir.
+func (f *Flotte) binaireInstallation(ctx context.Context, produit, arch string) (chemin, version, sha string, m *protocole.Manifeste, err error) {
 	if v, e := CibleGlobale(ctx, f.opt.DB); e == nil && v != "" {
 		if m, e := f.manifeste(ctx, produit, v, arch); e == nil && m != nil {
-			return filepath.Join(f.opt.DossierVersions, nomBinaire(produit, v, arch)), v, m.SHA256, nil
+			return filepath.Join(f.opt.DossierVersions, nomBinaire(produit, v, arch)), v, m.SHA256, m, nil
 		}
 	}
 	dossier := f.opt.DossierAgent
@@ -189,10 +205,44 @@ func (f *Flotte) binaireInstallation(ctx context.Context, produit, arch string) 
 	chemin = filepath.Join(dossier, produit+"-linux-"+arch)
 	info, err := os.Stat(chemin) // #nosec G703 -- dossier fixe + produit et architecture constants (produitConnu, archConnue)
 	if err != nil {
-		return "", "", "", fmt.Errorf("aucun binaire de %s : publier une version (Machines › Mises à jour des agents)", produit)
+		return "", "", "", nil, fmt.Errorf("aucun binaire de %s : publier une version (Machines › Mises à jour des agents)", produit)
 	}
 	sha, err = empreinteDe(chemin, info)
-	return chemin, "embarquée", sha, err
+	if err != nil {
+		return "", "", "", nil, err
+	}
+	// Binaire embarqué identique à une version publiée (même empreinte) :
+	// son manifeste signé part avec lui.
+	if m := f.manifesteParEmpreinte(ctx, produit, arch, sha); m != nil {
+		return chemin, m.Version, sha, m, nil
+	}
+	return chemin, "embarquée", sha, nil, nil
+}
+
+// manifesteParEmpreinte : manifeste publié (le plus récent) dont l'empreinte
+// est celle du binaire, sinon nil.
+func (f *Flotte) manifesteParEmpreinte(ctx context.Context, produit, arch, sha string) *protocole.Manifeste {
+	var v string
+	err := f.opt.DB.QueryRowContext(ctx, `SELECT version FROM versions_binaires WHERE produit = ? AND architecture = ? AND sha256 = ? ORDER BY publiee_le DESC LIMIT 1`,
+		produit, arch, sha).Scan(&v)
+	if err != nil {
+		return nil
+	}
+	m, err := f.manifeste(ctx, produit, v, arch)
+	if err != nil || m == nil || m.SHA256 != sha {
+		return nil
+	}
+	return m
+}
+
+// enteteManifeste : manifeste en JSON (sans espace) puis en base64 : une
+// seule ligne d'en-tête, que le script décode et lit avec grep / sed.
+func enteteManifeste(m *protocole.Manifeste) (string, error) {
+	brut, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(brut), nil
 }
 
 func (f *Flotte) binaireAInstaller(w http.ResponseWriter, r *http.Request) {
@@ -207,7 +257,7 @@ func (f *Flotte) binaireAInstaller(w http.ResponseWriter, r *http.Request) {
 		erreur(w, http.StatusBadRequest, "architecture (amd64 ou arm64) ou produit inconnu")
 		return
 	}
-	chemin, version, sha, err := f.binaireInstallation(r.Context(), produit, arch)
+	chemin, version, sha, manifeste, err := f.binaireInstallation(r.Context(), produit, arch)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			f.opt.Journal.Warn("installation : binaire indisponible", "arch", arch, "erreur", err)
@@ -232,6 +282,15 @@ func (f *Flotte) binaireAInstaller(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set(EnteteSHA256, sha)
 	w.Header().Set(EnteteVersion, version)
+	// Manifeste signé du MÊME binaire (même réponse, même jeton) ; sinon
+	// « non » : le script refuse alors si une clé publique est connue.
+	w.Header().Set(EnteteSigne, "non")
+	if manifeste != nil {
+		if v, err := enteteManifeste(manifeste); err == nil {
+			w.Header().Set(EnteteManifeste, v)
+			w.Header().Set(EnteteSigne, "oui")
+		}
+	}
 	if _, err := io.Copy(w, fd); err != nil {
 		f.opt.Journal.Warn("installation : envoi du binaire interrompu", "erreur", err)
 	}

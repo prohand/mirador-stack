@@ -65,6 +65,17 @@
 #                        plus, séparées par une virgule). Sans cette option, en mode
 #                        mirador, elle est demandée au serveur à la première
 #                        installation, puis jamais changée (sauf avec cette option)
+#   --sans-verification-signature
+#                        DÉCONSEILLÉ : installer le binaire téléchargé sans vérifier
+#                        sa signature, même si une clé publique est connue (par
+#                        défaut, la signature est vérifiée avec openssl 3 avant
+#                        tout lancement du binaire ; refus si impossible)
+#   --accepter-version-ancienne
+#                        accepter un binaire signé PLUS ANCIEN que celui en place
+#                        (refusé par défaut : une vieille version signée peut
+#                        avoir une faille connue)
+#   --sans-filtre-relais ne pas réserver le relais Docker aux comptes mirador-agent
+#                        et root (règles iptables, unité mirador-agent-relais)
 #   --detection          affiche la détection et s'arrête
 #   --afficher-config    affiche la configuration et les unités, et s'arrête
 #   --desinstaller       arrête et supprime mirador-agent (garde Alloy intact)
@@ -84,8 +95,14 @@ BIN_DIR=$VARLIB/bin
 ROOT_DIR=/usr/local/lib/mirador-agent
 UNITES=/etc/systemd/system
 TMPFILES=/etc/tmpfiles.d/mirador-agent.conf
-# Image du proxy de socket Docker, version figée (vérifiée le 08/11/2026).
-PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0"
+# Image du proxy de socket Docker, version figée (vérifiée le 08/11/2026),
+# épinglée par son empreinte (revue du 28/11, M1 : un tag peut être déplacé).
+# Empreinte de l'index multi-architecture de v0.5.0, vérifiée le 28/11/2026
+# (Docker Hub, registre et « docker pull » : mêmes octets). L'image ne sert
+# que de programme HAProxy : sa configuration est celle écrite par ce script.
+PROXY_IMAGE="tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459"
+# Configuration HAProxy du relais (liste blanche, voir config_relais).
+PROXY_CONFIG=$ETC/relais-docker.cfg
 PROXY_NOM=mirador-docker-proxy
 PROXY_PORT=12375
 # Mémoire du relais : 64 Mio (retour du 25/11 : 29,8 Mio utilisés pour une
@@ -103,6 +120,7 @@ PROXY_PLAGE=172.31.254.0/29
 BINAIRE=""; SERVEUR=""; SITE=""; ENV_=""; NOM=""; TOKEN=""; CLE_PUBLIQUE=""; MAJ_RACINE=""
 DOCKER_MODE=auto; DOCKER_PROXY=""; PAREFEU_MODE=auto; SMART_MODE=auto
 LOGS=oui; METRIQUES=oui; MODE=installer; MIRADOR=non; JETON=""; MAJ_AUTO=non
+VERIF_SIGNATURE=oui; VERSION_ANCIENNE=non; FILTRE_RELAIS=oui
 
 die()  { echo "ERREUR : $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -130,7 +148,10 @@ while [ $# -gt 0 ]; do
     --detection)       MODE=detection; shift ;;
     --afficher-config) MODE=afficher; shift ;;
     --desinstaller)    MODE=desinstaller; shift ;;
-    -h|--help)         sed -n '2,40p' "$0"; exit 0 ;;
+    --sans-verification-signature) VERIF_SIGNATURE=non; shift ;;
+    --accepter-version-ancienne)   VERSION_ANCIENNE=oui; shift ;;
+    --sans-filtre-relais)          FILTRE_RELAIS=non; shift ;;
+    -h|--help)         sed -n '2,/^$/p' "$0"; exit 0 ;;
     *)                 die "option inconnue : $1 (voir --help)" ;;
   esac
 done
@@ -167,9 +188,12 @@ plage_relais "$PROXY_PLAGE"
 # ---------------------------------------------------------------- désinstallation
 if [ "$MODE" = desinstaller ]; then
   info "Arrêt et suppression de mirador-agent"
-  systemctl disable --now mirador-agent.service mirador-agent-root.timer mirador-agent-root.path >/dev/null 2>&1 || true
+  # mirador-agent-relais : son arrêt retire ses règles iptables.
+  systemctl disable --now mirador-agent.service mirador-agent-root.timer mirador-agent-root.path \
+    mirador-agent-relais.service >/dev/null 2>&1 || true
   rm -f "$UNITES/mirador-agent.service" "$UNITES/mirador-agent-root.service" \
-        "$UNITES/mirador-agent-root.timer" "$UNITES/mirador-agent-root.path" "$UNITES/mirador-agent-retour.service"
+        "$UNITES/mirador-agent-root.timer" "$UNITES/mirador-agent-root.path" "$UNITES/mirador-agent-retour.service" \
+        "$UNITES/mirador-agent-relais.service"
   systemctl daemon-reload
   if command -v docker >/dev/null 2>&1 && docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     docker rm -f "$PROXY_NOM" >/dev/null
@@ -179,7 +203,7 @@ if [ "$MODE" = desinstaller ]; then
   fi
   rm -f "$TMPFILES"
   rm -rf /run/mirador-agent
-  rm -f "$ETC/agent.conf" "$ETC/token" "$ETC/cles-publiques.txt"
+  rm -f "$ETC/agent.conf" "$ETC/token" "$ETC/cles-publiques.txt" "$PROXY_CONFIG"
   rmdir "$ETC" 2>/dev/null || true
   rm -f "$ROOT_DIR/mirador-agent"
   rmdir "$ROOT_DIR" 2>/dev/null || true
@@ -276,6 +300,8 @@ USE_DOCKER=$(decider "$DOCKER_MODE" "$A_DOCKER")
 [ -n "$DOCKER_PROXY" ] && USE_DOCKER=oui
 USE_PAREFEU=$(decider "$PAREFEU_MODE" "$([ "$ENV_" = vps ] && echo oui || echo "$INPUT_RESTRICTIF")")
 USE_SMART=$(decider "$SMART_MODE" "$PHYSIQUE")
+# iptables : pour réserver le relais Docker à l'agent (unite_relais).
+IPT=$(command -v iptables 2>/dev/null || true)
 
 afficher_detection() {
   echo
@@ -572,9 +598,130 @@ Group=mirador-agent
 ExecStart=/var/lib/mirador-agent/bin/precedent -retour-arriere -dossier-bin /var/lib/mirador-agent/bin -config /etc/mirador-agent/agent.conf
 ExecStartPost=+/usr/bin/systemctl reset-failed mirador-agent.service
 ExecStartPost=+/usr/bin/systemctl start mirador-agent.service
+
+# Durcissement : celui de l'agent (revue du 28/11), sans aucun réseau (le
+# retour arrière ne fait que changer le lien « current »). Les deux lignes
+# « + » ci-dessus (systemctl, en root) n'y sont pas soumises.
 NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
 ProtectSystem=strict
+ProtectHome=read-only
 ReadWritePaths=/var/lib/mirador-agent
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+EOF
+}
+
+# Configuration HAProxy du relais Docker (revue de sécurité du 28/11, M1).
+# L'image tecnativa, réglée par ses variables (CONTAINERS=1), laissait passer
+# TOUT ce qui commence par /containers en lecture, dont /archive et /export
+# (fichiers des conteneurs, volumes compris). Ici : liste blanche exacte des
+# chemins dont l'agent a besoin, en GET seulement.
+config_relais() {
+  cat <<'EOF'
+# relais-docker.cfg : configuration HAProxy du relais Docker de mirador-agent
+# (écrite par mirador-agent-install.sh, montée en lecture seule).
+# Lecture seule, LISTE BLANCHE : les seuls chemins de l'API Docker utilisés
+# par l'agent (internal/agent/collect/docker.go, internal/agent/dockerlogs),
+# en GET :
+#   /_ping                  vérification par le script d'installation
+#   /containers/json        liste des conteneurs
+#   /containers/<id>/json   détail (nom, état, redémarrages, tty)
+#   /containers/<id>/stats  CPU, mémoire, réseau, disque
+#   /containers/<id>/logs   logs des conteneurs
+# Tout le reste est refusé (403) : /archive, /export, /attach, /exec,
+# /images, /volumes…, et toute écriture (POST, PUT, DELETE).
+global
+    log stdout format raw daemon info
+    maxconn 4000
+
+defaults
+    mode http
+    log global
+    option httplog
+    option dontlognull
+    option http-server-close
+    timeout http-request 10s
+    timeout queue 1m
+    timeout connect 10s
+    # Logs suivis en continu : flux coupé après 10 min sans ligne, l'agent
+    # le rouvre (mêmes valeurs que la configuration d'origine de l'image).
+    timeout client 10m
+    timeout server 10m
+    timeout http-keep-alive 10s
+    maxconn 3000
+
+backend docker
+    server socket /var/run/docker.sock
+
+frontend relais
+    bind :2375
+    # <id> : identifiant hexadécimal du conteneur (12 à 64 caractères) ;
+    # préfixe de version de l'API facultatif (/v1.47/...). Chemin exact.
+    acl lecture method GET
+    acl chemin_permis path -m reg '^(/v1[.][0-9]{1,3})?/(_ping|containers/json|containers/[0-9a-f]{12,64}/(json|stats|logs))$'
+    http-request deny unless lecture chemin_permis
+    # Seuls les refus sont journalisés (docker logs mirador-docker-proxy).
+    http-request set-log-level silent
+    default_backend docker
+EOF
+}
+
+# Qui peut joindre le relais (revue de sécurité du 28/11, M1) : sans règle,
+# tout compte local de la machine pouvait lire l'API Docker par
+# 127.0.0.1:PORT (ou directement par l'adresse du relais). Règles iptables de
+# SORTIE, dans une chaîne à part : une connexion NOUVELLE vers le relais
+# n'est permise qu'aux comptes root (Docker lui-même) et mirador-agent.
+# Ces règles ne font que REFUSER : elles n'ouvrent rien et ne touchent pas
+# au reste du pare-feu (lu, jamais modifié, par l'agent : SPEC § 136).
+# Unité oneshot : règles remises à chaque démarrage, retirées à l'arrêt.
+unite_relais() {
+  cat <<EOF
+# mirador-agent-relais — relais Docker réservé aux comptes root et
+# $UTILISATEUR (règles iptables, chaîne MIRADOR-RELAIS).
+[Unit]
+Description=mirador-agent : relais Docker réservé à $UTILISATEUR et root
+After=docker.service nftables.service netfilter-persistent.service ufw.service firewalld.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# « - » devant la commande : erreur ignorée (chaîne déjà créée, règle absente).
+ExecStart=-$IPT -w -N MIRADOR-RELAIS
+ExecStart=$IPT -w -F MIRADOR-RELAIS
+ExecStart=$IPT -w -A MIRADOR-RELAIS -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+ExecStart=$IPT -w -A MIRADOR-RELAIS -m owner --uid-owner 0 -j RETURN
+ExecStart=$IPT -w -A MIRADOR-RELAIS -m owner --uid-owner $UTILISATEUR -j RETURN
+ExecStart=$IPT -w -A MIRADOR-RELAIS -p tcp -j REJECT --reject-with tcp-reset
+ExecStart=-$IPT -w -D OUTPUT -d 127.0.0.1/32 -p tcp --dport $PROXY_PORT -j MIRADOR-RELAIS
+ExecStart=$IPT -w -I OUTPUT 1 -d 127.0.0.1/32 -p tcp --dport $PROXY_PORT -j MIRADOR-RELAIS
+ExecStart=-$IPT -w -D OUTPUT -d $PROXY_IP/32 -p tcp --dport 2375 -j MIRADOR-RELAIS
+ExecStart=$IPT -w -I OUTPUT 1 -d $PROXY_IP/32 -p tcp --dport 2375 -j MIRADOR-RELAIS
+ExecStop=-$IPT -w -D OUTPUT -d 127.0.0.1/32 -p tcp --dport $PROXY_PORT -j MIRADOR-RELAIS
+ExecStop=-$IPT -w -D OUTPUT -d $PROXY_IP/32 -p tcp --dport 2375 -j MIRADOR-RELAIS
+ExecStop=-$IPT -w -F MIRADOR-RELAIS
+ExecStop=-$IPT -w -X MIRADOR-RELAIS
+
+[Install]
+WantedBy=multi-user.target
 EOF
 }
 
@@ -586,6 +733,12 @@ if [ "$MODE" = afficher ]; then
   echo "----- mirador-agent-root.timer"; timer_root
   echo "----- mirador-agent-root.path"; chemin_root
   echo "----- mirador-agent-retour.service"; unite_retour
+  if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
+    echo "----- $PROXY_CONFIG"; config_relais
+    if [ "$FILTRE_RELAIS" = oui ] && [ -n "$IPT" ]; then
+      echo "----- mirador-agent-relais.service"; unite_relais
+    fi
+  fi
   exit 0
 fi
 
@@ -596,11 +749,16 @@ fi
 # Le jeton passe par un fichier de configuration de curl / wget (dans un
 # dossier temporaire root 0700), jamais par la ligne de commande : il serait
 # lisible par tout utilisateur local avec « ps » (revue du 11/11).
-nouveau_tele() { # dossier temporaire root 0700, effacé à la sortie
-  if [ -z "${TELE:-}" ]; then
+TELE=""; ESSAI=""
+nettoyer() { # dossiers temporaires, effacés à la sortie du script
+  if [ -n "$TELE" ]; then rm -rf -- "$TELE"; fi
+  if [ -n "$ESSAI" ]; then rm -rf -- "$ESSAI"; fi
+}
+trap nettoyer EXIT
+nouveau_tele() { # dossier temporaire root 0700
+  if [ -z "$TELE" ]; then
     umask 077
     TELE=$(mktemp -d)
-    trap 'rm -rf -- "$TELE"' EXIT
     umask 022
   fi
 }
@@ -615,6 +773,129 @@ telecharger() { # URL FICHIER ENTETES
     die "curl ou wget est nécessaire pour télécharger l'agent (ou utiliser --binaire)"
   fi
 }
+
+# ---------------------------------------------------------------- signature du binaire
+# Revue de sécurité du 28/11 (M2) : quand une clé PUBLIQUE de signature est
+# déjà connue sur cette machine (--cle-publique, ou fichier posé par une
+# installation précédente), le binaire téléchargé n'est lancé et installé
+# qu'après vérification de son manifeste signé (Ed25519), envoyé par le
+# serveur avec lui (en-tête X-Mirador-Manifeste). Un serveur piraté ne peut
+# donc plus faire installer, en root, un binaire qui n'a pas été signé sur le
+# poste de l'administrateur. Vérification faite par openssl (3.0 ou plus).
+# Ces cinq fonctions sont les mêmes dans mirador-agent-install.sh et
+# mirador-collector-install.sh (vérifié par deploy/agent/script_test.go).
+
+# valeur_entete FICHIER NOM : valeur du dernier en-tête NOM (en minuscules)
+# du fichier d'en-têtes écrit par curl (-D) ou wget (-S).
+valeur_entete() {
+  tr -d '\r' < "$1" | sed 's/^ *//' | awk -F': ' -v n="$2" 'tolower($1)==n{print $2}' | tail -1
+}
+
+# champ_json JSON CLE : valeur d'un champ du manifeste (JSON écrit par
+# mirador-server sur une ligne, sans espace) : texte entre guillemets, nombre
+# ou true/false. Vide si le champ est absent.
+champ_json() {
+  printf '%s' "$1" | grep -oE "\"$2\":(\"[^\"]*\"|[a-z0-9]+)" | head -1 | sed -E 's/^"[a-z0-9_]+"://; s/^"(.*)"$/\1/' || true
+}
+
+# openssl_recent : openssl 3.0 ou plus est-il là ? (« pkeyutl -rawin »,
+# nécessaire pour vérifier une signature Ed25519, n'existe pas avant.)
+openssl_recent() {
+  local v
+  command -v openssl >/dev/null 2>&1 || return 1
+  v=$(openssl version 2>/dev/null | awk '$1=="OpenSSL"{print $2}')
+  [ "${v%%.*}" -ge 3 ] 2>/dev/null
+}
+
+# verifier_manifeste ENTETES BINAIRE PRODUIT ARCH CLES : vérifie, SANS lancer
+# le binaire :
+#   1. la signature du manifeste, avec une des clés publiques (CLES : une
+#      par ligne, en base64) ;
+#   2. que le manifeste décrit bien CE binaire : produit, architecture,
+#      empreinte SHA-256 et taille.
+# Les octets signés sont refaits comme Manifeste.MessageSigne() (fichier
+# internal/protocole/protocole.go) : une ligne par champ, dans cet ordre :
+#   produit, version, architecture, sha256, taille, oui|non (retour
+#   autorisé), puis la date de fin du retour arrière si elle existe.
+# Résultat : VERSION_SIGNEE (version du manifeste), RETOUR_SIGNE (oui|non)
+# et RETOUR_JUSQUA (date Unix, 0 sans date). Arrêt du script sinon.
+verifier_manifeste() {
+  local entetes=$1 binaire=$2 produit=$3 arch=$4 cles=$5
+  local brut json p v a s t r j sig k dir ok=non
+  brut=$(valeur_entete "$entetes" x-mirador-manifeste)
+  if [ -z "$brut" ]; then
+    if [ "$(valeur_entete "$entetes" x-mirador-signe)" = non ]; then
+      die "le serveur n'a qu'un binaire « embarqué » NON SIGNÉ, alors qu'une clé de signature est connue sur cette machine. Publier une version signée (Machines › Mises à jour des agents) puis relancer ; ou, en connaissance de cause, --sans-verification-signature (déconseillé)"
+    fi
+    die "le serveur n'a pas envoyé de manifeste signé (mirador-server trop ancien ?). Le mettre à jour puis relancer ; ou --sans-verification-signature (déconseillé)"
+  fi
+  # (Longueur testée à part : un « {20,4000} » rend grep très lent.)
+  [ "${#brut}" -le 4000 ] && printf '%s' "$brut" | grep -Eq '^[A-Za-z0-9+/]+={0,2}$' || die "manifeste signé illisible"
+  json=$(printf '%s' "$brut" | base64 -d 2>/dev/null | head -c 4096 | tr -d '\n') || die "manifeste signé illisible"
+  # Un JSON piégé ne peut rien obtenir : ce sont ces MÊMES valeurs qui sont
+  # vérifiées par la signature, puis comparées au binaire.
+  p=$(champ_json "$json" produit); v=$(champ_json "$json" version)
+  a=$(champ_json "$json" architecture); s=$(champ_json "$json" sha256)
+  t=$(champ_json "$json" taille); r=$(champ_json "$json" retour_autorise)
+  j=$(champ_json "$json" retour_jusqua); sig=$(champ_json "$json" signature)
+  [ -n "$p" ] || p=mirador-agent # produit absent : manifeste de l'agent
+  echo "$v" | grep -Eq '^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$' || die "manifeste : version invalide « $v »"
+  echo "$s" | grep -Eq '^[0-9a-f]{64}$' || die "manifeste : empreinte invalide"
+  echo "$t" | grep -Eq '^[0-9]{1,9}$' || die "manifeste : taille invalide"
+  echo "$sig" | grep -Eq '^[A-Za-z0-9+/]{86}==$' || die "manifeste : signature mal formée"
+  case "$r" in true) r=oui ;; false) r=non ;; *) die "manifeste : champ retour_autorise invalide" ;; esac
+  [ -n "$j" ] || j=0
+  echo "$j" | grep -Eq '^[0-9]{1,12}$' || die "manifeste : date de retour invalide"
+  # Octets signés, puis vérification avec chaque clé connue.
+  dir=$(mktemp -d)
+  printf '%s\n' "$p" "$v" "$a" "$s" "$t" "$r" > "$dir/message"
+  [ "$j" = 0 ] || printf '%s\n' "$j" >> "$dir/message"
+  printf '%s' "$sig" | base64 -d > "$dir/signature" 2>/dev/null || true
+  for k in $cles; do
+    # Clé publique brute (32 octets) -> format DER lu par openssl : en-tête
+    # fixe des clés Ed25519 (RFC 8410), puis la clé.
+    { printf '\060\052\060\005\006\003\053\145\160\003\041\000'; printf '%s' "$k" | base64 -d 2>/dev/null; } > "$dir/cle.der" || true
+    if openssl pkeyutl -verify -pubin -keyform DER -inkey "$dir/cle.der" -rawin \
+         -in "$dir/message" -sigfile "$dir/signature" >/dev/null 2>&1; then
+      ok=oui
+      break
+    fi
+  done
+  rm -rf -- "$dir"
+  [ "$ok" = oui ] || die "SIGNATURE INVALIDE : le binaire envoyé par le serveur n'est signé par aucune clé connue de cette machine. Rien n'a été installé. (Serveur piraté, ou clé changée : voir --cle-publique.)"
+  # Le manifeste (authentique) décrit-il bien le fichier reçu ?
+  [ "$p" = "$produit" ] || die "manifeste signé d'un autre produit ($p, attendu $produit)"
+  [ "$a" = "$arch" ] || die "manifeste signé d'une autre architecture ($a, attendu $arch)"
+  [ "$(sha256sum "$binaire" | awk '{print $1}')" = "$s" ] || die "le binaire reçu ne correspond pas au manifeste signé (empreinte)"
+  [ "$(stat -c %s "$binaire")" = "$t" ] || die "le binaire reçu ne correspond pas au manifeste signé (taille)"
+  VERSION_SIGNEE=$v; RETOUR_SIGNE=$r; RETOUR_JUSQUA=$j
+}
+
+# version_plus_ancienne A B : A est-elle strictement plus ancienne que B ?
+# (versions 1.2.3 ; sinon : non)
+version_plus_ancienne() {
+  echo "$1" | grep -Eq '^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$' || return 1
+  echo "$2" | grep -Eq '^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$' || return 1
+  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
+}
+
+# Clés publiques DÉJÀ connues sur cette machine : --cle-publique, sinon le
+# fichier posé par une installation précédente. (À la toute première
+# installation sans --cle-publique, la clé vient du serveur lui-même : elle
+# ne prouverait rien sur son binaire, la vérification n'a donc pas lieu.)
+FICHIER_CLES="$ETC/cles-publiques.txt"
+cle_valide() { # CLE : base64 de 32 octets
+  echo "$1" | grep -Eq '^[A-Za-z0-9+/]{43}=$' && [ "$(printf '%s' "$1" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]
+}
+CLES_CONNUES=""
+if [ -n "$CLE_PUBLIQUE" ]; then
+  CLES_CONNUES=$(echo "$CLE_PUBLIQUE" | tr ', ' '\n\n' | sed '/^$/d')
+  for k in $CLES_CONNUES; do cle_valide "$k" || die "clé publique invalide : $k"; done
+elif [ -s "$FICHIER_CLES" ]; then
+  CLES_CONNUES=$(grep -v '^#' "$FICHIER_CLES" | sed '/^$/d' || true)
+fi
+SIGNATURE_VERIFIEE=non; VERSION_SIGNEE=""; RETOUR_SIGNE=non; RETOUR_JUSQUA=0
+
 # Jeton d'enrôlement, sinon token de la machine (--token, ou celui déjà en place).
 AUTH="$JETON"
 [ -n "$AUTH" ] || AUTH="$TOKEN"
@@ -631,27 +912,25 @@ if [ -z "$BINAIRE" ] && [ -n "$AUTH" ]; then
   info "Téléchargement de mirador-agent ($ARCH) depuis $SERVEUR"
   telecharger "$SERVEUR/api/agent/v1/install/binary?arch=$ARCH" "$TELE/mirador-agent" "$TELE/entetes" \
     || die "téléchargement impossible : jeton expiré ou déjà utilisé (ou token révoqué), ou adresse de cette machine pas autorisée dans nginx"
-  ATTENDU=$(tr -d '\r' < "$TELE/entetes" | sed 's/^ *//' | awk -F': ' 'tolower($1)=="x-mirador-sha256"{print $2}' | tail -1)
+  ATTENDU=$(valeur_entete "$TELE/entetes" x-mirador-sha256)
   OBTENU=$(sha256sum "$TELE/mirador-agent" | awk '{print $1}')
   [ -n "$ATTENDU" ] && [ "$ATTENDU" = "$OBTENU" ] || die "empreinte du binaire téléchargé fausse (attendu ${ATTENDU:-?}, obtenu $OBTENU)"
-  chmod 0755 "$TELE/mirador-agent"
+  # Signature : vérifiée AVANT tout lancement du binaire.
+  if [ -n "$CLES_CONNUES" ] && [ "$VERIF_SIGNATURE" = oui ]; then
+    openssl_recent || die "openssl 3.0 ou plus est nécessaire pour vérifier la signature du binaire (ici : $(openssl version 2>/dev/null || echo 'openssl absent')). Installer openssl 3 (Debian 12, Ubuntu 22.04 ou plus récents), ou, en connaissance de cause, --sans-verification-signature (déconseillé)"
+    verifier_manifeste "$TELE/entetes" "$TELE/mirador-agent" mirador-agent "$ARCH" "$CLES_CONNUES"
+    SIGNATURE_VERIFIEE=oui
+    info "Signature du binaire vérifiée (version $VERSION_SIGNEE)"
+  elif [ -n "$CLES_CONNUES" ]; then
+    echo "ATTENTION : signature du binaire NON vérifiée (--sans-verification-signature)."
+  fi
   BINAIRE="$TELE/mirador-agent"
 fi
 [ -n "$BINAIRE" ] || die "--binaire est obligatoire (sauf avec --jeton ou une machine déjà enrôlée : téléchargé depuis le serveur)"
 [ -f "$BINAIRE" ] || die "binaire introuvable : $BINAIRE"
-# Fichier téléchargé à la main (curl -O) : pas exécutable. Copie privée
-# rendue exécutable, l'original n'est pas touché.
-if [ ! -x "$BINAIRE" ]; then
-  nouveau_tele
-  cp -- "$BINAIRE" "$TELE/mirador-agent-binaire"
-  chmod 0755 "$TELE/mirador-agent-binaire"
-  BINAIRE="$TELE/mirador-agent-binaire"
+if [ "$SIGNATURE_VERIFIEE" = non ] && [ -n "$CLES_CONNUES" ] && [ "$VERIF_SIGNATURE" = oui ]; then
+  echo "    (binaire local donné par --binaire : signature non vérifiée, c'est votre fichier)"
 fi
-VERSION=$("$BINAIRE" -version 2>/dev/null | awk '{print $2}') || true
-[ -n "$VERSION" ] || die "le binaire ne se lance pas : fichier abîmé, ou mauvaise architecture (cette machine : $(uname -m))"
-echo "$VERSION" | grep -Eq '^[A-Za-z0-9._-]{1,40}$' || die "version illisible : $VERSION"
-
-afficher_detection
 
 # ---------------------------------------------------------------- utilisateur et dossiers
 info "Utilisateur système $UTILISATEUR"
@@ -662,6 +941,33 @@ install -d -o root -g "$UTILISATEUR" -m 0750 "$ETC"
 install -d -o "$UTILISATEUR" -g "$UTILISATEUR" -m 0750 "$VARLIB"
 install -d -o "$UTILISATEUR" -g "$UTILISATEUR" -m 0750 "$BIN_DIR"
 install -d -o root -g root -m 0755 "$ROOT_DIR"
+
+# ---------------------------------------------------------------- version du binaire
+# Lancé SOUS LE COMPTE de l'agent, jamais en root (revue du 28/11), et
+# seulement après la vérification de signature. Copie à root dans un dossier
+# lisible par l'agent (celui du téléchargement est réservé à root).
+ESSAI=$(mktemp -d)
+chmod 0755 "$ESSAI"
+install -o root -g root -m 0755 "$BINAIRE" "$ESSAI/mirador-agent"
+VERSION=$(runuser -u "$UTILISATEUR" -- timeout 30 "$ESSAI/mirador-agent" -version 2>/dev/null | awk '{print $2}') || true
+[ -n "$VERSION" ] || die "le binaire ne se lance pas : fichier abîmé, ou mauvaise architecture (cette machine : $(uname -m))"
+echo "$VERSION" | grep -Eq '^[A-Za-z0-9._-]{1,40}$' || die "version illisible : $VERSION"
+if [ "$SIGNATURE_VERIFIEE" = oui ]; then
+  [ "$VERSION" = "$VERSION_SIGNEE" ] || die "le binaire annonce la version $VERSION, son manifeste signé la version $VERSION_SIGNEE : refusé"
+  # Pas de retour vers une version plus ancienne que celle en place (une
+  # vieille version signée peut avoir une faille connue), sauf retour
+  # arrière signé encore valable, ou --accepter-version-ancienne.
+  EN_PLACE=$(readlink "$BIN_DIR/current" 2>/dev/null | sed -n 's/^mirador-agent-//p' || true)
+  if [ "$VERSION_ANCIENNE" = non ] && version_plus_ancienne "$VERSION" "$EN_PLACE"; then
+    if [ "$RETOUR_SIGNE" = oui ] && [ "$RETOUR_JUSQUA" -gt "$(date +%s)" ]; then
+      info "Retour à la version $VERSION (retour arrière signé)"
+    else
+      die "le serveur envoie la version $VERSION, plus ancienne que celle en place ($EN_PLACE) : refusé. Si c'est voulu : --accepter-version-ancienne"
+    fi
+  fi
+fi
+
+afficher_detection
 
 # Écritures dans les dossiers de l'agent : faites SOUS SON IDENTITÉ (runuser),
 # contenu passé par l'entrée standard. Un agent compromis qui y aurait posé
@@ -713,10 +1019,7 @@ fi
 # 0644, lisible par l'agent, jamais modifiable par lui ni par le serveur.
 # Posées une fois ; changées seulement avec --cle-publique (rotation voulue
 # par l'administrateur). Une clé publique n'est pas un secret.
-FICHIER_CLES="$ETC/cles-publiques.txt"
-cle_valide() { # CLE : base64 de 32 octets
-  echo "$1" | grep -Eq '^[A-Za-z0-9+/]{43}=$' && [ "$(printf '%s' "$1" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]
-}
+# (FICHIER_CLES et cle_valide : définis plus haut, section « binaire ».)
 empreinte_cle() { printf '%s' "$1" | base64 -d | sha256sum | cut -c1-16; }
 recuperer_cles() { # adresse publique, sans jeton ; 1 Kio au plus
   if command -v curl >/dev/null 2>&1; then
@@ -784,6 +1087,15 @@ relais_joignable() {
   done
   return 1
 }
+# retirer_filtre_relais : arrête l'unité des règles du relais (son arrêt
+# retire les règles) et la supprime, si elle existe.
+retirer_filtre_relais() {
+  if [ -f "$UNITES/mirador-agent-relais.service" ]; then
+    systemctl disable --now mirador-agent-relais.service >/dev/null 2>&1 || true
+    rm -f "$UNITES/mirador-agent-relais.service"
+    systemctl daemon-reload
+  fi
+}
 if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
   # Réseau dédié : adresse fixe, pont nommé, conteneurs isolés entre eux.
   if docker network inspect "$PROXY_RESEAU" >/dev/null 2>&1; then
@@ -798,28 +1110,60 @@ if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
       --label mirador=relais-docker "$PROXY_RESEAU" >/dev/null \
       || die "création du réseau $PROXY_RESEAU impossible (plage déjà prise ? --docker-reseau AUTRE_PLAGE)"
   fi
-  # Relais déjà en place, au bon endroit ? Sinon (ancienne installation sur le
-  # pont par défaut, adresse changée, conteneur arrêté) : recréé.
-  place=""
+  # Configuration HAProxy (liste blanche) : fichier root 0644, monté en
+  # lecture seule dans le conteneur ; son empreinte (avec l'image) est posée
+  # en étiquette sur le conteneur pour savoir s'il faut le recréer.
+  config_relais > "$PROXY_CONFIG.tmp"
+  chown root:root "$PROXY_CONFIG.tmp"; chmod 0644 "$PROXY_CONFIG.tmp"
+  mv -f "$PROXY_CONFIG.tmp" "$PROXY_CONFIG"
+  EMPREINTE_RELAIS=$({ cat "$PROXY_CONFIG"; echo "$PROXY_IMAGE"; } | sha256sum | cut -c1-16)
+  # Relais déjà en place, au bon endroit, même configuration ? Sinon
+  # (ancienne installation : pont par défaut, adresse changée, relais réglé
+  # par variables avant le 28/11, conteneur arrêté) : recréé.
+  place=""; etiquette=""
   if docker inspect "$PROXY_NOM" >/dev/null 2>&1; then
     place=$(docker inspect "$PROXY_NOM" -f '{{range $n, $r := .NetworkSettings.Networks}}{{$n}}={{$r.IPAddress}} {{end}}')
+    etiquette=$(docker inspect "$PROXY_NOM" -f '{{index .Config.Labels "mirador.relais"}}' 2>/dev/null || true)
   fi
-  if [ "$place" = "$PROXY_RESEAU=$PROXY_IP " ]; then
+  if [ "$place" = "$PROXY_RESEAU=$PROXY_IP " ] && [ "$etiquette" = "$EMPREINTE_RELAIS" ]; then
     info "Relais Docker $PROXY_NOM déjà en place ($PROXY_IP)"
     # Limite de mémoire remise à jour (ancienne installation : 32 Mio).
     docker update --memory "$PROXY_MEMOIRE" --memory-swap "$PROXY_MEMOIRE" "$PROXY_NOM" >/dev/null \
       || echo "   (limite de mémoire du relais non changée : docker update a échoué)"
   else
-    [ -z "$place" ] || docker rm -f "$PROXY_NOM" >/dev/null
-    info "Relais Docker en lecture seule ($PROXY_IMAGE, 127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)"
+    if docker inspect "$PROXY_NOM" >/dev/null 2>&1; then docker rm -f "$PROXY_NOM" >/dev/null; fi
+    info "Relais Docker en lecture seule, liste blanche ($PROXY_IMAGE, 127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)"
+    # L'image lance HAProxy avec NOTRE configuration (-f) au lieu de la
+    # sienne : son entrée (docker-entrypoint.sh) ajoute seulement « -W -db ».
     docker run -d --name "$PROXY_NOM" --restart unless-stopped \
+      --label "mirador.relais=$EMPREINTE_RELAIS" \
       --network "$PROXY_RESEAU" --ip "$PROXY_IP" \
       -p "127.0.0.1:$PROXY_PORT:2375" \
       --read-only --tmpfs /run --tmpfs /tmp \
       --security-opt no-new-privileges:true --memory "$PROXY_MEMOIRE" --memory-swap "$PROXY_MEMOIRE" \
       -v /var/run/docker.sock:/var/run/docker.sock:ro \
-      -e CONTAINERS=1 -e POST=0 -e INFO=0 -e PING=1 -e VERSION=1 \
-      "$PROXY_IMAGE" >/dev/null
+      -v "$PROXY_CONFIG:/usr/local/etc/haproxy/mirador.cfg:ro" \
+      "$PROXY_IMAGE" haproxy -f /usr/local/etc/haproxy/mirador.cfg >/dev/null \
+      || die "démarrage du relais Docker impossible (docker logs $PROXY_NOM)"
+  fi
+  # Relais réservé aux comptes root et mirador-agent (règles iptables).
+  if [ "$FILTRE_RELAIS" = oui ] && [ -n "$IPT" ]; then
+    systemctl stop mirador-agent-relais.service 2>/dev/null || true # anciennes règles retirées
+    unite_relais > "$UNITES/mirador-agent-relais.service"
+    chmod 0644 "$UNITES/mirador-agent-relais.service"
+    systemctl daemon-reload
+    if systemctl enable --now mirador-agent-relais.service >/dev/null 2>&1; then
+      info "Relais Docker réservé aux comptes root et $UTILISATEUR (iptables, chaîne MIRADOR-RELAIS)"
+    else
+      echo "   ATTENTION : règles iptables du relais refusées (journalctl -u mirador-agent-relais) :"
+      echo "   tout compte local de cette machine peut lire l'API Docker par le relais."
+    fi
+  else
+    retirer_filtre_relais
+    if [ "$FILTRE_RELAIS" = oui ]; then
+      echo "   ATTENTION : iptables absent : tout compte local de cette machine peut lire l'API"
+      echo "   Docker par le relais (127.0.0.1:$PROXY_PORT)."
+    fi
   fi
   if ! relais_joignable; then
     echo "   ATTENTION : le relais Docker ne répond pas (127.0.0.1:$PROXY_PORT -> $PROXY_IP:2375)."
@@ -828,6 +1172,10 @@ if [ "$USE_DOCKER" = oui ] && [ -z "$DOCKER_PROXY" ]; then
     echo "     iptables -I OUTPUT 1 -o $PROXY_PONT -s $PROXY_PASSERELLE -d $PROXY_IP -p tcp --dport 2375 -j ACCEPT"
     echo "   (sans elle : pas de métriques ni de logs Docker, alerte « Docker : démon injoignable »)"
   fi
+else
+  # Pas de relais créé par ce script (sans Docker, ou --docker-proxy) :
+  # règles d'une installation précédente retirées.
+  retirer_filtre_relais
 fi
 
 # ---------------------------------------------------------------- unités systemd

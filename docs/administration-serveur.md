@@ -114,6 +114,24 @@ par service HTTPS du LAN.
 Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
 Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
 
+Signature vérifiée à la réinstallation (revue du 28/11) : si une clé
+publique est déjà connue (`--cle-publique`, ou
+`/etc/mirador-collector/cles-publiques.txt` d'une installation précédente),
+le script vérifie avec `openssl` 3, **avant de lancer le binaire**, le
+manifeste signé envoyé avec lui (signature, produit, architecture,
+empreinte, taille), puis lance `-version` sous le compte
+`mirador-collector` (jamais en root). Refus si : signature fausse, binaire
+« embarqué » non signé (publier la version signée du collecteur d'abord),
+openssl absent ou < 3.0, version plus ancienne que celle en place (sauf
+`--accepter-version-ancienne`). `--sans-verification-signature` passe
+outre (déconseillé).
+
+Écoute réseau limitée par systemd (revue du 28/11) : le collecteur ne peut
+écouter qu'en TCP sur un port de 1024 à 65535 (le port syslog choisi dans
+l'interface) ; toute écoute UDP ou sur un port < 1024 est refusée par le
+noyau (`SocketBindDeny`, systemd 249 ou plus ; ignoré sinon). Vérifier :
+`systemctl show mirador-collector -p SocketBindDeny`.
+
 Compagnon des processus (0.6.13 et suivantes) : le service
 `mirador-collector-processus` relève les processus de la machine du
 collecteur (nom, CPU, mémoire, compte ; jamais les lignes de commande) pour
