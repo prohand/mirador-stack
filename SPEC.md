@@ -9364,7 +9364,9 @@ PROGRES.md, « Revue de sécurité du 28/11 ».
 - Collecteur : `SocketBindDeny=udp:1-65535 tcp:1-1023` (pas `any` : le SNMP
   fait un bind sur le port 0) ; unités de retour arrière durcies.
 - CI : release seulement depuis un commit de `main` ; actions épinglées par
-  SHA ; images Go et Olvid par sha256 ; Olvid `cap_drop: ALL` et refus
+  SHA ; sur une branche, « documentation seule » jugé par rapport à `main`
+  et non au push précédent (un push de doc sautait les tests du code poussé
+  juste avant, vu sur la PR #111) ; images Go et Olvid par sha256 ; Olvid `cap_drop: ALL` et refus
   d'une clé admin vide ; `cle-mirador*.json` dans `.gitignore`.
 - Remarques : demande de rôle retirée avec le compte ; « serveur occupé »
   pas compté comme essai faux ; abonnement push repris seulement avec les

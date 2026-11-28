@@ -93,9 +93,17 @@ jobs:
         env:
           AVANT: ${{ github.event.before }}
           EVENEMENT: ${{ github.event_name }}
+          BRANCHE: ${{ github.ref }}
         run: |
           code=true
           base="$AVANT"
+          # Branche autre que main : comparer à main (point de départ commun),
+          # jamais au push précédent. Sinon un push de documentation juste
+          # après un push de code sautait les tests de ce code (le passage
+          # du push de code étant annulé par le suivant) : vu sur la PR #111.
+          if [ "$BRANCHE" != refs/heads/main ]; then
+            base=""
+          fi
           if [ "$EVENEMENT" != push ] || [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             base=$(git merge-base origin/main HEAD 2>/dev/null || true)
           fi
