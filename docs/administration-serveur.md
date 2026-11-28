@@ -251,7 +251,20 @@ et ses seuils (SPEC.md § 24).
   adresse : `non-verifie` (certificat maison) et `contient=texte` après
   l'adresse. Pas de secret dans les listes : elles apparaissent dans les
   mesures. Refus sur une machine : `MIRADOR_CHECKS=non` dans
-  `/etc/mirador-agent/agent.conf`.
+  `/etc/mirador-agent/agent.conf`. Refus des seuls `contient=` :
+  `MIRADOR_CHECKS_CONTIENT=non`. Un `contient=` nouveau ou changé n'est pris
+  qu'une fois par heure au plus (l'ancien reste en service en attendant).
+  Les adresses de lien local (169.254.x.x, fe80::, métadonnées d'hébergeur)
+  sont toujours refusées.
+- Masquage des secrets dans les logs : « mots de passe », « tokens »,
+  « clés d'API » et « Authorization / Cookie » restent toujours actifs, même
+  si le serveur envoie une liste vide. Seul `MIRADOR_MASQUAGE_PLANCHER=non`
+  dans `agent.conf` les rend facultatifs.
+- Collecteur : `MIRADOR_SONDES=non` dans `/etc/mirador-collector/collector.conf`
+  refuse toutes les sondes demandées par le serveur. La boucle locale
+  (127.0.0.1, ::1) et le lien local sont refusés aux sondes du collecteur ;
+  SNMP, UniFi et certificats ne joignent que des adresses privées (vérifié
+  à la connexion, même pour un nom DNS).
 - Machines › Modèles : tableau modèles × groupes (toutes les machines d'un
   groupe reçoivent ses modèles), application automatique des modèles
   détectés (désactivée par défaut), services attendus et seuils par groupe.
