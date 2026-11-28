@@ -170,12 +170,22 @@ var machinesELF = map[string]elf.Machine{"amd64": elf.EM_X86_64, "arm64": elf.EM
 // TailleMax : même limite que l'agent.
 const TailleMax = 64 << 20
 
+// ProduitMajServeur : mirador-maj-serveur (outil root du VPS, SPEC § 102).
+// Même format de manifeste que l'agent ; seul le nom du produit change dans
+// le message signé. Vérifié par deploy/serveur/installer-maj-serveur.sh
+// (openssl, sans Go). L'agent, le collecteur et le serveur refusent ce
+// manifeste (produit différent). Jamais de retour arrière pour ce produit.
+const ProduitMajServeur = "mirador-maj-serveur"
+
 // Signer fabrique le manifeste signé d'un binaire. Le binaire doit être un
 // exécutable Linux de l'architecture annoncée (évite de signer le mauvais
 // fichier).
 func Signer(priv ed25519.PrivateKey, binaire []byte, produit, version, arch string, retourAutorise bool) (*protocole.Manifeste, error) {
-	if produit != protocole.ProduitAgent && produit != protocole.ProduitCollecteur {
-		return nil, fmt.Errorf("produit %q inconnu (%s ou %s)", produit, protocole.ProduitAgent, protocole.ProduitCollecteur)
+	if produit != protocole.ProduitAgent && produit != protocole.ProduitCollecteur && produit != ProduitMajServeur {
+		return nil, fmt.Errorf("produit %q inconnu (%s, %s ou %s)", produit, protocole.ProduitAgent, protocole.ProduitCollecteur, ProduitMajServeur)
+	}
+	if produit == ProduitMajServeur && retourAutorise {
+		return nil, errors.New("pas de retour arrière pour mirador-maj-serveur")
 	}
 	if !formatVersion.MatchString(version) {
 		return nil, fmt.Errorf("version %q invalide (attendu 1.2.3)", version)

@@ -443,7 +443,10 @@ dossier du `docker-compose.yml` :
    `./maj:/var/lib/mirador-maj` et `./maj-etat:/var/lib/mirador-maj-etat:ro`
    (voir `deploy/serveur/docker-compose.yml`).
 2. Le script, avec la version en service et la clé publique (*Mises à jour
-   des agents › Clé publique*) :
+   des agents › Clé publique*). L'adresse exacte du script, épinglée sur le
+   commit de la version (`…/mirador-stack/<commit>/deploy/…`), est dans les
+   notes de la Release ; l'adresse par tag ci-dessous marche aussi, mais un
+   tag peut être déplacé. Le script est court : le lire avant de le lancer.
 
    ```bash
    curl -fsSLO https://raw.githubusercontent.com/prohand/mirador-stack/v0.6.0/deploy/serveur/installer-maj-serveur.sh
@@ -453,11 +456,20 @@ dossier du `docker-compose.yml` :
    sudo sh installer-maj-serveur.sh --version 0.6.0 --cle-publique 'CLE_PUBLIQUE'
    ```
 
-   Il installe le binaire (empreinte vérifiée), crée `maj/` (pour le
-   serveur, propriétaire 65532) et `maj-etat/` (root), écrit
-   `/etc/mirador-maj-serveur.conf`, ajoute `MIRADOR_VERSION` et
-   `MIRADOR_IMAGE` au `.env`, active `mirador-maj-serveur.path`, puis
-   contrôle tout.
+   Il installe le binaire après avoir vérifié son empreinte **et sa
+   signature** (manifeste `mirador-maj-serveur-X.Y.Z-linux-ARCH.manifeste.json` de la
+   Release, clé `--cle-publique`, OpenSSL 3 requis : Debian 12, Ubuntu
+   22.04 ou plus récents), crée `maj/` (pour le serveur, propriétaire
+   65532) et `maj-etat/` (root), écrit `/etc/mirador-maj-serveur.conf`,
+   ajoute `MIRADOR_VERSION` et `MIRADOR_IMAGE` au `.env`, écrit lui-même
+   les unités systemd (rien n'est téléchargé pour elles), active
+   `mirador-maj-serveur.path`, puis contrôle tout.
+
+   Signature absente ou fausse : rien n'est installé. Les versions publiées
+   avant la signature de mirador-maj-serveur n'ont pas de manifeste : mettre
+   d'abord le serveur à jour à la main (`docker pull`), ou ajouter
+   `--sans-signature` (déconseillé : seule l'empreinte, prise dans la même
+   Release, est alors vérifiée).
 3. Relancer le serveur pour qu'il voie les dossiers :
 
    ```bash
