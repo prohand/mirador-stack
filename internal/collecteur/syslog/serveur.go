@@ -52,6 +52,17 @@ const (
 	tailleTamponLecture = 16 << 10
 	ecartHeureMaxPasse  = 24 * time.Hour
 	ecartHeureMaxFutur  = 5 * time.Minute
+	// Lignes filterlog (revue du 28/11) : débit à part, PAR ADRESSE IP de
+	// l'émetteur, vérifié AVANT le comptage des blocages. Un équipement
+	// d'une plage (jusqu'à /8) ne peut plus gonfler sans limite les
+	// comptages ; un pare-feu bavard ne mange toujours pas le débit de ses
+	// autres journaux (seau séparé). multipleFilterlog fois le débit d'un
+	// équipement : un pare-feu journalise beaucoup plus que le reste.
+	multipleFilterlog = 10
+	// maxSeauxIP : adresses suivies à la fois (mémoire bornée : ~100 o
+	// chacune). Une adresse muette depuis oubliSeauIP est oubliée.
+	maxSeauxIP  = 1024
+	oubliSeauIP = time.Minute
 )
 
 // Motifs de refus comptés (métrique mirador_collecteur_syslog_refus_total).
@@ -89,7 +100,8 @@ type Serveur struct {
 	mu       sync.Mutex
 	parIP    map[netip.Addr]int
 	seaux    map[string]*seau
-	lignes   map[string]uint64 // par équipement
+	seauxIP  map[netip.Addr]*seau // filterlog : un seau par adresse IP
+	lignes   map[string]uint64    // par équipement
 	actives  atomic.Int64
 	ouverte  atomic.Bool // écoute ouverte en ce moment (mesure)
 	refus    map[string]*atomic.Uint64
@@ -119,8 +131,8 @@ func Nouveau(opt Options) (*Serveur, error) {
 		// d'écoute sur une adresse publique ni sur toutes les adresses.
 		return nil, fmt.Errorf("syslog : écoute refusée sur %q (adresse privée du LAN seulement)", opt.Ecoute)
 	}
-	s := &Serveur{opt: opt, parIP: map[netip.Addr]int{}, seaux: map[string]*seau{}, lignes: map[string]uint64{},
-		refus: map[string]*atomic.Uint64{}, pret: make(chan struct{})}
+	s := &Serveur{opt: opt, parIP: map[netip.Addr]int{}, seaux: map[string]*seau{}, seauxIP: map[netip.Addr]*seau{},
+		lignes: map[string]uint64{}, refus: map[string]*atomic.Uint64{}, pret: make(chan struct{})}
 	for _, m := range Motifs {
 		s.refus[m] = &atomic.Uint64{}
 	}
@@ -204,7 +216,7 @@ func (s *Serveur) Tourner(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			defer s.rendrePlace(ip)
-			s.servir(ctx, tls.Server(conn, cfgTLS), machine)
+			s.servir(ctx, tls.Server(conn, cfgTLS), machine, ip)
 		}()
 	}
 }
@@ -238,7 +250,7 @@ func (s *Serveur) rendrePlace(ip netip.Addr) {
 }
 
 // servir lit les messages d'une connexion (fermée après 5 min sans rien).
-func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string) {
+func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string, ip netip.Addr) {
 	defer c.Close()
 	// Fermeture à l'arrêt du collecteur ; la surveillance s'arrête avec la
 	// connexion (relecture du 21/11 : une goroutine restait par connexion
@@ -263,22 +275,28 @@ func (s *Serveur) servir(ctx context.Context, c *tls.Conn, machine string) {
 			}
 			return
 		}
-		s.recevoir(machine, trame)
+		s.recevoir(machine, ip, trame)
 	}
 }
 
-// recevoir : un message lu (débit, filterlog, format, heure).
-func (s *Serveur) recevoir(machine string, trame []byte) {
+// recevoir : un message lu (débit, filterlog, format, heure). ip : adresse
+// de l'émetteur (connexion TCP).
+func (s *Serveur) recevoir(machine string, ip netip.Addr, trame []byte) {
 	maintenant := s.opt.Maintenant()
 	m, ok := Analyser(trame)
 	if !ok {
 		s.refus[RefusFormat].Add(1)
 		return
 	}
-	// filterlog : blocages entrants comptés avant la limite de débit (un
-	// pare-feu bavard ne doit ni fausser le comptage ni manger le débit de
-	// ses autres journaux), puis ligne jetée sauf « Garder filterlog ».
+	// filterlog : débit propre à l'adresse IP vérifié AVANT le comptage
+	// (revue du 28/11), seau séparé (un pare-feu bavard ne mange pas le
+	// débit de ses autres journaux), puis ligne jetée sauf « Garder
+	// filterlog » (elle prend alors aussi le débit de l'équipement).
 	if m.App == "filterlog" {
+		if !s.prendreFilterlog(ip, maintenant) {
+			s.refus[RefusDebit].Add(1)
+			return
+		}
 		if s.opt.Flux != nil {
 			if f, ok := LireFilterlog(m.Texte); ok {
 				s.opt.Flux.Ajouter(machine, f)
@@ -347,6 +365,35 @@ func (s *Serveur) seau(machine string) *seau {
 		s.seaux[machine] = b
 	}
 	return b
+}
+
+// prendreFilterlog : un jeton du seau filterlog de l'adresse ip. Trop
+// d'adresses suivies (plus de maxSeauxIP, même après l'oubli des muettes) :
+// refusé.
+func (s *Serveur) prendreFilterlog(ip netip.Addr, maintenant time.Time) bool {
+	s.mu.Lock()
+	b, ok := s.seauxIP[ip]
+	if !ok {
+		if len(s.seauxIP) >= maxSeauxIP {
+			for a, x := range s.seauxIP {
+				x.mu.Lock()
+				muet := maintenant.Sub(x.dernier) > oubliSeauIP
+				x.mu.Unlock()
+				if muet { // seau plein de nouveau : l'oublier ne change rien
+					delete(s.seauxIP, a)
+				}
+			}
+		}
+		if len(s.seauxIP) >= maxSeauxIP {
+			s.mu.Unlock()
+			return false
+		}
+		d, r := s.opt.Debit*multipleFilterlog, s.opt.Rafale*multipleFilterlog
+		b = &seau{jetons: r, debit: d, rafale: r}
+		s.seauxIP[ip] = b
+	}
+	s.mu.Unlock()
+	return b.prendre(maintenant)
 }
 
 func (b *seau) prendre(maintenant time.Time) bool {

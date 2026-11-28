@@ -80,10 +80,12 @@ func (p programmesSysteme) lancer(chemin string, args ...string) ([]byte, error)
 	defer annuler()
 	cmd := exec.CommandContext(ctx, chemin, args...) // #nosec G204 -- chemins et arguments figés dans ce fichier
 	cmd.Env = []string{"LANG=C", "LC_ALL=C", "PATH=/usr/sbin:/usr/bin:/sbin:/bin"}
-	var sortie bytes.Buffer
-	cmd.Stdout = &sortie
+	// Sortie bornée PENDANT la lecture (revue du 28/11) : avant, tout était
+	// gardé en mémoire puis refusé à la fin, jusqu'à une minute de sortie.
+	sortie := &ecrivainBorne{max: tailleMaxSortie, depasse: annuler}
+	cmd.Stdout = sortie
 	err := cmd.Run()
-	if sortie.Len() > tailleMaxSortie {
+	if sortie.trop {
 		return nil, fmt.Errorf("%s : sortie trop longue", chemin)
 	}
 	var exitErr *exec.ExitError
@@ -94,6 +96,38 @@ func (p programmesSysteme) lancer(chemin string, args ...string) ([]byte, error)
 	}
 	return sortie.Bytes(), err
 }
+
+// errSortieTropLongue : renvoyée par ecrivainBorne au-delà de max.
+var errSortieTropLongue = errors.New("sortie trop longue")
+
+// ecrivainBorne garde au plus max octets. Au-delà, il refuse l'écriture
+// (le programme reçoit EPIPE à sa prochaine écriture) et appelle depasse
+// (arrêt du programme) : rien n'est lu ni gardé au-delà de max.
+//
+// Le tampon est un champ nommé, PAS intégré : intégré, bytes.Buffer
+// apporterait sa méthode ReadFrom, qu'io.Copy (os/exec) appellerait à la
+// place de Write, sans aucune limite.
+type ecrivainBorne struct {
+	tampon  bytes.Buffer
+	max     int
+	trop    bool
+	depasse func()
+}
+
+func (e *ecrivainBorne) Write(p []byte) (int, error) {
+	if e.trop || e.tampon.Len()+len(p) > e.max {
+		if !e.trop && e.depasse != nil {
+			e.depasse()
+		}
+		e.trop = true
+		return 0, errSortieTropLongue
+	}
+	return e.tampon.Write(p)
+}
+
+// Len et Bytes : contenu gardé.
+func (e *ecrivainBorne) Len() int      { return e.tampon.Len() }
+func (e *ecrivainBorne) Bytes() []byte { return e.tampon.Bytes() }
 
 // verifierProgramme refuse un programme absent, n'appartenant pas à root, ou
 // modifiable par le groupe ou par tous.
