@@ -21,6 +21,12 @@ const (
 	pannesParMachine = 500 // lignes gardées par machine
 	gardePannes      = 30 * 24 * time.Hour
 	delaiReveil      = 2 * time.Second
+	// ecartReveils (revue du 28/11, B10) : une même machine réveille le
+	// moteur d'alertes au plus une fois par minute. Sans cela, 30 événements
+	// par minute forçaient 30 évaluations complètes de toutes les règles.
+	// La première panne réveille tout de suite ; les suivantes de la minute
+	// sont vues au cycle normal du moteur (30 s à 1 min).
+	ecartReveils = time.Minute
 )
 
 // Panne : une panne notée.
@@ -32,9 +38,33 @@ type Panne struct {
 
 // limitePannes : compte par machine et par minute.
 type limitePannes struct {
-	mu     sync.Mutex
-	minute int64
-	nb     map[int64]int
+	mu      sync.Mutex
+	minute  int64
+	nb      map[int64]int
+	reveils map[int64]time.Time // dernier réveil du moteur demandé par machine
+}
+
+// reveilPermis : la machine peut-elle réveiller le moteur d'alertes ? Une
+// fois par minute au plus (ecartReveils). Mémoire bornée : entrées de plus
+// d'une minute retirées quand la table dépasse 1 000 machines.
+func (l *limitePannes) reveilPermis(machine int64, t time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.reveils == nil {
+		l.reveils = map[int64]time.Time{}
+	}
+	if d, ok := l.reveils[machine]; ok && t.Sub(d) < ecartReveils {
+		return false
+	}
+	if len(l.reveils) >= 1000 {
+		for id, d := range l.reveils {
+			if t.Sub(d) >= ecartReveils {
+				delete(l.reveils, id)
+			}
+		}
+	}
+	l.reveils[machine] = t
+	return true
 }
 
 func (l *limitePannes) permis(machine int64, t time.Time) bool {
@@ -86,7 +116,7 @@ func (f *Flotte) recevoirEvenement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.opt.Journal.Info("panne vue par l'agent", "machine", m.Nom, "type", e.Type, "objet", e.Objet)
-	if f.opt.ReveilAlertes != nil {
+	if f.opt.ReveilAlertes != nil && f.pannes.reveilPermis(m.ID, t) {
 		time.AfterFunc(delaiReveil, f.opt.ReveilAlertes)
 	}
 	w.WriteHeader(http.StatusNoContent)

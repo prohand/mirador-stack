@@ -20,6 +20,7 @@ import (
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/distant"
 	"mirador-stack/internal/protocole"
+	"mirador-stack/internal/server/ingestion"
 	"mirador-stack/internal/server/modeles"
 	"mirador-stack/internal/server/secrets"
 )
@@ -273,6 +274,17 @@ func (f *Flotte) config(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		minuterie.Stop()
+		// Revue du 28/11 (B9) : la machine a pu être révoquée ou refusée
+		// pendant l'attente ; le token est relu en base (sans cache) avant
+		// de renvoyer une configuration, qui peut contenir des secrets.
+		if m2, err := f.opt.Ingestion.Reverifier(r); err != nil || m2.ID != m.ID {
+			if err != nil && !errors.Is(err, ingestion.ErrToken) && !errors.Is(err, ingestion.ErrIP) && !errors.Is(err, ingestion.ErrEmpreinte) {
+				erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
+				return
+			}
+			erreur(w, http.StatusUnauthorized, "token refusé")
+			return
+		}
 		if doc, etag, err = charger(); err != nil {
 			erreur(w, http.StatusServiceUnavailable, "configuration indisponible")
 			return

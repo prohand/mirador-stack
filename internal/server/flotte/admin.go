@@ -445,7 +445,11 @@ func renommerReferences(ctx context.Context, tx *sql.Tx, ancien, nouveau string)
 
 // nomsReserves : adresses de l'interface placées sous /machines/ ; une
 // machine de ce nom aurait une page inaccessible (/machines/ajouter…).
-var nomsReserves = map[string]bool{"ajouter": true, "jeton": true, "equipement": true}
+// « mirador-server » (revue du 28/11, B8) : étiquette instance des mesures
+// internes du serveur (server.InstanceServeur, sondes du serveur) ; une
+// machine de ce nom mêlerait ses séries aux siennes et pourrait fausser les
+// règles qui les lisent. Comparaison sans tenir compte de la casse.
+var nomsReserves = map[string]bool{"ajouter": true, "jeton": true, "equipement": true, "mirador-server": true}
 
 // NomReserve : nom pris par l'interface, refusé pour une machine.
 func NomReserve(nom string) bool { return nomsReserves[strings.ToLower(nom)] }
