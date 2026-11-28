@@ -28,7 +28,7 @@ services:
     # Version figée (pas « latest »), dans le .env : MIRADOR_IMAGE et
     # MIRADOR_VERSION. mirador-maj-serveur les change lors d'une mise à jour
     # depuis l'interface (image désignée par son empreinte signée, SPEC § 102).
-    image: ${MIRADOR_IMAGE:-ghcr.io/prohand/mirador-server:0.5.0}
+    image: ${MIRADOR_IMAGE:-ghcr.io/prohand/mirador-server:0.6.34}
     container_name: mirador-server
     restart: unless-stopped
     user: "65532:65532"
