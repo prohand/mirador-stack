@@ -68,9 +68,16 @@ type Auth struct {
 
 	mu    sync.Mutex
 	cache map[[32]byte]entreeCache
-	vus   map[int64]vu // machine → dernière requête, écrit par lots
+	// generation : augmentée par Oublier. Une lecture en base commencée
+	// avant un Oublier (révocation) n'est pas remise dans le cache : sans
+	// cela, une entrée lue juste avant la révocation y revenait pour 60 s
+	// (revue du 28/11, B9).
+	generation uint64
+	vus        map[int64]vu // machine → dernière requête, écrit par lots
 	// vusNoms : équipements relevés par un collecteur → dernière donnée.
 	vusNoms map[string]int64
+
+	apresLecture func() // tests seulement : entre la lecture en base et le cache
 }
 
 type vu struct {
@@ -119,7 +126,7 @@ func extraireToken(r *http.Request) (string, bool) {
 // l'adresse n'est pas dans la liste de la machine ; une autre erreur si la
 // base ne répond pas (le client réessaiera).
 func (a *Auth) Verifier(ctx context.Context, token string, ip netip.Addr, maintenant time.Time) (Machine, error) {
-	return a.verifier(ctx, token, ip, "", false, maintenant)
+	return a.verifier(ctx, token, ip, "", false, false, maintenant)
 }
 
 // VerifierMachine : comme Verifier, avec l'empreinte de machine envoyée par
@@ -129,15 +136,26 @@ func (a *Auth) VerifierMachine(ctx context.Context, token string, ip netip.Addr,
 	if !EmpreinteValide(empreinte) {
 		empreinte = ""
 	}
-	return a.verifier(ctx, token, ip, empreinte, true, maintenant)
+	return a.verifier(ctx, token, ip, empreinte, true, false, maintenant)
 }
 
-func (a *Auth) verifier(ctx context.Context, token string, ip netip.Addr, empreinte string, lier bool, maintenant time.Time) (Machine, error) {
+// VerifierSansCache : comme VerifierMachine, mais le token est relu en base
+// (revue du 28/11, B9). Pour une réponse rendue après une longue attente
+// (configuration gardée ouverte 45 s) : un token révoqué pendant l'attente
+// ne reçoit pas la configuration (et ses secrets).
+func (a *Auth) VerifierSansCache(ctx context.Context, token string, ip netip.Addr, empreinte string, maintenant time.Time) (Machine, error) {
+	if !EmpreinteValide(empreinte) {
+		empreinte = ""
+	}
+	return a.verifier(ctx, token, ip, empreinte, true, true, maintenant)
+}
+
+func (a *Auth) verifier(ctx context.Context, token string, ip netip.Addr, empreinte string, lier, sansCache bool, maintenant time.Time) (Machine, error) {
 	e := Empreinte(token)
 	a.mu.Lock()
 	c, trouve := a.cache[e]
 	a.mu.Unlock()
-	if !trouve || maintenant.UnixNano() >= c.expire {
+	if sansCache || !trouve || maintenant.UnixNano() >= c.expire {
 		var err error
 		if c, err = a.chercher(ctx, e, maintenant); err != nil {
 			return Machine{}, err
@@ -204,6 +222,9 @@ func LireIPs(s string) ([]netip.Prefix, error) {
 func (a *Auth) chercher(ctx context.Context, e [32]byte, maintenant time.Time) (entreeCache, error) {
 	var c entreeCache
 	var ips string
+	a.mu.Lock()
+	gen := a.generation // avant la lecture : un Oublier pendant la lecture se verra
+	a.mu.Unlock()
 	err := a.db.QueryRowContext(ctx, `SELECT m.id, m.nom, m.type, m.site, m.env, m.groupe, m.ips_autorisees, m.empreinte_liee FROM tokens t
 		JOIN machines m ON m.id = t.machine_id
 		WHERE t.empreinte = ? AND t.revoque_le = 0 AND m.statut = 'approuvee'`, e[:]).Scan(&c.m.ID, &c.m.Nom, &c.m.Type, &c.m.Site, &c.m.Env, &c.m.Groupe, &ips, &c.liee)
@@ -220,7 +241,16 @@ func (a *Auth) chercher(ctx context.Context, e [32]byte, maintenant time.Time) (
 			c.ips = []netip.Prefix{{}}
 		}
 	}
+	if a.apresLecture != nil {
+		a.apresLecture()
+	}
 	a.mu.Lock()
+	if gen != a.generation {
+		// Oublier pendant la lecture : le résultat sert à cette requête
+		// seulement (elle a commencé avant), il n'est pas gardé.
+		a.mu.Unlock()
+		return c, nil
+	}
 	// Cache borné : s'il est plein (ex. avalanche de faux tokens), on le vide.
 	// Les vrais tokens sont relus en base au passage suivant.
 	if len(a.cache) >= tailleMaxCache {
@@ -236,6 +266,7 @@ func (a *Auth) chercher(ctx context.Context, e [32]byte, maintenant time.Time) (
 func (a *Auth) Oublier() {
 	a.mu.Lock()
 	clear(a.cache)
+	a.generation++
 	a.mu.Unlock()
 }
 

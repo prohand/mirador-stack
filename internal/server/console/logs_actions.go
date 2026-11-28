@@ -201,7 +201,12 @@ func (c *Console) logsFlux(q *req) {
 	defer bat.Stop()
 	var derniere time.Time
 	suivi := &suiviDirect{vus: map[cleLigneVue]bool{}, debut: depuis}
+	valable := c.gardeFlux(q) // session et compte revérifiés (revue du 28/11)
 	for {
+		if !valable() {
+			ecrire("event: fin\ndata: {\"raison\":\"session\"}\n\n")
+			return
+		}
 		arrivees := c.opt.Logs.Arrivees()
 		// Lignes déjà là (ouverture, ou arrivées pendant la recherche précédente).
 		if pause := time.Second - time.Since(derniere); pause > 0 {

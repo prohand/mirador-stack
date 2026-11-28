@@ -216,3 +216,33 @@ func TestRenommerRegles(t *testing.T) {
 		t.Errorf("règle supprimée reposée : %d", n)
 	}
 }
+
+// Revue du 28/11 (H1) : les règles Proxmox par défaut déjà en base (forme
+// d'avant) reçoivent la forme robuste aux doublons, au démarrage.
+func TestCorrectionProxmoxDoublons(t *testing.T) {
+	ctx := context.Background()
+	db := baseTest(t)
+	maintenant := time.Unix(1_800_000_000, 0)
+	var anciennes []Regle
+	for _, r := range ReglesMirador() {
+		if strings.Contains(r.Expr, infoInviteUnique) {
+			r.Expr = strings.Replace(r.Expr, infoInviteUnique, "mirador_pve_invite_info", 1)
+			anciennes = append(anciennes, r)
+		}
+	}
+	if len(anciennes) != 2 {
+		t.Fatalf("%d règle(s) Proxmox trouvée(s), 2 attendues", len(anciennes))
+	}
+	if _, err := Enregistrer(ctx, db, anciennes, "mirador", maintenant); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := CorrigerRegles(ctx, db, maintenant); err != nil || n != 2 {
+		t.Fatalf("corrigées : %d, %v", n, err)
+	}
+	rs, _ := ListerRegles(ctx, db)
+	for _, r := range rs {
+		if !strings.Contains(r.Expr, infoInviteUnique) || !strings.Contains(r.Note, "revue du 28/11") {
+			t.Errorf("%s pas corrigée : %s", r.Nom, r.Expr)
+		}
+	}
+}

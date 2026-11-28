@@ -25,6 +25,10 @@ const (
 	Delai      = 10 * time.Second
 )
 
+// controleLAN : contrôle de l'adresse jointe (remplacé dans les tests, qui
+// sondent la boucle locale).
+var controleLAN = config.ControleLAN
+
 // Resultat : lecture d'un certificat.
 type Resultat struct {
 	Fin             time.Time
@@ -43,7 +47,8 @@ func Sonder(ctx context.Context, s config.Sonde) (Resultat, error) {
 	if nom == "" && net.ParseIP(hote) == nil {
 		nom = hote
 	}
-	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: Delai},
+	// Adresse réellement jointe : du LAN seulement (revue du 28/11).
+	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: Delai, Control: controleLAN},
 		// #nosec G402 -- lecture de l'échéance seulement : un certificat fait
 		// maison ou périmé doit justement être lu ; rien n'est envoyé.
 		Config: &tls.Config{InsecureSkipVerify: true, ServerName: nom, MinVersion: tls.VersionTLS10}}

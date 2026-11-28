@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -85,6 +86,15 @@ type Agent struct {
 	// agent.conf appartenant à root) ; le serveur ne peut pas le changer.
 	Checks       []Check `json:"checks"`
 	ChecksActifs bool    `json:"-"`
+	// ChecksContient : checks http avec « contient » (texte attendu) permis
+	// (défaut oui). « MIRADOR_CHECKS_CONTIENT=non » dans le fichier local :
+	// ces checks ne sont pas faits (revue du 28/11, M4 : un serveur
+	// compromis ne peut plus lire une page morceau par morceau).
+	ChecksContient bool `json:"-"`
+	// SondesActives (mirador-collector) : sondes demandées par le serveur
+	// (services HTTP/TCP/ping/DNS et certificats) permises (défaut oui).
+	// « MIRADOR_SONDES=non » dans le fichier local : aucune n'est faite.
+	SondesActives bool `json:"-"`
 
 	// Collecteur : réglages de mirador-collector (SPEC § 23.13), reçus du
 	// serveur seulement (clé « collecteur » de la configuration distante).
@@ -166,6 +176,11 @@ type Agent struct {
 	FichierCurseur string   `json:"-"`              // position de lecture du journal
 	LogsDocker     bool     `json:"logs_docker"`    // logs des conteneurs (si Docker est configuré)
 
+	// MasquagePlancher : les modèles de secrets (logs.ModelesPlancher)
+	// restent actifs quoi que dise le serveur (revue du 28/11). Seul le
+	// fichier local peut l'enlever (MIRADOR_MASQUAGE_PLANCHER=non).
+	MasquagePlancher bool `json:"-"`
+
 	// Assistant root (partie 4) : ce qu'il mesure, et où il écrit.
 	PareFeu     bool     `json:"pare_feu"`    // politique INPUT (iptables / nftables)
 	Smart       bool     `json:"smart"`       // disques physiques uniquement
@@ -208,6 +223,9 @@ func Defaut() Agent {
 		IntervalleLent:        60 * time.Second,
 		ProxmoxDisques:        5 * time.Minute,
 		ChecksActifs:          true,
+		ChecksContient:        true,
+		SondesActives:         true,
+		MasquagePlancher:      true,
 		TamponMetriques:       tamponDefaut,
 		ExclureMontages:       defautMontages,
 		ExclureTypesFS:        defautTypesFS,
@@ -664,10 +682,28 @@ func LireDepuis(r io.Reader, a Agent) (Agent, error) {
 			a.URLLogs = a.Serveur + protocole.CheminLogs
 		}
 	}
+	a.CompleterMasquage()
 	if err := a.Valider(); err != nil {
 		return Agent{}, err
 	}
 	return a, nil
+}
+
+// CompleterMasquage ajoute à Masquage les modèles du plancher qui manquent
+// (sauf MIRADOR_MASQUAGE_PLANCHER=non). Appelée après lecture du fichier
+// local ET après chaque configuration distante : « "masquage": [] » envoyé
+// par le serveur ne coupe donc pas le masquage des mots de passe.
+func (a *Agent) CompleterMasquage() {
+	if !a.MasquagePlancher {
+		return
+	}
+	for _, n := range logs.ModelesPlancher {
+		if !slices.Contains(a.Masquage, n) {
+			// Copie : ne jamais modifier la liste d'une autre configuration
+			// (Appliquer part d'une copie qui partage les tableaux).
+			a.Masquage = append(slices.Clip(a.Masquage), n)
+		}
+	}
 }
 
 // affecter range une valeur dans le bon champ.
@@ -710,6 +746,10 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.ProxmoxDisques, err = time.ParseDuration(valeur)
 	case "MIRADOR_CHECKS":
 		a.ChecksActifs, err = ouiNon(valeur)
+	case "MIRADOR_CHECKS_CONTIENT":
+		a.ChecksContient, err = ouiNon(valeur)
+	case "MIRADOR_SONDES":
+		a.SondesActives, err = ouiNon(valeur)
 	case "MIRADOR_TAMPON_DISQUE":
 		a.TamponDisque, err = strconv.Atoi(valeur)
 	case "MIRADOR_DOSSIER_TAMPON":
@@ -788,6 +828,8 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.LogsBruit = valeur
 	case "MIRADOR_MASQUAGE":
 		a.Masquage = liste(valeur)
+	case "MIRADOR_MASQUAGE_PLANCHER":
+		a.MasquagePlancher, err = ouiNon(valeur)
 	case "MIRADOR_FICHIER_CURSEUR":
 		a.FichierCurseur = valeur
 	case "MIRADOR_LOGS_DOCKER":

@@ -73,7 +73,7 @@
    "remplace": "LoadAverageEleve",
    "pour": "10m",
    "gravite": "warning",
-   "expr": "node_load5 / on (instance) count by (instance) (node_cpu_seconds_total{mode=\"idle\"}) > $charge_par_coeur",
+   "expr": "max by (instance) (node_load5) / on (instance) count by (instance) (node_cpu_seconds_total{mode=\"idle\"}) > $charge_par_coeur",
    "resume": "Charge de {{ $value | humanize }} par cœur sur {{ $labels.instance }}"
   },
   {

@@ -231,9 +231,10 @@ func (c *Console) postAlerte(q *req) {
 	case "ssh_connue":
 		// « C'est moi » (demande du 27/11) : l'adresse vient de l'alerte,
 		// pas du formulaire.
-		// Code 2FA (ou mode administration ouvert), comme l'ajout depuis
-		// Réglages › Sécurité : une session volée ne doit pas pouvoir
-		// rendre son adresse « connue ».
+		// Code 2FA (ou mode administration ouvert) : une session volée ne
+		// doit pas pouvoir rendre son adresse « connue ». L'ajout à la main
+		// depuis Réglages › Sécurité (plage libre) redemande toujours le
+		// code (revue du 28/11) ; ici l'adresse vient de l'alerte.
 		if err = c.verifierCode(q); err != nil {
 			break
 		}

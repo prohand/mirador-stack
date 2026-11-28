@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -71,14 +72,19 @@ const (
 func lireCertificats(locaux, distants []string) *Certificats {
 	c := &Certificats{}
 	vus := map[uint64]bool{}
+	// Un seul budget pour tous les motifs de ce passage (revue du 28/11).
+	p := &parcours{reste: maxEntreesParcours, fin: time.Now().Add(dureeMaxParcours), horloge: time.Now}
 	parcourir := func(motif string, distant bool) {
 		res := ResultatMotif{Motif: motif}
 		if distant {
 			defer func() { c.Motifs = append(c.Motifs, res) }()
 		}
-		fichiers, err := filepath.Glob(motif)
-		if err != nil {
+		if _, err := filepath.Match(motif, ""); err != nil {
 			return // motif validé à la lecture de la configuration
+		}
+		fichiers, tronque := p.glob(motif)
+		if tronque {
+			c.Erreurs++ // parcours arrêté : liste incomplète
 		}
 		sort.Strings(fichiers)
 		res.Fichiers = len(fichiers)
@@ -130,6 +136,91 @@ func lireCertificats(locaux, distants []string) *Certificats {
 		parcourir(m, true)
 	}
 	return c
+}
+
+// Limites du parcours des jokers (revue du 28/11) : un motif large
+// (/etc/*/*/*/*.pem) ou un montage réseau lent ne fait pas lire des
+// milliers de dossiers par root. Au-delà, le parcours s'arrête et la liste
+// est incomplète (comptée en erreur). Un appel système bloqué (NFS figé)
+// reste borné par systemd (TimeoutStartSec de l'unité root).
+const (
+	maxEntreesParcours = 10000            // entrées de dossier lues, tous motifs
+	dureeMaxParcours   = 30 * time.Second // durée totale du parcours
+)
+
+// parcours : filepath.Glob avec un budget d'entrées lues et une échéance.
+type parcours struct {
+	reste   int              // entrées de dossier encore permises
+	fin     time.Time        // échéance : plus aucun dossier ouvert après
+	horloge func() time.Time // time.Now (remplacée dans les tests)
+	arrete  bool             // budget ou durée dépassé
+}
+
+// joker : le motif contient-il un caractère spécial de filepath.Match ?
+func joker(s string) bool { return strings.ContainsAny(s, `*?[\`) }
+
+// glob : comme filepath.Glob (motif déjà validé), mais s'arrête quand le
+// budget est épuisé. tronque : le résultat peut être incomplet.
+func (p *parcours) glob(motif string) (fichiers []string, tronque bool) {
+	if !joker(motif) {
+		if _, err := os.Lstat(motif); err == nil {
+			return []string{motif}, false
+		}
+		return nil, false
+	}
+	dossier, nom := filepath.Split(motif)
+	switch dossier {
+	case "":
+		dossier = "."
+	case string(filepath.Separator):
+	default:
+		dossier = dossier[:len(dossier)-1] // sans le « / » final
+	}
+	dossiers := []string{dossier}
+	if joker(dossier) {
+		dossiers, tronque = p.glob(dossier)
+	}
+	for _, d := range dossiers {
+		fichiers = p.lireDossier(d, nom, fichiers)
+	}
+	return fichiers, tronque || p.arrete
+}
+
+// lireDossier ajoute à out les entrées de dossier qui correspondent à nom,
+// par paquets de 256, en décomptant le budget à chaque paquet.
+func (p *parcours) lireDossier(dossier, nom string, out []string) []string {
+	if p.arrete || p.reste <= 0 || !p.horloge().Before(p.fin) {
+		p.arrete = true
+		return out
+	}
+	info, err := os.Stat(dossier)
+	if err != nil || !info.IsDir() {
+		return out
+	}
+	d, err := os.Open(dossier) // #nosec G304 -- motif validé (configuration locale ou ValiderMotifDistant)
+	if err != nil {
+		return out
+	}
+	defer d.Close()
+	var trouves []string
+	for {
+		noms, err := d.Readdirnames(256)
+		p.reste -= len(noms)
+		for _, n := range noms {
+			if ok, _ := filepath.Match(nom, n); ok {
+				trouves = append(trouves, filepath.Join(dossier, n))
+			}
+		}
+		if err != nil { // io.EOF : dossier lu en entier
+			break
+		}
+		if p.reste <= 0 || !p.horloge().Before(p.fin) {
+			p.arrete = true
+			break
+		}
+	}
+	sort.Strings(trouves)
+	return append(out, trouves...)
 }
 
 // dossierAutorise : remplacé dans les tests (les fichiers de test ne sont

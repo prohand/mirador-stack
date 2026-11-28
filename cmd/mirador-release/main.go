@@ -72,7 +72,7 @@ func lirePhraseClavier(invite string) ([]byte, error) {
 const aide = `mirador-release : signature des versions de mirador-agent
 
   cle [-sortie FICHIER]                                   créer la clé de signature
-  signer -cle FICHIER -version X.Y.Z -arch amd64|arm64 [-produit mirador-collector] [-retour-autorise] BINAIRE
+  signer -cle FICHIER -version X.Y.Z -arch amd64|arm64 [-produit mirador-collector|mirador-maj-serveur] [-retour-autorise] BINAIRE
   signer-image -cle FICHIER -version X.Y.Z -empreinte sha256:… [-sortie MANIFESTE]
                                                           signer l'image Docker du serveur (SPEC § 102)
   verifier -publique CLE MANIFESTE BINAIRE
@@ -93,7 +93,7 @@ func lancer(args []string, sortie, erreurs io.Writer, phrase lirePhrase) int {
 	fichierCle := fs.String("cle", "cle-mirador.json", "fichier de clé")
 	ver := fs.String("version", "", "version (1.2.3)")
 	arch := fs.String("arch", "amd64", "architecture (amd64, arm64)")
-	produit := fs.String("produit", protocole.ProduitAgent, "produit signé : mirador-agent ou mirador-collector")
+	produit := fs.String("produit", protocole.ProduitAgent, "produit signé : mirador-agent, mirador-collector ou mirador-maj-serveur")
 	retour := fs.Bool("retour-autorise", false, "autoriser l'installation par-dessus une version plus récente (retour arrière)")
 	publique := fs.String("publique", "", "clé publique (base64)")
 	empreinte := fs.String("empreinte", "", "empreinte de l'image Docker (sha256:…)")

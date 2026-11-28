@@ -71,7 +71,7 @@ func ReglesMirador() []Regle {
 		m(Regle{Nom: "ProxmoxInviteCpuSature", Groupe: "proxmox",
 			Expr: `max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) ` +
 				`/ max by (instance, id, type) (mirador_pve_invite_coeurs) ` +
-				`* on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`,
+				`* on (instance, id) group_left (nom) ` + infoInviteUnique + ` > 0.95`,
 			Pour:    Duree(15 * time.Minute),
 			Gravite: Avertissement,
 			Resume:  "{{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanizePercentage }} de ses cœurs depuis 15 min",
@@ -81,7 +81,7 @@ func ReglesMirador() []Regle {
 		m(Regle{Nom: "ProxmoxConteneurMemoireSaturee", Groupe: "proxmox",
 			Expr: `max by (instance, id, type) (mirador_pve_invite_memoire_octets{type="lxc"}) ` +
 				`/ max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type="lxc"}) ` +
-				`* on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`,
+				`* on (instance, id) group_left (nom) ` + infoInviteUnique + ` > 0.95`,
 			Pour:    Duree(15 * time.Minute),
 			Gravite: Avertissement,
 			Resume:  "Le conteneur {{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanizePercentage }} de sa mémoire",
@@ -300,8 +300,27 @@ func ReglesMirador() []Regle {
 			Resume:  "L'évaluation des règles d'alerte prend {{ $value | humanize }} s par minute",
 			Description: "Une règle lit trop de données (fenêtre longue sur beaucoup de séries). Voir la " +
 				"commande « regles » (durée par règle)."}),
+		// Revue de sécurité du 28/11 (H1) : une règle en erreur ne sonne plus
+		// jamais, sans rien dire. Le compteur était écrit chaque minute
+		// (interne.go) mais aucune règle ne le lisait : panne silencieuse.
+		m(Regle{Nom: "ReglesEnErreur", Groupe: "mirador",
+			Expr:    `max(mirador_regles_en_erreur) > 0`,
+			Pour:    Duree(10 * time.Minute),
+			Gravite: Avertissement,
+			Resume:  "{{ $value | humanize }} règle(s) d'alerte en erreur : elles ne peuvent plus sonner",
+			Description: "Que faire : ouvrir Alertes › Règles (ou la commande « regles ») pour voir quelles règles " +
+				"sont en erreur et le message de PromQL. Souvent une expression modifiée à la main, ou des séries " +
+				"en double envoyées par une machine (token volé, agent modifié) : vérifier la machine citée."}),
 	}
 }
+
+// infoInviteUnique : une seule série mirador_pve_invite_info par invité
+// (machine, id), pour le côté « un » d'un group_left (revue du 28/11, H1) :
+// deux séries pour le même invité (envoi forgé, ou renommage d'une VM
+// pendant 5 min) mettaient la règle en erreur pour tout le parc. topk garde
+// les étiquettes de la série choisie (dont « nom ») : résultat inchangé
+// dans le cas normal.
+const infoInviteUnique = `topk by (instance, id) (1, mirador_pve_invite_info)`
 
 const cleDefautsPoses = "alertes.defauts_poses"
 

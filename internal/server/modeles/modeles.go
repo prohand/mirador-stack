@@ -206,6 +206,11 @@ func verifierRefs(expr string, params map[string]bool) error {
 
 // ExprRegle : expression d'une règle, chaque $p remplacé par la série du
 // seuil de chaque machine (écrite par le serveur, SPEC § 24.2).
+//
+// « max by (instance) » autour du seuil (revue de sécurité du 28/11, H1) :
+// côté « un » d'un group_left, deux séries pour la même machine mettaient
+// la règle en erreur pour TOUT le parc (PromQL refuse la requête entière).
+// Avec une seule série par machine (cas normal), le résultat est le même.
 func (m *Modele) ExprRegle(r RegleModele) string {
 	if !reRefParametre.MatchString(r.Expr) {
 		// Sans seuil : limitée aux machines qui portent le modèle (avec un
@@ -213,7 +218,7 @@ func (m *Modele) ExprRegle(r RegleModele) string {
 		return "(" + r.Expr + `) and on (instance) mirador_machine_modele{modele="` + m.Nom + `"}`
 	}
 	return reRefParametre.ReplaceAllStringFunc(r.Expr, func(ref string) string {
-		return `on (instance) group_left () mirador_modele_parametre{modele="` + m.Nom + `", parametre="` + ref[1:] + `"}`
+		return `on (instance) group_left () max by (instance) (mirador_modele_parametre{modele="` + m.Nom + `", parametre="` + ref[1:] + `"})`
 	})
 }
 

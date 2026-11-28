@@ -46,6 +46,6 @@
 <p class="sous">Pour une VM qui n'a pas à être sauvegardée (le Proxmox Backup Server lui-même, une VM de test…). {{.ID}}{{with .Nom}} {{.}}{{end}} sur {{.Machine}} sort de cette règle ; l'alerte se ferme seule. Liste et retour en arrière : <a href="/taches">Tâches planifiées</a>.</p>
 <form method="post" action="/taches" class="pile">{{template "csrf" $.CSRF}}<input type="hidden" name="action" value="exclure_vm">
 <input type="hidden" name="machine" value="{{.Machine}}"><input type="hidden" name="vm" value="{{.ID}}"><input type="hidden" name="nom" value="{{.Nom}}"><input type="hidden" name="retour" value="/alertes/{{$a.ID}}">
-<label>Motif (facultatif) <input name="motif" maxlength="200" placeholder="c'est le PBS lui-même"></label><button class="secondaire">Ne pas surveiller</button></form></section>{{end}}
+<label>Motif (facultatif) <input name="motif" maxlength="200" placeholder="c'est le PBS lui-même"></label><button class="secondaire" data-code>Ne pas surveiller</button></form></section>{{end}}
 </div>{{end}}
 {{end}}

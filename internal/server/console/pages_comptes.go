@@ -176,6 +176,10 @@ func (c *Console) postPasskeySupprimer(q *req) {
 	c.retour(q, "/compte#passkeys", err, "passkey supprimée")
 }
 
+// comparerMotDePasse : vérification d'un mot de passe (variable pour les
+// tests : simuler un serveur occupé).
+var comparerMotDePasse = auth.ComparerOccupe
+
 // postMotDePasse : ancien mot de passe + code 2FA + nouveau (deux fois).
 // Les autres sessions du compte sont fermées.
 func (c *Console) postMotDePasse(q *req) {
@@ -190,7 +194,13 @@ func (c *Console) postMotDePasse(q *req) {
 		if !libre {
 			return errTropEssais
 		}
-		bon := auth.Comparer(q.u.MotDePasse, q.r.PostFormValue("actuel"))
+		// Serveur occupé (trop de calculs Argon2id en même temps) : ce n'est
+		// pas un essai manqué, rien n'est compté (revue du 28/11).
+		bon, occupe := comparerMotDePasse(q.u.MotDePasse, q.r.PostFormValue("actuel"))
+		if occupe {
+			finir()
+			return auth.ErrOccupe
+		}
 		if !bon {
 			err := c.echecSensible(q, "mot de passe faux (changement)")
 			finir()
@@ -321,13 +331,32 @@ func (c *Console) postUtilisateur(q *req) {
 			}
 			err = auth.DefinirDesactive(ctx, c.db, nom, action == "desactiver", q.qui(), ip, q.t)
 		case "reinitialiser_2fa":
+			// Revue du 28/11 : nouveau mot de passe obligatoire, comme la
+			// commande utilisateur-secours. Sans lui, qui connaît (ou a
+			// volé) l'ancien mot de passe créait sa propre 2FA à la place
+			// de la personne.
+			mdp := q.r.PostFormValue("mot_de_passe")
+			if mdp == "" {
+				err = errors.New("effacer la 2FA : saisir aussi un nouveau mot de passe (provisoire, à transmettre à la personne)")
+				break
+			}
+			if err = auth.DefinirMotDePasse(ctx, c.db, nom, mdp, q.qui(), ip, q.t); err != nil {
+				break
+			}
 			if err = auth.ReinitialiserTOTP(ctx, c.db, nom, q.qui(), ip, q.t); err == nil {
 				err = auth.EffacerSecoursEtPasskeys(ctx, c.db, nom)
 			}
-			ok = "2FA, codes de secours et passkeys effacés : la personne recrée sa 2FA à sa prochaine connexion"
+			ok = "mot de passe provisoire posé ; 2FA, codes de secours et passkeys effacés : la personne recrée sa 2FA à sa prochaine connexion"
 		case "mot_de_passe":
 			err = auth.DefinirMotDePasse(ctx, c.db, nom, q.r.PostFormValue("mot_de_passe"), q.qui(), ip, q.t)
 			ok = "mot de passe changé, sessions de ce compte fermées"
+			// Revue du 28/11 : case « effacer aussi les passkeys et codes de
+			// secours » (cochée d'office) ; sinon une passkey ou un code de
+			// secours ouvrait encore le compte sans le nouveau mot de passe.
+			if err == nil && q.r.PostFormValue("effacer_secours") == "1" {
+				err = auth.EffacerSecoursEtPasskeys(ctx, c.db, nom)
+				ok = "mot de passe changé, passkeys et codes de secours effacés, sessions de ce compte fermées"
+			}
 		case "supprimer":
 			if nom == q.u.Nom {
 				err = errors.New("on ne peut pas supprimer son propre compte")
@@ -394,15 +423,16 @@ func (c *Console) pageSecurite(q *req) {
 	c.rendre(q, "securite", "Sécurité", "securite", d)
 }
 
-// postSSHConnues : ajouter (code 2FA : moins d'alertes) ou retirer une
-// adresse SSH connue (retour du 27/11).
+// postSSHConnues : ajouter ou retirer une adresse SSH connue (retour du
+// 27/11). Ajouter (moins d'alertes, plage saisie à la main) : code 2FA
+// ressaisi à chaque fois, même en mode administration (revue du 28/11).
 func (c *Console) postSSHConnues(q *req) {
 	ctx := q.r.Context()
 	var err error
 	ok := ""
 	switch q.r.PostFormValue("action") {
 	case "ajouter":
-		if err = c.verifierCode(q); err != nil {
+		if err = c.verifierCodeFrais(q); err != nil {
 			break
 		}
 		machine := strings.TrimSpace(q.r.PostFormValue("machine"))
@@ -519,7 +549,13 @@ func (c *Console) postConfirmer(q *req) {
 func (c *Console) postFermerSession(q *req) {
 	e := q.r.PostFormValue("session")
 	// « Fermer toutes les autres » (SPEC § 38) : toutes sauf celle-ci.
+	// Code 2FA ressaisi (revue du 28/11) : une session volée ne doit pas
+	// pouvoir mettre dehors tous les autres comptes d'un coup.
 	if e == "autres" {
+		if err := c.verifierCodeFrais(q); err != nil {
+			c.retour(q, "/securite#sessions", err, "")
+			return
+		}
 		n := 0
 		fermees := map[string]bool{}
 		for _, s := range c.sessions.Lister() {

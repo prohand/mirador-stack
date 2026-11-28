@@ -10,8 +10,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
+	"mirador-stack/internal/adresses"
 	essais "mirador-stack/internal/sondes"
 )
 
@@ -174,6 +176,15 @@ func hoteDuLAN(adresse string, portDefaut bool) (string, error) {
 }
 
 var reHoteLAN = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)
+
+// ControleLAN : pour net.Dialer.Control (SNMP, UniFi, sondes de
+// certificats) : l'adresse réellement jointe, après résolution du nom, doit
+// être une adresse privée du LAN. hoteDuLAN accepte un nom d'hôte sans
+// pouvoir savoir où il mène (revue du 28/11) : un nom qui pointe vers une
+// adresse publique, la boucle locale ou le lien local est refusé ici, au
+// moment de la connexion.
+var ControleLAN func(reseau, adresse string, c syscall.RawConn) error = adresses.Controle(
+	func(ip net.IP) bool { return !adresses.Privee(ip) }, "hors du LAN refusée")
 
 // validerSNMP : cibles SNMP (équipements connus, authPriv obligatoire).
 func validerSNMP(cibles []CibleSNMP, connus map[string]bool) error {

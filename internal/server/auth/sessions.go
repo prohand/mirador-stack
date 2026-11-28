@@ -208,6 +208,19 @@ func (m *Magasin) Lire(id string) *Session {
 	return &c
 }
 
+// LireEmpreinte renvoie une COPIE de la session désignée par son empreinte
+// (nil si elle n'est plus en mémoire : fermée, expirée, renouvelée).
+func (m *Magasin) LireEmpreinte(empreinte string) *Session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s := m.tout[empreinte]
+	if s == nil {
+		return nil
+	}
+	c := *s
+	return &c
+}
+
 // modifier applique f à la session (sous verrou).
 func (m *Magasin) Modifier(empreinte string, f func(*Session)) {
 	m.mu.Lock()
@@ -253,12 +266,15 @@ func (m *Magasin) FermerUtilisateur(id int64, garder string) {
 	}
 }
 
-// nettoyer retire les sessions expirées.
-func (m *Magasin) Nettoyer(t time.Time, inactivite, max time.Duration) {
+// Nettoyer retire les sessions pour lesquelles expiree répond vrai. La
+// règle vient de l'appelant : une session d'appareil de confiance a ses
+// propres durées (revue du 28/11 : retirée avec les durées ordinaires, elle
+// revenait du disque toutes les 5 s avec ses compteurs à zéro).
+func (m *Magasin) Nettoyer(expiree func(*Session) bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for k, s := range m.tout {
-		if Expiree(s, t, inactivite, max) {
+		if expiree(s) {
 			delete(m.tout, k)
 		}
 	}

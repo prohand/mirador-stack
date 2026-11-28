@@ -157,6 +157,9 @@ func Appliquer(base config.Agent, d *ConfigDistante) (config.Agent, error) {
 	affecter(&a.LogsRafale, d.LogsRafale)
 	affecter(&a.LogsBruit, d.LogsBruit)
 	affecter(&a.Masquage, d.Masquage)
+	// Plancher local (revue du 28/11) : le serveur peut ajouter des modèles,
+	// jamais retirer ceux des secrets (« "masquage": [] » ne coupe rien).
+	a.CompleterMasquage()
 	affecter(&a.MasquagePerso, d.MasquagePerso)
 	affecter(&a.NiveauLog, d.NiveauLog)
 	if d.Recuperation != nil {

@@ -977,6 +977,9 @@ VictoriaMetrics 248, VictoriaLogs 187), § 2.1.
 | `mirador-collector` compromis (étape 6) | faux syslog, accès SNMP/UniFi | binaire séparé de l'agent, écoute LAN seule, TLS + liste d'IP, secrets limités (SNMP lecture, compte UniFi lecture seule) |
 | Serveur compromis → collecteur | écoute détournée, secrets lus | adresse d'écoute limitée aux adresses LAN déclarées par le collecteur ; config typée sans commande ; tests limités aux cibles déjà configurées ; comptes SNMP/UniFi en lecture seule |
 | `X-Forwarded-For` falsifié | contournement liste d'IP / limites | en-tête cru seulement depuis l'adresse du proxy |
+| Token volé : noms de métriques du serveur (§ 144) | règles d'alerte en erreur pour tout le parc | noms `mirador_*` du serveur refusés à l'ingestion ; règles robustes aux doublons ; règle `ReglesEnErreur` |
+| Compte local sur une machine surveillée (§ 144) | lecture des fichiers des conteneurs par le relais Docker | relais à liste blanche de chemins, réservé à root et `mirador-agent` (iptables) |
+| Serveur compromis → réinstallation (§ 144) | root sur la machine réinstallée | manifeste signé vérifié par le script (openssl ≥ 3) dès qu'une clé est connue |
 
 ### 11.3 Modèle de menaces de l'étape 1
 
@@ -4240,6 +4243,11 @@ inchangés ✅.
   taille). Refus local possible : ligne `MIRADOR_CHECKS=non` dans
   `/etc/mirador-agent/agent.conf` (fichier de root, le serveur ne peut pas
   le changer) ; l'agent ignore alors la clé `checks`.
+- *Corrigé le 28/11 (§ 144)* : `contient=` donne un oui / non, donc un
+  serveur compromis pouvait lire une page morceau par morceau en changeant
+  le texte cherché. Parades : un `contient` nouveau ou changé une fois par
+  heure au plus, refus local `MIRADOR_CHECKS_CONTIENT=non`, lien local
+  (169.254.0.0/16, fe80::/10, métadonnées d'hébergeur) toujours refusé.
 - Fichiers et dossiers : l'agent ne voit que ce que son utilisateur
   (`mirador-agent`, sans droits) peut lire.
 - Les cibles apparaissent dans les mesures (étiquette `cible`) : l'interface
@@ -9261,3 +9269,124 @@ telle ligne seulement.
   `url.Values.Encode` (tout est encodé), jamais à partir de texte brut.
 - Enrôlement : un jeton expiré reste refusé pour une première demande et
   après la remise du token ; seule une demande déjà en attente reste suivie.
+
+## 144. Revue de sécurité du 28/11 **[Fait, à valider]**
+
+Demande de l'utilisateur : « revue complète de sécurité », puis « fais tout
+dans la même PR ». Cinq analyses en lecture seule (connexion et droits ;
+XSS, SSRF, injection ; réception des données ; agent, assistant root,
+signatures ; collecteur, chiffrement, déploiement, CI), plus `go vet`,
+`gosec` et `govulncheck` (rien). 1 faille haute, 6 moyennes, 19 basses,
+8 remarques ; aucune ne donne accès sans être déjà dans la place. Mesures :
+PROGRES.md, « Revue de sécurité du 28/11 ».
+
+**Haute**
+- **H1. Noms de métriques réservés au serveur** (`ingestion/reserves.go`) :
+  un token volé envoyait deux `mirador_modele_parametre` et mettait en
+  erreur toutes les règles à seuil, pour tout le parc (PromQL refuse un
+  doublon côté « un » de `group_left`), sans alerte. Parades : 14 préfixes
+  et 13 noms refusés aux agents et collecteurs (un test les compare à tout
+  ce que l'agent et le collecteur émettent) ; seuils des modèles en
+  `max by (instance)`, `topk by (instance, id) (1, mirador_pve_invite_info)`,
+  `max by (instance) (node_load5)` (même résultat sans doublon ; règles en
+  base corrigées au démarrage) ; nouvelle règle `ReglesEnErreur`
+  (`max(mirador_regles_en_erreur) > 0`, 10 min). Coût : 46 ns par série
+  reçue, 0 allocation.
+
+**Moyennes**
+- **M1. Relais Docker** : HAProxy à liste blanche (GET `/_ping`,
+  `/containers/json`, `/containers/<id>/json|stats|logs`), configuration
+  écrite par le script et montée en lecture seule ; image épinglée par
+  sha256 ; chaîne iptables `MIRADOR-RELAIS` (unité oneshot
+  `mirador-agent-relais`) : seuls root et `mirador-agent` joignent le relais.
+  Reste : un rechargement complet du pare-feu efface ces règles
+  (`systemctl restart mirador-agent-relais`) ; les variables d'environnement
+  restent visibles par root et l'agent. Coût : même HAProxy, moins de
+  journaux, 6 règles.
+- **M2. Installation signée** : le serveur envoie le manifeste Ed25519 avec
+  le binaire (`X-Mirador-Manifeste`, `X-Mirador-Signe`). Si une clé est
+  connue (`--cle-publique` ou `cles-publiques.txt` déjà posé), le script
+  (agent et collecteur) vérifie signature (openssl ≥ 3), produit,
+  architecture, SHA-256, taille, puis la version, et lance `-version` sous
+  le compte du service, jamais en root. Refus : binaire embarqué non signé,
+  version plus ancienne (`--accepter-version-ancienne`), openssl trop vieux
+  (`--sans-verification-signature`, déconseillé). Reste : première
+  installation sans `--cle-publique` non vérifiée.
+- **M3. mirador-maj-serveur signé** : nouveau produit de release (format
+  inchangé, pas de retour arrière) ; `installer-maj-serveur.sh` vérifie la
+  signature avant d'installer, écrit lui-même les unités systemd (plus de
+  téléchargement par tag). Releases ≤ 0.6.34 : `--sans-signature`.
+- **M4. Rien de lu ne repart vers le serveur** : sondes sans recopie de la
+  valeur reçue ; `contient` des checks une fois par heure au plus et
+  refusable (`MIRADOR_CHECKS_CONTIENT=non`) ; lien local toujours refusé
+  (checks, sondes) ; boucle locale refusée aux sondes du collecteur ;
+  `MIRADOR_SONDES=non` sur le collecteur ; SNMP, UniFi et certificats
+  vérifiés « adresse privée » à la connexion, même pour un nom DNS.
+- **M5. Mentions injectées par les logs** : Discord `allowed_mentions`
+  vide, Slack / Mattermost échappés (`& < >`, `@` coupé), Matrix
+  `m.mentions` vide, extraits dans un bloc de code.
+- **M6. Adresses SSH nouvelles** : 20 par machine, choix équitable
+  (`ROW_NUMBER` par machine), 200 pour le parc.
+
+**Basses (corrigées)**
+- Session « appareil de confiance » plus purgée toutes les 5 s après 12 h
+  (compteur des 5 codes faux, mode administration, ajout de passkey).
+- Flux en direct revérifiés toutes les 10 s : coupés si la session est
+  fermée ou le compte changé (« session fermée : recharger la page »).
+- Code 2FA : tâches planifiées, page de statut ; toujours ressaisi pour
+  « Fermer toutes les autres » et l'ajout d'une adresse SSH connue.
+- « Effacer la 2FA » d'un compte : nouveau mot de passe obligatoire ;
+  changement de mot de passe par un admin : passkeys et codes de secours
+  effacés (case cochée d'office).
+- Interface : avec `MIRADOR_PROXY` et sans TLS local, 403 pour toute
+  connexion qui ne vient ni du proxy ni de la boucle locale (journal : une
+  ligne par 10 s au plus). **Un `MIRADOR_PROXY` faux ferme l'interface.**
+- Telegram : coupe jamais dans une balise, extraits ≤ 1 200 octets après
+  échappement, renvoi en texte brut sur « can't parse entities ».
+- Liste commune d'adresses interdites (`internal/adresses`) : notifications,
+  push, sondes du serveur, RDAP (CGNAT, 0.0.0.0/8, 198.18.0.0/15,
+  240.0.0.0/4, IPv6 qui contiennent une IPv4…), contrôlée à la connexion.
+- `mirador-server` interdit comme nom de machine ; token relu après
+  l'attente de la configuration ; cache des tokens à « génération » ;
+  1 réveil du moteur d'alertes par minute et par machine ; points de plus
+  de 24 h écartés (masquaient AgentMuet).
+- Masquage : plancher local (mots de passe, tokens, clés d'API,
+  Authorization / Cookie) que le serveur ne peut pas retirer
+  (`MIRADOR_MASQUAGE_PLANCHER=non` pour le couper) ; nouvelles formes
+  (JSON échappé, `--password x`, `-pX` de mysql, `scheme://u:p@h`,
+  cookies, valeur entre guillemets). Plus rapide sur les lignes courantes.
+- mirador-maj-serveur : présence effacée avant le démarrage, date future
+  refusée, copie de la base limitée aux fichiers ordinaires
+  (`O_EXCL|O_NOFOLLOW`).
+- Assistant root : sortie bornée à 4 Mio pendant la lecture ; parcours des
+  jokers de certificats borné (10 000 entrées, 30 s).
+- Syslog : débit filterlog par adresse IP avant le comptage.
+- Collecteur : `SocketBindDeny=udp:1-65535 tcp:1-1023` (pas `any` : le SNMP
+  fait un bind sur le port 0) ; unités de retour arrière durcies.
+- CI : release seulement depuis un commit de `main` ; actions épinglées par
+  SHA ; sur une branche, « documentation seule » jugé par rapport à `main`
+  et non au push précédent (un push de doc sautait les tests du code poussé
+  juste avant, vu sur la PR #111) ; images Go et Olvid par sha256 ; Olvid `cap_drop: ALL` et refus
+  d'une clé admin vide ; `cle-mirador*.json` dans `.gitignore`.
+- Remarques : demande de rôle retirée avec le compte ; « serveur occupé »
+  pas compté comme essai faux ; abonnement push repris seulement avec les
+  mêmes clés ; erreur S3 réduite à une ligne courte.
+
+**Pas fait (choix)**
+- Réseau Docker dédié nginx ↔ mirador : risqué pour l'installation en
+  place ; marche à suivre dans la PR. Le refus côté serveur couvre le cas.
+- `read_only` du conteneur Olvid : pas vérifiable sans lancer l'image.
+- TLS mutuel du syslog : demande une autorité pour les équipements ;
+  proposé (`syslog_ca_clients`, vide par défaut).
+- Repli de vérification par l'assistant root quand openssl < 3 (Debian 11,
+  Ubuntu 20.04) : proposé (`-verifier-manifeste`).
+- Règles vmalert importées ou écrites à la main : non réécrites ;
+  `ReglesEnErreur` rend une panne visible.
+
+**Modèle de menaces (ce qui reste)**
+- Première installation sans clé connue : confiance au premier usage.
+- GitHub compromis (clé de signature dans ses secrets) : root sur le parc
+  si la mise à jour de l'assistant root est permise. Parades à régler par
+  l'utilisateur : tags `v*` protégés, relecteur obligatoire sur
+  l'environnement « signature » ; `MIRADOR_MAJ_RACINE=non` en local.
+- Émetteur syslog identifié par son adresse IP seulement.

@@ -29,7 +29,7 @@
    "remplace": "ProxmoxInviteCpuSature",
    "pour": "15m",
    "gravite": "warning",
-   "expr": "max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) / max by (instance, id, type) (mirador_pve_invite_coeurs) * on (instance, id) group_left (nom) mirador_pve_invite_info * 100 > $invite_cpu_pct",
+   "expr": "max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) / max by (instance, id, type) (mirador_pve_invite_coeurs) * on (instance, id) group_left (nom) topk by (instance, id) (1, mirador_pve_invite_info) * 100 > $invite_cpu_pct",
    "resume": "{{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanize }} % de ses cœurs"
   },
   {
@@ -37,7 +37,7 @@
    "remplace": "ProxmoxConteneurMemoireSaturee",
    "pour": "15m",
    "gravite": "warning",
-   "expr": "max by (instance, id, type) (mirador_pve_invite_memoire_octets{type=\"lxc\"}) / max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type=\"lxc\"}) * on (instance, id) group_left (nom) mirador_pve_invite_info * 100 > $conteneur_memoire_pct",
+   "expr": "max by (instance, id, type) (mirador_pve_invite_memoire_octets{type=\"lxc\"}) / max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type=\"lxc\"}) * on (instance, id) group_left (nom) topk by (instance, id) (1, mirador_pve_invite_info) * 100 > $conteneur_memoire_pct",
    "resume": "Le conteneur {{ $labels.nom }} ({{ $labels.id }}) sur {{ $labels.instance }} utilise {{ $value | humanize }} % de sa mémoire"
   }
  ],

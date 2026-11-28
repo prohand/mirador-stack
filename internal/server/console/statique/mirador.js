@@ -2305,7 +2305,11 @@ document.addEventListener("change", function (ev) {
       bloc.classList.add("recu");
       afficher(); texteEtat();
     });
-    src.addEventListener("fin", function () { fermer("15 min de direct : arrêté pour ne pas l'oublier"); });
+    src.addEventListener("fin", function (e) {
+      // « session » : session fermée ou compte désactivé (revue du 28/11).
+      var r = ""; try { r = JSON.parse(e.data).raison; } catch (x) { r = ""; }
+      fermer(r === "session" ? "session fermée : recharger la page" : "15 min de direct : arrêté pour ne pas l'oublier");
+    });
     src.onerror = function () {
       // Flux refusé (agent trop ancien, trop de pages) ou serveur coupé :
       // EventSource réessaie seul ; on arrête après un échec franc.
@@ -2789,9 +2793,12 @@ document.addEventListener("change", function (ev) {
   var source = new EventSource(page.getAttribute('data-flux-direct'));
   source.addEventListener('open', function () { if (etat) etat.classList.remove('coupe'); });
   source.addEventListener('error', function () { if (etat) etat.classList.add('coupe'); });
-  source.addEventListener('fin', function () {
+  source.addEventListener('fin', function (e) {
     source.close();
-    if (etat) { etat.classList.add('coupe'); etat.lastChild.textContent = 'Direct arrêté (30 min) : recharger la page'; }
+    // « session » : session fermée ou compte désactivé (revue du 28/11).
+    var r = ''; try { r = JSON.parse(e.data).raison; } catch (err) { r = ''; }
+    var texte = r === 'session' ? 'Session fermée : recharger la page' : 'Direct arrêté (30 min) : recharger la page';
+    if (etat) { etat.classList.add('coupe'); etat.lastChild.textContent = texte; }
   });
   source.addEventListener('minute', function (e) {
     try {

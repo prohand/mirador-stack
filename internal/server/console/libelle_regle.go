@@ -93,7 +93,7 @@ func dureeFr(v any) string {
 // clair. Ce sont des libellés d'affichage, aucun secret.
 var libellesMasquages = map[string]string{ // #nosec G101 -- libellés d'affichage, pas des secrets
 	"mots_de_passe": "Mots de passe", "tokens": "Jetons", "cles_api": "Clés API",
-	"autorisation": "En-têtes Authorization", "cartes": "Cartes bancaires", "emails": "Adresses e-mail",
+	"autorisation": "En-têtes Authorization et Cookie", "cartes": "Cartes bancaires", "emails": "Adresses e-mail",
 }
 
 // motTechnique : mots techniques courants montrés tels quels dans des

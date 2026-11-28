@@ -2121,6 +2121,53 @@ corps des réponses en erreur UniFi / Docker non vidés (pas de fuite).
 À mesurer sur le VPS après installation : RAM et CPU du serveur (comparer
 au 26/11 : 252 Mio au plus).
 
+## Revue de sécurité du 28/11 (SPEC § 144)
+
+Branche `claude/epic-brahmagupta-odxs3q`. Cinq analyses en lecture seule,
+puis six chantiers de correction (« fais tout dans la même PR »).
+
+**Outils** : `go vet` rien ; `gosec v2.30.0` 0 alerte (204 `#nosec`, tous
+justifiés) ; `govulncheck v1.9.0` 0 faille atteignable.
+
+**Constats** : 1 haute (H1), 6 moyennes (M1 à M6), 19 basses, 8 remarques.
+Tous corrigés sauf 5 points laissés par choix (SPEC § 144, « Pas fait »).
+
+**Mesure du serveur** (`MESURE_COMPLETE=1 DUREE=3m`, même machine,
+50 agents simulés + interface, réglages mémoire de production) :
+
+| Mesure | Avant (0.6.34) | Après |
+|---|---|---|
+| RSS max | 206 Mo | 205 Mo |
+| Tas Go max | 123 Mo | 130 Mo |
+| CPU (serveur + charge + navigateur) | 3,8 % d'un cœur | 3,9 % d'un cœur |
+
+Objectif (< 256 Mo) tenu ; pas d'écart mesurable.
+
+**Agent et collecteur** (benchmarks Go) :
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Masquage, 6 lignes courantes | 4,2 µs, 0 alloc | 2,6 µs, 0 alloc |
+| Masquage, 6 lignes à masquer | 20 µs | 25 µs (2 lignes de plus vraiment masquées) |
+| Contrôle « nom réservé » à l'ingestion | – | 46 ns par série, 0 alloc |
+| Contrôle d'adresse à la connexion | – | ~90 ns, 0 alloc |
+| Débit filterlog par adresse IP | – | ~50 ns par ligne, 0 alloc |
+
+Mémoire en plus : au plus ~100 Kio (seaux syslog), 16 o par machine
+(réveils d'alertes), 4 Mio de sortie de l'assistant root (déjà le cas,
+maintenant garanti). Relais Docker : même HAProxy, moins de journaux.
+
+Tests : `go test ./...` et `go vet ./...` passent ; un test par correction.
+
+**À vérifier par l'utilisateur après installation** (commandes dans la PR)
+- `MIRADOR_PROXY` = adresse réelle de nginx, sinon l'interface répond 403.
+- `openssl version` en 3.x sur les machines qu'on réinstalle avec une clé.
+- Relais Docker : page Docker des machines toujours remplie ; `/export`
+  refusé ; un autre compte que root ne joint plus le relais.
+- Collecteur : SNMP, sondes et syslog toujours en service. Une sonde vers
+  127.0.0.1 ne marche plus (refus voulu).
+- RAM et CPU du serveur sur le VPS (comparer au 26/11 : 252 Mio au plus).
+
 ## Prochaine étape
 
 Mise à jour le 27/11 au soir. Les 7 étapes du plan sont validées (26/11).
@@ -2151,6 +2198,8 @@ Mise à jour le 27/11 au soir. Les 7 étapes du plan sont validées (26/11).
   limite du conteneur 300 Mio).
 
 **À valider par l'utilisateur**
+- SPEC § 144 : revue de sécurité du 28/11 (PR à relire, réglages GitHub :
+  tags `v*` protégés, relecteur sur l'environnement « signature »).
 - SPEC § 136 à 142 : pare-feu par machine et flux sortants, carte et
   « Mon réseau », classements, choix d'un pare-feu, grand parc, et les
   améliorations du 27/11 (§ 142, dont adresses SSH connues).

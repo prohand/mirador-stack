@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -281,7 +282,34 @@ func (d *destinationS3) Envoyer(ctx context.Context, chemin string, _ int) error
 	defer resp.Body.Close()
 	extrait, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d : %s", resp.StatusCode, strings.TrimSpace(string(extrait)))
+		if l := ligneCourte(extrait); l != "" {
+			return fmt.Errorf("HTTP %d : %s", resp.StatusCode, l)
+		}
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// ligneCourte : première ligne d'une réponse d'erreur, nettoyée (sans
+// caractère de contrôle) et bornée à 120 caractères (revue du 28/11 : la
+// réponse entière, jusqu'à 2 Kio, était recopiée dans l'erreur affichée).
+// Le code S3 (« <Code>AccessDenied</Code> ») est gardé s'il est là.
+func ligneCourte(b []byte) string {
+	s := strings.ToValidUTF8(string(b), "")
+	if i := strings.Index(s, "<Code>"); i >= 0 {
+		if j := strings.Index(s[i:], "</Code>"); j > 0 {
+			s = s[i+len("<Code>") : i+j]
+		}
+	}
+	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	if r := []rune(s); len(r) > 120 {
+		s = string(r[:120]) + "…"
+	}
+	return strings.TrimSpace(s)
 }

@@ -154,7 +154,8 @@ func TestDNS(t *testing.T) {
 		t.Fatalf("adresse attendue : %+v", r)
 	}
 	s.Contenu = "10.0.0.1"
-	if r := Essayer(ctx, s, Options{}); r.OK {
+	// Revue du 28/11 (M4) : les adresses reçues ne sont jamais recopiées.
+	if r := Essayer(ctx, s, Options{}); r.OK || r.Erreur != "réponse DNS différente de l'attendue" {
 		t.Fatalf("mauvaise adresse : %+v", r)
 	}
 	s.Question, s.Contenu = "inconnu.lan", ""
@@ -182,10 +183,10 @@ func TestVerifierJSON(t *testing.T) {
 	for _, c := range []struct{ champ, attendu, erreur string }{
 		{"status", "ok", ""},
 		{"status", "", ""},
-		{"checks.db.status", "ok", "champ JSON checks.db.status = « degraded », attendu « ok »"},
+		{"checks.db.status", "ok", "champ JSON checks.db.status : valeur différente de l'attendue"},
 		{"items.1.etat", "2.5", ""},
 		{"items.0.etat", "1", ""},
-		{"items.0.etat", "3", "champ JSON items.0.etat différent de « 3 »"}, // nombre reçu non recopié
+		{"items.0.etat", "3", "champ JSON items.0.etat : valeur différente de l'attendue"}, // nombre reçu non recopié
 		{"items.2.etat", "", "champ JSON items.2.etat absent"},
 		{"actif", "true", ""},
 		{"vide", "null", ""},
@@ -210,7 +211,7 @@ func TestHTTPJSONCertificat(t *testing.T) {
 	defer srv.Close()
 	s := Sonde{Nom: "api", Type: HTTP, Cible: srv.URL, Depuis: "lan", NonVerifie: true, ChampJSON: "status", ValeurJSON: "ok", Certificat: 14}
 	r := Essayer(context.Background(), s, Options{})
-	if r.OK || r.Erreur != "champ JSON status = « degraded », attendu « ok »" || r.FinCertificat.IsZero() {
+	if r.OK || r.Erreur != "champ JSON status : valeur différente de l'attendue" || r.FinCertificat.IsZero() {
 		t.Fatalf("essai : %+v", r)
 	}
 	v := Valeurs(s, r)

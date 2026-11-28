@@ -24,6 +24,15 @@ const (
 	dureeAlerteSSH   = 24 * time.Hour
 	maxAdressesSSH   = 2000 // par machine : au-delà, les plus anciennes partent
 	MetriqueSSHNeuve = "mirador_ssh_adresse_nouvelle"
+
+	// Alertes « adresse nouvelle » tenues en même temps (revue du 28/11,
+	// M6) : 20 par machine (au-delà, c'est une attaque ou un agent abîmé :
+	// les 20 premières suffisent à le voir), 200 pour tout le parc. Lignes
+	// lues en base : 2 000 au plus (deux fois le plafond par machine, pour
+	// les adresses « connues » écartées ensuite).
+	maxNouvellesParMachine = 20
+	maxNouvellesSSH        = 200
+	maxLignesNouvelles     = 2000
 )
 
 // cgnat : 100.64.0.0/10 (adresses de l'opérateur, pas Internet).
@@ -95,21 +104,38 @@ func SSHNouvelles(ctx context.Context, db *sql.DB, t time.Time) ([]ConnexionSSH,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT machine, adresse, utilisateur FROM ssh_adresses
-		WHERE nouvelle_jusqua > ? LIMIT 500`, t.Unix())
+	// Sélection équitable (revue du 28/11, M6) : avant, « LIMIT 500 » sans
+	// ordre puis 200 pour tout le parc ; une machine compromise qui
+	// signalait des centaines d'adresses évinçait la vraie alerte d'une
+	// autre machine. Maintenant : rang de chaque adresse dans sa machine
+	// (les plus anciennes d'abord : l'alerte ne saute pas d'une adresse à
+	// l'autre), puis tri par rang : le 1er rang de chaque machine passe
+	// avant le 2e de n'importe quelle autre.
+	rows, err := db.QueryContext(ctx, `SELECT machine, adresse, utilisateur FROM (
+		SELECT machine, adresse, utilisateur,
+			ROW_NUMBER() OVER (PARTITION BY machine ORDER BY nouvelle_jusqua, adresse) AS rang
+		FROM ssh_adresses WHERE nouvelle_jusqua > ?)
+		WHERE rang <= ? ORDER BY rang, machine LIMIT ?`, t.Unix(), 2*maxNouvellesParMachine, maxLignesNouvelles)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []ConnexionSSH
+	parMachine := map[string]int{}
 	for rows.Next() {
 		var c ConnexionSSH
 		if err := rows.Scan(&c.Machine, &c.Adresse, &c.Utilisateur); err != nil {
 			return nil, err
 		}
-		if a, err := netip.ParseAddr(c.Adresse); err == nil && !Connue(cs, c.Machine, a) && len(out) < 200 {
-			out = append(out, c)
+		a, err := netip.ParseAddr(c.Adresse)
+		if err != nil || Connue(cs, c.Machine, a) {
+			continue
 		}
+		if parMachine[c.Machine] >= maxNouvellesParMachine || len(out) >= maxNouvellesSSH {
+			continue
+		}
+		parMachine[c.Machine]++
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

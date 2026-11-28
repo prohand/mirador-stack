@@ -88,6 +88,9 @@ func (o *Options) completer() {
 	if o.Horloge == (LimitesHorloge{}) {
 		o.Horloge = LimitesHorlogeDefaut()
 	}
+	if o.Horloge.Retard <= 0 {
+		o.Horloge.Retard = LimitesHorlogeDefaut().Retard
+	}
 	defaut := func(v *float64, d float64) {
 		if *v <= 0 {
 			*v = d
@@ -127,6 +130,8 @@ type Compteurs struct {
 	Requetes, Refus400, Refus401, Refus403, Refus413, Refus429, Refus503 atomic.Uint64
 	Series, Points, SeriesIgnorees, SeriesRefusees, PointsFuturs         atomic.Uint64
 	SeriesHorsParc                                                       atomic.Uint64 // collecteur : équipement non rattaché
+	SeriesReservees                                                      atomic.Uint64 // nom écrit par le serveur seul (reserves.go)
+	PointsAnciens                                                        atomic.Uint64 // plus vieux que LimitesHorloge.Retard
 	Lignes, LignesIgnorees, LignesRefusees                               atomic.Uint64
 	HorlogeCorrigee, HorlogeRefusee                                      atomic.Uint64
 }
@@ -543,6 +548,19 @@ func (g *Ingestion) accueillir(w http.ResponseWriter, r *http.Request, places *P
 	return m, liberer, true
 }
 
+// Reverifier : le token de la requête est-il toujours valable, relu en base
+// sans cache (revue du 28/11, B9) ? Pour une réponse rendue après une
+// longue attente (configuration gardée ouverte jusqu'à 45 s) : machine
+// révoquée, refusée ou token changé pendant l'attente → erreur (ErrToken,
+// ErrIP, ErrEmpreinte, ou erreur de la base).
+func (g *Ingestion) Reverifier(r *http.Request) (Machine, error) {
+	token, present := extraireToken(r)
+	if !present {
+		return Machine{}, ErrToken
+	}
+	return g.auth.VerifierSansCache(r.Context(), token, web.AdresseClient(r), r.Header.Get(protocole.EnteteEmpreinte), g.opt.Maintenant())
+}
+
 // placesParMachine, delaiLectureCorps : voir Accueillir.
 const (
 	placesParMachine  = 3
@@ -630,7 +648,8 @@ func (g *Ingestion) metriques(w http.ResponseWriter, r *http.Request) {
 }
 
 // ranger : fin commune des métriques (remote write et InfluxDB) : points
-// sans heure ou trop loin dans le futur écartés, nom (et site, type, groupe)
+// sans heure, trop loin dans le futur ou trop anciens écartés, noms réservés
+// au serveur refusés, nom (et site, type, groupe)
 // imposés, quotas, écriture, puis 204.
 func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, series []stockage.Serie, dec Decision, d time.Duration, maintenant time.Time) {
 	limiteFutur := maintenant.Add(g.opt.Horloge.Maximum).UnixMilli()
@@ -638,20 +657,34 @@ func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, se
 	if m.Type == "collecteur" {
 		eqs = g.equipementsDe(r.Context(), m.ID, maintenant)
 	}
-	points, futurs, horsParc := 0, 0, 0
+	// Points plus vieux que la fenêtre de retard du stockage : la base les
+	// refuserait, mais la machine passerait pour « vue » (dernière réception,
+	// règle AgentMuet) sans qu'aucun point ne soit rangé.
+	limitePasse := maintenant.Add(-g.opt.Horloge.Retard).UnixMilli()
+	points, futurs, anciens, horsParc, reserves := 0, 0, 0, 0, 0
 	vusEq := map[string]bool{} // équipements pour lesquels des points sont arrivés
 	for i := range series {
 		s := &series[i]
+		// Nom écrit par le serveur seul (revue du 28/11, H1) : refusé.
+		if nomReserve(s.Valeur("__name__")) {
+			reserves++
+			s.Points = s.Points[:0]
+			continue
+		}
 		if dec == HeureCorrige {
 			for j := range s.Points {
 				s.Points[j].T -= d.Milliseconds()
 			}
 		}
-		// Points sans heure ou trop loin dans le futur : écartés.
+		// Points sans heure, trop loin dans le futur ou trop anciens : écartés.
 		gardes := s.Points[:0]
 		for _, p := range s.Points {
 			if p.T <= 0 || p.T > limiteFutur {
 				futurs++
+				continue
+			}
+			if p.T < limitePasse {
+				anciens++
 				continue
 			}
 			gardes = append(gardes, p)
@@ -677,8 +710,13 @@ func (g *Ingestion) ranger(w http.ResponseWriter, r *http.Request, m Machine, se
 		g.Compteurs.SeriesHorsParc.Add(uint64(horsParc)) // #nosec G115 -- compteur ≥ 0
 		g.avertirQuota(m, "séries d'un équipement non rattaché à ce collecteur", horsParc)
 	}
+	if reserves > 0 {
+		g.Compteurs.SeriesReservees.Add(uint64(reserves)) // #nosec G115 -- compteur ≥ 0
+		g.avertirQuota(m, "séries au nom réservé au serveur refusées (mirador_*)", reserves)
+	}
 	series = sansSeriesVides(series)
 	series, refusees := g.quotas.Filtrer(m.ID, series, maintenant)
+	g.Compteurs.PointsAnciens.Add(uint64(anciens))   // #nosec G115 -- compteur ≥ 0
 	g.Compteurs.PointsFuturs.Add(uint64(futurs))     // #nosec G115 -- compteur ≥ 0
 	g.Compteurs.SeriesRefusees.Add(uint64(refusees)) // #nosec G115 -- compteur ≥ 0
 	if refusees > 0 {

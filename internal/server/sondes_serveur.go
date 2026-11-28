@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"mirador-stack/internal/adresses"
 	"mirador-stack/internal/server/flotte"
 	"mirador-stack/internal/server/stockage"
 	essais "mirador-stack/internal/sondes"
@@ -20,8 +21,9 @@ import (
 // instance="mirador-server").
 //
 // Adresses refusées depuis le serveur : boucle locale, réseaux privés,
-// lien local, multicast, non spécifiée. Une sonde ne peut donc pas viser
-// le serveur lui-même ni les conteneurs voisins (Docker).
+// lien local, CGNAT, multicast, réservées, non spécifiée (y compris
+// écrites en IPv6). Une sonde ne peut donc pas viser le serveur lui-même
+// ni les conteneurs voisins (Docker).
 
 type sondeur struct {
 	s         *Serveur
@@ -31,11 +33,10 @@ type sondeur struct {
 	resultats map[string]essais.Resultat    // nom → dernier essai (page Sondes)
 }
 
-// refuserDepuisServeur : adresses interdites aux sondes du serveur.
-func refuserDepuisServeur(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()
-}
+// refuserDepuisServeur : adresses interdites aux sondes du serveur (liste
+// commune du paquet adresses, revue du 28/11 : CGNAT, 0.0.0.0/8,
+// 198.18.0.0/15, 240.0.0.0/4, formes IPv6 qui contiennent une IPv4…).
+func refuserDepuisServeur(ip net.IP) bool { return adresses.InterditeServeur(ip) }
 
 func (x *sondeur) boucle(ctx context.Context) {
 	x.taches = map[string]context.CancelFunc{}

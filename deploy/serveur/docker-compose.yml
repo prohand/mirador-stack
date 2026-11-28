@@ -61,10 +61,23 @@ services:
   # Daemon Olvid : aucun port publié ; mirador le joint par son nom
   # (mirador-olvid:50051) sur le réseau obs. ~170 Mio mesurés (SPEC § 17.10).
   mirador-olvid:
-    image: olvid/bot-daemon:2.0.1   # version figée
+    # Version figée, et empreinte vérifiée le 28/11 (un tag peut être
+    # republié) ; Dependabot (docker) met à jour les deux.
+    image: olvid/bot-daemon:2.0.1@sha256:1d8a70f49894a406e3e021ccffde46d48a5c2add58a99ff9e6bf8c683292a25f
     container_name: mirador-olvid
     profiles: [olvid]
     restart: unless-stopped
+    # Revue du 28/11 : refus de démarrer avec une clé admin vide (le daemon
+    # serait lancé sans clé connue). Pas de « ${VAR:?} » dans le compose :
+    # Docker Compose l'évalue pour TOUS les services, même hors profil, et
+    # mirador ne démarrerait plus sans Olvid. Le test est donc fait dans le
+    # conteneur, puis le lanceur d'origine de l'image (./daemon.sh) est
+    # appelé tel quel. « $$ » : un « $ » laissé au shell du conteneur.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - '[ -n "$$OLVID_ADMIN_CLIENT_KEY_CLI" ] || { echo "OLVID_ADMIN_CLIENT_KEY_CLI vide : ajouter la clé admin au .env (voir en tête de ce fichier)" >&2; exit 1; }; exec ./daemon.sh "$$@"'
+      - daemon.sh
     environment:
       OLVID_ADMIN_CLIENT_KEY_CLI: ${OLVID_ADMIN_CLIENT_KEY_CLI:-}
       JAVA_TOOL_OPTIONS: "-Xmx128m"
@@ -74,6 +87,14 @@ services:
     mem_limit: 512m
     cpus: 1.0
     pids_limit: 300
+    # Revue du 28/11 : aucune capacité Linux. L'image lance « java » en root
+    # (uid 0), sans changement d'utilisateur ni chown (daemon.sh vérifié), et
+    # écoute sur 50051 (> 1024) : aucune capacité n'est nécessaire. Les
+    # fichiers des volumes appartiennent à root, qui les écrit toujours.
+    # Pas de read_only : les dossiers où Java et le daemon écrivent hors des
+    # volumes (/tmp, dossier personnel…) n'ont pas pu être vérifiés sans
+    # lancer l'image ; à essayer plus tard (read_only + tmpfs /tmp).
+    cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging:
       options: { max-size: "10m", max-file: "3" }

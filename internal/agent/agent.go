@@ -161,8 +161,14 @@ func Collecteurs(cfg config.Agent, journal *slog.Logger) []collect.Collecteur {
 		liste = append(liste, collect.NewMisesAJour())
 	}
 	// Checks des modèles de surveillance (SPEC.md § 24.10), sauf refus local.
+	// « contient » : refus local (MIRADOR_CHECKS_CONTIENT=non) et un
+	// changement par heure au plus (revue du 28/11, M4).
 	if cfg.ChecksActifs && len(cfg.Checks) > 0 {
-		liste = append(liste, checks.Nouveau(cfg.Checks, cfg.RacineProc))
+		o := checks.Options{SansContient: !cfg.ChecksContient, Journal: journal}
+		if cfg.Serveur != "" {
+			o.FichierContient = checks.FichierContient(cfg.FichierConfigDistante)
+		}
+		liste = append(liste, checks.NouveauAvec(cfg.Checks, cfg.RacineProc, o))
 	}
 	if cfg.Docker != "" && cfg.DockerMetriques {
 		if d, err := collect.NewDocker(cfg.Docker); err == nil {

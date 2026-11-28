@@ -114,6 +114,24 @@ par service HTTPS du LAN.
 Suivi sur le collecteur : `journalctl -u mirador-collector -f`.
 Désinstallation : `bash mirador-collector-install.sh --desinstaller`.
 
+Signature vérifiée à la réinstallation (revue du 28/11) : si une clé
+publique est déjà connue (`--cle-publique`, ou
+`/etc/mirador-collector/cles-publiques.txt` d'une installation précédente),
+le script vérifie avec `openssl` 3, **avant de lancer le binaire**, le
+manifeste signé envoyé avec lui (signature, produit, architecture,
+empreinte, taille), puis lance `-version` sous le compte
+`mirador-collector` (jamais en root). Refus si : signature fausse, binaire
+« embarqué » non signé (publier la version signée du collecteur d'abord),
+openssl absent ou < 3.0, version plus ancienne que celle en place (sauf
+`--accepter-version-ancienne`). `--sans-verification-signature` passe
+outre (déconseillé).
+
+Écoute réseau limitée par systemd (revue du 28/11) : le collecteur ne peut
+écouter qu'en TCP sur un port de 1024 à 65535 (le port syslog choisi dans
+l'interface) ; toute écoute UDP ou sur un port < 1024 est refusée par le
+noyau (`SocketBindDeny`, systemd 249 ou plus ; ignoré sinon). Vérifier :
+`systemctl show mirador-collector -p SocketBindDeny`.
+
 Compagnon des processus (0.6.13 et suivantes) : le service
 `mirador-collector-processus` relève les processus de la machine du
 collecteur (nom, CPU, mémoire, compte ; jamais les lignes de commande) pour
@@ -233,7 +251,20 @@ et ses seuils (SPEC.md § 24).
   adresse : `non-verifie` (certificat maison) et `contient=texte` après
   l'adresse. Pas de secret dans les listes : elles apparaissent dans les
   mesures. Refus sur une machine : `MIRADOR_CHECKS=non` dans
-  `/etc/mirador-agent/agent.conf`.
+  `/etc/mirador-agent/agent.conf`. Refus des seuls `contient=` :
+  `MIRADOR_CHECKS_CONTIENT=non`. Un `contient=` nouveau ou changé n'est pris
+  qu'une fois par heure au plus (l'ancien reste en service en attendant).
+  Les adresses de lien local (169.254.x.x, fe80::, métadonnées d'hébergeur)
+  sont toujours refusées.
+- Masquage des secrets dans les logs : « mots de passe », « tokens »,
+  « clés d'API » et « Authorization / Cookie » restent toujours actifs, même
+  si le serveur envoie une liste vide. Seul `MIRADOR_MASQUAGE_PLANCHER=non`
+  dans `agent.conf` les rend facultatifs.
+- Collecteur : `MIRADOR_SONDES=non` dans `/etc/mirador-collector/collector.conf`
+  refuse toutes les sondes demandées par le serveur. La boucle locale
+  (127.0.0.1, ::1) et le lien local sont refusés aux sondes du collecteur ;
+  SNMP, UniFi et certificats ne joignent que des adresses privées (vérifié
+  à la connexion, même pour un nom DNS).
 - Machines › Modèles : tableau modèles × groupes (toutes les machines d'un
   groupe reçoivent ses modèles), application automatique des modèles
   détectés (désactivée par défaut), services attendus et seuils par groupe.
@@ -443,7 +474,10 @@ dossier du `docker-compose.yml` :
    `./maj:/var/lib/mirador-maj` et `./maj-etat:/var/lib/mirador-maj-etat:ro`
    (voir `deploy/serveur/docker-compose.yml`).
 2. Le script, avec la version en service et la clé publique (*Mises à jour
-   des agents › Clé publique*) :
+   des agents › Clé publique*). L'adresse exacte du script, épinglée sur le
+   commit de la version (`…/mirador-stack/<commit>/deploy/…`), est dans les
+   notes de la Release ; l'adresse par tag ci-dessous marche aussi, mais un
+   tag peut être déplacé. Le script est court : le lire avant de le lancer.
 
    ```bash
    curl -fsSLO https://raw.githubusercontent.com/prohand/mirador-stack/v0.6.0/deploy/serveur/installer-maj-serveur.sh
@@ -453,11 +487,20 @@ dossier du `docker-compose.yml` :
    sudo sh installer-maj-serveur.sh --version 0.6.0 --cle-publique 'CLE_PUBLIQUE'
    ```
 
-   Il installe le binaire (empreinte vérifiée), crée `maj/` (pour le
-   serveur, propriétaire 65532) et `maj-etat/` (root), écrit
-   `/etc/mirador-maj-serveur.conf`, ajoute `MIRADOR_VERSION` et
-   `MIRADOR_IMAGE` au `.env`, active `mirador-maj-serveur.path`, puis
-   contrôle tout.
+   Il installe le binaire après avoir vérifié son empreinte **et sa
+   signature** (manifeste `mirador-maj-serveur-X.Y.Z-linux-ARCH.manifeste.json` de la
+   Release, clé `--cle-publique`, OpenSSL 3 requis : Debian 12, Ubuntu
+   22.04 ou plus récents), crée `maj/` (pour le serveur, propriétaire
+   65532) et `maj-etat/` (root), écrit `/etc/mirador-maj-serveur.conf`,
+   ajoute `MIRADOR_VERSION` et `MIRADOR_IMAGE` au `.env`, écrit lui-même
+   les unités systemd (rien n'est téléchargé pour elles), active
+   `mirador-maj-serveur.path`, puis contrôle tout.
+
+   Signature absente ou fausse : rien n'est installé. Les versions publiées
+   avant la signature de mirador-maj-serveur n'ont pas de manifeste : mettre
+   d'abord le serveur à jour à la main (`docker pull`), ou ajouter
+   `--sans-signature` (déconseillé : seule l'empreinte, prise dans la même
+   Release, est alors vérifiée).
 3. Relancer le serveur pour qu'il voie les dossiers :
 
    ```bash

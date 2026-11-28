@@ -44,7 +44,22 @@ var correctionsExpr = map[string]correction{
 			MetriqueDerniereReception + ") > 82800",
 		note: "expression corrigée par mirador (SPEC § 45) : l'alerte ne se ferme plus seule après 24 h sans données",
 	},
+	// Revue de sécurité du 28/11 (H1) : règles Proxmox par défaut, côté
+	// « un » du group_left rendu unique (infoInviteUnique). Avant : deux
+	// séries mirador_pve_invite_info pour le même invité mettaient la règle
+	// en erreur pour tout le parc.
+	`max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) / max by (instance, id, type) (mirador_pve_invite_coeurs) * on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`: {
+		nouvelle: `max by (instance, id, type) (rate(mirador_pve_invite_cpu_secondes_total[5m])) / max by (instance, id, type) (mirador_pve_invite_coeurs) * on (instance, id) group_left (nom) ` + infoInviteUnique + ` > 0.95`,
+		note:     noteDoublons,
+	},
+	`max by (instance, id, type) (mirador_pve_invite_memoire_octets{type="lxc"}) / max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type="lxc"}) * on (instance, id) group_left (nom) mirador_pve_invite_info > 0.95`: {
+		nouvelle: `max by (instance, id, type) (mirador_pve_invite_memoire_octets{type="lxc"}) / max by (instance, id, type) (mirador_pve_invite_memoire_max_octets{type="lxc"}) * on (instance, id) group_left (nom) ` + infoInviteUnique + ` > 0.95`,
+		note:     noteDoublons,
+	},
 }
+
+// noteDoublons : note des règles corrigées le 28/11 (revue de sécurité, H1).
+const noteDoublons = "expression corrigée par mirador (revue du 28/11) : une série en double envoyée par une machine ne met plus la règle en erreur"
 
 // correctionsPour : règles mirador posées sans durée « pendant » alors
 // qu'il en faut une (expression d'origine → durée et note). Appliqué

@@ -639,7 +639,12 @@ func (c *Console) fluxBloquesDirect(q *req) {
 	defer fin.Stop()
 	minute := time.NewTicker(10 * time.Second)
 	defer minute.Stop()
+	valable := c.gardeFlux(q) // session et compte revérifiés (revue du 28/11)
 	for {
+		if !valable() {
+			ecrire("event: fin\ndata: {\"raison\":\"session\"}\n\n")
+			return
+		}
 		ev, signal := mag.Depuis(depuis, 50)
 		if len(ev) > 0 {
 			depuis = ev[len(ev)-1].ID

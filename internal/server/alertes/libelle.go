@@ -31,6 +31,7 @@ var libellesRegles = map[string]string{
 	"ServeurDisqueSeRemplitVite":           "Disque du serveur : se remplit vite",
 	"ServeurDisquePresquePlein":            "Disque du serveur presque plein",
 	"EvaluationAlertesLente":               "Évaluation des alertes lente",
+	"ReglesEnErreur":                       "Règles d'alerte en erreur",
 	"SauvegardeTropAncienne":               "Sauvegarde trop ancienne",
 	"ProxmoxInviteCpuSature":               "Proxmox : CPU d'un invité saturé",
 	"ProxmoxConteneurMemoireSaturee":       "Proxmox : mémoire d'un conteneur saturée",

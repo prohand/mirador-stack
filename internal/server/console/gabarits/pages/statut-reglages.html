@@ -9,7 +9,7 @@
 <div class="cons-champs haut"><label class="case"><input type="checkbox" name="actif" value="1"{{if $s.Actif}} checked{{end}}> Activée</label>
 <label>Titre <input name="titre" value="{{$s.Titre}}" maxlength="80"></label></div>
 <fieldset><legend>Applications montrées</legend>{{$ch := $s.Choisies}}{{range $s.Applications}}<label class="case"><input type="checkbox" name="applications" value="{{.}}"{{if index $ch .}} checked{{end}}> {{.}}</label>{{else}}<p class="vide">Aucune application : les créer d'abord (<a href="/services">Applications</a>).</p>{{end}}</fieldset>
-<div class="ligne"><button>Enregistrer</button></div></form>
-{{if $s.URL}}<form method="post" action="/reglages/statut">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="jeton"><button class="secondaire petit" data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button> <small class="doux">si l'adresse a trop circulé</small></form>{{end}}{{end}}
+<div class="ligne"><button data-code>Enregistrer</button></div></form>
+{{if $s.URL}}<form method="post" action="/reglages/statut">{{template "csrf" .CSRF}}<input type="hidden" name="action" value="jeton"><button class="secondaire petit" data-code data-confirmer="Nouvelle adresse ? L'ancienne ne marchera plus.">Nouvelle adresse</button> <small class="doux">si l'adresse a trop circulé</small></form>{{end}}{{end}}
 </section>
 {{end}}

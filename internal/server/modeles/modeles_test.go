@@ -40,7 +40,7 @@ func TestExprEtRefs(t *testing.T) {
 	if err := m.Valider(); err != nil {
 		t.Fatal(err)
 	}
-	if e := m.ExprRegle(r); e != `x > on (instance) group_left () mirador_modele_parametre{modele="test", parametre="seuil"}` {
+	if e := m.ExprRegle(r); e != `x > on (instance) group_left () max by (instance) (mirador_modele_parametre{modele="test", parametre="seuil"})` {
 		t.Errorf("expression : %s", e)
 	}
 	for _, mauvaise := range []string{"x > $autre", "$seuil < x", "x + $seuil > 1", "rate(x[5m]) * $seuil"} {

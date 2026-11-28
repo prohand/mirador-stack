@@ -28,6 +28,7 @@ type dockerSimule struct {
 	maintenant func() time.Time
 	demarre    map[string]bool   // versions qui démarrent
 	fichiers   map[string][]byte // fichiers du conteneur
+	liens      map[string]string // liens symboliques du conteneur (chemin → cible)
 	appels     []string
 	echecPull  bool
 	images     []*imageSimulee // nil : commandes « image » en échec
@@ -120,6 +121,9 @@ func (d *dockerSimule) Lancer(_ context.Context, args ...string) (string, error)
 	case args[0] == "cp":
 		src, dst := args[1], args[2]
 		if c, ok := strings.CutPrefix(src, d.r.Conteneur+":"); ok { // conteneur → hôte
+			if cible, ok := d.liens[c]; ok { // docker cp recopie le lien tel quel
+				return "", os.Symlink(cible, dst)
+			}
 			b, ok := d.fichiers[c]
 			if !ok {
 				return "", errors.New("absent")

@@ -59,10 +59,13 @@ func TestSSHCestMoi(t *testing.T) {
 func TestSSHConnuesSecurite(t *testing.T) {
 	b := nouveauBanc(t)
 	b.machinesApprouvees(t, "web1")
-	c, _ := b.premierAdmin("admin", mdpAdmin)
+	c, secret := b.premierAdmin("admin", mdpAdmin)
 	ajouter := func(plage, machine string) {
-		b.post(c, "/securite/ssh", url.Values{"csrf": {b.csrf(c, "/securite")}, "action": {"ajouter"}, "plage": {plage}, "machine": {machine}, "note": {"box"}})
+		b.post(c, "/securite/ssh", url.Values{"csrf": {b.csrf(c, "/securite")}, "action": {"ajouter"}, "plage": {plage}, "machine": {machine}, "note": {"box"},
+			"code": {b.code(secret)}})
 	}
+	// Code 2FA ressaisi même en mode administration (revue du 28/11).
+	b.post(c, "/securite/ssh", url.Values{"csrf": {b.csrf(c, "/securite")}, "action": {"ajouter"}, "plage": {"192.0.2.0/24"}})
 	ajouter("203.0.113.0/24", "")
 	ajouter("198.51.100.7", "web1")
 	ajouter("0.0.0.0/0", "")         // trop large : refusé

@@ -7,12 +7,14 @@
 #   - tag : poser le tag vX.Y.Z (GitHub › Releases › Draft a new release, ou
 #     git push du tag) : même publication.
 #
-# Étapes : préparation (version vérifiée) → vérification que la CI a RÉUSSI
-# sur ce commit exact (elle n'est pas relancée : retour du 20/11, minutes
-# économisées ; si elle tourne encore, on attend sa fin) → en parallèle :
-#   - binaires : tag posé (bouton), agent et collecteur SIGNÉS (amd64, arm64), serveur (sans
-#     Docker), mirador-release (Windows, Linux), SHA256SUMS ; Release
-#     GitHub avec notes générées depuis les pull requests ;
+# Étapes : préparation (version vérifiée ; commit déjà dans main, revue du
+# 28/11) → vérification que la CI a RÉUSSI sur ce commit exact (elle n'est
+# pas relancée : retour du 20/11, minutes économisées ; si elle tourne
+# encore, on attend sa fin) → en parallèle :
+#   - binaires : tag posé (bouton), agent, collecteur et mirador-maj-serveur
+#     SIGNÉS (amd64, arm64), serveur (sans Docker), mirador-release
+#     (Windows, Linux), SHA256SUMS ; Release GitHub avec notes générées
+#     depuis les pull requests ;
 #   - image : ghcr.io/prohand/mirador-server:X.Y.Z (et :latest pour une
 #     version finale) ;
 # puis signature de l'image : son empreinte (sha256:…) est signée et jointe
@@ -22,6 +24,10 @@
 # Rien n'est publié sans une CI réussie sur ce commit. Commit sans CI
 # (documentation seule) : Actions › CI › Run workflow sur main, puis
 # relancer la release.
+#
+# Réglages GitHub conseillés (revue du 28/11) : ruleset sur les tags v*
+# (création, déplacement et suppression réservés aux administrateurs) et
+# relecteur obligatoire sur l'environnement « signature ».
 #
 # Secrets (environnement « signature », limité aux tags v* et à main) :
 #   MIRADOR_CLE_SIGNATURE : contenu de cle-mirador.json (chiffré)
@@ -69,10 +75,27 @@ jobs:
       precedent: ${{ steps.version.outputs.precedent }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v7
+      # fetch-depth 0 : tout l'historique, toutes les branches (origin/main)
+      # et tous les tags.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
+      # Revue du 28/11 (B18) : pour un tag poussé comme pour le bouton, le
+      # commit publié doit déjà être dans main (fusionné par pull request).
+      # Un tag posé sur un commit d'une branche non fusionnée est refusé.
+      - name: Commit fusionné dans main
+        run: |
+          set -euo pipefail
+          if ! git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
+            echo "::error::Branche main introuvable dans la copie du dépôt"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::Le commit $GITHUB_SHA n'est pas dans main : fusionner la pull request d'abord, puis poser le tag sur un commit de main"
+            exit 1
+          fi
+          echo "Commit $GITHUB_SHA présent dans main"
       - name: Version, vérifications et tag
         id: version
         env:
@@ -176,10 +199,10 @@ jobs:
           set -eu
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" >/dev/null
           echo "Tag $TAG posé sur $GITHUB_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
           cache: true
@@ -196,14 +219,16 @@ jobs:
           done
           mv mirador-release-windows-amd64.exe "mirador-release-$VERSION-windows-amd64.exe"
           mv mirador-release-linux-amd64 "mirador-release-$VERSION-linux-amd64"
-      - name: Signature de l'agent et du collecteur
+      # mirador-maj-serveur aussi (revue du 28/11, M3) : son manifeste est
+      # vérifié par installer-maj-serveur.sh avant l'installation en root.
+      - name: Signature de l'agent, du collecteur et de mirador-maj-serveur
         env:
           MIRADOR_CLE_SIGNATURE: ${{ secrets.MIRADOR_CLE_SIGNATURE }}
           MIRADOR_PHRASE: ${{ secrets.MIRADOR_PHRASE }}
         run: |
           set -eu
           if [ -z "${MIRADOR_CLE_SIGNATURE:-}" ] || [ -z "${MIRADOR_PHRASE:-}" ]; then
-            echo "::warning::Secrets MIRADOR_CLE_SIGNATURE / MIRADOR_PHRASE absents : agent publié SANS signature (pas de mise à jour automatique possible)"
+            echo "::warning::Secrets MIRADOR_CLE_SIGNATURE / MIRADOR_PHRASE absents : agent, collecteur et mirador-maj-serveur publiés SANS signature (pas de mise à jour automatique possible)"
             exit 0
           fi
           umask 077
@@ -214,6 +239,7 @@ jobs:
           for a in amd64 arm64; do
             "$d/mirador-release" signer -cle "$d/cle.json" -version "$VERSION" -arch "$a" "dist/mirador-agent-$VERSION-linux-$a"
             "$d/mirador-release" signer -cle "$d/cle.json" -produit mirador-collector -version "$VERSION" -arch "$a" "dist/mirador-collector-$VERSION-linux-$a"
+            "$d/mirador-release" signer -cle "$d/cle.json" -produit mirador-maj-serveur -version "$VERSION" -arch "$a" "dist/mirador-maj-serveur-$VERSION-linux-$a"
           done
       - name: Empreintes (SHA256SUMS)
         run: |
@@ -241,7 +267,7 @@ jobs:
           - \`mirador-agent-${VERSION}-linux-amd64/arm64\` et \`mirador-collector-…\` : signés (\`.manifeste.json\`).
           - \`mirador-server-${VERSION}-linux-amd64/arm64\` : serveur sans Docker.
           - \`mirador-server-image-${VERSION}.manifeste.json\` : empreinte signée de l'image Docker du serveur.
-          - \`mirador-maj-serveur-${VERSION}-linux-amd64/arm64\` : mise à jour du serveur depuis l'interface (sur le VPS).
+          - \`mirador-maj-serveur-${VERSION}-linux-amd64/arm64\` : mise à jour du serveur depuis l'interface (sur le VPS), signé (\`.manifeste.json\`). Script d'installation, épinglé sur le commit de cette version : \`curl -fsSLO https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/deploy/serveur/installer-maj-serveur.sh\`
           - \`mirador-release-${VERSION}-windows-amd64.exe\` / \`-linux-amd64\` : outil de signature.
           - \`SHA256SUMS\` : empreintes de tous les fichiers.
           NOTES
@@ -270,12 +296,12 @@ jobs:
     outputs:
       empreinte: ${{ steps.publication.outputs.digest }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Connexion à ghcr.io
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -293,7 +319,7 @@ jobs:
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
       - name: Construction et publication
         id: publication
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
           DOCKER_BUILD_SUMMARY: false
@@ -323,10 +349,10 @@ jobs:
       TAG: ${{ needs.preparation.outputs.tag }}
       EMPREINTE: ${{ needs.image.outputs.empreinte }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
           cache: true

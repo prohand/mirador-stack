@@ -9,6 +9,8 @@
 token
 *.token
 .env
+# Clé de signature chiffrée écrite par « mirador-release cle » (revue du 28/11).
+cle-mirador*.json
 
 # Fichiers de test et de profilage
 *.test

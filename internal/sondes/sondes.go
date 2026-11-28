@@ -23,13 +23,14 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
+
+	"mirador-stack/internal/adresses"
 	"mirador-stack/internal/motif"
 )
 
@@ -192,7 +193,9 @@ type Resultat struct {
 // Options : limites de l'exécutant (le serveur refuse les adresses locales).
 type Options struct {
 	// Refuser : adresse interdite (vrai = refusée), vérifiée à chaque
-	// connexion, après résolution du nom. nil : tout est permis (collecteur).
+	// connexion, après résolution du nom, redirections comprises. Serveur :
+	// adresses.InterditeServeur ; collecteur : adresses.LocaleOuLienLocal.
+	// nil : tout est permis.
 	Refuser func(ip net.IP) bool
 	// Maintenant : un signal reçu fait l'essai tout de suite, sans attendre
 	// le rythme (bouton « Vérifier maintenant », SPEC § 108). nil : aucun.
@@ -267,8 +270,19 @@ func court(err error) string {
 	case errors.As(err, &ue):
 		err = ue.Err
 	}
-	return raccourcir(err.Error(), 160)
+	m := err.Error()
+	// Texte reçu du service jamais recopié (revue du 28/11, M4) : Go cite
+	// entre guillemets une réponse mal formée (« malformed HTTP response
+	// "SSH-2.0-…" ») ; on ne garde que le début fixe du message.
+	if strings.Contains(m, "malformed HTTP") {
+		return "réponse HTTP mal formée"
+	}
+	m = reCitation.ReplaceAllString(m, `"…"`)
+	return raccourcir(m, 160)
 }
+
+// reCitation : texte entre guillemets dans un message d'erreur de Go.
+var reCitation = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
 
 func raccourcir(m string, n int) string {
 	if len(m) <= n {
@@ -277,20 +291,15 @@ func raccourcir(m string, n int) string {
 	return m[:n] + "…"
 }
 
-// dialer : connexion avec contrôle de l'adresse (après résolution).
+// refus : fin du message d'une adresse refusée.
+const refus = "refusée pour cette sonde"
+
+// dialer : connexion avec contrôle de l'adresse réellement jointe (après
+// résolution, à chaque redirection).
 func dialer(o Options) *net.Dialer {
 	d := &net.Dialer{Timeout: Delai}
 	if o.Refuser != nil {
-		d.Control = func(_, adresse string, _ syscall.RawConn) error {
-			hote, _, err := net.SplitHostPort(adresse)
-			if err != nil {
-				return err
-			}
-			if ip := net.ParseIP(hote); ip == nil || o.Refuser(ip) {
-				return fmt.Errorf("adresse %s refusée depuis le serveur", hote)
-			}
-			return nil
-		}
+		d.Control = adresses.Controle(o.Refuser, refus)
 	}
 	return d
 }
@@ -401,7 +410,7 @@ func verifierJSON(corps []byte, champ, attendu string) error {
 			// Valeur reçue non recopiée : un nombre change souvent d'un essai
 			// à l'autre (une série de plus à chaque fois en étiquette,
 			// relecture du 21/11).
-			return fmt.Errorf("champ JSON %s différent de « %s »", champ, raccourcir(attendu, 40))
+			return fmt.Errorf("champ JSON %s : valeur différente de l'attendue", champ)
 		}
 	case bool:
 		texte = strconv.FormatBool(x)
@@ -411,7 +420,10 @@ func verifierJSON(corps []byte, champ, attendu string) error {
 		return fmt.Errorf("champ JSON %s : objet ou liste, valeur simple attendue", champ)
 	}
 	if texte != attendu {
-		return fmt.Errorf("champ JSON %s = « %s », attendu « %s »", champ, raccourcir(texte, 40), raccourcir(attendu, 40))
+		// Jamais la valeur reçue dans le message (revue du 28/11, M4) :
+		// l'étiquette « erreur » remonte au serveur ; un serveur compromis
+		// lirait sinon une page du LAN par ce biais.
+		return fmt.Errorf("champ JSON %s : valeur différente de l'attendue", champ)
 	}
 	return nil
 }
@@ -455,13 +467,8 @@ func essaiDNS(ctx context.Context, s Sonde, o Options) error {
 				return nil
 			}
 		}
-		// Adresses triées : l'ordre change d'une réponse à l'autre
-		// (tourniquet DNS) ; 4 au plus dans le message.
-		slices.Sort(adresses)
-		if len(adresses) > 4 {
-			adresses = append(adresses[:4:4], "…")
-		}
-		return errors.New("réponse " + strings.Join(adresses, ", ") + " sans " + s.Contenu)
+		// Adresses reçues jamais recopiées (revue du 28/11, M4).
+		return errors.New("réponse DNS différente de l'attendue")
 	}
 	return nil
 }

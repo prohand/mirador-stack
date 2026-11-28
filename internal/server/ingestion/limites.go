@@ -232,12 +232,18 @@ func empreinteSerie(s *stockage.Serie) uint64 {
 // car des données à une heure fausse fausseraient les alertes).
 type LimitesHorloge struct {
 	Tolerance, Maximum time.Duration
+	// Retard : un point plus ancien est écarté et compté (PointsAnciens).
+	// Même valeur que la fenêtre de retard du stockage des métriques
+	// (metriques.Options.Retard, 24 h) : au-delà, la base le refuserait de
+	// toute façon. La file d'un agent garde ~19 h de lots : rien de légitime
+	// n'est perdu.
+	Retard time.Duration
 }
 
 // LimitesHorlogeDefaut : 30 s tolérées (NTP absent quelques heures),
-// 10 min au plus corrigées.
+// 10 min au plus corrigées, points de plus de 24 h écartés.
 func LimitesHorlogeDefaut() LimitesHorloge {
-	return LimitesHorloge{Tolerance: 30 * time.Second, Maximum: 10 * time.Minute}
+	return LimitesHorloge{Tolerance: 30 * time.Second, Maximum: 10 * time.Minute, Retard: 24 * time.Hour}
 }
 
 // Decision sur l'horloge d'une requête.

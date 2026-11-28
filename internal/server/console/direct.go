@@ -64,7 +64,12 @@ func (c *Console) fluxDirect(q *req) {
 	defer fin.Stop()
 	bat := time.NewTicker(battementFlux)
 	defer bat.Stop()
+	valable := c.gardeFlux(q) // session et compte revérifiés (revue du 28/11)
 	for {
+		if !valable() {
+			envoyer("fin", map[string]string{"raison": "session"})
+			return
+		}
 		select {
 		case <-q.r.Context().Done():
 			return

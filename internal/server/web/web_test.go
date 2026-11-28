@@ -3,11 +3,13 @@
 package web
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -86,3 +88,67 @@ func TestServeursLimites(t *testing.T) {
 }
 
 func journalMuet() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+// Revue du 28/11 : nginx déclaré, l'interface refuse les connexions
+// directes (autre conteneur du réseau Docker), sauf la boucle locale
+// (healthcheck) ; refus journalisés, au plus une ligne par 10 s.
+func TestSeulementProxy(t *testing.T) {
+	proxys := []netip.Prefix{netip.MustParsePrefix("172.30.0.1/32")}
+	var journal bytes.Buffer
+	h := SeulementProxy(proxys, slog.New(slog.NewTextHandler(&journal, nil)))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	cas := []struct {
+		remote string
+		code   int
+	}{
+		{"172.30.0.1:40000", http.StatusOK},        // nginx
+		{"127.0.0.1:5555", http.StatusOK},          // healthcheck
+		{"127.0.0.2:5555", http.StatusOK},          // boucle locale
+		{"[::1]:5555", http.StatusOK},              // boucle locale IPv6
+		{"172.30.0.5:5555", http.StatusForbidden},  // autre conteneur du réseau obs
+		{"203.0.113.7:5555", http.StatusForbidden}, // client direct
+		{"[::ffff:172.30.0.9]:1", http.StatusForbidden},
+	}
+	for _, c := range cas {
+		r := httptest.NewRequest(http.MethodGet, "/connexion", nil)
+		r.RemoteAddr = c.remote
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != c.code {
+			t.Errorf("%s : %d, attendu %d", c.remote, w.Code, c.code)
+		}
+	}
+	if n := strings.Count(journal.String(), "connexion directe refusée"); n != 1 {
+		t.Errorf("%d ligne(s) de journal pour 3 refus rapprochés, 1 attendue :\n%s", n, journal.String())
+	}
+	if !strings.Contains(journal.String(), "ip=172.30.0.5") {
+		t.Errorf("adresse refusée absente du journal : %s", journal.String())
+	}
+}
+
+// Le filtre n'est posé que sur l'interface, et seulement avec nginx
+// déclaré et sans TLS fait par le serveur.
+func TestNouveauFiltreInterface(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
+	proxys := []netip.Prefix{netip.MustParsePrefix("172.30.0.1/32")}
+	code := func(h http.Handler) int {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = "172.30.0.5:5555"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	s := Nouveau(Options{Proxys: proxys, Journal: journalMuet(), Agents: ok, Interface: ok})
+	if code(s.iface.Handler) != http.StatusForbidden || code(s.agents.Handler) != http.StatusOK {
+		t.Error("avec nginx déclaré : interface filtrée, agents non")
+	}
+	s = Nouveau(Options{Journal: journalMuet(), Agents: ok, Interface: ok})
+	if code(s.iface.Handler) != http.StatusOK {
+		t.Error("sans nginx déclaré : pas de filtre")
+	}
+	s = Nouveau(Options{Proxys: proxys, TLSCertificat: "c.pem", TLSCle: "c.key", Journal: journalMuet(), Agents: ok, Interface: ok})
+	if code(s.iface.Handler) != http.StatusOK {
+		t.Error("TLS fait par le serveur : pas de filtre")
+	}
+}
