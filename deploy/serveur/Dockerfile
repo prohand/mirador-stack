@@ -5,7 +5,9 @@
 # docker-compose.yml). Construite par la CI à partir du dépôt.
 
 # --- construction -------------------------------------------------------------
-FROM golang:1.27.4-bookworm AS construction
+# Image épinglée par empreinte (revue du 28/11) : un tag peut être republié.
+# Dependabot (docker) met à jour tag et empreinte.
+FROM golang:1.27.4-bookworm@sha256:ce59b41415e2524ae99926fe1f37ce48ba8c194dcbd2a56a65436cdcefa2bd34 AS construction
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
