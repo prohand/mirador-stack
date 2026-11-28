@@ -289,9 +289,12 @@ func (c *Console) Tour(ctx context.Context) {
 	c.appliquerConservation(ctx, t)
 	c.appliquerInterface(ctx, t)
 	s := c.securite.Load()
-	// Sessions ordinaires ; une session d'appareil de confiance retirée de
-	// la mémoire revient depuis le disque à la requête suivante.
-	c.sessions.Nettoyer(t, time.Duration(s.Inactivite), time.Duration(s.DureeMax))
+	// Sessions expirées, chacune avec ses durées (appareil de confiance :
+	// les siennes). Avant (revue du 28/11) : durées ordinaires pour toutes ;
+	// après 12 h, la session de confiance était retirée toutes les 5 s puis
+	// recréée neuve depuis le disque (compteur de codes faux, mode
+	// administration et défi passkey perdus).
+	c.sessions.Nettoyer(func(x *auth.Session) bool { return c.expiree(x, t) })
 	if in, max := s.DureesConfiance(); t.Sub(c.dernierNettoyageConfiance) >= time.Hour {
 		c.dernierNettoyageConfiance = t
 		if err := auth.NettoyerConfiance(ctx, c.db, t, in, max); err != nil {
