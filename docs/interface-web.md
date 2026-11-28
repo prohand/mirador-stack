@@ -78,6 +78,11 @@ server {
 - `MIRADOR_PROXY` (fichier de démarrage) = passerelle du réseau `obs`
   (`docker network inspect obs --format '{{(index .IPAM.Config 0).Gateway}}'`) ;
   sinon tous les clients semblent venir de nginx (verrouillage commun à tous).
+- Avec `MIRADOR_PROXY` (et sans TLS fait par mirador), l'interface ne répond
+  qu'à nginx et à la machine elle-même (healthcheck) : un autre conteneur du
+  réseau `obs` reçoit « 403 accès direct refusé ». Si toute l'interface
+  répond 403, `MIRADOR_PROXY` est faux : le journal du serveur donne
+  l'adresse vue (« connexion directe refusée », ip=…).
 
 Vérification :
 

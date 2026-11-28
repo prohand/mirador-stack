@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -67,10 +68,16 @@ func Nouveau(opt Options) *Serveurs {
 		}
 	}
 	ip := IPClient(opt.Proxys)
+	iface := ip(EntetesSecurite(opt.Interface))
+	// Revue du 28/11 : nginx déclaré et pas de TLS ici, l'interface ne
+	// répond qu'à nginx et à la machine elle-même (healthcheck Docker).
+	if len(opt.Proxys) > 0 && opt.TLSCertificat == "" {
+		iface = SeulementProxy(opt.Proxys, opt.Journal)(iface)
+	}
 	return &Serveurs{
 		opt:    opt,
 		agents: nouveau(opt.EcouteAgents, ip(opt.Agents)),
-		iface:  nouveau(opt.EcouteInterface, ip(EntetesSecurite(opt.Interface))),
+		iface:  nouveau(opt.EcouteInterface, iface),
 	}
 }
 
@@ -138,6 +145,53 @@ func IPClient(proxys []netip.Prefix) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// --- Accès direct à l'interface ------------------------------------------------------
+
+// SeulementProxy : l'interface ne répond qu'aux connexions venues d'un proxy
+// déclaré (MIRADOR_PROXY, nginx) ou de la boucle locale (127.0.0.0/8, ::1 :
+// healthcheck Docker « mirador-server -sante »). Revue du 28/11 : sans ce
+// filtre, un autre conteneur du réseau Docker « obs » joignait l'interface
+// en direct, sans la liste d'adresses, le filtrage géographique, les
+// limites de débit de nginx ni HTTPS (mot de passe et 2FA restaient
+// exigés). Refus : 403 et une ligne de journal, au plus une toutes les 10 s
+// (diagnostic d'un MIRADOR_PROXY faux, CrowdSec). Coût : une comparaison
+// d'adresse par requête.
+func SeulementProxy(proxys []netip.Prefix, journal *slog.Logger) func(http.Handler) http.Handler {
+	var (
+		mu       sync.Mutex
+		dernier  time.Time
+		ignorees int
+	)
+	noter := func(ip netip.Addr, chemin string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(dernier) < intervalleJournalRefus {
+			ignorees++
+			return
+		}
+		if journal != nil {
+			journal.Warn("interface : connexion directe refusée (ni nginx déclaré dans MIRADOR_PROXY, ni la machine elle-même)",
+				"ip", ip.String(), "chemin", chemin, "refus_non_notes", ignorees)
+		}
+		dernier, ignorees = time.Now(), 0
+	}
+	return func(suite http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := adresseConnexion(r.RemoteAddr)
+			if !ip.IsLoopback() && !deConfiance(ip, proxys) {
+				noter(ip, r.URL.Path)
+				http.Error(w, "accès direct refusé : passer par l'adresse habituelle de l'interface", http.StatusForbidden)
+				return
+			}
+			suite.ServeHTTP(w, r)
+		})
+	}
+}
+
+// intervalleJournalRefus : une ligne de journal au plus par intervalle pour
+// les connexions directes refusées (pas d'inondation du journal).
+const intervalleJournalRefus = 10 * time.Second
 
 func adresseConnexion(remote string) netip.Addr {
 	if ap, err := netip.ParseAddrPort(remote); err == nil {
