@@ -24,3 +24,25 @@ func BenchmarkMasquerDefaut(b *testing.B) {
 		}
 	}
 }
+
+// Lignes qui déclenchent les modèles (mot de passe, en-têtes, URL, JSON) :
+// mesure le coût des expressions elles-mêmes, pas seulement des indices.
+var lignesSecrets = []string{
+	"Failed password for invalid user admin from 198.51.100.23 port 52344 ssh2",
+	`{"level":"info","msg":"login","password":"Sup3r S3cret","user":"bob"}`,
+	"GET /api?token=eyJhbGciOi.abc.def&x=1 HTTP/1.1",
+	"Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.e30.abc",
+	"connexion à postgres://app:motdepasse@db.lan:5432/app réussie",
+	"CRON[23456]: (root) CMD (mysqldump -uroot -pS3cret base > /sauv/base.sql)",
+}
+
+// BenchmarkMasquerSecrets : masquage par défaut sur 6 lignes à masquer.
+func BenchmarkMasquerSecrets(b *testing.B) {
+	m, _ := NewMasqueur([]string{"mots_de_passe", "tokens", "cles_api", "autorisation", "cartes"}, nil)
+	b.ReportAllocs()
+	for b.Loop() {
+		for _, l := range lignesSecrets {
+			_ = m.Masquer(l)
+		}
+	}
+}

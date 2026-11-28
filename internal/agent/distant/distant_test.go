@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,7 +28,7 @@ func base() config.Agent {
 }
 
 func TestAppliquer(t *testing.T) {
-	d, err := Decoder(strings.NewReader(`{"intervalle":"60s","intervalle_lent":"120s","systemd":false,"logs_debit":50,"logs_rafale":100,"masquage":["mots_de_passe"]}`))
+	d, err := Decoder(strings.NewReader(`{"intervalle":"60s","intervalle_lent":"120s","systemd":false,"logs_debit":50,"logs_rafale":100,"masquage":["mots_de_passe","emails"]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,9 @@ func TestAppliquer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Intervalle != time.Minute || a.Systemd || a.LogsDebit != 50 || len(a.Masquage) != 1 {
+	// « cartes » retiré, « emails » ajouté ; le plancher (4 modèles) reste.
+	if a.Intervalle != time.Minute || a.Systemd || a.LogsDebit != 50 || len(a.Masquage) != 5 ||
+		slices.Contains(a.Masquage, "cartes") || !slices.Contains(a.Masquage, "emails") {
 		t.Errorf("valeurs non appliquées : %+v", a)
 	}
 	if a.URLMetriques != base().URLMetriques || a.Nom != base().Nom {
