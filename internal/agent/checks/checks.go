@@ -30,8 +30,16 @@ type resultat struct {
 
 // Moteur : fait les checks et garde leurs résultats.
 type Moteur struct {
-	checks []config.Check
-	proc   string // racine de /proc (tests)
+	checks []config.Check // tels que reçus (étiquettes des mesures)
+	proc   string         // racine de /proc (tests)
+	opt    Options
+
+	// Liste effective (garde du « contient », contient.go), lue et changée
+	// seulement par la tâche de fond : eff[i] est fait si actifs[i] ;
+	// revoir : heure où un changement mis de côté pourra être accepté.
+	eff    []config.Check
+	actifs []bool
+	revoir time.Time
 
 	demarre sync.Once
 	mu      sync.Mutex
@@ -46,12 +54,19 @@ type Moteur struct {
 // paralleles : checks en même temps au plus.
 const paralleles = 8
 
-// Nouveau prépare le moteur (rien ne tourne avant le premier passage du
-// collecteur).
+// Nouveau prépare le moteur sans réglage local (tests, configuration
+// locale seule) : « contient » permis, sans délai entre deux changements.
 func Nouveau(checks []config.Check, proc string) *Moteur {
-	m := &Moteur{checks: checks, proc: proc, res: map[int]resultat{},
+	return NouveauAvec(checks, proc, Options{})
+}
+
+// NouveauAvec prépare le moteur avec les réglages locaux de l'agent (rien
+// ne tourne avant le premier passage du collecteur).
+func NouveauAvec(checks []config.Check, proc string, o Options) *Moteur {
+	m := &Moteur{checks: checks, proc: proc, opt: o, res: map[int]resultat{},
 		periode: time.Minute, periodeDossier: 15 * time.Minute, maintenant: time.Now}
 	m.faire = m.executer
+	m.appliquerContient(time.Now())
 	return m
 }
 
@@ -85,9 +100,13 @@ func (m *Moteur) tourner(ctx context.Context) {
 	prochain := map[int]time.Time{}
 	for {
 		maintenant := m.maintenant()
+		// Un « contient » mis de côté devient permis : liste revue.
+		if !m.revoir.IsZero() && !maintenant.Before(m.revoir) {
+			m.appliquerContient(maintenant)
+		}
 		var lot []int
-		for i, c := range m.checks {
-			if maintenant.Before(prochain[i]) {
+		for i, c := range m.eff {
+			if !m.actifs[i] || maintenant.Before(prochain[i]) {
 				continue
 			}
 			p := m.periode
@@ -115,7 +134,7 @@ func (m *Moteur) passer(ctx context.Context, lot []int) {
 		wg.Add(1)
 		go func(i int) {
 			defer func() { <-sem; wg.Done() }()
-			c := m.checks[i]
+			c := m.eff[i]
 			ctxC, fin := context.WithTimeout(ctx, c.DelaiEffectif())
 			r := m.faire(ctxC, c)
 			fin()

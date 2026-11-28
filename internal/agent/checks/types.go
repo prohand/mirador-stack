@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
+	"mirador-stack/internal/adresses"
 	"mirador-stack/internal/agent/config"
 )
 
@@ -34,6 +35,7 @@ const tailleLueHTTP = 64 << 10
 func checkHTTP(ctx context.Context, c config.Check) resultat {
 	verifier := c.VerifierTLS == nil || *c.VerifierTLS
 	tr := &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSHandshakeTimeout: c.DelaiEffectif(),
+		DialContext:     numeroteur().DialContext,                                                 // lien local refusé, redirections comprises
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: !verifier, MinVersion: tls.VersionTLS12}} // #nosec G402 -- choix de l'admin (site au certificat maison), la date de fin reste mesurée
 	defer tr.CloseIdleConnections()
 	client := &http.Client{Transport: tr, CheckRedirect: func(_ *http.Request, via []*http.Request) error {
@@ -68,10 +70,19 @@ func checkHTTP(ctx context.Context, c config.Check) resultat {
 	return r
 }
 
+// numeroteur : connexions des checks. Le lien local (169.254.0.0/16,
+// fe80::/10 : métadonnées des clouds, qui donnent les secrets de la
+// machine) est toujours refusé, vérifié sur l'adresse réellement jointe
+// (après résolution, à chaque redirection) ; revue du 28/11, M4. Le LAN et
+// la machine elle-même restent permis : c'est le but des checks.
+func numeroteur() *net.Dialer {
+	return &net.Dialer{Control: adresses.Controle(adresses.LienLocal, "refusée (lien local)")}
+}
+
 // --- tcp, dns ----------------------------------------------------------------------------
 
 func checkTCP(ctx context.Context, c config.Check) resultat {
-	var d net.Dialer
+	d := numeroteur()
 	debut := time.Now()
 	conn, err := d.DialContext(ctx, "tcp", c.Cible)
 	r := resultat{duree: time.Since(debut)}
@@ -101,6 +112,9 @@ func checkPing(ctx context.Context, c config.Check) resultat {
 		return r
 	}
 	ip := ips[0].IP
+	if adresses.LienLocal(ip) {
+		return r // lien local toujours refusé (voir numeroteur)
+	}
 	reseau, proto := "udp4", 1
 	var typ icmp.Type = ipv4.ICMPTypeEcho
 	if ip.To4() == nil {

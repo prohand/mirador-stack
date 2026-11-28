@@ -85,6 +85,15 @@ type Agent struct {
 	// agent.conf appartenant à root) ; le serveur ne peut pas le changer.
 	Checks       []Check `json:"checks"`
 	ChecksActifs bool    `json:"-"`
+	// ChecksContient : checks http avec « contient » (texte attendu) permis
+	// (défaut oui). « MIRADOR_CHECKS_CONTIENT=non » dans le fichier local :
+	// ces checks ne sont pas faits (revue du 28/11, M4 : un serveur
+	// compromis ne peut plus lire une page morceau par morceau).
+	ChecksContient bool `json:"-"`
+	// SondesActives (mirador-collector) : sondes demandées par le serveur
+	// (services HTTP/TCP/ping/DNS et certificats) permises (défaut oui).
+	// « MIRADOR_SONDES=non » dans le fichier local : aucune n'est faite.
+	SondesActives bool `json:"-"`
 
 	// Collecteur : réglages de mirador-collector (SPEC § 23.13), reçus du
 	// serveur seulement (clé « collecteur » de la configuration distante).
@@ -208,6 +217,8 @@ func Defaut() Agent {
 		IntervalleLent:        60 * time.Second,
 		ProxmoxDisques:        5 * time.Minute,
 		ChecksActifs:          true,
+		ChecksContient:        true,
+		SondesActives:         true,
 		TamponMetriques:       tamponDefaut,
 		ExclureMontages:       defautMontages,
 		ExclureTypesFS:        defautTypesFS,
@@ -710,6 +721,10 @@ func (a *Agent) affecter(cle, valeur string) error {
 		a.ProxmoxDisques, err = time.ParseDuration(valeur)
 	case "MIRADOR_CHECKS":
 		a.ChecksActifs, err = ouiNon(valeur)
+	case "MIRADOR_CHECKS_CONTIENT":
+		a.ChecksContient, err = ouiNon(valeur)
+	case "MIRADOR_SONDES":
+		a.SondesActives, err = ouiNon(valeur)
 	case "MIRADOR_TAMPON_DISQUE":
 		a.TamponDisque, err = strconv.Atoi(valeur)
 	case "MIRADOR_DOSSIER_TAMPON":
