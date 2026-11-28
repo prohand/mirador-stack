@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"mirador-stack/internal/protocole"
@@ -307,6 +308,14 @@ func (h *Hote) Appliquer(ctx context.Context) error {
 		return h.finir(EtatRefuse, "arrêt du serveur impossible : "+err.Error())
 	}
 	h.noter("serveur arrêté")
+	// Présence effacée une fois le serveur arrêté (revue du 28/11) : un
+	// serveur piraté pouvait l'écrire d'avance (« version X, démarré dans
+	// le futur ») et faire passer pour réussie une version qui ne démarre
+	// pas, sans retour arrière.
+	if err := h.effacerPresence(); err != nil {
+		_, _ = h.Docker.Lancer(ctx, "compose", "up", "-d", h.R.Service)
+		return h.finir(EtatEchec, "présence du serveur non effacée, serveur relancé sans changement : "+err.Error())
+	}
 	copie, err := h.copierBase(ctx, avant, debut)
 	if err != nil {
 		// Rien n'a changé : on relance tel quel.
@@ -332,6 +341,9 @@ func (h *Hote) Appliquer(ctx context.Context) error {
 	defer finRetour()
 	h.noter("la version %s n'a pas démarré en %s : retour à %s", d.Version, h.R.Delai, avant)
 	_, _ = h.Docker.Lancer(ctx, "compose", "stop", h.R.Service)
+	if err := h.effacerPresence(); err != nil {
+		h.noter("présence du serveur non effacée : %v", err)
+	}
 	if err := h.remettreBase(ctx, copie); err != nil {
 		h.noter("base NON remise (%v) : la remettre à la main depuis %s", err, copie)
 	} else {
@@ -396,7 +408,42 @@ func (h *Hote) copierBase(ctx context.Context, avant string, t time.Time) (strin
 	for _, suf := range []string{"-wal", "-shm"} {
 		_, _ = h.Docker.Lancer(ctx, "cp", h.R.Conteneur+":"+h.R.FichierBase+suf, filepath.Join(dest, nom+suf))
 	}
+	// docker cp recopie un lien symbolique tel quel (revue du 28/11) : un
+	// conteneur piraté pourrait remplacer sa base par un lien vers un
+	// fichier du VPS, que remettreBase (root) aurait suivi. Seuls des
+	// fichiers ordinaires sont gardés ; sinon, copie refusée et effacée.
+	for i, suf := range []string{"", "-wal", "-shm"} {
+		err := fichierOrdinaire(filepath.Join(dest, nom+suf))
+		if err == nil || (i > 0 && errors.Is(err, os.ErrNotExist)) {
+			continue // -wal et -shm sont facultatifs
+		}
+		_ = os.RemoveAll(dest) // RemoveAll ne suit pas les liens
+		return "", err
+	}
 	return dest, nil
+}
+
+// fichierOrdinaire : erreur si chemin n'est pas un fichier ordinaire (lien
+// symbolique, dossier, tube…). Lstat : un lien n'est jamais suivi.
+func fichierOrdinaire(chemin string) error {
+	info, err := os.Lstat(chemin)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s : pas un fichier ordinaire (%s), refusé", filepath.Base(chemin), info.Mode().Type())
+	}
+	return nil
+}
+
+// effacerPresence : efface serveur.json (absent : rien à faire). Un lien
+// symbolique est effacé lui-même, sa cible n'est pas touchée.
+func (h *Hote) effacerPresence() error {
+	err := os.Remove(filepath.Join(h.R.DossierDemande, NomPresence))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 // remettreBase : remet la copie dans le conteneur arrêté. Le journal WAL est
@@ -406,10 +453,21 @@ func (h *Hote) remettreBase(ctx context.Context, copie string) error {
 	nom := filepath.Base(h.R.FichierBase)
 	for _, suf := range []string{"-wal", "-shm"} {
 		f := filepath.Join(copie, nom+suf)
-		if _, err := os.Stat(f); errors.Is(err, os.ErrNotExist) {
-			if err := os.WriteFile(f, nil, 0o600); err != nil {
+		if _, err := os.Lstat(f); errors.Is(err, os.ErrNotExist) {
+			// O_EXCL + O_NOFOLLOW : jamais un fichier existant ni un lien.
+			g, err := os.OpenFile(f, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600) // #nosec G304 -- dossier de copie du service (root)
+			if err != nil {
 				return err
 			}
+			if err := g.Close(); err != nil {
+				return err
+			}
+		}
+	}
+	// Contrôle avant de rendre la copie au conteneur : fichiers ordinaires.
+	for _, suf := range []string{"", "-wal", "-shm"} {
+		if err := fichierOrdinaire(filepath.Join(copie, nom+suf)); err != nil {
+			return err
 		}
 	}
 	for _, suf := range []string{"", "-wal", "-shm"} {
@@ -429,7 +487,10 @@ func (h *Hote) attendre(ctx context.Context, version string, debut time.Time) bo
 	fin := h.maintenant().Add(h.R.Delai)
 	for {
 		var p Presence
-		if LireJSON(filepath.Join(h.R.DossierDemande, NomPresence), &p) == nil && p.Version == version && p.DemarreLe >= debut.Unix() {
+		// Date de démarrage entre le début de la mise à jour et maintenant
+		// (+ 1 min de décalage d'horloge) : une date future est refusée.
+		if LireJSON(filepath.Join(h.R.DossierDemande, NomPresence), &p) == nil && p.Version == version &&
+			p.DemarreLe >= debut.Unix() && p.DemarreLe <= h.maintenant().Add(time.Minute).Unix() {
 			return true
 		}
 		if ctx.Err() != nil || !h.maintenant().Before(fin) {
