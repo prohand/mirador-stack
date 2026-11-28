@@ -305,6 +305,9 @@ func OuvrirReseau(c config.CibleSNMP) (Source, func(), error) {
 	priv := map[string]gosnmp.SnmpV3PrivProtocol{"AES": gosnmp.AES, "AES256": gosnmp.AES256}[c.Chiffrement]
 	g := &gosnmp.GoSNMP{Target: hote, Port: uint16(n), Version: gosnmp.Version3, Timeout: 5 * time.Second, Retries: 1,
 		MaxRepetitions: 25, SecurityModel: gosnmp.UserSecurityModel, MsgFlags: gosnmp.AuthPriv,
+		// Adresse réellement jointe : du LAN seulement, même donnée par un
+		// nom (revue du 28/11).
+		Control: controleLAN,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{UserName: c.Utilisateur, AuthenticationProtocol: auth,
 			AuthenticationPassphrase: c.MotDePasse, PrivacyProtocol: priv, PrivacyPassphrase: c.CleChiffre}}
 	if err := g.Connect(); err != nil {
@@ -312,6 +315,9 @@ func OuvrirReseau(c config.CibleSNMP) (Source, func(), error) {
 	}
 	return g, func() { _ = g.Conn.Close() }, nil
 }
+
+// controleLAN : contrôle de l'adresse jointe (remplaçable dans les tests).
+var controleLAN = config.ControleLAN
 
 // reAdresse : adresse IP avec port (« 10.0.0.3:42635 », « [fe80::1]:161 »).
 var reAdresse = regexp.MustCompile(`\[[0-9A-Fa-f:.]+\]:\d+|\d{1,3}(\.\d{1,3}){3}:\d+`)

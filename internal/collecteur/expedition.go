@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	interdites "mirador-stack/internal/adresses" // nom court : « adresses » est déjà un type du paquet
 	"mirador-stack/internal/agent/config"
 	"mirador-stack/internal/agent/envoi"
 	"mirador-stack/internal/agent/metrics"
@@ -45,22 +46,40 @@ func TournerReleves(ctx context.Context, cfg config.Agent, envoyer func(*metrics
 		wg.Add(1)
 		go func() { defer wg.Done(); unifi.Tourner(ctx, *u, envoyer, journal) }()
 	}
-	if len(cfg.Collecteur.Sondes) > 0 {
+	// Veto local (revue du 28/11, M4) : « MIRADOR_SONDES=non » dans le
+	// fichier local du collecteur (fichier de root, le serveur ne peut pas
+	// le changer) : aucune sonde demandée par le serveur n'est faite.
+	if !cfg.SondesActives && (len(cfg.Collecteur.Sondes) > 0 || len(cfg.Collecteur.Services) > 0) && journal != nil {
+		journal.Warn("sondes demandées par le serveur ignorées (MIRADOR_SONDES=non)",
+			"certificats", len(cfg.Collecteur.Sondes), "services", len(cfg.Collecteur.Services))
+	}
+	if cfg.SondesActives && len(cfg.Collecteur.Sondes) > 0 {
 		wg.Add(1)
 		go func() { defer wg.Done(); sondes.Tourner(ctx, cfg.Collecteur.Sondes, envoyer, journal) }()
 	}
 	// Sondes de services (SPEC § 48) : une tâche par sonde, séries sous le
 	// nom du collecteur (instance posée par le serveur), job="sondes".
 	for _, s := range cfg.Collecteur.Services {
+		if !cfg.SondesActives {
+			break
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			essais.Tourner(ctx, s, essais.Options{Maintenant: decl.Canal(s.Nom)}, func(s essais.Sonde, r essais.Resultat) {
+			essais.Tourner(ctx, s, OptionsSonde(decl.Canal(s.Nom)), func(s essais.Sonde, r essais.Resultat) {
 				envoyer(LotSonde(s, r, time.Now()))
 			})
 		}()
 	}
 	wg.Wait()
+}
+
+// OptionsSonde : limites des sondes du collecteur (revue du 28/11, M4) :
+// boucle locale, adresse non spécifiée et lien local (métadonnées des
+// clouds : 169.254.169.254) toujours refusés, à chaque connexion et
+// redirection comprise ; le LAN reste permis (c'est le but des sondes).
+func OptionsSonde(maintenant <-chan struct{}) essais.Options {
+	return essais.Options{Refuser: interdites.LocaleOuLienLocal, Maintenant: maintenant}
 }
 
 // LotSonde : séries d'un essai (job="sondes", sonde, type, cible).

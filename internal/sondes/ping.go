@@ -28,7 +28,7 @@ func essaiPing(ctx context.Context, cible string, o Options) error {
 	}
 	ip := ips[0].IP
 	if o.Refuser != nil && o.Refuser(ip) {
-		return fmt.Errorf("adresse %s refusée depuis le serveur", ip)
+		return fmt.Errorf("adresse %s %s", ip, refus)
 	}
 	reseau, ecoute, proto := "udp4", "0.0.0.0", 1
 	var typ icmp.Type = ipv4.ICMPTypeEcho

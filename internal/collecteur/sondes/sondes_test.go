@@ -13,7 +13,26 @@ import (
 	"mirador-stack/internal/agent/metrics"
 )
 
+// sansControleLAN : les tests sondent la boucle locale (refusée en vrai).
+func sansControleLAN(t *testing.T) {
+	controleLAN = nil
+	t.Cleanup(func() { controleLAN = config.ControleLAN })
+}
+
+// Revue du 28/11 : un nom ou une adresse qui ne mène pas au LAN est refusé
+// au moment de la connexion (ici la boucle locale, par son nom).
+func TestSonderHorsLAN(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	adresse := strings.Replace(strings.TrimPrefix(srv.URL, "https://"), "127.0.0.1", "localhost", 1)
+	_, err := Sonder(context.Background(), config.Sonde{Machine: "nas", Adresse: adresse})
+	if err == nil || !strings.Contains(err.Error(), "hors du LAN refusée") {
+		t.Fatalf("boucle locale acceptée : %v", err)
+	}
+}
+
 func TestSonder(t *testing.T) {
+	sansControleLAN(t)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer srv.Close()
 	s := config.Sonde{Machine: "nas", Adresse: strings.TrimPrefix(srv.URL, "https://")}

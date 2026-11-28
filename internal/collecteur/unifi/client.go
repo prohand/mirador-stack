@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -28,6 +29,10 @@ import (
 
 // tailleMaxReponse : réponse JSON du contrôleur lue au plus.
 const tailleMaxReponse = 16 << 20
+
+// controleLAN : contrôle de l'adresse jointe (remplacé dans les tests, dont
+// le faux contrôleur écoute sur la boucle locale).
+var controleLAN = config.ControleLAN
 
 // Client : session vers un contrôleur (UniFi OS ou logiciel classique).
 type Client struct {
@@ -67,8 +72,12 @@ func Nouveau(cfg config.UniFi) *Client {
 		}
 	}
 	jar, _ := cookiejar.New(nil)
+	// Adresse réellement jointe : du LAN seulement, même donnée par un nom
+	// (revue du 28/11).
+	d := &net.Dialer{Timeout: 10 * time.Second, Control: controleLAN}
 	return &Client{cfg: cfg, http: &http.Client{Timeout: 20 * time.Second, Jar: jar,
-		Transport:     &http.Transport{Proxy: nil, TLSClientConfig: tlsCfg, MaxIdleConns: 2, IdleConnTimeout: time.Minute},
+		Transport: &http.Transport{Proxy: nil, DialContext: d.DialContext, TLSClientConfig: tlsCfg,
+			MaxIdleConns: 2, IdleConnTimeout: time.Minute},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
